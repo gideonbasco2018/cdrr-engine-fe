@@ -1,10 +1,12 @@
+// src/components/DashboardLayout.jsx
 import { useState } from 'react';
-import Sidebar from '../components/Sidebar';
-import Navbar from '../components/Navbar';
-import DashboardPage from './DashboardPage';
-import UploadReportsPage from './UploadReportsPage';
+import Sidebar from './Sidebar';
+import Navbar from './Navbar';
+import DashboardPage from '../pages/DashboardPage';
+import UploadReportsPage from '../pages/UploadReportsPage';
+import ProfilePage from '../pages/ProfilePage';
 
-function Dashboard() {
+function DashboardLayout({ userRole = 'User' }) {  // ADD userRole prop
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [darkMode, setDarkMode] = useState(true);
 
@@ -15,6 +17,19 @@ function Dashboard() {
   } : {
     mainBg: '#f8f8f8',
     textPrimary: '#000'
+  };
+
+  // Function to render content based on active menu
+  const renderContent = () => {
+    switch (activeMenu) {
+      case 'profile':
+        return <ProfilePage darkMode={darkMode} userRole={userRole} />;
+      case 'upload':
+        return <UploadReportsPage darkMode={darkMode} userRole={userRole} />;
+      case 'dashboard':
+      default:
+        return <DashboardPage darkMode={darkMode} userRole={userRole} />;
+    }
   };
 
   return (
@@ -32,6 +47,7 @@ function Dashboard() {
         activeMenu={activeMenu} 
         setActiveMenu={setActiveMenu}
         darkMode={darkMode}
+        userRole={userRole}  // Pass userRole to Sidebar
       />
 
       {/* Main Content */}
@@ -42,17 +58,18 @@ function Dashboard() {
         overflow: 'hidden'
       }}>
         {/* Top Navbar */}
-        <Navbar darkMode={darkMode} setDarkMode={setDarkMode} />
+        <Navbar 
+          darkMode={darkMode} 
+          setDarkMode={setDarkMode}
+          setActiveMenu={setActiveMenu}
+          userRole={userRole}  // Pass userRole to Navbar
+        />
 
         {/* Content Area - Conditionally render based on activeMenu */}
-        {activeMenu === 'upload' ? (
-          <UploadReportsPage darkMode={darkMode} />
-        ) : (
-          <DashboardPage darkMode={darkMode} />
-        )}
+        {renderContent()}
       </div>
     </div>
   );
 }
 
-export default Dashboard;
+export default DashboardLayout;

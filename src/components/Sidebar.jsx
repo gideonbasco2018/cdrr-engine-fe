@@ -1,22 +1,30 @@
-function Sidebar({ activeMenu, setActiveMenu, darkMode }) {
+function Sidebar({ activeMenu, setActiveMenu, darkMode, userRole = 'User' }) {
+  // Define menu items with role restrictions
   const mainMenuItems = [
-    { id: 'dashboard', icon: '📊', label: 'Dashboard' },
-    // { id: 'creator', icon: '👥', label: 'Creator Management' },
-    // { id: 'reports', icon: '📄', label: 'Reports' },
+    { id: 'dashboard', icon: '📊', label: 'Dashboard', roles: ['User', 'Admin', 'SuperAdmin'] },
   ];
 
   const cmsReportsItems = [
-    // { id: 'cdrr-reports', icon: '📋', label: 'Reports', hasSubmenu: true },
-    { id: 'upload', icon: '📤', label: 'Upload Reports' },
-    // { id: 'generated', icon: '📑', label: 'Generated Reports' },
+    { id: 'upload', icon: '📤', label: 'Upload Reports', roles: ['User', 'Admin', 'SuperAdmin'] },
+    { id: 'generated', icon: '📑', label: 'Generated Reports', roles: ['Admin', 'SuperAdmin'] },
   ];
 
   const platformItems = [
-    { id: 'announcements', icon: '📢', label: 'Announcements' },
-    { id: 'support', icon: '🎧', label: 'Support' },
-    { id: 'access', icon: '🔐', label: 'Access Management' },
-    { id: 'settings', icon: '⚙️', label: 'Settings' },
+    { id: 'announcements', icon: '📢', label: 'Announcements', roles: ['User', 'Admin', 'SuperAdmin'] },
+    { id: 'support', icon: '🎧', label: 'Support', roles: ['User', 'Admin', 'SuperAdmin'] },
+    { id: 'access', icon: '🔐', label: 'Access Management', roles: ['Admin', 'SuperAdmin'] },
+    { id: 'users', icon: '👥', label: 'User Management', roles: ['Admin', 'SuperAdmin'] },
+    { id: 'settings', icon: '⚙️', label: 'Settings', roles: ['SuperAdmin'] },
   ];
+
+  // Filter menu items based on user role
+  const filterByRole = (items) => {
+    return items.filter(item => item.roles.includes(userRole));
+  };
+
+  const visibleMainMenu = filterByRole(mainMenuItems);
+  const visibleCmsReports = filterByRole(cmsReportsItems);
+  const visiblePlatform = filterByRole(platformItems);
 
   // Define color schemes for dark and light modes
   const colors = darkMode ? {
@@ -26,7 +34,9 @@ function Sidebar({ activeMenu, setActiveMenu, darkMode }) {
     textSecondary: '#999',
     sectionLabel: '#666',
     activeItemBg: '#1a1a1a',
-    hoverBg: '#151515'
+    hoverBg: '#151515',
+    roleBadgeBg: '#1a1a1a',
+    roleBadgeText: '#4CAF50'
   } : {
     sidebarBg: '#ffffff',
     sidebarBorder: '#e5e5e5',
@@ -34,7 +44,16 @@ function Sidebar({ activeMenu, setActiveMenu, darkMode }) {
     textSecondary: '#666',
     sectionLabel: '#999',
     activeItemBg: '#f5f5f5',
-    hoverBg: '#fafafa'
+    hoverBg: '#fafafa',
+    roleBadgeBg: '#f0f0f0',
+    roleBadgeText: '#4CAF50'
+  };
+
+  // Role badge colors
+  const roleBadgeColors = {
+    'User': '#4CAF50',
+    'Admin': '#2196F3',
+    'SuperAdmin': '#ff9800'
   };
 
   const MenuItem = ({ item }) => (
@@ -51,7 +70,8 @@ function Sidebar({ activeMenu, setActiveMenu, darkMode }) {
         color: activeMenu === item.id ? colors.textPrimary : colors.textSecondary,
         transition: 'all 0.2s',
         fontSize: '0.9rem',
-        fontWeight: '500'
+        fontWeight: '500',
+        borderLeft: activeMenu === item.id ? `3px solid ${roleBadgeColors[userRole]}` : '3px solid transparent'
       }}
       onMouseEnter={(e) => {
         if (activeMenu !== item.id) {
@@ -99,58 +119,64 @@ function Sidebar({ activeMenu, setActiveMenu, darkMode }) {
       </div>
 
       {/* MAIN Section */}
-      <div style={{ padding: '1.5rem 0' }}>
-        <div style={{
-          padding: '0 1.25rem',
-          fontSize: '0.7rem',
-          fontWeight: '600',
-          color: colors.sectionLabel,
-          letterSpacing: '0.1em',
-          marginBottom: '0.5rem',
-          transition: 'color 0.3s ease'
-        }}>
-          MAIN
+      {visibleMainMenu.length > 0 && (
+        <div style={{ padding: '1.5rem 0' }}>
+          <div style={{
+            padding: '0 1.25rem',
+            fontSize: '0.7rem',
+            fontWeight: '600',
+            color: colors.sectionLabel,
+            letterSpacing: '0.1em',
+            marginBottom: '0.5rem',
+            transition: 'color 0.3s ease'
+          }}>
+            MAIN
+          </div>
+          {visibleMainMenu.map((item) => (
+            <MenuItem key={item.id} item={item} />
+          ))}
         </div>
-        {mainMenuItems.map((item) => (
-          <MenuItem key={item.id} item={item} />
-        ))}
-      </div>
+      )}
 
-      {/* CMS Reports Section */}
-      <div style={{ padding: '0 0 1.5rem' }}>
-        <div style={{
-          padding: '0 1.25rem',
-          fontSize: '0.7rem',
-          fontWeight: '600',
-          color: colors.sectionLabel,
-          letterSpacing: '0.1em',
-          marginBottom: '0.5rem',
-          transition: 'color 0.3s ease'
-        }}>
-          CDRR REPORTS
+      {/* CDRR Reports Section */}
+      {visibleCmsReports.length > 0 && (
+        <div style={{ padding: '0 0 1.5rem' }}>
+          <div style={{
+            padding: '0 1.25rem',
+            fontSize: '0.7rem',
+            fontWeight: '600',
+            color: colors.sectionLabel,
+            letterSpacing: '0.1em',
+            marginBottom: '0.5rem',
+            transition: 'color 0.3s ease'
+          }}>
+            CDRR REPORTS
+          </div>
+          {visibleCmsReports.map((item) => (
+            <MenuItem key={item.id} item={item} />
+          ))}
         </div>
-        {cmsReportsItems.map((item) => (
-          <MenuItem key={item.id} item={item} />
-        ))}
-      </div>
+      )}
 
       {/* Platform Section */}
-      <div style={{ padding: '0 0 1.5rem' }}>
-        <div style={{
-          padding: '0 1.25rem',
-          fontSize: '0.7rem',
-          fontWeight: '600',
-          color: colors.sectionLabel,
-          letterSpacing: '0.1em',
-          marginBottom: '0.5rem',
-          transition: 'color 0.3s ease'
-        }}>
-          PLATFORM
+      {visiblePlatform.length > 0 && (
+        <div style={{ padding: '0 0 1.5rem' }}>
+          <div style={{
+            padding: '0 1.25rem',
+            fontSize: '0.7rem',
+            fontWeight: '600',
+            color: colors.sectionLabel,
+            letterSpacing: '0.1em',
+            marginBottom: '0.5rem',
+            transition: 'color 0.3s ease'
+          }}>
+            PLATFORM
+          </div>
+          {visiblePlatform.map((item) => (
+            <MenuItem key={item.id} item={item} />
+          ))}
         </div>
-        {platformItems.map((item) => (
-          <MenuItem key={item.id} item={item} />
-        ))}
-      </div>
+      )}
     </div>
   );
 }

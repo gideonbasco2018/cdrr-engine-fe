@@ -1,14 +1,53 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { login } from '../api/auth';
 
 function LoginPage() {
+  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Login:', { username, password, rememberMe });
+    setError('');
+    setLoading(true);
+
+    try {
+      const data = await login({ username, password });
+      const { access_token, user } = data;
+
+      // Store token and user info
+      if (rememberMe) {
+        localStorage.setItem('access_token', access_token);
+        localStorage.setItem('user', JSON.stringify(user));
+        localStorage.setItem('userRole', user.role); // ADD THIS - explicit role storage
+      } else {
+        sessionStorage.setItem('access_token', access_token);
+        sessionStorage.setItem('user', JSON.stringify(user));
+        sessionStorage.setItem('userRole', user.role); // ADD THIS
+      }
+
+      // Redirect based on role - ADD THIS
+      switch(user.role) {
+        case 'SuperAdmin':
+          navigate('/superadmin/dashboard');
+          break;
+        case 'Admin':
+          navigate('/admin/dashboard');
+          break;
+        case 'User':
+        default:
+          navigate('/dashboard');
+          break;
+      }
+    } catch (err) {
+      setError(err);
+      setLoading(false);
+    }
   };
 
   return (
@@ -58,8 +97,7 @@ function LoginPage() {
               color: '#fff',
               marginBottom: '1rem'
             }}>
-              Real-time Device Monitoring
-
+              Real-time Monitoring
             </h2>
             <h2 style={{
               fontSize: '1.75rem',
@@ -77,8 +115,7 @@ function LoginPage() {
               maxWidth: '400px',
               margin: '0 auto'
             }}>
-              Track drug registrations, adverse events, 
-
+              Track drug registrations, adverse events,
               <br />
               and regulatory compliance in one unified platform
             </p>
@@ -148,7 +185,7 @@ function LoginPage() {
             Enter your username and password below to sign in
           </p>
 
-          <div>
+          <form onSubmit={handleSubmit}>
             <div style={{ marginBottom: '1.5rem' }}>
               <label style={{
                 display: 'block',
@@ -163,7 +200,9 @@ function LoginPage() {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="your_username"
+                placeholder="Enter your username"
+                required
+                disabled={loading}
                 style={{
                   width: '100%',
                   padding: '0.875rem',
@@ -174,6 +213,7 @@ function LoginPage() {
                   fontSize: '0.95rem',
                   outline: 'none',
                   transition: 'border-color 0.2s',
+                  opacity: loading ? 0.6 : 1
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#4CAF50'}
                 onBlur={(e) => e.target.style.borderColor = '#2a2a2a'}
@@ -196,6 +236,8 @@ function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••"
+                  required
+                  disabled={loading}
                   style={{
                     width: '100%',
                     padding: '0.875rem',
@@ -207,6 +249,7 @@ function LoginPage() {
                     fontSize: '0.95rem',
                     outline: 'none',
                     transition: 'border-color 0.2s',
+                    opacity: loading ? 0.6 : 1
                   }}
                   onFocus={(e) => e.target.style.borderColor = '#4CAF50'}
                   onBlur={(e) => e.target.style.borderColor = '#2a2a2a'}
@@ -214,6 +257,7 @@ function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  disabled={loading}
                   style={{
                     position: 'absolute',
                     right: '0.875rem',
@@ -222,7 +266,7 @@ function LoginPage() {
                     background: 'none',
                     border: 'none',
                     color: '#666',
-                    cursor: 'pointer',
+                    cursor: loading ? 'not-allowed' : 'pointer',
                     fontSize: '0.85rem',
                     padding: '0.25rem'
                   }}
@@ -242,18 +286,20 @@ function LoginPage() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
-                cursor: 'pointer',
+                cursor: loading ? 'not-allowed' : 'pointer',
                 color: '#999',
-                fontSize: '0.9rem'
+                fontSize: '0.9rem',
+                opacity: loading ? 0.6 : 1
               }}>
                 <input
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={loading}
                   style={{
                     width: '16px',
                     height: '16px',
-                    cursor: 'pointer',
+                    cursor: loading ? 'not-allowed' : 'pointer',
                     accentColor: '#4CAF50'
                   }}
                 />
@@ -261,14 +307,15 @@ function LoginPage() {
               </label>
               
               <div 
-                onClick={() => alert('Forgot password functionality')}
+                onClick={() => !loading && alert('Forgot password functionality')}
                 style={{
                   color: '#666',
-                  cursor: 'pointer',
+                  cursor: loading ? 'not-allowed' : 'pointer',
                   fontSize: '0.9rem',
-                  transition: 'color 0.2s'
+                  transition: 'color 0.2s',
+                  opacity: loading ? 0.6 : 1
                 }}
-                onMouseEnter={(e) => e.target.style.color = '#4CAF50'}
+                onMouseEnter={(e) => !loading && (e.target.style.color = '#4CAF50')}
                 onMouseLeave={(e) => e.target.style.color = '#666'}
               >
                 Forgot password?
@@ -276,88 +323,90 @@ function LoginPage() {
             </div>
 
             <button
-              onClick={handleSubmit}
+              type="submit"
+              disabled={loading}
               style={{
                 width: '100%',
                 padding: '0.875rem',
-                background: '#fff',
+                background: loading ? '#999' : '#fff',
                 color: '#000',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '0.95rem',
                 fontWeight: '600',
-                cursor: 'pointer',
+                cursor: loading ? 'not-allowed' : 'pointer',
                 transition: 'all 0.2s',
-                marginBottom: '1.5rem'
+                marginBottom: '1rem'
               }}
               onMouseEnter={(e) => {
-                e.target.style.background = '#f0f0f0';
-                e.target.style.transform = 'translateY(-1px)';
+                if (!loading) {
+                  e.target.style.background = '#f0f0f0';
+                  e.target.style.transform = 'translateY(-1px)';
+                }
               }}
               onMouseLeave={(e) => {
-                e.target.style.background = '#fff';
-                e.target.style.transform = 'translateY(0)';
+                if (!loading) {
+                  e.target.style.background = '#fff';
+                  e.target.style.transform = 'translateY(0)';
+                }
               }}
             >
-              Sign In
+              {loading ? 'Signing in...' : 'Sign In'}
             </button>
 
-            <p style={{
-              textAlign: 'center',
-              color: '#666',
-              fontSize: '0.9rem',
-              marginTop: '2rem'
-            }}>
-              Don't have an account?{' '}
-              <span 
-                onClick={() => alert('Sign up functionality')}
-                style={{
-                  color: '#4CAF50',
-                  cursor: 'pointer',
-                  fontWeight: '600'
-                }}
-              >
-                Sign up here
-              </span>
-            </p>
+            {error && (
+              <div style={{
+                padding: '0.875rem',
+                background: 'rgba(244, 67, 54, 0.1)',
+                border: '1px solid rgba(244, 67, 54, 0.3)',
+                borderRadius: '8px',
+                color: '#f44336',
+                fontSize: '0.9rem',
+                marginBottom: '1rem',
+                textAlign: 'center'
+              }}>
+                {error}
+              </div>
+            )}
+          </form>
 
-            <p style={{
-              textAlign: 'center',
-              marginTop: '2rem'
-            }}>
-              <span 
-                onClick={() => alert('Privacy Policy')}
-                style={{
-                  color: '#666',
-                  cursor: 'pointer',
-                  fontSize: '0.85rem',
-                  transition: 'color 0.2s'
-                }}
-                onMouseEnter={(e) => e.target.style.color = '#999'}
-                onMouseLeave={(e) => e.target.style.color = '#666'}
-              >
-                Privacy Policy
-              </span>
-            </p>
-{/* 
-            <p style={{
-              textAlign: 'center',
-              color: '#666',
-              fontSize: '0.85rem',
-              marginTop: '1rem'
-            }}>
-              Interested in what we offer?{' '}
-              <span 
-                onClick={() => alert('Franchise info')}
-                style={{
-                  color: '#4CAF50',
-                  cursor: 'pointer'
-                }}
-              >
-                Franchise with us.
-              </span>
-            </p> */}
-          </div>
+          <p style={{
+            textAlign: 'center',
+            color: '#666',
+            fontSize: '0.9rem',
+            marginTop: '2rem'
+          }}>
+            Don't have an account?{' '}
+            <span 
+              onClick={() => alert('Sign up functionality')}
+              style={{
+                color: '#4CAF50',
+                cursor: 'pointer',
+                fontWeight: '600'
+              }}
+            >
+              Sign up here
+            </span>
+          </p>
+
+          <p style={{
+            textAlign: 'center',
+            marginTop: '2rem'
+          }}>
+            <span 
+              onClick={() => alert('Privacy Policy')}
+              style={{
+                color: '#666',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                transition: 'color 0.2s'
+              }}
+              onMouseEnter={(e) => e.target.style.color = '#999'}
+              onMouseLeave={(e) => e.target.style.color = '#666'}
+            >
+              Privacy Policy
+            </span>
+          </p>
         </div>
       </div>
     </div>

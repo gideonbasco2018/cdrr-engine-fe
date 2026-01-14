@@ -1,4 +1,4 @@
-function DashboardPage({ darkMode }) {
+function DashboardPage({ darkMode, userRole = 'User' }) {
   // Define color schemes for dark and light modes
   const colors = darkMode ? {
     pageBg: '#0a0a0a',
@@ -26,11 +26,36 @@ function DashboardPage({ darkMode }) {
     pieCenterBg: '#ffffff',
   };
 
+  // Role badge colors
+  const roleBadgeColors = {
+    'User': { bg: '#4CAF50', text: '#fff' },
+    'Admin': { bg: '#2196F3', text: '#fff' },
+    'SuperAdmin': { bg: '#ff9800', text: '#fff' }
+  };
+
   const topEarners = [
     { name: 'Emma Lopez', amount: '$62,850.00', percentage: '28.5%', rank: 1 },
     { name: 'Sarah Johnson', amount: '$58,420.00', percentage: '26.5%', rank: 2 },
     { name: 'Michael Chen', amount: '$54,320.00', percentage: '24.7%', rank: 3 },
   ];
+
+  // Role-based stats (show different data based on role)
+  const getStatsForRole = () => {
+    const baseStats = [
+      { icon: '👥', label: 'Total Creators', value: '7', change: '8.7%', color: '#3b82f6' },
+      { icon: '💰', label: 'Total Revenue', value: '7.0M', change: '8.7%', color: '#10b981' },
+      { icon: '💳', label: 'FDAPay', value: '4.5M', change: '8.7%', color: '#10b981' },
+      { icon: '⚡', label: 'FDABoost', value: '1.2M', change: '8.7%', color: '#3b82f6' },
+      { icon: '🛡️', label: 'FDAShield', value: '1.3M', change: '8.7%', color: '#8b5cf6' }
+    ];
+
+    if (userRole === 'User') {
+      // Users see limited stats
+      return baseStats.slice(1); // Remove "Total Creators"
+    }
+    
+    return baseStats; // Admin and SuperAdmin see all stats
+  };
 
   return (
     <div style={{
@@ -40,6 +65,29 @@ function DashboardPage({ darkMode }) {
       background: colors.pageBg,
       transition: 'all 0.3s ease'
     }}>
+      {/* Role Badge */}
+      <div style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.5rem',
+        padding: '0.5rem 1rem',
+        background: roleBadgeColors[userRole]?.bg || '#4CAF50',
+        borderRadius: '20px',
+        marginBottom: '1rem'
+      }}>
+        <span style={{ fontSize: '0.9rem' }}>
+          {userRole === 'SuperAdmin' ? '⚡' : userRole === 'Admin' ? '🔧' : '👤'}
+        </span>
+        <span style={{
+          color: roleBadgeColors[userRole]?.text || '#fff',
+          fontSize: '0.85rem',
+          fontWeight: '600',
+          letterSpacing: '0.05em'
+        }}>
+          {userRole.toUpperCase()} DASHBOARD
+        </span>
+      </div>
+
       {/* Header */}
       <div style={{
         display: 'flex',
@@ -55,14 +103,24 @@ function DashboardPage({ darkMode }) {
             color: colors.textPrimary,
             transition: 'color 0.3s ease'
           }}>
-            Platform Overview
+            {userRole === 'SuperAdmin' 
+              ? 'System Overview' 
+              : userRole === 'Admin' 
+                ? 'Platform Management' 
+                : 'Platform Overview'
+            }
           </h1>
           <p style={{
             color: colors.textTertiary,
             fontSize: '0.9rem',
             transition: 'color 0.3s ease'
           }}>
-            Monitor and manage all services and users
+            {userRole === 'SuperAdmin'
+              ? 'Complete system control and analytics'
+              : userRole === 'Admin'
+                ? 'Monitor and manage services and users'
+                : 'View your reports and analytics'
+            }
           </p>
         </div>
         <button style={{
@@ -99,13 +157,7 @@ function DashboardPage({ darkMode }) {
         gap: '1.25rem',
         marginBottom: '2rem'
       }}>
-        {[
-          { icon: '👥', label: 'Total Creators', value: '7', change: '8.7%', color: '#3b82f6' },
-          { icon: '💰', label: 'Total Revenue', value: '7.0M', change: '8.7%', color: '#10b981' },
-          { icon: '💳', label: 'FDAPay', value: '4.5M', change: '8.7%', color: '#10b981' },
-          { icon: '⚡', label: 'FDABoost', value: '1.2M', change: '8.7%', color: '#3b82f6' },
-          { icon: '🛡️', label: 'FDAShield', value: '1.3M', change: '8.7%', color: '#8b5cf6' }
-        ].map((stat, index) => (
+        {getStatsForRole().map((stat, index) => (
           <div key={index} style={{
             background: colors.cardBg,
             border: `1px solid ${colors.cardBorder}`,
@@ -182,366 +234,400 @@ function DashboardPage({ darkMode }) {
         ))}
       </div>
 
-      {/* Revenue Overview & Services Revenue */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '2fr 1fr',
-        gap: '1.25rem',
-        marginBottom: '2rem'
-      }}>
-        {/* Revenue Overview Chart */}
+      {/* Revenue Overview & Services Revenue - Only for Admin and SuperAdmin */}
+      {(userRole === 'Admin' || userRole === 'SuperAdmin') && (
         <div style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: '12px',
-          padding: '1.5rem',
-          transition: 'all 0.3s ease'
+          display: 'grid',
+          gridTemplateColumns: '2fr 1fr',
+          gap: '1.25rem',
+          marginBottom: '2rem'
         }}>
+          {/* Revenue Overview Chart */}
           <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '1.5rem'
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: '12px',
+            padding: '1.5rem',
+            transition: 'all 0.3s ease'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '1.5rem'
+            }}>
+              <h3 style={{
+                fontSize: '1.1rem',
+                fontWeight: '600',
+                color: colors.textPrimary,
+                transition: 'color 0.3s ease'
+              }}>
+                Revenue Overview
+              </h3>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <select style={{
+                  padding: '0.5rem 1rem',
+                  background: colors.inputBg,
+                  border: `1px solid ${colors.inputBorder}`,
+                  borderRadius: '6px',
+                  color: colors.textPrimary,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  transition: 'all 0.3s ease'
+                }}>
+                  <option>All Services</option>
+                </select>
+                <select style={{
+                  padding: '0.5rem 1rem',
+                  background: colors.inputBg,
+                  border: `1px solid ${colors.inputBorder}`,
+                  borderRadius: '6px',
+                  color: colors.textPrimary,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  outline: 'none',
+                  transition: 'all 0.3s ease'
+                }}>
+                  <option>2025</option>
+                </select>
+              </div>
+            </div>
+            <div style={{
+              height: '250px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: colors.textTertiary,
+              border: `1px dashed ${colors.chartBorderDashed}`,
+              borderRadius: '8px',
+              transition: 'all 0.3s ease'
+            }}>
+              📈 Chart Area
+            </div>
+          </div>
+
+          {/* Services Revenue Pie */}
+          <div style={{
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: '12px',
+            padding: '1.5rem',
+            transition: 'all 0.3s ease'
           }}>
             <h3 style={{
               fontSize: '1.1rem',
               fontWeight: '600',
               color: colors.textPrimary,
+              marginBottom: '1.5rem',
               transition: 'color 0.3s ease'
             }}>
-              Revenue Overview
+              Services Revenue
             </h3>
-            <div style={{ display: 'flex', gap: '0.75rem' }}>
-              <select style={{
-                padding: '0.5rem 1rem',
-                background: colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: '6px',
-                color: colors.textPrimary,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                outline: 'none',
-                transition: 'all 0.3s ease'
+            <div style={{
+              width: '180px',
+              height: '180px',
+              margin: '0 auto 1.5rem',
+              borderRadius: '50%',
+              background: 'conic-gradient(#10b981 0deg 210deg, #3b82f6 210deg 238deg, #8b5cf6 238deg 360deg)',
+              position: 'relative'
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '120px',
+                height: '120px',
+                background: colors.pieCenterBg,
+                borderRadius: '50%',
+                transition: 'background 0.3s ease'
+              }} />
+            </div>
+            <div style={{ fontSize: '0.85rem' }}>
+              {[
+                { label: 'FDAPay AdSense', percent: '58.1%', color: '#10b981' },
+                { label: 'FDABoost', percent: '7.8%', color: '#3b82f6' },
+                { label: 'FDAShield', percent: '34.4%', color: '#8b5cf6' }
+              ].map((item, i) => (
+                <div key={i} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '0.5rem 0'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background: item.color
+                    }} />
+                    <span style={{ 
+                      color: colors.textSecondary,
+                      transition: 'color 0.3s ease'
+                    }}>{item.label}</span>
+                  </div>
+                  <span style={{ color: item.color, fontWeight: '600' }}>
+                    {item.percent}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{
+              marginTop: '1rem',
+              paddingTop: '1rem',
+              borderTop: `1px solid ${colors.cardBorder}`,
+              textAlign: 'center',
+              transition: 'border-color 0.3s ease'
+            }}>
+              <div style={{ 
+                color: colors.textTertiary, 
+                fontSize: '0.8rem', 
+                marginBottom: '0.25rem',
+                transition: 'color 0.3s ease'
               }}>
-                <option>All Services</option>
-              </select>
-              <select style={{
-                padding: '0.5rem 1rem',
-                background: colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: '6px',
-                color: colors.textPrimary,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                outline: 'none',
-                transition: 'all 0.3s ease'
+                Total:
+              </div>
+              <div style={{ 
+                color: colors.textPrimary, 
+                fontSize: '1.25rem', 
+                fontWeight: '600',
+                transition: 'color 0.3s ease'
               }}>
-                <option>2025</option>
-              </select>
+                $98.30
+              </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Top Earners - Only for Admin and SuperAdmin */}
+      {(userRole === 'Admin' || userRole === 'SuperAdmin') && (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: '1.25rem'
+        }}>
+          {/* FDAPay Top Earners */}
           <div style={{
-            height: '250px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: colors.textTertiary,
-            border: `1px dashed ${colors.chartBorderDashed}`,
-            borderRadius: '8px',
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: '12px',
+            padding: '1.5rem',
             transition: 'all 0.3s ease'
           }}>
-            📈 Chart Area
-          </div>
-        </div>
-
-        {/* Services Revenue Pie */}
-        <div style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: '12px',
-          padding: '1.5rem',
-          transition: 'all 0.3s ease'
-        }}>
-          <h3 style={{
-            fontSize: '1.1rem',
-            fontWeight: '600',
-            color: colors.textPrimary,
-            marginBottom: '1.5rem',
-            transition: 'color 0.3s ease'
-          }}>
-            Services Revenue
-          </h3>
-          <div style={{
-            width: '180px',
-            height: '180px',
-            margin: '0 auto 1.5rem',
-            borderRadius: '50%',
-            background: 'conic-gradient(#10b981 0deg 210deg, #3b82f6 210deg 238deg, #8b5cf6 238deg 360deg)',
-            position: 'relative'
-          }}>
             <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              width: '120px',
-              height: '120px',
-              background: colors.pieCenterBg,
-              borderRadius: '50%',
-              transition: 'background 0.3s ease'
-            }} />
-          </div>
-          <div style={{ fontSize: '0.85rem' }}>
-            {[
-              { label: 'FDAPay AdSense', percent: '58.1%', color: '#10b981' },
-              { label: 'FDABoost', percent: '7.8%', color: '#3b82f6' },
-              { label: 'FDAShield', percent: '34.4%', color: '#8b5cf6' }
-            ].map((item, i) => (
-              <div key={i} style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              marginBottom: '1rem'
+            }}>
+              <span style={{ fontSize: '1.25rem' }}>💰</span>
+              <div>
+                <h3 style={{
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: colors.textPrimary,
+                  transition: 'color 0.3s ease'
+                }}>
+                  FDAPay Adsense Top Earners
+                </h3>
+                <p style={{
+                  color: colors.textTertiary,
+                  fontSize: '0.8rem',
+                  transition: 'color 0.3s ease'
+                }}>
+                  Earnings from YouTube channels connected to
+                </p>
+              </div>
+            </div>
+            {topEarners.map((earner) => (
+              <div key={earner.rank} style={{
                 display: 'flex',
-                justifyContent: 'space-between',
                 alignItems: 'center',
-                padding: '0.5rem 0'
+                gap: '1rem',
+                padding: '1rem 0',
+                borderBottom: earner.rank < 3 ? `1px solid ${colors.cardBorder}` : 'none'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <div style={{
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    background: item.color
-                  }} />
-                  <span style={{ 
-                    color: colors.textSecondary,
-                    transition: 'color 0.3s ease'
-                  }}>{item.label}</span>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  background: earner.rank === 1 ? '#10b981' : colors.inputBg,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  color: earner.rank === 1 ? '#fff' : colors.textPrimary,
+                  transition: 'all 0.3s ease'
+                }}>
+                  {earner.rank}
                 </div>
-                <span style={{ color: item.color, fontWeight: '600' }}>
-                  {item.percent}
-                </span>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  background: colors.cardBorderHover,
+                  borderRadius: '50%',
+                  transition: 'background 0.3s ease'
+                }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    color: colors.textPrimary,
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    marginBottom: '0.25rem',
+                    transition: 'color 0.3s ease'
+                  }}>
+                    {earner.name}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{
+                    color: '#10b981',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    marginBottom: '0.25rem'
+                  }}>
+                    {earner.amount}
+                  </div>
+                  <div style={{
+                    color: '#10b981',
+                    fontSize: '0.8rem'
+                  }}>
+                    {earner.percentage}
+                  </div>
+                </div>
               </div>
             ))}
           </div>
+
+          {/* FDABoost Top Earners */}
           <div style={{
-            marginTop: '1rem',
-            paddingTop: '1rem',
-            borderTop: `1px solid ${colors.cardBorder}`,
-            textAlign: 'center',
-            transition: 'border-color 0.3s ease'
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: '12px',
+            padding: '1.5rem',
+            transition: 'all 0.3s ease'
           }}>
-            <div style={{ 
-              color: colors.textTertiary, 
-              fontSize: '0.8rem', 
-              marginBottom: '0.25rem',
-              transition: 'color 0.3s ease'
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              marginBottom: '1rem'
             }}>
-              Total:
+              <span style={{ fontSize: '1.25rem' }}>⚡</span>
+              <div>
+                <h3 style={{
+                  fontSize: '1.1rem',
+                  fontWeight: '600',
+                  color: colors.textPrimary,
+                  transition: 'color 0.3s ease'
+                }}>
+                  FDABoost Top Earners
+                </h3>
+                <p style={{
+                  color: colors.textTertiary,
+                  fontSize: '0.8rem',
+                  transition: 'color 0.3s ease'
+                }}>
+                  Earnings from protected contents
+                </p>
+              </div>
             </div>
-            <div style={{ 
-              color: colors.textPrimary, 
-              fontSize: '1.25rem', 
-              fontWeight: '600',
-              transition: 'color 0.3s ease'
-            }}>
-              $98.30
-            </div>
+            {topEarners.map((earner) => (
+              <div key={earner.rank} style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem',
+                padding: '1rem 0',
+                borderBottom: earner.rank < 3 ? `1px solid ${colors.cardBorder}` : 'none'
+              }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  background: earner.rank === 1 ? '#3b82f6' : colors.inputBg,
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  color: earner.rank === 1 ? '#fff' : colors.textPrimary,
+                  transition: 'all 0.3s ease'
+                }}>
+                  {earner.rank}
+                </div>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  background: colors.cardBorderHover,
+                  borderRadius: '50%',
+                  transition: 'background 0.3s ease'
+                }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{
+                    color: colors.textPrimary,
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    marginBottom: '0.25rem',
+                    transition: 'color 0.3s ease'
+                  }}>
+                    {earner.name}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{
+                    color: '#3b82f6',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    marginBottom: '0.25rem'
+                  }}>
+                    {earner.amount}
+                  </div>
+                  <div style={{
+                    color: '#3b82f6',
+                    fontSize: '0.8rem'
+                  }}>
+                    {earner.percentage}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Top Earners */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '1.25rem'
-      }}>
-        {/* FDAPay Top Earners */}
+      {/* Simple User Dashboard Message */}
+      {userRole === 'User' && (
         <div style={{
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: '12px',
-          padding: '1.5rem',
+          padding: '3rem',
+          textAlign: 'center',
           transition: 'all 0.3s ease'
         }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            marginBottom: '1rem'
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📊</div>
+          <h3 style={{
+            fontSize: '1.25rem',
+            fontWeight: '600',
+            color: colors.textPrimary,
+            marginBottom: '0.5rem',
+            transition: 'color 0.3s ease'
           }}>
-            <span style={{ fontSize: '1.25rem' }}>💰</span>
-            <div>
-              <h3 style={{
-                fontSize: '1.1rem',
-                fontWeight: '600',
-                color: colors.textPrimary,
-                transition: 'color 0.3s ease'
-              }}>
-                FDAPay Adsense Top Earners
-              </h3>
-              <p style={{
-                color: colors.textTertiary,
-                fontSize: '0.8rem',
-                transition: 'color 0.3s ease'
-              }}>
-                Earnings from YouTube channels connected to
-              </p>
-            </div>
-          </div>
-          {topEarners.map((earner) => (
-            <div key={earner.rank} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '1rem 0',
-              borderBottom: earner.rank < 3 ? `1px solid ${colors.cardBorder}` : 'none'
-            }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                background: earner.rank === 1 ? '#10b981' : colors.inputBg,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: earner.rank === 1 ? '#fff' : colors.textPrimary,
-                transition: 'all 0.3s ease'
-              }}>
-                {earner.rank}
-              </div>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                background: colors.cardBorderHover,
-                borderRadius: '50%',
-                transition: 'background 0.3s ease'
-              }} />
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  color: colors.textPrimary,
-                  fontSize: '0.9rem',
-                  fontWeight: '500',
-                  marginBottom: '0.25rem',
-                  transition: 'color 0.3s ease'
-                }}>
-                  {earner.name}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{
-                  color: '#10b981',
-                  fontSize: '0.95rem',
-                  fontWeight: '600',
-                  marginBottom: '0.25rem'
-                }}>
-                  {earner.amount}
-                </div>
-                <div style={{
-                  color: '#10b981',
-                  fontSize: '0.8rem'
-                }}>
-                  {earner.percentage}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* FDABoost Top Earners */}
-        <div style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: '12px',
-          padding: '1.5rem',
-          transition: 'all 0.3s ease'
-        }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            marginBottom: '1rem'
+            Welcome to Your Dashboard
+          </h3>
+          <p style={{
+            color: colors.textTertiary,
+            fontSize: '0.9rem',
+            transition: 'color 0.3s ease'
           }}>
-            <span style={{ fontSize: '1.25rem' }}>⚡</span>
-            <div>
-              <h3 style={{
-                fontSize: '1.1rem',
-                fontWeight: '600',
-                color: colors.textPrimary,
-                transition: 'color 0.3s ease'
-              }}>
-                FDABoost Top Earners
-              </h3>
-              <p style={{
-                color: colors.textTertiary,
-                fontSize: '0.8rem',
-                transition: 'color 0.3s ease'
-              }}>
-                Earnings from protected contents
-              </p>
-            </div>
-          </div>
-          {topEarners.map((earner) => (
-            <div key={earner.rank} style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '1rem',
-              padding: '1rem 0',
-              borderBottom: earner.rank < 3 ? `1px solid ${colors.cardBorder}` : 'none'
-            }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                background: earner.rank === 1 ? '#3b82f6' : colors.inputBg,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: earner.rank === 1 ? '#fff' : colors.textPrimary,
-                transition: 'all 0.3s ease'
-              }}>
-                {earner.rank}
-              </div>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                background: colors.cardBorderHover,
-                borderRadius: '50%',
-                transition: 'background 0.3s ease'
-              }} />
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  color: colors.textPrimary,
-                  fontSize: '0.9rem',
-                  fontWeight: '500',
-                  marginBottom: '0.25rem',
-                  transition: 'color 0.3s ease'
-                }}>
-                  {earner.name}
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{
-                  color: '#3b82f6',
-                  fontSize: '0.95rem',
-                  fontWeight: '600',
-                  marginBottom: '0.25rem'
-                }}>
-                  {earner.amount}
-                </div>
-                <div style={{
-                  color: '#3b82f6',
-                  fontSize: '0.8rem'
-                }}>
-                  {earner.percentage}
-                </div>
-              </div>
-            </div>
-          ))}
+            Upload and manage your reports from the menu
+          </p>
         </div>
-      </div>
+      )}
     </div>
   );
 }
