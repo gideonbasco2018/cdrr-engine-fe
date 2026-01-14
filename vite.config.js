@@ -4,10 +4,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: '0.0.0.0',
+    host: '0.0.0.0',  // ✅ Allow external connections
     port: 5173,
     watch: {
-      usePolling: true
+      usePolling: true,  // ✅ For Docker file watching
+    },
+    hmr: {
+      clientPort: 5173,  // ✅ Fix HMR in Docker
     }
   }
 })
