@@ -1,40 +1,32 @@
 import { useState, useEffect } from "react";
-import {
-  getUploadReports,
-  uploadExcelFile,
-  downloadTemplate,
-} from "../api/reports";
+import { getUploadReports } from "../api/reports";
 import StatsCard from "/src/components/Reports/StatsCard.jsx";
 import FilterBar from "/src/components/Reports/FilterBar";
-import UploadButton from "/src/components/Reports/UploadButton";
-import UploadProgress from "/src/components/Reports/UploadProgress";
 import DataTable from "/src/components/Reports/DataTable";
 import { mapDataItem, getColorScheme } from "/src/components/Reports/utils";
 
-function UploadReportsPage({ darkMode }) {
+function ForEvaluationPage({ darkMode }) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({}); // ✅ ADD THIS
+  const [filters, setFilters] = useState({});
   const [selectedRows, setSelectedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
-  const [uploadReportsData, setUploadReportsData] = useState([]);
+  const [evaluationData, setEvaluationData] = useState([]);
   const [allData, setAllData] = useState([]);
   const [statsData, setStatsData] = useState({
     total: 0,
-    notDecked: 0,
-    decked: 0,
+    notDecked: 0, // Will represent 'pending'
+    decked: 0, // Will represent 'completed'
   });
   const [loading, setLoading] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
   const [currentUser, setCurrentUser] = useState(null);
 
   const colors = getColorScheme(darkMode);
 
-  // Get current logged-in user on component mount
+  // ✅ GET CURRENT LOGGED-IN USER - THIS WAS MISSING!
   useEffect(() => {
     let username = null;
 
@@ -63,7 +55,7 @@ function UploadReportsPage({ darkMode }) {
     }
   }, []);
 
-  // ✅ ADD THIS HELPER FUNCTION HERE (before fetchAllData)
+  // Apply filters helper
   const applyFilters = (data) => {
     let filtered = data;
 
@@ -102,21 +94,60 @@ function UploadReportsPage({ darkMode }) {
   };
 
   const filterDataByTab = (data, tab) => {
-    if (tab === "not-decked") {
-      return data.filter(
+    console.log("🔍 Filtering data by tab:", tab);
+    console.log("👤 Current user:", currentUser);
+    console.log("📊 Total data before filter:", data.length);
+
+    // First, filter only records assigned to current user as evaluator
+    const userRecords = data.filter((item) => {
+      // Check if evaluator matches current user
+      const evaluator = item.evaluator || "";
+      const isMatch =
+        evaluator.toLowerCase().trim() ===
+        (currentUser || "").toLowerCase().trim();
+
+      if (isMatch) {
+        console.log("✅ Match found:", {
+          dtn: item.dtn,
+          evaluator: item.evaluator,
+          dateEvalEnd: item.dateEvalEnd,
+        });
+      }
+
+      return isMatch;
+    });
+
+    console.log("📊 User assigned records:", userRecords.length);
+
+    if (tab === "pending") {
+      // Records with no DB_DATE_EVAL_END (pending evaluation)
+      const pending = userRecords.filter(
         (item) =>
-          !item.evaluator || item.evaluator === "" || item.evaluator === "N/A"
+          !item.dateEvalEnd ||
+          item.dateEvalEnd === "" ||
+          item.dateEvalEnd === "N/A" ||
+          item.dateEvalEnd === null
       );
-    } else if (tab === "decked") {
-      return data.filter(
+      console.log("⏳ Pending records:", pending.length);
+      return pending;
+    } else if (tab === "completed") {
+      // Records with DB_DATE_EVAL_END filled (completed evaluation)
+      const completed = userRecords.filter(
         (item) =>
-          item.evaluator && item.evaluator !== "" && item.evaluator !== "N/A"
+          item.dateEvalEnd &&
+          item.dateEvalEnd !== "" &&
+          item.dateEvalEnd !== "N/A" &&
+          item.dateEvalEnd !== null
       );
+      console.log("✅ Completed records:", completed.length);
+      return completed;
     }
-    return data;
+
+    // All records assigned to current user
+    console.log("📋 All user records:", userRecords.length);
+    return userRecords;
   };
 
-  // ✅ UPDATED fetchAllData - now uses applyFilters
   const fetchAllData = async () => {
     try {
       setLoading(true);
@@ -124,155 +155,88 @@ function UploadReportsPage({ darkMode }) {
       const json = await getUploadReports({
         page: currentPage,
         pageSize: rowsPerPage,
-        search: "", // ✅ Remove search from API, we'll filter client-side
+        search: "",
         sortBy: "",
         sortOrder: "desc",
       });
 
       if (!json || !json.data || !Array.isArray(json.data)) {
-        setUploadReportsData([]);
+        setEvaluationData([]);
         setAllData([]);
         return;
       }
 
       const mappedData = json.data.map(mapDataItem);
-      setAllData(mappedData);
 
-      // ✅ Update stats (calculate from all data)
-      const notDeckedCount = mappedData.filter(
-        (item) =>
-          !item.evaluator || item.evaluator === "" || item.evaluator === "N/A"
-      ).length;
-
-      const deckedCount = mappedData.filter(
-        (item) =>
-          item.evaluator && item.evaluator !== "" && item.evaluator !== "N/A"
-      ).length;
-
-      setStatsData({
-        total: json.total || 0,
-        notDecked: notDeckedCount,
-        decked: deckedCount,
+      // ✅ FIXED: Filter records assigned to current user as evaluator
+      const userAssignedRecords = mappedData.filter((item) => {
+        const evaluator = item.evaluator || "";
+        return (
+          evaluator &&
+          evaluator !== "" &&
+          evaluator !== "N/A" &&
+          evaluator.toLowerCase().trim() ===
+            (currentUser || "").toLowerCase().trim()
+        );
       });
 
-      // ✅ Apply all filters (tab, search, advanced filters)
-      const filteredData = applyFilters(mappedData);
-      setUploadReportsData(filteredData);
+      setAllData(userAssignedRecords);
+
+      // ✅ FIXED: Calculate stats based on dateEvalEnd (not appStatus)
+      const pendingCount = userAssignedRecords.filter(
+        (item) =>
+          !item.dateEvalEnd ||
+          item.dateEvalEnd === "" ||
+          item.dateEvalEnd === "N/A" ||
+          item.dateEvalEnd === null
+      ).length;
+
+      const completedCount = userAssignedRecords.filter(
+        (item) =>
+          item.dateEvalEnd &&
+          item.dateEvalEnd !== "" &&
+          item.dateEvalEnd !== "N/A" &&
+          item.dateEvalEnd !== null
+      ).length;
+
+      console.log("📊 Stats Calculation:", {
+        total: userAssignedRecords.length,
+        pending: pendingCount,
+        completed: completedCount,
+      });
+
+      setStatsData({
+        total: userAssignedRecords.length,
+        notDecked: pendingCount, // Pending evaluations
+        decked: completedCount, // Completed evaluations
+      });
+
+      // Apply all filters
+      const filteredData = applyFilters(userAssignedRecords);
+      setEvaluationData(filteredData);
       setTotalRecords(filteredData.length);
       setTotalPages(Math.ceil(filteredData.length / rowsPerPage));
     } catch (err) {
-      console.error("Failed to fetch reports", err);
-      setUploadReportsData([]);
+      console.error("Failed to fetch evaluation reports", err);
+      setEvaluationData([]);
       setAllData([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // ✅ UPDATED useEffect - add filters dependency
   useEffect(() => {
-    fetchAllData();
-  }, [currentPage, rowsPerPage, searchTerm, activeTab, filters]);
-
-  const handleFileSelect = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.name.endsWith(".xlsx") && !file.name.endsWith(".xls")) {
-      alert("Please upload a valid Excel file (.xlsx or .xls)");
-      return;
+    // Only fetch data when currentUser is available
+    if (currentUser && currentUser !== "Unknown User") {
+      fetchAllData();
     }
-
-    let username = null;
-
-    const userStr =
-      localStorage.getItem("user") || sessionStorage.getItem("user");
-    if (userStr) {
-      try {
-        const userObj = JSON.parse(userStr);
-        username = userObj.username || userObj.email || userObj.first_name;
-      } catch (e) {
-        username = userStr;
-      }
-    }
-
-    if (!username) {
-      username =
-        localStorage.getItem("username") ||
-        sessionStorage.getItem("username") ||
-        currentUser ||
-        "system";
-    }
-
-    if (username === "system" || !username) {
-      const proceed = confirm(
-        "⚠️ Warning: No logged-in user detected.\n\n" +
-          'The upload will be attributed to "system".\n\n' +
-          "Do you want to continue?"
-      );
-      if (!proceed) {
-        event.target.value = "";
-        return;
-      }
-    }
-
-    try {
-      setUploading(true);
-      setUploadProgress(`Uploading as: ${username}...`);
-
-      console.log("Uploading file with username:", username);
-      const result = await uploadExcelFile(file, username);
-
-      setUploadProgress(null);
-      setUploading(false);
-
-      const { success, errors, duplicates_skipped, total_processed } =
-        result.stats;
-
-      let message = `✅ Upload Complete!\n\n`;
-      message += `👤 Uploaded by: ${username}\n`;
-      message += `📊 Processed: ${total_processed} rows\n`;
-      message += `✓ Inserted: ${success} new records\n`;
-
-      if (duplicates_skipped > 0) {
-        message += `⊘ Skipped: ${duplicates_skipped} duplicates\n`;
-      }
-
-      if (errors > 0) {
-        message += `✗ Errors: ${errors} failed\n`;
-      }
-
-      alert(message);
-
-      // Refresh data
-      setCurrentPage(1);
-      await fetchAllData();
-    } catch (error) {
-      console.error("Upload error:", error);
-      setUploadProgress(null);
-      setUploading(false);
-      alert(
-        `❌ Upload failed: ${error.response?.data?.detail || error.message}`
-      );
-    }
-
-    event.target.value = "";
-  };
-
-  const handleDownloadTemplate = async () => {
-    try {
-      await downloadTemplate();
-    } catch (error) {
-      console.error("Download template error:", error);
-      alert("Failed to download template");
-    }
-  };
+  }, [currentPage, rowsPerPage, searchTerm, activeTab, filters, currentUser]);
 
   const handleSelectAll = () => {
-    if (selectedRows.length === uploadReportsData.length) {
+    if (selectedRows.length === evaluationData.length) {
       setSelectedRows([]);
     } else {
-      setSelectedRows(uploadReportsData.map((row) => row.id));
+      setSelectedRows(evaluationData.map((row) => row.id));
     }
   };
 
@@ -338,7 +302,7 @@ function UploadReportsPage({ darkMode }) {
               transition: "color 0.3s ease",
             }}
           >
-            Upload Reports
+            📋 For Evaluation
           </h1>
           <p
             style={{
@@ -347,9 +311,10 @@ function UploadReportsPage({ darkMode }) {
               transition: "color 0.3s ease",
             }}
           >
-            Manage and review uploaded pharmaceutical reports
+            Review and evaluate decked applications
           </p>
-          {currentUser && (
+          {/* ✅ OPTIONAL: Display current user */}
+          {currentUser && currentUser !== "Unknown User" && (
             <div
               style={{
                 marginTop: "0.5rem",
@@ -363,22 +328,27 @@ function UploadReportsPage({ darkMode }) {
                 color: colors.textSecondary,
               }}
             >
-              {/* <span>👤</span>
+              <span>👤</span>
               <span>
                 Logged in as: <strong>{currentUser}</strong>
-              </span> */}
+              </span>
             </div>
           )}
         </div>
-        <UploadButton
-          onFileSelect={handleFileSelect}
-          onDownloadTemplate={handleDownloadTemplate}
-          uploading={uploading}
-          colors={colors}
-        />
       </div>
 
-      <StatsCard stats={statsData} colors={colors} />
+      <StatsCard
+        stats={statsData}
+        colors={colors}
+        labels={{
+          total: "Total Reports",
+          notDecked: "For Evaluation",
+          decked: "Evaluated",
+          totalIcon: "📊",
+          notDeckedIcon: "📋",
+          deckedIcon: "✅",
+        }}
+      />
 
       {/* TABS SECTION */}
       <div
@@ -394,21 +364,21 @@ function UploadReportsPage({ darkMode }) {
         {[
           {
             id: "all",
-            label: "All Reports",
+            label: "All For Evaluation",
             icon: "📋",
             count: statsData.total,
           },
           {
-            id: "not-decked",
-            label: "Not Yet Decked",
+            id: "pending",
+            label: "For Evaluation",
             icon: "⏳",
-            count: statsData.notDecked,
+            count: statsData.notDecked, // Use notDecked for pending count
           },
           {
-            id: "decked",
-            label: "Decked",
+            id: "completed",
+            label: "Done Evaluation",
             icon: "✅",
-            count: statsData.decked,
+            count: statsData.decked, // Use decked for completed count
           },
         ].map((tab) => (
           <button
@@ -421,13 +391,12 @@ function UploadReportsPage({ darkMode }) {
               border: "none",
               borderBottom:
                 activeTab === tab.id
-                  ? `3px solid #4CAF50`
+                  ? `3px solid #2196F3`
                   : "3px solid transparent",
               color:
                 activeTab === tab.id
                   ? colors.textPrimary
                   : colors.textSecondary,
-
               fontWeight: activeTab === tab.id ? "600" : "500",
               cursor: "pointer",
               transition: "all 0.2s ease",
@@ -440,7 +409,7 @@ function UploadReportsPage({ darkMode }) {
             onMouseEnter={(e) => {
               if (activeTab !== tab.id) {
                 e.currentTarget.style.color = colors.textPrimary;
-                e.currentTarget.style.borderBottomColor = "#4CAF5050";
+                e.currentTarget.style.borderBottomColor = "#2196F350";
               }
             }}
             onMouseLeave={(e) => {
@@ -455,7 +424,7 @@ function UploadReportsPage({ darkMode }) {
             <span
               style={{
                 padding: "0.2rem 0.6rem",
-                background: activeTab === tab.id ? "#4CAF50" : colors.badgeBg,
+                background: activeTab === tab.id ? "#2196F3" : colors.badgeBg,
                 color: activeTab === tab.id ? "#fff" : colors.textTertiary,
                 borderRadius: "12px",
                 fontSize: "0.75rem",
@@ -471,7 +440,6 @@ function UploadReportsPage({ darkMode }) {
         ))}
       </div>
 
-      {/* ✅ UPDATED FilterBar with new props */}
       <FilterBar
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -479,8 +447,6 @@ function UploadReportsPage({ darkMode }) {
         onFilterChange={setFilters}
         colors={colors}
       />
-
-      <UploadProgress message={uploadProgress} colors={colors} />
 
       {loading && (
         <div
@@ -501,7 +467,7 @@ function UploadReportsPage({ darkMode }) {
               marginBottom: "0.5rem",
             }}
           >
-            Loading reports...
+            Loading evaluation reports...
           </div>
           <div style={{ fontSize: "0.9rem" }}>
             Page {currentPage} of {totalPages}
@@ -509,7 +475,7 @@ function UploadReportsPage({ darkMode }) {
         </div>
       )}
 
-      {!loading && uploadReportsData.length === 0 && (
+      {!loading && evaluationData.length === 0 && (
         <div
           style={{
             background: colors.cardBg,
@@ -528,21 +494,19 @@ function UploadReportsPage({ darkMode }) {
               marginBottom: "0.5rem",
             }}
           >
-            No reports found
+            No evaluation reports found
           </div>
           <div style={{ fontSize: "0.9rem" }}>
-            {activeTab === "not-decked" &&
-              "No records without an Evaluator assigned"}
-            {activeTab === "decked" && "No records with an Evaluator assigned"}
-            {activeTab === "all" &&
-              "Try adjusting your search or upload new reports"}
+            {activeTab === "pending" && "No pending evaluations at this time"}
+            {activeTab === "completed" && "No completed evaluations yet"}
+            {activeTab === "all" && "No records available for evaluation"}
           </div>
         </div>
       )}
 
-      {!loading && uploadReportsData.length > 0 && (
+      {!loading && evaluationData.length > 0 && (
         <DataTable
-          data={uploadReportsData}
+          data={evaluationData}
           selectedRows={selectedRows}
           onSelectRow={handleSelectRow}
           onSelectAll={handleSelectAll}
@@ -562,4 +526,4 @@ function UploadReportsPage({ darkMode }) {
   );
 }
 
-export default UploadReportsPage;
+export default ForEvaluationPage;
