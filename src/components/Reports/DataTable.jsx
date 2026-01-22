@@ -4,9 +4,10 @@ import { useState } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import DeckModal from "./actions/DeckModal";
-import EvaluatorModal from "./actions/EvaluatorModal"; // ✅ ADD THIS
+import EvaluatorModal from "./actions/EvaluatorModal";
 import ViewDetailsModal from "./actions/ViewDetailsModal";
 import BulkDeckModal from "./actions/BulkDeckModal";
+import DoctrackModal from "./actions/DoctrackModal"; // ✅ NEW
 import { bulkDeckApplications } from "../../api/reports";
 
 function DataTable({
@@ -28,8 +29,9 @@ function DataTable({
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
   const [deckModalRecord, setDeckModalRecord] = useState(null);
-  const [evaluatorModalRecord, setEvaluatorModalRecord] = useState(null); // ✅ ADD THIS
+  const [evaluatorModalRecord, setEvaluatorModalRecord] = useState(null);
   const [bulkDeckModalRecords, setBulkDeckModalRecords] = useState(null);
+  const [doctrackModalRecord, setDoctrackModalRecord] = useState(null); // ✅ NEW
 
   const indexOfFirstRow = (currentPage - 1) * rowsPerPage + 1;
   const indexOfLastRow = Math.min(currentPage * rowsPerPage, totalRecords);
@@ -49,10 +51,14 @@ function DataTable({
     setDeckModalRecord(row);
   };
 
-  // ✅ ADD THIS - Handler for evaluator modal
   const handleOpenEvaluatorModal = (row) => {
     setOpenMenuId(null);
     setEvaluatorModalRecord(row);
+  };
+
+  const handleOpenDoctrackModal = (row) => {
+    setOpenMenuId(null);
+    setDoctrackModalRecord(row);
   };
 
   // Modal close handlers
@@ -64,35 +70,31 @@ function DataTable({
     setDeckModalRecord(null);
   };
 
-  // ✅ ADD THIS - Close handler for evaluator modal
   const handleCloseEvaluatorModal = () => {
     setEvaluatorModalRecord(null);
   };
 
-  // ✅ Deck success handler - will be called by DeckModal after successful deck
+  const handleCloseDoctrackModal = () => {
+    setDoctrackModalRecord(null);
+  };
+
   const handleDeckSuccess = async () => {
     if (onRefresh) {
       await onRefresh();
     }
   };
 
-  // ✅ ADD THIS - Evaluation success handler
   const handleEvaluationSuccess = async () => {
     if (onRefresh) {
       await onRefresh();
     }
   };
 
-  // Check if record can be decked
   const canBeDeck = (row) => {
     return !row.evaluator || row.evaluator === "" || row.evaluator === "N/A";
   };
 
-  // ✅ ADD THIS - Check if record can be evaluated (pending evaluation)
   const canBeEvaluated = (row) => {
-    // Check if:
-    // 1. Has an evaluator assigned
-    // 2. No dateEvalEnd (pending evaluation)
     return (
       row.evaluator &&
       row.evaluator !== "" &&
@@ -104,7 +106,6 @@ function DataTable({
     );
   };
 
-  // Render status badge
   const renderAppStatusBadge = (status) => {
     const statusUpper = status?.toUpperCase();
 
@@ -168,7 +169,6 @@ function DataTable({
           transition: "all 0.3s ease",
         }}
       >
-        {/* Table Header */}
         <div
           style={{
             padding: "1rem 1.5rem",
@@ -224,22 +224,21 @@ function DataTable({
                 {selectedRows.length} selected
               </span>
 
-              {/* Deck Applications Button */}
               <button
                 onClick={() => {
                   const selectedRecords = data.filter((row) =>
-                    selectedRows.includes(row.id)
+                    selectedRows.includes(row.id),
                   );
                   const canDeckRecords = selectedRecords.filter(
                     (row) =>
                       !row.evaluator ||
                       row.evaluator === "" ||
-                      row.evaluator === "N/A"
+                      row.evaluator === "N/A",
                   );
 
                   if (canDeckRecords.length === 0) {
                     alert(
-                      "⚠️ None of the selected applications can be decked.\nThey already have evaluators assigned."
+                      "⚠️ None of the selected applications can be decked.\nThey already have evaluators assigned.",
                     );
                     return;
                   }
@@ -250,7 +249,7 @@ function DataTable({
                         `${
                           selectedRecords.length - canDeckRecords.length
                         } applications already have evaluators assigned.\n\n` +
-                        `Do you want to continue with ${canDeckRecords.length} applications?`
+                        `Do you want to continue with ${canDeckRecords.length} applications?`,
                     );
                     if (!proceed) return;
                   }
@@ -314,7 +313,6 @@ function DataTable({
           )}
         </div>
 
-        {/* Table Container */}
         <div
           style={{ overflowX: "auto", maxHeight: "600px", overflowY: "auto" }}
         >
@@ -334,7 +332,6 @@ function DataTable({
               }}
             >
               <tr>
-                {/* Checkbox Column */}
                 <th
                   style={{
                     padding: "1rem",
@@ -368,7 +365,6 @@ function DataTable({
                   />
                 </th>
 
-                {/* Row Number Column */}
                 <th
                   style={{
                     padding: "1rem",
@@ -390,7 +386,6 @@ function DataTable({
                   #
                 </th>
 
-                {/* Data Columns */}
                 {tableColumns.map((col) => (
                   <th
                     key={col.key}
@@ -405,10 +400,12 @@ function DataTable({
                       borderBottom: `1px solid ${colors.tableBorder}`,
                       minWidth: col.key === "dtn" ? "180px" : col.width,
                       whiteSpace: "nowrap",
+                      background: col.headerBg || colors.tableBg,
                       ...(col.frozen && {
                         position: "sticky",
                         left: "110px",
-                        background: colors.tableBg,
+                        // background: colors.tableBg,
+                        background: col.headerBg || colors.tableBg,
                         zIndex: 21,
                         boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
                       }),
@@ -418,7 +415,6 @@ function DataTable({
                   </th>
                 ))}
 
-                {/* Actions Column */}
                 <th
                   style={{
                     padding: "1rem",
@@ -447,13 +443,13 @@ function DataTable({
               {data.map((row, index) => {
                 const isSelected = selectedRows.includes(row.id);
                 const canDeck = canBeDeck(row);
-                const canEvaluate = canBeEvaluated(row); // ✅ ADD THIS
+                const canEvaluate = canBeEvaluated(row);
 
                 let rowBg = isSelected
                   ? "#4CAF5015"
                   : index % 2 === 0
-                  ? colors.tableRowEven
-                  : colors.tableRowOdd;
+                    ? colors.tableRowEven
+                    : colors.tableRowOdd;
 
                 return (
                   <tr
@@ -473,7 +469,6 @@ function DataTable({
                       e.currentTarget.style.background = rowBg;
                     }}
                   >
-                    {/* Checkbox Cell */}
                     <td
                       style={{
                         padding: "1rem",
@@ -498,7 +493,6 @@ function DataTable({
                       />
                     </td>
 
-                    {/* Row Number Cell */}
                     <td
                       style={{
                         padding: "1rem",
@@ -517,7 +511,6 @@ function DataTable({
                       {indexOfFirstRow + index}
                     </td>
 
-                    {/* Data Cells */}
                     {tableColumns.map((col) => (
                       <td
                         key={col.key}
@@ -545,7 +538,6 @@ function DataTable({
                       </td>
                     ))}
 
-                    {/* Actions Cell */}
                     <td
                       style={{
                         padding: "1rem",
@@ -581,7 +573,6 @@ function DataTable({
                           ⋮
                         </button>
 
-                        {/* Actions Menu */}
                         {openMenuId === row.id && (
                           <>
                             <div
@@ -610,7 +601,6 @@ function DataTable({
                                 overflow: "visible",
                               }}
                             >
-                              {/* Deck Button - Only show if not decked */}
                               {canDeck && (
                                 <button
                                   onClick={() => handleOpenDeckModal(row)}
@@ -642,7 +632,6 @@ function DataTable({
                                 </button>
                               )}
 
-                              {/* ✅ ADD THIS - Complete Evaluation Button */}
                               {canEvaluate && (
                                 <button
                                   onClick={() => handleOpenEvaluatorModal(row)}
@@ -677,9 +666,8 @@ function DataTable({
                                 </button>
                               )}
 
-                              {/* View Details */}
                               <button
-                                onClick={() => handleViewDetails(row)}
+                                onClick={() => handleOpenDoctrackModal(row)}
                                 style={{
                                   width: "100%",
                                   padding: "0.75rem 1rem",
@@ -707,16 +695,45 @@ function DataTable({
                                     "transparent")
                                 }
                               >
+                                <span>📋</span>
+                                <span>View Doctrack Details</span>
+                              </button>
+
+                              <button
+                                onClick={() => handleViewDetails(row)}
+                                style={{
+                                  width: "100%",
+                                  padding: "0.75rem 1rem",
+                                  background: "transparent",
+                                  border: "none",
+                                  borderTop: `1px solid ${colors.tableBorder}`,
+                                  color: colors.textPrimary,
+                                  fontSize: "0.85rem",
+                                  textAlign: "left",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.5rem",
+                                  transition: "background 0.2s",
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.background =
+                                    colors.tableRowHover)
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.background =
+                                    "transparent")
+                                }
+                              >
                                 <span>👁️</span>
                                 <span>View Details</span>
                               </button>
 
-                              {/* Edit */}
                               <button
                                 onClick={() => {
                                   setOpenMenuId(null);
                                   alert(
-                                    `Edit functionality for DTN: ${row.dtn}`
+                                    `Edit functionality for DTN: ${row.dtn}`,
                                   );
                                 }}
                                 style={{
@@ -747,17 +764,16 @@ function DataTable({
                                 <span>Edit</span>
                               </button>
 
-                              {/* Delete */}
                               <button
                                 onClick={() => {
                                   setOpenMenuId(null);
                                   if (
                                     confirm(
-                                      `Delete record for DTN: ${row.dtn}?`
+                                      `Delete record for DTN: ${row.dtn}?`,
                                     )
                                   ) {
                                     alert(
-                                      "Delete functionality not yet implemented"
+                                      "Delete functionality not yet implemented",
                                     );
                                   }
                                 }}
@@ -813,7 +829,6 @@ function DataTable({
         />
       </div>
 
-      {/* Single Deck Modal */}
       {deckModalRecord && (
         <DeckModal
           record={deckModalRecord}
@@ -823,7 +838,6 @@ function DataTable({
         />
       )}
 
-      {/* ✅ ADD THIS - Evaluator Modal */}
       {evaluatorModalRecord && (
         <EvaluatorModal
           record={evaluatorModalRecord}
@@ -833,7 +847,14 @@ function DataTable({
         />
       )}
 
-      {/* View Details Modal */}
+      {doctrackModalRecord && (
+        <DoctrackModal
+          record={doctrackModalRecord}
+          onClose={handleCloseDoctrackModal}
+          colors={colors}
+        />
+      )}
+
       {selectedRowDetails && (
         <ViewDetailsModal
           record={selectedRowDetails}
@@ -842,14 +863,12 @@ function DataTable({
         />
       )}
 
-      {/* Bulk Deck Modal */}
       {bulkDeckModalRecords && (
         <BulkDeckModal
           records={bulkDeckModalRecords}
           onClose={() => setBulkDeckModalRecords(null)}
           onSubmit={async (recordIds, formData) => {
             try {
-              // ✅ Call the bulk deck API
               const response = await bulkDeckApplications({
                 decker: formData.decker,
                 evaluator: formData.evaluator,
@@ -864,18 +883,15 @@ function DataTable({
               alert(
                 `✅ Successfully decked ${recordIds.length} applications!\n\n` +
                   `Evaluator: ${formData.evaluator}\n` +
-                  `Decision: ${formData.deckerDecision}`
+                  `Decision: ${formData.deckerDecision}`,
               );
 
-              // Close modal
               setBulkDeckModalRecords(null);
 
-              // ✅ Clear selections (this will hide the buttons)
               if (onClearSelections) {
                 onClearSelections();
               }
 
-              // Refresh data
               if (onRefresh) {
                 await onRefresh();
               }

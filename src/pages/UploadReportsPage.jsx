@@ -1,3 +1,7 @@
+// FILE: src/pages/UploadReportsPage.jsx
+// ✅ OPTION 1: Always sort by upload date (simplest fix)
+// Just remove the special sorting for decked tab
+
 import { useState, useEffect } from "react";
 import {
   getUploadReports,
@@ -13,14 +17,13 @@ import { mapDataItem, getColorScheme } from "/src/components/Reports/utils";
 
 function UploadReportsPage({ darkMode }) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({}); // ✅ ADD THIS
+  const [filters, setFilters] = useState({});
   const [selectedRows, setSelectedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [uploadReportsData, setUploadReportsData] = useState([]);
-  const [allData, setAllData] = useState([]);
   const [statsData, setStatsData] = useState({
     total: 0,
     notDecked: 0,
@@ -63,116 +66,191 @@ function UploadReportsPage({ darkMode }) {
     }
   }, []);
 
-  // ✅ ADD THIS HELPER FUNCTION HERE (before fetchAllData)
-  const applyFilters = (data) => {
-    let filtered = data;
+  // ✅ Fetch TRUE stats using backend filtering
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        console.log("📊 Fetching accurate stats from backend...");
 
-    // Apply active tab filter first
-    filtered = filterDataByTab(filtered, activeTab);
+        // Get total count
+        const allData = await getUploadReports({
+          page: 1,
+          pageSize: 1,
+          search: "",
+          status: "",
+          sortBy: "DB_DATE_EXCEL_UPLOAD",
+          sortOrder: "desc",
+        });
 
-    // Apply search term
-    if (searchTerm) {
-      filtered = filtered.filter((item) =>
-        Object.values(item).some((val) =>
-          String(val).toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      );
-    }
+        // Get not-decked count using backend filter
+        const notDeckedData = await getUploadReports({
+          page: 1,
+          pageSize: 1,
+          search: "",
+          status: "not_decked",
+          sortBy: "DB_DATE_EXCEL_UPLOAD",
+          sortOrder: "desc",
+        });
 
-    // Apply advanced filters
-    Object.entries(filters).forEach(([key, value]) => {
-      if (!value || value === "all") return;
+        // Get decked count using backend filter
+        const deckedData = await getUploadReports({
+          page: 1,
+          pageSize: 1,
+          search: "",
+          status: "decked",
+          sortBy: "DB_DATE_EXCEL_UPLOAD",
+          sortOrder: "desc",
+        });
 
-      if (key === "dateFrom" && value) {
-        filtered = filtered.filter(
-          (item) => new Date(item.dateExcelUpload) >= new Date(value)
-        );
-      } else if (key === "dateTo" && value) {
-        filtered = filtered.filter(
-          (item) => new Date(item.dateExcelUpload) <= new Date(value)
-        );
-      } else {
-        filtered = filtered.filter((item) =>
-          String(item[key]).toLowerCase().includes(String(value).toLowerCase())
-        );
+        const statsUpdate = {
+          total: allData.total || 0,
+          notDecked: notDeckedData.total || 0,
+          decked: deckedData.total || 0,
+        };
+
+        console.log("✅ Accurate stats from backend:", statsUpdate);
+        setStatsData(statsUpdate);
+      } catch (err) {
+        console.error("❌ Failed to fetch stats:", err);
       }
-    });
+    };
 
-    return filtered;
-  };
+    fetchStats();
+  }, []);
 
-  const filterDataByTab = (data, tab) => {
-    if (tab === "not-decked") {
-      return data.filter(
-        (item) =>
-          !item.evaluator || item.evaluator === "" || item.evaluator === "N/A"
-      );
-    } else if (tab === "decked") {
-      return data.filter(
-        (item) =>
-          item.evaluator && item.evaluator !== "" && item.evaluator !== "N/A"
-      );
+  // ✅ Helper to get status filter based on active tab
+  const getStatusFilter = () => {
+    console.log("🎯 Active tab:", activeTab);
+    if (activeTab === "not-decked") {
+      return "not_decked";
+    } else if (activeTab === "decked") {
+      return "decked";
     }
-    return data;
+    return "";
   };
 
-  // ✅ UPDATED fetchAllData - now uses applyFilters
-  const fetchAllData = async () => {
+  // ✅ SIMPLIFIED: Always sort by upload date
+  const getSortField = () => {
+    // Always sort by upload date (most recent first)
+    console.log("📅 Sorting by: DB_DATE_EXCEL_UPLOAD");
+    return "DB_DATE_EXCEL_UPLOAD";
+  };
+
+  // ✅ Fetch data with server-side pagination and filtering
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        const params = {
+          page: currentPage,
+          pageSize: rowsPerPage,
+          search: searchTerm,
+          status: getStatusFilter(),
+          category: filters.category || "",
+          sortBy: getSortField(),
+          sortOrder: "desc",
+        };
+
+        console.log("🔄 Fetching data with params:", params);
+
+        const json = await getUploadReports(params);
+
+        console.log("📦 Received data:", {
+          total: json.total,
+          totalPages: json.total_pages,
+          dataLength: json.data?.length,
+          firstRecord: json.data?.[0]?.DB_DTN,
+        });
+
+        if (!json || !json.data || !Array.isArray(json.data)) {
+          console.warn("⚠️ No data received or invalid format");
+          setUploadReportsData([]);
+          setTotalRecords(0);
+          setTotalPages(0);
+          return;
+        }
+
+        const mappedData = json.data.map(mapDataItem);
+        setUploadReportsData(mappedData);
+        setTotalRecords(json.total);
+        setTotalPages(json.total_pages);
+      } catch (err) {
+        console.error("❌ Failed to fetch reports:", err);
+        console.error("Error details:", err.response?.data);
+        setUploadReportsData([]);
+        setTotalRecords(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [currentPage, rowsPerPage, searchTerm, activeTab, filters]);
+
+  // ✅ Refresh data function with accurate stats
+  const refreshData = async () => {
     try {
       setLoading(true);
 
-      const json = await getUploadReports({
-        page: currentPage,
-        pageSize: rowsPerPage,
-        search: "", // ✅ Remove search from API, we'll filter client-side
-        sortBy: "",
+      // Refresh stats using backend filtering
+      const allData = await getUploadReports({
+        page: 1,
+        pageSize: 1,
+        search: "",
+        status: "",
+        sortBy: "DB_DATE_EXCEL_UPLOAD",
         sortOrder: "desc",
       });
 
-      if (!json || !json.data || !Array.isArray(json.data)) {
-        setUploadReportsData([]);
-        setAllData([]);
-        return;
-      }
-
-      const mappedData = json.data.map(mapDataItem);
-      setAllData(mappedData);
-
-      // ✅ Update stats (calculate from all data)
-      const notDeckedCount = mappedData.filter(
-        (item) =>
-          !item.evaluator || item.evaluator === "" || item.evaluator === "N/A"
-      ).length;
-
-      const deckedCount = mappedData.filter(
-        (item) =>
-          item.evaluator && item.evaluator !== "" && item.evaluator !== "N/A"
-      ).length;
-
-      setStatsData({
-        total: json.total || 0,
-        notDecked: notDeckedCount,
-        decked: deckedCount,
+      const notDeckedData = await getUploadReports({
+        page: 1,
+        pageSize: 1,
+        search: "",
+        status: "not_decked",
+        sortBy: "DB_DATE_EXCEL_UPLOAD",
+        sortOrder: "desc",
       });
 
-      // ✅ Apply all filters (tab, search, advanced filters)
-      const filteredData = applyFilters(mappedData);
-      setUploadReportsData(filteredData);
-      setTotalRecords(filteredData.length);
-      setTotalPages(Math.ceil(filteredData.length / rowsPerPage));
+      const deckedData = await getUploadReports({
+        page: 1,
+        pageSize: 1,
+        search: "",
+        status: "decked",
+        sortBy: "DB_DATE_EXCEL_UPLOAD",
+        sortOrder: "desc",
+      });
+
+      setStatsData({
+        total: allData.total || 0,
+        notDecked: notDeckedData.total || 0,
+        decked: deckedData.total || 0,
+      });
+
+      // Refresh current view data
+      const json = await getUploadReports({
+        page: currentPage,
+        pageSize: rowsPerPage,
+        search: searchTerm,
+        status: getStatusFilter(),
+        category: filters.category || "",
+        sortBy: getSortField(),
+        sortOrder: "desc",
+      });
+
+      if (json && json.data) {
+        const mappedData = json.data.map(mapDataItem);
+        setUploadReportsData(mappedData);
+        setTotalRecords(json.total);
+        setTotalPages(json.total_pages);
+      }
     } catch (err) {
-      console.error("Failed to fetch reports", err);
-      setUploadReportsData([]);
-      setAllData([]);
+      console.error("Failed to refresh reports", err);
     } finally {
       setLoading(false);
     }
   };
-
-  // ✅ UPDATED useEffect - add filters dependency
-  useEffect(() => {
-    fetchAllData();
-  }, [currentPage, rowsPerPage, searchTerm, activeTab, filters]);
 
   const handleFileSelect = async (event) => {
     const file = event.target.files?.[0];
@@ -208,7 +286,7 @@ function UploadReportsPage({ darkMode }) {
       const proceed = confirm(
         "⚠️ Warning: No logged-in user detected.\n\n" +
           'The upload will be attributed to "system".\n\n' +
-          "Do you want to continue?"
+          "Do you want to continue?",
       );
       if (!proceed) {
         event.target.value = "";
@@ -246,13 +324,13 @@ function UploadReportsPage({ darkMode }) {
 
       // Refresh data
       setCurrentPage(1);
-      await fetchAllData();
+      await refreshData();
     } catch (error) {
       console.error("Upload error:", error);
       setUploadProgress(null);
       setUploading(false);
       alert(
-        `❌ Upload failed: ${error.response?.data?.detail || error.message}`
+        `❌ Upload failed: ${error.response?.data?.detail || error.message}`,
       );
     }
 
@@ -304,6 +382,7 @@ function UploadReportsPage({ darkMode }) {
   };
 
   const handleTabChange = (tab) => {
+    console.log("🔄 Switching to tab:", tab);
     setActiveTab(tab);
     setCurrentPage(1);
     setSelectedRows([]);
@@ -349,26 +428,6 @@ function UploadReportsPage({ darkMode }) {
           >
             Manage and review uploaded pharmaceutical reports
           </p>
-          {currentUser && (
-            <div
-              style={{
-                marginTop: "0.5rem",
-                padding: "0.5rem 1rem",
-                background: colors.badgeBg,
-                borderRadius: "8px",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                fontSize: "0.85rem",
-                color: colors.textSecondary,
-              }}
-            >
-              {/* <span>👤</span>
-              <span>
-                Logged in as: <strong>{currentUser}</strong>
-              </span> */}
-            </div>
-          )}
         </div>
         <UploadButton
           onFileSelect={handleFileSelect}
@@ -427,7 +486,6 @@ function UploadReportsPage({ darkMode }) {
                 activeTab === tab.id
                   ? colors.textPrimary
                   : colors.textSecondary,
-
               fontWeight: activeTab === tab.id ? "600" : "500",
               cursor: "pointer",
               transition: "all 0.2s ease",
@@ -471,7 +529,6 @@ function UploadReportsPage({ darkMode }) {
         ))}
       </div>
 
-      {/* ✅ UPDATED FilterBar with new props */}
       <FilterBar
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -555,7 +612,7 @@ function UploadReportsPage({ darkMode }) {
           onRowsPerPageChange={handleRowsPerPageChange}
           colors={colors}
           activeTab={activeTab}
-          onRefresh={fetchAllData}
+          onRefresh={refreshData}
         />
       )}
     </div>

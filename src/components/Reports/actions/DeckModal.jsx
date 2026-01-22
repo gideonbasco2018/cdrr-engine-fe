@@ -64,7 +64,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
 
     if (!formData.decker || !formData.evaluator || !formData.deckerDecision) {
       alert(
-        "⚠️ Please fill in required fields:\n- Evaluator\n- Decker Decision"
+        "⚠️ Please fill in required fields:\n- Evaluator\n- Decker Decision",
       );
       return;
     }
@@ -76,7 +76,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
 
       // Convert to Philippine Time
       const phTime = new Date(
-        now.toLocaleString("en-US", { timeZone: "Asia/Manila" })
+        now.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
       );
 
       // Format as YYYY-MM-DD HH:MM:SS
@@ -300,7 +300,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
               >
                 <option value="">Select decision</option>
                 <option value="For Evaluation">For Evaluation</option>
-                <option value="On Hold">On Hold</option>
+                {/* <option value="On Hold">On Hold</option> */}
               </select>
             </div>
 

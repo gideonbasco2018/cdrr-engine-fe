@@ -79,7 +79,7 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
             !item.dateEvalEnd ||
             item.dateEvalEnd === "" ||
             item.dateEvalEnd === "N/A" ||
-            item.dateEvalEnd === null
+            item.dateEvalEnd === null,
         ).length;
 
         setPendingEvalCount(pendingCount);
@@ -202,8 +202,8 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
   // ===== COLORS =====
   const colors = darkMode
     ? {
-        sidebarBg: "#0f0f0f",
-        sidebarBorder: "#1a1a1a",
+        sidebarBg: "#161616",
+        sidebarBorder: "#252525",
         textPrimary: "#fff",
         textSecondary: "#999",
         sectionLabel: "#666",
@@ -240,7 +240,7 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
 
     if (itemId === "dashboard") {
       navigate(
-        basePath === "/dashboard" ? "/dashboard" : `${basePath}/dashboard`
+        basePath === "/dashboard" ? "/dashboard" : `${basePath}/dashboard`,
       );
     } else {
       navigate(`${basePath}/${itemId}`);

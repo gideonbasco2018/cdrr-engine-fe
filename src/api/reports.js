@@ -1,3 +1,4 @@
+// FILE: src/api/reports.js
 import API from "./axios";
 
 export const getUploadReports = async ({
@@ -9,6 +10,15 @@ export const getUploadReports = async ({
   sortBy = 'DB_DATE_EXCEL_UPLOAD',
   sortOrder = 'desc'
 }) => {
+  console.log('🔍 API Call Parameters:', {
+    page,
+    pageSize,
+    search,
+    status,
+    sortBy,
+    sortOrder
+  });
+
   const response = await API.get("/main-db/", {
     params: {
       page,
@@ -19,6 +29,12 @@ export const getUploadReports = async ({
       sort_by: sortBy,
       sort_order: sortOrder,
     },
+  });
+
+  console.log('✅ API Response:', {
+    total: response.data.total,
+    dataLength: response.data.data?.length,
+    page: response.data.page
   });
 
   return response.data;
@@ -83,28 +99,12 @@ export const bulkDeckApplications = async (deckData) => {
   }
 };
 
-/**
- * Evaluate an application (Evaluator completes evaluation and assigns Checker)
- * @param {number} recordId - The DB_ID of the record
- * @param {Object} data - Evaluation data
- * @param {string} data.evaluator - Evaluator username (current user)
- * @param {string} data.checker - Checker username to assign
- * @param {string} data.evalDecision - Evaluation decision (For Checking, For Compliance, Approved, Rejected)
- * @param {string} data.evalRemarks - Evaluation remarks/notes
- * @param {string} data.dateEvalEnd - Evaluation completion timestamp
- * @returns {Promise<Object>} Response from API
- */
-export const evaluateApplication = async (recordId, data) => {
+// ✅ Evaluate/Complete application
+export const evaluateApplication = async (recordId, evaluationData) => {
   try {
     const response = await API.patch(
-      `/cdrr-reports/evaluate/${recordId}`,
-      {
-        evaluator: data.evaluator,
-        checker: data.checker,
-        eval_decision: data.evalDecision,
-        eval_remarks: data.evalRemarks,
-        date_eval_end: data.dateEvalEnd,
-      }
+      `/evaluate/single/${recordId}`,
+      evaluationData
     );
     
     return response.data;
