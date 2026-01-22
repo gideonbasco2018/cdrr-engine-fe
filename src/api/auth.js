@@ -1,5 +1,9 @@
 import api from './axios';
 
+// ========================================
+// AUTHENTICATION
+// ========================================
+
 // Login function - FIXED for OAuth2PasswordRequestForm
 export const login = async ({ username, password }) => {
   try {
@@ -9,7 +13,7 @@ export const login = async ({ username, password }) => {
     params.append('password', password);
 
     // IMPORTANT: Override the default Content-Type for this request
-    const response = await api.post('routes/auth/login', params, {
+    const response = await api.post('auth/login', params, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
@@ -25,7 +29,7 @@ export const login = async ({ username, password }) => {
 // Register function
 export const register = async (userData) => {
   try {
-    const response = await api.post('routes/auth/register', userData);
+    const response = await api.post('auth/register', userData);
     return response.data;
   } catch (err) {
     console.error('Registration error:', err);
@@ -36,7 +40,7 @@ export const register = async (userData) => {
 // Get current user info
 export const getCurrentUser = async () => {
   try {
-    const response = await api.get('routes/auth/me');
+    const response = await api.get('auth/me');
     return response.data;
   } catch (err) {
     console.error('Get user error:', err);
@@ -47,7 +51,7 @@ export const getCurrentUser = async () => {
 // Update current user
 export const updateCurrentUser = async (userData) => {
   try {
-    const response = await api.put('routes/auth/me', userData);
+    const response = await api.put('auth/me', userData);
     return response.data;
   } catch (err) {
     console.error('Update user error:', err);
@@ -59,22 +63,70 @@ export const updateCurrentUser = async (userData) => {
 export const logout = async () => {
   try {
     // Optional: Call backend logout endpoint
-    await api.post('routes/auth/logout');
+    await api.post('auth/logout');
   } catch (err) {
     console.error('Logout error:', err);
   } finally {
     // Always remove ALL tokens and user data from storage
     localStorage.removeItem('access_token');
     localStorage.removeItem('user');
-    localStorage.removeItem('userRole');  // ADD THIS
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userGroup');
     
     sessionStorage.removeItem('access_token');
     sessionStorage.removeItem('user');
-    sessionStorage.removeItem('userRole');  // ADD THIS
+    sessionStorage.removeItem('userRole');
+    sessionStorage.removeItem('userGroup');
     
     console.log('✅ All auth data cleared from storage');
   }
 };
+
+
+// ========================================
+// USER MANAGEMENT
+// ========================================
+
+/**
+ * Get users from current user's group
+ * Returns list of users who can be assigned as deckers/evaluators
+ * 
+ * @returns {Promise<Array>} Array of user objects
+ */
+export const getMyGroupUsers = async () => {
+  try {
+    const response = await api.get('auth/users/my-group');
+    return response.data;
+  } catch (err) {
+    console.error('Get group users error:', err);
+    throw err.response?.data?.detail || 'Failed to get group users.';
+  }
+};
+
+/**
+ * Get users from a specific group by group ID
+ * 
+ * @param {number} groupId - The group ID to fetch users from
+ * @returns {Promise<Array>} Array of user objects
+ */
+export const getUsersByGroup = async (groupId) => {
+  try {
+    if (!groupId) {
+      throw new Error('Group ID is required');
+    }
+
+    const response = await api.get(`auth/users/group/${groupId}`);
+    return response.data;
+  } catch (err) {
+    console.error('Get users by group error:', err);
+    throw err.response?.data?.detail || `Failed to get users from group ${groupId}.`;
+  }
+};
+
+
+// ========================================
+// STORAGE HELPERS
+// ========================================
 
 // Get stored token
 export const getToken = () => {
@@ -101,6 +153,22 @@ export const getUserRole = () => {
   return localStorage.getItem('userRole') || sessionStorage.getItem('userRole');
 };
 
+// Get user group
+export const getUserGroup = () => {
+  const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
+  if (userStr) {
+    const user = JSON.parse(userStr);
+    return user.group_id;
+  }
+  // Fallback: check userGroup directly
+  return localStorage.getItem('userGroup') || sessionStorage.getItem('userGroup');
+};
+
+
+// ========================================
+// PERMISSION HELPERS
+// ========================================
+
 // Check if user has specific role
 export const hasRole = (allowedRoles) => {
   const userRole = getUserRole();
@@ -111,3 +179,10 @@ export const hasRole = (allowedRoles) => {
 export const isUser = () => hasRole(['User', 'Admin', 'SuperAdmin']);
 export const isAdmin = () => hasRole(['Admin', 'SuperAdmin']);
 export const isSuperAdmin = () => hasRole(['SuperAdmin']);
+
+// Check if user belongs to specific group
+export const isInGroup = (groupId) => {
+  const userGroup = getUserGroup();
+  return userGroup === groupId || userGroup === String(groupId);
+};
+
