@@ -1,5 +1,89 @@
+// FILE: src/pages/DashboardPage.jsx
+import { useState, useEffect } from "react";
+import {
+  getDashboardStats,
+  getApplicationsComparison,
+  getReceivedByPeriod,
+} from "../api/dashboard";
+import DashboardHeader from "../components/dashboard/DashboardHeader";
+import StatsCard from "../components/dashboard/StatsCard";
+import ReceivedApplicationsChart from "../components/dashboard/ReceivedApplicationsChart";
+import ServicesRevenuePie from "../components/dashboard/ServicesRevenuePie";
+import TopEarnersCard from "../components/dashboard/TopEarnersCard";
+
 function DashboardPage({ darkMode, userRole = "User" }) {
-  // Define color schemes for dark and light modes
+  const [stats, setStats] = useState({
+    totalApplications: 0,
+    fdacApplications: 0,
+    centralApplications: 0,
+    totalRevenue: 0,
+    fdaPay: 0,
+    fdaBoost: 0,
+    fdaShield: 0,
+    applicationsChange: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [chartData, setChartData] = useState([]);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [chartBreakdown, setChartBreakdown] = useState("month");
+
+  useEffect(() => {
+    fetchDashboardData();
+    fetchChartData();
+  }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchChartData();
+    }
+  }, [selectedYear, chartBreakdown]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [statsData, comparisonData] = await Promise.all([
+        getDashboardStats(),
+        getApplicationsComparison(),
+      ]);
+      setStats({
+        totalApplications: statsData.total_applications || 0,
+        fdacApplications: statsData.fdac_applications || 0,
+        centralApplications: statsData.central_applications || 0,
+        totalRevenue: statsData.total_revenue || 0,
+        fdaPay: statsData.fda_pay || 0,
+        fdaBoost: statsData.fda_boost || 0,
+        fdaShield: statsData.fda_shield || 0,
+        applicationsChange: comparisonData.percentage_change || 0,
+      });
+    } catch (err) {
+      setError(
+        err.response?.data?.detail ||
+          err.message ||
+          "Failed to load dashboard data",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchChartData = async () => {
+    try {
+      setChartLoading(true);
+      const data = await getReceivedByPeriod(
+        chartBreakdown,
+        chartBreakdown === "month" ? selectedYear : null,
+      );
+      setChartData(data.data || []);
+    } catch (err) {
+      console.error("❌ Error fetching chart data:", err);
+    } finally {
+      setChartLoading(false);
+    }
+  };
+
   const colors = darkMode
     ? {
         pageBg: "#0a0a0a",
@@ -28,13 +112,6 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         pieCenterBg: "#ffffff",
       };
 
-  // Role badge colors
-  const roleBadgeColors = {
-    User: { bg: "#4CAF50", text: "#fff" },
-    Admin: { bg: "#2196F3", text: "#fff" },
-    SuperAdmin: { bg: "#ff9800", text: "#fff" },
-  };
-
   const topEarners = [
     { name: "Emma Lopez", amount: "$62,850.00", percentage: "28.5%", rank: 1 },
     {
@@ -51,53 +128,115 @@ function DashboardPage({ darkMode, userRole = "User" }) {
     },
   ];
 
-  // Role-based stats (show different data based on role)
   const getStatsForRole = () => {
     const baseStats = [
       {
-        icon: "👥",
-        label: "Total Creators",
-        value: "7",
-        change: "8.7%",
+        icon: "📥", // Inbox/Received
+        label: "Total Applications Received",
+        value: loading ? "..." : stats.totalApplications.toLocaleString(),
+        change: loading
+          ? "..."
+          : `${stats.applicationsChange > 0 ? "+" : ""}${stats.applicationsChange}%`,
         color: "#3b82f6",
+        isPositive: stats.applicationsChange >= 0,
       },
       {
-        icon: "💰",
-        label: "Total Revenue",
-        value: "7.0M",
+        icon: "📤", // Outbox/Released
+        label: "Total Application Released",
+        value: loading ? "..." : `${(stats.totalRevenue / 1000000).toFixed(1)}`,
         change: "8.7%",
         color: "#10b981",
+        isPositive: true,
       },
       {
-        icon: "💳",
-        label: "FDAPay",
-        value: "4.5M",
+        icon: "⏳", // Hourglass/Pending
+        label: "Total Application Backlogs",
+        value: loading ? "..." : `${(stats.fdaPay / 1000000).toFixed(1)}`,
         change: "8.7%",
-        color: "#10b981",
+        color: "#ef4444", // Red for backlogs
+        isPositive: true,
       },
       {
-        icon: "⚡",
-        label: "FDABoost",
-        value: "1.2M",
+        icon: "⚙️", // Gear/Processing
+        label: "Total Application On Process",
+        value: loading ? "..." : `${(stats.fdaBoost / 1000000).toFixed(1)}`,
         change: "8.7%",
-        color: "#3b82f6",
+        color: "#f59e0b", // Orange for in-progress
+        isPositive: true,
       },
       {
-        icon: "🛡️",
-        label: "FDAShield",
-        value: "1.3M",
+        icon: "✅", // Check/Completed
+        label: "Total Application Completed but not yet released",
+        value: loading ? "..." : `${(stats.fdaShield / 1000000).toFixed(1)}`,
         change: "8.7%",
         color: "#8b5cf6",
+        isPositive: true,
       },
     ];
-
-    if (userRole === "User") {
-      // Users see limited stats
-      return baseStats.slice(1); // Remove "Total Creators"
-    }
-
-    return baseStats; // Admin and SuperAdmin see all stats
+    return userRole === "User" ? baseStats.slice(1) : baseStats;
   };
+
+  if (error) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          padding: "2rem",
+          background: colors.pageBg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: "12px",
+            padding: "2rem",
+            textAlign: "center",
+            maxWidth: "400px",
+          }}
+        >
+          <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>⚠️</div>
+          <h3
+            style={{
+              fontSize: "1.25rem",
+              fontWeight: "600",
+              color: colors.textPrimary,
+              marginBottom: "0.5rem",
+            }}
+          >
+            Failed to Load Dashboard
+          </h3>
+          <p
+            style={{
+              color: colors.textTertiary,
+              fontSize: "0.9rem",
+              marginBottom: "1rem",
+            }}
+          >
+            {error}
+          </p>
+          <button
+            onClick={fetchDashboardData}
+            style={{
+              padding: "0.75rem 1.5rem",
+              background: "#4CAF50",
+              border: "none",
+              borderRadius: "8px",
+              color: "#fff",
+              fontSize: "0.9rem",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
+            🔄 Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -109,96 +248,12 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         transition: "all 0.3s ease",
       }}
     >
-      {/* Role Badge */}
-      {/* <div style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        padding: '0.5rem 1rem',
-        background: roleBadgeColors[userRole]?.bg || '#4CAF50',
-        borderRadius: '20px',
-        marginBottom: '1rem'
-      }}>
-        <span style={{ fontSize: '0.9rem' }}>
-          {userRole === 'SuperAdmin' ? '⚡' : userRole === 'Admin' ? '🔧' : '👤'}
-        </span>
-        <span style={{
-          color: roleBadgeColors[userRole]?.text || '#fff',
-          fontSize: '0.85rem',
-          fontWeight: '600',
-          letterSpacing: '0.05em'
-        }}>
-          {userRole.toUpperCase()} DASHBOARD
-        </span>
-      </div> */}
-
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "2rem",
-        }}
-      >
-        <div>
-          <h1
-            style={{
-              fontSize: "1.75rem",
-              fontWeight: "600",
-              marginBottom: "0.5rem",
-              color: colors.textPrimary,
-              transition: "color 0.3s ease",
-            }}
-          >
-            {userRole === "SuperAdmin"
-              ? "System Overview"
-              : userRole === "Admin"
-                ? "Platform Management"
-                : "Platform Overview"}
-          </h1>
-          <p
-            style={{
-              color: colors.textTertiary,
-              fontSize: "0.9rem",
-              transition: "color 0.3s ease",
-            }}
-          >
-            {userRole === "SuperAdmin"
-              ? "Complete system control and analytics"
-              : userRole === "Admin"
-                ? "Monitor and manage services and users"
-                : "View your reports and analytics"}
-          </p>
-        </div>
-        {/* <button
-          style={{
-            padding: "0.75rem 1.5rem",
-            background: "#4CAF50",
-            border: "none",
-            borderRadius: "8px",
-            color: "#fff",
-            fontSize: "0.9rem",
-            fontWeight: "600",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            transition: "all 0.2s",
-          }}
-          onMouseEnter={(e) => {
-            e.target.style.background = "#45a049";
-            e.target.style.transform = "translateY(-1px)";
-          }}
-          onMouseLeave={(e) => {
-            e.target.style.background = "#4CAF50";
-            e.target.style.transform = "translateY(0)";
-          }}
-        >
-          <span>📤</span>
-          Upload Reports
-        </button> */}
-      </div>
+      <DashboardHeader
+        userRole={userRole}
+        loading={loading}
+        onRefresh={fetchDashboardData}
+        colors={colors}
+      />
 
       {/* Stats Cards */}
       <div
@@ -210,100 +265,16 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         }}
       >
         {getStatsForRole().map((stat, index) => (
-          <div
+          <StatsCard
             key={index}
-            style={{
-              background: colors.cardBg,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
-              padding: "1.25rem",
-              transition: "all 0.3s ease",
-              cursor: "pointer",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = colors.cardBorderHover;
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = colors.cardBorder;
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                marginBottom: "1rem",
-              }}
-            >
-              <div
-                style={{
-                  width: "36px",
-                  height: "36px",
-                  background: stat.color + "20",
-                  borderRadius: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "1.1rem",
-                }}
-              >
-                {stat.icon}
-              </div>
-              <span
-                style={{
-                  color: colors.textSecondary,
-                  fontSize: "0.85rem",
-                  fontWeight: "500",
-                  transition: "color 0.3s ease",
-                }}
-              >
-                {stat.label}
-              </span>
-            </div>
-            <div
-              style={{
-                fontSize: "1.75rem",
-                fontWeight: "600",
-                color: colors.textPrimary,
-                marginBottom: "0.5rem",
-                transition: "color 0.3s ease",
-              }}
-            >
-              {stat.value}
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-              }}
-            >
-              <span
-                style={{
-                  color: "#4CAF50",
-                  fontSize: "0.85rem",
-                  fontWeight: "600",
-                }}
-              >
-                {stat.change}
-              </span>
-              <span
-                style={{
-                  color: colors.textTertiary,
-                  fontSize: "0.8rem",
-                  transition: "color 0.3s ease",
-                }}
-              >
-                this month
-              </span>
-            </div>
-          </div>
+            stat={stat}
+            loading={loading}
+            colors={colors}
+          />
         ))}
       </div>
 
-      {/* Revenue Overview & Services Revenue - Only for Admin and SuperAdmin */}
+      {/* Charts - Only for Admin and SuperAdmin */}
       {(userRole === "Admin" || userRole === "SuperAdmin") && (
         <div
           style={{
@@ -313,209 +284,20 @@ function DashboardPage({ darkMode, userRole = "User" }) {
             marginBottom: "2rem",
           }}
         >
-          {/* Revenue Overview Chart */}
-          <div
-            style={{
-              background: colors.cardBg,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
-              padding: "1.5rem",
-              transition: "all 0.3s ease",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "1.5rem",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: "600",
-                  color: colors.textPrimary,
-                  transition: "color 0.3s ease",
-                }}
-              >
-                Revenue Overview
-              </h3>
-              <div style={{ display: "flex", gap: "0.75rem" }}>
-                <select
-                  style={{
-                    padding: "0.5rem 1rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: "6px",
-                    color: colors.textPrimary,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    outline: "none",
-                    transition: "all 0.3s ease",
-                  }}
-                >
-                  <option>All Services</option>
-                </select>
-                <select
-                  style={{
-                    padding: "0.5rem 1rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: "6px",
-                    color: colors.textPrimary,
-                    fontSize: "0.85rem",
-                    cursor: "pointer",
-                    outline: "none",
-                    transition: "all 0.3s ease",
-                  }}
-                >
-                  <option>2025</option>
-                </select>
-              </div>
-            </div>
-            <div
-              style={{
-                height: "250px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: colors.textTertiary,
-                border: `1px dashed ${colors.chartBorderDashed}`,
-                borderRadius: "8px",
-                transition: "all 0.3s ease",
-              }}
-            >
-              📈 Chart Area
-            </div>
-          </div>
-
-          {/* Services Revenue Pie */}
-          <div
-            style={{
-              background: colors.cardBg,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
-              padding: "1.5rem",
-              transition: "all 0.3s ease",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "1.1rem",
-                fontWeight: "600",
-                color: colors.textPrimary,
-                marginBottom: "1.5rem",
-                transition: "color 0.3s ease",
-              }}
-            >
-              Services Revenue
-            </h3>
-            <div
-              style={{
-                width: "180px",
-                height: "180px",
-                margin: "0 auto 1.5rem",
-                borderRadius: "50%",
-                background:
-                  "conic-gradient(#10b981 0deg 210deg, #3b82f6 210deg 238deg, #8b5cf6 238deg 360deg)",
-                position: "relative",
-              }}
-            >
-              <div
-                style={{
-                  position: "absolute",
-                  top: "50%",
-                  left: "50%",
-                  transform: "translate(-50%, -50%)",
-                  width: "120px",
-                  height: "120px",
-                  background: colors.pieCenterBg,
-                  borderRadius: "50%",
-                  transition: "background 0.3s ease",
-                }}
-              />
-            </div>
-            <div style={{ fontSize: "0.85rem" }}>
-              {[
-                { label: "FDAPay AdSense", percent: "58.1%", color: "#10b981" },
-                { label: "FDABoost", percent: "7.8%", color: "#3b82f6" },
-                { label: "FDAShield", percent: "34.4%", color: "#8b5cf6" },
-              ].map((item, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "0.5rem 0",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        background: item.color,
-                      }}
-                    />
-                    <span
-                      style={{
-                        color: colors.textSecondary,
-                        transition: "color 0.3s ease",
-                      }}
-                    >
-                      {item.label}
-                    </span>
-                  </div>
-                  <span style={{ color: item.color, fontWeight: "600" }}>
-                    {item.percent}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div
-              style={{
-                marginTop: "1rem",
-                paddingTop: "1rem",
-                borderTop: `1px solid ${colors.cardBorder}`,
-                textAlign: "center",
-                transition: "border-color 0.3s ease",
-              }}
-            >
-              <div
-                style={{
-                  color: colors.textTertiary,
-                  fontSize: "0.8rem",
-                  marginBottom: "0.25rem",
-                  transition: "color 0.3s ease",
-                }}
-              >
-                Total:
-              </div>
-              <div
-                style={{
-                  color: colors.textPrimary,
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  transition: "color 0.3s ease",
-                }}
-              >
-                $98.30
-              </div>
-            </div>
-          </div>
+          <ReceivedApplicationsChart
+            chartData={chartData}
+            chartLoading={chartLoading}
+            chartBreakdown={chartBreakdown}
+            selectedYear={selectedYear}
+            onBreakdownChange={setChartBreakdown}
+            onYearChange={setSelectedYear}
+            colors={colors}
+          />
+          <ServicesRevenuePie colors={colors} />
         </div>
       )}
 
-      {/* Top Earners - Only for Admin and SuperAdmin */}
+      {/* Top Earners */}
       {(userRole === "Admin" || userRole === "SuperAdmin") && (
         <div
           style={{
@@ -524,241 +306,26 @@ function DashboardPage({ darkMode, userRole = "User" }) {
             gap: "1.25rem",
           }}
         >
-          {/* FDAPay Top Earners */}
-          <div
-            style={{
-              background: colors.cardBg,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
-              padding: "1.5rem",
-              transition: "all 0.3s ease",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                marginBottom: "1rem",
-              }}
-            >
-              <span style={{ fontSize: "1.25rem" }}>💰</span>
-              <div>
-                <h3
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: "600",
-                    color: colors.textPrimary,
-                    transition: "color 0.3s ease",
-                  }}
-                >
-                  FDAPay Adsense Top Earners
-                </h3>
-                <p
-                  style={{
-                    color: colors.textTertiary,
-                    fontSize: "0.8rem",
-                    transition: "color 0.3s ease",
-                  }}
-                >
-                  Earnings from YouTube channels connected to
-                </p>
-              </div>
-            </div>
-            {topEarners.map((earner) => (
-              <div
-                key={earner.rank}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1rem",
-                  padding: "1rem 0",
-                  borderBottom:
-                    earner.rank < 3 ? `1px solid ${colors.cardBorder}` : "none",
-                }}
-              >
-                <div
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    background: earner.rank === 1 ? "#10b981" : colors.inputBg,
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.85rem",
-                    fontWeight: "600",
-                    color: earner.rank === 1 ? "#fff" : colors.textPrimary,
-                    transition: "all 0.3s ease",
-                  }}
-                >
-                  {earner.rank}
-                </div>
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    background: colors.cardBorderHover,
-                    borderRadius: "50%",
-                    transition: "background 0.3s ease",
-                  }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      fontWeight: "500",
-                      marginBottom: "0.25rem",
-                      transition: "color 0.3s ease",
-                    }}
-                  >
-                    {earner.name}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div
-                    style={{
-                      color: "#10b981",
-                      fontSize: "0.95rem",
-                      fontWeight: "600",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    {earner.amount}
-                  </div>
-                  <div
-                    style={{
-                      color: "#10b981",
-                      fontSize: "0.8rem",
-                    }}
-                  >
-                    {earner.percentage}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* FDABoost Top Earners */}
-          <div
-            style={{
-              background: colors.cardBg,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
-              padding: "1.5rem",
-              transition: "all 0.3s ease",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                marginBottom: "1rem",
-              }}
-            >
-              <span style={{ fontSize: "1.25rem" }}>⚡</span>
-              <div>
-                <h3
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: "600",
-                    color: colors.textPrimary,
-                    transition: "color 0.3s ease",
-                  }}
-                >
-                  FDABoost Top Earners
-                </h3>
-                <p
-                  style={{
-                    color: colors.textTertiary,
-                    fontSize: "0.8rem",
-                    transition: "color 0.3s ease",
-                  }}
-                >
-                  Earnings from protected contents
-                </p>
-              </div>
-            </div>
-            {topEarners.map((earner) => (
-              <div
-                key={earner.rank}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "1rem",
-                  padding: "1rem 0",
-                  borderBottom:
-                    earner.rank < 3 ? `1px solid ${colors.cardBorder}` : "none",
-                }}
-              >
-                <div
-                  style={{
-                    width: "32px",
-                    height: "32px",
-                    background: earner.rank === 1 ? "#3b82f6" : colors.inputBg,
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.85rem",
-                    fontWeight: "600",
-                    color: earner.rank === 1 ? "#fff" : colors.textPrimary,
-                    transition: "all 0.3s ease",
-                  }}
-                >
-                  {earner.rank}
-                </div>
-                <div
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    background: colors.cardBorderHover,
-                    borderRadius: "50%",
-                    transition: "background 0.3s ease",
-                  }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      fontWeight: "500",
-                      marginBottom: "0.25rem",
-                      transition: "color 0.3s ease",
-                    }}
-                  >
-                    {earner.name}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div
-                    style={{
-                      color: "#3b82f6",
-                      fontSize: "0.95rem",
-                      fontWeight: "600",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    {earner.amount}
-                  </div>
-                  <div
-                    style={{
-                      color: "#3b82f6",
-                      fontSize: "0.8rem",
-                    }}
-                  >
-                    {earner.percentage}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <TopEarnersCard
+            title="CDRR Top Evaluators"
+            icon="⭐"
+            description="Most evaluated applications this month"
+            earners={topEarners}
+            color="#10b981"
+            colors={colors}
+          />
+          <TopEarnersCard
+            title="CDRR Top Checkers"
+            icon="✅"
+            description="Most verified applications this month"
+            earners={topEarners}
+            color="#3b82f6"
+            colors={colors}
+          />
         </div>
       )}
 
-      {/* Simple User Dashboard Message */}
+      {/* User Dashboard Message */}
       {userRole === "User" && (
         <div
           style={{
@@ -767,7 +334,6 @@ function DashboardPage({ darkMode, userRole = "User" }) {
             borderRadius: "12px",
             padding: "3rem",
             textAlign: "center",
-            transition: "all 0.3s ease",
           }}
         >
           <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📊</div>
@@ -777,18 +343,11 @@ function DashboardPage({ darkMode, userRole = "User" }) {
               fontWeight: "600",
               color: colors.textPrimary,
               marginBottom: "0.5rem",
-              transition: "color 0.3s ease",
             }}
           >
             Welcome to Your Dashboard
           </h3>
-          <p
-            style={{
-              color: colors.textTertiary,
-              fontSize: "0.9rem",
-              transition: "color 0.3s ease",
-            }}
-          >
+          <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
             Upload and manage your reports from the menu
           </p>
         </div>
