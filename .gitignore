@@ -1,0 +1,35 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# Cache
+.vite/
+.cache/
+.eslintcache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes / runtime artifacts
+docker-data/
+data/
+logs/
+
+
+# prod only files
+nginx.conf
