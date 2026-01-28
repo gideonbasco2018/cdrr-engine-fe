@@ -15,6 +15,14 @@ import FDAEditModal from "../components/fda/FDAEditModal";
 import FDADeleteConfirmModal from "../components/fda/FDADeleteConfirmModal";
 import FDADataTable from "../components/fda/FDADataTable";
 import FDATablePagination from "../components/fda/FDATablePagination";
+import FDAFilterBar from "../components/fda/FDAFilterBar";
+
+// Import filter utilities
+import {
+  applyFilters,
+  calculateStats,
+  isExpired,
+} from "../utils/fdaFilterHelpers";
 
 function FDAVerificationPortal({ darkMode }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -106,49 +114,9 @@ function FDAVerificationPortal({ darkMode }) {
     { key: "date_uploaded", label: "Date Uploaded", width: "150px" },
   ];
 
-  // Helper: Check if expired
-  const isExpired = (expiryDate) => {
-    if (!expiryDate) return false;
-    return new Date(expiryDate) < new Date();
-  };
-
-  // Filter data based on tab and filters
+  // Filter data using the utility function
   const getFilteredData = () => {
-    let filtered = drugsData;
-
-    if (activeTab === "deleted") {
-      filtered = filtered.filter((drug) => drug.date_deleted);
-    } else if (activeTab === "expired") {
-      filtered = filtered.filter(
-        (drug) => !drug.date_deleted && isExpired(drug.expiry_date),
-      );
-    } else {
-      filtered = filtered.filter((drug) => !drug.date_deleted);
-    }
-
-    if (filters.uploadedBy) {
-      filtered = filtered.filter((drug) =>
-        drug.uploaded_by
-          ?.toLowerCase()
-          .includes(filters.uploadedBy.toLowerCase()),
-      );
-    }
-
-    if (filters.dateUploadFrom) {
-      filtered = filtered.filter((drug) => {
-        if (!drug.date_uploaded) return false;
-        return new Date(drug.date_uploaded) >= new Date(filters.dateUploadFrom);
-      });
-    }
-
-    if (filters.dateUploadTo) {
-      filtered = filtered.filter((drug) => {
-        if (!drug.date_uploaded) return false;
-        return new Date(drug.date_uploaded) <= new Date(filters.dateUploadTo);
-      });
-    }
-
-    return filtered;
+    return applyFilters(drugsData, filters, activeTab);
   };
 
   // Fetch drugs
@@ -168,27 +136,16 @@ function FDAVerificationPortal({ darkMode }) {
       setDrugsData(response.data || []);
       setPagination(response.pagination || {});
 
+      // Calculate stats using the utility function
       const allData = response.data || [];
-      const uniqueManufacturers = new Set(
-        allData
-          .map((item) => item.manufacturer)
-          .filter((m) => m && m !== "N/A"),
-      ).size;
-
-      const deletedCount = allData.filter((drug) => drug.date_deleted).length;
-      const expiredCount = allData.filter(
-        (drug) => !drug.date_deleted && isExpired(drug.expiry_date),
-      ).length;
-      const activeCount = allData.filter(
-        (drug) => !drug.date_deleted && !isExpired(drug.expiry_date),
-      ).length;
+      const calculatedStats = calculateStats(allData);
 
       setStats({
         totalProducts: response.pagination?.total || 0,
-        activeProducts: activeCount,
-        manufacturers: uniqueManufacturers,
-        deletedProducts: deletedCount,
-        expiredProducts: expiredCount,
+        activeProducts: calculatedStats.activeCount,
+        manufacturers: calculatedStats.uniqueManufacturers,
+        deletedProducts: calculatedStats.deletedCount,
+        expiredProducts: calculatedStats.expiredCount,
       });
     } catch (err) {
       console.error("Error fetching drugs:", err);
@@ -302,15 +259,6 @@ function FDAVerificationPortal({ darkMode }) {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Clear Filters
-  const handleClearFilters = () => {
-    setFilters({
-      uploadedBy: "",
-      dateUploadFrom: "",
-      dateUploadTo: "",
-    });
   };
 
   // Download Template
@@ -752,154 +700,8 @@ function FDAVerificationPortal({ darkMode }) {
         </div>
       </div>
 
-      {/* Advanced Filters */}
-      <div
-        style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "12px",
-          padding: "1.25rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: "1rem",
-          }}
-        >
-          <h3
-            style={{
-              fontSize: "0.95rem",
-              fontWeight: "600",
-              color: colors.textPrimary,
-            }}
-          >
-            🔍 Advanced Filters
-          </h3>
-          {(filters.uploadedBy ||
-            filters.dateUploadFrom ||
-            filters.dateUploadTo) && (
-            <button
-              onClick={handleClearFilters}
-              style={{
-                padding: "0.5rem 1rem",
-                background: "transparent",
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "6px",
-                color: colors.textSecondary,
-                fontSize: "0.85rem",
-                cursor: "pointer",
-              }}
-            >
-              Clear Filters
-            </button>
-          )}
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-            gap: "1rem",
-          }}
-        >
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: "500",
-                color: colors.textSecondary,
-                marginBottom: "0.5rem",
-              }}
-            >
-              Uploaded By
-            </label>
-            <input
-              type="text"
-              placeholder="Filter by uploader name"
-              value={filters.uploadedBy}
-              onChange={(e) =>
-                setFilters({ ...filters, uploadedBy: e.target.value })
-              }
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                background: colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: "6px",
-                color: colors.textPrimary,
-                fontSize: "0.85rem",
-                outline: "none",
-              }}
-            />
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: "500",
-                color: colors.textSecondary,
-                marginBottom: "0.5rem",
-              }}
-            >
-              Date Upload From
-            </label>
-            <input
-              type="date"
-              value={filters.dateUploadFrom}
-              onChange={(e) =>
-                setFilters({ ...filters, dateUploadFrom: e.target.value })
-              }
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                background: colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: "6px",
-                color: colors.textPrimary,
-                fontSize: "0.85rem",
-                outline: "none",
-              }}
-            />
-          </div>
-
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.85rem",
-                fontWeight: "500",
-                color: colors.textSecondary,
-                marginBottom: "0.5rem",
-              }}
-            >
-              Date Upload To
-            </label>
-            <input
-              type="date"
-              value={filters.dateUploadTo}
-              onChange={(e) =>
-                setFilters({ ...filters, dateUploadTo: e.target.value })
-              }
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                background: colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: "6px",
-                color: colors.textPrimary,
-                fontSize: "0.85rem",
-                outline: "none",
-              }}
-            />
-          </div>
-        </div>
-      </div>
+      {/* Advanced Filters - Using the new component */}
+      <FDAFilterBar filters={filters} setFilters={setFilters} colors={colors} />
 
       {/* Tabs */}
       <div
@@ -1020,7 +822,7 @@ function FDAVerificationPortal({ darkMode }) {
           </span>
         </div>
 
-        {/* Use the new FDADataTable component */}
+        {/* Use the FDADataTable component */}
         <FDADataTable
           filteredData={filteredData}
           columns={columns}
@@ -1039,7 +841,7 @@ function FDAVerificationPortal({ darkMode }) {
           isExpired={isExpired}
         />
 
-        {/* Use the new FDATablePagination component */}
+        {/* Use the FDATablePagination component */}
         <FDATablePagination
           currentPage={currentPage}
           pageSize={pageSize}
