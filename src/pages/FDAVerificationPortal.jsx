@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   downloadTemplate,
   uploadExcelFile,
@@ -8,6 +8,13 @@ import {
   updateDrug,
   exportDrugsToExcel,
 } from "../api/fdaverifportal";
+
+// Import Components
+import FDAViewModal from "../components/fda/FDAViewModal";
+import FDAEditModal from "../components/fda/FDAEditModal";
+import FDADeleteConfirmModal from "../components/fda/FDADeleteConfirmModal";
+import FDADataTable from "../components/fda/FDADataTable";
+import FDATablePagination from "../components/fda/FDATablePagination";
 
 function FDAVerificationPortal({ darkMode }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,18 +33,22 @@ function FDAVerificationPortal({ darkMode }) {
   });
   const [openDropdown, setOpenDropdown] = useState(null);
 
-  // ✨ Tab state
-  const [activeTab, setActiveTab] = useState("all"); // "all", "deleted", "expired"
+  // Store button refs for dropdown positioning
+  const buttonRefs = useRef({});
 
-  // ✨ Modal states
+  // Tab state
+  const [activeTab, setActiveTab] = useState("all");
+
+  // Modal states
   const [viewModal, setViewModal] = useState({ open: false, data: null });
-  const [editModal, setEditModal] = useState({
+  const [editModal, setEditModal] = useState({ open: false, data: null });
+  const [deleteModal, setDeleteModal] = useState({
     open: false,
-    data: null,
-    formData: {},
+    drugId: null,
+    drugName: "",
   });
 
-  // ✨ NEW: Filter states
+  // Filter states
   const [filters, setFilters] = useState({
     uploadedBy: "",
     dateUploadFrom: "",
@@ -62,8 +73,6 @@ function FDAVerificationPortal({ darkMode }) {
         tableBorder: "#1a1a1a",
         tableText: "#ccc",
         tabActive: "#4CAF50",
-        tabInactive: "#2a2a2a",
-        modalOverlay: "rgba(0, 0, 0, 0.8)",
       }
     : {
         pageBg: "#f8f8f8",
@@ -81,11 +90,9 @@ function FDAVerificationPortal({ darkMode }) {
         tableBorder: "#e5e5e5",
         tableText: "#333",
         tabActive: "#4CAF50",
-        tabInactive: "#e5e5e5",
-        modalOverlay: "rgba(0, 0, 0, 0.5)",
       };
 
-  // ✨ Updated columns with uploaded_by and date_uploaded
+  // Table columns
   const columns = [
     { key: "generic_name", label: "Generic Name", width: "180px" },
     { key: "brand_name", label: "Brand Name", width: "150px" },
@@ -99,19 +106,16 @@ function FDAVerificationPortal({ darkMode }) {
     { key: "date_uploaded", label: "Date Uploaded", width: "150px" },
   ];
 
-  // Helper function to check if drug is expired
+  // Helper: Check if expired
   const isExpired = (expiryDate) => {
     if (!expiryDate) return false;
-    const today = new Date();
-    const expiry = new Date(expiryDate);
-    return expiry < today;
+    return new Date(expiryDate) < new Date();
   };
 
-  // ✨ Filter data based on active tab and filters
+  // Filter data based on tab and filters
   const getFilteredData = () => {
     let filtered = drugsData;
 
-    // Tab filtering
     if (activeTab === "deleted") {
       filtered = filtered.filter((drug) => drug.date_deleted);
     } else if (activeTab === "expired") {
@@ -119,11 +123,9 @@ function FDAVerificationPortal({ darkMode }) {
         (drug) => !drug.date_deleted && isExpired(drug.expiry_date),
       );
     } else {
-      // All - show only non-deleted
       filtered = filtered.filter((drug) => !drug.date_deleted);
     }
 
-    // Uploaded By filter
     if (filters.uploadedBy) {
       filtered = filtered.filter((drug) =>
         drug.uploaded_by
@@ -132,7 +134,6 @@ function FDAVerificationPortal({ darkMode }) {
       );
     }
 
-    // Date Upload From filter
     if (filters.dateUploadFrom) {
       filtered = filtered.filter((drug) => {
         if (!drug.date_uploaded) return false;
@@ -140,7 +141,6 @@ function FDAVerificationPortal({ darkMode }) {
       });
     }
 
-    // Date Upload To filter
     if (filters.dateUploadTo) {
       filtered = filtered.filter((drug) => {
         if (!drug.date_uploaded) return false;
@@ -151,7 +151,7 @@ function FDAVerificationPortal({ darkMode }) {
     return filtered;
   };
 
-  // Fetch drugs data from API
+  // Fetch drugs
   const fetchDrugs = async () => {
     setLoading(true);
     setError(null);
@@ -168,7 +168,6 @@ function FDAVerificationPortal({ darkMode }) {
       setDrugsData(response.data || []);
       setPagination(response.pagination || {});
 
-      // Update stats
       const allData = response.data || [];
       const uniqueManufacturers = new Set(
         allData
@@ -200,12 +199,10 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // Reset to page 1 when changing tabs
   useEffect(() => {
     setCurrentPage(1);
   }, [activeTab]);
 
-  // Fetch data on component mount and when dependencies change
   useEffect(() => {
     const delaySearch = setTimeout(() => {
       fetchDrugs();
@@ -214,13 +211,12 @@ function FDAVerificationPortal({ darkMode }) {
     return () => clearTimeout(delaySearch);
   }, [currentPage, pageSize, searchTerm, activeTab]);
 
-  // ✨ Handle View Details
+  // Handle View Details
   const handleViewDetails = async (drugId) => {
     try {
       setLoading(true);
       const response = await getDrugById(drugId);
       setViewModal({ open: true, data: response.data });
-      setOpenDropdown(null);
     } catch (err) {
       console.error("Error fetching drug details:", err);
       alert(
@@ -231,17 +227,12 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // ✨ Handle Edit
+  // Handle Edit
   const handleEdit = async (drugId) => {
     try {
       setLoading(true);
       const response = await getDrugById(drugId);
-      setEditModal({
-        open: true,
-        data: response.data,
-        formData: { ...response.data },
-      });
-      setOpenDropdown(null);
+      setEditModal({ open: true, data: response.data });
     } catch (err) {
       console.error("Error fetching drug details:", err);
       alert(
@@ -252,45 +243,34 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // ✨ Handle Edit Form Change
-  const handleEditFormChange = (field, value) => {
-    setEditModal((prev) => ({
-      ...prev,
-      formData: {
-        ...prev.formData,
-        [field]: value,
-      },
-    }));
-  };
-
-  // ✨ Handle Save Edit
-  const handleSaveEdit = async () => {
+  // Handle Save Edit
+  const handleSaveEdit = async (formData) => {
     try {
       setLoading(true);
 
       const updateData = {
-        registration_number: editModal.formData.registration_number,
-        generic_name: editModal.formData.generic_name,
-        brand_name: editModal.formData.brand_name,
-        dosage_strength: editModal.formData.dosage_strength,
-        dosage_form: editModal.formData.dosage_form,
-        classification: editModal.formData.classification,
-        packaging: editModal.formData.packaging,
-        pharmacologic_category: editModal.formData.pharmacologic_category,
-        manufacturer: editModal.formData.manufacturer,
-        country: editModal.formData.country,
-        trader: editModal.formData.trader,
-        importer: editModal.formData.importer,
-        distributor: editModal.formData.distributor,
-        app_type: editModal.formData.app_type,
-        issuance_date: editModal.formData.issuance_date,
-        expiry_date: editModal.formData.expiry_date,
+        registration_number: formData.registration_number,
+        generic_name: formData.generic_name,
+        brand_name: formData.brand_name,
+        dosage_strength: formData.dosage_strength,
+        dosage_form: formData.dosage_form,
+        classification: formData.classification,
+        packaging: formData.packaging,
+        pharmacologic_category: formData.pharmacologic_category,
+        manufacturer: formData.manufacturer,
+        country: formData.country,
+        trader: formData.trader,
+        importer: formData.importer,
+        distributor: formData.distributor,
+        app_type: formData.app_type,
+        issuance_date: formData.issuance_date,
+        expiry_date: formData.expiry_date,
       };
 
       await updateDrug(editModal.data.id, updateData);
 
       alert("✅ Drug updated successfully!");
-      setEditModal({ open: false, data: null, formData: {} });
+      setEditModal({ open: false, data: null });
       await fetchDrugs();
     } catch (err) {
       console.error("Error updating drug:", err);
@@ -302,7 +282,29 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // ✨ Clear Filters
+  // Handle Delete
+  const handleDeleteClick = (drugId, drugName) => {
+    setDeleteModal({ open: true, drugId, drugName });
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      setLoading(true);
+      await deleteDrug(deleteModal.drugId);
+      alert("✅ Drug registration deleted successfully!");
+      setDeleteModal({ open: false, drugId: null, drugName: "" });
+      await fetchDrugs();
+    } catch (err) {
+      console.error("Error deleting drug:", err);
+      alert(
+        `❌ Failed to delete: ${err.response?.data?.detail || err.message}`,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Clear Filters
   const handleClearFilters = () => {
     setFilters({
       uploadedBy: "",
@@ -311,7 +313,7 @@ function FDAVerificationPortal({ darkMode }) {
     });
   };
 
-  // Handle download template
+  // Download Template
   const handleDownloadTemplate = async () => {
     try {
       setLoading(true);
@@ -337,7 +339,7 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // Handle file upload
+  // Upload File
   const handleFileUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -384,35 +386,14 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // Handle delete
-  const handleDelete = async (drugId, drugName) => {
-    if (!window.confirm(`Are you sure you want to delete "${drugName}"?`)) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      await deleteDrug(drugId);
-      alert("✅ Drug registration deleted successfully!");
-      await fetchDrugs();
-    } catch (err) {
-      console.error("Error deleting drug:", err);
-      alert(
-        `❌ Failed to delete: ${err.response?.data?.detail || err.message}`,
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle pagination
+  // Pagination
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= (pagination.total_pages || 1)) {
       setCurrentPage(newPage);
     }
   };
 
-  // Handle export to Excel
+  // Export to Excel
   const handleExportToExcel = async () => {
     try {
       setLoading(true);
@@ -442,7 +423,7 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // Toggle dropdown menu
+  // Toggle dropdown
   const toggleDropdown = (drugId) => {
     setOpenDropdown(openDropdown === drugId ? null : drugId);
   };
@@ -457,7 +438,6 @@ function FDAVerificationPortal({ darkMode }) {
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openDropdown]);
 
-  // Get filtered data for display
   const filteredData = getFilteredData();
 
   return (
@@ -510,16 +490,10 @@ function FDAVerificationPortal({ darkMode }) {
         </div>
       )}
 
-      {/* CSS Animations */}
       <style>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
-        }
-        
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(-10px); }
-          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
 
@@ -543,17 +517,11 @@ function FDAVerificationPortal({ darkMode }) {
           >
             FDA Verification Portal
           </h1>
-          <p
-            style={{
-              color: colors.textTertiary,
-              fontSize: "0.9rem",
-            }}
-          >
+          <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
             Verify and manage FDA registered pharmaceutical products
           </p>
         </div>
 
-        {/* Upload & Download Buttons */}
         <div style={{ display: "flex", gap: "1rem" }}>
           <button
             onClick={handleExportToExcel}
@@ -575,16 +543,6 @@ function FDAVerificationPortal({ darkMode }) {
               gap: "0.5rem",
               transition: "all 0.3s ease",
               opacity: loading || filteredData.length === 0 ? 0.5 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!loading && filteredData.length > 0) {
-                e.currentTarget.style.borderColor = "#2196F3";
-                e.currentTarget.style.color = "#2196F3";
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = colors.cardBorder;
-              e.currentTarget.style.color = colors.textPrimary;
             }}
           >
             <span>📊</span>
@@ -609,16 +567,6 @@ function FDAVerificationPortal({ darkMode }) {
               transition: "all 0.3s ease",
               opacity: loading ? 0.5 : 1,
             }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.borderColor = "#4CAF50";
-                e.currentTarget.style.color = "#4CAF50";
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = colors.cardBorder;
-              e.currentTarget.style.color = colors.textPrimary;
-            }}
           >
             <span>📥</span>
             <span>Download Template</span>
@@ -641,18 +589,6 @@ function FDAVerificationPortal({ darkMode }) {
               gap: "0.5rem",
               transition: "all 0.3s ease",
               boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow =
-                  "0 6px 16px rgba(76, 175, 80, 0.4)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-              e.currentTarget.style.boxShadow =
-                "0 4px 12px rgba(76, 175, 80, 0.3)";
             }}
           >
             <span>📤</span>
@@ -707,200 +643,72 @@ function FDAVerificationPortal({ darkMode }) {
           marginBottom: "2rem",
         }}
       >
-        <div
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "12px",
-            padding: "1.5rem",
-          }}
-        >
+        {[
+          {
+            icon: "📋",
+            label: "Total Products",
+            value: stats.totalProducts,
+            color: colors.textPrimary,
+          },
+          {
+            icon: "✅",
+            label: "Active Products",
+            value: stats.activeProducts,
+            color: "#4CAF50",
+          },
+          {
+            icon: "⏰",
+            label: "Expired",
+            value: stats.expiredProducts,
+            color: "#FF9800",
+          },
+          {
+            icon: "🗑️",
+            label: "Deleted",
+            value: stats.deletedProducts,
+            color: "#f44336",
+          },
+          {
+            icon: "🏭",
+            label: "Manufacturers",
+            value: stats.manufacturers,
+            color: colors.textPrimary,
+          },
+        ].map((stat, index) => (
           <div
+            key={index}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1rem",
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: "12px",
+              padding: "1.5rem",
             }}
           >
-            <span style={{ fontSize: "2rem" }}>📋</span>
-            <div>
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  color: colors.textTertiary,
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Total Products
-              </p>
-              <p
-                style={{
-                  fontSize: "1.75rem",
-                  fontWeight: "700",
-                  color: colors.textPrimary,
-                }}
-              >
-                {stats.totalProducts}
-              </p>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              <span style={{ fontSize: "2rem" }}>{stat.icon}</span>
+              <div>
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    color: colors.textTertiary,
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  {stat.label}
+                </p>
+                <p
+                  style={{
+                    fontSize: "1.75rem",
+                    fontWeight: "700",
+                    color: stat.color,
+                  }}
+                >
+                  {stat.value}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "12px",
-            padding: "1.5rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1rem",
-            }}
-          >
-            <span style={{ fontSize: "2rem" }}>✅</span>
-            <div>
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  color: colors.textTertiary,
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Active Products
-              </p>
-              <p
-                style={{
-                  fontSize: "1.75rem",
-                  fontWeight: "700",
-                  color: "#4CAF50",
-                }}
-              >
-                {stats.activeProducts}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "12px",
-            padding: "1.5rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1rem",
-            }}
-          >
-            <span style={{ fontSize: "2rem" }}>⏰</span>
-            <div>
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  color: colors.textTertiary,
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Expired
-              </p>
-              <p
-                style={{
-                  fontSize: "1.75rem",
-                  fontWeight: "700",
-                  color: "#FF9800",
-                }}
-              >
-                {stats.expiredProducts}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "12px",
-            padding: "1.5rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1rem",
-            }}
-          >
-            <span style={{ fontSize: "2rem" }}>🗑️</span>
-            <div>
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  color: colors.textTertiary,
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Deleted
-              </p>
-              <p
-                style={{
-                  fontSize: "1.75rem",
-                  fontWeight: "700",
-                  color: "#f44336",
-                }}
-              >
-                {stats.deletedProducts}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "12px",
-            padding: "1.5rem",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "1rem",
-            }}
-          >
-            <span style={{ fontSize: "2rem" }}>🏭</span>
-            <div>
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  color: colors.textTertiary,
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Manufacturers
-              </p>
-              <p
-                style={{
-                  fontSize: "1.75rem",
-                  fontWeight: "700",
-                  color: colors.textPrimary,
-                }}
-              >
-                {stats.manufacturers}
-              </p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Search Bar */}
@@ -928,10 +736,7 @@ function FDAVerificationPortal({ darkMode }) {
               color: colors.textPrimary,
               fontSize: "0.9rem",
               outline: "none",
-              transition: "all 0.2s",
             }}
-            onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
-            onBlur={(e) => (e.target.style.borderColor = colors.inputBorder)}
           />
           <span
             style={{
@@ -940,7 +745,6 @@ function FDAVerificationPortal({ darkMode }) {
               top: "50%",
               transform: "translateY(-50%)",
               color: colors.textTertiary,
-              fontSize: "1rem",
             }}
           >
             🔍
@@ -948,7 +752,7 @@ function FDAVerificationPortal({ darkMode }) {
         </div>
       </div>
 
-      {/* ✨ NEW: Advanced Filters */}
+      {/* Advanced Filters */}
       <div
         style={{
           background: colors.cardBg,
@@ -961,7 +765,6 @@ function FDAVerificationPortal({ darkMode }) {
         <div
           style={{
             display: "flex",
-            alignItems: "center",
             justifyContent: "space-between",
             marginBottom: "1rem",
           }}
@@ -988,15 +791,6 @@ function FDAVerificationPortal({ darkMode }) {
                 color: colors.textSecondary,
                 fontSize: "0.85rem",
                 cursor: "pointer",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = "#f44336";
-                e.currentTarget.style.color = "#f44336";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = colors.cardBorder;
-                e.currentTarget.style.color = colors.textSecondary;
               }}
             >
               Clear Filters
@@ -1011,7 +805,6 @@ function FDAVerificationPortal({ darkMode }) {
             gap: "1rem",
           }}
         >
-          {/* Uploaded By Filter */}
           <div>
             <label
               style={{
@@ -1044,7 +837,6 @@ function FDAVerificationPortal({ darkMode }) {
             />
           </div>
 
-          {/* Date Upload From Filter */}
           <div>
             <label
               style={{
@@ -1076,7 +868,6 @@ function FDAVerificationPortal({ darkMode }) {
             />
           </div>
 
-          {/* Date Upload To Filter */}
           <div>
             <label
               style={{
@@ -1110,7 +901,7 @@ function FDAVerificationPortal({ darkMode }) {
         </div>
       </div>
 
-      {/* Tabs Section */}
+      {/* Tabs */}
       <div
         style={{
           background: colors.cardBg,
@@ -1126,133 +917,74 @@ function FDAVerificationPortal({ darkMode }) {
             borderBottom: `2px solid ${colors.tableBorder}`,
           }}
         >
-          {/* All Tab */}
-          <button
-            onClick={() => setActiveTab("all")}
-            style={{
-              flex: 1,
-              padding: "1rem 1.5rem",
-              background:
-                activeTab === "all" ? colors.tabActive : "transparent",
-              border: "none",
-              borderBottom:
-                activeTab === "all"
-                  ? `3px solid ${colors.tabActive}`
-                  : "3px solid transparent",
-              color: activeTab === "all" ? "#fff" : colors.textSecondary,
-              fontSize: "0.95rem",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <span>📋</span>
-            <span>All Products</span>
-            <span
+          {[
+            {
+              key: "all",
+              icon: "📋",
+              label: "All Products",
+              count: stats.totalProducts - stats.deletedProducts,
+              color: colors.tabActive,
+            },
+            {
+              key: "expired",
+              icon: "⏰",
+              label: "Expired",
+              count: stats.expiredProducts,
+              color: "#FF9800",
+            },
+            {
+              key: "deleted",
+              icon: "🗑️",
+              label: "Deleted",
+              count: stats.deletedProducts,
+              color: "#f44336",
+            },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
               style={{
-                background:
-                  activeTab === "all"
-                    ? "rgba(255,255,255,0.2)"
-                    : colors.inputBg,
-                padding: "0.25rem 0.5rem",
-                borderRadius: "12px",
-                fontSize: "0.75rem",
-                fontWeight: "700",
+                flex: 1,
+                padding: "1rem 1.5rem",
+                background: activeTab === tab.key ? tab.color : "transparent",
+                border: "none",
+                borderBottom:
+                  activeTab === tab.key
+                    ? `3px solid ${tab.color}`
+                    : "3px solid transparent",
+                color: activeTab === tab.key ? "#fff" : colors.textSecondary,
+                fontSize: "0.95rem",
+                fontWeight: "600",
+                cursor: "pointer",
+                transition: "all 0.3s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
               }}
             >
-              {stats.totalProducts - stats.deletedProducts}
-            </span>
-          </button>
-
-          {/* Expired Tab */}
-          <button
-            onClick={() => setActiveTab("expired")}
-            style={{
-              flex: 1,
-              padding: "1rem 1.5rem",
-              background: activeTab === "expired" ? "#FF9800" : "transparent",
-              border: "none",
-              borderBottom:
-                activeTab === "expired"
-                  ? "3px solid #FF9800"
-                  : "3px solid transparent",
-              color: activeTab === "expired" ? "#fff" : colors.textSecondary,
-              fontSize: "0.95rem",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <span>⏰</span>
-            <span>Expired</span>
-            <span
-              style={{
-                background:
-                  activeTab === "expired"
-                    ? "rgba(255,255,255,0.2)"
-                    : colors.inputBg,
-                padding: "0.25rem 0.5rem",
-                borderRadius: "12px",
-                fontSize: "0.75rem",
-                fontWeight: "700",
-              }}
-            >
-              {stats.expiredProducts}
-            </span>
-          </button>
-
-          {/* Deleted Tab */}
-          <button
-            onClick={() => setActiveTab("deleted")}
-            style={{
-              flex: 1,
-              padding: "1rem 1.5rem",
-              background: activeTab === "deleted" ? "#f44336" : "transparent",
-              border: "none",
-              borderBottom:
-                activeTab === "deleted"
-                  ? "3px solid #f44336"
-                  : "3px solid transparent",
-              color: activeTab === "deleted" ? "#fff" : colors.textSecondary,
-              fontSize: "0.95rem",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "all 0.3s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-            }}
-          >
-            <span>🗑️</span>
-            <span>Deleted</span>
-            <span
-              style={{
-                background:
-                  activeTab === "deleted"
-                    ? "rgba(255,255,255,0.2)"
-                    : colors.inputBg,
-                padding: "0.25rem 0.5rem",
-                borderRadius: "12px",
-                fontSize: "0.75rem",
-                fontWeight: "700",
-              }}
-            >
-              {stats.deletedProducts}
-            </span>
-          </button>
+              <span>{tab.icon}</span>
+              <span>{tab.label}</span>
+              <span
+                style={{
+                  background:
+                    activeTab === tab.key
+                      ? "rgba(255,255,255,0.2)"
+                      : colors.inputBg,
+                  padding: "0.25rem 0.5rem",
+                  borderRadius: "12px",
+                  fontSize: "0.75rem",
+                  fontWeight: "700",
+                }}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Data Table with Frozen Columns */}
+      {/* Data Table */}
       <div
         style={{
           background: colors.cardBg,
@@ -1267,7 +999,6 @@ function FDAVerificationPortal({ darkMode }) {
             borderBottom: `1px solid ${colors.tableBorder}`,
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
           }}
         >
           <h3
@@ -1289,1714 +1020,63 @@ function FDAVerificationPortal({ darkMode }) {
           </span>
         </div>
 
-        <div
-          style={{ position: "relative", overflow: "auto", maxHeight: "600px" }}
-        >
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "separate",
-              borderSpacing: 0,
-              minWidth: "2900px",
-            }}
-          >
-            <thead
-              style={{
-                position: "sticky",
-                top: 0,
-                background: colors.tableBg,
-                zIndex: 20,
-              }}
-            >
-              <tr>
-                {/* ✨ FROZEN: # Column */}
-                <th
-                  style={{
-                    position: "sticky",
-                    left: 0,
-                    zIndex: 21,
-                    padding: "1rem",
-                    textAlign: "center",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    borderBottom: `1px solid ${colors.tableBorder}`,
-                    background: colors.tableBg,
-                    width: "60px",
-                    boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  #
-                </th>
+        {/* Use the new FDADataTable component */}
+        <FDADataTable
+          filteredData={filteredData}
+          columns={columns}
+          colors={colors}
+          currentPage={currentPage}
+          pageSize={pageSize}
+          loading={loading}
+          openDropdown={openDropdown}
+          buttonRefs={buttonRefs}
+          activeTab={activeTab}
+          darkMode={darkMode}
+          toggleDropdown={toggleDropdown}
+          handleViewDetails={handleViewDetails}
+          handleEdit={handleEdit}
+          handleDeleteClick={handleDeleteClick}
+          isExpired={isExpired}
+        />
 
-                {/* ✨ FROZEN: Registration Number Column */}
-                <th
-                  style={{
-                    position: "sticky",
-                    left: "60px",
-                    zIndex: 21,
-                    padding: "1rem",
-                    textAlign: "left",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    borderBottom: `1px solid ${colors.tableBorder}`,
-                    background: colors.tableBg,
-                    minWidth: "170px",
-                    boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  Registration Number
-                </th>
-
-                {/* Regular Columns */}
-                {columns.map((col) => (
-                  <th
-                    key={col.key}
-                    style={{
-                      padding: "1rem",
-                      textAlign: "left",
-                      fontSize: "0.8rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      borderBottom: `1px solid ${colors.tableBorder}`,
-                      background: colors.tableBg,
-                      minWidth: col.width,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {col.label}
-                  </th>
-                ))}
-
-                {/* ✨ FROZEN: Actions Column */}
-                <th
-                  style={{
-                    position: "sticky",
-                    right: 0,
-                    zIndex: 21,
-                    padding: "1rem",
-                    textAlign: "center",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    borderBottom: `1px solid ${colors.tableBorder}`,
-                    background: colors.tableBg,
-                    width: "100px",
-                    boxShadow: "-2px 0 5px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  Actions
-                </th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredData.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={columns.length + 3}
-                    style={{
-                      padding: "2rem",
-                      textAlign: "center",
-                      color: colors.textTertiary,
-                    }}
-                  >
-                    {loading ? "Loading..." : "No data found"}
-                  </td>
-                </tr>
-              ) : (
-                filteredData.map((row, index) => {
-                  const rowBg =
-                    index % 2 === 0 ? colors.tableRowEven : colors.tableRowOdd;
-
-                  return (
-                    <tr
-                      key={row.id}
-                      style={{
-                        background: rowBg,
-                        transition: "background 0.2s",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = colors.tableRowHover;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = rowBg;
-                      }}
-                    >
-                      {/* ✨ FROZEN: # Column */}
-                      <td
-                        style={{
-                          position: "sticky",
-                          left: 0,
-                          zIndex: 10,
-                          padding: "1rem",
-                          fontSize: "0.85rem",
-                          fontWeight: "700",
-                          color: colors.textTertiary,
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          textAlign: "center",
-                          background: rowBg,
-                          boxShadow: "2px 0 5px rgba(0,0,0,0.05)",
-                        }}
-                      >
-                        {(currentPage - 1) * pageSize + index + 1}
-                      </td>
-
-                      {/* ✨ FROZEN: Registration Number Column */}
-                      <td
-                        style={{
-                          position: "sticky",
-                          left: "60px",
-                          zIndex: 10,
-                          padding: "1rem",
-                          fontSize: "0.85rem",
-                          fontWeight: "600",
-                          color: colors.textPrimary,
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          background: rowBg,
-                          boxShadow: "2px 0 5px rgba(0,0,0,0.05)",
-                        }}
-                      >
-                        {row.registration_number || "N/A"}
-                      </td>
-
-                      {/* Regular Columns */}
-                      {columns.map((col) => (
-                        <td
-                          key={col.key}
-                          style={{
-                            padding: "1rem",
-                            fontSize: "0.85rem",
-                            color: colors.tableText,
-                            borderBottom: `1px solid ${colors.tableBorder}`,
-                            whiteSpace: "normal",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {col.key === "expiry_date" && row[col.key] ? (
-                            <span
-                              style={{
-                                padding: "0.25rem 0.5rem",
-                                borderRadius: "4px",
-                                fontSize: "0.8rem",
-                                fontWeight: "600",
-                                background: isExpired(row[col.key])
-                                  ? "rgba(244, 67, 54, 0.1)"
-                                  : "rgba(76, 175, 80, 0.1)",
-                                color: isExpired(row[col.key])
-                                  ? "#f44336"
-                                  : "#4CAF50",
-                              }}
-                            >
-                              {row[col.key]}
-                              {isExpired(row[col.key]) && " ⚠️"}
-                            </span>
-                          ) : col.key === "date_uploaded" && row[col.key] ? (
-                            new Date(row[col.key]).toLocaleString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          ) : (
-                            row[col.key] || "N/A"
-                          )}
-                        </td>
-                      ))}
-
-                      {/* ✨ FROZEN: Actions Column */}
-                      <td
-                        style={{
-                          position: "sticky",
-                          right: 0,
-                          zIndex: 10,
-                          padding: "1rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          textAlign: "center",
-                          background: rowBg,
-                          boxShadow: "-2px 0 5px rgba(0,0,0,0.05)",
-                        }}
-                      >
-                        <div
-                          style={{
-                            position: "relative",
-                            display: "inline-block",
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <button
-                            onClick={() => toggleDropdown(row.id)}
-                            disabled={loading}
-                            style={{
-                              padding: "0.5rem",
-                              background: "transparent",
-                              border: "none",
-                              cursor: loading ? "not-allowed" : "pointer",
-                              fontSize: "1.2rem",
-                              color: colors.textPrimary,
-                              opacity: loading ? 0.5 : 1,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            ⋮
-                          </button>
-
-                          {/* Dropdown Menu */}
-                          {openDropdown === row.id && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                right: 0,
-                                top: "100%",
-                                marginTop: "0.25rem",
-                                background: colors.cardBg,
-                                border: `1px solid ${colors.cardBorder}`,
-                                borderRadius: "8px",
-                                boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
-                                zIndex: 1000,
-                                minWidth: "150px",
-                                overflow: "hidden",
-                                animation: "fadeIn 0.2s ease",
-                              }}
-                            >
-                              <button
-                                onClick={() => handleViewDetails(row.id)}
-                                style={{
-                                  width: "100%",
-                                  padding: "0.75rem 1rem",
-                                  background: "transparent",
-                                  border: "none",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                  color: colors.textPrimary,
-                                  fontSize: "0.85rem",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background =
-                                    colors.tableRowHover;
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background =
-                                    "transparent";
-                                }}
-                              >
-                                <span>👁️</span>
-                                <span>View Details</span>
-                              </button>
-
-                              {activeTab !== "deleted" && (
-                                <>
-                                  <button
-                                    onClick={() => handleEdit(row.id)}
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.75rem 1rem",
-                                      background: "transparent",
-                                      border: "none",
-                                      textAlign: "left",
-                                      cursor: "pointer",
-                                      color: colors.textPrimary,
-                                      fontSize: "0.85rem",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "0.5rem",
-                                      transition: "background 0.2s",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background =
-                                        colors.tableRowHover;
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background =
-                                        "transparent";
-                                    }}
-                                  >
-                                    <span>✏️</span>
-                                    <span>Edit</span>
-                                  </button>
-
-                                  <div
-                                    style={{
-                                      height: "1px",
-                                      background: colors.tableBorder,
-                                      margin: "0.25rem 0",
-                                    }}
-                                  />
-
-                                  <button
-                                    onClick={() => {
-                                      setOpenDropdown(null);
-                                      handleDelete(
-                                        row.id,
-                                        row.brand_name || row.generic_name,
-                                      );
-                                    }}
-                                    style={{
-                                      width: "100%",
-                                      padding: "0.75rem 1rem",
-                                      background: "transparent",
-                                      border: "none",
-                                      textAlign: "left",
-                                      cursor: "pointer",
-                                      color: "#ff4444",
-                                      fontSize: "0.85rem",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "0.5rem",
-                                      transition: "background 0.2s",
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.currentTarget.style.background =
-                                        "rgba(255, 68, 68, 0.1)";
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.currentTarget.style.background =
-                                        "transparent";
-                                    }}
-                                  >
-                                    <span>🗑️</span>
-                                    <span>Delete</span>
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Footer */}
-        <div
-          style={{
-            padding: "1rem 1.5rem",
-            borderTop: `1px solid ${colors.tableBorder}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div
-            style={{
-              color: colors.textTertiary,
-              fontSize: "0.85rem",
-            }}
-          >
-            Showing {(currentPage - 1) * pageSize + 1} to{" "}
-            {Math.min(currentPage * pageSize, pagination.total || 0)} of{" "}
-            {pagination.total || 0} records
-          </div>
-
-          {/* Pagination Controls */}
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={!pagination.has_prev || loading}
-              style={{
-                padding: "0.5rem 1rem",
-                background:
-                  pagination.has_prev && !loading
-                    ? colors.cardBg
-                    : colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: "6px",
-                color: colors.textPrimary,
-                cursor:
-                  pagination.has_prev && !loading ? "pointer" : "not-allowed",
-                opacity: pagination.has_prev && !loading ? 1 : 0.5,
-              }}
-            >
-              ← Previous
-            </button>
-
-            <span style={{ color: colors.textPrimary, fontSize: "0.9rem" }}>
-              Page {currentPage} of {pagination.total_pages || 1}
-            </span>
-
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={!pagination.has_next || loading}
-              style={{
-                padding: "0.5rem 1rem",
-                background:
-                  pagination.has_next && !loading
-                    ? colors.cardBg
-                    : colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: "6px",
-                color: colors.textPrimary,
-                cursor:
-                  pagination.has_next && !loading ? "pointer" : "not-allowed",
-                opacity: pagination.has_next && !loading ? 1 : 0.5,
-              }}
-            >
-              Next →
-            </button>
-          </div>
-        </div>
+        {/* Use the new FDATablePagination component */}
+        <FDATablePagination
+          currentPage={currentPage}
+          pageSize={pageSize}
+          pagination={pagination}
+          colors={colors}
+          loading={loading}
+          handlePageChange={handlePageChange}
+        />
       </div>
 
-      {/* ✨ VIEW DETAILS MODAL */}
-      {viewModal.open && viewModal.data && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: colors.modalOverlay,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 10000,
-            padding: "2rem",
-          }}
-          onClick={() => setViewModal({ open: false, data: null })}
-        >
-          <div
-            style={{
-              background: colors.cardBg,
-              borderRadius: "12px",
-              maxWidth: "800px",
-              width: "100%",
-              maxHeight: "80vh",
-              overflow: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: "1.5rem",
-                borderBottom: `1px solid ${colors.tableBorder}`,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                position: "sticky",
-                top: 0,
-                background: colors.cardBg,
-                zIndex: 10,
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: colors.textPrimary,
-                }}
-              >
-                Drug Registration Details
-              </h2>
-              <button
-                onClick={() => setViewModal({ open: false, data: null })}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  fontSize: "1.5rem",
-                  color: colors.textTertiary,
-                  cursor: "pointer",
-                  padding: "0.5rem",
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
+      {/* Modals */}
+      <FDAViewModal
+        isOpen={viewModal.open}
+        onClose={() => setViewModal({ open: false, data: null })}
+        data={viewModal.data}
+        darkMode={darkMode}
+      />
 
-            {/* Modal Body */}
-            <div style={{ padding: "1.5rem" }}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                  gap: "1.5rem",
-                }}
-              >
-                {/* Registration Number */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Registration Number
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {viewModal.data.registration_number || "N/A"}
-                  </p>
-                </div>
+      <FDAEditModal
+        isOpen={editModal.open}
+        onClose={() => setEditModal({ open: false, data: null })}
+        data={editModal.data}
+        onSave={handleSaveEdit}
+        darkMode={darkMode}
+        loading={loading}
+      />
 
-                {/* Generic Name */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Generic Name
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.generic_name || "N/A"}
-                  </p>
-                </div>
-
-                {/* Brand Name */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Brand Name
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.brand_name || "N/A"}
-                  </p>
-                </div>
-
-                {/* Dosage Strength */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Dosage Strength
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.dosage_strength || "N/A"}
-                  </p>
-                </div>
-
-                {/* Dosage Form */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Dosage Form
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.dosage_form || "N/A"}
-                  </p>
-                </div>
-
-                {/* Classification */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Classification
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.classification || "N/A"}
-                  </p>
-                </div>
-
-                {/* Packaging */}
-                <div style={{ gridColumn: "span 2" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Packaging
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.packaging || "N/A"}
-                  </p>
-                </div>
-
-                {/* Pharmacologic Category */}
-                <div style={{ gridColumn: "span 2" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Pharmacologic Category
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.pharmacologic_category || "N/A"}
-                  </p>
-                </div>
-
-                {/* Manufacturer */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Manufacturer
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.manufacturer || "N/A"}
-                  </p>
-                </div>
-
-                {/* Country */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Country
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.country || "N/A"}
-                  </p>
-                </div>
-
-                {/* Trader */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Trader
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.trader || "N/A"}
-                  </p>
-                </div>
-
-                {/* Importer */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Importer
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.importer || "N/A"}
-                  </p>
-                </div>
-
-                {/* Distributor */}
-                <div style={{ gridColumn: "span 2" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Distributor
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.distributor || "N/A"}
-                  </p>
-                </div>
-
-                {/* App Type */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Application Type
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.app_type || "N/A"}
-                  </p>
-                </div>
-
-                {/* Issuance Date */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Issuance Date
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.issuance_date || "N/A"}
-                  </p>
-                </div>
-
-                {/* Expiry Date */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Expiry Date
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: isExpired(viewModal.data.expiry_date)
-                        ? "#f44336"
-                        : "#4CAF50",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {viewModal.data.expiry_date || "N/A"}
-                    {isExpired(viewModal.data.expiry_date) && " ⚠️ EXPIRED"}
-                  </p>
-                </div>
-
-                {/* Uploaded By */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Uploaded By
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.uploaded_by || "N/A"}
-                  </p>
-                </div>
-
-                {/* Date Uploaded */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Date Uploaded
-                  </label>
-                  <p
-                    style={{
-                      fontSize: "0.95rem",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {viewModal.data.date_uploaded
-                      ? new Date(viewModal.data.date_uploaded).toLocaleString(
-                          "en-US",
-                          {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          },
-                        )
-                      : "N/A"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div
-              style={{
-                padding: "1.5rem",
-                borderTop: `1px solid ${colors.tableBorder}`,
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "1rem",
-                position: "sticky",
-                bottom: 0,
-                background: colors.cardBg,
-              }}
-            >
-              <button
-                onClick={() => setViewModal({ open: false, data: null })}
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  background: colors.inputBg,
-                  border: `1px solid ${colors.inputBorder}`,
-                  borderRadius: "8px",
-                  color: colors.textPrimary,
-                  fontSize: "0.9rem",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ✨ EDIT MODAL */}
-      {editModal.open && editModal.data && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: colors.modalOverlay,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 10000,
-            padding: "2rem",
-          }}
-          onClick={() =>
-            setEditModal({ open: false, data: null, formData: {} })
-          }
-        >
-          <div
-            style={{
-              background: colors.cardBg,
-              borderRadius: "12px",
-              maxWidth: "900px",
-              width: "100%",
-              maxHeight: "80vh",
-              overflow: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div
-              style={{
-                padding: "1.5rem",
-                borderBottom: `1px solid ${colors.tableBorder}`,
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                position: "sticky",
-                top: 0,
-                background: colors.cardBg,
-                zIndex: 10,
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: "600",
-                  color: colors.textPrimary,
-                }}
-              >
-                Edit Drug Registration
-              </h2>
-              <button
-                onClick={() =>
-                  setEditModal({ open: false, data: null, formData: {} })
-                }
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  fontSize: "1.5rem",
-                  color: colors.textTertiary,
-                  cursor: "pointer",
-                  padding: "0.5rem",
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ padding: "1.5rem" }}>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                  gap: "1.5rem",
-                }}
-              >
-                {/* Registration Number */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Registration Number *
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.registration_number || ""}
-                    onChange={(e) =>
-                      handleEditFormChange(
-                        "registration_number",
-                        e.target.value,
-                      )
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Generic Name */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Generic Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.generic_name || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("generic_name", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Brand Name */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Brand Name
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.brand_name || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("brand_name", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Dosage Strength */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Dosage Strength
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.dosage_strength || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("dosage_strength", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Dosage Form */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Dosage Form
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.dosage_form || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("dosage_form", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Classification */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Classification
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.classification || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("classification", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Packaging */}
-                <div style={{ gridColumn: "span 2" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Packaging
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.packaging || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("packaging", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Pharmacologic Category */}
-                <div style={{ gridColumn: "span 2" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Pharmacologic Category
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.pharmacologic_category || ""}
-                    onChange={(e) =>
-                      handleEditFormChange(
-                        "pharmacologic_category",
-                        e.target.value,
-                      )
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Manufacturer */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Manufacturer
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.manufacturer || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("manufacturer", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Country */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Country
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.country || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("country", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Trader */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Trader
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.trader || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("trader", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Importer */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Importer
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.importer || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("importer", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Distributor */}
-                <div style={{ gridColumn: "span 2" }}>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Distributor
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.distributor || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("distributor", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* App Type */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Application Type
-                  </label>
-                  <input
-                    type="text"
-                    value={editModal.formData.app_type || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("app_type", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Issuance Date */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Issuance Date
-                  </label>
-                  <input
-                    type="date"
-                    value={editModal.formData.issuance_date || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("issuance_date", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-
-                {/* Expiry Date */}
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.85rem",
-                      fontWeight: "600",
-                      color: colors.textSecondary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Expiry Date
-                  </label>
-                  <input
-                    type="date"
-                    value={editModal.formData.expiry_date || ""}
-                    onChange={(e) =>
-                      handleEditFormChange("expiry_date", e.target.value)
-                    }
-                    style={{
-                      width: "100%",
-                      padding: "0.75rem",
-                      background: colors.inputBg,
-                      border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      color: colors.textPrimary,
-                      fontSize: "0.9rem",
-                      outline: "none",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div
-              style={{
-                padding: "1.5rem",
-                borderTop: `1px solid ${colors.tableBorder}`,
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: "1rem",
-                position: "sticky",
-                bottom: 0,
-                background: colors.cardBg,
-              }}
-            >
-              <button
-                onClick={() =>
-                  setEditModal({ open: false, data: null, formData: {} })
-                }
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  background: "transparent",
-                  border: `1px solid ${colors.inputBorder}`,
-                  borderRadius: "8px",
-                  color: colors.textPrimary,
-                  fontSize: "0.9rem",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#f44336";
-                  e.currentTarget.style.color = "#f44336";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = colors.inputBorder;
-                  e.currentTarget.style.color = colors.textPrimary;
-                }}
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleSaveEdit}
-                disabled={loading}
-                style={{
-                  padding: "0.75rem 1.5rem",
-                  background: loading
-                    ? "#999"
-                    : "linear-gradient(135deg, #4CAF50 0%, #45a049 100%)",
-                  border: "none",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: "0.9rem",
-                  fontWeight: "600",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  transition: "all 0.2s",
-                  boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow =
-                      "0 6px 16px rgba(76, 175, 80, 0.4)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow =
-                    "0 4px 12px rgba(76, 175, 80, 0.3)";
-                }}
-              >
-                {loading ? "Saving..." : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <FDADeleteConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() =>
+          setDeleteModal({ open: false, drugId: null, drugName: "" })
+        }
+        onConfirm={handleDeleteConfirm}
+        drugName={deleteModal.drugName}
+        darkMode={darkMode}
+        loading={loading}
+      />
     </div>
   );
 }
