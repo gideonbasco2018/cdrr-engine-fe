@@ -22,7 +22,7 @@ import {
   applyFilters,
   calculateStats,
   isExpired,
-} from "../utils/fdaFilterHelpers";
+} from "../utils/FDAFilterHelpers";
 
 function FDAVerificationPortal({ darkMode }) {
   const [searchTerm, setSearchTerm] = useState("");
