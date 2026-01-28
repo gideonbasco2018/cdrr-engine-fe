@@ -8,6 +8,8 @@ import UploadReportsPage from "../pages/UploadReportsPage";
 import ProfilePage from "../pages/ProfilePage";
 import ForEvaluationPage from "../pages/ForEvaluationPage";
 
+import FDAVerificationPortal from "../pages/FDAVerificationPortal";
+
 function DashboardLayout({ userRole = "User" }) {
   const { page } = useParams(); // Get page from URL
   const location = useLocation();
@@ -90,6 +92,10 @@ function DashboardLayout({ userRole = "User" }) {
             For Releasing Page - Coming Soon
           </div>
         );
+
+      // ===== OTHER DATABASE PAGES ===== ✅ NEW SECTION
+      case "fda-verification":
+        return <FDAVerificationPortal darkMode={darkMode} />;
 
       // ===== PLATFORM PAGES =====
       case "announcements":

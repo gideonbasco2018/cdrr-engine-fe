@@ -1,4 +1,5 @@
 // src/components/UploadReports/DataTable.jsx
+// ✅ UPDATED: Enhanced APP STATUS badges with all status types
 
 import { useState } from "react";
 import { tableColumns } from "./tableColumns";
@@ -7,7 +8,7 @@ import DeckModal from "./actions/DeckModal";
 import EvaluatorModal from "./actions/EvaluatorModal";
 import ViewDetailsModal from "./actions/ViewDetailsModal";
 import BulkDeckModal from "./actions/BulkDeckModal";
-import DoctrackModal from "./actions/DoctrackModal"; // ✅ NEW
+import DoctrackModal from "./actions/DoctrackModal";
 import { bulkDeckApplications } from "../../api/reports";
 
 function DataTable({
@@ -25,16 +26,111 @@ function DataTable({
   activeTab,
   onRefresh,
   onClearSelections,
+  indexOfFirstRow,
+  indexOfLastRow,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
   const [deckModalRecord, setDeckModalRecord] = useState(null);
   const [evaluatorModalRecord, setEvaluatorModalRecord] = useState(null);
   const [bulkDeckModalRecords, setBulkDeckModalRecords] = useState(null);
-  const [doctrackModalRecord, setDoctrackModalRecord] = useState(null); // ✅ NEW
+  const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
 
-  const indexOfFirstRow = (currentPage - 1) * rowsPerPage + 1;
-  const indexOfLastRow = Math.min(currentPage * rowsPerPage, totalRecords);
+  // ✅ Function to calculate status timeline
+  const calculateStatusTimeline = (row) => {
+    const dateReceivedCent = row.dateReceivedCent;
+    const dateReleased = row.dateReleased;
+    const timeline = row.dbTimelineCitizenCharter;
+
+    if (
+      !dateReceivedCent ||
+      !timeline ||
+      dateReceivedCent === "N/A" ||
+      timeline === null
+    ) {
+      return { status: "", days: 0 };
+    }
+
+    const receivedDate = new Date(dateReceivedCent);
+    const endDate =
+      dateReleased && dateReleased !== "N/A"
+        ? new Date(dateReleased)
+        : new Date();
+
+    if (isNaN(receivedDate.getTime()) || isNaN(endDate.getTime())) {
+      return { status: "", days: 0 };
+    }
+
+    const diffTime = Math.abs(endDate - receivedDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const timelineValue = parseInt(timeline, 10);
+
+    if (diffDays <= timelineValue) {
+      return { status: "WITHIN", days: diffDays };
+    } else {
+      return { status: "BEYOND", days: diffDays };
+    }
+  };
+
+  // ✅ Function to render status timeline badge
+  const renderStatusTimelineBadge = (row) => {
+    const { status, days } = calculateStatusTimeline(row);
+
+    if (!status)
+      return (
+        <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
+          N/A
+        </span>
+      );
+
+    if (status === "WITHIN") {
+      return (
+        <span
+          style={{
+            padding: "0.4rem 0.9rem",
+            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+            color: "#fff",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: "700",
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+          }}
+        >
+          <span style={{ fontSize: "0.9rem" }}>✓</span>
+          Within ({days}d)
+        </span>
+      );
+    } else if (status === "BEYOND") {
+      return (
+        <span
+          style={{
+            padding: "0.4rem 0.9rem",
+            background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+            color: "#fff",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: "700",
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+          }}
+        >
+          <span style={{ fontSize: "0.9rem" }}>⚠</span>
+          Beyond ({days}d)
+        </span>
+      );
+    }
+
+    return status;
+  };
 
   // Menu handlers
   const handleMenuToggle = (rowId) => {
@@ -106,9 +202,168 @@ function DataTable({
     );
   };
 
+  // ✅ NEW: Render DTN with highlight
+  const renderDTN = (dtn) => {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.4rem 0.9rem",
+          background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+          color: "#fff",
+          borderRadius: "8px",
+          fontSize: "0.75rem",
+          fontWeight: "700",
+          letterSpacing: "0.5px",
+          boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+        }}
+      >
+        <span style={{ fontSize: "0.9rem" }}>🔖</span>
+        <span>{dtn || "N/A"}</span>
+      </span>
+    );
+  };
+
+  // ✅ NEW: Render Generic Name with highlight
+  const renderGenericName = (genName) => {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.4rem 0.9rem",
+          background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)",
+          color: "#fff",
+          borderRadius: "8px",
+          fontSize: "0.75rem",
+          fontWeight: "700",
+          letterSpacing: "0.3px",
+          boxShadow: "0 2px 8px rgba(6, 182, 212, 0.3)",
+        }}
+      >
+        <span style={{ fontSize: "0.9rem" }}>💊</span>
+        <span>{genName || "N/A"}</span>
+      </span>
+    );
+  };
+
+  // ✅ NEW: Render Brand Name with highlight
+  const renderBrandName = (brandName) => {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.4rem 0.9rem",
+          background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+          color: "#fff",
+          borderRadius: "8px",
+          fontSize: "0.75rem",
+          fontWeight: "700",
+          letterSpacing: "0.3px",
+          boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+        }}
+      >
+        <span style={{ fontSize: "0.9rem" }}>🏷️</span>
+        <span>{brandName || "N/A"}</span>
+      </span>
+    );
+  };
+
+  // ✅ NEW: Render Type Doc Released with icons
+  const renderTypeDocReleased = (typeDoc) => {
+    const typeUpper = typeDoc?.toUpperCase();
+
+    // CPR (Certificate of Product Registration) - Approved icon
+    if (typeUpper?.includes("CPR")) {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.4rem 0.9rem",
+            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+            color: "#fff",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: "700",
+            letterSpacing: "0.3px",
+            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
+          }}
+        >
+          <span style={{ fontSize: "1rem" }}>📜</span>
+          <span>{typeDoc}</span>
+        </span>
+      );
+    }
+    // LOD (Letter of Denial/Disapproval) - Disapproved icon
+    else if (typeUpper?.includes("LOD")) {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.4rem 0.9rem",
+            background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+            color: "#fff",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: "700",
+            letterSpacing: "0.3px",
+            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
+          }}
+        >
+          <span style={{ fontSize: "1rem" }}>📋</span>
+          <span>{typeDoc}</span>
+        </span>
+      );
+    }
+    // Certificate (General) - Certificate icon
+    else if (
+      typeUpper?.includes("CERT") ||
+      typeUpper?.includes("CERTIFICATE")
+    ) {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.4rem 0.9rem",
+            background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+            color: "#fff",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: "700",
+            letterSpacing: "0.3px",
+            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+          }}
+        >
+          <span style={{ fontSize: "1rem" }}>🏆</span>
+          <span>{typeDoc}</span>
+        </span>
+      );
+    }
+
+    // Default - No icon
+    return (
+      <span style={{ fontSize: "0.85rem", color: colors.tableText }}>
+        {typeDoc || "N/A"}
+      </span>
+    );
+  };
+
+  // ✅ ENHANCED: Render APP STATUS badges with all status types
   const renderAppStatusBadge = (status) => {
     const statusUpper = status?.toUpperCase();
 
+    // ✅ COMPLETED - Green gradient
     if (statusUpper === "COMPLETED") {
       return (
         <span
@@ -131,7 +386,9 @@ function DataTable({
           Completed
         </span>
       );
-    } else if (statusUpper === "TO_DO") {
+    }
+    // ✅ TO_DO - Orange/Amber gradient
+    else if (statusUpper === "TO_DO") {
       return (
         <span
           style={{
@@ -154,8 +411,101 @@ function DataTable({
         </span>
       );
     }
+    // ✅ APPROVED - Blue gradient
+    else if (statusUpper === "APPROVED") {
+      return (
+        <span
+          style={{
+            padding: "0.4rem 0.9rem",
+            background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+            color: "#fff",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: "700",
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+          }}
+        >
+          <span style={{ fontSize: "0.9rem" }}>✅</span>
+          Approved
+        </span>
+      );
+    }
+    // ✅ PENDING - Yellow gradient
+    else if (statusUpper === "PENDING") {
+      return (
+        <span
+          style={{
+            padding: "0.4rem 0.9rem",
+            background: "linear-gradient(135deg, #eab308 0%, #ca8a04 100%)",
+            color: "#fff",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: "700",
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            boxShadow: "0 2px 8px rgba(234, 179, 8, 0.3)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+          }}
+        >
+          <span style={{ fontSize: "0.9rem" }}>⏸</span>
+          Pending
+        </span>
+      );
+    }
+    // ✅ REJECTED - Red gradient
+    else if (statusUpper === "REJECTED") {
+      return (
+        <span
+          style={{
+            padding: "0.4rem 0.9rem",
+            background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+            color: "#fff",
+            borderRadius: "8px",
+            fontSize: "0.75rem",
+            fontWeight: "700",
+            letterSpacing: "0.5px",
+            textTransform: "uppercase",
+            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+          }}
+        >
+          <span style={{ fontSize: "0.9rem" }}>✗</span>
+          Rejected
+        </span>
+      );
+    }
 
-    return status;
+    // ✅ Fallback for unknown status
+    return (
+      <span
+        style={{
+          padding: "0.4rem 0.9rem",
+          background: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
+          color: "#fff",
+          borderRadius: "8px",
+          fontSize: "0.75rem",
+          fontWeight: "700",
+          letterSpacing: "0.5px",
+          textTransform: "uppercase",
+          boxShadow: "0 2px 8px rgba(107, 114, 128, 0.3)",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.4rem",
+        }}
+      >
+        <span style={{ fontSize: "0.9rem" }}>•</span>
+        {status || "N/A"}
+      </span>
+    );
   };
 
   return (
@@ -404,7 +754,6 @@ function DataTable({
                       ...(col.frozen && {
                         position: "sticky",
                         left: "110px",
-                        // background: colors.tableBg,
                         background: col.headerBg || colors.tableBg,
                         zIndex: 21,
                         boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
@@ -532,9 +881,22 @@ function DataTable({
                           }),
                         }}
                       >
-                        {col.key === "appStatus"
-                          ? renderAppStatusBadge(row[col.key])
-                          : row[col.key]}
+                        {/* ✅ Render special columns with custom logic */}
+                        {col.key === "dtn"
+                          ? renderDTN(row[col.key])
+                          : col.key === "prodGenName"
+                            ? renderGenericName(row[col.key])
+                            : col.key === "prodBrName"
+                              ? renderBrandName(row[col.key])
+                              : col.key === "appStatus"
+                                ? renderAppStatusBadge(row[col.key])
+                                : col.key === "statusTimeline"
+                                  ? renderStatusTimelineBadge(row)
+                                  : col.key === "dbTimelineCitizenCharter"
+                                    ? row.dbTimelineCitizenCharter || "N/A"
+                                    : col.key === "typeDocReleased"
+                                      ? renderTypeDocReleased(row[col.key])
+                                      : row[col.key]}
                       </td>
                     ))}
 

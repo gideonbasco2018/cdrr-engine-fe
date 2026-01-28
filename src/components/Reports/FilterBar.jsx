@@ -19,7 +19,7 @@ function FilterBar({
   };
 
   const activeFilterCount = Object.values(filters).filter(
-    (v) => v && v !== "all"
+    (v) => v && v !== "all",
   ).length;
 
   return (
@@ -102,7 +102,7 @@ function FilterBar({
           <option value="Drugstore">Drugstore</option>
         </select>
 
-        {/* STATUS FILTER */}
+        {/* ✅ NEW: APP STATUS FILTER (Updated) */}
         <select
           value={filters.appStatus || "all"}
           onChange={(e) => handleFilterChange("appStatus", e.target.value)}
@@ -119,9 +119,32 @@ function FilterBar({
           }}
         >
           <option value="all">All Status</option>
+          <option value="COMPLETED">✓ Completed</option>
+          <option value="TO_DO">⏳ To Do</option>
           <option value="Approved">Approved</option>
           <option value="Pending">Pending</option>
           <option value="Rejected">Rejected</option>
+        </select>
+
+        {/* ✅ NEW: STATUS TIMELINE FILTER */}
+        <select
+          value={filters.statusTimeline || "all"}
+          onChange={(e) => handleFilterChange("statusTimeline", e.target.value)}
+          style={{
+            padding: "0.75rem 1rem",
+            background: colors.inputBg,
+            border: `1px solid ${colors.inputBorder}`,
+            borderRadius: "8px",
+            color: colors.textPrimary,
+            fontSize: "0.9rem",
+            cursor: "pointer",
+            outline: "none",
+            transition: "all 0.3s ease",
+          }}
+        >
+          <option value="all">All Timeline Status</option>
+          <option value="WITHIN">✓ Within Timeline</option>
+          <option value="BEYOND">⚠ Beyond Timeline</option>
         </select>
 
         {/* ADVANCED TOGGLE */}
