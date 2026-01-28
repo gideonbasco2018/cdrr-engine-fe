@@ -1,6 +1,5 @@
 // FILE: src/pages/UploadReportsPage.jsx
-// ✅ OPTION 1: Always sort by upload date (simplest fix)
-// Just remove the special sorting for decked tab
+// ✅ FIXED: Pagination now works correctly with client-side filtering
 
 import { useState, useEffect } from "react";
 import {
@@ -12,10 +11,12 @@ import StatsCard from "/src/components/Reports/StatsCard.jsx";
 import FilterBar from "/src/components/Reports/FilterBar";
 import UploadButton from "/src/components/Reports/UploadButton";
 import UploadProgress from "/src/components/Reports/UploadProgress";
+import { applyClientSideFilters } from "/src/components/Reports/filterHelpers";
 import DataTable from "/src/components/Reports/DataTable";
 import { mapDataItem, getColorScheme } from "/src/components/Reports/utils";
 
 function UploadReportsPage({ darkMode }) {
+  const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({});
   const [selectedRows, setSelectedRows] = useState([]);
@@ -166,6 +167,7 @@ function UploadReportsPage({ darkMode }) {
         if (!json || !json.data || !Array.isArray(json.data)) {
           console.warn("⚠️ No data received or invalid format");
           setUploadReportsData([]);
+          setFilteredData([]);
           setTotalRecords(0);
           setTotalPages(0);
           return;
@@ -173,12 +175,18 @@ function UploadReportsPage({ darkMode }) {
 
         const mappedData = json.data.map(mapDataItem);
         setUploadReportsData(mappedData);
+
+        // ✅ Apply client-side filters
+        const filtered = applyClientSideFilters(mappedData, filters);
+        setFilteredData(filtered);
+
         setTotalRecords(json.total);
         setTotalPages(json.total_pages);
       } catch (err) {
         console.error("❌ Failed to fetch reports:", err);
         console.error("Error details:", err.response?.data);
         setUploadReportsData([]);
+        setFilteredData([]);
         setTotalRecords(0);
         setTotalPages(0);
       } finally {
@@ -242,6 +250,11 @@ function UploadReportsPage({ darkMode }) {
       if (json && json.data) {
         const mappedData = json.data.map(mapDataItem);
         setUploadReportsData(mappedData);
+
+        // ✅ Apply client-side filters after refresh
+        const filtered = applyClientSideFilters(mappedData, filters);
+        setFilteredData(filtered);
+
         setTotalRecords(json.total);
         setTotalPages(json.total_pages);
       }
@@ -347,10 +360,10 @@ function UploadReportsPage({ darkMode }) {
   };
 
   const handleSelectAll = () => {
-    if (selectedRows.length === uploadReportsData.length) {
+    if (selectedRows.length === filteredData.length) {
       setSelectedRows([]);
     } else {
-      setSelectedRows(uploadReportsData.map((row) => row.id));
+      setSelectedRows(filteredData.map((row) => row.id));
     }
   };
 
@@ -387,6 +400,11 @@ function UploadReportsPage({ darkMode }) {
     setCurrentPage(1);
     setSelectedRows([]);
   };
+
+  // ✅ NEW: Calculate pagination values based on filtered data
+  const filteredTotalRecords = filteredData.length;
+  const indexOfFirstRow = filteredTotalRecords > 0 ? 1 : 0;
+  const indexOfLastRow = filteredTotalRecords;
 
   return (
     <div
@@ -566,7 +584,7 @@ function UploadReportsPage({ darkMode }) {
         </div>
       )}
 
-      {!loading && uploadReportsData.length === 0 && (
+      {!loading && filteredData.length === 0 && (
         <div
           style={{
             background: colors.cardBg,
@@ -597,17 +615,19 @@ function UploadReportsPage({ darkMode }) {
         </div>
       )}
 
-      {!loading && uploadReportsData.length > 0 && (
+      {!loading && filteredData.length > 0 && (
         <DataTable
-          data={uploadReportsData}
+          data={filteredData}
           selectedRows={selectedRows}
           onSelectRow={handleSelectRow}
           onSelectAll={handleSelectAll}
           onClearSelections={clearSelections}
           currentPage={currentPage}
           rowsPerPage={rowsPerPage}
-          totalRecords={totalRecords}
-          totalPages={totalPages}
+          totalRecords={filteredTotalRecords}
+          totalPages={1}
+          indexOfFirstRow={indexOfFirstRow}
+          indexOfLastRow={indexOfLastRow}
           onPageChange={handlePageChange}
           onRowsPerPageChange={handleRowsPerPageChange}
           colors={colors}

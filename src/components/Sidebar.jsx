@@ -163,6 +163,16 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
     },
   ];
 
+  // ✅ NEW: Other Database Items
+  const otherDatabaseItems = [
+    {
+      id: "fda-verification",
+      icon: "🔍",
+      label: "FDA Verification Portal",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
+  ];
+
   const platformItems = [
     {
       id: "announcements",
@@ -197,6 +207,7 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
   const visibleMainMenu = filterByRole(mainMenuItems);
   const visibleCmsReports = filterByRole(cmsReportsItems);
   const visibleWorkflow = filterByRole(workflowItems);
+  const visibleOtherDatabase = filterByRole(otherDatabaseItems); // ✅ NEW
   const visiblePlatform = filterByRole(platformItems);
 
   // ===== COLORS =====
@@ -427,6 +438,28 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
               </div>
             )}
             {visibleWorkflow.map((item) => (
+              <MenuItem key={item.id} item={item} />
+            ))}
+          </div>
+        )}
+
+        {/* ✅ NEW: OTHER DATABASE */}
+        {visibleOtherDatabase.length > 0 && (
+          <div style={{ paddingBottom: "1rem" }}>
+            {!collapsed && (
+              <div
+                style={{
+                  padding: "0 1.25rem",
+                  fontSize: "0.7rem",
+                  fontWeight: "600",
+                  color: colors.sectionLabel,
+                  marginBottom: "0.5rem",
+                }}
+              >
+                OTHER DATABASE
+              </div>
+            )}
+            {visibleOtherDatabase.map((item) => (
               <MenuItem key={item.id} item={item} />
             ))}
           </div>

@@ -92,6 +92,9 @@ export const mapDataItem = (item, index) => ({
   pharmaProdCatLabel: item.DB_PHARMA_PROD_CAT_LABEL ?? "N/A",
   isInPm: item.DB_IS_IN_PM ?? "N/A",
 
+  // ✅ NEW: Timeline Citizen Charter field
+  dbTimelineCitizenCharter: item.DB_TIMELINE_CITIZEN_CHARTER ?? null,
+
   // Application Delegation Fields
   decker: item.application_delegation?.DB_DECKER ?? "N/A",
   deckerDecision: item.application_delegation?.DB_DECKER_DECISION ?? "N/A",
@@ -126,7 +129,7 @@ export const mapDataItem = (item, index) => ({
   directorRemarks: item.application_delegation?.DB_DIRECTOR_REMARKS ?? "N/A",
   dateDirectorEnd: item.application_delegation?.DB_DATE_DIRECTOR_END ?? "N/A",
 
-  // ✅ NEW: Releasing Officer fields
+  // ✅ Releasing Officer fields
   releasingOfficer: item.application_delegation?.DB_RELEASING_OFFICER ?? "N/A",
   releasingOfficerDecision:
     item.application_delegation?.DB_RELEASING_OFFICER_DECISION ?? "N/A",
