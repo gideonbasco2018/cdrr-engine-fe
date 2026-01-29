@@ -9,6 +9,9 @@ import {
   exportDrugsToExcel,
 } from "../api/fdaverifportal";
 
+// Import auth API
+import { getCurrentUser as fetchCurrentUser } from "../api/auth";
+
 // Import Components
 import FDAViewModal from "../components/fda/FDAViewModal";
 import FDAEditModal from "../components/fda/FDAEditModal";
@@ -38,6 +41,9 @@ function FDAVerificationPortal({ darkMode }) {
     manufacturers: 0,
     deletedProducts: 0,
     expiredProducts: 0,
+    uploadedToday: 0,
+    uploadedYesterday: 0,
+    uploadedThisMonth: 0,
   });
   const [openDropdown, setOpenDropdown] = useState(null);
 
@@ -62,6 +68,60 @@ function FDAVerificationPortal({ darkMode }) {
     dateUploadFrom: "",
     dateUploadTo: "",
   });
+
+  // ==================== GET CURRENT USER FROM API ====================
+  const [currentUser, setCurrentUser] = useState(null);
+  const [userLoading, setUserLoading] = useState(true);
+
+  // Fetch current user from backend API using auth.js helper
+  useEffect(() => {
+    const loadCurrentUser = async () => {
+      try {
+        setUserLoading(true);
+
+        console.log("=== 🔍 Fetching Current User from API ===");
+
+        // Use the existing auth.js API helper (already handles token and headers)
+        const userData = await fetchCurrentUser();
+
+        console.log("✅ User data received:", userData);
+        setCurrentUser(userData);
+      } catch (error) {
+        console.error("❌ Error fetching current user:", error);
+
+        // If API fails (e.g., token expired), try localStorage as fallback
+        const fallbackUsername = localStorage.getItem("username");
+        if (fallbackUsername) {
+          console.log(
+            "⚠️ Using fallback username from localStorage:",
+            fallbackUsername,
+          );
+          setCurrentUser({ username: fallbackUsername });
+        } else {
+          console.warn(
+            "⚠️ No user found, redirecting to login might be needed",
+          );
+          setCurrentUser(null);
+        }
+      } finally {
+        setUserLoading(false);
+      }
+    };
+
+    loadCurrentUser();
+  }, []);
+
+  // Debug log when user is loaded
+  useEffect(() => {
+    if (currentUser) {
+      console.log("=== 🚀 FDA Portal Loaded ===");
+      console.log("👤 Current User:", currentUser.username);
+      console.log("📧 Email:", currentUser.email);
+      console.log("👥 Group ID:", currentUser.group_id);
+      console.log("🔑 Role:", currentUser.role);
+      console.log("========================\n");
+    }
+  }, [currentUser]);
 
   // Color scheme
   const colors = darkMode
@@ -102,7 +162,7 @@ function FDAVerificationPortal({ darkMode }) {
 
   // Table columns
   const columns = [
-    { key: "generic_name", label: "Generic Name", width: "180px" },
+    { key: "generic_name", label: "Generic Name", width: "350px" },
     { key: "brand_name", label: "Brand Name", width: "150px" },
     { key: "dosage_strength", label: "Dosage Strength", width: "120px" },
     { key: "dosage_form", label: "Dosage Form", width: "120px" },
@@ -125,13 +185,82 @@ function FDAVerificationPortal({ darkMode }) {
     { key: "date_uploaded", label: "Date Uploaded", width: "150px" },
   ];
 
+  // Helper function to check if date is today
+  const isToday = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
+  };
+
+  // Helper function to check if date is yesterday
+  const isYesterday = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return (
+      date.getDate() === yesterday.getDate() &&
+      date.getMonth() === yesterday.getMonth() &&
+      date.getFullYear() === yesterday.getFullYear()
+    );
+  };
+
+  // Helper function to check if date is this month
+  const isThisMonth = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const today = new Date();
+    return (
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
+  };
+
   // Filter data using the utility function
   const getFilteredData = () => {
-    return applyFilters(drugsData, filters, activeTab);
+    if (!currentUser) return [];
+
+    let filtered = applyFilters(drugsData, filters, activeTab);
+
+    // Apply user filter for tabs EXCEPT "all", "expired", and "deleted"
+    // These tabs should show ALL products, not just current user's
+    if (
+      activeTab !== "all" &&
+      activeTab !== "expired" &&
+      activeTab !== "deleted"
+    ) {
+      console.log(`🔍 Filtering by user: ${currentUser.username}`);
+      filtered = filtered.filter(
+        (drug) => drug.uploaded_by === currentUser.username,
+      );
+      console.log(`📊 Filtered results: ${filtered.length} records`);
+    } else if (activeTab === "expired" || activeTab === "deleted") {
+      console.log(
+        `📋 Showing ALL ${activeTab} products (not filtered by user)`,
+      );
+    }
+
+    // Apply additional tab-specific filters
+    if (activeTab === "today") {
+      filtered = filtered.filter((drug) => isToday(drug.date_uploaded));
+    } else if (activeTab === "yesterday") {
+      filtered = filtered.filter((drug) => isYesterday(drug.date_uploaded));
+    } else if (activeTab === "thismonth") {
+      filtered = filtered.filter((drug) => isThisMonth(drug.date_uploaded));
+    }
+
+    return filtered;
   };
 
   // Fetch drugs
   const fetchDrugs = async () => {
+    if (!currentUser) return;
+
     setLoading(true);
     setError(null);
     try {
@@ -151,12 +280,35 @@ function FDAVerificationPortal({ darkMode }) {
       const allData = response.data || [];
       const calculatedStats = calculateStats(allData);
 
+      // Filter by current user for tab-specific stats
+      const userFilteredData = allData.filter(
+        (drug) => drug.uploaded_by === currentUser.username,
+      );
+
+      console.log(`📊 Stats calculation for user: ${currentUser.username}`);
+      console.log(`  Total drugs: ${allData.length}`);
+      console.log(`  User's drugs: ${userFilteredData.length}`);
+
+      // Calculate today, yesterday, and this month counts for current user only
+      const uploadedToday = userFilteredData.filter((drug) =>
+        isToday(drug.date_uploaded),
+      ).length;
+      const uploadedYesterday = userFilteredData.filter((drug) =>
+        isYesterday(drug.date_uploaded),
+      ).length;
+      const uploadedThisMonth = userFilteredData.filter((drug) =>
+        isThisMonth(drug.date_uploaded),
+      ).length;
+
       setStats({
         totalProducts: response.pagination?.total || 0,
         activeProducts: calculatedStats.activeCount,
         manufacturers: calculatedStats.uniqueManufacturers,
         deletedProducts: calculatedStats.deletedCount,
         expiredProducts: calculatedStats.expiredCount,
+        uploadedToday,
+        uploadedYesterday,
+        uploadedThisMonth,
       });
     } catch (err) {
       console.error("Error fetching drugs:", err);
@@ -172,12 +324,14 @@ function FDAVerificationPortal({ darkMode }) {
   }, [activeTab]);
 
   useEffect(() => {
+    if (!currentUser) return;
+
     const delaySearch = setTimeout(() => {
       fetchDrugs();
     }, 500);
 
     return () => clearTimeout(delaySearch);
-  }, [currentPage, pageSize, searchTerm, activeTab]);
+  }, [currentPage, pageSize, searchTerm, activeTab, currentUser]);
 
   // Handle View Details
   const handleViewDetails = async (drugId) => {
@@ -298,8 +452,13 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // Upload File
+  // ==================== UPLOAD FILE ====================
   const handleFileUpload = async (event) => {
+    if (!currentUser) {
+      alert("❌ User not logged in");
+      return;
+    }
+
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -311,23 +470,18 @@ function FDAVerificationPortal({ darkMode }) {
 
     try {
       setLoading(true);
-
-      const currentUser =
-        localStorage.getItem("username") ||
-        localStorage.getItem("user") ||
-        "admin";
-
-      const response = await uploadExcelFile(file, currentUser);
+      const response = await uploadExcelFile(file, currentUser.username);
 
       if (response.status === "success") {
         alert(
-          `✅ Upload successful!\n\n${response.successful} records inserted successfully.`,
+          `✅ Upload successful!\n\n${response.successful} records inserted successfully.\n\nUploaded by: ${currentUser.username}`,
         );
       } else if (response.status === "partial_success") {
         alert(
           `⚠️ Upload partially successful!\n\n` +
             `✅ Successful: ${response.successful}\n` +
-            `❌ Failed: ${response.failed}\n\n` +
+            `❌ Failed: ${response.failed}\n` +
+            `Uploaded by: ${currentUser.username}\n\n` +
             `Check the console for error details.`,
         );
         console.log("Upload errors:", response.errors);
@@ -335,7 +489,7 @@ function FDAVerificationPortal({ darkMode }) {
 
       await fetchDrugs();
     } catch (err) {
-      console.error("Error uploading file:", err);
+      console.error("❌ Upload Error:", err);
       alert(
         `❌ Failed to upload file: ${err.response?.data?.detail || err.message}`,
       );
@@ -398,6 +552,38 @@ function FDAVerificationPortal({ darkMode }) {
   }, [openDropdown]);
 
   const filteredData = getFilteredData();
+
+  // Show loading state while fetching user
+  if (userLoading) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: colors.pageBg,
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              width: "50px",
+              height: "50px",
+              border: "4px solid #4CAF50",
+              borderTopColor: "transparent",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              margin: "0 auto 1rem",
+            }}
+          />
+          <p style={{ color: colors.textPrimary }}>
+            Loading user information...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -478,6 +664,18 @@ function FDAVerificationPortal({ darkMode }) {
           </h1>
           <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
             Verify and manage FDA registered pharmaceutical products
+            {currentUser && (
+              <span style={{ marginLeft: "1rem", color: colors.textSecondary }}>
+                • Logged in as: <strong>{currentUser.username}</strong>
+                {currentUser.first_name && currentUser.surname && (
+                  <span
+                    style={{ marginLeft: "0.5rem", color: colors.textTertiary }}
+                  >
+                    ({currentUser.first_name} {currentUser.surname})
+                  </span>
+                )}
+              </span>
+            )}
           </p>
         </div>
 
@@ -616,6 +814,24 @@ function FDAVerificationPortal({ darkMode }) {
             color: "#4CAF50",
           },
           {
+            icon: "📅",
+            label: "My Uploads Today",
+            value: stats.uploadedToday,
+            color: "#2196F3",
+          },
+          {
+            icon: "📆",
+            label: "My Uploads Yesterday",
+            value: stats.uploadedYesterday,
+            color: "#9C27B0",
+          },
+          {
+            icon: "📊",
+            label: "My Uploads This Month",
+            value: stats.uploadedThisMonth,
+            color: "#00BCD4",
+          },
+          {
             icon: "⏰",
             label: "Expired",
             value: stats.expiredProducts,
@@ -739,6 +955,27 @@ function FDAVerificationPortal({ darkMode }) {
               color: colors.tabActive,
             },
             {
+              key: "today",
+              icon: "📅",
+              label: "Today",
+              count: stats.uploadedToday,
+              color: "#2196F3",
+            },
+            {
+              key: "yesterday",
+              icon: "📆",
+              label: "Yesterday",
+              count: stats.uploadedYesterday,
+              color: "#9C27B0",
+            },
+            {
+              key: "thismonth",
+              icon: "📊",
+              label: "This Month",
+              count: stats.uploadedThisMonth,
+              color: "#00BCD4",
+            },
+            {
               key: "expired",
               icon: "⏰",
               label: "Expired",
@@ -823,9 +1060,15 @@ function FDAVerificationPortal({ darkMode }) {
           >
             {activeTab === "all"
               ? "All Products"
-              : activeTab === "expired"
-                ? "Expired Products"
-                : "Deleted Products"}
+              : activeTab === "today"
+                ? "My Products Uploaded Today"
+                : activeTab === "yesterday"
+                  ? "My Products Uploaded Yesterday"
+                  : activeTab === "thismonth"
+                    ? "My Products Uploaded This Month"
+                    : activeTab === "expired"
+                      ? "All Expired Products"
+                      : "All Deleted Products"}
           </h3>
           <span style={{ fontSize: "0.85rem", color: colors.textSecondary }}>
             Showing {filteredData.length} record
@@ -845,6 +1088,7 @@ function FDAVerificationPortal({ darkMode }) {
           buttonRefs={buttonRefs}
           activeTab={activeTab}
           darkMode={darkMode}
+          currentUser={currentUser}
           toggleDropdown={toggleDropdown}
           handleViewDetails={handleViewDetails}
           handleEdit={handleEdit}
@@ -860,6 +1104,7 @@ function FDAVerificationPortal({ darkMode }) {
           colors={colors}
           loading={loading}
           handlePageChange={handlePageChange}
+          setPageSize={setPageSize}
         />
       </div>
 
