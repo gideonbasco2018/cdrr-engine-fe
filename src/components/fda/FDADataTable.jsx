@@ -13,13 +13,23 @@ function FDADataTable({
   buttonRefs,
   activeTab,
   darkMode,
-  currentUser, // ✨ NEW: Add currentUser prop
+  currentUser,
   toggleDropdown,
   handleViewDetails,
   handleEdit,
   handleDeleteClick,
   isExpired,
+  duplicateRegNums, // ✨ NEW: Add duplicateRegNums prop for highlighting
 }) {
+  // ✨ NEW: Helper function to check if a drug has duplicate registration number
+  const isDuplicateRecord = (drug) => {
+    return (
+      activeTab === "duplicates" &&
+      duplicateRegNums &&
+      duplicateRegNums.includes(drug.registration_number?.trim())
+    );
+  };
+
   if (filteredData.length === 0) {
     return (
       <div
@@ -102,7 +112,6 @@ function FDADataTable({
                 width: "180px",
                 minWidth: "180px",
                 maxWidth: "180px",
-                boxShadow: "1px 0 3px rgba(0,0,0,0.05)",
               }}
             >
               Registration Number
@@ -154,8 +163,27 @@ function FDADataTable({
 
         <tbody>
           {filteredData.map((row, index) => {
-            const rowBg =
-              index % 2 === 0 ? colors.tableRowEven : colors.tableRowOdd;
+            // ✨ UPDATED: Add duplicate check for conditional styling
+            const isDuplicate = isDuplicateRecord(row);
+            const isExpiredRow = isExpired(row.expiry_date);
+
+            // Determine background color with priority:
+            // 1. Duplicate records (pink/rose highlight)
+            // 2. Expired records (orange/amber tint)
+            // 3. Normal alternating rows
+            let rowBg;
+            if (isDuplicate) {
+              rowBg = darkMode
+                ? "rgba(233, 30, 99, 0.15)" // Pink tint for dark mode
+                : "rgba(233, 30, 99, 0.08)"; // Light pink for light mode
+            } else if (isExpiredRow && activeTab === "expired") {
+              rowBg = darkMode
+                ? "rgba(255, 152, 0, 0.1)"
+                : "rgba(255, 152, 0, 0.05)";
+            } else {
+              rowBg =
+                index % 2 === 0 ? colors.tableRowEven : colors.tableRowOdd;
+            }
 
             return (
               <tr
@@ -163,6 +191,10 @@ function FDADataTable({
                 style={{
                   background: rowBg,
                   transition: "background 0.2s",
+                  // ✨ NEW: Add pink left border for duplicate records
+                  borderLeft: isDuplicate
+                    ? "4px solid #E91E63"
+                    : "4px solid transparent",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = colors.tableRowHover;
@@ -198,14 +230,32 @@ function FDADataTable({
                     zIndex: 10,
                     padding: "1rem",
                     fontSize: "0.85rem",
-                    fontWeight: "600",
-                    color: colors.textPrimary,
+                    // ✨ UPDATED: Make registration number bold and pink if duplicate
+                    fontWeight: isDuplicate ? "700" : "600",
+                    color: isDuplicate ? "#E91E63" : colors.textPrimary,
                     borderBottom: `1px solid ${colors.tableBorder}`,
                     background: rowBg,
                     boxShadow: "2px 0 5px rgba(0,0,0,0.05)",
                   }}
                 >
+                  {/* ✨ NEW: Add duplicate badge for duplicate records */}
                   {row.registration_number || "N/A"}
+                  {isDuplicate && (
+                    <span
+                      style={{
+                        marginLeft: "0.5rem",
+                        background: "#E91E63",
+                        color: "#fff",
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "4px",
+                        fontSize: "0.7rem",
+                        fontWeight: "600",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Duplicate
+                    </span>
+                  )}
                 </td>
 
                 {/* Regular Columns */}
@@ -270,8 +320,8 @@ function FDADataTable({
                       activeTab={activeTab}
                       darkMode={darkMode}
                       buttonRef={buttonRefs.current[row.id]}
-                      currentUser={currentUser} // ✨ NEW: Pass currentUser to dropdown
-                      uploadedBy={row.uploaded_by} // ✨ NEW: Pass who uploaded this row
+                      currentUser={currentUser}
+                      uploadedBy={row.uploaded_by}
                     />
                   </div>
                 </td>

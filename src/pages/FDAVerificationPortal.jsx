@@ -44,6 +44,7 @@ function FDAVerificationPortal({ darkMode }) {
     uploadedToday: 0,
     uploadedYesterday: 0,
     uploadedThisMonth: 0,
+    duplicateProducts: 0,
   });
   const [openDropdown, setOpenDropdown] = useState(null);
 
@@ -159,7 +160,17 @@ function FDAVerificationPortal({ darkMode }) {
         tableText: "#333",
         tabActive: "#4CAF50",
       };
+  const canEditDrug = (drug) => {
+    if (!currentUser) return false;
 
+    // Admin can edit any drug
+    if (currentUser.role === "Admin" || currentUser.role === "admin") {
+      return true;
+    }
+
+    // Regular users can only edit their own uploads
+    return drug.uploaded_by === currentUser.username;
+  };
   // Table columns
   const columns = [
     { key: "generic_name", label: "Generic Name", width: "350px" },
@@ -174,7 +185,7 @@ function FDAVerificationPortal({ darkMode }) {
       width: "240px",
     },
     { key: "manufacturer", label: "Manufacturer", width: "200px" },
-    { key: "country", label: "Country", width: "120px" },
+    { key: "country_of_origin", label: "Country of Origin", width: "120px" },
     { key: "trader", label: "Trader", width: "200px" },
     { key: "importer", label: "Importer", width: "200px" },
     { key: "distributor", label: "Distributor", width: "200px" },
@@ -221,14 +232,81 @@ function FDAVerificationPortal({ darkMode }) {
     );
   };
 
+  // Helper function to find duplicate registration numbers (excluding deleted records)
+  const findDuplicateRegistrationNumbers = (data) => {
+    const registrationGroups = {};
+
+    // Group ALL records by registration number (including deleted)
+    data.forEach((drug) => {
+      if (drug.registration_number) {
+        const regNum = drug.registration_number.trim();
+        if (!registrationGroups[regNum]) {
+          registrationGroups[regNum] = [];
+        }
+        registrationGroups[regNum].push(drug);
+      }
+    });
+
+    // Find registration numbers that have duplicates
+    // At least 2 non-deleted records with same reg number
+    const duplicateRegNums = Object.keys(registrationGroups).filter(
+      (regNum) => {
+        const group = registrationGroups[regNum];
+        const nonDeletedCount = group.filter((drug) => !drug.is_deleted).length;
+        return nonDeletedCount >= 2; // At least 2 non-deleted records
+      },
+    );
+
+    console.log(
+      `🔍 Found ${duplicateRegNums.length} duplicate registration numbers`,
+    );
+    return duplicateRegNums;
+  };
+
   // Filter data using the utility function
   const getFilteredData = () => {
     if (!currentUser) return [];
 
+    // Special handling for duplicates tab - don't use applyFilters
+    if (activeTab === "duplicates") {
+      // Start with ALL data (not filtered)
+      let filtered = [...drugsData];
+
+      // Filter for duplicate registration numbers (exclude deleted records)
+      const duplicateRegNums = findDuplicateRegistrationNumbers(drugsData);
+      console.log(
+        `🔍 Found ${duplicateRegNums.length} duplicate registration numbers`,
+      );
+      console.log(`🔍 Duplicate reg nums:`, duplicateRegNums);
+
+      filtered = filtered.filter((drug) => {
+        const isDuplicate = duplicateRegNums.includes(
+          drug.registration_number?.trim(),
+        );
+        const isDeleted = drug.is_deleted;
+        console.log(
+          `Drug ${drug.registration_number}: isDuplicate=${isDuplicate}, isDeleted=${isDeleted}`,
+        );
+        return isDuplicate && !isDeleted;
+      });
+
+      // Sort by registration number to group duplicates together
+      filtered.sort((a, b) => {
+        const regA = (a.registration_number || "").trim().toLowerCase();
+        const regB = (b.registration_number || "").trim().toLowerCase();
+        return regA.localeCompare(regB);
+      });
+
+      console.log(
+        `📋 Showing ${filtered.length} records with duplicate registration numbers`,
+      );
+      return filtered;
+    }
+
+    // For all other tabs, use normal filtering
     let filtered = applyFilters(drugsData, filters, activeTab);
 
     // Apply user filter for tabs EXCEPT "all", "expired", and "deleted"
-    // These tabs should show ALL products, not just current user's
     if (
       activeTab !== "all" &&
       activeTab !== "expired" &&
@@ -300,15 +378,38 @@ function FDAVerificationPortal({ darkMode }) {
         isThisMonth(drug.date_uploaded),
       ).length;
 
+      // Calculate active products (not expired)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset to start of day
+
+      const activeProducts = allData.filter((drug) => {
+        if (drug.is_deleted) return false; // Exclude deleted
+        if (!drug.expiry_date) return true; // If no expiry, consider active
+
+        const expiryDate = new Date(drug.expiry_date);
+        return expiryDate >= today; // Not expired yet
+      }).length;
+
+      // ✅ FIX: Calculate duplicate products count
+      const duplicateRegNums = findDuplicateRegistrationNumbers(allData);
+      const duplicateProducts = allData.filter((drug) => {
+        const isDuplicate = duplicateRegNums.includes(
+          drug.registration_number?.trim(),
+        );
+        const isNotDeleted = !drug.is_deleted;
+        return isDuplicate && isNotDeleted;
+      }).length;
+
       setStats({
         totalProducts: response.pagination?.total || 0,
-        activeProducts: calculatedStats.activeCount,
+        activeProducts: activeProducts,
         manufacturers: calculatedStats.uniqueManufacturers,
         deletedProducts: calculatedStats.deletedCount,
         expiredProducts: calculatedStats.expiredCount,
         uploadedToday,
         uploadedYesterday,
         uploadedThisMonth,
+        duplicateProducts, // ✅ Now this variable exists
       });
     } catch (err) {
       console.error("Error fetching drugs:", err);
@@ -380,7 +481,7 @@ function FDAVerificationPortal({ darkMode }) {
         packaging: formData.packaging,
         pharmacologic_category: formData.pharmacologic_category,
         manufacturer: formData.manufacturer,
-        country: formData.country,
+        country_of_origin: formData.country_of_origin,
         trader: formData.trader,
         importer: formData.importer,
         distributor: formData.distributor,
@@ -553,6 +654,12 @@ function FDAVerificationPortal({ darkMode }) {
 
   const filteredData = getFilteredData();
 
+  // Get list of duplicate registration numbers for highlighting
+  const duplicateRegNums =
+    activeTab === "duplicates"
+      ? findDuplicateRegistrationNumbers(drugsData)
+      : [];
+
   // Show loading state while fetching user
   if (userLoading) {
     return (
@@ -664,7 +771,7 @@ function FDAVerificationPortal({ darkMode }) {
           </h1>
           <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
             Verify and manage FDA registered pharmaceutical products
-            {currentUser && (
+            {/* {currentUser && (
               <span style={{ marginLeft: "1rem", color: colors.textSecondary }}>
                 • Logged in as: <strong>{currentUser.username}</strong>
                 {currentUser.first_name && currentUser.surname && (
@@ -675,7 +782,7 @@ function FDAVerificationPortal({ darkMode }) {
                   </span>
                 )}
               </span>
-            )}
+            )} */}
           </p>
         </div>
 
@@ -838,17 +945,23 @@ function FDAVerificationPortal({ darkMode }) {
             color: "#FF9800",
           },
           {
+            icon: "🔄",
+            label: "Duplicate Records",
+            value: stats.duplicateProducts,
+            color: "#E91E63",
+          },
+          {
             icon: "🗑️",
             label: "Deleted",
             value: stats.deletedProducts,
             color: "#f44336",
           },
-          {
-            icon: "🏭",
-            label: "Manufacturers",
-            value: stats.manufacturers,
-            color: colors.textPrimary,
-          },
+          // {
+          //   icon: "🏭",
+          //   label: "Manufacturers",
+          //   value: stats.manufacturers,
+          //   color: colors.textPrimary,
+          // },
         ].map((stat, index) => (
           <div
             key={index}
@@ -953,6 +1066,13 @@ function FDAVerificationPortal({ darkMode }) {
               label: "All Products",
               count: stats.totalProducts - stats.deletedProducts,
               color: colors.tabActive,
+            },
+            {
+              key: "duplicates",
+              icon: "🔄",
+              label: "Duplicate Records",
+              count: stats.duplicateProducts,
+              color: "#E91E63",
             },
             {
               key: "today",
@@ -1060,15 +1180,17 @@ function FDAVerificationPortal({ darkMode }) {
           >
             {activeTab === "all"
               ? "All Products"
-              : activeTab === "today"
-                ? "My Products Uploaded Today"
-                : activeTab === "yesterday"
-                  ? "My Products Uploaded Yesterday"
-                  : activeTab === "thismonth"
-                    ? "My Products Uploaded This Month"
-                    : activeTab === "expired"
-                      ? "All Expired Products"
-                      : "All Deleted Products"}
+              : activeTab === "duplicates"
+                ? "Duplicate Registration Numbers"
+                : activeTab === "today"
+                  ? "My Products Uploaded Today"
+                  : activeTab === "yesterday"
+                    ? "My Products Uploaded Yesterday"
+                    : activeTab === "thismonth"
+                      ? "My Products Uploaded This Month"
+                      : activeTab === "expired"
+                        ? "All Expired Products"
+                        : "All Deleted Products"}
           </h3>
           <span style={{ fontSize: "0.85rem", color: colors.textSecondary }}>
             Showing {filteredData.length} record
@@ -1089,11 +1211,13 @@ function FDAVerificationPortal({ darkMode }) {
           activeTab={activeTab}
           darkMode={darkMode}
           currentUser={currentUser}
+          canEditDrug={canEditDrug}
           toggleDropdown={toggleDropdown}
           handleViewDetails={handleViewDetails}
           handleEdit={handleEdit}
           handleDeleteClick={handleDeleteClick}
           isExpired={isExpired}
+          duplicateRegNums={duplicateRegNums}
         />
 
         {/* Use the FDATablePagination component */}
@@ -1132,7 +1256,7 @@ function FDAVerificationPortal({ darkMode }) {
         }
         onConfirm={handleDeleteConfirm}
         drugName={deleteModal.drugName}
-        darkMode={darkMode}
+        darkMode={deleteModal.drugName}
         loading={loading}
       />
     </div>

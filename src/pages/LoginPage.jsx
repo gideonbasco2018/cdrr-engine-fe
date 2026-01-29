@@ -22,15 +22,13 @@ function LoginPage() {
 
       console.log("✅ Login successful:", user);
 
-      // Store token and user info
       const storage = rememberMe ? localStorage : sessionStorage;
 
       storage.setItem("access_token", access_token);
       storage.setItem("user", JSON.stringify(user));
       storage.setItem("userRole", user.role);
-      storage.setItem("userGroup", user.group_id); // Store group_id
+      storage.setItem("userGroup", user.group_id);
 
-      // Redirect based on role
       switch (user.role) {
         case "SuperAdmin":
           navigate("/superadmin/dashboard");
@@ -88,16 +86,42 @@ function LoginPage() {
         />
 
         <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
+          {/* Logo */}
+          <div style={{ marginBottom: "2rem" }}>
+            <img
+              src="/images/FDALogo.png"
+              alt="FDA Logo"
+              style={{
+                width: "150px",
+                height: "150px",
+                objectFit: "contain",
+              }}
+            />
+          </div>
+
+          {/* Main Title */}
           <h1
             style={{
-              fontSize: "3rem",
+              fontSize: "2rem",
+              fontWeight: "700",
+              color: "#fff",
+              marginBottom: "0.5rem",
+              letterSpacing: "0.05em",
+              lineHeight: "1.3",
+            }}
+          >
+            Center for Drug Regulation
+          </h1>
+          <h1
+            style={{
+              fontSize: "2rem",
               fontWeight: "700",
               color: "#fff",
               marginBottom: "2rem",
-              letterSpacing: "0.1em",
+              letterSpacing: "0.05em",
             }}
           >
-            FDA-CDRR
+            and Research (CDRR)
           </h1>
 
           <div style={{ marginTop: "3rem" }}>
