@@ -13,6 +13,7 @@ function FDADataTable({
   buttonRefs,
   activeTab,
   darkMode,
+  currentUser, // ✨ NEW: Add currentUser prop
   toggleDropdown,
   handleViewDetails,
   handleEdit,
@@ -76,6 +77,8 @@ function FDADataTable({
                 background: colors.tableBg,
                 width: "60px",
                 boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
+                minWidth: "60px",
+                maxWidth: "60px",
               }}
             >
               #
@@ -95,8 +98,11 @@ function FDADataTable({
                 textTransform: "uppercase",
                 borderBottom: `1px solid ${colors.tableBorder}`,
                 background: colors.tableBg,
-                minWidth: "170px",
                 boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
+                width: "180px",
+                minWidth: "180px",
+                maxWidth: "180px",
+                boxShadow: "1px 0 3px rgba(0,0,0,0.05)",
               }}
             >
               Registration Number
@@ -264,6 +270,8 @@ function FDADataTable({
                       activeTab={activeTab}
                       darkMode={darkMode}
                       buttonRef={buttonRefs.current[row.id]}
+                      currentUser={currentUser} // ✨ NEW: Pass currentUser to dropdown
+                      uploadedBy={row.uploaded_by} // ✨ NEW: Pass who uploaded this row
                     />
                   </div>
                 </td>

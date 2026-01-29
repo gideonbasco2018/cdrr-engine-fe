@@ -10,6 +10,8 @@ function FDATableColumns({ row, columns, colors, isExpired }) {
             fontSize: "0.85rem",
             color: colors.tableText,
             borderBottom: `1px solid ${colors.tableBorder}`,
+            minWidth: col.width,
+            maxWidth: col.width,
             whiteSpace: "normal",
             wordBreak: "break-word",
           }}
