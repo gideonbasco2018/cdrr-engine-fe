@@ -1,9 +1,10 @@
-// src/components/fda/FDADeleteConfirmModal.jsx
-function FDADeleteConfirmModal({
+// src/components/fda/FDACancelConfirmModal.jsx
+function FDACancelConfirmModal({
   isOpen,
   onClose,
   onConfirm,
   drugName,
+  isCanceled, // ✅ NEW: Flag to determine if drug is canceled (for restore)
   darkMode,
   loading,
 }) {
@@ -24,6 +25,15 @@ function FDADeleteConfirmModal({
       };
 
   if (!isOpen) return null;
+
+  // ✅ Dynamic content based on action type
+  const isRestoreAction = isCanceled;
+  const actionText = isRestoreAction ? "Restore" : "Cancel";
+  const actionIcon = isRestoreAction ? "♻️" : "🚫";
+  const actionColor = isRestoreAction ? "#4CAF50" : "#f44336";
+  const actionBgColor = isRestoreAction
+    ? "rgba(76, 175, 80, 0.1)"
+    : "rgba(244, 67, 54, 0.1)";
 
   return (
     <>
@@ -66,14 +76,14 @@ function FDADeleteConfirmModal({
               width: "60px",
               height: "60px",
               borderRadius: "50%",
-              background: "rgba(244, 67, 54, 0.1)",
+              background: actionBgColor,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               margin: "0 auto 1.5rem",
             }}
           >
-            <span style={{ fontSize: "2rem" }}>🗑️</span>
+            <span style={{ fontSize: "2rem" }}>{actionIcon}</span>
           </div>
 
           <h2
@@ -85,7 +95,7 @@ function FDADeleteConfirmModal({
               marginBottom: "0.5rem",
             }}
           >
-            Delete Drug Registration?
+            {actionText} Drug Registration?
           </h2>
 
           <p
@@ -96,8 +106,18 @@ function FDADeleteConfirmModal({
               marginBottom: "2rem",
             }}
           >
-            Are you sure you want to delete <strong>"{drugName}"</strong>? This
-            action cannot be undone.
+            {isRestoreAction ? (
+              <>
+                Are you sure you want to restore <strong>"{drugName}"</strong>?
+                This will make the drug registration active again.
+              </>
+            ) : (
+              <>
+                Are you sure you want to cancel <strong>"{drugName}"</strong>?
+                This will mark the drug registration as canceled and hide it
+                from active listings.
+              </>
+            )}
           </p>
 
           <div style={{ display: "flex", gap: "1rem" }}>
@@ -115,6 +135,7 @@ function FDADeleteConfirmModal({
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.5 : 1,
+                transition: "all 0.3s ease",
               }}
             >
               Cancel
@@ -126,16 +147,18 @@ function FDADeleteConfirmModal({
               style={{
                 flex: 1,
                 padding: "0.75rem",
-                background: loading ? "#999" : "#f44336",
+                background: loading ? "#999" : actionColor,
                 border: "none",
                 borderRadius: "8px",
                 color: "#fff",
                 fontSize: "0.9rem",
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
+                transition: "all 0.3s ease",
+                boxShadow: loading ? "none" : `0 4px 12px ${actionColor}40`,
               }}
             >
-              {loading ? "Deleting..." : "Delete"}
+              {loading ? `${actionText}ing...` : `${actionText} Registration`}
             </button>
           </div>
         </div>
@@ -161,4 +184,4 @@ function FDADeleteConfirmModal({
   );
 }
 
-export default FDADeleteConfirmModal;
+export default FDACancelConfirmModal;

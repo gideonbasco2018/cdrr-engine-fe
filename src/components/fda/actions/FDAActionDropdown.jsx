@@ -7,21 +7,24 @@ function FDAActionDropdown({
   onClose,
   onViewDetails,
   onEdit,
-  onDelete,
+  onCancel, // ✅ Changed from onDelete
   drugName,
+  isCanceled, // ✅ NEW: Track if drug is canceled
   activeTab,
   darkMode,
   buttonRef,
-  currentUser, // ✨ NEW: Add this prop
-  uploadedBy, // ✨ NEW: Add this prop
+  currentUser,
+  uploadedBy,
+  canEdit, // ✅ NEW: Use passed canEdit prop instead of calculating here
 }) {
   const dropdownRef = useRef(null);
 
-  // ✨ NEW: Permission checks - user can only edit/delete their own records
-  const canEdit =
-    currentUser && uploadedBy && currentUser.username === uploadedBy;
-  const canDelete =
-    currentUser && uploadedBy && currentUser.username === uploadedBy;
+  // ✅ UPDATED: Admin can always cancel/restore, regular users can only cancel/restore their own records
+  const canCancelOrRestore =
+    currentUser &&
+    (currentUser.role === "Admin" ||
+      currentUser.role === "admin" ||
+      (uploadedBy && currentUser.username === uploadedBy));
 
   const colors = darkMode
     ? {
@@ -75,6 +78,11 @@ function FDAActionDropdown({
 
   if (!isOpen) return null;
 
+  // ✅ NEW: Determine action type (Cancel or Restore)
+  const actionText = isCanceled ? "Restore" : "Cancel";
+  const actionIcon = isCanceled ? "♻️" : "🚫";
+  const actionColor = isCanceled ? "#4CAF50" : "#ff4444";
+
   const dropdownContent = (
     <div
       ref={dropdownRef}
@@ -122,76 +130,81 @@ function FDAActionDropdown({
         <span>View Details</span>
       </button>
 
-      {activeTab !== "deleted" && (
+      {/* ✅ UPDATED: Only show Edit and Cancel/Restore for non-canceled records OR in canceled tab */}
+      {(activeTab === "canceled" || !isCanceled) && (
         <>
-          {/* ✨ UPDATED: Edit - Conditional based on permission */}
-          {canEdit ? (
-            <button
-              onClick={() => {
-                onClose();
-                onEdit();
-              }}
-              style={{
-                width: "100%",
-                padding: "0.75rem 1rem",
-                background: "transparent",
-                border: "none",
-                textAlign: "left",
-                cursor: "pointer",
-                color: colors.textPrimary,
-                fontSize: "0.85rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                transition: "background 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = colors.tableRowHover;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <span>✏️</span>
-              <span>Edit</span>
-            </button>
-          ) : (
-            <div
-              style={{
-                width: "100%",
-                padding: "0.75rem 1rem",
-                background: "transparent",
-                border: "none",
-                textAlign: "left",
-                cursor: "not-allowed",
-                color: colors.textTertiary,
-                fontSize: "0.85rem",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                opacity: 0.5,
-              }}
-              title="You can only edit records you uploaded"
-            >
-              <span>🔒</span>
-              <span>Edit (Locked)</span>
-            </div>
+          {/* Edit Button - Only for non-canceled records */}
+          {!isCanceled && (
+            <>
+              {canEdit ? (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onEdit();
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem 1rem",
+                    background: "transparent",
+                    border: "none",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    color: colors.textPrimary,
+                    fontSize: "0.85rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    transition: "background 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = colors.tableRowHover;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <span>✏️</span>
+                  <span>Edit</span>
+                </button>
+              ) : (
+                <div
+                  style={{
+                    width: "100%",
+                    padding: "0.75rem 1rem",
+                    background: "transparent",
+                    border: "none",
+                    textAlign: "left",
+                    cursor: "not-allowed",
+                    color: colors.textTertiary,
+                    fontSize: "0.85rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    opacity: 0.5,
+                  }}
+                  title="You can only edit records you uploaded"
+                >
+                  <span>🔒</span>
+                  <span>Edit (Locked)</span>
+                </div>
+              )}
+
+              <div
+                style={{
+                  height: "1px",
+                  background: colors.cardBorder,
+                  margin: "0.25rem 0",
+                }}
+              />
+            </>
           )}
 
-          <div
-            style={{
-              height: "1px",
-              background: colors.cardBorder,
-              margin: "0.25rem 0",
-            }}
-          />
-
-          {/* ✨ UPDATED: Delete - Conditional based on permission */}
-          {canDelete ? (
+          {/* ✅ UPDATED: Cancel/Restore Button - Dynamic based on isCanceled */}
+          {canCancelOrRestore ? (
             <button
               onClick={() => {
                 onClose();
-                onDelete();
+                onCancel();
               }}
               style={{
                 width: "100%",
@@ -200,7 +213,7 @@ function FDAActionDropdown({
                 border: "none",
                 textAlign: "left",
                 cursor: "pointer",
-                color: "#ff4444",
+                color: actionColor,
                 fontSize: "0.85rem",
                 display: "flex",
                 alignItems: "center",
@@ -208,14 +221,16 @@ function FDAActionDropdown({
                 transition: "background 0.2s",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(255, 68, 68, 0.1)";
+                e.currentTarget.style.background = isCanceled
+                  ? "rgba(76, 175, 80, 0.1)"
+                  : "rgba(255, 68, 68, 0.1)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "transparent";
               }}
             >
-              <span>🗑️</span>
-              <span>Delete</span>
+              <span>{actionIcon}</span>
+              <span>{actionText}</span>
             </button>
           ) : (
             <div
@@ -233,16 +248,16 @@ function FDAActionDropdown({
                 gap: "0.5rem",
                 opacity: 0.5,
               }}
-              title="You can only delete records you uploaded"
+              title={`You can only ${actionText.toLowerCase()} records you uploaded`}
             >
               <span>🔒</span>
-              <span>Delete (Locked)</span>
+              <span>{actionText} (Locked)</span>
             </div>
           )}
         </>
       )}
 
-      {/* ✨ NEW: Show who uploaded this record (optional - remove if you don't want) */}
+      {/* ✅ Show who uploaded this record */}
       {uploadedBy && (
         <>
           <div

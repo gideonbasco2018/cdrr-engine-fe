@@ -14,14 +14,15 @@ function FDADataTable({
   activeTab,
   darkMode,
   currentUser,
+  canEditDrug, // ✅ NEW: Add canEditDrug prop
   toggleDropdown,
   handleViewDetails,
   handleEdit,
-  handleDeleteClick,
+  handleCancelClick, // ✅ Changed from handleDeleteClick
   isExpired,
-  duplicateRegNums, // ✨ NEW: Add duplicateRegNums prop for highlighting
+  duplicateRegNums,
 }) {
-  // ✨ NEW: Helper function to check if a drug has duplicate registration number
+  // ✨ Helper function to check if a drug has duplicate registration number
   const isDuplicateRecord = (drug) => {
     return (
       activeTab === "duplicates" &&
@@ -163,16 +164,21 @@ function FDADataTable({
 
         <tbody>
           {filteredData.map((row, index) => {
-            // ✨ UPDATED: Add duplicate check for conditional styling
             const isDuplicate = isDuplicateRecord(row);
             const isExpiredRow = isExpired(row.expiry_date);
+            const isCanceled = row.is_canceled === "Y"; // ✅ NEW: Check if canceled
 
             // Determine background color with priority:
-            // 1. Duplicate records (pink/rose highlight)
-            // 2. Expired records (orange/amber tint)
-            // 3. Normal alternating rows
+            // 1. Canceled records (red/gray tint)
+            // 2. Duplicate records (pink/rose highlight)
+            // 3. Expired records (orange/amber tint)
+            // 4. Normal alternating rows
             let rowBg;
-            if (isDuplicate) {
+            if (isCanceled) {
+              rowBg = darkMode
+                ? "rgba(244, 67, 54, 0.15)" // Red tint for dark mode
+                : "rgba(244, 67, 54, 0.08)"; // Light red for light mode
+            } else if (isDuplicate) {
               rowBg = darkMode
                 ? "rgba(233, 30, 99, 0.15)" // Pink tint for dark mode
                 : "rgba(233, 30, 99, 0.08)"; // Light pink for light mode
@@ -191,10 +197,12 @@ function FDADataTable({
                 style={{
                   background: rowBg,
                   transition: "background 0.2s",
-                  // ✨ NEW: Add pink left border for duplicate records
-                  borderLeft: isDuplicate
-                    ? "4px solid #E91E63"
-                    : "4px solid transparent",
+                  // ✅ NEW: Add colored left border based on status
+                  borderLeft: isCanceled
+                    ? "4px solid #f44336"
+                    : isDuplicate
+                      ? "4px solid #E91E63"
+                      : "4px solid transparent",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = colors.tableRowHover;
@@ -230,17 +238,37 @@ function FDADataTable({
                     zIndex: 10,
                     padding: "1rem",
                     fontSize: "0.85rem",
-                    // ✨ UPDATED: Make registration number bold and pink if duplicate
-                    fontWeight: isDuplicate ? "700" : "600",
-                    color: isDuplicate ? "#E91E63" : colors.textPrimary,
+                    fontWeight: isDuplicate || isCanceled ? "700" : "600",
+                    color: isCanceled
+                      ? "#f44336"
+                      : isDuplicate
+                        ? "#E91E63"
+                        : colors.textPrimary,
                     borderBottom: `1px solid ${colors.tableBorder}`,
                     background: rowBg,
                     boxShadow: "2px 0 5px rgba(0,0,0,0.05)",
                   }}
                 >
-                  {/* ✨ NEW: Add duplicate badge for duplicate records */}
                   {row.registration_number || "N/A"}
-                  {isDuplicate && (
+                  {/* ✅ NEW: Show canceled badge */}
+                  {isCanceled && (
+                    <span
+                      style={{
+                        marginLeft: "0.5rem",
+                        background: "#f44336",
+                        color: "#fff",
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "4px",
+                        fontSize: "0.7rem",
+                        fontWeight: "600",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Canceled
+                    </span>
+                  )}
+                  {/* Show duplicate badge only if not canceled */}
+                  {isDuplicate && !isCanceled && (
                     <span
                       style={{
                         marginLeft: "0.5rem",
@@ -310,18 +338,22 @@ function FDADataTable({
                       onClose={() => toggleDropdown(null)}
                       onViewDetails={() => handleViewDetails(row.id)}
                       onEdit={() => handleEdit(row.id)}
-                      onDelete={() =>
-                        handleDeleteClick(
+                      onCancel={() =>
+                        // ✅ Changed from onDelete
+                        handleCancelClick(
                           row.id,
                           row.brand_name || row.generic_name,
+                          isCanceled, // ✅ NEW: Pass canceled status
                         )
                       }
                       drugName={row.brand_name || row.generic_name}
+                      isCanceled={isCanceled} // ✅ NEW: Pass canceled status
                       activeTab={activeTab}
                       darkMode={darkMode}
                       buttonRef={buttonRefs.current[row.id]}
                       currentUser={currentUser}
                       uploadedBy={row.uploaded_by}
+                      canEdit={canEditDrug(row)} // ✅ NEW: Pass canEdit status
                     />
                   </div>
                 </td>
