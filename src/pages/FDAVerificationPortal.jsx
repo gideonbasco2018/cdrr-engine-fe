@@ -4,7 +4,8 @@ import {
   uploadExcelFile,
   getAllDrugs,
   getDrugById,
-  deleteDrug,
+  cancelDrug, // ✅ Changed from deleteDrug
+  restoreDrug, // ✅ NEW: Added restore function
   updateDrug,
   exportDrugsToExcel,
 } from "../api/fdaverifportal";
@@ -15,7 +16,7 @@ import { getCurrentUser as fetchCurrentUser } from "../api/auth";
 // Import Components
 import FDAViewModal from "../components/fda/FDAViewModal";
 import FDAEditModal from "../components/fda/FDAEditModal";
-import FDADeleteConfirmModal from "../components/fda/FDADeleteConfirmModal";
+import FDACancelConfirmModal from "../components/fda/FDACancelConfirmModal"; // ✅ Changed from FDADeleteConfirmModal
 import FDADataTable from "../components/fda/FDADataTable";
 import FDATablePagination from "../components/fda/FDATablePagination";
 import FDAFilterBar from "../components/fda/FDAFilterBar";
@@ -39,7 +40,7 @@ function FDAVerificationPortal({ darkMode }) {
     totalProducts: 0,
     activeProducts: 0,
     manufacturers: 0,
-    deletedProducts: 0,
+    canceledProducts: 0, // ✅ Changed from deletedProducts
     expiredProducts: 0,
     uploadedToday: 0,
     uploadedYesterday: 0,
@@ -57,10 +58,12 @@ function FDAVerificationPortal({ darkMode }) {
   // Modal states
   const [viewModal, setViewModal] = useState({ open: false, data: null });
   const [editModal, setEditModal] = useState({ open: false, data: null });
-  const [deleteModal, setDeleteModal] = useState({
+  const [cancelModal, setCancelModal] = useState({
+    // ✅ Changed from deleteModal
     open: false,
     drugId: null,
     drugName: "",
+    isCanceled: false, // ✅ NEW: Track if drug is already canceled (for restore)
   });
 
   // Filter states
@@ -160,6 +163,7 @@ function FDAVerificationPortal({ darkMode }) {
         tableText: "#333",
         tabActive: "#4CAF50",
       };
+
   const canEditDrug = (drug) => {
     if (!currentUser) return false;
 
@@ -171,6 +175,7 @@ function FDAVerificationPortal({ darkMode }) {
     // Regular users can only edit their own uploads
     return drug.uploaded_by === currentUser.username;
   };
+
   // Table columns
   const columns = [
     { key: "generic_name", label: "Generic Name", width: "350px" },
@@ -232,11 +237,11 @@ function FDAVerificationPortal({ darkMode }) {
     );
   };
 
-  // Helper function to find duplicate registration numbers (excluding deleted records)
+  // ✅ Helper function to find duplicate registration numbers (excluding canceled records)
   const findDuplicateRegistrationNumbers = (data) => {
     const registrationGroups = {};
 
-    // Group ALL records by registration number (including deleted)
+    // Group ALL records by registration number (including canceled)
     data.forEach((drug) => {
       if (drug.registration_number) {
         const regNum = drug.registration_number.trim();
@@ -248,12 +253,14 @@ function FDAVerificationPortal({ darkMode }) {
     });
 
     // Find registration numbers that have duplicates
-    // At least 2 non-deleted records with same reg number
+    // At least 2 non-canceled records with same reg number
     const duplicateRegNums = Object.keys(registrationGroups).filter(
       (regNum) => {
         const group = registrationGroups[regNum];
-        const nonDeletedCount = group.filter((drug) => !drug.is_deleted).length;
-        return nonDeletedCount >= 2; // At least 2 non-deleted records
+        const nonCanceledCount = group.filter(
+          (drug) => drug.is_canceled !== "Y",
+        ).length; // ✅ Changed
+        return nonCanceledCount >= 2; // At least 2 non-canceled records
       },
     );
 
@@ -272,7 +279,7 @@ function FDAVerificationPortal({ darkMode }) {
       // Start with ALL data (not filtered)
       let filtered = [...drugsData];
 
-      // Filter for duplicate registration numbers (exclude deleted records)
+      // ✅ Filter for duplicate registration numbers (exclude canceled records)
       const duplicateRegNums = findDuplicateRegistrationNumbers(drugsData);
       console.log(
         `🔍 Found ${duplicateRegNums.length} duplicate registration numbers`,
@@ -283,11 +290,11 @@ function FDAVerificationPortal({ darkMode }) {
         const isDuplicate = duplicateRegNums.includes(
           drug.registration_number?.trim(),
         );
-        const isDeleted = drug.is_deleted;
+        const isCanceled = drug.is_canceled === "Y"; // ✅ Changed
         console.log(
-          `Drug ${drug.registration_number}: isDuplicate=${isDuplicate}, isDeleted=${isDeleted}`,
+          `Drug ${drug.registration_number}: isDuplicate=${isDuplicate}, isCanceled=${isCanceled}`,
         );
-        return isDuplicate && !isDeleted;
+        return isDuplicate && !isCanceled; // ✅ Changed
       });
 
       // Sort by registration number to group duplicates together
@@ -306,18 +313,19 @@ function FDAVerificationPortal({ darkMode }) {
     // For all other tabs, use normal filtering
     let filtered = applyFilters(drugsData, filters, activeTab);
 
-    // Apply user filter for tabs EXCEPT "all", "expired", and "deleted"
+    // ✅ Apply user filter for tabs EXCEPT "all", "expired", and "canceled"
     if (
       activeTab !== "all" &&
       activeTab !== "expired" &&
-      activeTab !== "deleted"
+      activeTab !== "canceled" // ✅ Changed from "deleted"
     ) {
       console.log(`🔍 Filtering by user: ${currentUser.username}`);
       filtered = filtered.filter(
         (drug) => drug.uploaded_by === currentUser.username,
       );
       console.log(`📊 Filtered results: ${filtered.length} records`);
-    } else if (activeTab === "expired" || activeTab === "deleted") {
+    } else if (activeTab === "expired" || activeTab === "canceled") {
+      // ✅ Changed
       console.log(
         `📋 Showing ALL ${activeTab} products (not filtered by user)`,
       );
@@ -342,13 +350,13 @@ function FDAVerificationPortal({ darkMode }) {
     setLoading(true);
     setError(null);
     try {
-      const includeDeleted = activeTab === "deleted";
+      const includeCanceled = activeTab === "canceled"; // ✅ Changed from includeDeleted
 
       const response = await getAllDrugs({
         page: currentPage,
         page_size: pageSize,
         search: searchTerm,
-        include_deleted: includeDeleted,
+        include_canceled: includeCanceled, // ✅ Changed parameter name
       });
 
       setDrugsData(response.data || []);
@@ -378,38 +386,38 @@ function FDAVerificationPortal({ darkMode }) {
         isThisMonth(drug.date_uploaded),
       ).length;
 
-      // Calculate active products (not expired)
+      // Calculate active products (not expired and not canceled)
       const today = new Date();
       today.setHours(0, 0, 0, 0); // Reset to start of day
 
       const activeProducts = allData.filter((drug) => {
-        if (drug.is_deleted) return false; // Exclude deleted
+        if (drug.is_canceled === "Y") return false; // ✅ Exclude canceled
         if (!drug.expiry_date) return true; // If no expiry, consider active
 
         const expiryDate = new Date(drug.expiry_date);
         return expiryDate >= today; // Not expired yet
       }).length;
 
-      // ✅ FIX: Calculate duplicate products count
+      // ✅ Calculate duplicate products count
       const duplicateRegNums = findDuplicateRegistrationNumbers(allData);
       const duplicateProducts = allData.filter((drug) => {
         const isDuplicate = duplicateRegNums.includes(
           drug.registration_number?.trim(),
         );
-        const isNotDeleted = !drug.is_deleted;
-        return isDuplicate && isNotDeleted;
+        const isNotCanceled = drug.is_canceled !== "Y"; // ✅ Changed
+        return isDuplicate && isNotCanceled;
       }).length;
 
       setStats({
         totalProducts: response.pagination?.total || 0,
         activeProducts: activeProducts,
         manufacturers: calculatedStats.uniqueManufacturers,
-        deletedProducts: calculatedStats.deletedCount,
+        canceledProducts: calculatedStats.canceledCount, // ✅ Changed from deletedProducts
         expiredProducts: calculatedStats.expiredCount,
         uploadedToday,
         uploadedYesterday,
         uploadedThisMonth,
-        duplicateProducts, // ✅ Now this variable exists
+        duplicateProducts,
       });
     } catch (err) {
       console.error("Error fetching drugs:", err);
@@ -505,22 +513,37 @@ function FDAVerificationPortal({ darkMode }) {
     }
   };
 
-  // Handle Delete
-  const handleDeleteClick = (drugId, drugName) => {
-    setDeleteModal({ open: true, drugId, drugName });
+  // ✅ Handle Cancel/Restore Click
+  const handleCancelClick = (drugId, drugName, isCanceled) => {
+    setCancelModal({ open: true, drugId, drugName, isCanceled });
   };
 
-  const handleDeleteConfirm = async () => {
+  // ✅ Handle Cancel/Restore Confirm
+  const handleCancelConfirm = async () => {
     try {
       setLoading(true);
-      await deleteDrug(deleteModal.drugId);
-      alert("✅ Drug registration deleted successfully!");
-      setDeleteModal({ open: false, drugId: null, drugName: "" });
+
+      if (cancelModal.isCanceled) {
+        // Restore the drug
+        await restoreDrug(cancelModal.drugId);
+        alert("✅ Drug registration restored successfully!");
+      } else {
+        // Cancel the drug
+        await cancelDrug(cancelModal.drugId, currentUser.username);
+        alert("✅ Drug registration canceled successfully!");
+      }
+
+      setCancelModal({
+        open: false,
+        drugId: null,
+        drugName: "",
+        isCanceled: false,
+      });
       await fetchDrugs();
     } catch (err) {
-      console.error("Error deleting drug:", err);
+      console.error("Error canceling/restoring drug:", err);
       alert(
-        `❌ Failed to delete: ${err.response?.data?.detail || err.message}`,
+        `❌ Failed to ${cancelModal.isCanceled ? "restore" : "cancel"}: ${err.response?.data?.detail || err.message}`,
       );
     } finally {
       setLoading(false);
@@ -614,7 +637,7 @@ function FDAVerificationPortal({ darkMode }) {
 
       const blob = await exportDrugsToExcel({
         search: searchTerm,
-        include_deleted: activeTab === "deleted",
+        include_canceled: activeTab === "canceled", // ✅ Changed from include_deleted
       });
 
       const url = window.URL.createObjectURL(blob);
@@ -771,18 +794,6 @@ function FDAVerificationPortal({ darkMode }) {
           </h1>
           <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
             Verify and manage FDA registered pharmaceutical products
-            {/* {currentUser && (
-              <span style={{ marginLeft: "1rem", color: colors.textSecondary }}>
-                • Logged in as: <strong>{currentUser.username}</strong>
-                {currentUser.first_name && currentUser.surname && (
-                  <span
-                    style={{ marginLeft: "0.5rem", color: colors.textTertiary }}
-                  >
-                    ({currentUser.first_name} {currentUser.surname})
-                  </span>
-                )}
-              </span>
-            )} */}
           </p>
         </div>
 
@@ -951,17 +962,11 @@ function FDAVerificationPortal({ darkMode }) {
             color: "#E91E63",
           },
           {
-            icon: "🗑️",
-            label: "Deleted",
-            value: stats.deletedProducts,
+            icon: "🚫", // ✅ Changed icon
+            label: "Canceled", // ✅ Changed label
+            value: stats.canceledProducts, // ✅ Changed value
             color: "#f44336",
           },
-          // {
-          //   icon: "🏭",
-          //   label: "Manufacturers",
-          //   value: stats.manufacturers,
-          //   color: colors.textPrimary,
-          // },
         ].map((stat, index) => (
           <div
             key={index}
@@ -1064,7 +1069,7 @@ function FDAVerificationPortal({ darkMode }) {
               key: "all",
               icon: "📋",
               label: "All Products",
-              count: stats.totalProducts - stats.deletedProducts,
+              count: stats.totalProducts - stats.canceledProducts, // ✅ Changed
               color: colors.tabActive,
             },
             {
@@ -1103,10 +1108,10 @@ function FDAVerificationPortal({ darkMode }) {
               color: "#FF9800",
             },
             {
-              key: "deleted",
-              icon: "🗑️",
-              label: "Deleted",
-              count: stats.deletedProducts,
+              key: "canceled", // ✅ Changed from "deleted"
+              icon: "🚫", // ✅ Changed icon
+              label: "Canceled", // ✅ Changed label
+              count: stats.canceledProducts, // ✅ Changed count
               color: "#f44336",
             },
           ].map((tab) => (
@@ -1190,7 +1195,8 @@ function FDAVerificationPortal({ darkMode }) {
                       ? "My Products Uploaded This Month"
                       : activeTab === "expired"
                         ? "All Expired Products"
-                        : "All Deleted Products"}
+                        : "All Canceled Products"}{" "}
+            {/* ✅ Changed label */}
           </h3>
           <span style={{ fontSize: "0.85rem", color: colors.textSecondary }}>
             Showing {filteredData.length} record
@@ -1215,7 +1221,7 @@ function FDAVerificationPortal({ darkMode }) {
           toggleDropdown={toggleDropdown}
           handleViewDetails={handleViewDetails}
           handleEdit={handleEdit}
-          handleDeleteClick={handleDeleteClick}
+          handleCancelClick={handleCancelClick} // ✅ Changed from handleDeleteClick
           isExpired={isExpired}
           duplicateRegNums={duplicateRegNums}
         />
@@ -1249,14 +1255,20 @@ function FDAVerificationPortal({ darkMode }) {
         loading={loading}
       />
 
-      <FDADeleteConfirmModal
-        isOpen={deleteModal.open}
+      <FDACancelConfirmModal
+        isOpen={cancelModal.open}
         onClose={() =>
-          setDeleteModal({ open: false, drugId: null, drugName: "" })
+          setCancelModal({
+            open: false,
+            drugId: null,
+            drugName: "",
+            isCanceled: false,
+          })
         }
-        onConfirm={handleDeleteConfirm}
-        drugName={deleteModal.drugName}
-        darkMode={deleteModal.drugName}
+        onConfirm={handleCancelConfirm}
+        drugName={cancelModal.drugName}
+        isCanceled={cancelModal.isCanceled} // ✅ NEW: Pass isCanceled flag
+        darkMode={darkMode}
         loading={loading}
       />
     </div>

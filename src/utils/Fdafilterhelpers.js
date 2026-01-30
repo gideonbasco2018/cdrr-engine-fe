@@ -93,16 +93,16 @@ export const filterByDateUploadTo = (drug, dateUploadTo) => {
 };
 
 /**
- * Filter by active tab (all, expired, deleted)
+ * ✅ UPDATED: Filter by active tab (all, expired, canceled)
  */
 export const filterByTab = (drug, activeTab) => {
-  if (activeTab === "deleted") {
-    return drug.date_deleted;
+  if (activeTab === "canceled") {  // ✅ Changed from "deleted"
+    return drug.is_canceled === 'Y';  // ✅ Changed field
   } else if (activeTab === "expired") {
-    return !drug.date_deleted && isExpired(drug.expiry_date);
+    return drug.is_canceled !== 'Y' && isExpired(drug.expiry_date);  // ✅ Changed field
   } else {
-    // "all" tab - show non-deleted items
-    return !drug.date_deleted;
+    // "all" tab - show non-canceled items
+    return drug.is_canceled !== 'Y';  // ✅ Changed field
   }
 };
 
@@ -141,7 +141,7 @@ export const applyFilters = (drugsData, filters, activeTab) => {
 };
 
 /**
- * Calculate statistics from filtered data
+ * ✅ UPDATED: Calculate statistics from filtered data
  */
 export const calculateStats = (allData) => {
   const uniqueManufacturers = new Set(
@@ -150,19 +150,19 @@ export const calculateStats = (allData) => {
       .filter((m) => m && m !== "N/A")
   ).size;
 
-  const deletedCount = allData.filter((drug) => drug.date_deleted).length;
+  const canceledCount = allData.filter((drug) => drug.is_canceled === 'Y').length;  // ✅ Changed
   
   const expiredCount = allData.filter(
-    (drug) => !drug.date_deleted && isExpired(drug.expiry_date)
+    (drug) => drug.is_canceled !== 'Y' && isExpired(drug.expiry_date)  // ✅ Changed
   ).length;
   
   const activeCount = allData.filter(
-    (drug) => !drug.date_deleted && !isExpired(drug.expiry_date)
+    (drug) => drug.is_canceled !== 'Y' && !isExpired(drug.expiry_date)  // ✅ Changed
   ).length;
 
   return {
     uniqueManufacturers,
-    deletedCount,
+    canceledCount,  // ✅ Changed from deletedCount
     expiredCount,
     activeCount,
   };

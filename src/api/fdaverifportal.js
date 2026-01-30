@@ -59,17 +59,17 @@ export const uploadExcelFile = async (file, uploadedBy = null) => {
  * @param {number} options.page - Page number (default: 1)
  * @param {number} options.page_size - Items per page (default: 10)
  * @param {string} options.search - Search term
- * @param {boolean} options.include_deleted - Include soft-deleted records
+ * @param {boolean} options.include_canceled - Include canceled records (changed from include_deleted)
  * @returns {Promise<Object>} Paginated drug list
  */
-export const getAllDrugs = async ({ page = 1, page_size = 10, search = '', include_deleted = false } = {}) => {
-  console.log('🔍 Fetching FDA drugs...', { page, page_size, search, include_deleted });
+export const getAllDrugs = async ({ page = 1, page_size = 10, search = '', include_canceled = false } = {}) => {
+  console.log('🔍 Fetching FDA drugs...', { page, page_size, search, include_canceled });
 
   try {
     const params = {
       page,
       page_size,
-      include_deleted,
+      include_canceled, // ✅ Changed from include_deleted
     };
 
     if (search) {
@@ -154,20 +154,42 @@ export const updateDrug = async (drugId, updateData) => {
 };
 
 /**
- * Soft delete a drug registration
+ * ✅ NEW: Cancel a drug registration (sets is_canceled = 'Y')
  * @param {number} drugId - Drug ID
- * @returns {Promise<Object>} Delete result
+ * @param {string} canceledBy - Username of user canceling
+ * @returns {Promise<Object>} Cancel result
  */
-export const deleteDrug = async (drugId) => {
-  console.log('🔍 Deleting drug...', { drugId });
+export const cancelDrug = async (drugId, canceledBy) => {
+  console.log('🔍 Canceling drug...', { drugId, canceledBy });
 
   try {
-    const response = await API.delete(`/fda/drugs/${drugId}`);
+    const response = await API.put(`/fda/drugs/${drugId}/cancel`, null, {
+      params: { canceled_by: canceledBy }
+    });
 
-    console.log('✅ Delete Response:', response.data);
+    console.log('✅ Cancel Response:', response.data);
     return response.data;
   } catch (error) {
-    console.error('❌ Error deleting drug:', error);
+    console.error('❌ Error canceling drug:', error);
+    throw error;
+  }
+};
+
+/**
+ * ✅ NEW: Restore a canceled drug registration (sets is_canceled = 'N')
+ * @param {number} drugId - Drug ID
+ * @returns {Promise<Object>} Restore result
+ */
+export const restoreDrug = async (drugId) => {
+  console.log('🔍 Restoring drug...', { drugId });
+
+  try {
+    const response = await API.put(`/fda/drugs/${drugId}/restore`);
+
+    console.log('✅ Restore Response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error restoring drug:', error);
     throw error;
   }
 };
@@ -245,15 +267,15 @@ export const getTableStructure = async (tableName) => {
  * Export drugs data to Excel using backend endpoint
  * @param {Object} options - Export options
  * @param {string} options.search - Search filter
- * @param {boolean} options.include_deleted - Include deleted records
+ * @param {boolean} options.include_canceled - Include canceled records (changed from include_deleted)
  * @returns {Promise<Blob>} Excel file blob
  */
-export const exportDrugsToExcel = async ({ search = '', include_deleted = false } = {}) => {
-  console.log('🔍 Exporting drugs to Excel...', { search, include_deleted });
+export const exportDrugsToExcel = async ({ search = '', include_canceled = false } = {}) => {
+  console.log('🔍 Exporting drugs to Excel...', { search, include_canceled });
 
   try {
     const params = {
-      include_deleted,
+      include_canceled, // ✅ Changed from include_deleted
     };
 
     if (search) {
