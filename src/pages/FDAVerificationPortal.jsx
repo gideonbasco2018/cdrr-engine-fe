@@ -4,8 +4,8 @@ import {
   uploadExcelFile,
   getAllDrugs,
   getDrugById,
-  cancelDrug, // ✅ Changed from deleteDrug
-  restoreDrug, // ✅ NEW: Added restore function
+  cancelDrug,
+  restoreDrug,
   updateDrug,
   exportDrugsToExcel,
 } from "../api/fdaverifportal";
@@ -16,7 +16,7 @@ import { getCurrentUser as fetchCurrentUser } from "../api/auth";
 // Import Components
 import FDAViewModal from "../components/fda/FDAViewModal";
 import FDAEditModal from "../components/fda/FDAEditModal";
-import FDACancelConfirmModal from "../components/fda/FDACancelConfirmModal"; // ✅ Changed from FDADeleteConfirmModal
+import FDACancelConfirmModal from "../components/fda/FDACancelConfirmModal";
 import FDADataTable from "../components/fda/FDADataTable";
 import FDATablePagination from "../components/fda/FDATablePagination";
 import FDAFilterBar from "../components/fda/FDAFilterBar";
@@ -40,7 +40,7 @@ function FDAVerificationPortal({ darkMode }) {
     totalProducts: 0,
     activeProducts: 0,
     manufacturers: 0,
-    canceledProducts: 0, // ✅ Changed from deletedProducts
+    canceledProducts: 0,
     expiredProducts: 0,
     uploadedToday: 0,
     uploadedYesterday: 0,
@@ -59,11 +59,10 @@ function FDAVerificationPortal({ darkMode }) {
   const [viewModal, setViewModal] = useState({ open: false, data: null });
   const [editModal, setEditModal] = useState({ open: false, data: null });
   const [cancelModal, setCancelModal] = useState({
-    // ✅ Changed from deleteModal
     open: false,
     drugId: null,
     drugName: "",
-    isCanceled: false, // ✅ NEW: Track if drug is already canceled (for restore)
+    isCanceled: false,
   });
 
   // Filter states
@@ -178,6 +177,7 @@ function FDAVerificationPortal({ darkMode }) {
 
   // Table columns
   const columns = [
+    { key: "reference_number", label: "Reference Number", width: "180px" },
     { key: "generic_name", label: "Generic Name", width: "350px" },
     { key: "brand_name", label: "Brand Name", width: "150px" },
     { key: "dosage_strength", label: "Dosage Strength", width: "120px" },
@@ -921,7 +921,7 @@ function FDAVerificationPortal({ darkMode }) {
         {[
           {
             icon: "📋",
-            label: "Total Products",
+            label: "Total Manual Application Released",
             value: stats.totalProducts,
             color: colors.textPrimary,
           },
@@ -930,6 +930,12 @@ function FDAVerificationPortal({ darkMode }) {
             label: "Active Products",
             value: stats.activeProducts,
             color: "#4CAF50",
+          },
+          {
+            icon: "⏰",
+            label: "Expired",
+            value: stats.expiredProducts,
+            color: "#FF9800",
           },
           {
             icon: "📅",
@@ -948,12 +954,6 @@ function FDAVerificationPortal({ darkMode }) {
             label: "My Uploads This Month",
             value: stats.uploadedThisMonth,
             color: "#00BCD4",
-          },
-          {
-            icon: "⏰",
-            label: "Expired",
-            value: stats.expiredProducts,
-            color: "#FF9800",
           },
           {
             icon: "🔄",
@@ -1068,7 +1068,7 @@ function FDAVerificationPortal({ darkMode }) {
             {
               key: "all",
               icon: "📋",
-              label: "All Products",
+              label: "All Manual",
               count: stats.totalProducts - stats.canceledProducts, // ✅ Changed
               color: colors.tabActive,
             },
@@ -1184,7 +1184,7 @@ function FDAVerificationPortal({ darkMode }) {
             }}
           >
             {activeTab === "all"
-              ? "All Products"
+              ? "All Manual Application"
               : activeTab === "duplicates"
                 ? "Duplicate Registration Numbers"
                 : activeTab === "today"
