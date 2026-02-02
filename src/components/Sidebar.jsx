@@ -1,3 +1,4 @@
+// FILE: src/components/Sidebar.jsx
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getUploadReports } from "../api/reports";
@@ -40,7 +41,7 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
     setCurrentUser(username);
   }, []);
 
-  // ✅ FETCH PENDING EVALUATION COUNT
+  // ✅ FETCH PENDING EVALUATION COUNT - FIXED
   useEffect(() => {
     const fetchPendingCount = async () => {
       if (!currentUser || currentUser === "Unknown User") {
@@ -51,10 +52,10 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
       try {
         const json = await getUploadReports({
           page: 1,
-          pageSize: 10000, // Get all records to count properly
+          pageSize: 10000,
           search: "",
-          sortBy: "",
-          sortOrder: "desc",
+          // sortBy: "DB_DATE_EXCEL_UPLOAD", // ✅ FIXED: Provide valid sortBy
+          // sortOrder: "desc",
         });
 
         if (!json || !json.data || !Array.isArray(json.data)) {
@@ -91,10 +92,6 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
     };
 
     fetchPendingCount();
-
-    // ✅ Refresh count every 30 seconds
-    const interval = setInterval(fetchPendingCount, 30000);
-    return () => clearInterval(interval);
   }, [currentUser]);
 
   // ===== MENU DEFINITIONS =====
@@ -207,7 +204,7 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
   const visibleMainMenu = filterByRole(mainMenuItems);
   const visibleCmsReports = filterByRole(cmsReportsItems);
   const visibleWorkflow = filterByRole(workflowItems);
-  const visibleOtherDatabase = filterByRole(otherDatabaseItems); // ✅ NEW
+  const visibleOtherDatabase = filterByRole(otherDatabaseItems);
   const visiblePlatform = filterByRole(platformItems);
 
   // ===== COLORS =====

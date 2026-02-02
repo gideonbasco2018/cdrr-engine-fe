@@ -19,16 +19,25 @@ export const getUploadReports = async ({
     sortOrder
   });
 
+  // ✅ FIX: Build params object conditionally
+  const params = {
+    page,
+    page_size: pageSize,
+  };
+
+  // Only add parameters if they have values
+  if (search) params.search = search;
+  if (status) params.status = status;
+  if (category) params.category = category;
+  
+  // ✅ CRITICAL FIX: Only add sort parameters if sortBy has a value AND is not empty string
+  if (sortBy && sortBy.trim() !== '') {
+    params.sort_by = sortBy;
+    params.sort_order = sortOrder;
+  }
+
   const response = await API.get("/main-db/", {
-    params: {
-      page,
-      page_size: pageSize,
-      search: search || undefined,
-      status: status || undefined,
-      category: category || undefined,
-      sort_by: sortBy,
-      sort_order: sortOrder,
-    },
+    params,
   });
 
   console.log('✅ API Response:', {

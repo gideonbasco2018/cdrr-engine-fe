@@ -1,6 +1,4 @@
 // FILE: src/pages/UploadReportsPage.jsx
-// ✅ FIXED: Pagination now works correctly with client-side filtering
-
 import { useState, useEffect } from "react";
 import {
   getUploadReports,

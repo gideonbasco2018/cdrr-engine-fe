@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { login } from "../api/auth";
 
@@ -10,6 +10,19 @@ function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -54,6 +67,7 @@ function LoginPage() {
         minHeight: "100vh",
         background: "#000",
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         fontFamily:
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
@@ -61,15 +75,16 @@ function LoginPage() {
       {/* Left Side - Branding */}
       <div
         style={{
-          flex: 1,
+          flex: isMobile ? "0 0 auto" : 1,
           background: "linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%)",
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
           alignItems: "center",
-          padding: "4rem",
+          padding: isMobile ? "2rem 1.5rem" : "4rem",
           position: "relative",
           overflow: "hidden",
+          minHeight: isMobile ? "auto" : "100vh",
         }}
       >
         <div
@@ -87,13 +102,13 @@ function LoginPage() {
 
         <div style={{ position: "relative", zIndex: 1, textAlign: "center" }}>
           {/* Logo */}
-          <div style={{ marginBottom: "2rem" }}>
+          <div style={{ marginBottom: isMobile ? "1rem" : "2rem" }}>
             <img
               src="/images/FDALogo.png"
               alt="FDA Logo"
               style={{
-                width: "150px",
-                height: "150px",
+                width: isMobile ? "80px" : "150px",
+                height: isMobile ? "80px" : "150px",
                 objectFit: "contain",
               }}
             />
@@ -102,7 +117,7 @@ function LoginPage() {
           {/* Main Title */}
           <h1
             style={{
-              fontSize: "2rem",
+              fontSize: isMobile ? "1.25rem" : "2rem",
               fontWeight: "700",
               color: "#fff",
               marginBottom: "0.5rem",
@@ -114,113 +129,123 @@ function LoginPage() {
           </h1>
           <h1
             style={{
-              fontSize: "2rem",
+              fontSize: isMobile ? "1.25rem" : "2rem",
               fontWeight: "700",
               color: "#fff",
-              marginBottom: "2rem",
+              marginBottom: isMobile ? "1rem" : "2rem",
               letterSpacing: "0.05em",
             }}
           >
             and Research (CDRR)
           </h1>
 
-          <div style={{ marginTop: "3rem" }}>
+          <div style={{ marginTop: isMobile ? "1.5rem" : "3rem" }}>
             <h2
               style={{
-                fontSize: "1.75rem",
+                fontSize: isMobile ? "1.1rem" : "1.75rem",
                 fontWeight: "600",
                 color: "#fff",
-                marginBottom: "1rem",
+                marginBottom: isMobile ? "0.25rem" : "1rem",
               }}
             >
               Real-time Monitoring
             </h2>
             <h2
               style={{
-                fontSize: "1.75rem",
+                fontSize: isMobile ? "1.1rem" : "1.75rem",
                 fontWeight: "600",
                 color: "#fff",
-                marginBottom: "2rem",
+                marginBottom: isMobile ? "1rem" : "2rem",
               }}
             >
               & Analytics Dashboard
             </h2>
 
-            <p
-              style={{
-                fontSize: "1rem",
-                color: "#999",
-                lineHeight: "1.6",
-                maxWidth: "400px",
-                margin: "0 auto",
-              }}
-            >
-              Track drug registrations, adverse events,
-              <br />
-              and regulatory compliance in one unified platform
-            </p>
+            {!isMobile && (
+              <p
+                style={{
+                  fontSize: "1rem",
+                  color: "#999",
+                  lineHeight: "1.6",
+                  maxWidth: "400px",
+                  margin: "0 auto",
+                }}
+              >
+                Track drug registrations, adverse events,
+                <br />
+                and regulatory compliance in one unified platform
+              </p>
+            )}
           </div>
 
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              justifyContent: "center",
-              marginTop: "3rem",
-            }}
-          >
+          {!isMobile && (
             <div
               style={{
-                width: "40px",
-                height: "3px",
-                background: "#4CAF50",
-                borderRadius: "2px",
+                display: "flex",
+                gap: "0.5rem",
+                justifyContent: "center",
+                marginTop: "3rem",
               }}
-            />
-            <div
-              style={{
-                width: "8px",
-                height: "3px",
-                background: "#333",
-                borderRadius: "2px",
-              }}
-            />
-            <div
-              style={{
-                width: "8px",
-                height: "3px",
-                background: "#333",
-                borderRadius: "2px",
-              }}
-            />
-            <div
-              style={{
-                width: "8px",
-                height: "3px",
-                background: "#333",
-                borderRadius: "2px",
-              }}
-            />
-          </div>
+            >
+              <div
+                style={{
+                  width: "40px",
+                  height: "3px",
+                  background: "#4CAF50",
+                  borderRadius: "2px",
+                }}
+              />
+              <div
+                style={{
+                  width: "8px",
+                  height: "3px",
+                  background: "#333",
+                  borderRadius: "2px",
+                }}
+              />
+              <div
+                style={{
+                  width: "8px",
+                  height: "3px",
+                  background: "#333",
+                  borderRadius: "2px",
+                }}
+              />
+              <div
+                style={{
+                  width: "8px",
+                  height: "3px",
+                  background: "#333",
+                  borderRadius: "2px",
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
       {/* Right Side - Login Form */}
       <div
         style={{
-          flex: 1,
+          flex: isMobile ? 1 : 1,
           background: "#0a0a0a",
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          padding: "4rem",
-          maxWidth: "600px",
+          padding: isMobile ? "2rem 1.5rem" : "4rem",
+          maxWidth: isMobile ? "100%" : "600px",
         }}
       >
-        <div style={{ maxWidth: "400px", width: "100%", margin: "0 auto" }}>
+        <div
+          style={{
+            maxWidth: "400px",
+            width: "100%",
+            margin: "0 auto",
+          }}
+        >
           <h2
             style={{
-              fontSize: "2rem",
+              fontSize: isMobile ? "1.5rem" : "2rem",
               fontWeight: "600",
               color: "#fff",
               marginBottom: "0.5rem",
@@ -233,7 +258,7 @@ function LoginPage() {
           <p
             style={{
               color: "#666",
-              marginBottom: "2.5rem",
+              marginBottom: isMobile ? "1.5rem" : "2.5rem",
               textAlign: "center",
               fontSize: "0.9rem",
             }}
@@ -268,10 +293,11 @@ function LoginPage() {
                   border: "1px solid #2a2a2a",
                   borderRadius: "8px",
                   color: "#fff",
-                  fontSize: "0.95rem",
+                  fontSize: isMobile ? "16px" : "0.95rem", // 16px prevents zoom on iOS
                   outline: "none",
                   transition: "border-color 0.2s",
                   opacity: loading ? 0.6 : 1,
+                  boxSizing: "border-box",
                 }}
                 onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                 onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
@@ -306,10 +332,11 @@ function LoginPage() {
                     border: "1px solid #2a2a2a",
                     borderRadius: "8px",
                     color: "#fff",
-                    fontSize: "0.95rem",
+                    fontSize: isMobile ? "16px" : "0.95rem", // 16px prevents zoom on iOS
                     outline: "none",
                     transition: "border-color 0.2s",
                     opacity: loading ? 0.6 : 1,
+                    boxSizing: "border-box",
                   }}
                   onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                   onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
@@ -327,8 +354,11 @@ function LoginPage() {
                     border: "none",
                     color: "#666",
                     cursor: loading ? "not-allowed" : "pointer",
-                    fontSize: "0.85rem",
+                    fontSize: "1.2rem",
                     padding: "0.25rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
                   {showPassword ? "👁️" : "👁️‍🗨️"}
@@ -339,9 +369,11 @@ function LoginPage() {
             <div
               style={{
                 display: "flex",
+                flexDirection: isMobile ? "column" : "row",
                 justifyContent: "space-between",
-                alignItems: "center",
+                alignItems: isMobile ? "flex-start" : "center",
                 marginBottom: "2rem",
+                gap: isMobile ? "1rem" : "0",
               }}
             >
               <label
@@ -395,7 +427,7 @@ function LoginPage() {
               disabled={loading}
               style={{
                 width: "100%",
-                padding: "0.875rem",
+                padding: isMobile ? "1rem" : "0.875rem",
                 background: loading ? "#999" : "#fff",
                 color: "#000",
                 border: "none",
@@ -405,6 +437,7 @@ function LoginPage() {
                 cursor: loading ? "not-allowed" : "pointer",
                 transition: "all 0.2s",
                 marginBottom: "1rem",
+                touchAction: "manipulation", // Improves touch responsiveness
               }}
               onMouseEnter={(e) => {
                 if (!loading) {
@@ -464,7 +497,7 @@ function LoginPage() {
           <p
             style={{
               textAlign: "center",
-              marginTop: "2rem",
+              marginTop: isMobile ? "1.5rem" : "2rem",
             }}
           >
             <span
