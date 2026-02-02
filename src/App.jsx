@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 
 import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
 import UserDashboard from "./pages/UserDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
@@ -29,6 +30,16 @@ function App() {
               <Navigate to="/dashboard" replace />
             ) : (
               <LoginPage darkMode={darkMode} />
+            )
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            isLoggedIn() ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <SignupPage darkMode={darkMode} />
             )
           }
         />

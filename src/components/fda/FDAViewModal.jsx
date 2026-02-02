@@ -4,38 +4,30 @@ import { useEffect } from "react";
 function FDAViewModal({ isOpen, onClose, data, darkMode }) {
   const colors = darkMode
     ? {
-        cardBg: "#0f0f0f",
-        cardBorder: "#1a1a1a",
-        textPrimary: "#fff",
-        textSecondary: "#999",
-        textTertiary: "#666",
-        tableBorder: "#1a1a1a",
-        sectionBg: "#1a1a1a",
+        bg: "#121212",
+        card: "#1e1e1e",
+        border: "#2c2c2c",
+        primaryText: "#ffffff",
+        secondaryText: "#bbbbbb",
+        accent: "#4CAF50",
+        warning: "#f44336",
       }
     : {
-        cardBg: "#ffffff",
-        cardBorder: "#e5e5e5",
-        textPrimary: "#000",
-        textSecondary: "#666",
-        textTertiary: "#999",
-        tableBorder: "#e5e5e5",
-        sectionBg: "#f8f8f8",
+        bg: "#f5f5f5",
+        card: "#ffffff",
+        border: "#e0e0e0",
+        primaryText: "#111111",
+        secondaryText: "#555555",
+        accent: "#4CAF50",
+        warning: "#f44336",
       };
 
-  const isExpired = (expiryDate) => {
-    if (!expiryDate) return false;
-    return new Date(expiryDate) < new Date();
-  };
+  const isExpired = (expiryDate) =>
+    expiryDate && new Date(expiryDate) < new Date();
 
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
+    document.body.style.overflow = isOpen ? "hidden" : "unset";
+    return () => (document.body.style.overflow = "unset");
   }, [isOpen]);
 
   if (!isOpen || !data) return null;
@@ -43,62 +35,41 @@ function FDAViewModal({ isOpen, onClose, data, darkMode }) {
   const sections = [
     {
       title: "Basic Information",
-      icon: "📋",
       fields: [
-        {
-          label: "Registration Number",
-          key: "registration_number",
-          icon: "🔢",
-        },
-        { label: "Generic Name", key: "generic_name", icon: "💊" },
-        { label: "Brand Name", key: "brand_name", icon: "🏷️" },
-        { label: "Dosage Strength", key: "dosage_strength", icon: "⚖️" },
-        { label: "Dosage Form", key: "dosage_form", icon: "💉" },
-        { label: "Classification", key: "classification", icon: "📂" },
-        { label: "Packaging", key: "packaging", icon: "📦" },
-        {
-          label: "Pharmacologic Category",
-          key: "pharmacologic_category",
-          icon: "🧬",
-        },
+        { label: "Reference Number", key: "reference_number" },
+        { label: "Registration Number", key: "registration_number" },
+        { label: "Generic Name", key: "generic_name" },
+        { label: "Brand Name", key: "brand_name" },
+        { label: "Dosage Strength", key: "dosage_strength" },
+        { label: "Dosage Form", key: "dosage_form" },
+        { label: "Classification", key: "classification" },
+        { label: "Packaging", key: "packaging" },
+        { label: "Pharmacologic Category", key: "pharmacologic_category" },
       ],
     },
     {
       title: "Company Information",
-      icon: "🏢",
       fields: [
-        { label: "Manufacturer", key: "manufacturer", icon: "🏭" },
-        { label: "Country", key: "country", icon: "🌍" },
-        { label: "Trader", key: "trader", icon: "🤝" },
-        { label: "Importer", key: "importer", icon: "📥" },
-        { label: "Distributor", key: "distributor", icon: "🚚" },
+        { label: "Manufacturer", key: "manufacturer" },
+        { label: "Country", key: "country" },
+        { label: "Trader", key: "trader" },
+        { label: "Importer", key: "importer" },
+        { label: "Distributor", key: "distributor" },
       ],
     },
     {
       title: "Registration Details",
-      icon: "📅",
       fields: [
-        { label: "Application Type", key: "app_type", icon: "📄" },
-        { label: "Issuance Date", key: "issuance_date", icon: "📆" },
-        {
-          label: "Expiry Date",
-          key: "expiry_date",
-          icon: "⏰",
-          special: "expiry",
-        },
+        { label: "Application Type", key: "app_type" },
+        { label: "Issuance Date", key: "issuance_date" },
+        { label: "Expiry Date", key: "expiry_date", special: "expiry" },
       ],
     },
     {
       title: "Upload Information",
-      icon: "☁️",
       fields: [
-        { label: "Uploaded By", key: "uploaded_by", icon: "👤" },
-        {
-          label: "Date Uploaded",
-          key: "date_uploaded",
-          icon: "📤",
-          special: "date",
-        },
+        { label: "Uploaded By", key: "uploaded_by" },
+        { label: "Date Uploaded", key: "date_uploaded", special: "date" },
       ],
     },
   ];
@@ -107,29 +78,25 @@ function FDAViewModal({ isOpen, onClose, data, darkMode }) {
     <>
       {/* Backdrop */}
       <div
+        onClick={onClose}
         style={{
           position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0, 0, 0, 0.5)",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
           zIndex: 9998,
-          animation: "fadeIn 0.3s ease",
         }}
-        onClick={onClose}
       />
 
-      {/* Sliding Drawer Modal */}
+      {/* Modal */}
       <div
         style={{
           position: "fixed",
           top: 0,
           right: 0,
-          width: "75vw",
+          width: "70vw",
           height: "100vh",
-          background: colors.cardBg,
-          boxShadow: "-4px 0 20px rgba(0,0,0,0.3)",
+          background: colors.bg,
+          boxShadow: "-8px 0 30px rgba(0,0,0,0.3)",
           zIndex: 9999,
           display: "flex",
           flexDirection: "column",
@@ -139,66 +106,31 @@ function FDAViewModal({ isOpen, onClose, data, darkMode }) {
         {/* Header */}
         <div
           style={{
-            padding: "2rem",
-            borderBottom: `1px solid ${colors.tableBorder}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            background: colors.sectionBg,
+            padding: "1.5rem 2rem",
+            borderBottom: `1px solid ${colors.border}`,
+            background: colors.card,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <div
-              style={{
-                width: "48px",
-                height: "48px",
-                borderRadius: "12px",
-                background: "linear-gradient(135deg, #4CAF50 0%, #45a049 100%)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "1.5rem",
-              }}
-            >
-              💊
-            </div>
-            <div>
-              <h2
-                style={{
-                  fontSize: "1.5rem",
-                  fontWeight: "600",
-                  color: colors.textPrimary,
-                  marginBottom: "0.25rem",
-                }}
-              >
-                Drug Registration Details
-              </h2>
-              <p style={{ fontSize: "0.9rem", color: colors.textSecondary }}>
-                {data.brand_name || data.generic_name || "N/A"}
-              </p>
-            </div>
-          </div>
+          <h2
+            style={{
+              fontSize: "1.5rem",
+              fontWeight: "600",
+              color: colors.primaryText,
+            }}
+          >
+            Drug Registration Details
+          </h2>
           <button
             onClick={onClose}
             style={{
-              width: "40px",
-              height: "40px",
-              borderRadius: "10px",
               background: "transparent",
-              border: `1px solid ${colors.cardBorder}`,
+              border: "none",
               fontSize: "1.5rem",
-              color: colors.textTertiary,
+              color: colors.secondaryText,
               cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = colors.tableBorder;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
             }}
           >
             ×
@@ -206,91 +138,66 @@ function FDAViewModal({ isOpen, onClose, data, darkMode }) {
         </div>
 
         {/* Content */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "2rem",
-          }}
-        >
-          <div style={{ display: "grid", gap: "2rem" }}>
-            {sections.map((section, sectionIdx) => (
+        <div style={{ flex: 1, overflowY: "auto", padding: "2rem" }}>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
+          >
+            {sections.map((section, idx) => (
               <div
-                key={sectionIdx}
+                key={idx}
                 style={{
-                  background: colors.sectionBg,
+                  background: colors.card,
                   borderRadius: "12px",
                   padding: "1.5rem",
-                  border: `1px solid ${colors.cardBorder}`,
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
                 }}
               >
-                <div
+                <h3
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    marginBottom: "1.5rem",
-                    paddingBottom: "1rem",
-                    borderBottom: `2px solid ${colors.tableBorder}`,
+                    fontSize: "1.1rem",
+                    fontWeight: "600",
+                    color: colors.primaryText,
+                    marginBottom: "1rem",
                   }}
                 >
-                  <span style={{ fontSize: "1.5rem" }}>{section.icon}</span>
-                  <h3
-                    style={{
-                      fontSize: "1.1rem",
-                      fontWeight: "600",
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {section.title}
-                  </h3>
-                </div>
+                  {section.title}
+                </h3>
 
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-                    gap: "1.5rem",
+                    gridTemplateColumns:
+                      "repeat(auto-fill, minmax(250px, 1fr))",
+                    gap: "1rem",
                   }}
                 >
                   {section.fields.map((field) => (
                     <div key={field.key}>
-                      <div
+                      <label
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                          marginBottom: "0.5rem",
+                          display: "block",
+                          fontSize: "0.75rem",
+                          fontWeight: "600",
+                          color: colors.secondaryText,
+                          marginBottom: "0.25rem",
                         }}
                       >
-                        <span style={{ fontSize: "1rem" }}>{field.icon}</span>
-                        <label
-                          style={{
-                            fontSize: "0.75rem",
-                            fontWeight: "600",
-                            color: colors.textTertiary,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.5px",
-                          }}
-                        >
-                          {field.label}
-                        </label>
-                      </div>
+                        {field.label}
+                      </label>
                       <p
                         style={{
-                          fontSize: "1rem",
+                          fontSize: "0.95rem",
+                          fontWeight: "500",
                           color:
                             field.special === "expiry" &&
                             isExpired(data[field.key])
-                              ? "#f44336"
-                              : field.special === "expiry" && data[field.key]
-                                ? "#4CAF50"
-                                : colors.textPrimary,
-                          fontWeight: "500",
+                              ? colors.warning
+                              : colors.primaryText,
                           padding: "0.5rem 0.75rem",
-                          background: colors.cardBg,
                           borderRadius: "6px",
-                          border: `1px solid ${colors.cardBorder}`,
+                          background: colors.bg,
+                          border: `1px solid ${colors.border}`,
                         }}
                       >
                         {field.special === "date" && data[field.key]
@@ -318,32 +225,31 @@ function FDAViewModal({ isOpen, onClose, data, darkMode }) {
         <div
           style={{
             padding: "1.5rem 2rem",
-            borderTop: `1px solid ${colors.tableBorder}`,
+            borderTop: `1px solid ${colors.border}`,
             display: "flex",
             justifyContent: "flex-end",
-            background: colors.sectionBg,
+            background: colors.card,
           }}
         >
           <button
             onClick={onClose}
             style={{
               padding: "0.75rem 2rem",
-              background: "linear-gradient(135deg, #4CAF50 0%, #45a049 100%)",
+              background: colors.accent,
               border: "none",
               borderRadius: "8px",
               color: "#fff",
-              fontSize: "0.95rem",
               fontWeight: "600",
               cursor: "pointer",
-              boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
-              transition: "transform 0.2s",
+              boxShadow: "0 4px 12px rgba(76,175,80,0.3)",
+              transition: "all 0.2s",
             }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "translateY(0)";
-            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.transform = "translateY(-2px)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.transform = "translateY(0)")
+            }
           >
             Close
           </button>
@@ -351,17 +257,9 @@ function FDAViewModal({ isOpen, onClose, data, darkMode }) {
       </div>
 
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
         @keyframes slideInRight {
-          from {
-            transform: translateX(100%);
-          }
-          to {
-            transform: translateX(0);
-          }
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
         }
       `}</style>
     </>

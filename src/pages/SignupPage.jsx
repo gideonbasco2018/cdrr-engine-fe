@@ -1,16 +1,24 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { login } from "../api/auth";
+import { register } from "../api/auth";
 
-function LoginPage() {
+function SignupPage() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  const [formData, setFormData] = useState({
+    email: "",
+    username: "",
+    password: "",
+    confirmPassword: "",
+    first_name: "",
+    surname: "",
+    position: "",
+  });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Detect screen size
   useEffect(() => {
@@ -24,52 +32,70 @@ function LoginPage() {
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
+
+    // Validation
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+
+    if (formData.password.length < 8) {
+      setError("Password must be at least 8 characters long");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const data = await login({ username, password });
-      const { access_token, user } = data;
+      const registrationData = {
+        email: formData.email,
+        username: formData.username,
+        password: formData.password,
+        first_name: formData.first_name,
+        surname: formData.surname,
+        position: formData.position || undefined,
+      };
 
-      console.log("✅ Login successful:", user);
+      const response = await register(registrationData);
 
-      const storage = rememberMe ? localStorage : sessionStorage;
+      console.log("✅ Registration successful:", response);
 
-      storage.setItem("access_token", access_token);
-      storage.setItem("user", JSON.stringify(user));
-      storage.setItem("userRole", user.role);
-      storage.setItem("userGroup", user.group_id);
+      // Show success message
+      setSuccessMessage(
+        "Registration successful! Your account is pending approval. You will be notified once activated.",
+      );
 
-      switch (user.role) {
-        case "SuperAdmin":
-          navigate("/superadmin/dashboard");
-          break;
-        case "Admin":
-          navigate("/admin/dashboard");
-          break;
-        case "User":
-        default:
-          navigate("/dashboard");
-          break;
-      }
+      // Clear form
+      setFormData({
+        email: "",
+        username: "",
+        password: "",
+        confirmPassword: "",
+        first_name: "",
+        surname: "",
+        position: "",
+      });
+
+      // Redirect to login after 3 seconds
+      setTimeout(() => {
+        navigate("/login");
+      }, 3000);
     } catch (err) {
-      console.error("❌ Login error:", err);
-
-      // Check if it's a 403 error (inactive account)
-      if (err.response?.status === 403) {
-        setError(
-          "Your account is pending approval. Please wait for admin confirmation or contact support.",
-        );
-      } else {
-        setError(
-          err.response?.data?.detail ||
-            err.message ||
-            "Login failed. Please check your credentials.",
-        );
-      }
-
+      console.error("❌ Registration error:", err);
+      setError(
+        err.response?.data?.detail || err.message || "Registration failed",
+      );
       setLoading(false);
     }
   };
@@ -184,9 +210,9 @@ function LoginPage() {
                   margin: "0 auto",
                 }}
               >
-                Track drug registrations, adverse events,
+                Join our platform to track drug registrations, adverse events,
                 <br />
-                and regulatory compliance in one unified platform
+                and regulatory compliance
               </p>
             )}
           </div>
@@ -237,7 +263,7 @@ function LoginPage() {
         </div>
       </div>
 
-      {/* Right Side - Login Form */}
+      {/* Right Side - Signup Form */}
       <div
         style={{
           flex: isMobile ? 1 : 1,
@@ -245,8 +271,9 @@ function LoginPage() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
-          padding: isMobile ? "2rem 1.5rem" : "4rem",
+          padding: isMobile ? "2rem 1.5rem" : "4rem 4rem",
           maxWidth: isMobile ? "100%" : "600px",
+          overflowY: "auto",
         }}
       >
         <div
@@ -265,22 +292,157 @@ function LoginPage() {
               textAlign: "center",
             }}
           >
-            WELCOME BACK
+            CREATE ACCOUNT
           </h2>
 
           <p
             style={{
               color: "#666",
-              marginBottom: isMobile ? "1.5rem" : "2.5rem",
+              marginBottom: isMobile ? "1.5rem" : "2rem",
               textAlign: "center",
               fontSize: "0.9rem",
             }}
           >
-            Enter your username and password below to sign in
+            Fill in your details to register
           </p>
 
+          {successMessage && (
+            <div
+              style={{
+                padding: "0.875rem",
+                background: "rgba(76, 175, 80, 0.1)",
+                border: "1px solid rgba(76, 175, 80, 0.3)",
+                borderRadius: "8px",
+                color: "#4CAF50",
+                fontSize: "0.9rem",
+                marginBottom: "1.5rem",
+                textAlign: "center",
+              }}
+            >
+              {successMessage}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: "1.5rem" }}>
+            {/* First Name */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#999",
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                }}
+              >
+                First Name
+              </label>
+              <input
+                type="text"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleChange}
+                placeholder="Enter your first name"
+                required
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "0.875rem",
+                  background: "#1a1a1a",
+                  border: "1px solid #2a2a2a",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  fontSize: isMobile ? "16px" : "0.95rem",
+                  outline: "none",
+                  transition: "border-color 0.2s",
+                  opacity: loading ? 0.6 : 1,
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
+              />
+            </div>
+
+            {/* Surname */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#999",
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                }}
+              >
+                Surname
+              </label>
+              <input
+                type="text"
+                name="surname"
+                value={formData.surname}
+                onChange={handleChange}
+                placeholder="Enter your surname"
+                required
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "0.875rem",
+                  background: "#1a1a1a",
+                  border: "1px solid #2a2a2a",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  fontSize: isMobile ? "16px" : "0.95rem",
+                  outline: "none",
+                  transition: "border-color 0.2s",
+                  opacity: loading ? 0.6 : 1,
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
+              />
+            </div>
+
+            {/* Email */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#999",
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                }}
+              >
+                Email
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Enter your email"
+                required
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "0.875rem",
+                  background: "#1a1a1a",
+                  border: "1px solid #2a2a2a",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  fontSize: isMobile ? "16px" : "0.95rem",
+                  outline: "none",
+                  transition: "border-color 0.2s",
+                  opacity: loading ? 0.6 : 1,
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
+              />
+            </div>
+
+            {/* Username */}
+            <div style={{ marginBottom: "1.25rem" }}>
               <label
                 style={{
                   display: "block",
@@ -294,9 +456,10 @@ function LoginPage() {
               </label>
               <input
                 type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter your username"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                placeholder="Choose a username"
                 required
                 disabled={loading}
                 style={{
@@ -306,7 +469,7 @@ function LoginPage() {
                   border: "1px solid #2a2a2a",
                   borderRadius: "8px",
                   color: "#fff",
-                  fontSize: isMobile ? "16px" : "0.95rem", // 16px prevents zoom on iOS
+                  fontSize: isMobile ? "16px" : "0.95rem",
                   outline: "none",
                   transition: "border-color 0.2s",
                   opacity: loading ? 0.6 : 1,
@@ -317,7 +480,46 @@ function LoginPage() {
               />
             </div>
 
-            <div style={{ marginBottom: "1.5rem" }}>
+            {/* Position (Optional) */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  color: "#999",
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
+                }}
+              >
+                Position <span style={{ color: "#666" }}>(Optional)</span>
+              </label>
+              <input
+                type="text"
+                name="position"
+                value={formData.position}
+                onChange={handleChange}
+                placeholder="Enter your position"
+                disabled={loading}
+                style={{
+                  width: "100%",
+                  padding: "0.875rem",
+                  background: "#1a1a1a",
+                  border: "1px solid #2a2a2a",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  fontSize: isMobile ? "16px" : "0.95rem",
+                  outline: "none",
+                  transition: "border-color 0.2s",
+                  opacity: loading ? 0.6 : 1,
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
+              />
+            </div>
+
+            {/* Password */}
+            <div style={{ marginBottom: "1.25rem" }}>
               <label
                 style={{
                   display: "block",
@@ -332,9 +534,10 @@ function LoginPage() {
               <div style={{ position: "relative" }}>
                 <input
                   type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  placeholder="Create a password (min. 8 characters)"
                   required
                   disabled={loading}
                   style={{
@@ -345,7 +548,7 @@ function LoginPage() {
                     border: "1px solid #2a2a2a",
                     borderRadius: "8px",
                     color: "#fff",
-                    fontSize: isMobile ? "16px" : "0.95rem", // 16px prevents zoom on iOS
+                    fontSize: isMobile ? "16px" : "0.95rem",
                     outline: "none",
                     transition: "border-color 0.2s",
                     opacity: loading ? 0.6 : 1,
@@ -379,59 +582,67 @@ function LoginPage() {
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                flexDirection: isMobile ? "column" : "row",
-                justifyContent: "space-between",
-                alignItems: isMobile ? "flex-start" : "center",
-                marginBottom: "2rem",
-                gap: isMobile ? "1rem" : "0",
-              }}
-            >
+            {/* Confirm Password */}
+            <div style={{ marginBottom: "1.25rem" }}>
               <label
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  cursor: loading ? "not-allowed" : "pointer",
+                  display: "block",
                   color: "#999",
-                  fontSize: "0.9rem",
-                  opacity: loading ? 0.6 : 1,
+                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
+                  fontWeight: "500",
                 }}
               >
+                Confirm Password
+              </label>
+              <div style={{ position: "relative" }}>
                 <input
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Re-enter your password"
+                  required
                   disabled={loading}
                   style={{
-                    width: "16px",
-                    height: "16px",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    accentColor: "#4CAF50",
+                    width: "100%",
+                    padding: "0.875rem",
+                    paddingRight: "3rem",
+                    background: "#1a1a1a",
+                    border: "1px solid #2a2a2a",
+                    borderRadius: "8px",
+                    color: "#fff",
+                    fontSize: isMobile ? "16px" : "0.95rem",
+                    outline: "none",
+                    transition: "border-color 0.2s",
+                    opacity: loading ? 0.6 : 1,
+                    boxSizing: "border-box",
                   }}
+                  onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                  onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
                 />
-                Remember Me
-              </label>
-
-              <div
-                onClick={() =>
-                  !loading && alert("Forgot password functionality")
-                }
-                style={{
-                  color: "#666",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  fontSize: "0.9rem",
-                  transition: "color 0.2s",
-                  opacity: loading ? 0.6 : 1,
-                }}
-                onMouseEnter={(e) =>
-                  !loading && (e.target.style.color = "#4CAF50")
-                }
-                onMouseLeave={(e) => (e.target.style.color = "#666")}
-              >
-                Forgot password?
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={loading}
+                  style={{
+                    position: "absolute",
+                    right: "0.875rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    color: "#666",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    fontSize: "1.2rem",
+                    padding: "0.25rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
               </div>
             </div>
 
@@ -441,31 +652,32 @@ function LoginPage() {
               style={{
                 width: "100%",
                 padding: isMobile ? "1rem" : "0.875rem",
-                background: loading ? "#999" : "#fff",
-                color: "#000",
+                background: loading ? "#999" : "#4CAF50",
+                color: "#fff",
                 border: "none",
                 borderRadius: "8px",
                 fontSize: "0.95rem",
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
                 transition: "all 0.2s",
+                marginTop: "1rem",
                 marginBottom: "1rem",
-                touchAction: "manipulation", // Improves touch responsiveness
+                touchAction: "manipulation",
               }}
               onMouseEnter={(e) => {
                 if (!loading) {
-                  e.target.style.background = "#f0f0f0";
+                  e.target.style.background = "#45a049";
                   e.target.style.transform = "translateY(-1px)";
                 }
               }}
               onMouseLeave={(e) => {
                 if (!loading) {
-                  e.target.style.background = "#fff";
+                  e.target.style.background = "#4CAF50";
                   e.target.style.transform = "translateY(0)";
                 }
               }}
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? "Creating Account..." : "Create Account"}
             </button>
 
             {error && (
@@ -491,26 +703,26 @@ function LoginPage() {
               textAlign: "center",
               color: "#666",
               fontSize: "0.9rem",
-              marginTop: "2rem",
+              marginTop: "1.5rem",
             }}
           >
-            Don't have an account?{" "}
+            Already have an account?{" "}
             <span
-              onClick={() => navigate("/signup")}
+              onClick={() => navigate("/login")}
               style={{
                 color: "#4CAF50",
                 cursor: "pointer",
                 fontWeight: "600",
               }}
             >
-              Sign up here
+              Sign in here
             </span>
           </p>
 
           <p
             style={{
               textAlign: "center",
-              marginTop: isMobile ? "1.5rem" : "2rem",
+              marginTop: isMobile ? "1rem" : "1.5rem",
             }}
           >
             <span
@@ -533,4 +745,4 @@ function LoginPage() {
   );
 }
 
-export default LoginPage;
+export default SignupPage;

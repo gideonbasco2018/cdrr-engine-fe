@@ -4,7 +4,7 @@ import api from './axios';
 // AUTHENTICATION
 // ========================================
 
-// Login function - FIXED for OAuth2PasswordRequestForm
+// Login function - UPDATED to properly handle inactive user errors
 export const login = async ({ username, password }) => {
   try {
     // Create URLSearchParams for form data
@@ -22,7 +22,8 @@ export const login = async ({ username, password }) => {
     return response.data; // { access_token, token_type, user }
   } catch (err) {
     console.error('Login error:', err);
-    throw err.response?.data?.detail || 'Login failed. Please check your credentials.';
+    // Throw the full error object so we can check status code in component
+    throw err;
   }
 };
 
@@ -33,7 +34,7 @@ export const register = async (userData) => {
     return response.data;
   } catch (err) {
     console.error('Registration error:', err);
-    throw err.response?.data?.detail || 'Registration failed.';
+    throw err;
   }
 };
 
@@ -125,6 +126,77 @@ export const getUsersByGroup = async (groupId) => {
 
 
 // ========================================
+// ADMIN: USER APPROVAL FUNCTIONS
+// ========================================
+
+/**
+ * Get all pending users (inactive users awaiting approval)
+ * ADMIN ONLY
+ * 
+ * @returns {Promise<Array>} Array of inactive user objects
+ */
+export const getPendingUsers = async () => {
+  try {
+    const response = await api.get('auth/admin/users/pending');
+    return response.data;
+  } catch (err) {
+    console.error('Get pending users error:', err);
+    throw err.response?.data?.detail || 'Failed to get pending users.';
+  }
+};
+
+/**
+ * Activate a user account
+ * ADMIN ONLY
+ * 
+ * @param {number} userId - The user ID to activate
+ * @returns {Promise<Object>} Updated user object
+ */
+export const activateUser = async (userId) => {
+  try {
+    const response = await api.post(`auth/admin/users/${userId}/activate`);
+    return response.data;
+  } catch (err) {
+    console.error('Activate user error:', err);
+    throw err.response?.data?.detail || 'Failed to activate user.';
+  }
+};
+
+/**
+ * Deactivate a user account
+ * ADMIN ONLY
+ * 
+ * @param {number} userId - The user ID to deactivate
+ * @returns {Promise<Object>} Updated user object
+ */
+export const deactivateUser = async (userId) => {
+  try {
+    const response = await api.post(`auth/admin/users/${userId}/deactivate`);
+    return response.data;
+  } catch (err) {
+    console.error('Deactivate user error:', err);
+    throw err.response?.data?.detail || 'Failed to deactivate user.';
+  }
+};
+
+/**
+ * Get all users (active and inactive)
+ * ADMIN ONLY
+ * 
+ * @returns {Promise<Array>} Array of all user objects
+ */
+export const getAllUsers = async () => {
+  try {
+    const response = await api.get('auth/admin/users');
+    return response.data;
+  } catch (err) {
+    console.error('Get all users error:', err);
+    throw err.response?.data?.detail || 'Failed to get all users.';
+  }
+};
+
+
+// ========================================
 // STORAGE HELPERS
 // ========================================
 
@@ -185,4 +257,3 @@ export const isInGroup = (groupId) => {
   const userGroup = getUserGroup();
   return userGroup === groupId || userGroup === String(groupId);
 };
-
