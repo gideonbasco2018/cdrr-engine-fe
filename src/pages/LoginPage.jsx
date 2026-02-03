@@ -40,7 +40,7 @@ function LoginPage() {
       storage.setItem("access_token", access_token);
       storage.setItem("user", JSON.stringify(user));
       storage.setItem("userRole", user.role);
-      storage.setItem("userGroup", user.group_id);
+      storage.setItem("userGroup", String(user.group_id));
 
       switch (user.role) {
         case "SuperAdmin":
@@ -69,7 +69,8 @@ function LoginPage() {
             "Login failed. Please check your credentials.",
         );
       }
-
+    } finally {
+      // Always reset loading — whether success or fail
       setLoading(false);
     }
   };
@@ -306,7 +307,7 @@ function LoginPage() {
                   border: "1px solid #2a2a2a",
                   borderRadius: "8px",
                   color: "#fff",
-                  fontSize: isMobile ? "16px" : "0.95rem", // 16px prevents zoom on iOS
+                  fontSize: isMobile ? "16px" : "0.95rem",
                   outline: "none",
                   transition: "border-color 0.2s",
                   opacity: loading ? 0.6 : 1,
@@ -345,7 +346,7 @@ function LoginPage() {
                     border: "1px solid #2a2a2a",
                     borderRadius: "8px",
                     color: "#fff",
-                    fontSize: isMobile ? "16px" : "0.95rem", // 16px prevents zoom on iOS
+                    fontSize: isMobile ? "16px" : "0.95rem",
                     outline: "none",
                     transition: "border-color 0.2s",
                     opacity: loading ? 0.6 : 1,
@@ -435,39 +436,7 @@ function LoginPage() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: "100%",
-                padding: isMobile ? "1rem" : "0.875rem",
-                background: loading ? "#999" : "#fff",
-                color: "#000",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "0.95rem",
-                fontWeight: "600",
-                cursor: loading ? "not-allowed" : "pointer",
-                transition: "all 0.2s",
-                marginBottom: "1rem",
-                touchAction: "manipulation", // Improves touch responsiveness
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) {
-                  e.target.style.background = "#f0f0f0";
-                  e.target.style.transform = "translateY(-1px)";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!loading) {
-                  e.target.style.background = "#fff";
-                  e.target.style.transform = "translateY(0)";
-                }
-              }}
-            >
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-
+            {/* Error moved ABOVE the button — mas natural na makita agad */}
             {error && (
               <div
                 style={{
@@ -484,6 +453,38 @@ function LoginPage() {
                 {error}
               </div>
             )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: "100%",
+                padding: isMobile ? "1rem" : "0.875rem",
+                background: loading ? "#999" : "#fff",
+                color: "#000",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "0.95rem",
+                fontWeight: "600",
+                cursor: loading ? "not-allowed" : "pointer",
+                transition: "all 0.2s",
+                touchAction: "manipulation",
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.target.style.background = "#f0f0f0";
+                  e.target.style.transform = "translateY(-1px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loading) {
+                  e.target.style.background = "#fff";
+                  e.target.style.transform = "translateY(0)";
+                }
+              }}
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
           </form>
 
           <p

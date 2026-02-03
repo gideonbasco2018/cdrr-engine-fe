@@ -10,6 +10,8 @@ import {
   exportDrugsToExcel,
 } from "../api/fdaverifportal";
 
+import { getDashboardStats } from "../api/fdaverifportal";
+
 // Import auth API
 import { getCurrentUser as fetchCurrentUser } from "../api/auth";
 
@@ -28,7 +30,7 @@ import {
   isExpired,
 } from "../utils/FDAFilterHelpers";
 
-function FDAVerificationPortal({ darkMode }) {
+function FDAVerificationPortalPage({ darkMode }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -113,6 +115,36 @@ function FDAVerificationPortal({ darkMode }) {
 
     loadCurrentUser();
   }, []);
+
+  // Fetch dashboard stats from backend
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const fetchStats = async () => {
+      try {
+        console.log("🔍 Fetching FDA dashboard stats from API...");
+
+        const dashboardData = await getDashboardStats(currentUser.username);
+
+        console.log("✅ Dashboard stats received:", dashboardData);
+
+        setStats({
+          totalProducts: dashboardData.total_manual_application_released || 0,
+          activeProducts: dashboardData.active_products || 0,
+          expiredProducts: dashboardData.expired_products || 0,
+          uploadedToday: dashboardData.uploads_today || 0,
+          uploadedYesterday: dashboardData.uploads_yesterday || 0,
+          uploadedThisMonth: dashboardData.uploads_this_month || 0,
+          duplicateProducts: dashboardData.duplicate_records || 0,
+          canceledProducts: dashboardData.cancelled_records || 0,
+        });
+      } catch (err) {
+        console.error("❌ Failed to fetch dashboard stats:", err);
+      }
+    };
+
+    fetchStats();
+  }, [currentUser]);
 
   // Debug log when user is loaded
   useEffect(() => {
@@ -259,7 +291,7 @@ function FDAVerificationPortal({ darkMode }) {
         const group = registrationGroups[regNum];
         const nonCanceledCount = group.filter(
           (drug) => drug.is_canceled !== "Y",
-        ).length; // ✅ Changed
+        ).length;
         return nonCanceledCount >= 2; // At least 2 non-canceled records
       },
     );
@@ -290,11 +322,11 @@ function FDAVerificationPortal({ darkMode }) {
         const isDuplicate = duplicateRegNums.includes(
           drug.registration_number?.trim(),
         );
-        const isCanceled = drug.is_canceled === "Y"; // ✅ Changed
+        const isCanceled = drug.is_canceled === "Y";
         console.log(
           `Drug ${drug.registration_number}: isDuplicate=${isDuplicate}, isCanceled=${isCanceled}`,
         );
-        return isDuplicate && !isCanceled; // ✅ Changed
+        return isDuplicate && !isCanceled;
       });
 
       // Sort by registration number to group duplicates together
@@ -317,7 +349,7 @@ function FDAVerificationPortal({ darkMode }) {
     if (
       activeTab !== "all" &&
       activeTab !== "expired" &&
-      activeTab !== "canceled" // ✅ Changed from "deleted"
+      activeTab !== "canceled"
     ) {
       console.log(`🔍 Filtering by user: ${currentUser.username}`);
       filtered = filtered.filter(
@@ -325,7 +357,6 @@ function FDAVerificationPortal({ darkMode }) {
       );
       console.log(`📊 Filtered results: ${filtered.length} records`);
     } else if (activeTab === "expired" || activeTab === "canceled") {
-      // ✅ Changed
       console.log(
         `📋 Showing ALL ${activeTab} products (not filtered by user)`,
       );
@@ -343,82 +374,27 @@ function FDAVerificationPortal({ darkMode }) {
     return filtered;
   };
 
-  // Fetch drugs
+  // ✅ Fetch drugs - REMOVED stats calculation
   const fetchDrugs = async () => {
     if (!currentUser) return;
 
     setLoading(true);
     setError(null);
     try {
-      const includeCanceled = activeTab === "canceled"; // ✅ Changed from includeDeleted
+      const includeCanceled = activeTab === "canceled";
 
       const response = await getAllDrugs({
         page: currentPage,
         page_size: pageSize,
         search: searchTerm,
-        include_canceled: includeCanceled, // ✅ Changed parameter name
+        include_canceled: includeCanceled,
       });
 
       setDrugsData(response.data || []);
       setPagination(response.pagination || {});
 
-      // Calculate stats using the utility function
-      const allData = response.data || [];
-      const calculatedStats = calculateStats(allData);
-
-      // Filter by current user for tab-specific stats
-      const userFilteredData = allData.filter(
-        (drug) => drug.uploaded_by === currentUser.username,
-      );
-
-      console.log(`📊 Stats calculation for user: ${currentUser.username}`);
-      console.log(`  Total drugs: ${allData.length}`);
-      console.log(`  User's drugs: ${userFilteredData.length}`);
-
-      // Calculate today, yesterday, and this month counts for current user only
-      const uploadedToday = userFilteredData.filter((drug) =>
-        isToday(drug.date_uploaded),
-      ).length;
-      const uploadedYesterday = userFilteredData.filter((drug) =>
-        isYesterday(drug.date_uploaded),
-      ).length;
-      const uploadedThisMonth = userFilteredData.filter((drug) =>
-        isThisMonth(drug.date_uploaded),
-      ).length;
-
-      // Calculate active products (not expired and not canceled)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Reset to start of day
-
-      const activeProducts = allData.filter((drug) => {
-        if (drug.is_canceled === "Y") return false; // ✅ Exclude canceled
-        if (!drug.expiry_date) return true; // If no expiry, consider active
-
-        const expiryDate = new Date(drug.expiry_date);
-        return expiryDate >= today; // Not expired yet
-      }).length;
-
-      // ✅ Calculate duplicate products count
-      const duplicateRegNums = findDuplicateRegistrationNumbers(allData);
-      const duplicateProducts = allData.filter((drug) => {
-        const isDuplicate = duplicateRegNums.includes(
-          drug.registration_number?.trim(),
-        );
-        const isNotCanceled = drug.is_canceled !== "Y"; // ✅ Changed
-        return isDuplicate && isNotCanceled;
-      }).length;
-
-      setStats({
-        totalProducts: response.pagination?.total || 0,
-        activeProducts: activeProducts,
-        manufacturers: calculatedStats.uniqueManufacturers,
-        canceledProducts: calculatedStats.canceledCount, // ✅ Changed from deletedProducts
-        expiredProducts: calculatedStats.expiredCount,
-        uploadedToday,
-        uploadedYesterday,
-        uploadedThisMonth,
-        duplicateProducts,
-      });
+      // ✅ Stats are now ONLY calculated in getDashboardStats useEffect
+      // No stats calculation here anymore!
     } catch (err) {
       console.error("Error fetching drugs:", err);
       setError(err.response?.data?.detail || "Failed to fetch drug data");
@@ -539,7 +515,22 @@ function FDAVerificationPortal({ darkMode }) {
         drugName: "",
         isCanceled: false,
       });
+
+      // ✅ Refresh both drugs data AND stats after cancel/restore
       await fetchDrugs();
+
+      // ✅ Refresh stats after cancel/restore
+      const dashboardData = await getDashboardStats(currentUser.username);
+      setStats({
+        totalProducts: dashboardData.total_manual_application_released || 0,
+        activeProducts: dashboardData.active_products || 0,
+        expiredProducts: dashboardData.expired_products || 0,
+        uploadedToday: dashboardData.uploads_today || 0,
+        uploadedYesterday: dashboardData.uploads_yesterday || 0,
+        uploadedThisMonth: dashboardData.uploads_this_month || 0,
+        duplicateProducts: dashboardData.duplicate_records || 0,
+        canceledProducts: dashboardData.cancelled_records || 0,
+      });
     } catch (err) {
       console.error("Error canceling/restoring drug:", err);
       alert(
@@ -612,6 +603,19 @@ function FDAVerificationPortal({ darkMode }) {
       }
 
       await fetchDrugs();
+
+      // ✅ Refresh stats after upload
+      const dashboardData = await getDashboardStats(currentUser.username);
+      setStats({
+        totalProducts: dashboardData.total_manual_application_released || 0,
+        activeProducts: dashboardData.active_products || 0,
+        expiredProducts: dashboardData.expired_products || 0,
+        uploadedToday: dashboardData.uploads_today || 0,
+        uploadedYesterday: dashboardData.uploads_yesterday || 0,
+        uploadedThisMonth: dashboardData.uploads_this_month || 0,
+        duplicateProducts: dashboardData.duplicate_records || 0,
+        canceledProducts: dashboardData.cancelled_records || 0,
+      });
     } catch (err) {
       console.error("❌ Upload Error:", err);
       alert(
@@ -637,7 +641,7 @@ function FDAVerificationPortal({ darkMode }) {
 
       const blob = await exportDrugsToExcel({
         search: searchTerm,
-        include_canceled: activeTab === "canceled", // ✅ Changed from include_deleted
+        include_canceled: activeTab === "canceled",
       });
 
       const url = window.URL.createObjectURL(blob);
@@ -962,9 +966,9 @@ function FDAVerificationPortal({ darkMode }) {
             color: "#E91E63",
           },
           {
-            icon: "🚫", // ✅ Changed icon
-            label: "Canceled", // ✅ Changed label
-            value: stats.canceledProducts, // ✅ Changed value
+            icon: "🚫",
+            label: "Canceled",
+            value: stats.canceledProducts,
             color: "#f44336",
           },
         ].map((stat, index) => (
@@ -1069,7 +1073,7 @@ function FDAVerificationPortal({ darkMode }) {
               key: "all",
               icon: "📋",
               label: "All Manual",
-              count: stats.totalProducts - stats.canceledProducts, // ✅ Changed
+              count: stats.totalProducts - stats.canceledProducts,
               color: colors.tabActive,
             },
             {
@@ -1108,10 +1112,10 @@ function FDAVerificationPortal({ darkMode }) {
               color: "#FF9800",
             },
             {
-              key: "canceled", // ✅ Changed from "deleted"
-              icon: "🚫", // ✅ Changed icon
-              label: "Canceled", // ✅ Changed label
-              count: stats.canceledProducts, // ✅ Changed count
+              key: "canceled",
+              icon: "🚫",
+              label: "Canceled",
+              count: stats.canceledProducts,
               color: "#f44336",
             },
           ].map((tab) => (
@@ -1195,8 +1199,7 @@ function FDAVerificationPortal({ darkMode }) {
                       ? "My Products Uploaded This Month"
                       : activeTab === "expired"
                         ? "All Expired Products"
-                        : "All Canceled Products"}{" "}
-            {/* ✅ Changed label */}
+                        : "All Canceled Products"}
           </h3>
           <span style={{ fontSize: "0.85rem", color: colors.textSecondary }}>
             Showing {filteredData.length} record
@@ -1221,7 +1224,7 @@ function FDAVerificationPortal({ darkMode }) {
           toggleDropdown={toggleDropdown}
           handleViewDetails={handleViewDetails}
           handleEdit={handleEdit}
-          handleCancelClick={handleCancelClick} // ✅ Changed from handleDeleteClick
+          handleCancelClick={handleCancelClick}
           isExpired={isExpired}
           duplicateRegNums={duplicateRegNums}
         />
@@ -1267,7 +1270,7 @@ function FDAVerificationPortal({ darkMode }) {
         }
         onConfirm={handleCancelConfirm}
         drugName={cancelModal.drugName}
-        isCanceled={cancelModal.isCanceled} // ✅ NEW: Pass isCanceled flag
+        isCanceled={cancelModal.isCanceled}
         darkMode={darkMode}
         loading={loading}
       />
@@ -1275,4 +1278,4 @@ function FDAVerificationPortal({ darkMode }) {
   );
 }
 
-export default FDAVerificationPortal;
+export default FDAVerificationPortalPage;

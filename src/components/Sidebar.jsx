@@ -2,12 +2,26 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getUploadReports } from "../api/reports";
-import { mapDataItem } from "./Reports/utils";
+import { mapDataItem } from "./reports/utils.js";
+import { getUser } from "../api/auth"; // ✅ Import getUser to get all groups
 
-function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
+function Sidebar({
+  activeMenu,
+  darkMode,
+  userRole = "User",
+  userGroup = null,
+}) {
+  console.log("🔍 DEBUG - Sidebar Props:", {
+    userRole,
+    userGroup,
+    userGroupType: typeof userGroup,
+    activeMenu,
+  });
+
   const [collapsed, setCollapsed] = useState(false);
   const [pendingEvalCount, setPendingEvalCount] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
+  const [userGroups, setUserGroups] = useState([]); // ✅ Store ALL user groups
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -18,7 +32,7 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
     return "/dashboard";
   };
 
-  // ✅ GET CURRENT USER
+  // ✅ Get current user and ALL groups
   useEffect(() => {
     let username = null;
 
@@ -39,9 +53,30 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
     }
 
     setCurrentUser(username);
-  }, []);
 
-  // ✅ FETCH PENDING EVALUATION COUNT - FIXED
+    // ✅ Get ALL user groups from getUser()
+    const user = getUser();
+    if (user?.groups && Array.isArray(user.groups)) {
+      // Extract group IDs from groups array
+      const groupIds = user.groups
+        .map((g) => (typeof g === "object" ? g.id || g.group_id : g))
+        .filter((id) => id !== null && id !== undefined);
+
+      setUserGroups(groupIds);
+      console.log("👤 Sidebar - User:", username, "All Groups:", groupIds);
+    } else if (user?.group_id) {
+      // Fallback to single group_id
+      setUserGroups([user.group_id]);
+      console.log("👤 Sidebar - User:", username, "Single Group:", [
+        user.group_id,
+      ]);
+    } else {
+      setUserGroups([]);
+      console.log("👤 Sidebar - User:", username, "No Groups Found");
+    }
+  }, [userGroup]);
+
+  // ✅ FETCH PENDING EVALUATION COUNT
   useEffect(() => {
     const fetchPendingCount = async () => {
       if (!currentUser || currentUser === "Unknown User") {
@@ -54,8 +89,6 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
           page: 1,
           pageSize: 10000,
           search: "",
-          // sortBy: "DB_DATE_EXCEL_UPLOAD", // ✅ FIXED: Provide valid sortBy
-          // sortOrder: "desc",
         });
 
         if (!json || !json.data || !Array.isArray(json.data)) {
@@ -95,78 +128,95 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
   }, [currentUser]);
 
   // ===== MENU DEFINITIONS =====
+
   const mainMenuItems = [
     {
       id: "dashboard",
       icon: "📊",
       label: "Dashboard",
       roles: ["User", "Admin", "SuperAdmin"],
+      groups: [1, 2, 3, 4, 5, 6, 7, 8],
     },
   ];
 
-  const cmsReportsItems = [
+  const cdrReportsItems = [
     {
-      id: "upload",
-      icon: "📤",
-      label: "Upload Reports",
+      id: "reports",
+      icon: "📄",
+      label: "Reports",
       roles: ["User", "Admin", "SuperAdmin"],
+      groups: [1, 2, 3, 4, 5, 6, 7, 8],
+      comingSoon: false,
     },
   ];
 
-  // NEW: Workflow Status Items with badge count
   const workflowItems = [
+    {
+      id: "for-decking",
+      icon: "📥",
+      label: "For Decking",
+      roles: ["User", "Admin", "SuperAdmin"],
+      groups: [2],
+    },
     {
       id: "for-evaluation",
       icon: "📋",
       label: "For Evaluation",
       roles: ["User", "Admin", "SuperAdmin"],
-      badge: pendingEvalCount, // ✅ Add badge count
+      groups: [3],
+      badge: pendingEvalCount,
     },
     {
       id: "for-compliance",
       icon: "✓",
       label: "For Compliance",
       roles: ["User", "Admin", "SuperAdmin"],
+      groups: [3],
     },
     {
       id: "for-checking",
       icon: "🔍",
       label: "For Checking",
       roles: ["User", "Admin", "SuperAdmin"],
+      groups: [4],
     },
     {
       id: "supervisor",
       icon: "👔",
       label: "Supervisor",
-      roles: ["Admin", "SuperAdmin"],
+      roles: ["User", "Admin", "SuperAdmin"],
+      groups: [5],
     },
     {
       id: "for-qa",
       icon: "✔️",
       label: "For QA",
-      roles: ["Admin", "SuperAdmin"],
+      roles: ["User", "Admin", "SuperAdmin"],
+      groups: [6],
     },
     {
       id: "for-director-signature",
       icon: "✍️",
       label: "For Director Signature",
-      roles: ["Admin", "SuperAdmin"],
+      roles: ["User", "Admin", "SuperAdmin"],
+      groups: [7],
     },
     {
       id: "for-releasing",
       icon: "📤",
       label: "For Releasing",
-      roles: ["Admin", "SuperAdmin"],
+      roles: ["User", "Admin", "SuperAdmin"],
+      groups: [8],
     },
   ];
 
-  // ✅ NEW: Other Database Items
   const otherDatabaseItems = [
     {
       id: "fda-verification",
       icon: "🔍",
       label: "FDA Verification Portal",
       roles: ["User", "Admin", "SuperAdmin"],
+      groups: [1, 2, 3, 4, 5, 6, 7, 8],
     },
   ];
 
@@ -176,12 +226,14 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
       icon: "📢",
       label: "Announcements",
       roles: ["User", "Admin", "SuperAdmin"],
+      groups: [1, 2, 3, 4, 5, 6, 7, 8],
     },
     {
       id: "support",
       icon: "🎧",
       label: "Support",
       roles: ["User", "Admin", "SuperAdmin"],
+      groups: [1, 2, 3, 4, 5, 6, 7, 8],
     },
     {
       id: "access",
@@ -195,17 +247,64 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
       label: "User Management",
       roles: ["Admin", "SuperAdmin"],
     },
-    { id: "settings", icon: "⚙️", label: "Settings", roles: ["SuperAdmin"] },
+    {
+      id: "settings",
+      icon: "⚙️",
+      label: "Settings",
+      roles: ["SuperAdmin"],
+    },
   ];
 
-  const filterByRole = (items) =>
-    items.filter((item) => item.roles.includes(userRole));
+  // ✅ FIXED FILTER - Check if user has ANY of the required groups
+  const filterByRoleAndGroup = (items) => {
+    return items.filter((item) => {
+      const hasRole = item.roles.includes(userRole);
 
-  const visibleMainMenu = filterByRole(mainMenuItems);
-  const visibleCmsReports = filterByRole(cmsReportsItems);
-  const visibleWorkflow = filterByRole(workflowItems);
-  const visibleOtherDatabase = filterByRole(otherDatabaseItems);
-  const visiblePlatform = filterByRole(platformItems);
+      // If item has no groups specified, show it (backward compatibility)
+      if (!item.groups || item.groups.length === 0) {
+        return hasRole;
+      }
+
+      // If user has no groups, show all items for this role
+      if (!userGroups || userGroups.length === 0) {
+        console.log(
+          `⚠️ No user groups - showing item ${item.id} based on role only`,
+        );
+        return hasRole;
+      }
+
+      // ✅ Check if user has ANY of the required groups
+      const hasGroup = item.groups.some((requiredGroup) =>
+        userGroups.includes(requiredGroup),
+      );
+
+      console.log(`🔍 Filter check for ${item.id}:`, {
+        hasRole,
+        hasGroup,
+        userGroups,
+        itemGroups: item.groups,
+        willShow: hasRole && hasGroup,
+      });
+
+      return hasRole && hasGroup;
+    });
+  };
+
+  const visibleMainMenu = filterByRoleAndGroup(mainMenuItems);
+  const visibleCdrReports = filterByRoleAndGroup(cdrReportsItems);
+  const visibleWorkflow = filterByRoleAndGroup(workflowItems);
+  const visibleOtherDatabase = filterByRoleAndGroup(otherDatabaseItems);
+  const visiblePlatform = filterByRoleAndGroup(platformItems);
+
+  console.log("🔍 DEBUG - Visible Menus:", {
+    userGroups,
+    mainMenu: visibleMainMenu.length,
+    cdrReports: visibleCdrReports.length,
+    workflow: visibleWorkflow.length,
+    workflowItems: visibleWorkflow.map((i) => i.id),
+    otherDatabase: visibleOtherDatabase.length,
+    platform: visiblePlatform.length,
+  });
 
   // ===== COLORS =====
   const colors = darkMode
@@ -221,6 +320,8 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
         toggleHover: "#1f1f1f",
         badgeBg: "#ef4444",
         badgeText: "#fff",
+        comingSoonBg: "#2a2a2a",
+        comingSoonText: "#555",
       }
     : {
         sidebarBg: "#ffffff",
@@ -234,6 +335,8 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
         toggleHover: "#ededed",
         badgeBg: "#ef4444",
         badgeText: "#fff",
+        comingSoonBg: "#f0f0f0",
+        comingSoonText: "#999",
       };
 
   const roleBadgeColors = {
@@ -246,98 +349,141 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
   const handleNavigation = (itemId) => {
     const basePath = getBasePath();
 
-    if (itemId === "dashboard") {
-      navigate(
-        basePath === "/dashboard" ? "/dashboard" : `${basePath}/dashboard`,
-      );
-    } else {
-      navigate(`${basePath}/${itemId}`);
-    }
+    const routeMap = {
+      dashboard: `${basePath}/dashboard`,
+      reports: `${basePath}/reports`,
+      "for-decking": `${basePath}/for-decking`,
+      "for-evaluation": `${basePath}/for-evaluation`,
+      "for-compliance": `${basePath}/for-compliance`,
+      "for-checking": `${basePath}/for-checking`,
+      supervisor: `${basePath}/supervisor`,
+      "for-qa": `${basePath}/for-qa`,
+      "for-director-signature": `${basePath}/for-director-signature`,
+      "for-releasing": `${basePath}/for-releasing`,
+      "fda-verification": `${basePath}/fda-verification`,
+      announcements: `${basePath}/announcements`,
+      support: `${basePath}/support`,
+      access: `${basePath}/access`,
+      users: `${basePath}/users`,
+      settings: `${basePath}/settings`,
+    };
+
+    navigate(routeMap[itemId] || `${basePath}/dashboard`);
   };
 
   // ===== MENU ITEM =====
-  const MenuItem = ({ item }) => (
-    <div
-      onClick={() => handleNavigation(item.id)}
-      title={collapsed ? item.label : ""}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: collapsed ? "center" : "space-between",
-        gap: collapsed ? 0 : "0.75rem",
-        padding: collapsed ? "0.75rem" : "0.75rem 1.25rem",
-        cursor: "pointer",
-        background:
-          activeMenu === item.id ? colors.activeItemBg : "transparent",
-        color:
-          activeMenu === item.id ? colors.textPrimary : colors.textSecondary,
-        transition: "all 0.2s ease",
-        borderLeft:
-          activeMenu === item.id && !collapsed
-            ? `3px solid ${roleBadgeColors[userRole]}`
-            : "3px solid transparent",
-        position: "relative",
-      }}
-      onMouseEnter={(e) => {
-        if (activeMenu !== item.id) {
-          e.currentTarget.style.background = colors.hoverBg;
-          e.currentTarget.style.color = colors.textPrimary;
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (activeMenu !== item.id) {
-          e.currentTarget.style.background = "transparent";
-          e.currentTarget.style.color = colors.textSecondary;
-        }
-      }}
-    >
+  const MenuItem = ({ item }) => {
+    const isDisabled = item.comingSoon === true;
+
+    return (
       <div
+        onClick={() => !isDisabled && handleNavigation(item.id)}
+        title={collapsed ? item.label : ""}
         style={{
           display: "flex",
           alignItems: "center",
+          justifyContent: collapsed ? "center" : "space-between",
           gap: collapsed ? 0 : "0.75rem",
+          padding: collapsed ? "0.75rem" : "0.75rem 1.25rem",
+          cursor: isDisabled ? "not-allowed" : "pointer",
+          background:
+            activeMenu === item.id ? colors.activeItemBg : "transparent",
+          color: isDisabled
+            ? colors.comingSoonText
+            : activeMenu === item.id
+              ? colors.textPrimary
+              : colors.textSecondary,
+          transition: "all 0.2s ease",
+          borderLeft:
+            activeMenu === item.id && !collapsed
+              ? `3px solid ${roleBadgeColors[userRole]}`
+              : "3px solid transparent",
+          position: "relative",
+          opacity: isDisabled ? 0.5 : 1,
+        }}
+        onMouseEnter={(e) => {
+          if (activeMenu !== item.id && !isDisabled) {
+            e.currentTarget.style.background = colors.hoverBg;
+            e.currentTarget.style.color = colors.textPrimary;
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (activeMenu !== item.id && !isDisabled) {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = isDisabled
+              ? colors.comingSoonText
+              : colors.textSecondary;
+          }
         }}
       >
-        <span style={{ fontSize: "1.1rem" }}>{item.icon}</span>
-        {!collapsed && <span>{item.label}</span>}
-      </div>
-
-      {/* ✅ BADGE - Show only if item has badge and badge > 0 */}
-      {!collapsed && item.badge !== undefined && item.badge > 0 && (
-        <span
-          style={{
-            padding: "0.2rem 0.5rem",
-            background: colors.badgeBg,
-            color: colors.badgeText,
-            borderRadius: "10px",
-            fontSize: "0.7rem",
-            fontWeight: "700",
-            minWidth: "20px",
-            textAlign: "center",
-            boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)",
-          }}
-        >
-          {item.badge}
-        </span>
-      )}
-
-      {/* ✅ COLLAPSED BADGE - Show dot indicator when sidebar is collapsed */}
-      {collapsed && item.badge !== undefined && item.badge > 0 && (
         <div
           style={{
-            position: "absolute",
-            top: "8px",
-            right: "8px",
-            width: "8px",
-            height: "8px",
-            background: colors.badgeBg,
-            borderRadius: "50%",
-            boxShadow: "0 0 4px rgba(239, 68, 68, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            gap: collapsed ? 0 : "0.75rem",
           }}
-        />
-      )}
-    </div>
-  );
+        >
+          <span style={{ fontSize: "1.1rem" }}>{item.icon}</span>
+          {!collapsed && <span>{item.label}</span>}
+        </div>
+
+        {!collapsed && isDisabled && (
+          <span
+            style={{
+              padding: "0.15rem 0.5rem",
+              background: colors.comingSoonBg,
+              color: colors.comingSoonText,
+              borderRadius: "10px",
+              fontSize: "0.65rem",
+              fontWeight: "600",
+              letterSpacing: "0.02em",
+            }}
+          >
+            Soon
+          </span>
+        )}
+
+        {!collapsed &&
+          !isDisabled &&
+          item.badge !== undefined &&
+          item.badge > 0 && (
+            <span
+              style={{
+                padding: "0.2rem 0.5rem",
+                background: colors.badgeBg,
+                color: colors.badgeText,
+                borderRadius: "10px",
+                fontSize: "0.7rem",
+                fontWeight: "700",
+                minWidth: "20px",
+                textAlign: "center",
+                boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)",
+              }}
+            >
+              {item.badge}
+            </span>
+          )}
+
+        {collapsed &&
+          !isDisabled &&
+          item.badge !== undefined &&
+          item.badge > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: "8px",
+                right: "8px",
+                width: "8px",
+                height: "8px",
+                background: colors.badgeBg,
+                borderRadius: "50%",
+                boxShadow: "0 0 4px rgba(239, 68, 68, 0.5)",
+              }}
+            />
+          )}
+      </div>
+    );
+  };
 
   return (
     <div
@@ -374,7 +520,6 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
 
       {/* MENUS */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {/* MAIN */}
         {visibleMainMenu.length > 0 && (
           <div style={{ padding: "1rem 0" }}>
             {!collapsed && (
@@ -396,8 +541,7 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
           </div>
         )}
 
-        {/* CDRR */}
-        {visibleCmsReports.length > 0 && (
+        {visibleCdrReports.length > 0 && (
           <div style={{ paddingBottom: "1rem" }}>
             {!collapsed && (
               <div
@@ -412,13 +556,12 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
                 CDRR REPORTS
               </div>
             )}
-            {visibleCmsReports.map((item) => (
+            {visibleCdrReports.map((item) => (
               <MenuItem key={item.id} item={item} />
             ))}
           </div>
         )}
 
-        {/* WORKFLOW STATUS */}
         {visibleWorkflow.length > 0 && (
           <div style={{ paddingBottom: "1rem" }}>
             {!collapsed && (
@@ -440,7 +583,6 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
           </div>
         )}
 
-        {/* ✅ NEW: OTHER DATABASE */}
         {visibleOtherDatabase.length > 0 && (
           <div style={{ paddingBottom: "1rem" }}>
             {!collapsed && (
@@ -462,7 +604,6 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
           </div>
         )}
 
-        {/* PLATFORM */}
         {visiblePlatform.length > 0 && (
           <div style={{ paddingBottom: "1rem" }}>
             {!collapsed && (
@@ -485,7 +626,7 @@ function Sidebar({ activeMenu, darkMode, userRole = "User" }) {
         )}
       </div>
 
-      {/* COLLAPSE BUTTON (BOTTOM) */}
+      {/* COLLAPSE BUTTON */}
       <div
         style={{
           padding: "0.75rem",

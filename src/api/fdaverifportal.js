@@ -296,3 +296,25 @@ export const exportDrugsToExcel = async ({ search = '', include_canceled = false
     throw error;
   }
 };
+
+
+/**
+ * ✅ Get FDA dashboard statistics for a specific uploader
+ * @param {string} uploadedBy - Username to filter stats
+ * @returns {Promise<Object>} Dashboard stats
+ */
+export const getDashboardStats = async (uploadedBy) => {
+  console.log('🔍 Fetching FDA dashboard stats...', { uploadedBy });
+
+  try {
+    const params = uploadedBy ? { uploaded_by: uploadedBy } : {};
+
+    const response = await API.get('/fda/stats/dashboard', { params });
+
+    console.log('✅ Dashboard Stats:', response.data.data);
+    return response.data.data; // Only return the "data" object
+  } catch (error) {
+    console.error('❌ Error fetching dashboard stats:', error);
+    throw error;
+  }
+};

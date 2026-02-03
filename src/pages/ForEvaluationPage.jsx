@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { getUploadReports } from "../api/reports";
-import StatsCard from "/src/components/Reports/StatsCard.jsx";
-import FilterBar from "/src/components/Reports/FilterBar";
-import DataTable from "/src/components/Reports/DataTable";
-import { mapDataItem, getColorScheme } from "/src/components/Reports/utils";
+import StatsCard from "/src/components/reports/StatsCard.jsx";
+import FilterBar from "/src/components/reports/FilterBar";
+import DataTable from "/src/components/reports/DataTable";
+import { mapDataItem, getColorScheme } from "/src/components/reports/utils";
 
 function ForEvaluationPage({ darkMode }) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -66,8 +66,8 @@ function ForEvaluationPage({ darkMode }) {
     if (searchTerm) {
       filtered = filtered.filter((item) =>
         Object.values(item).some((val) =>
-          String(val).toLowerCase().includes(searchTerm.toLowerCase())
-        )
+          String(val).toLowerCase().includes(searchTerm.toLowerCase()),
+        ),
       );
     }
 
@@ -77,15 +77,15 @@ function ForEvaluationPage({ darkMode }) {
 
       if (key === "dateFrom" && value) {
         filtered = filtered.filter(
-          (item) => new Date(item.dateExcelUpload) >= new Date(value)
+          (item) => new Date(item.dateExcelUpload) >= new Date(value),
         );
       } else if (key === "dateTo" && value) {
         filtered = filtered.filter(
-          (item) => new Date(item.dateExcelUpload) <= new Date(value)
+          (item) => new Date(item.dateExcelUpload) <= new Date(value),
         );
       } else {
         filtered = filtered.filter((item) =>
-          String(item[key]).toLowerCase().includes(String(value).toLowerCase())
+          String(item[key]).toLowerCase().includes(String(value).toLowerCase()),
         );
       }
     });
@@ -126,7 +126,7 @@ function ForEvaluationPage({ darkMode }) {
           !item.dateEvalEnd ||
           item.dateEvalEnd === "" ||
           item.dateEvalEnd === "N/A" ||
-          item.dateEvalEnd === null
+          item.dateEvalEnd === null,
       );
       console.log("⏳ Pending records:", pending.length);
       return pending;
@@ -137,7 +137,7 @@ function ForEvaluationPage({ darkMode }) {
           item.dateEvalEnd &&
           item.dateEvalEnd !== "" &&
           item.dateEvalEnd !== "N/A" &&
-          item.dateEvalEnd !== null
+          item.dateEvalEnd !== null,
       );
       console.log("✅ Completed records:", completed.length);
       return completed;
@@ -188,7 +188,7 @@ function ForEvaluationPage({ darkMode }) {
           !item.dateEvalEnd ||
           item.dateEvalEnd === "" ||
           item.dateEvalEnd === "N/A" ||
-          item.dateEvalEnd === null
+          item.dateEvalEnd === null,
       ).length;
 
       const completedCount = userAssignedRecords.filter(
@@ -196,7 +196,7 @@ function ForEvaluationPage({ darkMode }) {
           item.dateEvalEnd &&
           item.dateEvalEnd !== "" &&
           item.dateEvalEnd !== "N/A" &&
-          item.dateEvalEnd !== null
+          item.dateEvalEnd !== null,
       ).length;
 
       console.log("📊 Stats Calculation:", {

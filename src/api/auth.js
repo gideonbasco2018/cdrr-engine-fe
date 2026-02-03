@@ -4,15 +4,13 @@ import api from './axios';
 // AUTHENTICATION
 // ========================================
 
-// Login function - UPDATED to properly handle inactive user errors
+// Login function
 export const login = async ({ username, password }) => {
   try {
-    // Create URLSearchParams for form data
     const params = new URLSearchParams();
     params.append('username', username);
     params.append('password', password);
 
-    // IMPORTANT: Override the default Content-Type for this request
     const response = await api.post('auth/login', params, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -22,8 +20,7 @@ export const login = async ({ username, password }) => {
     return response.data; // { access_token, token_type, user }
   } catch (err) {
     console.error('Login error:', err);
-    // Throw the full error object so we can check status code in component
-    throw err;
+    throw err; // throw full error — component needs err.response.status
   }
 };
 
@@ -34,7 +31,7 @@ export const register = async (userData) => {
     return response.data;
   } catch (err) {
     console.error('Registration error:', err);
-    throw err;
+    throw err; // ✅ consistent — throw full error
   }
 };
 
@@ -45,7 +42,7 @@ export const getCurrentUser = async () => {
     return response.data;
   } catch (err) {
     console.error('Get user error:', err);
-    throw err.response?.data?.detail || 'Failed to get user information.';
+    throw err; // ✅ was throwing string before — now consistent
   }
 };
 
@@ -56,14 +53,13 @@ export const updateCurrentUser = async (userData) => {
     return response.data;
   } catch (err) {
     console.error('Update user error:', err);
-    throw err.response?.data?.detail || 'Failed to update user information.';
+    throw err; // ✅ was throwing string before — now consistent
   }
 };
 
 // Logout function (frontend only for JWT)
 export const logout = async () => {
   try {
-    // Optional: Call backend logout endpoint
     await api.post('auth/logout');
   } catch (err) {
     console.error('Logout error:', err);
@@ -90,8 +86,6 @@ export const logout = async () => {
 
 /**
  * Get users from current user's group
- * Returns list of users who can be assigned as deckers/evaluators
- * 
  * @returns {Promise<Array>} Array of user objects
  */
 export const getMyGroupUsers = async () => {
@@ -100,13 +94,12 @@ export const getMyGroupUsers = async () => {
     return response.data;
   } catch (err) {
     console.error('Get group users error:', err);
-    throw err.response?.data?.detail || 'Failed to get group users.';
+    throw err; // ✅ consistent
   }
 };
 
 /**
  * Get users from a specific group by group ID
- * 
  * @param {number} groupId - The group ID to fetch users from
  * @returns {Promise<Array>} Array of user objects
  */
@@ -120,7 +113,7 @@ export const getUsersByGroup = async (groupId) => {
     return response.data;
   } catch (err) {
     console.error('Get users by group error:', err);
-    throw err.response?.data?.detail || `Failed to get users from group ${groupId}.`;
+    throw err; // ✅ consistent
   }
 };
 
@@ -132,7 +125,6 @@ export const getUsersByGroup = async (groupId) => {
 /**
  * Get all pending users (inactive users awaiting approval)
  * ADMIN ONLY
- * 
  * @returns {Promise<Array>} Array of inactive user objects
  */
 export const getPendingUsers = async () => {
@@ -141,14 +133,13 @@ export const getPendingUsers = async () => {
     return response.data;
   } catch (err) {
     console.error('Get pending users error:', err);
-    throw err.response?.data?.detail || 'Failed to get pending users.';
+    throw err; // ✅ consistent
   }
 };
 
 /**
  * Activate a user account
  * ADMIN ONLY
- * 
  * @param {number} userId - The user ID to activate
  * @returns {Promise<Object>} Updated user object
  */
@@ -158,14 +149,13 @@ export const activateUser = async (userId) => {
     return response.data;
   } catch (err) {
     console.error('Activate user error:', err);
-    throw err.response?.data?.detail || 'Failed to activate user.';
+    throw err; // ✅ consistent
   }
 };
 
 /**
  * Deactivate a user account
  * ADMIN ONLY
- * 
  * @param {number} userId - The user ID to deactivate
  * @returns {Promise<Object>} Updated user object
  */
@@ -175,14 +165,13 @@ export const deactivateUser = async (userId) => {
     return response.data;
   } catch (err) {
     console.error('Deactivate user error:', err);
-    throw err.response?.data?.detail || 'Failed to deactivate user.';
+    throw err; // ✅ consistent
   }
 };
 
 /**
  * Get all users (active and inactive)
  * ADMIN ONLY
- * 
  * @returns {Promise<Array>} Array of all user objects
  */
 export const getAllUsers = async () => {
@@ -191,7 +180,7 @@ export const getAllUsers = async () => {
     return response.data;
   } catch (err) {
     console.error('Get all users error:', err);
-    throw err.response?.data?.detail || 'Failed to get all users.';
+    throw err; // ✅ consistent
   }
 };
 
@@ -221,21 +210,59 @@ export const getUserRole = () => {
     const user = JSON.parse(userStr);
     return user.role;
   }
-  // Fallback: check userRole directly
   return localStorage.getItem('userRole') || sessionStorage.getItem('userRole');
 };
 
 // Get user group
+// ✅ UPDATED: Get user's primary group (first group in array)
 export const getUserGroup = () => {
   const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
   if (userStr) {
-    const user = JSON.parse(userStr);
-    return user.group_id;
+    try {
+      const user = JSON.parse(userStr);
+      // ✅ NEW: Get first group ID from groups array
+      if (user.groups && user.groups.length > 0) {
+        return user.groups[0].id;
+      }
+      // ✅ FALLBACK: Old structure (backward compatibility)
+      return user.group_id || null;
+    } catch (e) {
+      console.error('Failed to parse user:', e);
+    }
   }
-  // Fallback: check userGroup directly
+  // ✅ FALLBACK: Old localStorage keys
   return localStorage.getItem('userGroup') || sessionStorage.getItem('userGroup');
 };
 
+// ✅ NEW: Get all user groups
+export const getUserGroups = () => {
+  const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      return user.groups || [];
+    } catch (e) {
+      console.error('Failed to parse user:', e);
+    }
+  }
+  return [];
+};
+
+// ✅ NEW: Get user's primary group name
+export const getUserGroupName = () => {
+  const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      if (user.groups && user.groups.length > 0) {
+        return user.groups[0].name;
+      }
+    } catch (e) {
+      console.error('Failed to parse user:', e);
+    }
+  }
+  return null;
+};
 
 // ========================================
 // PERMISSION HELPERS
@@ -253,7 +280,26 @@ export const isAdmin = () => hasRole(['Admin', 'SuperAdmin']);
 export const isSuperAdmin = () => hasRole(['SuperAdmin']);
 
 // Check if user belongs to specific group
-export const isInGroup = (groupId) => {
-  const userGroup = getUserGroup();
-  return userGroup === groupId || userGroup === String(groupId);
+// ✅ UPDATED: Check if user belongs to specific group (by ID or name)
+export const isInGroup = (groupIdOrName) => {
+  const userStr = localStorage.getItem('user') || sessionStorage.getItem('user');
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      if (user.groups && Array.isArray(user.groups)) {
+        // Check by ID or name
+        return user.groups.some(
+          g => g.id === groupIdOrName || 
+               g.id === Number(groupIdOrName) || 
+               g.name === groupIdOrName
+        );
+      }
+      // ✅ FALLBACK: Old structure
+      const userGroup = user.group_id;
+      return userGroup === groupIdOrName || userGroup === String(groupIdOrName);
+    } catch (e) {
+      console.error('Failed to parse user:', e);
+    }
+  }
+  return false;
 };

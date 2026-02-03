@@ -1,5 +1,5 @@
 // FILE: src/pages/DashboardPage.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   getDashboardStats,
   getApplicationsComparison,
@@ -14,12 +14,10 @@ import TopEarnersCard from "../components/dashboard/TopEarnersCard";
 function DashboardPage({ darkMode, userRole = "User" }) {
   const [stats, setStats] = useState({
     totalApplications: 0,
-    fdacApplications: 0,
-    centralApplications: 0,
-    totalRevenue: 0,
-    fdaPay: 0,
-    fdaBoost: 0,
-    fdaShield: 0,
+    released: 0,
+    backlogs: 0,
+    onProcess: 0,
+    completed: 0,
     applicationsChange: 0,
   });
   const [loading, setLoading] = useState(true);
@@ -29,16 +27,7 @@ function DashboardPage({ darkMode, userRole = "User" }) {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [chartBreakdown, setChartBreakdown] = useState("month");
 
-  useEffect(() => {
-    fetchDashboardData();
-    fetchChartData();
-  }, []);
-
-  useEffect(() => {
-    if (!loading) {
-      fetchChartData();
-    }
-  }, [selectedYear, chartBreakdown]);
+  // ===== FETCH FUNCTIONS =====
 
   const fetchDashboardData = async () => {
     try {
@@ -48,14 +37,13 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         getDashboardStats(),
         getApplicationsComparison(),
       ]);
+
       setStats({
         totalApplications: statsData.total_applications || 0,
-        fdacApplications: statsData.fdac_applications || 0,
-        centralApplications: statsData.central_applications || 0,
-        totalRevenue: statsData.total_revenue || 0,
-        fdaPay: statsData.fda_pay || 0,
-        fdaBoost: statsData.fda_boost || 0,
-        fdaShield: statsData.fda_shield || 0,
+        released: statsData.released || 0,
+        backlogs: statsData.backlogs || 0,
+        onProcess: statsData.on_process || 0,
+        completed: statsData.completed || 0,
         applicationsChange: comparisonData.percentage_change || 0,
       });
     } catch (err) {
@@ -69,7 +57,8 @@ function DashboardPage({ darkMode, userRole = "User" }) {
     }
   };
 
-  const fetchChartData = async () => {
+  // useCallback para hindi mag-recreate sa bawat render
+  const fetchChartData = useCallback(async () => {
     try {
       setChartLoading(true);
       const data = await getReceivedByPeriod(
@@ -82,7 +71,22 @@ function DashboardPage({ darkMode, userRole = "User" }) {
     } finally {
       setChartLoading(false);
     }
-  };
+  }, [chartBreakdown, selectedYear]); // dependencies nito ay yung mga ginagamit nito
+
+  // ===== EFFECTS =====
+
+  // Initial load — stats + chart
+  useEffect(() => {
+    fetchDashboardData();
+    fetchChartData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-fetch chart kapag nabago ang year o breakdown
+  useEffect(() => {
+    fetchChartData();
+  }, [fetchChartData]);
+
+  // ===== COLORS =====
 
   const colors = darkMode
     ? {
@@ -112,26 +116,18 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         pieCenterBg: "#ffffff",
       };
 
+  // ===== STATS CONFIG =====
+  // TODO: topEarners — i-replace ng actual API call kapag may endpoint na
   const topEarners = [
-    { name: "Emma Lopez", amount: "$62,850.00", percentage: "28.5%", rank: 1 },
-    {
-      name: "Sarah Johnson",
-      amount: "$58,420.00",
-      percentage: "26.5%",
-      rank: 2,
-    },
-    {
-      name: "Michael Chen",
-      amount: "$54,320.00",
-      percentage: "24.7%",
-      rank: 3,
-    },
+    { name: "Emma Lopez", amount: "62,850", percentage: "28.5%", rank: 1 },
+    { name: "Sarah Johnson", amount: "58,420", percentage: "26.5%", rank: 2 },
+    { name: "Michael Chen", amount: "54,320", percentage: "24.7%", rank: 3 },
   ];
 
   const getStatsForRole = () => {
     const baseStats = [
       {
-        icon: "📥", // Inbox/Received
+        icon: "📥",
         label: "Total Applications Received",
         value: loading ? "..." : stats.totalApplications.toLocaleString(),
         change: loading
@@ -141,40 +137,44 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         isPositive: stats.applicationsChange >= 0,
       },
       {
-        icon: "📤", // Outbox/Released
-        label: "Total Application Released",
-        value: loading ? "..." : `${(stats.totalRevenue / 1000000).toFixed(1)}`,
-        change: "8.7%",
+        icon: "📤",
+        label: "Total Applications Released",
+        value: loading ? "..." : stats.released.toLocaleString(),
+        change: null, // walang comparison data pa para dito
         color: "#10b981",
         isPositive: true,
       },
       {
-        icon: "⏳", // Hourglass/Pending
+        icon: "⏳",
         label: "Total Application Backlogs",
-        value: loading ? "..." : `${(stats.fdaPay / 1000000).toFixed(1)}`,
-        change: "8.7%",
-        color: "#ef4444", // Red for backlogs
+        value: loading ? "..." : stats.backlogs.toLocaleString(),
+        change: null,
+        color: "#ef4444",
+        isPositive: false,
+      },
+      {
+        icon: "⚙️",
+        label: "Total Applications On Process",
+        value: loading ? "..." : stats.onProcess.toLocaleString(),
+        change: null,
+        color: "#f59e0b",
         isPositive: true,
       },
       {
-        icon: "⚙️", // Gear/Processing
-        label: "Total Application On Process",
-        value: loading ? "..." : `${(stats.fdaBoost / 1000000).toFixed(1)}`,
-        change: "8.7%",
-        color: "#f59e0b", // Orange for in-progress
-        isPositive: true,
-      },
-      {
-        icon: "✅", // Check/Completed
-        label: "Total Application Completed but not yet released",
-        value: loading ? "..." : `${(stats.fdaShield / 1000000).toFixed(1)}`,
-        change: "8.7%",
+        icon: "✅",
+        label: "Completed (Not Yet Released)",
+        value: loading ? "..." : stats.completed.toLocaleString(),
+        change: null,
         color: "#8b5cf6",
         isPositive: true,
       },
     ];
+
+    // User ay hindi makakakita ng "Total Applications Received"
     return userRole === "User" ? baseStats.slice(1) : baseStats;
   };
+
+  // ===== ERROR STATE =====
 
   if (error) {
     return (
@@ -238,6 +238,8 @@ function DashboardPage({ darkMode, userRole = "User" }) {
     );
   }
 
+  // ===== RENDER =====
+
   return (
     <div
       style={{
@@ -274,7 +276,7 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         ))}
       </div>
 
-      {/* Charts - Only for Admin and SuperAdmin */}
+      {/* Charts — Admin + SuperAdmin only */}
       {(userRole === "Admin" || userRole === "SuperAdmin") && (
         <div
           style={{
@@ -297,7 +299,7 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         </div>
       )}
 
-      {/* Top Earners */}
+      {/* Top Earners — Admin + SuperAdmin only */}
       {(userRole === "Admin" || userRole === "SuperAdmin") && (
         <div
           style={{
@@ -325,7 +327,7 @@ function DashboardPage({ darkMode, userRole = "User" }) {
         </div>
       )}
 
-      {/* User Dashboard Message */}
+      {/* User Welcome — User role only */}
       {userRole === "User" && (
         <div
           style={{
