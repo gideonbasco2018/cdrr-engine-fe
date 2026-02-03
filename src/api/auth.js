@@ -303,3 +303,138 @@ export const isInGroup = (groupIdOrName) => {
   }
   return false;
 };
+
+// ========================================
+// GROUP MANAGEMENT
+// ========================================
+
+/**
+ * Get all groups
+ * @returns {Promise<Array>} Array of group objects { id, name, description }
+ */
+export const getAllGroups = async () => {
+  try {
+    const response = await api.get('groups');
+    return response.data;
+  } catch (err) {
+    console.error('Get all groups error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Get a single group by ID
+ * @param {number} groupId
+ * @returns {Promise<Object>} Group object
+ */
+export const getGroupById = async (groupId) => {
+  try {
+    const response = await api.get(`groups/${groupId}`);
+    return response.data;
+  } catch (err) {
+    console.error('Get group error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Create a new group
+ * Admin/SuperAdmin only
+ * @param {{ name: string, description?: string }} groupData
+ * @returns {Promise<Object>} Created group object
+ */
+export const createGroup = async (groupData) => {
+  try {
+    const response = await api.post('groups', groupData);
+    return response.data;
+  } catch (err) {
+    console.error('Create group error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Update a group
+ * Admin/SuperAdmin only
+ * @param {number} groupId
+ * @param {{ name?: string, description?: string }} groupData
+ * @returns {Promise<Object>} Updated group object
+ */
+export const updateGroup = async (groupId, groupData) => {
+  try {
+    const response = await api.put(`groups/${groupId}`, groupData);
+    return response.data;
+  } catch (err) {
+    console.error('Update group error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Delete a group
+ * SuperAdmin only
+ * @param {number} groupId
+ * @returns {Promise<void>}
+ */
+export const deleteGroup = async (groupId) => {
+  try {
+    const response = await api.delete(`groups/${groupId}`);
+    return response.data;
+  } catch (err) {
+    console.error('Delete group error:', err);
+    throw err;
+  }
+};
+
+// ========================================
+// GROUP <-> USER ASSIGNMENT
+// ========================================
+
+/**
+ * Get all users in a specific group
+ * @param {number} groupId
+ * @returns {Promise<Array>} Array of user objects
+ */
+export const getGroupUsers = async (groupId) => {
+  try {
+    const response = await api.get(`groups/${groupId}/users`);
+    return response.data;
+  } catch (err) {
+    console.error('Get group users error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Assign a user to a group
+ * Admin/SuperAdmin only
+ * @param {number} groupId
+ * @param {number} userId
+ * @returns {Promise<Object>} { success, message }
+ */
+export const assignUserToGroup = async (groupId, userId) => {
+  try {
+    const response = await api.post(`groups/${groupId}/users`, { user_id: userId });
+    return response.data;
+  } catch (err) {
+    console.error('Assign user to group error:', err);
+    throw err;
+  }
+};
+
+/**
+ * Remove a user from a group
+ * Admin/SuperAdmin only
+ * @param {number} groupId
+ * @param {number} userId
+ * @returns {Promise<Object>} { success, message }
+ */
+export const removeUserFromGroup = async (groupId, userId) => {
+  try {
+    const response = await api.delete(`groups/${groupId}/users/${userId}`);
+    return response.data;
+  } catch (err) {
+    console.error('Remove user from group error:', err);
+    throw err;
+  }
+};

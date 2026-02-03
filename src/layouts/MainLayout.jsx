@@ -9,6 +9,8 @@ import ProfilePage from "../pages/ProfilePage";
 import ForEvaluationPage from "../pages/ForEvaluationPage";
 import FDAVerificationPortalPage from "../pages/FDAVerificationPortalPage";
 import ReportsPage from "../pages/ReportsPage";
+import UserManagementPage from "../pages/UserManagementPage";
+import GroupManagementPage from "../pages/GroupManagementPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -162,24 +164,11 @@ function MainLayout({ darkMode, setDarkMode }) {
             <p>Support Page - Coming Soon</p>
           </div>
         );
+
       case "access":
-        return (
-          <div style={{ padding: "2rem", color: colors.textPrimary }}>
-            <h1 style={{ fontSize: "1.75rem", marginBottom: "1rem" }}>
-              🔐 Access Management
-            </h1>
-            <p>Access Management Page - Coming Soon</p>
-          </div>
-        );
+        return <GroupManagementPage darkMode={darkMode} userRole={userRole} />;
       case "users":
-        return (
-          <div style={{ padding: "2rem", color: colors.textPrimary }}>
-            <h1 style={{ fontSize: "1.75rem", marginBottom: "1rem" }}>
-              👥 User Management
-            </h1>
-            <p>User Management Page - Coming Soon</p>
-          </div>
-        );
+        return <UserManagementPage darkMode={darkMode} userRole={userRole} />;
       case "settings":
         return (
           <div style={{ padding: "2rem", color: colors.textPrimary }}>
