@@ -169,6 +169,14 @@ export const deactivateUser = async (userId) => {
   }
 };
 
+export const resetPassword = async (userId, newPassword) => {
+  const response = await api.post(`auth/admin/users/${userId}/reset-password`, {
+    new_password: newPassword
+  });
+  return response.data;
+};
+
+
 /**
  * Get all users (active and inactive)
  * ADMIN ONLY

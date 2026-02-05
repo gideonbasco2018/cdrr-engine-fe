@@ -354,7 +354,14 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
               <button
                 onClick={() => {
                   setShowDropdown(false);
-                  setActiveMenu("profile");
+                  const basePath =
+                    userRole === "SuperAdmin"
+                      ? "/superadmin"
+                      : userRole === "Admin"
+                        ? "/admin"
+                        : "/dashboard";
+
+                  navigate(`${basePath}/profile`);
                 }}
                 style={{
                   width: "100%",

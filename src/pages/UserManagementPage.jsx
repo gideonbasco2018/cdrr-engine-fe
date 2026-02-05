@@ -1,10 +1,11 @@
 // FILE: src/pages/UserManagementPage.jsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getAllUsers,
   getPendingUsers,
   activateUser,
   deactivateUser,
+  resetPassword,
 } from "../api/auth";
 
 function UserManagementPage({ darkMode, userRole }) {
@@ -12,12 +13,15 @@ function UserManagementPage({ darkMode, userRole }) {
   const [allUsers, setAllUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("pending"); // "pending" | "all"
+  const [activeTab, setActiveTab] = useState("pending");
   const [search, setSearch] = useState("");
-  const [actionLoading, setActionLoading] = useState(null); // user_id currently being toggled
-  const [toast, setToast] = useState(null); // { type: "success" | "error", message }
+  const [actionLoading, setActionLoading] = useState(null);
+  const [toast, setToast] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
-  // confirmModal: { userId, username, action: "activate" | "deactivate" }
+  const [passwordModal, setPasswordModal] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   // ===== COLORS =====
   const colors = darkMode
@@ -52,6 +56,9 @@ function UserManagementPage({ darkMode, userRole }) {
         modalBorder: "#333",
         toastSuccess: { bg: "#16a34a", text: "#fff" },
         toastError: { bg: "#dc2626", text: "#fff" },
+        menuBg: "#1e1e1e",
+        menuBorder: "#333",
+        menuItemHover: "#2a2a2a",
       }
     : {
         pageBg: "#f8f8f8",
@@ -84,6 +91,9 @@ function UserManagementPage({ darkMode, userRole }) {
         modalBorder: "#e5e5e5",
         toastSuccess: { bg: "#16a34a", text: "#fff" },
         toastError: { bg: "#dc2626", text: "#fff" },
+        menuBg: "#fff",
+        menuBorder: "#e5e5e5",
+        menuItemHover: "#f5f5f5",
       };
 
   // ===== FETCH DATA =====
@@ -108,6 +118,14 @@ function UserManagementPage({ darkMode, userRole }) {
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    const handleClickOutside = () => setOpenMenuId(null);
+    if (openMenuId) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  }, [openMenuId]);
+
   // ===== TOAST =====
   const showToast = (type, message) => {
     setToast({ type, message });
@@ -130,11 +148,42 @@ function UserManagementPage({ darkMode, userRole }) {
         await deactivateUser(userId);
         showToast("success", "User deactivated successfully.");
       }
-      await fetchData(); // refresh
+      await fetchData();
     } catch (err) {
       console.error("Action failed:", err);
       const detail =
         err?.response?.data?.detail || "Action failed. Please try again.";
+      showToast("error", detail);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // ===== RESET PASSWORD =====
+  const handleResetPassword = async () => {
+    if (!passwordModal || !newPassword.trim()) {
+      showToast("error", "Please enter a new password.");
+      return;
+    }
+
+    const { userId, username } = passwordModal;
+    setActionLoading(userId);
+    setPasswordModal(null);
+    setNewPassword("");
+    setShowPassword(false);
+
+    try {
+      await resetPassword(userId, newPassword);
+      showToast(
+        "success",
+        `Password for ${username} has been reset successfully.`,
+      );
+      await fetchData();
+    } catch (err) {
+      console.error("Password reset failed:", err);
+      const detail =
+        err?.response?.data?.detail ||
+        "Password reset failed. Please try again.";
       showToast("error", detail);
     } finally {
       setActionLoading(null);
@@ -151,7 +200,8 @@ function UserManagementPage({ darkMode, userRole }) {
         (u.username || "").toLowerCase().includes(q) ||
         (u.email || "").toLowerCase().includes(q) ||
         (u.first_name || "").toLowerCase().includes(q) ||
-        (u.last_name || "").toLowerCase().includes(q),
+        (u.last_name || "").toLowerCase().includes(q) ||
+        (u.groups?.[0]?.name || "").toLowerCase().includes(q),
     );
   })();
 
@@ -237,16 +287,185 @@ function UserManagementPage({ darkMode, userRole }) {
     );
   };
 
-  // ===== USER ROW =====
-  const UserRow = ({ user, index }) => {
+  // ===== GROUP BADGE =====
+  const GroupBadges = ({ groups = [] }) => {
+    if (!groups.length) {
+      return (
+        <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
+          —
+        </span>
+      );
+    }
+
+    return (
+      <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+        {groups.map((g) => (
+          <span
+            key={g.id}
+            style={{
+              display: "inline-block",
+              padding: "0.2rem 0.65rem",
+              borderRadius: "20px",
+              fontSize: "0.72rem",
+              fontWeight: "600",
+              background: darkMode ? "#1a2a1a" : "#f0fdf4",
+              color: darkMode ? "#86efac" : "#15803d",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {g.name}
+          </span>
+        ))}
+      </div>
+    );
+  };
+  // ===== ACTION MENU =====
+  const ActionMenu = ({ user }) => {
+    const menuRef = useRef(null);
+    const isOpen = openMenuId === user.id;
     const isPending = !user.is_active;
     const isProcessing = actionLoading === user.id;
+
+    const toggleMenu = (e) => {
+      e.stopPropagation();
+      setOpenMenuId(isOpen ? null : user.id);
+    };
+
+    const menuItems = [];
+
+    if (isPending) {
+      menuItems.push({
+        label: "✓ Activate",
+        action: "activate",
+        icon: "✓",
+      });
+    } else {
+      menuItems.push({
+        label: "Deactivate",
+        action: "deactivate",
+        icon: "✕",
+      });
+    }
+
+    menuItems.push({
+      label: "Reset Password",
+      action: "reset_password",
+      icon: "🔑",
+    });
+
+    return (
+      <div style={{ position: "relative" }} ref={menuRef}>
+        <button
+          onClick={toggleMenu}
+          disabled={isProcessing}
+          style={{
+            width: "32px",
+            height: "32px",
+            borderRadius: "6px",
+            border: `1px solid ${colors.cardBorder}`,
+            background: isOpen ? colors.menuItemHover : "transparent",
+            color: colors.textSecondary,
+            fontSize: "1.1rem",
+            cursor: isProcessing ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) =>
+            !isProcessing &&
+            !isOpen &&
+            (e.target.style.background = colors.menuItemHover)
+          }
+          onMouseLeave={(e) =>
+            !isProcessing &&
+            !isOpen &&
+            (e.target.style.background = "transparent")
+          }
+        >
+          {isProcessing ? "..." : "⋯"}
+        </button>
+
+        {isOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              right: 0,
+              background: colors.menuBg,
+              border: `1px solid ${colors.menuBorder}`,
+              borderRadius: "8px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              minWidth: "160px",
+              zIndex: 100,
+              overflow: "hidden",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {menuItems.map((item, idx) => (
+              <button
+                key={idx}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpenMenuId(null);
+
+                  if (item.action === "reset_password") {
+                    setPasswordModal({
+                      userId: user.id,
+                      username: user.username,
+                    });
+                  } else {
+                    setConfirmModal({
+                      userId: user.id,
+                      username: user.username,
+                      action: item.action,
+                    });
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "0.65rem 1rem",
+                  border: "none",
+                  background: "transparent",
+                  color: colors.textPrimary,
+                  fontSize: "0.82rem",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                  transition: "background 0.15s ease",
+                  borderBottom:
+                    idx < menuItems.length - 1
+                      ? `1px solid ${colors.cardBorder}`
+                      : "none",
+                }}
+                onMouseEnter={(e) =>
+                  (e.target.style.background = colors.menuItemHover)
+                }
+                onMouseLeave={(e) =>
+                  (e.target.style.background = "transparent")
+                }
+              >
+                <span style={{ fontSize: "0.9rem" }}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ===== USER ROW =====
+  const UserRow = ({ user, index }) => {
+    <GroupBadges groups={user.groups || []} />;
 
     return (
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "40px 1fr 200px 90px 100px 130px",
+          gridTemplateColumns: "40px 1fr 200px 90px 120px 100px 60px",
           alignItems: "center",
           gap: "1rem",
           padding: "0.9rem 1.25rem",
@@ -321,84 +540,19 @@ function UserManagementPage({ darkMode, userRole }) {
           <RoleBadge role={user.role || "User"} />
         </div>
 
+        {/* Group */}
+        <div>
+          <GroupBadges groups={user.groups || []} />
+        </div>
+
         {/* Status */}
         <div>
           <StatusBadge isActive={user.is_active} />
         </div>
 
-        {/* Action Button */}
+        {/* Action Menu */}
         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          {isPending ? (
-            <button
-              disabled={isProcessing}
-              onClick={() =>
-                setConfirmModal({
-                  userId: user.id,
-                  username: user.username,
-                  action: "activate",
-                })
-              }
-              style={{
-                padding: "0.45rem 1rem",
-                borderRadius: "6px",
-                border: "none",
-                background: isProcessing
-                  ? colors.btnDisabled
-                  : colors.btnActivate,
-                color: "#fff",
-                fontSize: "0.8rem",
-                fontWeight: "600",
-                cursor: isProcessing ? "not-allowed" : "pointer",
-                transition: "background 0.15s ease",
-              }}
-              onMouseEnter={(e) =>
-                !isProcessing &&
-                (e.target.style.background = colors.btnActivateHover)
-              }
-              onMouseLeave={(e) =>
-                !isProcessing &&
-                (e.target.style.background = colors.btnActivate)
-              }
-            >
-              {isProcessing ? "..." : "✓ Activate"}
-            </button>
-          ) : (
-            <button
-              disabled={isProcessing}
-              onClick={() =>
-                setConfirmModal({
-                  userId: user.id,
-                  username: user.username,
-                  action: "deactivate",
-                })
-              }
-              style={{
-                padding: "0.45rem 1rem",
-                borderRadius: "6px",
-                border: `1px solid ${colors.btnDeactivate}`,
-                background: "transparent",
-                color: colors.btnDeactivate,
-                fontSize: "0.8rem",
-                fontWeight: "600",
-                cursor: isProcessing ? "not-allowed" : "pointer",
-                transition: "all 0.15s ease",
-              }}
-              onMouseEnter={(e) => {
-                if (!isProcessing) {
-                  e.target.style.background = colors.btnDeactivate;
-                  e.target.style.color = "#fff";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isProcessing) {
-                  e.target.style.background = "transparent";
-                  e.target.style.color = colors.btnDeactivate;
-                }
-              }}
-            >
-              {isProcessing ? "..." : "Deactivate"}
-            </button>
-          )}
+          <ActionMenu user={user} />
         </div>
       </div>
     );
@@ -444,6 +598,162 @@ function UserManagementPage({ darkMode, userRole }) {
         >
           <span>{toast.type === "success" ? "✓" : "✕"}</span>
           {toast.message}
+        </div>
+      )}
+
+      {/* PASSWORD RESET MODAL */}
+      {passwordModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 999,
+            background: colors.modalOverlay,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={() => {
+            setPasswordModal(null);
+            setNewPassword("");
+            setShowPassword(false);
+          }}
+        >
+          <div
+            style={{
+              background: colors.modalBg,
+              border: `1px solid ${colors.modalBorder}`,
+              borderRadius: "14px",
+              padding: "2rem",
+              width: "420px",
+              maxWidth: "90%",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: "1.6rem", marginBottom: "0.75rem" }}>
+              🔑
+            </div>
+            <h3
+              style={{
+                margin: "0 0 0.5rem",
+                color: colors.textPrimary,
+                fontSize: "1.1rem",
+              }}
+            >
+              Reset Password
+            </h3>
+            <p
+              style={{
+                margin: "0 0 1.5rem",
+                color: colors.textSecondary,
+                fontSize: "0.88rem",
+                lineHeight: 1.5,
+              }}
+            >
+              Enter new password for <strong>{passwordModal.username}</strong>
+            </p>
+
+            {/* Password Input */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.82rem",
+                  fontWeight: "600",
+                  color: colors.textSecondary,
+                  marginBottom: "0.5rem",
+                }}
+              >
+                New Password
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    padding: "0.65rem 2.5rem 0.65rem 0.85rem",
+                    borderRadius: "8px",
+                    border: `1px solid ${colors.inputBorder}`,
+                    background: colors.inputBg,
+                    color: colors.textPrimary,
+                    fontSize: "0.88rem",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleResetPassword();
+                  }}
+                />
+                <button
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "0.5rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "1.1rem",
+                    padding: "0.25rem",
+                    color: colors.textSecondary,
+                  }}
+                >
+                  {showPassword ? "👁️" : "👁️‍🗨️"}
+                </button>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "0.75rem",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setPasswordModal(null);
+                  setNewPassword("");
+                  setShowPassword(false);
+                }}
+                style={{
+                  padding: "0.5rem 1.1rem",
+                  borderRadius: "8px",
+                  border: `1px solid ${colors.modalBorder}`,
+                  background: "transparent",
+                  color: colors.textSecondary,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetPassword}
+                disabled={!newPassword.trim()}
+                style={{
+                  padding: "0.5rem 1.1rem",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: newPassword.trim()
+                    ? "#3b82f6"
+                    : colors.btnDisabled,
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: "600",
+                  cursor: newPassword.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                Reset Password
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -652,7 +962,7 @@ function UserManagementPage({ darkMode, userRole }) {
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: "14px",
-          overflow: "hidden",
+          overflow: "visible",
         }}
       >
         {/* Tabs + Search Row */}
@@ -751,14 +1061,14 @@ function UserManagementPage({ darkMode, userRole }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "40px 1fr 200px 90px 100px 130px",
+            gridTemplateColumns: "40px 1fr 200px 90px 120px 100px 60px",
             gap: "1rem",
             padding: "0.7rem 1.25rem",
             background: darkMode ? "#1a1a1a" : "#f9f9f9",
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
         >
-          {["", "Name / Email", "Username", "Role", "Status", "Action"].map(
+          {["", "Name / Email", "Username", "Role", "Group", "Status", ""].map(
             (h) => (
               <div
                 key={h}
@@ -768,7 +1078,8 @@ function UserManagementPage({ darkMode, userRole }) {
                   color: colors.textTertiary,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
-                  textAlign: h === "Action" ? "right" : "left",
+                  textAlign:
+                    h === "" && h !== "Name / Email" ? "right" : "left",
                 }}
               >
                 {h}
