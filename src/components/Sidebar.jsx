@@ -3,7 +3,11 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getUploadReports } from "../api/reports";
 import { mapDataItem } from "./reports/utils.js";
-import { getUser } from "../api/auth"; // ✅ Import getUser to get all groups
+import { getUser } from "../api/auth";
+import { getMenuPermissions } from "../api/menuPermissions";
+import { useSidebarColors } from "./sidebar/useSidebarColors";
+import { menuDefinitions } from "./sidebar/menuDefinitions";
+import MenuItem from "./sidebar/MenuItem";
 
 function Sidebar({
   activeMenu,
@@ -21,18 +25,120 @@ function Sidebar({
   const [collapsed, setCollapsed] = useState(false);
   const [pendingEvalCount, setPendingEvalCount] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
-  const [userGroups, setUserGroups] = useState([]); // ✅ Store ALL user groups
+  const [userGroups, setUserGroups] = useState([]);
+  const [menuPermissions, setMenuPermissions] = useState({});
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Determine base path from current location
+  const colors = useSidebarColors(darkMode);
+
   const getBasePath = () => {
     if (location.pathname.startsWith("/superadmin")) return "/superadmin";
     if (location.pathname.startsWith("/admin")) return "/admin";
     return "/dashboard";
   };
 
-  // ✅ Get current user and ALL groups
+  // ===== LOAD MENU PERMISSIONS FROM API =====
+  useEffect(() => {
+    const loadMenuPermissions = async () => {
+      try {
+        console.log("📋 Sidebar - Loading menu permissions from API...");
+        const backendPermissions = await getMenuPermissions();
+
+        if (
+          backendPermissions &&
+          Array.isArray(backendPermissions) &&
+          backendPermissions.length > 0
+        ) {
+          console.log("✅ Sidebar - Loaded from API:", backendPermissions);
+
+          const permissionsMap = {};
+          backendPermissions.forEach((item) => {
+            permissionsMap[item.menu_id] = item.group_ids || [];
+          });
+
+          setMenuPermissions(permissionsMap);
+          localStorage.setItem(
+            "menuPermissions",
+            JSON.stringify(permissionsMap),
+          );
+
+          setPermissionsLoaded(true);
+        } else {
+          console.log(
+            "⚠️ Sidebar - No permissions from API, loading from localStorage",
+          );
+          loadFromLocalStorage();
+        }
+      } catch (err) {
+        console.error("❌ Sidebar - Failed to load from API:", err);
+        loadFromLocalStorage();
+      }
+    };
+
+    const loadFromLocalStorage = () => {
+      const saved = localStorage.getItem("menuPermissions");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setMenuPermissions(parsed);
+          console.log("📋 Sidebar - Loaded from localStorage:", parsed);
+        } catch (parseErr) {
+          console.error("Failed to parse localStorage permissions:", parseErr);
+          setDefaultPermissions();
+        }
+      } else {
+        setDefaultPermissions();
+      }
+      setPermissionsLoaded(true);
+    };
+
+    const setDefaultPermissions = () => {
+      const defaultPerms = {
+        dashboard: [1, 2, 3, 4, 5, 6, 7, 8],
+        reports: [1, 2, 3, 4, 5, 6, 7, 8],
+        "for-decking": [2],
+        "for-evaluation": [3],
+        "for-compliance": [3],
+        "for-checking": [4],
+        supervisor: [5],
+        "for-qa": [6],
+        "for-director-signature": [7],
+        "for-releasing": [8],
+        "fda-verification": [1, 2, 3, 4, 5, 6, 7, 8],
+        announcements: [1, 2, 3, 4, 5, 6, 7, 8],
+        support: [1, 2, 3, 4, 5, 6, 7, 8],
+      };
+      setMenuPermissions(defaultPerms);
+      localStorage.setItem("menuPermissions", JSON.stringify(defaultPerms));
+    };
+
+    loadMenuPermissions();
+
+    const handlePermissionsUpdate = () => {
+      console.log("🔄 Sidebar - Permissions updated event received");
+      loadMenuPermissions();
+    };
+    window.addEventListener("menuPermissionsUpdated", handlePermissionsUpdate);
+
+    const handleStorageChange = (e) => {
+      if (e.key === "menuPermissions") {
+        console.log("🔄 Sidebar - Storage change detected");
+        loadMenuPermissions();
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener(
+        "menuPermissionsUpdated",
+        handlePermissionsUpdate,
+      );
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, []);
+
   useEffect(() => {
     let username = null;
 
@@ -54,10 +160,8 @@ function Sidebar({
 
     setCurrentUser(username);
 
-    // ✅ Get ALL user groups from getUser()
     const user = getUser();
     if (user?.groups && Array.isArray(user.groups)) {
-      // Extract group IDs from groups array
       const groupIds = user.groups
         .map((g) => (typeof g === "object" ? g.id || g.group_id : g))
         .filter((id) => id !== null && id !== undefined);
@@ -65,7 +169,6 @@ function Sidebar({
       setUserGroups(groupIds);
       console.log("👤 Sidebar - User:", username, "All Groups:", groupIds);
     } else if (user?.group_id) {
-      // Fallback to single group_id
       setUserGroups([user.group_id]);
       console.log("👤 Sidebar - User:", username, "Single Group:", [
         user.group_id,
@@ -76,7 +179,6 @@ function Sidebar({
     }
   }, [userGroup]);
 
-  // ✅ FETCH PENDING EVALUATION COUNT
   useEffect(() => {
     const fetchPendingCount = async () => {
       if (!currentUser || currentUser === "Unknown User") {
@@ -98,7 +200,6 @@ function Sidebar({
 
         const mappedData = json.data.map(mapDataItem);
 
-        // Filter records assigned to current user as evaluator
         const userRecords = mappedData.filter((item) => {
           const evaluator = item.evaluator || "";
           return (
@@ -107,7 +208,6 @@ function Sidebar({
           );
         });
 
-        // Count pending evaluations (no dateEvalEnd)
         const pendingCount = userRecords.filter(
           (item) =>
             !item.dateEvalEnd ||
@@ -127,145 +227,28 @@ function Sidebar({
     fetchPendingCount();
   }, [currentUser]);
 
-  // ===== MENU DEFINITIONS =====
-
-  const mainMenuItems = [
-    {
-      id: "dashboard",
-      icon: "📊",
-      label: "Dashboard",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [1, 2, 3, 4, 5, 6, 7, 8],
-    },
-  ];
-
-  const cdrReportsItems = [
-    {
-      id: "reports",
-      icon: "📄",
-      label: "Reports",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [1, 2, 3, 4, 5, 6, 7, 8],
-      comingSoon: false,
-    },
-  ];
-
-  const workflowItems = [
-    {
-      id: "for-decking",
-      icon: "📥",
-      label: "For Decking",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [2],
-    },
-    {
-      id: "for-evaluation",
-      icon: "📋",
-      label: "For Evaluation",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [3],
-      badge: pendingEvalCount,
-    },
-    {
-      id: "for-compliance",
-      icon: "✓",
-      label: "For Compliance",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [3],
-    },
-    {
-      id: "for-checking",
-      icon: "🔍",
-      label: "For Checking",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [4],
-    },
-    {
-      id: "supervisor",
-      icon: "👔",
-      label: "Supervisor",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [5],
-    },
-    {
-      id: "for-qa",
-      icon: "✔️",
-      label: "For QA",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [6],
-    },
-    {
-      id: "for-director-signature",
-      icon: "✍️",
-      label: "For Director Signature",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [7],
-    },
-    {
-      id: "for-releasing",
-      icon: "📤",
-      label: "For Releasing",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [8],
-    },
-  ];
-
-  const otherDatabaseItems = [
-    {
-      id: "fda-verification",
-      icon: "🔍",
-      label: "FDA Verification Portal",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [1, 2, 3, 4, 5, 6, 7, 8],
-    },
-  ];
-
-  const platformItems = [
-    {
-      id: "announcements",
-      icon: "📢",
-      label: "Announcements",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [1, 2, 3, 4, 5, 6, 7, 8],
-    },
-    {
-      id: "support",
-      icon: "🎧",
-      label: "Support",
-      roles: ["User", "Admin", "SuperAdmin"],
-      groups: [1, 2, 3, 4, 5, 6, 7, 8],
-    },
-    {
-      id: "access",
-      icon: "🔐",
-      label: "Access Management",
-      roles: ["Admin", "SuperAdmin"],
-    },
-    {
-      id: "users",
-      icon: "👥",
-      label: "User Management",
-      roles: ["Admin", "SuperAdmin"],
-    },
-    {
-      id: "settings",
-      icon: "⚙️",
-      label: "Settings",
-      roles: ["SuperAdmin"],
-    },
-  ];
-
-  // ✅ FIXED FILTER - Check if user has ANY of the required groups
+  // ===== FILTER FUNCTION =====
   const filterByRoleAndGroup = (items) => {
+    if (!permissionsLoaded) {
+      return items.filter((item) => item.roles.includes(userRole));
+    }
+
     return items.filter((item) => {
       const hasRole = item.roles.includes(userRole);
 
-      // If item has no groups specified, show it (backward compatibility)
-      if (!item.groups || item.groups.length === 0) {
+      if (["access", "users", "settings"].includes(item.id)) {
         return hasRole;
       }
 
-      // If user has no groups, show all items for this role
+      const allowedGroups = menuPermissions[item.id];
+
+      if (!allowedGroups || !Array.isArray(allowedGroups)) {
+        console.log(
+          `⚠️ No permissions for ${item.id} - showing based on role only`,
+        );
+        return hasRole;
+      }
+
       if (!userGroups || userGroups.length === 0) {
         console.log(
           `⚠️ No user groups - showing item ${item.id} based on role only`,
@@ -273,8 +256,7 @@ function Sidebar({
         return hasRole;
       }
 
-      // ✅ Check if user has ANY of the required groups
-      const hasGroup = item.groups.some((requiredGroup) =>
+      const hasGroup = allowedGroups.some((requiredGroup) =>
         userGroups.includes(requiredGroup),
       );
 
@@ -282,7 +264,7 @@ function Sidebar({
         hasRole,
         hasGroup,
         userGroups,
-        itemGroups: item.groups,
+        allowedGroups,
         willShow: hasRole && hasGroup,
       });
 
@@ -290,14 +272,25 @@ function Sidebar({
     });
   };
 
-  const visibleMainMenu = filterByRoleAndGroup(mainMenuItems);
-  const visibleCdrReports = filterByRoleAndGroup(cdrReportsItems);
-  const visibleWorkflow = filterByRoleAndGroup(workflowItems);
-  const visibleOtherDatabase = filterByRoleAndGroup(otherDatabaseItems);
-  const visiblePlatform = filterByRoleAndGroup(platformItems);
+  // Add pending count to evaluation item
+  const workflowItemsWithBadge = menuDefinitions.workflowItems.map((item) =>
+    item.id === "for-evaluation" ? { ...item, badge: pendingEvalCount } : item,
+  );
+
+  const visibleMainMenu = filterByRoleAndGroup(menuDefinitions.mainMenuItems);
+  const visibleCdrReports = filterByRoleAndGroup(
+    menuDefinitions.cdrReportsItems,
+  );
+  const visibleWorkflow = filterByRoleAndGroup(workflowItemsWithBadge);
+  const visibleOtherDatabase = filterByRoleAndGroup(
+    menuDefinitions.otherDatabaseItems,
+  );
+  const visiblePlatform = filterByRoleAndGroup(menuDefinitions.platformItems);
 
   console.log("🔍 DEBUG - Visible Menus:", {
+    permissionsLoaded,
     userGroups,
+    menuPermissions,
     mainMenu: visibleMainMenu.length,
     cdrReports: visibleCdrReports.length,
     workflow: visibleWorkflow.length,
@@ -306,46 +299,6 @@ function Sidebar({
     platform: visiblePlatform.length,
   });
 
-  // ===== COLORS =====
-  const colors = darkMode
-    ? {
-        sidebarBg: "#161616",
-        sidebarBorder: "#252525",
-        textPrimary: "#fff",
-        textSecondary: "#999",
-        sectionLabel: "#666",
-        activeItemBg: "#1a1a1a",
-        hoverBg: "#151515",
-        toggleBg: "#151515",
-        toggleHover: "#1f1f1f",
-        badgeBg: "#ef4444",
-        badgeText: "#fff",
-        comingSoonBg: "#2a2a2a",
-        comingSoonText: "#555",
-      }
-    : {
-        sidebarBg: "#ffffff",
-        sidebarBorder: "#e5e5e5",
-        textPrimary: "#000",
-        textSecondary: "#666",
-        sectionLabel: "#999",
-        activeItemBg: "#f5f5f5",
-        hoverBg: "#fafafa",
-        toggleBg: "#f7f7f7",
-        toggleHover: "#ededed",
-        badgeBg: "#ef4444",
-        badgeText: "#fff",
-        comingSoonBg: "#f0f0f0",
-        comingSoonText: "#999",
-      };
-
-  const roleBadgeColors = {
-    User: "#4CAF50",
-    Admin: "#2196F3",
-    SuperAdmin: "#ff9800",
-  };
-
-  // ===== NAVIGATION HANDLER =====
   const handleNavigation = (itemId) => {
     const basePath = getBasePath();
 
@@ -371,116 +324,35 @@ function Sidebar({
     navigate(routeMap[itemId] || `${basePath}/dashboard`);
   };
 
-  // ===== MENU ITEM =====
-  const MenuItem = ({ item }) => {
-    const isDisabled = item.comingSoon === true;
+  const renderSection = (title, items) => {
+    if (items.length === 0) return null;
 
     return (
-      <div
-        onClick={() => !isDisabled && handleNavigation(item.id)}
-        title={collapsed ? item.label : ""}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: collapsed ? "center" : "space-between",
-          gap: collapsed ? 0 : "0.75rem",
-          padding: collapsed ? "0.75rem" : "0.75rem 1.25rem",
-          cursor: isDisabled ? "not-allowed" : "pointer",
-          background:
-            activeMenu === item.id ? colors.activeItemBg : "transparent",
-          color: isDisabled
-            ? colors.comingSoonText
-            : activeMenu === item.id
-              ? colors.textPrimary
-              : colors.textSecondary,
-          transition: "all 0.2s ease",
-          borderLeft:
-            activeMenu === item.id && !collapsed
-              ? `3px solid ${roleBadgeColors[userRole]}`
-              : "3px solid transparent",
-          position: "relative",
-          opacity: isDisabled ? 0.5 : 1,
-        }}
-        onMouseEnter={(e) => {
-          if (activeMenu !== item.id && !isDisabled) {
-            e.currentTarget.style.background = colors.hoverBg;
-            e.currentTarget.style.color = colors.textPrimary;
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (activeMenu !== item.id && !isDisabled) {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = isDisabled
-              ? colors.comingSoonText
-              : colors.textSecondary;
-          }
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: collapsed ? 0 : "0.75rem",
-          }}
-        >
-          <span style={{ fontSize: "1.1rem" }}>{item.icon}</span>
-          {!collapsed && <span>{item.label}</span>}
-        </div>
-
-        {!collapsed && isDisabled && (
-          <span
+      <div style={{ paddingBottom: "1rem" }}>
+        {!collapsed && (
+          <div
             style={{
-              padding: "0.15rem 0.5rem",
-              background: colors.comingSoonBg,
-              color: colors.comingSoonText,
-              borderRadius: "10px",
-              fontSize: "0.65rem",
+              padding: "0 1.25rem",
+              fontSize: "0.7rem",
               fontWeight: "600",
-              letterSpacing: "0.02em",
+              color: colors.sectionLabel,
+              marginBottom: "0.5rem",
             }}
           >
-            Soon
-          </span>
+            {title}
+          </div>
         )}
-
-        {!collapsed &&
-          !isDisabled &&
-          item.badge !== undefined &&
-          item.badge > 0 && (
-            <span
-              style={{
-                padding: "0.2rem 0.5rem",
-                background: colors.badgeBg,
-                color: colors.badgeText,
-                borderRadius: "10px",
-                fontSize: "0.7rem",
-                fontWeight: "700",
-                minWidth: "20px",
-                textAlign: "center",
-                boxShadow: "0 2px 4px rgba(239, 68, 68, 0.3)",
-              }}
-            >
-              {item.badge}
-            </span>
-          )}
-
-        {collapsed &&
-          !isDisabled &&
-          item.badge !== undefined &&
-          item.badge > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "8px",
-                right: "8px",
-                width: "8px",
-                height: "8px",
-                background: colors.badgeBg,
-                borderRadius: "50%",
-                boxShadow: "0 0 4px rgba(239, 68, 68, 0.5)",
-              }}
-            />
-          )}
+        {items.map((item) => (
+          <MenuItem
+            key={item.id}
+            item={item}
+            activeMenu={activeMenu}
+            collapsed={collapsed}
+            colors={colors}
+            userRole={userRole}
+            handleNavigation={handleNavigation}
+          />
+        ))}
       </div>
     );
   };
@@ -496,7 +368,6 @@ function Sidebar({
         transition: "width 0.3s ease",
       }}
     >
-      {/* LOGO */}
       <div
         style={{
           padding: "1rem",
@@ -518,115 +389,14 @@ function Sidebar({
         )}
       </div>
 
-      {/* MENUS */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {visibleMainMenu.length > 0 && (
-          <div style={{ padding: "1rem 0" }}>
-            {!collapsed && (
-              <div
-                style={{
-                  padding: "0 1.25rem",
-                  fontSize: "0.7rem",
-                  fontWeight: "600",
-                  color: colors.sectionLabel,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                MAIN
-              </div>
-            )}
-            {visibleMainMenu.map((item) => (
-              <MenuItem key={item.id} item={item} />
-            ))}
-          </div>
-        )}
-
-        {visibleCdrReports.length > 0 && (
-          <div style={{ paddingBottom: "1rem" }}>
-            {!collapsed && (
-              <div
-                style={{
-                  padding: "0 1.25rem",
-                  fontSize: "0.7rem",
-                  fontWeight: "600",
-                  color: colors.sectionLabel,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                CDRR REPORTS
-              </div>
-            )}
-            {visibleCdrReports.map((item) => (
-              <MenuItem key={item.id} item={item} />
-            ))}
-          </div>
-        )}
-
-        {visibleWorkflow.length > 0 && (
-          <div style={{ paddingBottom: "1rem" }}>
-            {!collapsed && (
-              <div
-                style={{
-                  padding: "0 1.25rem",
-                  fontSize: "0.7rem",
-                  fontWeight: "600",
-                  color: colors.sectionLabel,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                WORKFLOW STATUS
-              </div>
-            )}
-            {visibleWorkflow.map((item) => (
-              <MenuItem key={item.id} item={item} />
-            ))}
-          </div>
-        )}
-
-        {visibleOtherDatabase.length > 0 && (
-          <div style={{ paddingBottom: "1rem" }}>
-            {!collapsed && (
-              <div
-                style={{
-                  padding: "0 1.25rem",
-                  fontSize: "0.7rem",
-                  fontWeight: "600",
-                  color: colors.sectionLabel,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                OTHER DATABASE
-              </div>
-            )}
-            {visibleOtherDatabase.map((item) => (
-              <MenuItem key={item.id} item={item} />
-            ))}
-          </div>
-        )}
-
-        {visiblePlatform.length > 0 && (
-          <div style={{ paddingBottom: "1rem" }}>
-            {!collapsed && (
-              <div
-                style={{
-                  padding: "0 1.25rem",
-                  fontSize: "0.7rem",
-                  fontWeight: "600",
-                  color: colors.sectionLabel,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                PLATFORM
-              </div>
-            )}
-            {visiblePlatform.map((item) => (
-              <MenuItem key={item.id} item={item} />
-            ))}
-          </div>
-        )}
+        {renderSection("MAIN", visibleMainMenu)}
+        {renderSection("CDRR REPORTS", visibleCdrReports)}
+        {renderSection("WORKFLOW STATUS", visibleWorkflow)}
+        {renderSection("OTHER DATABASE", visibleOtherDatabase)}
+        {renderSection("PLATFORM", visiblePlatform)}
       </div>
 
-      {/* COLLAPSE BUTTON */}
       <div
         style={{
           padding: "0.75rem",
