@@ -6,6 +6,7 @@ import {
   activateUser,
   deactivateUser,
   resetPassword,
+  updateUser,
 } from "../api/auth";
 
 function UserManagementPage({ darkMode, userRole }) {
@@ -13,15 +14,24 @@ function UserManagementPage({ darkMode, userRole }) {
   const [allUsers, setAllUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useState("all"); // default to "All Users"
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState(null);
   const [toast, setToast] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
   const [passwordModal, setPasswordModal] = useState(null);
+  const [editModal, setEditModal] = useState(null);
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [roleFilter, setRoleFilter] = useState(null); // For role filtering
+
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    username: "",
+    email: "",
+    role: "",
+  });
 
   // ===== COLORS =====
   const colors = darkMode
@@ -190,9 +200,65 @@ function UserManagementPage({ darkMode, userRole }) {
     }
   };
 
+  // ===== EDIT USER =====
+  const handleEditUser = async () => {
+    if (!editModal) return;
+
+    const { userId } = editModal;
+    const updates = {};
+
+    // Only include fields that have changed
+    if (editForm.username && editForm.username !== editModal.originalUsername) {
+      updates.username = editForm.username;
+    }
+    if (editForm.email && editForm.email !== editModal.originalEmail) {
+      updates.email = editForm.email;
+    }
+    if (editForm.role && editForm.role !== editModal.originalRole) {
+      updates.role = editForm.role;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      showToast("error", "No changes detected.");
+      return;
+    }
+
+    setActionLoading(userId);
+    setEditModal(null);
+
+    try {
+      await updateUser(userId, updates);
+      showToast("success", "User updated successfully.");
+      await fetchData();
+    } catch (err) {
+      console.error("Update failed:", err);
+      const detail =
+        err?.response?.data?.detail || "Update failed. Please try again.";
+      showToast("error", detail);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // ===== FILTER =====
   const filteredUsers = (() => {
-    const source = activeTab === "pending" ? pendingUsers : allUsers;
+    let source;
+
+    // Tab filtering
+    if (activeTab === "pending") {
+      source = pendingUsers;
+    } else if (activeTab === "active") {
+      source = allUsers.filter((u) => u.is_active);
+    } else {
+      source = allUsers;
+    }
+
+    // Role filtering
+    if (roleFilter) {
+      source = source.filter((u) => (u.role || "User") === roleFilter);
+    }
+
+    // Search filtering
     if (!search.trim()) return source;
     const q = search.toLowerCase();
     return source.filter(
@@ -268,19 +334,45 @@ function UserManagementPage({ darkMode, userRole }) {
     },
   };
 
-  const RoleBadge = ({ role }) => {
+  const RoleBadge = ({ role, clickable = false }) => {
     const c = roleBadgeColor[role] || roleBadgeColor.User;
+    const isFiltered = roleFilter === role;
+
     return (
       <span
+        onClick={
+          clickable ? () => setRoleFilter(isFiltered ? null : role) : undefined
+        }
         style={{
           display: "inline-block",
           padding: "0.2rem 0.65rem",
           borderRadius: "20px",
           fontSize: "0.72rem",
           fontWeight: "600",
-          background: c.bg,
-          color: c.text,
+          background: isFiltered ? c.text : c.bg,
+          color: isFiltered ? "#fff" : c.text,
+          cursor: clickable ? "pointer" : "default",
+          transition: "all 0.15s ease",
+          border: isFiltered ? "none" : `1px solid ${c.text}40`,
         }}
+        onMouseEnter={
+          clickable
+            ? (e) => {
+                if (!isFiltered) {
+                  e.currentTarget.style.background = c.text + "20";
+                }
+              }
+            : undefined
+        }
+        onMouseLeave={
+          clickable
+            ? (e) => {
+                if (!isFiltered) {
+                  e.currentTarget.style.background = c.bg;
+                }
+              }
+            : undefined
+        }
       >
         {role}
       </span>
@@ -319,6 +411,7 @@ function UserManagementPage({ darkMode, userRole }) {
       </div>
     );
   };
+
   // ===== ACTION MENU =====
   const ActionMenu = ({ user }) => {
     const menuRef = useRef(null);
@@ -333,9 +426,16 @@ function UserManagementPage({ darkMode, userRole }) {
 
     const menuItems = [];
 
+    // Edit option (always available)
+    menuItems.push({
+      label: "Edit User",
+      action: "edit",
+      icon: "✏️",
+    });
+
     if (isPending) {
       menuItems.push({
-        label: "✓ Activate",
+        label: "Activate",
         action: "activate",
         icon: "✓",
       });
@@ -414,6 +514,19 @@ function UserManagementPage({ darkMode, userRole }) {
                       userId: user.id,
                       username: user.username,
                     });
+                  } else if (item.action === "edit") {
+                    setEditModal({
+                      userId: user.id,
+                      username: user.username,
+                      originalUsername: user.username,
+                      originalEmail: user.email,
+                      originalRole: user.role || "User",
+                    });
+                    setEditForm({
+                      username: user.username,
+                      email: user.email,
+                      role: user.role || "User",
+                    });
                   } else {
                     setConfirmModal({
                       userId: user.id,
@@ -459,8 +572,6 @@ function UserManagementPage({ darkMode, userRole }) {
 
   // ===== USER ROW =====
   const UserRow = ({ user, index }) => {
-    <GroupBadges groups={user.groups || []} />;
-
     return (
       <div
         style={{
@@ -535,9 +646,9 @@ function UserManagementPage({ darkMode, userRole }) {
           {user.username}
         </div>
 
-        {/* Role */}
+        {/* Role - Now clickable */}
         <div>
-          <RoleBadge role={user.role || "User"} />
+          <RoleBadge role={user.role || "User"} clickable={true} />
         </div>
 
         {/* Group */}
@@ -557,6 +668,9 @@ function UserManagementPage({ darkMode, userRole }) {
       </div>
     );
   };
+
+  // Get active users count
+  const activeUsersCount = allUsers.filter((u) => u.is_active).length;
 
   // ===== RENDER =====
   return (
@@ -598,6 +712,207 @@ function UserManagementPage({ darkMode, userRole }) {
         >
           <span>{toast.type === "success" ? "✓" : "✕"}</span>
           {toast.message}
+        </div>
+      )}
+
+      {/* EDIT USER MODAL */}
+      {editModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 999,
+            background: colors.modalOverlay,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={() => {
+            setEditModal(null);
+            setEditForm({ username: "", email: "", role: "" });
+          }}
+        >
+          <div
+            style={{
+              background: colors.modalBg,
+              border: `1px solid ${colors.modalBorder}`,
+              borderRadius: "14px",
+              padding: "2rem",
+              width: "480px",
+              maxWidth: "90%",
+              boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: "1.6rem", marginBottom: "0.75rem" }}>
+              ✏️
+            </div>
+            <h3
+              style={{
+                margin: "0 0 0.5rem",
+                color: colors.textPrimary,
+                fontSize: "1.1rem",
+              }}
+            >
+              Edit User
+            </h3>
+            <p
+              style={{
+                margin: "0 0 1.5rem",
+                color: colors.textSecondary,
+                fontSize: "0.88rem",
+                lineHeight: 1.5,
+              }}
+            >
+              Update details for <strong>{editModal.username}</strong>
+            </p>
+
+            {/* Username Input */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.82rem",
+                  fontWeight: "600",
+                  color: colors.textSecondary,
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Username
+              </label>
+              <input
+                type="text"
+                value={editForm.username}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, username: e.target.value })
+                }
+                placeholder="Enter username"
+                style={{
+                  width: "100%",
+                  padding: "0.65rem 0.85rem",
+                  borderRadius: "8px",
+                  border: `1px solid ${colors.inputBorder}`,
+                  background: colors.inputBg,
+                  color: colors.textPrimary,
+                  fontSize: "0.88rem",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            {/* Email Input */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.82rem",
+                  fontWeight: "600",
+                  color: colors.textSecondary,
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Email
+              </label>
+              <input
+                type="email"
+                value={editForm.email}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, email: e.target.value })
+                }
+                placeholder="Enter email"
+                style={{
+                  width: "100%",
+                  padding: "0.65rem 0.85rem",
+                  borderRadius: "8px",
+                  border: `1px solid ${colors.inputBorder}`,
+                  background: colors.inputBg,
+                  color: colors.textPrimary,
+                  fontSize: "0.88rem",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            {/* Role Dropdown */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "0.82rem",
+                  fontWeight: "600",
+                  color: colors.textSecondary,
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Role
+              </label>
+              <select
+                value={editForm.role}
+                onChange={(e) =>
+                  setEditForm({ ...editForm, role: e.target.value })
+                }
+                style={{
+                  width: "100%",
+                  padding: "0.65rem 0.85rem",
+                  borderRadius: "8px",
+                  border: `1px solid ${colors.inputBorder}`,
+                  background: colors.inputBg,
+                  color: colors.textPrimary,
+                  fontSize: "0.88rem",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="User">User</option>
+                <option value="Admin">Admin</option>
+                <option value="SuperAdmin">SuperAdmin</option>
+              </select>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "0.75rem",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setEditModal(null);
+                  setEditForm({ username: "", email: "", role: "" });
+                }}
+                style={{
+                  padding: "0.5rem 1.1rem",
+                  borderRadius: "8px",
+                  border: `1px solid ${colors.modalBorder}`,
+                  background: "transparent",
+                  color: colors.textSecondary,
+                  fontSize: "0.85rem",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditUser}
+                style={{
+                  padding: "0.5rem 1.1rem",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#3b82f6",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -894,7 +1209,7 @@ function UserManagementPage({ darkMode, userRole }) {
           },
           {
             label: "Active",
-            value: allUsers.filter((u) => u.is_active).length,
+            value: activeUsersCount,
             icon: "✓",
             color: "#22c55e",
           },
@@ -978,10 +1293,13 @@ function UserManagementPage({ darkMode, userRole }) {
           }}
         >
           {/* Tabs */}
-          <div style={{ display: "flex", gap: "0.35rem" }}>
+          <div
+            style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}
+          >
             {[
-              { id: "pending", label: "Pending", count: pendingUsers.length },
               { id: "all", label: "All Users", count: allUsers.length },
+              { id: "pending", label: "Pending", count: pendingUsers.length },
+              { id: "active", label: "Active Users", count: activeUsersCount },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1036,6 +1354,26 @@ function UserManagementPage({ darkMode, userRole }) {
                 </span>
               </button>
             ))}
+
+            {/* Role Filter Indicator */}
+            {roleFilter && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  marginLeft: "0.5rem",
+                  padding: "0.4rem 0.8rem",
+                  background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                  borderRadius: "8px",
+                  fontSize: "0.78rem",
+                  color: colors.textSecondary,
+                }}
+              >
+                <span>Filtered by:</span>
+                <RoleBadge role={roleFilter} clickable={true} />
+              </div>
+            )}
           </div>
 
           {/* Search */}
@@ -1068,10 +1406,11 @@ function UserManagementPage({ darkMode, userRole }) {
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
         >
+          {/* OPTION 1: Use index as key (Simple fix) */}
           {["", "Name / Email", "Username", "Role", "Group", "Status", ""].map(
-            (h) => (
+            (h, index) => (
               <div
-                key={h}
+                key={`header-${index}`} // ← Use index to make unique keys
                 style={{
                   fontSize: "0.7rem",
                   fontWeight: "700",
@@ -1102,12 +1441,14 @@ function UserManagementPage({ darkMode, userRole }) {
         ) : filteredUsers.length === 0 ? (
           <div style={{ padding: "3rem", textAlign: "center" }}>
             <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
-              {activeTab === "pending" ? "🎉" : "🔍"}
+              {roleFilter ? "🔍" : activeTab === "pending" ? "🎉" : "🔍"}
             </div>
             <div style={{ color: colors.textSecondary, fontSize: "0.9rem" }}>
-              {activeTab === "pending" && !search
-                ? "No pending users — all caught up!"
-                : "No users match your search."}
+              {roleFilter
+                ? `No ${roleFilter} users found.`
+                : activeTab === "pending" && !search
+                  ? "No pending users — all caught up!"
+                  : "No users match your search."}
             </div>
           </div>
         ) : (

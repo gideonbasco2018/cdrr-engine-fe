@@ -446,3 +446,17 @@ export const removeUserFromGroup = async (groupId, userId) => {
     throw err;
   }
 };
+
+/**
+ * Update user details (Admin only)
+ * @param {number} userId - ID of user to update
+ * @param {Object} updates - Fields to update (username, email, role)
+ * @returns {Promise} Updated user data
+ */
+export const updateUser = async (userId, updates) => {
+  const response = await api.patch(`/auth/admin/users/${userId}`, updates);
+  return response.data;
+};
+
+
+

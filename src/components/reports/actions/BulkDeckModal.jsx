@@ -64,7 +64,7 @@ function BulkDeckModal({ records, onClose, onSubmit, colors }) {
 
     if (!formData.decker || !formData.evaluator || !formData.deckerDecision) {
       alert(
-        "⚠️ Please fill in required fields:\n- Evaluator\n- Decker Decision"
+        "⚠️ Please fill in required fields:\n- Evaluator\n- Decker Decision",
       );
       return;
     }
@@ -74,7 +74,7 @@ function BulkDeckModal({ records, onClose, onSubmit, colors }) {
       // Pass array of record IDs instead of single ID
       await onSubmit(
         records.map((r) => r.id),
-        formData
+        formData,
       );
       onClose();
     } catch (error) {
@@ -325,12 +325,7 @@ function BulkDeckModal({ records, onClose, onSubmit, colors }) {
                   e.target.style.borderColor = colors.inputBorder;
                 }}
               >
-                <option value="">Select decision</option>
-                <option value="Approved">Approved</option>
                 <option value="For Evaluation">For Evaluation</option>
-                <option value="For Compliance">For Compliance</option>
-                <option value="Rejected">Rejected</option>
-                <option value="On Hold">On Hold</option>
               </select>
             </div>
 

@@ -595,7 +595,7 @@ function ViewDetailsModal({ record, onClose, colors }) {
               (field) =>
                 record[field.key] &&
                 record[field.key] !== "" &&
-                record[field.key] !== "N/A"
+                record[field.key] !== "N/A",
             );
 
             if (!hasValues) return null;
@@ -694,32 +694,6 @@ function ViewDetailsModal({ record, onClose, colors }) {
             bottom: 0,
           }}
         >
-          <button
-            onClick={() => {
-              alert("Edit functionality");
-            }}
-            style={{
-              flex: 1,
-              padding: "0.75rem 1.5rem",
-              background: "#4CAF50",
-              border: "none",
-              borderRadius: "8px",
-              color: "#fff",
-              fontSize: "0.95rem",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "all 0.2s",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "0.5rem",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#45a049")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "#4CAF50")}
-          >
-            <span>✏️</span>
-            Edit Record
-          </button>
           <button
             onClick={onClose}
             style={{
