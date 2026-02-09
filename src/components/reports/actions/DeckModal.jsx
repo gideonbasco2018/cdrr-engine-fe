@@ -23,7 +23,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
   useEffect(() => {
     const user = getUser();
     if (user) {
-      const deckerName = `${user.first_name} ${user.surname}`;
+      const deckerName = `${user.username}`;
       setCurrentUser(user);
       setFormData((prev) => ({
         ...prev,
@@ -71,27 +71,10 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
 
     setLoading(true);
     try {
-      // ✅ Get current time in Philippine Time (UTC+8)
-      const now = new Date();
-
-      // Convert to Philippine Time
-      const phTime = new Date(
-        now.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
-      );
-
-      // Format as YYYY-MM-DD HH:MM:SS
-      const year = phTime.getFullYear();
-      const month = String(phTime.getMonth() + 1).padStart(2, "0");
-      const day = String(phTime.getDate()).padStart(2, "0");
-      const hours = String(phTime.getHours()).padStart(2, "0");
-      const minutes = String(phTime.getMinutes()).padStart(2, "0");
-      const seconds = String(phTime.getSeconds()).padStart(2, "0");
-
-      const formattedDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+      const formattedDateTime = new Date().toISOString();
 
       const dataToSubmit = {
         ...formData,
-        dateDeckedEnd: formattedDateTime,
       };
 
       console.log("📤 Submitting deck data:", dataToSubmit);
