@@ -283,3 +283,16 @@ export const exportFilteredRecords = async ({
   
   console.log('✅ Export complete:', filename);
 };
+
+export const updateUploadReport = async (id, data) => {
+  try {
+    console.log(`📝 Updating record ${id} with data:`, data);
+    const response = await API.put(`/main-db/${id}`, data);
+    console.log(`✅ Successfully updated record ${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(`❌ Error updating record ${id}:`, error);
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to update record";
+    throw new Error(errorMessage);
+  }
+};

@@ -1,5 +1,5 @@
 // src/components/UploadReports/DataTable.jsx
-// ✅ UPDATED: Enhanced APP STATUS badges with all status types
+// ✅ UPDATED: Added Edit functionality to Actions menu
 
 import { useState } from "react";
 import { tableColumns } from "./tableColumns";
@@ -28,6 +28,7 @@ function DataTable({
   onClearSelections,
   indexOfFirstRow,
   indexOfLastRow,
+  onEdit, // ✅ NEW - Edit handler prop
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
@@ -157,6 +158,14 @@ function DataTable({
     setDoctrackModalRecord(row);
   };
 
+  // ✅ NEW - Handle edit action
+  const handleEditClick = (row) => {
+    setOpenMenuId(null);
+    if (onEdit) {
+      onEdit(row);
+    }
+  };
+
   // Modal close handlers
   const handleCloseDetailsModal = () => {
     setSelectedRowDetails(null);
@@ -202,7 +211,7 @@ function DataTable({
     );
   };
 
-  // ✅ NEW: Render DTN with highlight
+  // ✅ Render DTN with highlight
   const renderDTN = (dtn) => {
     return (
       <span
@@ -226,7 +235,7 @@ function DataTable({
     );
   };
 
-  // ✅ NEW: Render Generic Name with highlight
+  // ✅ Render Generic Name with highlight
   const renderGenericName = (genName) => {
     return (
       <span
@@ -250,7 +259,7 @@ function DataTable({
     );
   };
 
-  // ✅ NEW: Render Brand Name with highlight
+  // ✅ Render Brand Name with highlight
   const renderBrandName = (brandName) => {
     return (
       <span
@@ -274,7 +283,7 @@ function DataTable({
     );
   };
 
-  // ✅ NEW: Render Type Doc Released with icons
+  // ✅ Render Type Doc Released with icons
   const renderTypeDocReleased = (typeDoc) => {
     const typeUpper = typeDoc?.toUpperCase();
 
@@ -359,7 +368,7 @@ function DataTable({
     );
   };
 
-  // ✅ ENHANCED: Render APP STATUS badges with all status types
+  // ✅ Render APP STATUS badges with all status types
   const renderAppStatusBadge = (status) => {
     const statusUpper = status?.toUpperCase();
 
@@ -1091,20 +1100,16 @@ function DataTable({
                                 <span>View Details</span>
                               </button>
 
+                              {/* ✅ NEW - Edit Button */}
                               <button
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  alert(
-                                    `Edit functionality for DTN: ${row.dtn}`,
-                                  );
-                                }}
+                                onClick={() => handleEditClick(row)}
                                 style={{
                                   width: "100%",
                                   padding: "0.75rem 1rem",
                                   background: "transparent",
                                   border: "none",
                                   borderTop: `1px solid ${colors.tableBorder}`,
-                                  color: colors.textPrimary,
+                                  color: "#2196F3",
                                   fontSize: "0.85rem",
                                   textAlign: "left",
                                   cursor: "pointer",
@@ -1115,7 +1120,7 @@ function DataTable({
                                 }}
                                 onMouseEnter={(e) =>
                                   (e.currentTarget.style.background =
-                                    colors.tableRowHover)
+                                    "rgba(33, 150, 243, 0.1)")
                                 }
                                 onMouseLeave={(e) =>
                                   (e.currentTarget.style.background =

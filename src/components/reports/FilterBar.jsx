@@ -113,7 +113,7 @@ function FilterBar({
           <div style={{ position: "relative" }}>
             <input
               type="text"
-              placeholder="🔍 Search by DTN, Company, Brand Name, Generic Name, Manufacturer..."
+              placeholder="Search by DTN, Company, Brand Name, Generic Name, Manufacturer..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
               style={{

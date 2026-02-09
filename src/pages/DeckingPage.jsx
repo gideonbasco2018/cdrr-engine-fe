@@ -1,4 +1,7 @@
 // FILE: src/pages/DeckingPage.jsx
+// ✅ LAYOUT: Level 1 (All/Not Decked/Decked) = TABS | Levels 2-4 (App Type/Prescriptions/Status) = SIDEBAR
+// ✅ UPDATED: Added Edit functionality
+
 import { useState, useEffect } from "react";
 import {
   getUploadReports,
@@ -8,6 +11,7 @@ import {
   getPrescriptionTypes,
   getAppStatusTypes,
   exportFilteredRecords,
+  updateUploadReport, // ✅ NEW - Import update function
 } from "../api/reports";
 
 import StatsCard from "../components/reports/StatsCard";
@@ -15,7 +19,38 @@ import FilterBar from "../components/reports/FilterBar";
 import UploadButton from "../components/reports/UploadButton";
 import UploadProgress from "../components/reports/UploadProgress";
 import DataTable from "../components/reports/DataTable";
+import EditRecordModal from "../components/reports/actions/EditRecordModal"; // ✅ NEW - Import edit modal
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
+
+// ✅ Modern scrollbar styles
+const scrollbarStyles = (darkMode) => `
+  /* Webkit browsers (Chrome, Safari, Edge) */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: ${darkMode ? "#0a0a0a" : "#f1f1f1"};
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: ${darkMode ? "#404040" : "#c1c1c1"};
+    border-radius: 10px;
+    transition: background 0.2s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: ${darkMode ? "#606060" : "#a0a0a0"};
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: ${darkMode ? "#404040 #0a0a0a" : "#c1c1c1 #f1f1f1"};
+  }
+`;
 
 function DeckingPage({ darkMode }) {
   const [filteredData, setFilteredData] = useState([]);
@@ -36,11 +71,11 @@ function DeckingPage({ darkMode }) {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
 
-  // ✅ Four levels of tabs
-  const [activeTab, setActiveTab] = useState("all"); // Level 1: all / not-decked / decked
-  const [subTab, setSubTab] = useState(null); // Level 2: app_type (Initial, Renewal, etc.)
-  const [prescriptionTab, setPrescriptionTab] = useState(null); // Level 3: prescription type
-  const [appStatusTab, setAppStatusTab] = useState(null); // Level 4: application status
+  // ✅ Four levels of filtering
+  const [activeTab, setActiveTab] = useState("all"); // Level 1: TABS
+  const [subTab, setSubTab] = useState(null); // Level 2: SIDEBAR
+  const [prescriptionTab, setPrescriptionTab] = useState(null); // Level 3: SIDEBAR
+  const [appStatusTab, setAppStatusTab] = useState(null); // Level 4: SIDEBAR
 
   const [availableAppTypes, setAvailableAppTypes] = useState([]);
   const [availablePrescriptionTypes, setAvailablePrescriptionTypes] = useState(
@@ -50,7 +85,32 @@ function DeckingPage({ darkMode }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [exporting, setExporting] = useState(false);
 
+  // ✅ NEW - Edit state
+  const [editingRecord, setEditingRecord] = useState(null);
+
   const colors = getColorScheme(darkMode);
+
+  // Inject scrollbar styles
+  useEffect(() => {
+    const styleId = "custom-scrollbar-styles";
+    let styleElement = document.getElementById(styleId);
+
+    if (!styleElement) {
+      styleElement = document.createElement("style");
+      styleElement.id = styleId;
+      document.head.appendChild(styleElement);
+    }
+
+    styleElement.textContent = scrollbarStyles(darkMode);
+
+    return () => {
+      // Cleanup on unmount
+      const element = document.getElementById(styleId);
+      if (element) {
+        element.remove();
+      }
+    };
+  }, [darkMode]);
 
   // Get current logged-in user
   useEffect(() => {
@@ -115,7 +175,7 @@ function DeckingPage({ darkMode }) {
     fetchStats();
   }, []);
 
-  // ✅ LEVEL 1 → LEVEL 2: Fetch app types when main tab changes
+  // ✅ LEVEL 1 → LEVEL 2: Fetch app types
   useEffect(() => {
     const fetchAppTypes = async () => {
       try {
@@ -134,7 +194,7 @@ function DeckingPage({ darkMode }) {
     fetchAppTypes();
   }, [activeTab]);
 
-  // ✅ LEVEL 2 → LEVEL 3: Fetch prescription types (works even when subTab is null)
+  // ✅ LEVEL 2 → LEVEL 3: Fetch prescription types
   useEffect(() => {
     const fetchPrescriptionTypes = async () => {
       try {
@@ -142,7 +202,6 @@ function DeckingPage({ darkMode }) {
         if (activeTab === "not-decked") status = "not_decked";
         else if (activeTab === "decked") status = "decked";
 
-        // Fetch prescription types (subTab can be null for "All Application Type")
         const prescriptionTypes = await getPrescriptionTypes(status, subTab);
         setAvailablePrescriptionTypes(prescriptionTypes);
       } catch (err) {
@@ -154,7 +213,7 @@ function DeckingPage({ darkMode }) {
     fetchPrescriptionTypes();
   }, [activeTab, subTab]);
 
-  // ✅ LEVEL 3 → LEVEL 4: Fetch app status types (works when subTab and prescriptionTab are null)
+  // ✅ LEVEL 3 → LEVEL 4: Fetch app status types
   useEffect(() => {
     const fetchAppStatusTypes = async () => {
       try {
@@ -164,8 +223,8 @@ function DeckingPage({ darkMode }) {
 
         const appStatusTypes = await getAppStatusTypes(
           status,
-          subTab, // Can be null for "All Application Type"
-          prescriptionTab, // Can be null for "All Prescriptions"
+          subTab,
+          prescriptionTab,
         );
         setAvailableAppStatusTypes(appStatusTypes);
       } catch (err) {
@@ -191,33 +250,22 @@ function DeckingPage({ darkMode }) {
     };
 
     const statusFilter = getStatusFilter();
-    if (statusFilter) {
-      params.status = statusFilter;
-    }
+    if (statusFilter) params.status = statusFilter;
 
-    // ✅ Advanced Filters from FilterBar
     if (filters.category) params.category = filters.category;
     if (filters.manufacturer) params.manufacturer = filters.manufacturer;
     if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
     if (filters.brandName) params.brand_name = filters.brandName;
     if (filters.genericName) params.generic_name = filters.genericName;
     if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
+    if (filters.dosageForm) params.dosage_form = filters.dosageForm;
 
-    // Level 2: App Type
-    if (subTab !== null) {
-      params.app_type = subTab === "" ? "__EMPTY__" : subTab;
-    }
-
-    // Level 3: Prescription
-    if (prescriptionTab !== null) {
+    if (subTab !== null) params.app_type = subTab === "" ? "__EMPTY__" : subTab;
+    if (prescriptionTab !== null)
       params.prescription =
         prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
-    }
-
-    // Level 4: App Status
-    if (appStatusTab !== null) {
+    if (appStatusTab !== null)
       params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
-    }
 
     return params;
   };
@@ -236,29 +284,21 @@ function DeckingPage({ darkMode }) {
           sortOrder: "desc",
         };
 
-        // ✅ Advanced Filters from FilterBar
         if (filters.category) params.category = filters.category;
         if (filters.manufacturer) params.manufacturer = filters.manufacturer;
         if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
         if (filters.brandName) params.brand_name = filters.brandName;
         if (filters.genericName) params.generic_name = filters.genericName;
         if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
+        if (filters.dosageForm) params.dosage_form = filters.dosageForm;
 
-        // Level 2: App Type
-        if (subTab !== null) {
+        if (subTab !== null)
           params.app_type = subTab === "" ? "__EMPTY__" : subTab;
-        }
-
-        // Level 3: Prescription
-        if (prescriptionTab !== null) {
+        if (prescriptionTab !== null)
           params.prescription =
             prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
-        }
-
-        // Level 4: App Status
-        if (appStatusTab !== null) {
+        if (appStatusTab !== null)
           params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
-        }
 
         const json = await getUploadReports(params);
         if (!json || !json.data || !Array.isArray(json.data)) {
@@ -299,7 +339,6 @@ function DeckingPage({ darkMode }) {
     try {
       setLoading(true);
 
-      // Refresh all stats
       const allData = await getUploadReports({
         page: 1,
         pageSize: 1,
@@ -331,7 +370,6 @@ function DeckingPage({ darkMode }) {
         decked: deckedData.total || 0,
       });
 
-      // Refresh available tabs for current levels
       let status = null;
       if (activeTab === "not-decked") status = "not_decked";
       else if (activeTab === "decked") status = "decked";
@@ -349,7 +387,6 @@ function DeckingPage({ darkMode }) {
       );
       setAvailableAppStatusTypes(appStatusTypes);
 
-      // Refresh current view data
       const params = {
         page: currentPage,
         pageSize: rowsPerPage,
@@ -360,18 +397,13 @@ function DeckingPage({ darkMode }) {
         sortOrder: "desc",
       };
 
-      if (subTab !== null) {
+      if (subTab !== null)
         params.app_type = subTab === "" ? "__EMPTY__" : subTab;
-      }
-
-      if (prescriptionTab !== null) {
+      if (prescriptionTab !== null)
         params.prescription =
           prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
-      }
-
-      if (appStatusTab !== null) {
+      if (appStatusTab !== null)
         params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
-      }
 
       const json = await getUploadReports(params);
       if (json && json.data) {
@@ -465,13 +497,15 @@ function DeckingPage({ darkMode }) {
     setActiveTab(tab);
     setCurrentPage(1);
     setSelectedRows([]);
+    setSubTab(null);
+    setPrescriptionTab(null);
+    setAppStatusTab(null);
   };
 
   const handleSubTabChange = (subTabValue) => {
     setSubTab(subTabValue);
     setCurrentPage(1);
     setSelectedRows([]);
-    // Reset lower level tabs when changing app type
     setPrescriptionTab(null);
     setAppStatusTab(null);
   };
@@ -480,7 +514,6 @@ function DeckingPage({ darkMode }) {
     setPrescriptionTab(prescriptionValue);
     setCurrentPage(1);
     setSelectedRows([]);
-    // Reset app status tab when changing prescription
     setAppStatusTab(null);
   };
 
@@ -535,634 +568,584 @@ function DeckingPage({ darkMode }) {
     }
   };
 
+  // ✅ NEW - Handle edit action
+  const handleEdit = (record) => {
+    console.log("✏️ Editing record:", record);
+    setEditingRecord(record);
+  };
+
+  // ✅ NEW - Handle edit success
+  const handleEditSuccess = async () => {
+    console.log("✅ Edit successful, refreshing data...");
+    await refreshData();
+    alert("✅ Record updated successfully!");
+  };
+
   return (
-    <div
-      style={{
-        flex: 1,
-        padding: "2rem",
-        overflowY: "auto",
-        background: colors.pageBg,
-        transition: "all 0.3s ease",
-      }}
-    >
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {/* ========== SIDEBAR (LEVELS 2, 3, 4) ========== */}
       <div
         style={{
+          width: "320px",
+          background: darkMode ? "#0a0a0a" : "#f8f9fa",
+          borderRight: `1px solid ${colors.cardBorder}`,
+          padding: "1.5rem",
+          overflowY: "auto",
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          marginBottom: "2rem",
+          flexDirection: "column",
+          gap: "1.5rem",
         }}
       >
-        <div>
-          <h1
+        {/* ✅ Quick Filters Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            paddingBottom: "1rem",
+            borderBottom: `2px solid ${colors.cardBorder}`,
+          }}
+        >
+          <span style={{ fontSize: "1.25rem" }}>⚡</span>
+          <h2
             style={{
-              fontSize: "1.75rem",
-              fontWeight: "600",
-              marginBottom: "0.5rem",
+              fontSize: "1.1rem",
+              fontWeight: "700",
               color: colors.textPrimary,
-              transition: "color 0.3s ease",
+              margin: 0,
+              letterSpacing: "0.5px",
             }}
           >
-            For Decking
-          </h1>
-          <p
-            style={{
-              color: colors.textTertiary,
-              fontSize: "0.9rem",
-              transition: "color 0.3s ease",
-            }}
-          >
-            Upload reports and assign evaluators for decking
-          </p>
+            Quick Filters
+          </h2>
         </div>
-        <div style={{ display: "flex", gap: "0.75rem" }}>
-          <button
-            onClick={handleExport}
-            disabled={exporting || totalRecords === 0}
+
+        {/* LEVEL 2: Application Type */}
+        {availableAppTypes.length > 0 && (
+          <SidebarSection
+            title="Application Type"
+            icon="📦"
+            items={availableAppTypes}
+            activeItem={subTab}
+            onItemClick={handleSubTabChange}
+            colors={colors}
+            darkMode={darkMode}
+            totalCount={availableAppTypes.reduce((sum, a) => sum + a.count, 0)}
+          />
+        )}
+
+        {/* LEVEL 3: Prescriptions */}
+        {availablePrescriptionTypes.length > 0 && (
+          <SidebarSection
+            title="Prescriptions"
+            icon="💊"
+            items={availablePrescriptionTypes}
+            activeItem={prescriptionTab}
+            onItemClick={handlePrescriptionTabChange}
+            colors={colors}
+            darkMode={darkMode}
+            totalCount={availablePrescriptionTypes.reduce(
+              (sum, p) => sum + p.count,
+              0,
+            )}
+          />
+        )}
+
+        {/* LEVEL 4: Status */}
+        {availableAppStatusTypes.length > 0 && (
+          <SidebarSection
+            title="All Status"
+            icon="📈"
+            items={availableAppStatusTypes}
+            activeItem={appStatusTab}
+            onItemClick={handleAppStatusTabChange}
+            colors={colors}
+            darkMode={darkMode}
+            totalCount={availableAppStatusTypes.reduce(
+              (sum, s) => sum + s.count,
+              0,
+            )}
+          />
+        )}
+      </div>
+
+      {/* ========== MAIN CONTENT ========== */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          height: "100vh",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "2rem 2rem 0",
+            background: colors.pageBg,
+            borderBottom: `1px solid ${colors.cardBorder}`,
+          }}
+        >
+          <div
             style={{
-              padding: "0.625rem 1.25rem",
-              background: exporting ? colors.cardBorder : "#10B981",
-              color: "#fff",
-              border: "none",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <div>
+              <h1
+                style={{
+                  fontSize: "1.75rem",
+                  fontWeight: "600",
+                  marginBottom: "0.5rem",
+                  color: colors.textPrimary,
+                }}
+              >
+                For Decking
+              </h1>
+              <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
+                Upload reports and assign evaluators for decking
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <button
+                onClick={handleExport}
+                disabled={exporting || totalRecords === 0}
+                style={{
+                  padding: "0.625rem 1.25rem",
+                  background: exporting ? colors.cardBorder : "#10B981",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                  cursor:
+                    exporting || totalRecords === 0 ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  transition: "all 0.2s ease",
+                  opacity: totalRecords === 0 ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!exporting && totalRecords > 0) {
+                    e.currentTarget.style.background = "#059669";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!exporting && totalRecords > 0) {
+                    e.currentTarget.style.background = "#10B981";
+                  }
+                }}
+              >
+                <span>{exporting ? "⏳" : "📥"}</span>
+                <span>
+                  {exporting ? "Exporting..." : `Export (${totalRecords})`}
+                </span>
+              </button>
+              <UploadButton
+                onFileSelect={handleFileSelect}
+                onDownloadTemplate={handleDownloadTemplate}
+                uploading={uploading}
+                colors={colors}
+              />
+            </div>
+          </div>
+
+          <StatsCard stats={statsData} colors={colors} />
+
+          {/* ========== LEVEL 1: Main Tabs ========== */}
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              marginTop: "1.5rem",
+              borderBottom: `2px solid ${colors.cardBorder}`,
+              paddingBottom: "0",
+            }}
+          >
+            {[
+              {
+                id: "all",
+                label: "All Reports",
+                icon: "📋",
+                count: statsData.total,
+              },
+              {
+                id: "not-decked",
+                label: "Not Yet Decked",
+                icon: "⏳",
+                count: statsData.notDecked,
+              },
+              {
+                id: "decked",
+                label: "Decked",
+                icon: "✅",
+                count: statsData.decked,
+              },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
+                style={{
+                  padding: "0.5rem 1rem",
+                  fontSize: "0.85rem",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom:
+                    activeTab === tab.id
+                      ? `3px solid #4CAF50`
+                      : "3px solid transparent",
+                  color:
+                    activeTab === tab.id
+                      ? colors.textPrimary
+                      : colors.textSecondary,
+                  fontWeight: activeTab === tab.id ? "600" : "500",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  position: "relative",
+                  top: "2px",
+                }}
+              >
+                <span style={{ fontSize: "1.1rem" }}>{tab.icon}</span>
+                <span>{tab.label}</span>
+                <span
+                  style={{
+                    padding: "0.2rem 0.6rem",
+                    background:
+                      activeTab === tab.id ? "#4CAF50" : colors.badgeBg,
+                    color: activeTab === tab.id ? "#fff" : colors.textTertiary,
+                    borderRadius: "12px",
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                    minWidth: "32px",
+                    textAlign: "center",
+                  }}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Content Area */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "2rem",
+            background: colors.pageBg,
+          }}
+        >
+          <FilterBar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            filters={filters}
+            onFilterChange={setFilters}
+            colors={colors}
+            activeTab={activeTab}
+            subTab={subTab}
+            prescriptionTab={prescriptionTab}
+            appStatusTab={appStatusTab}
+          />
+
+          <UploadProgress message={uploadProgress} colors={colors} />
+
+          {loading && (
+            <div
+              style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "12px",
+                padding: "3rem",
+                textAlign: "center",
+                color: colors.textSecondary,
+              }}
+            >
+              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⏳</div>
+              <div
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: "600",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Loading reports...
+              </div>
+              <div style={{ fontSize: "0.9rem" }}>
+                Page {currentPage} of {totalPages}
+              </div>
+            </div>
+          )}
+
+          {!loading && filteredData.length === 0 && (
+            <div
+              style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "12px",
+                padding: "3rem",
+                textAlign: "center",
+                color: colors.textSecondary,
+              }}
+            >
+              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📭</div>
+              <div
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: "600",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                No reports found
+              </div>
+              <div style={{ fontSize: "0.9rem" }}>
+                No records found for the selected criteria
+              </div>
+            </div>
+          )}
+
+          {!loading && filteredData.length > 0 && (
+            <DataTable
+              data={filteredData}
+              selectedRows={selectedRows}
+              onSelectRow={handleSelectRow}
+              onSelectAll={handleSelectAll}
+              onClearSelections={clearSelections}
+              currentPage={currentPage}
+              rowsPerPage={rowsPerPage}
+              totalRecords={totalRecords}
+              totalPages={totalPages}
+              indexOfFirstRow={(currentPage - 1) * rowsPerPage + 1}
+              indexOfLastRow={Math.min(currentPage * rowsPerPage, totalRecords)}
+              onPageChange={handlePageChange}
+              onRowsPerPageChange={handleRowsPerPageChange}
+              colors={colors}
+              activeTab={activeTab}
+              onRefresh={refreshData}
+              onEdit={handleEdit} // ✅ NEW - Pass edit handler
+            />
+          )}
+        </div>
+      </div>
+
+      {/* ✅ NEW - Edit Modal */}
+      {editingRecord && (
+        <EditRecordModal
+          record={editingRecord}
+          onClose={() => setEditingRecord(null)}
+          onSuccess={handleEditSuccess}
+          colors={colors}
+          darkMode={darkMode}
+          updateUploadReport={updateUploadReport}
+        />
+      )}
+    </div>
+  );
+}
+
+// ✅ Sidebar Section Component
+function SidebarSection({
+  title,
+  icon,
+  items,
+  activeItem,
+  onItemClick,
+  colors,
+  darkMode,
+  totalCount,
+}) {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <div>
+      <div
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 16px",
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "10px",
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          marginBottom: "12px",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#f0f0f0";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = colors.cardBg;
+        }}
+      >
+        <div
+          style={{
+            fontSize: "14px",
+            fontWeight: "600",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            color: colors.textPrimary,
+          }}
+        >
+          <span>{icon}</span>
+          <span>{title}</span>
+          <span
+            style={{
+              background: darkMode ? "#1f1f1f" : "#e5e5e5",
+              padding: "4px 10px",
+              borderRadius: "6px",
+              fontSize: "12px",
+              fontWeight: "600",
+              fontFamily: "monospace",
+              color: colors.textTertiary,
+            }}
+          >
+            {totalCount}
+          </span>
+        </div>
+        <span
+          style={{
+            color: colors.textTertiary,
+            transition: "transform 0.2s",
+            transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
+          }}
+        >
+          ▼
+        </span>
+      </div>
+
+      {isOpen && (
+        <div
+          style={{
+            paddingLeft: "12px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "6px",
+          }}
+        >
+          {/* "All" Option */}
+          <div
+            onClick={() => onItemClick(null)}
+            style={{
+              padding: "10px 16px",
+              background:
+                activeItem === null ? "rgba(33, 150, 243, 0.1)" : "transparent",
+              border: `1px solid ${activeItem === null ? "#2196F3" : "transparent"}`,
               borderRadius: "8px",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              cursor:
-                exporting || totalRecords === 0 ? "not-allowed" : "pointer",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
               display: "flex",
               alignItems: "center",
-              gap: "0.5rem",
-              transition: "all 0.2s ease",
-              opacity: totalRecords === 0 ? 0.5 : 1,
+              justifyContent: "space-between",
+              fontSize: "13px",
             }}
             onMouseEnter={(e) => {
-              if (!exporting && totalRecords > 0) {
-                e.currentTarget.style.background = "#059669";
-                e.currentTarget.style.transform = "translateY(-1px)";
+              if (activeItem !== null) {
+                e.currentTarget.style.background = colors.cardBg;
+                e.currentTarget.style.borderColor = colors.cardBorder;
               }
             }}
             onMouseLeave={(e) => {
-              if (!exporting && totalRecords > 0) {
-                e.currentTarget.style.background = "#10B981";
-                e.currentTarget.style.transform = "translateY(0)";
+              if (activeItem !== null) {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.borderColor = "transparent";
               }
             }}
           >
-            <span style={{ fontSize: "1.1rem" }}>
-              {exporting ? "⏳" : "📥"}
-            </span>
-            <span>
-              {exporting ? "Exporting..." : `Export (${totalRecords})`}
-            </span>
-          </button>
-          <UploadButton
-            onFileSelect={handleFileSelect}
-            onDownloadTemplate={handleDownloadTemplate}
-            uploading={uploading}
-            colors={colors}
-          />
-        </div>
-      </div>
-
-      <StatsCard stats={statsData} colors={colors} />
-
-      {/* ========== LEVEL 1: Main Tabs ========== */}
-      <div
-        style={{
-          display: "flex",
-          gap: "0.5rem",
-          marginBottom: availableAppTypes.length > 0 ? "1rem" : "1.5rem",
-          borderBottom: `2px solid ${colors.cardBorder}`,
-          paddingBottom: "0",
-          transition: "border-color 0.3s ease",
-        }}
-      >
-        {[
-          {
-            id: "all",
-            label: "All Reports",
-            icon: "📋",
-            count: statsData.total,
-          },
-          {
-            id: "not-decked",
-            label: "Not Yet Decked",
-            icon: "⏳",
-            count: statsData.notDecked,
-          },
-          {
-            id: "decked",
-            label: "Decked",
-            icon: "✅",
-            count: statsData.decked,
-          },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => handleTabChange(tab.id)}
-            style={{
-              padding: "0.5rem 1rem",
-              fontSize: "0.85rem",
-              background: "transparent",
-              border: "none",
-              borderBottom:
-                activeTab === tab.id
-                  ? `3px solid #4CAF50`
-                  : "3px solid transparent",
-              color:
-                activeTab === tab.id
-                  ? colors.textPrimary
-                  : colors.textSecondary,
-              fontWeight: activeTab === tab.id ? "600" : "500",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              position: "relative",
-              top: "2px",
-            }}
-          >
-            <span style={{ fontSize: "1.1rem" }}>{tab.icon}</span>
-            <span>{tab.label}</span>
+            <span style={{ color: colors.textPrimary }}>All {title}</span>
             <span
               style={{
-                padding: "0.2rem 0.6rem",
-                background: activeTab === tab.id ? "#4CAF50" : colors.badgeBg,
-                color: activeTab === tab.id ? "#fff" : colors.textTertiary,
-                borderRadius: "12px",
-                fontSize: "0.75rem",
-                fontWeight: "600",
-                minWidth: "32px",
-                textAlign: "center",
-                transition: "all 0.2s ease",
-              }}
-            >
-              {tab.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* ========== LEVEL 2: Application Type Tabs ========== */}
-      {availableAppTypes.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            marginBottom:
-              availablePrescriptionTypes.length > 0 ? "1rem" : "1.5rem",
-            paddingLeft: "1rem",
-            borderBottom: `1px solid ${colors.cardBorder}`,
-            paddingBottom: "0",
-            flexWrap: "wrap",
-          }}
-        >
-          {/* ✅ "All Application Type" Tab */}
-          <button
-            onClick={() => handleSubTabChange(null)}
-            style={{
-              padding: "0.4rem 0.8rem",
-              fontSize: "0.8rem",
-              background: "transparent",
-              border: "none",
-              borderBottom:
-                subTab === null ? `2px solid #2196F3` : "2px solid transparent",
-              color:
-                subTab === null ? colors.textPrimary : colors.textSecondary,
-              fontWeight: subTab === null ? "600" : "500",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              position: "relative",
-              top: "1px",
-            }}
-          >
-            <span style={{ fontSize: "1rem" }}>📑</span>
-            <span>All Application Type</span>
-            <span
-              style={{
-                padding: "0.15rem 0.5rem",
-                background: subTab === null ? "#2196F3" : colors.badgeBg,
-                color: subTab === null ? "#fff" : colors.textTertiary,
-                borderRadius: "10px",
-                fontSize: "0.7rem",
-                fontWeight: "600",
-                minWidth: "28px",
-                textAlign: "center",
-                transition: "all 0.2s ease",
-              }}
-            >
-              {availableAppTypes.reduce((sum, a) => sum + a.count, 0)}
-            </span>
-          </button>
-
-          {/* ✅ Individual App Type Tabs */}
-          {availableAppTypes.map((appType) => {
-            const displayValue = appType.value || "No Application Type";
-            const filterValue = appType.value === null ? "" : appType.value;
-
-            return (
-              <button
-                key={filterValue || "no-app-type"}
-                onClick={() => handleSubTabChange(filterValue)}
-                style={{
-                  padding: "0.4rem 0.8rem",
-                  fontSize: "0.8rem",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom:
-                    subTab === filterValue
-                      ? `2px solid #2196F3`
-                      : "2px solid transparent",
-                  color:
-                    subTab === filterValue
-                      ? colors.textPrimary
-                      : colors.textSecondary,
-                  fontWeight: subTab === filterValue ? "600" : "500",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  position: "relative",
-                  top: "1px",
-                }}
-              >
-                {!appType.value && <span style={{ fontSize: "1rem" }}>❓</span>}
-                <span>{displayValue}</span>
-                <span
-                  style={{
-                    padding: "0.15rem 0.5rem",
-                    background:
-                      subTab === filterValue ? "#2196F3" : colors.badgeBg,
-                    color:
-                      subTab === filterValue ? "#fff" : colors.textTertiary,
-                    borderRadius: "10px",
-                    fontSize: "0.7rem",
-                    fontWeight: "600",
-                    minWidth: "28px",
-                    textAlign: "center",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {appType.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* ========== LEVEL 3: Prescription Type Tabs ========== */}
-      {/* ✅ FIXED: Show when prescription types are available (regardless of subTab) */}
-      {availablePrescriptionTypes.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            marginBottom:
-              availableAppStatusTypes.length > 0 ? "1rem" : "1.5rem",
-            paddingLeft: "2rem",
-            borderBottom: `1px solid ${colors.cardBorder}`,
-            paddingBottom: "0",
-            flexWrap: "wrap",
-          }}
-        >
-          <button
-            onClick={() => handlePrescriptionTabChange(null)}
-            style={{
-              padding: "0.35rem 0.7rem",
-              fontSize: "0.75rem",
-              background: "transparent",
-              border: "none",
-              borderBottom:
-                prescriptionTab === null
-                  ? `2px solid #9C27B0`
-                  : "2px solid transparent",
-              color:
-                prescriptionTab === null
-                  ? colors.textPrimary
-                  : colors.textSecondary,
-              fontWeight: prescriptionTab === null ? "600" : "500",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              position: "relative",
-              top: "1px",
-            }}
-          >
-            <span style={{ fontSize: "0.9rem" }}>📋</span>
-            <span>All Prescriptions</span>
-            <span
-              style={{
-                padding: "0.15rem 0.4rem",
                 background:
-                  prescriptionTab === null ? "#9C27B0" : colors.badgeBg,
-                color: prescriptionTab === null ? "#fff" : colors.textTertiary,
-                borderRadius: "8px",
-                fontSize: "0.65rem",
+                  activeItem === null
+                    ? "#2196F3"
+                    : darkMode
+                      ? "#1f1f1f"
+                      : "#e5e5e5",
+                color: activeItem === null ? "#fff" : colors.textTertiary,
+                padding: "3px 8px",
+                borderRadius: "5px",
+                fontSize: "11px",
                 fontWeight: "600",
-                minWidth: "24px",
-                textAlign: "center",
-                transition: "all 0.2s ease",
+                fontFamily: "monospace",
               }}
             >
-              {availablePrescriptionTypes.reduce((sum, p) => sum + p.count, 0)}
+              {totalCount}
             </span>
-          </button>
+          </div>
 
-          {availablePrescriptionTypes.map((presType) => {
-            const displayValue = presType.value || "No Prescription Type";
-            const filterValue = presType.value === null ? "" : presType.value;
+          {/* Individual Items */}
+          {items.map((item) => {
+            const displayValue = item.value || `No ${title}`;
+            const filterValue = item.value === null ? "" : item.value;
 
             return (
-              <button
-                key={filterValue || "no-pres-type"}
-                onClick={() => handlePrescriptionTabChange(filterValue)}
+              <div
+                key={filterValue || `no-${title}`}
+                onClick={() => onItemClick(filterValue)}
                 style={{
-                  padding: "0.35rem 0.7rem",
-                  fontSize: "0.75rem",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom:
-                    prescriptionTab === filterValue
-                      ? `2px solid #9C27B0`
-                      : "2px solid transparent",
-                  color:
-                    prescriptionTab === filterValue
-                      ? colors.textPrimary
-                      : colors.textSecondary,
-                  fontWeight: prescriptionTab === filterValue ? "600" : "500",
+                  padding: "10px 16px",
+                  background:
+                    activeItem === filterValue
+                      ? "rgba(33, 150, 243, 0.1)"
+                      : "transparent",
+                  border: `1px solid ${activeItem === filterValue ? "#2196F3" : "transparent"}`,
+                  borderRadius: "8px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.4rem",
-                  position: "relative",
-                  top: "1px",
+                  justifyContent: "space-between",
+                  fontSize: "13px",
+                }}
+                onMouseEnter={(e) => {
+                  if (activeItem !== filterValue) {
+                    e.currentTarget.style.background = colors.cardBg;
+                    e.currentTarget.style.borderColor = colors.cardBorder;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeItem !== filterValue) {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.borderColor = "transparent";
+                  }
                 }}
               >
-                {!presType.value && (
-                  <span style={{ fontSize: "0.9rem" }}>❓</span>
-                )}
-                {presType.value === "Over-the-Counter (OTC) Drug" && (
-                  <span style={{ fontSize: "0.9rem" }}>💊</span>
-                )}
-                {presType.value === "Prescription Drug (Rx)" && (
-                  <span style={{ fontSize: "0.9rem" }}>📝</span>
-                )}
-                <span>{displayValue}</span>
+                <span style={{ color: colors.textPrimary }}>
+                  {displayValue}
+                </span>
                 <span
                   style={{
-                    padding: "0.15rem 0.4rem",
                     background:
-                      prescriptionTab === filterValue
-                        ? "#9C27B0"
-                        : colors.badgeBg,
+                      activeItem === filterValue
+                        ? "#2196F3"
+                        : darkMode
+                          ? "#1f1f1f"
+                          : "#e5e5e5",
                     color:
-                      prescriptionTab === filterValue
-                        ? "#fff"
-                        : colors.textTertiary,
-                    borderRadius: "8px",
-                    fontSize: "0.65rem",
+                      activeItem === filterValue ? "#fff" : colors.textTertiary,
+                    padding: "3px 8px",
+                    borderRadius: "5px",
+                    fontSize: "11px",
                     fontWeight: "600",
-                    minWidth: "24px",
-                    textAlign: "center",
-                    transition: "all 0.2s ease",
+                    fontFamily: "monospace",
                   }}
                 >
-                  {presType.count}
+                  {item.count}
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>
-      )}
-
-      {/* ========== LEVEL 4: Application Status Tabs ========== */}
-      {/* ✅ FIXED: Show when app status types are available (regardless of subTab/prescriptionTab) */}
-      {availableAppStatusTypes.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            marginBottom: "1.5rem",
-            paddingLeft: "3rem",
-            borderBottom: `1px solid ${colors.cardBorder}`,
-            paddingBottom: "0",
-            flexWrap: "wrap",
-          }}
-        >
-          {/* ✅ "All" Tab for App Status */}
-          <button
-            onClick={() => handleAppStatusTabChange(null)}
-            style={{
-              padding: "0.3rem 0.6rem",
-              fontSize: "0.7rem",
-              background: "transparent",
-              border: "none",
-              borderBottom:
-                appStatusTab === null
-                  ? `2px solid #FF9800`
-                  : "2px solid transparent",
-              color:
-                appStatusTab === null
-                  ? colors.textPrimary
-                  : colors.textSecondary,
-              fontWeight: appStatusTab === null ? "600" : "500",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.3rem",
-              position: "relative",
-              top: "1px",
-            }}
-          >
-            <span style={{ fontSize: "0.85rem" }}>📊</span>
-            <span>All Status</span>
-            <span
-              style={{
-                padding: "0.1rem 0.35rem",
-                background: appStatusTab === null ? "#FF9800" : colors.badgeBg,
-                color: appStatusTab === null ? "#fff" : colors.textTertiary,
-                borderRadius: "6px",
-                fontSize: "0.6rem",
-                fontWeight: "600",
-                minWidth: "20px",
-                textAlign: "center",
-                transition: "all 0.2s ease",
-              }}
-            >
-              {availableAppStatusTypes.reduce((sum, s) => sum + s.count, 0)}
-            </span>
-          </button>
-
-          {/* ✅ Individual App Status Tabs */}
-          {availableAppStatusTypes.map((statusType) => {
-            const displayValue = statusType.value || "No Application Status";
-            const filterValue =
-              statusType.value === null ? "" : statusType.value;
-
-            return (
-              <button
-                key={filterValue || "no-status-type"}
-                onClick={() => handleAppStatusTabChange(filterValue)}
-                style={{
-                  padding: "0.3rem 0.6rem",
-                  fontSize: "0.7rem",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom:
-                    appStatusTab === filterValue
-                      ? `2px solid #FF9800`
-                      : "2px solid transparent",
-                  color:
-                    appStatusTab === filterValue
-                      ? colors.textPrimary
-                      : colors.textSecondary,
-                  fontWeight: appStatusTab === filterValue ? "600" : "500",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.3rem",
-                  position: "relative",
-                  top: "1px",
-                }}
-              >
-                {!statusType.value && (
-                  <span style={{ fontSize: "0.85rem" }}>❓</span>
-                )}
-                {statusType.value?.toLowerCase().includes("approved") && (
-                  <span style={{ fontSize: "0.85rem" }}>✅</span>
-                )}
-                {statusType.value?.toLowerCase().includes("pending") && (
-                  <span style={{ fontSize: "0.85rem" }}>⏳</span>
-                )}
-                {statusType.value?.toLowerCase().includes("denied") && (
-                  <span style={{ fontSize: "0.85rem" }}>❌</span>
-                )}
-                {statusType.value?.toLowerCase().includes("complete") && (
-                  <span style={{ fontSize: "0.85rem" }}>✔️</span>
-                )}
-                <span>{displayValue}</span>
-                <span
-                  style={{
-                    padding: "0.1rem 0.35rem",
-                    background:
-                      appStatusTab === filterValue ? "#FF9800" : colors.badgeBg,
-                    color:
-                      appStatusTab === filterValue
-                        ? "#fff"
-                        : colors.textTertiary,
-                    borderRadius: "6px",
-                    fontSize: "0.6rem",
-                    fontWeight: "600",
-                    minWidth: "20px",
-                    textAlign: "center",
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {statusType.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <FilterBar
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        filters={filters}
-        onFilterChange={setFilters}
-        colors={colors}
-        activeTab={activeTab} // ✅ NEW
-        subTab={subTab} // ✅ NEW
-        prescriptionTab={prescriptionTab} // ✅ NEW
-        appStatusTab={appStatusTab} // ✅ NEW
-      />
-      <UploadProgress message={uploadProgress} colors={colors} />
-
-      {loading && (
-        <div
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "12px",
-            padding: "3rem",
-            textAlign: "center",
-            color: colors.textSecondary,
-          }}
-        >
-          <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⏳</div>
-          <div
-            style={{
-              fontSize: "1.1rem",
-              fontWeight: "600",
-              marginBottom: "0.5rem",
-            }}
-          >
-            Loading reports...
-          </div>
-          <div style={{ fontSize: "0.9rem" }}>
-            Page {currentPage} of {totalPages}
-          </div>
-        </div>
-      )}
-
-      {!loading && filteredData.length === 0 && (
-        <div
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "12px",
-            padding: "3rem",
-            textAlign: "center",
-            color: colors.textSecondary,
-          }}
-        >
-          <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📭</div>
-          <div
-            style={{
-              fontSize: "1.1rem",
-              fontWeight: "600",
-              marginBottom: "0.5rem",
-            }}
-          >
-            No reports found
-          </div>
-          <div style={{ fontSize: "0.9rem" }}>
-            No records found for the selected criteria
-          </div>
-        </div>
-      )}
-
-      {!loading && filteredData.length > 0 && (
-        <DataTable
-          data={filteredData}
-          selectedRows={selectedRows}
-          onSelectRow={handleSelectRow}
-          onSelectAll={handleSelectAll}
-          onClearSelections={clearSelections}
-          currentPage={currentPage}
-          rowsPerPage={rowsPerPage}
-          totalRecords={totalRecords}
-          totalPages={totalPages}
-          indexOfFirstRow={(currentPage - 1) * rowsPerPage + 1}
-          indexOfLastRow={Math.min(currentPage * rowsPerPage, totalRecords)}
-          onPageChange={handlePageChange}
-          onRowsPerPageChange={handleRowsPerPageChange}
-          colors={colors}
-          activeTab={activeTab}
-          onRefresh={refreshData}
-        />
       )}
     </div>
   );
