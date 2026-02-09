@@ -1,5 +1,5 @@
 // src/components/UploadReports/DataTable.jsx
-// ✅ UPDATED: Added Edit functionality to Actions menu
+// ✅ FIXED: Pagination moved OUTSIDE scrollable container so it's always visible
 
 import { useState } from "react";
 import { tableColumns } from "./tableColumns";
@@ -28,7 +28,8 @@ function DataTable({
   onClearSelections,
   indexOfFirstRow,
   indexOfLastRow,
-  onEdit, // ✅ NEW - Edit handler prop
+  onEdit,
+  darkMode,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
@@ -134,10 +135,10 @@ function DataTable({
   };
 
   // Menu handlers
-  const handleMenuToggle = (rowId) => {
+  const handleMenuToggle = (e, rowId) => {
+    e.stopPropagation();
     setOpenMenuId(openMenuId === rowId ? null : rowId);
   };
-
   const handleViewDetails = (row) => {
     setOpenMenuId(null);
     setSelectedRowDetails(row);
@@ -158,7 +159,6 @@ function DataTable({
     setDoctrackModalRecord(row);
   };
 
-  // ✅ NEW - Handle edit action
   const handleEditClick = (row) => {
     setOpenMenuId(null);
     if (onEdit) {
@@ -287,7 +287,6 @@ function DataTable({
   const renderTypeDocReleased = (typeDoc) => {
     const typeUpper = typeDoc?.toUpperCase();
 
-    // CPR (Certificate of Product Registration) - Approved icon
     if (typeUpper?.includes("CPR")) {
       return (
         <span
@@ -309,9 +308,7 @@ function DataTable({
           <span>{typeDoc}</span>
         </span>
       );
-    }
-    // LOD (Letter of Denial/Disapproval) - Disapproved icon
-    else if (typeUpper?.includes("LOD")) {
+    } else if (typeUpper?.includes("LOD")) {
       return (
         <span
           style={{
@@ -332,9 +329,7 @@ function DataTable({
           <span>{typeDoc}</span>
         </span>
       );
-    }
-    // Certificate (General) - Certificate icon
-    else if (
+    } else if (
       typeUpper?.includes("CERT") ||
       typeUpper?.includes("CERTIFICATE")
     ) {
@@ -360,7 +355,6 @@ function DataTable({
       );
     }
 
-    // Default - No icon
     return (
       <span style={{ fontSize: "0.85rem", color: colors.tableText }}>
         {typeDoc || "N/A"}
@@ -368,11 +362,10 @@ function DataTable({
     );
   };
 
-  // ✅ Render APP STATUS badges with all status types
+  // ✅ Render APP STATUS badges
   const renderAppStatusBadge = (status) => {
     const statusUpper = status?.toUpperCase();
 
-    // ✅ COMPLETED - Green gradient
     if (statusUpper === "COMPLETED") {
       return (
         <span
@@ -395,9 +388,7 @@ function DataTable({
           Completed
         </span>
       );
-    }
-    // ✅ TO_DO - Orange/Amber gradient
-    else if (statusUpper === "TO_DO") {
+    } else if (statusUpper === "TO_DO") {
       return (
         <span
           style={{
@@ -419,9 +410,7 @@ function DataTable({
           To Do
         </span>
       );
-    }
-    // ✅ APPROVED - Blue gradient
-    else if (statusUpper === "APPROVED") {
+    } else if (statusUpper === "APPROVED") {
       return (
         <span
           style={{
@@ -443,9 +432,7 @@ function DataTable({
           Approved
         </span>
       );
-    }
-    // ✅ PENDING - Yellow gradient
-    else if (statusUpper === "PENDING") {
+    } else if (statusUpper === "PENDING") {
       return (
         <span
           style={{
@@ -467,9 +454,7 @@ function DataTable({
           Pending
         </span>
       );
-    }
-    // ✅ REJECTED - Red gradient
-    else if (statusUpper === "REJECTED") {
+    } else if (statusUpper === "REJECTED") {
       return (
         <span
           style={{
@@ -493,7 +478,6 @@ function DataTable({
       );
     }
 
-    // ✅ Fallback for unknown status
     return (
       <span
         style={{
@@ -526,8 +510,13 @@ function DataTable({
           borderRadius: "12px",
           overflow: "hidden",
           transition: "all 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          minHeight: 0,
         }}
       >
+        {/* Header */}
         <div
           style={{
             padding: "1rem 1.5rem",
@@ -672,8 +661,14 @@ function DataTable({
           )}
         </div>
 
+        {/* ✅ SCROLLABLE TABLE - maxHeight fixed, pagination OUTSIDE */}
         <div
-          style={{ overflowX: "auto", maxHeight: "600px", overflowY: "auto" }}
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowX: "auto",
+            overflowY: "auto",
+          }}
         >
           <table
             style={{
@@ -890,7 +885,6 @@ function DataTable({
                           }),
                         }}
                       >
-                        {/* ✅ Render special columns with custom logic */}
                         {col.key === "dtn"
                           ? renderDTN(row[col.key])
                           : col.key === "prodGenName"
@@ -928,7 +922,7 @@ function DataTable({
                         }}
                       >
                         <button
-                          onClick={() => handleMenuToggle(row.id)}
+                          onClick={(e) => handleMenuToggle(e, row.id)}
                           style={{
                             padding: "0.5rem",
                             background: "transparent",
@@ -1100,7 +1094,6 @@ function DataTable({
                                 <span>View Details</span>
                               </button>
 
-                              {/* ✅ NEW - Edit Button */}
                               <button
                                 onClick={() => handleEditClick(row)}
                                 style={{
@@ -1183,19 +1176,28 @@ function DataTable({
           </table>
         </div>
 
-        <TablePagination
-          currentPage={currentPage}
-          rowsPerPage={rowsPerPage}
-          totalRecords={totalRecords}
-          totalPages={totalPages}
-          indexOfFirstRow={indexOfFirstRow}
-          indexOfLastRow={indexOfLastRow}
-          onPageChange={onPageChange}
-          onRowsPerPageChange={onRowsPerPageChange}
-          colors={colors}
-        />
+        <div
+          style={{
+            flexShrink: 0,
+            borderTop: `1px solid ${colors.tableBorder}`,
+            background: colors.cardBg,
+          }}
+        >
+          <TablePagination
+            currentPage={currentPage}
+            rowsPerPage={rowsPerPage}
+            totalRecords={totalRecords}
+            totalPages={totalPages}
+            indexOfFirstRow={indexOfFirstRow}
+            indexOfLastRow={indexOfLastRow}
+            onPageChange={onPageChange}
+            onRowsPerPageChange={onRowsPerPageChange}
+            colors={colors}
+          />
+        </div>
       </div>
 
+      {/* Modals */}
       {deckModalRecord && (
         <DeckModal
           record={deckModalRecord}
@@ -1227,6 +1229,7 @@ function DataTable({
           record={selectedRowDetails}
           onClose={handleCloseDetailsModal}
           colors={colors}
+          darkMode={darkMode}
         />
       )}
 

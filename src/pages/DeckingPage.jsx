@@ -673,10 +673,11 @@ function DeckingPage({ darkMode }) {
       <div
         style={{
           flex: 1,
+          overflow: "hidden", // OK lang ito
+          padding: "0rem",
           display: "flex",
           flexDirection: "column",
-          height: "100vh",
-          overflow: "hidden",
+          minHeight: 0, // ⭐ CRITICAL
         }}
       >
         {/* Header */}

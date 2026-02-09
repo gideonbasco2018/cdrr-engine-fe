@@ -1,5 +1,5 @@
 // FILE: src/components/reports/actions/ViewDetailsModal.jsx
-// ✅ COMPLETE REDESIGN: Same style as EditRecordModal with all 90+ fields
+// ✅ SIMPLE CLEAN DESIGN: Matches EditRecordModal style exactly
 
 import { useState } from "react";
 
@@ -32,43 +32,820 @@ const cleanValue = (value) => {
   return String(value);
 };
 
+// ✅ Function to calculate status timeline
+const calculateStatusTimeline = (record) => {
+  const dateReceivedCent = record.dateReceivedCent;
+  const dateReleased = record.dateReleased;
+  const timeline = record.dbTimelineCitizenCharter;
+
+  if (
+    !dateReceivedCent ||
+    !timeline ||
+    dateReceivedCent === "N/A" ||
+    timeline === null
+  ) {
+    return { status: "", days: 0 };
+  }
+
+  const receivedDate = new Date(dateReceivedCent);
+  const endDate =
+    dateReleased && dateReleased !== "N/A"
+      ? new Date(dateReleased)
+      : new Date();
+
+  if (isNaN(receivedDate.getTime()) || isNaN(endDate.getTime())) {
+    return { status: "", days: 0 };
+  }
+
+  const diffTime = Math.abs(endDate - receivedDate);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const timelineValue = parseInt(timeline, 10);
+
+  if (diffDays <= timelineValue) {
+    return { status: "WITHIN", days: diffDays };
+  } else {
+    return { status: "BEYOND", days: diffDays };
+  }
+};
+
 function ViewDetailsModal({ record, onClose, colors, darkMode }) {
-  // ✅ State for collapsible sections
-  const [expandedSections, setExpandedSections] = useState({
-    establishment: true,
-    product: true,
-    manufacturer: false,
-    trader: false,
-    repacker: false,
-    importer: false,
-    distributor: false,
-    storage: false,
-    application: false,
-    amendments: false,
-    fees: false,
-    dates: false,
-    office: false,
-    secpa: false,
-    decking: false,
-    workflow: true, // Workflow expanded by default
-    release: false,
-    cpr: false,
-    remarks: false,
-    metadata: false,
-  });
+  if (!record) return null;
 
-  const toggleSection = (section) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }));
-  };
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0, 0, 0, 0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        padding: "2rem",
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "16px",
+          maxWidth: "1400px",
+          width: "100%",
+          maxHeight: "90vh",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "1.5rem 2rem",
+            borderBottom: `1px solid ${colors.cardBorder}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div>
+            <h2
+              style={{
+                fontSize: "1.5rem",
+                fontWeight: "600",
+                color: colors.textPrimary,
+                margin: 0,
+                marginBottom: "0.25rem",
+              }}
+            >
+              👁️ View Record Details
+            </h2>
+            <p
+              style={{
+                fontSize: "0.875rem",
+                color: colors.textTertiary,
+                margin: 0,
+              }}
+            >
+              ID: {record.id} • DTN: {cleanValue(record.dtn)} • Brand:{" "}
+              {cleanValue(record.prodBrName)}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              fontSize: "1.5rem",
+              color: colors.textSecondary,
+              cursor: "pointer",
+              padding: "0.5rem",
+              borderRadius: "8px",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = darkMode
+                ? "#1f1f1f"
+                : "#f0f0f0";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+            }}
+          >
+            ✕
+          </button>
+        </div>
 
-  // ✅ Render APP STATUS badges
-  const renderAppStatusBadge = (status) => {
-    const statusUpper = status?.toUpperCase();
+        {/* Content */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "2rem",
+          }}
+        >
+          {/* Establishment Information */}
+          <Section title="🏢 Establishment Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Category"
+                value={cleanValue(record.estCat)}
+                colors={colors}
+              />
+              <DisplayField
+                label="LTO Company"
+                value={cleanValue(record.ltoComp)}
+                colors={colors}
+              />
+              <DisplayField
+                label="LTO Address"
+                value={cleanValue(record.ltoAdd)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Email"
+                value={cleanValue(record.eadd)}
+                colors={colors}
+              />
+              <DisplayField
+                label="TIN"
+                value={cleanValue(record.tin)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Contact No."
+                value={cleanValue(record.contactNo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="LTO No."
+                value={cleanValue(record.ltoNo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Validity"
+                value={formatDate(record.validity)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
 
-    if (statusUpper === "COMPLETED") {
+          {/* Product Information */}
+          <Section title="💊 Product Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Brand Name"
+                value={cleanValue(record.prodBrName)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Generic Name"
+                value={cleanValue(record.prodGenName)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Dosage Strength"
+                value={cleanValue(record.prodDosStr)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Dosage Form"
+                value={cleanValue(record.prodDosForm)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Prescription"
+                value={cleanValue(record.prodClassPrescript)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Essential Drug"
+                value={cleanValue(record.prodEssDrugList)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Pharma Category"
+                value={cleanValue(record.prodPharmaCat)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Product Category"
+                value={cleanValue(record.prodCat)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Manufacturer Information */}
+          <Section title="🏭 Manufacturer Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Manufacturer"
+                value={cleanValue(record.prodManu)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Manufacturer Address"
+                value={cleanValue(record.prodManuAdd)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Manufacturer TIN"
+                value={cleanValue(record.prodManuTin)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Manufacturer LTO No."
+                value={cleanValue(record.prodManuLtoNo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Manufacturer Country"
+                value={cleanValue(record.prodManuCountry)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Trader Information */}
+          <Section title="🚢 Trader Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Trader"
+                value={cleanValue(record.prodTrader)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Trader Address"
+                value={cleanValue(record.prodTraderAdd)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Trader TIN"
+                value={cleanValue(record.prodTraderTin)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Trader LTO No."
+                value={cleanValue(record.prodTraderLtoNo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Trader Country"
+                value={cleanValue(record.prodTraderCountry)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Repacker Information */}
+          <Section title="📦 Repacker Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Repacker"
+                value={cleanValue(record.prodRepacker)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Repacker Address"
+                value={cleanValue(record.prodRepackerAdd)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Repacker TIN"
+                value={cleanValue(record.prodRepackerTin)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Repacker LTO No."
+                value={cleanValue(record.prodRepackerLtoNo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Repacker Country"
+                value={cleanValue(record.prodRepackerCountry)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Importer Information */}
+          <Section title="✈️ Importer Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Importer"
+                value={cleanValue(record.prodImporter)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Importer Address"
+                value={cleanValue(record.prodImporterAdd)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Importer TIN"
+                value={cleanValue(record.prodImporterTin)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Importer LTO No."
+                value={cleanValue(record.prodImporterLtoNo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Importer Country"
+                value={cleanValue(record.prodImporterCountry)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Distributor Information */}
+          <Section title="🚚 Distributor Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Distributor"
+                value={cleanValue(record.prodDistri)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Distributor Address"
+                value={cleanValue(record.prodDistriAdd)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Distributor TIN"
+                value={cleanValue(record.prodDistriTin)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Distributor LTO No."
+                value={cleanValue(record.prodDistriLtoNo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Distributor Country"
+                value={cleanValue(record.prodDistriCountry)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Shelf Life"
+                value={cleanValue(record.prodDistriShelfLife)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Storage & Packaging */}
+          <Section title="📦 Storage & Packaging" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Storage Condition"
+                value={cleanValue(record.storageCond)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Packaging"
+                value={cleanValue(record.packaging)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Suggested RP"
+                value={cleanValue(record.suggRp)}
+                colors={colors}
+              />
+              <DisplayField
+                label="No. of Samples"
+                value={cleanValue(record.noSample)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Application Information */}
+          <Section title="📋 Application Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="DTN"
+                value={cleanValue(record.dtn)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Registration No."
+                value={cleanValue(record.regNo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Application Type"
+                value={cleanValue(record.appType)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Mother App Type"
+                value={cleanValue(record.motherAppType)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Old RSN"
+                value={cleanValue(record.oldRsn)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Certification"
+                value={cleanValue(record.certification)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Class"
+                value={cleanValue(record.class)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Application Status"
+                value={cleanValue(record.appStatus)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Amendment Fields */}
+          <Section title="📝 Amendments" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Amendment 1"
+                value={cleanValue(record.ammend1)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Amendment 2"
+                value={cleanValue(record.ammend2)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Amendment 3"
+                value={cleanValue(record.ammend3)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Fees */}
+          <Section title="💰 Fees" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Fee"
+                value={cleanValue(record.fee)}
+                colors={colors}
+              />
+              <DisplayField
+                label="LRF"
+                value={cleanValue(record.lrf)}
+                colors={colors}
+              />
+              <DisplayField
+                label="SURC"
+                value={cleanValue(record.surc)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Total"
+                value={cleanValue(record.total)}
+                colors={colors}
+              />
+              <DisplayField
+                label="OR No."
+                value={cleanValue(record.orNo)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Important Dates */}
+          <Section title="📅 Important Dates" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Date Issued"
+                value={formatDate(record.dateIssued)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Date Received FDAC"
+                value={formatDate(record.dateReceivedFdac)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Date Received Central"
+                value={formatDate(record.dateReceivedCent)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Date Deck"
+                value={formatDate(record.dateDeck)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Date Released"
+                value={formatDate(record.dateReleased)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Expiry Date"
+                value={formatDate(record.expiryDate)}
+                colors={colors}
+              />
+              <DisplayField
+                label="CPR Validity"
+                value={formatDate(record.cprValidity)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Date Remarks"
+                value={formatDate(record.dateRemarks)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Office/File Information */}
+          <Section title="📁 Office/File Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="MO"
+                value={cleanValue(record.mo)}
+                colors={colors}
+              />
+              <DisplayField
+                label="File"
+                value={cleanValue(record.file)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* SECPA Information */}
+          <Section title="🔐 SECPA Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="SECPA"
+                value={cleanValue(record.secpa)}
+                colors={colors}
+              />
+              <DisplayField
+                label="SECPA Expiry Date"
+                value={formatDate(record.secpaExpDate)}
+                colors={colors}
+              />
+              <DisplayField
+                label="SECPA Issued On"
+                value={formatDate(record.secpaIssuedOn)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Decking Information */}
+          <Section title="🎯 Decking Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Decking Schedule"
+                value={formatDate(record.deckingSched)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Evaluator"
+                value={cleanValue(record.eval)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* Release Information */}
+          <Section title="📤 Release Information" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Type Doc Released"
+                value={cleanValue(record.typeDocReleased)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Atta Released"
+                value={cleanValue(record.attaReleased)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+
+          {/* CPR Condition */}
+          <Section title="📜 CPR Condition" colors={colors}>
+            <DisplayField
+              label="CPR Condition"
+              value={cleanValue(record.cprCond)}
+              colors={colors}
+              fullWidth
+            />
+            <DisplayField
+              label="CPR Condition Remarks"
+              value={cleanValue(record.cprCondRemarks)}
+              colors={colors}
+              fullWidth
+            />
+            <DisplayField
+              label="CPR Condition Additional Remarks"
+              value={cleanValue(record.cprCondAddRemarks)}
+              colors={colors}
+              fullWidth
+            />
+          </Section>
+
+          {/* Remarks & Notes */}
+          <Section title="📝 Remarks & Notes" colors={colors}>
+            <DisplayField
+              label="Application Remarks"
+              value={cleanValue(record.appRemarks)}
+              colors={colors}
+              fullWidth
+            />
+            <DisplayField
+              label="General Remarks"
+              value={cleanValue(record.remarks1)}
+              colors={colors}
+              fullWidth
+            />
+          </Section>
+
+          {/* Read-Only Metadata */}
+          <Section title="📊 Metadata (Read-Only)" colors={colors}>
+            <FieldGrid>
+              <DisplayField
+                label="Timeline (Days)"
+                value={cleanValue(record.dbTimelineCitizenCharter)}
+                colors={colors}
+              />
+              <StatusTimelineField
+                label="Status Timeline"
+                record={record}
+                colors={colors}
+              />
+              <DisplayField
+                label="Uploaded By"
+                value={cleanValue(record.userUploader)}
+                colors={colors}
+              />
+              <DisplayField
+                label="Upload Date"
+                value={formatDate(record.dateExcelUpload)}
+                colors={colors}
+              />
+            </FieldGrid>
+          </Section>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            padding: "1.5rem 2rem",
+            borderTop: `1px solid ${colors.cardBorder}`,
+            display: "flex",
+            gap: "1rem",
+            justifyContent: "flex-end",
+            background: colors.cardBg,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              padding: "0.75rem 1.5rem",
+              background: "transparent",
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: "8px",
+              color: colors.textSecondary,
+              fontSize: "0.875rem",
+              fontWeight: "500",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// HELPER COMPONENTS
+// ============================================
+
+function Section({ title, children, colors }) {
+  return (
+    <div style={{ marginBottom: "2rem" }}>
+      <h3
+        style={{
+          fontSize: "1rem",
+          fontWeight: "600",
+          color: colors.textPrimary,
+          marginBottom: "1rem",
+          paddingBottom: "0.5rem",
+          borderBottom: `2px solid ${colors.cardBorder}`,
+        }}
+      >
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+}
+
+function FieldGrid({ children }) {
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(2, 1fr)",
+        gap: "1.5rem",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DisplayField({ label, value, colors, fullWidth = false }) {
+  const containerStyle = fullWidth
+    ? { gridColumn: "1 / -1", marginBottom: "1rem" }
+    : { display: "flex", flexDirection: "column", gap: "0.5rem" };
+
+  return (
+    <div style={containerStyle}>
+      <label
+        style={{
+          fontSize: "0.875rem",
+          fontWeight: "500",
+          color: colors.textSecondary,
+        }}
+      >
+        {label}
+      </label>
+      <div
+        style={{
+          padding: "0.75rem",
+          background: colors.tableRowEven,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "8px",
+          color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
+          fontSize: "0.875rem",
+          minHeight: fullWidth ? "4rem" : "auto",
+          whiteSpace: fullWidth ? "pre-wrap" : "normal",
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+// ✅ NEW - Status Timeline Field with Badge
+function StatusTimelineField({ label, record, colors }) {
+  const { status, days } = calculateStatusTimeline(record);
+
+  const renderBadge = () => {
+    if (!status) {
+      return (
+        <span style={{ color: colors.textTertiary, fontSize: "0.875rem" }}>
+          N/A
+        </span>
+      );
+    }
+
+    if (status === "WITHIN") {
       return (
         <span
           style={{
@@ -87,76 +864,10 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
           }}
         >
           <span style={{ fontSize: "0.9rem" }}>✓</span>
-          Completed
+          Within ({days}d)
         </span>
       );
-    } else if (statusUpper === "TO_DO") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>⏳</span>
-          To Do
-        </span>
-      );
-    } else if (statusUpper === "APPROVED") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>✅</span>
-          Approved
-        </span>
-      );
-    } else if (statusUpper === "PENDING") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #eab308 0%, #ca8a04 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(234, 179, 8, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>⏸</span>
-          Pending
-        </span>
-      );
-    } else if (statusUpper === "REJECTED") {
+    } else if (status === "BEYOND") {
       return (
         <span
           style={{
@@ -174,1329 +885,39 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
             gap: "0.4rem",
           }}
         >
-          <span style={{ fontSize: "0.9rem" }}>✗</span>
-          Rejected
+          <span style={{ fontSize: "0.9rem" }}>⚠</span>
+          Beyond ({days}d)
         </span>
       );
     }
 
-    return (
-      <span
-        style={{
-          padding: "0.4rem 0.9rem",
-          background: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
-          color: "#fff",
-          borderRadius: "8px",
-          fontSize: "0.75rem",
-          fontWeight: "700",
-          letterSpacing: "0.5px",
-          textTransform: "uppercase",
-          boxShadow: "0 2px 8px rgba(107, 114, 128, 0.3)",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.4rem",
-        }}
-      >
-        <span style={{ fontSize: "0.9rem" }}>•</span>
-        {status || "N/A"}
-      </span>
-    );
+    return status;
   };
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0, 0, 0, 0.6)",
-          zIndex: 1000,
-          backdropFilter: "blur(2px)",
-        }}
-      />
-
-      {/* Modal */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1001,
-          padding: "2rem",
-        }}
-        onClick={onClose}
-      >
-        <div
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "16px",
-            maxWidth: "1400px",
-            width: "100%",
-            maxHeight: "90vh",
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div
-            style={{
-              padding: "1.5rem 2rem",
-              borderBottom: `1px solid ${colors.cardBorder}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div>
-              <h2
-                style={{
-                  fontSize: "1.5rem",
-                  fontWeight: "600",
-                  color: colors.textPrimary,
-                  margin: 0,
-                  marginBottom: "0.5rem",
-                }}
-              >
-                👁️ View Record Details
-              </h2>
-              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-                <span
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    background: "rgba(139, 92, 246, 0.1)",
-                    border: "1px solid rgba(139, 92, 246, 0.3)",
-                    color: "#8b5cf6",
-                    borderRadius: "6px",
-                    fontSize: "0.75rem",
-                    fontWeight: "700",
-                  }}
-                >
-                  🔖 DTN: {cleanValue(record.dtn)}
-                </span>
-                <span
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    background: "rgba(6, 182, 212, 0.1)",
-                    border: "1px solid rgba(6, 182, 212, 0.3)",
-                    color: "#06b6d4",
-                    borderRadius: "6px",
-                    fontSize: "0.75rem",
-                    fontWeight: "700",
-                  }}
-                >
-                  💊 {cleanValue(record.prodGenName)}
-                </span>
-                {record.appStatus && (
-                  <span
-                    style={{
-                      padding: "0.4rem 0.8rem",
-                      background:
-                        record.appStatus.toUpperCase() === "COMPLETED"
-                          ? "rgba(16, 185, 129, 0.1)"
-                          : "rgba(245, 158, 11, 0.1)",
-                      border:
-                        record.appStatus.toUpperCase() === "COMPLETED"
-                          ? "1px solid rgba(16, 185, 129, 0.3)"
-                          : "1px solid rgba(245, 158, 11, 0.3)",
-                      color:
-                        record.appStatus.toUpperCase() === "COMPLETED"
-                          ? "#10b981"
-                          : "#f59e0b",
-                      borderRadius: "6px",
-                      fontSize: "0.75rem",
-                      fontWeight: "700",
-                    }}
-                  >
-                    {record.appStatus}
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              style={{
-                background: "transparent",
-                border: "none",
-                fontSize: "1.5rem",
-                color: colors.textSecondary,
-                cursor: "pointer",
-                padding: "0.5rem",
-                borderRadius: "8px",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = darkMode
-                  ? "#1f1f1f"
-                  : "#f0f0f0";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Content */}
-          <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              padding: "2rem",
-            }}
-          >
-            {/* ============================================ */}
-            {/* WORKFLOW & DELEGATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="🎯 Workflow & Delegation"
-              isExpanded={expandedSections.workflow}
-              onToggle={() => toggleSection("workflow")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: "1.5rem",
-                }}
-              >
-                {/* Decker */}
-                <WorkflowCard
-                  title="Decker"
-                  colors={colors}
-                  darkMode={darkMode}
-                >
-                  <DetailRow
-                    label="Name"
-                    value={cleanValue(record.decker)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Decision"
-                    value={cleanValue(record.deckerDecision)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Remarks"
-                    value={cleanValue(record.deckerRemarks)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Date End"
-                    value={formatDate(record.dateDeckedEnd)}
-                    colors={colors}
-                  />
-                </WorkflowCard>
-
-                {/* Evaluator */}
-                <WorkflowCard
-                  title="Evaluator"
-                  colors={colors}
-                  darkMode={darkMode}
-                >
-                  <DetailRow
-                    label="Name"
-                    value={cleanValue(record.evaluator)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Decision"
-                    value={cleanValue(record.evalDecision)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Remarks"
-                    value={cleanValue(record.evalRemarks)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Date End"
-                    value={formatDate(record.dateEvalEnd)}
-                    colors={colors}
-                  />
-                </WorkflowCard>
-
-                {/* Checker */}
-                <WorkflowCard
-                  title="Checker"
-                  colors={colors}
-                  darkMode={darkMode}
-                >
-                  <DetailRow
-                    label="Name"
-                    value={cleanValue(record.checker)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Decision"
-                    value={cleanValue(record.checkerDecision)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Remarks"
-                    value={cleanValue(record.checkerRemarks)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Date End"
-                    value={formatDate(record.dateCheckerEnd)}
-                    colors={colors}
-                  />
-                </WorkflowCard>
-
-                {/* Supervisor */}
-                <WorkflowCard
-                  title="Supervisor"
-                  colors={colors}
-                  darkMode={darkMode}
-                >
-                  <DetailRow
-                    label="Name"
-                    value={cleanValue(record.supervisor)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Decision"
-                    value={cleanValue(record.supervisorDecision)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Remarks"
-                    value={cleanValue(record.supervisorRemarks)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Date End"
-                    value={formatDate(record.dateSupervisorEnd)}
-                    colors={colors}
-                  />
-                </WorkflowCard>
-
-                {/* QA */}
-                <WorkflowCard title="QA" colors={colors} darkMode={darkMode}>
-                  <DetailRow
-                    label="Name"
-                    value={cleanValue(record.qa)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Decision"
-                    value={cleanValue(record.qaDecision)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Remarks"
-                    value={cleanValue(record.qaRemarks)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Date End"
-                    value={formatDate(record.dateQaEnd)}
-                    colors={colors}
-                  />
-                </WorkflowCard>
-
-                {/* Director */}
-                <WorkflowCard
-                  title="Director"
-                  colors={colors}
-                  darkMode={darkMode}
-                >
-                  <DetailRow
-                    label="Name"
-                    value={cleanValue(record.director)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Decision"
-                    value={cleanValue(record.directorDecision)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Remarks"
-                    value={cleanValue(record.directorRemarks)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Date End"
-                    value={formatDate(record.dateDirectorEnd)}
-                    colors={colors}
-                  />
-                </WorkflowCard>
-
-                {/* Releasing Officer */}
-                <WorkflowCard
-                  title="Releasing Officer"
-                  colors={colors}
-                  darkMode={darkMode}
-                >
-                  <DetailRow
-                    label="Name"
-                    value={cleanValue(record.releasingOfficer)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Decision"
-                    value={cleanValue(record.releasingOfficerDecision)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Remarks"
-                    value={cleanValue(record.releasingOfficerRemarks)}
-                    colors={colors}
-                  />
-                  <DetailRow
-                    label="Date End"
-                    value={formatDate(record.dateReleasingOfficerEnd)}
-                    colors={colors}
-                  />
-                </WorkflowCard>
-              </div>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* ESTABLISHMENT INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="🏢 Establishment Information"
-              isExpanded={expandedSections.establishment}
-              onToggle={() => toggleSection("establishment")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Category"
-                  value={cleanValue(record.estCat)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="LTO Company"
-                  value={cleanValue(record.ltoComp)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="LTO Address"
-                  value={cleanValue(record.ltoAdd)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Email"
-                  value={cleanValue(record.eadd)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="TIN"
-                  value={cleanValue(record.tin)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Contact No."
-                  value={cleanValue(record.contactNo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="LTO No."
-                  value={cleanValue(record.ltoNo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Validity"
-                  value={formatDate(record.validity)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* PRODUCT INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="💊 Product Information"
-              isExpanded={expandedSections.product}
-              onToggle={() => toggleSection("product")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Brand Name"
-                  value={cleanValue(record.prodBrName)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Generic Name"
-                  value={cleanValue(record.prodGenName)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Dosage Strength"
-                  value={cleanValue(record.prodDosStr)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Dosage Form"
-                  value={cleanValue(record.prodDosForm)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Prescription"
-                  value={cleanValue(record.prodClassPrescript)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Essential Drug"
-                  value={cleanValue(record.prodEssDrugList)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Pharma Category"
-                  value={cleanValue(record.prodPharmaCat)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Product Category"
-                  value={cleanValue(record.prodCat)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* MANUFACTURER INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="🏭 Manufacturer Information"
-              isExpanded={expandedSections.manufacturer}
-              onToggle={() => toggleSection("manufacturer")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Manufacturer"
-                  value={cleanValue(record.prodManu)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Manufacturer Address"
-                  value={cleanValue(record.prodManuAdd)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Manufacturer TIN"
-                  value={cleanValue(record.prodManuTin)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Manufacturer LTO No."
-                  value={cleanValue(record.prodManuLtoNo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Manufacturer Country"
-                  value={cleanValue(record.prodManuCountry)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* TRADER INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="🚢 Trader Information"
-              isExpanded={expandedSections.trader}
-              onToggle={() => toggleSection("trader")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Trader"
-                  value={cleanValue(record.prodTrader)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Trader Address"
-                  value={cleanValue(record.prodTraderAdd)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Trader TIN"
-                  value={cleanValue(record.prodTraderTin)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Trader LTO No."
-                  value={cleanValue(record.prodTraderLtoNo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Trader Country"
-                  value={cleanValue(record.prodTraderCountry)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* REPACKER INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📦 Repacker Information"
-              isExpanded={expandedSections.repacker}
-              onToggle={() => toggleSection("repacker")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Repacker"
-                  value={cleanValue(record.prodRepacker)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Repacker Address"
-                  value={cleanValue(record.prodRepackerAdd)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Repacker TIN"
-                  value={cleanValue(record.prodRepackerTin)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Repacker LTO No."
-                  value={cleanValue(record.prodRepackerLtoNo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Repacker Country"
-                  value={cleanValue(record.prodRepackerCountry)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* IMPORTER INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="✈️ Importer Information"
-              isExpanded={expandedSections.importer}
-              onToggle={() => toggleSection("importer")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Importer"
-                  value={cleanValue(record.prodImporter)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Importer Address"
-                  value={cleanValue(record.prodImporterAdd)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Importer TIN"
-                  value={cleanValue(record.prodImporterTin)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Importer LTO No."
-                  value={cleanValue(record.prodImporterLtoNo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Importer Country"
-                  value={cleanValue(record.prodImporterCountry)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* DISTRIBUTOR INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="🚚 Distributor Information"
-              isExpanded={expandedSections.distributor}
-              onToggle={() => toggleSection("distributor")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Distributor"
-                  value={cleanValue(record.prodDistri)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Distributor Address"
-                  value={cleanValue(record.prodDistriAdd)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Distributor TIN"
-                  value={cleanValue(record.prodDistriTin)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Distributor LTO No."
-                  value={cleanValue(record.prodDistriLtoNo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Distributor Country"
-                  value={cleanValue(record.prodDistriCountry)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Shelf Life"
-                  value={cleanValue(record.prodDistriShelfLife)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* STORAGE & PACKAGING */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📦 Storage & Packaging"
-              isExpanded={expandedSections.storage}
-              onToggle={() => toggleSection("storage")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Storage Condition"
-                  value={cleanValue(record.storageCond)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Packaging"
-                  value={cleanValue(record.packaging)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Suggested RP"
-                  value={cleanValue(record.suggRp)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="No. of Samples"
-                  value={cleanValue(record.noSample)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* APPLICATION INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📋 Application Information"
-              isExpanded={expandedSections.application}
-              onToggle={() => toggleSection("application")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="DTN"
-                  value={cleanValue(record.dtn)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Registration No."
-                  value={cleanValue(record.regNo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Application Type"
-                  value={cleanValue(record.appType)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Mother App Type"
-                  value={cleanValue(record.motherAppType)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Old RSN"
-                  value={cleanValue(record.oldRsn)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Certification"
-                  value={cleanValue(record.certification)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Class"
-                  value={cleanValue(record.class)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Application Status"
-                  value={record.appStatus}
-                  colors={colors}
-                  isBadge={true}
-                  renderBadge={renderAppStatusBadge}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* AMENDMENTS */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📝 Amendments"
-              isExpanded={expandedSections.amendments}
-              onToggle={() => toggleSection("amendments")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Amendment 1"
-                  value={cleanValue(record.ammend1)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Amendment 2"
-                  value={cleanValue(record.ammend2)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Amendment 3"
-                  value={cleanValue(record.ammend3)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* FEES */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="💰 Fees"
-              isExpanded={expandedSections.fees}
-              onToggle={() => toggleSection("fees")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Fee"
-                  value={cleanValue(record.fee)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="LRF"
-                  value={cleanValue(record.lrf)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="SURC"
-                  value={cleanValue(record.surc)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Total"
-                  value={cleanValue(record.total)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="OR No."
-                  value={cleanValue(record.orNo)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* IMPORTANT DATES */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📅 Important Dates"
-              isExpanded={expandedSections.dates}
-              onToggle={() => toggleSection("dates")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Date Issued"
-                  value={formatDate(record.dateIssued)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Date Received FDAC"
-                  value={formatDate(record.dateReceivedFdac)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Date Received Central"
-                  value={formatDate(record.dateReceivedCent)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Date Deck"
-                  value={formatDate(record.dateDeck)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Date Released"
-                  value={formatDate(record.dateReleased)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Expiry Date"
-                  value={formatDate(record.expiryDate)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="CPR Validity"
-                  value={formatDate(record.cprValidity)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Date Remarks"
-                  value={formatDate(record.dateRemarks)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* OFFICE/FILE INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📁 Office/File Information"
-              isExpanded={expandedSections.office}
-              onToggle={() => toggleSection("office")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="MO"
-                  value={cleanValue(record.mo)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="File"
-                  value={cleanValue(record.file)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* SECPA INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="🔐 SECPA Information"
-              isExpanded={expandedSections.secpa}
-              onToggle={() => toggleSection("secpa")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="SECPA"
-                  value={cleanValue(record.secpa)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="SECPA Expiry Date"
-                  value={formatDate(record.secpaExpDate)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="SECPA Issued On"
-                  value={formatDate(record.secpaIssuedOn)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* DECKING INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="🎯 Decking Information"
-              isExpanded={expandedSections.decking}
-              onToggle={() => toggleSection("decking")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Decking Schedule"
-                  value={formatDate(record.deckingSched)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Evaluator"
-                  value={cleanValue(record.eval)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* RELEASE INFORMATION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📤 Release Information"
-              isExpanded={expandedSections.release}
-              onToggle={() => toggleSection("release")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Type Doc Released"
-                  value={cleanValue(record.typeDocReleased)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Atta Released"
-                  value={cleanValue(record.attaReleased)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* CPR CONDITION */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📜 CPR Condition"
-              isExpanded={expandedSections.cpr}
-              onToggle={() => toggleSection("cpr")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailRow
-                label="CPR Condition"
-                value={cleanValue(record.cprCond)}
-                colors={colors}
-                fullWidth
-              />
-              <DetailRow
-                label="CPR Condition Remarks"
-                value={cleanValue(record.cprCondRemarks)}
-                colors={colors}
-                fullWidth
-              />
-              <DetailRow
-                label="CPR Condition Additional Remarks"
-                value={cleanValue(record.cprCondAddRemarks)}
-                colors={colors}
-                fullWidth
-              />
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* REMARKS & NOTES */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📝 Remarks & Notes"
-              isExpanded={expandedSections.remarks}
-              onToggle={() => toggleSection("remarks")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailRow
-                label="Application Remarks"
-                value={cleanValue(record.appRemarks)}
-                colors={colors}
-                fullWidth
-              />
-              <DetailRow
-                label="General Remarks"
-                value={cleanValue(record.remarks1)}
-                colors={colors}
-                fullWidth
-              />
-            </CollapsibleSection>
-
-            {/* ============================================ */}
-            {/* METADATA */}
-            {/* ============================================ */}
-            <CollapsibleSection
-              title="📊 Metadata (System Info)"
-              isExpanded={expandedSections.metadata}
-              onToggle={() => toggleSection("metadata")}
-              colors={colors}
-              darkMode={darkMode}
-            >
-              <DetailGrid>
-                <DetailRow
-                  label="Timeline (Days)"
-                  value={cleanValue(record.dbTimelineCitizenCharter)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Status Timeline"
-                  value={cleanValue(record.statusTimeline)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Uploaded By"
-                  value={cleanValue(record.userUploader)}
-                  colors={colors}
-                />
-                <DetailRow
-                  label="Upload Date"
-                  value={formatDate(record.dateExcelUpload)}
-                  colors={colors}
-                />
-              </DetailGrid>
-            </CollapsibleSection>
-          </div>
-
-          {/* Footer */}
-          <div
-            style={{
-              padding: "1.5rem 2rem",
-              borderTop: `1px solid ${colors.cardBorder}`,
-              display: "flex",
-              gap: "1rem",
-              justifyContent: "flex-end",
-            }}
-          >
-            <button
-              onClick={onClose}
-              style={{
-                padding: "0.75rem 1.5rem",
-                background: colors.cardBorder,
-                border: "none",
-                borderRadius: "8px",
-                color: colors.textPrimary,
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                cursor: "pointer",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = darkMode
-                  ? "#404040"
-                  : "#d0d0d0";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = colors.cardBorder;
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-// ============================================
-// HELPER COMPONENTS
-// ============================================
-
-function CollapsibleSection({
-  title,
-  isExpanded,
-  onToggle,
-  children,
-  colors,
-  darkMode,
-}) {
-  return (
-    <div style={{ marginBottom: "1.5rem" }}>
-      <div
-        onClick={onToggle}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "1rem 1.5rem",
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "10px",
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-          marginBottom: isExpanded ? "1rem" : "0",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#f0f0f0";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = colors.cardBg;
-        }}
-      >
-        <h3
-          style={{
-            fontSize: "1rem",
-            fontWeight: "600",
-            color: colors.textPrimary,
-            margin: 0,
-          }}
-        >
-          {title}
-        </h3>
-        <span
-          style={{
-            color: colors.textTertiary,
-            transition: "transform 0.2s",
-            transform: isExpanded ? "rotate(0deg)" : "rotate(-90deg)",
-          }}
-        >
-          ▼
-        </span>
-      </div>
-      {isExpanded && (
-        <div
-          style={{
-            padding: "1.5rem",
-            background: colors.tableRowEven,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "10px",
-          }}
-        >
-          {children}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DetailGrid({ children }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gap: "1.5rem",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function DetailRow({
-  label,
-  value,
-  colors,
-  fullWidth = false,
-  isBadge = false,
-  renderBadge = null,
-}) {
-  const displayValue = isBadge && renderBadge ? renderBadge(value) : value;
-
-  if (fullWidth) {
-    return (
-      <div style={{ gridColumn: "1 / -1" }}>
-        <div
-          style={{
-            fontSize: "0.875rem",
-            fontWeight: "600",
-            color: colors.textTertiary,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            marginBottom: "0.5rem",
-          }}
-        >
-          {label}
-        </div>
-        <div
-          style={{
-            fontSize: "0.95rem",
-            color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
-            fontWeight: "500",
-            wordBreak: "break-word",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {displayValue}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <div
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+      <label
         style={{
           fontSize: "0.875rem",
-          fontWeight: "600",
-          color: colors.textTertiary,
-          textTransform: "uppercase",
-          letterSpacing: "0.5px",
-          marginBottom: "0.5rem",
+          fontWeight: "500",
+          color: colors.textSecondary,
         }}
       >
         {label}
-      </div>
+      </label>
       <div
         style={{
-          fontSize: "0.95rem",
-          color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
-          fontWeight: "500",
-          wordBreak: "break-word",
+          padding: "0.75rem",
+          background: colors.tableRowEven,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "8px",
+          fontSize: "0.875rem",
+          display: "flex",
+          alignItems: "center",
         }}
       >
-        {displayValue}
+        {renderBadge()}
       </div>
-    </div>
-  );
-}
-
-function WorkflowCard({ title, children, colors, darkMode }) {
-  return (
-    <div
-      style={{
-        padding: "1rem",
-        background: colors.cardBg,
-        borderRadius: "8px",
-        border: `1px solid ${colors.cardBorder}`,
-      }}
-    >
-      <h4
-        style={{
-          fontSize: "0.9rem",
-          fontWeight: "700",
-          color: colors.textPrimary,
-          marginBottom: "0.75rem",
-          paddingBottom: "0.5rem",
-          borderBottom: `1px solid ${colors.cardBorder}`,
-        }}
-      >
-        {title}
-      </h4>
-      <div style={{ display: "grid", gap: "0.6rem" }}>{children}</div>
     </div>
   );
 }
