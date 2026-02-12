@@ -10,12 +10,10 @@ import {
   removeUserFromGroup,
   getAllUsers,
 } from "../api/auth";
-
 import {
   getMenuPermissions,
   updateMenuPermissions,
 } from "../api/menuPermissions";
-
 import Toast from "../components/groupManagement/Toast";
 import ConfirmModal from "../components/groupManagement/ConfirmModal";
 import GroupFormModal from "../components/groupManagement/GroupFormModal";
@@ -27,7 +25,6 @@ import { useColors } from "../components/groupManagement/useColors";
 import { allMenuItems } from "../components/groupManagement/menuDefinitions";
 
 function GroupManagementPage({ darkMode, userRole }) {
-  // ===== STATE =====
   const [groups, setGroups] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
@@ -36,19 +33,11 @@ function GroupManagementPage({ darkMode, userRole }) {
   const [groupUsersLoading, setGroupUsersLoading] = useState(false);
   const [toast, setToast] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
-
-  // ===== TAB STATE =====
   const [activeTab, setActiveTab] = useState("groups");
-
-  // ===== MENU PERMISSIONS STATE =====
   const [menuItems, setMenuItems] = useState([]);
   const [menuPermissionsModal, setMenuPermissionsModal] = useState(null);
-
-  // Modals
   const [groupModal, setGroupModal] = useState(null);
   const [confirmModal, setConfirmModal] = useState(null);
-
-  // Assign user dropdown
   const [assignSearch, setAssignSearch] = useState("");
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
 
@@ -73,7 +62,7 @@ function GroupManagementPage({ darkMode, userRole }) {
     fetchGroups();
   }, [fetchGroups]);
 
-  // Fetch users of selected group
+  // ===== FETCH GROUP USERS =====
   const fetchGroupUsers = useCallback(async (groupId) => {
     if (!groupId) return;
     setGroupUsersLoading(true);
@@ -92,77 +81,73 @@ function GroupManagementPage({ darkMode, userRole }) {
     if (selectedGroup) fetchGroupUsers(selectedGroup.id);
   }, [selectedGroup, fetchGroupUsers]);
 
-  // ===== LOAD MENU PERMISSIONS FROM API =====
-  useEffect(() => {
-    const loadMenuPermissions = async () => {
-      try {
-        console.log("📋 Loading menu permissions from API...");
-        const backendPermissions = await getMenuPermissions();
+  // ===== HELPER: CATEGORIZE MENU ITEMS =====
+  const getCategoryForMenu = (menuId) => {
+    const categoryMap = {
+      dashboard: "Main",
+      reports: "CDR Reports",
+      "otc-database": "CDR Reports",
+      "for-decking": "Workflow",
+      "for-evaluation": "Workflow",
+      "for-compliance": "Workflow",
+      "for-checking": "Workflow",
+      supervisor: "Workflow",
+      "for-qa": "Workflow",
+      "for-director-signature": "Workflow",
+      "for-releasing": "Workflow",
+      "fda-verification": "Other Database",
+      announcements: "Platform",
+      support: "Platform",
+    };
+    return categoryMap[menuId] || "Other";
+  };
 
-        if (
-          backendPermissions &&
-          Array.isArray(backendPermissions) &&
-          backendPermissions.length > 0
-        ) {
-          console.log("✅ Loaded from API:", backendPermissions);
+  // ===== LOAD MENU PERMISSIONS — API ONLY, NO localStorage =====
+  const fetchMenuPermissions = useCallback(async () => {
+    try {
+      // getMenuPermissions() returns raw array:
+      // [{ id: 1, menu_id: "dashboard", name: "Dashboard", group_ids: [1, 2], ... }]
+      const rawPermissions = await getMenuPermissions();
 
-          const permissionsMap = {};
-          backendPermissions.forEach((item) => {
-            permissionsMap[item.menu_id] = item.group_ids || [];
-          });
-
-          const updatedMenuItems = allMenuItems.map((item) => ({
-            ...item,
-            allowedGroups: permissionsMap[item.id] || [],
-          }));
-
-          setMenuItems(updatedMenuItems);
-          localStorage.setItem(
-            "menuPermissions",
-            JSON.stringify(permissionsMap),
-          );
-        } else {
-          console.log("⚠️ No permissions from API, using defaults");
-          initializeDefaultPermissions();
-        }
-      } catch (err) {
-        console.error("❌ Failed to load from API:", err);
-        showToast(
-          "error",
-          "Failed to load menu permissions from server. Using defaults.",
+      if (Array.isArray(rawPermissions) && rawPermissions.length > 0) {
+        const menuItemsFromBackend = rawPermissions.map((item) => ({
+          id: item.menu_id,
+          label: item.name,
+          icon: item.icon || "📄",
+          category: getCategoryForMenu(item.menu_id),
+          allowedGroups: Array.isArray(item.group_ids)
+            ? item.group_ids.filter((id) => id !== null && id !== undefined)
+            : [],
+        }));
+        setMenuItems(menuItemsFromBackend);
+      } else {
+        // API returned empty — fallback with empty groups
+        setMenuItems(
+          allMenuItems.map((item) => ({ ...item, allowedGroups: [] })),
         );
-        initializeDefaultPermissions();
       }
-    };
-
-    const initializeDefaultPermissions = () => {
-      const defaultPermissions = allMenuItems.map((item) => ({
-        ...item,
-        allowedGroups: [1, 2, 3, 4, 5, 6, 7, 8],
-      }));
-      setMenuItems(defaultPermissions);
-
-      const permissionsObj = {};
-      defaultPermissions.forEach((item) => {
-        permissionsObj[item.id] = item.allowedGroups;
-      });
-      localStorage.setItem("menuPermissions", JSON.stringify(permissionsObj));
-    };
-
-    loadMenuPermissions();
+    } catch (err) {
+      console.error("Failed to load menu permissions from API:", err);
+      showToast("error", "Failed to load menu permissions from server.");
+      setMenuItems(
+        allMenuItems.map((item) => ({ ...item, allowedGroups: [] })),
+      );
+    }
   }, []);
 
-  // ===== SAVE MENU PERMISSIONS TO API =====
+  useEffect(() => {
+    fetchMenuPermissions();
+  }, [fetchMenuPermissions]);
+
+  // ===== SAVE MENU PERMISSIONS — API ONLY, NO localStorage =====
   const handleMenuPermissionsSave = async () => {
     if (!menuPermissionsModal) return;
-
     const { menuId, selectedGroups } = menuPermissionsModal;
 
     try {
-      console.log("💾 Saving to API:", { menuId, selectedGroups });
-
       await updateMenuPermissions(menuId, selectedGroups);
 
+      // Update local state directly
       setMenuItems((prev) =>
         prev.map((item) =>
           item.id === menuId
@@ -171,19 +156,13 @@ function GroupManagementPage({ darkMode, userRole }) {
         ),
       );
 
-      const permissionsObj = {};
-      menuItems.forEach((item) => {
-        permissionsObj[item.id] =
-          item.id === menuId ? selectedGroups : item.allowedGroups;
-      });
-      localStorage.setItem("menuPermissions", JSON.stringify(permissionsObj));
-
+      // Notify Sidebar to re-fetch from API
       window.dispatchEvent(new Event("menuPermissionsUpdated"));
 
       showToast("success", "Menu permissions updated successfully!");
       setMenuPermissionsModal(null);
     } catch (err) {
-      console.error("❌ Failed to update menu permissions:", err);
+      console.error("Failed to update menu permissions:", err);
       const detail =
         err?.response?.data?.detail ||
         err?.message ||
@@ -198,7 +177,7 @@ function GroupManagementPage({ darkMode, userRole }) {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // ===== GROUP CRUD HANDLERS =====
+  // ===== GROUP CRUD =====
   const handleGroupSubmit = async () => {
     if (!groupModal) return;
     const { mode, data } = groupModal;
@@ -236,8 +215,10 @@ function GroupManagementPage({ darkMode, userRole }) {
         );
       }
     } catch (err) {
-      const detail = err?.response?.data?.detail || "Failed to save group.";
-      showToast("error", detail);
+      showToast(
+        "error",
+        err?.response?.data?.detail || "Failed to save group.",
+      );
     } finally {
       setActionLoading(null);
     }
@@ -254,8 +235,10 @@ function GroupManagementPage({ darkMode, userRole }) {
       setConfirmModal(null);
       await fetchGroups();
     } catch (err) {
-      const detail = err?.response?.data?.detail || "Failed to delete group.";
-      showToast("error", detail);
+      showToast(
+        "error",
+        err?.response?.data?.detail || "Failed to delete group.",
+      );
       setConfirmModal(null);
     } finally {
       setActionLoading(null);
@@ -276,8 +259,10 @@ function GroupManagementPage({ darkMode, userRole }) {
         showToast("error", result.message);
       }
     } catch (err) {
-      const detail = err?.response?.data?.detail || "Failed to assign user.";
-      showToast("error", detail);
+      showToast(
+        "error",
+        err?.response?.data?.detail || "Failed to assign user.",
+      );
     } finally {
       setActionLoading(null);
     }
@@ -300,9 +285,10 @@ function GroupManagementPage({ darkMode, userRole }) {
             showToast("error", result.message);
           }
         } catch (err) {
-          const detail =
-            err?.response?.data?.detail || "Failed to remove user.";
-          showToast("error", detail);
+          showToast(
+            "error",
+            err?.response?.data?.detail || "Failed to remove user.",
+          );
         } finally {
           setActionLoading(null);
         }
@@ -312,13 +298,11 @@ function GroupManagementPage({ darkMode, userRole }) {
 
   const toggleGroupPermission = (groupId) => {
     if (!menuPermissionsModal) return;
-
     setMenuPermissionsModal((prev) => {
       const currentGroups = prev.selectedGroups || [];
       const newGroups = currentGroups.includes(groupId)
         ? currentGroups.filter((id) => id !== groupId)
         : [...currentGroups, groupId];
-
       return { ...prev, selectedGroups: newGroups };
     });
   };
@@ -349,7 +333,6 @@ function GroupManagementPage({ darkMode, userRole }) {
     return acc;
   }, {});
 
-  // ===== RENDER =====
   return (
     <div
       style={{
@@ -362,7 +345,6 @@ function GroupManagementPage({ darkMode, userRole }) {
       }}
     >
       {toast && <Toast toast={toast} colors={colors} />}
-
       {confirmModal && (
         <ConfirmModal
           confirmModal={confirmModal}
@@ -370,7 +352,6 @@ function GroupManagementPage({ darkMode, userRole }) {
           colors={colors}
         />
       )}
-
       {groupModal && (
         <GroupFormModal
           groupModal={groupModal}
@@ -380,7 +361,6 @@ function GroupManagementPage({ darkMode, userRole }) {
           colors={colors}
         />
       )}
-
       {menuPermissionsModal && (
         <MenuPermissionsModal
           menuPermissionsModal={menuPermissionsModal}
@@ -417,7 +397,6 @@ function GroupManagementPage({ darkMode, userRole }) {
               Manage groups, users, and menu permissions
             </p>
           </div>
-
           {activeTab === "groups" && (
             <button
               onClick={() =>
@@ -445,7 +424,6 @@ function GroupManagementPage({ darkMode, userRole }) {
           )}
         </div>
 
-        {/* TABS */}
         <div
           style={{
             display: "flex",
@@ -479,14 +457,12 @@ function GroupManagementPage({ darkMode, userRole }) {
                 transition: "all 0.2s",
               }}
               onMouseEnter={(e) => {
-                if (activeTab !== tab.id) {
+                if (activeTab !== tab.id)
                   e.currentTarget.style.color = colors.textPrimary;
-                }
               }}
               onMouseLeave={(e) => {
-                if (activeTab !== tab.id) {
+                if (activeTab !== tab.id)
                   e.currentTarget.style.color = colors.textSecondary;
-                }
               }}
             >
               <span>{tab.icon}</span>
@@ -496,7 +472,6 @@ function GroupManagementPage({ darkMode, userRole }) {
         </div>
       </div>
 
-      {/* TAB CONTENT */}
       {activeTab === "groups" && (
         <GroupsTab
           groups={groups}

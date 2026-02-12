@@ -1,6 +1,6 @@
 // FILE: src/pages/DeckingPage.jsx
 // ✅ LAYOUT: Level 1 (All/Not Decked/Decked) = TABS | Levels 2-4 (App Type/Prescriptions/Status) = SIDEBAR
-// ✅ UPDATED: Added Edit functionality
+// ✅ UPDATED: Added Edit functionality + Collapsible Sidebar
 
 import { useState, useEffect } from "react";
 import {
@@ -87,6 +87,9 @@ function DeckingPage({ darkMode }) {
 
   // ✅ NEW - Edit state
   const [editingRecord, setEditingRecord] = useState(null);
+
+  // ✅ NEW - Sidebar toggle state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const colors = getColorScheme(darkMode);
 
@@ -586,86 +589,238 @@ function DeckingPage({ darkMode }) {
       {/* ========== SIDEBAR (LEVELS 2, 3, 4) ========== */}
       <div
         style={{
-          width: "320px",
+          width: isSidebarOpen ? "320px" : "60px",
           background: darkMode ? "#0a0a0a" : "#f8f9fa",
           borderRight: `1px solid ${colors.cardBorder}`,
-          padding: "1.5rem",
-          overflowY: "auto",
+          padding: isSidebarOpen ? "1.5rem" : "1rem 0.5rem",
+          overflowY: isSidebarOpen ? "auto" : "hidden",
+          overflowX: "hidden",
           display: "flex",
           flexDirection: "column",
-          gap: "1.5rem",
+          gap: "1rem",
+          transition: "all 0.3s ease",
         }}
       >
-        {/* ✅ Quick Filters Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            paddingBottom: "1rem",
-            borderBottom: `2px solid ${colors.cardBorder}`,
-          }}
-        >
-          <span style={{ fontSize: "1.25rem" }}>⚡</span>
-          <h2
-            style={{
-              fontSize: "1.1rem",
-              fontWeight: "700",
-              color: colors.textPrimary,
-              margin: 0,
-              letterSpacing: "0.5px",
-            }}
-          >
-            Quick Filters
-          </h2>
-        </div>
+        {isSidebarOpen ? (
+          <>
+            {/* ✅ Quick Filters Header with Toggle Button */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "1rem",
+                background: darkMode ? "#1a1a1a" : "#ffffff",
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "10px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <span style={{ fontSize: "1.25rem" }}>⚡</span>
+                <h2
+                  style={{
+                    fontSize: "1.1rem",
+                    fontWeight: "700",
+                    color: colors.textPrimary,
+                    margin: 0,
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Quick Filters
+                </h2>
+              </div>
 
-        {/* LEVEL 2: Application Type */}
-        {availableAppTypes.length > 0 && (
-          <SidebarSection
-            title="Application Type"
-            icon="📦"
-            items={availableAppTypes}
-            activeItem={subTab}
-            onItemClick={handleSubTabChange}
-            colors={colors}
-            darkMode={darkMode}
-            totalCount={availableAppTypes.reduce((sum, a) => sum + a.count, 0)}
-          />
-        )}
+              {/* Toggle Button */}
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                style={{
+                  padding: "0.5rem",
+                  background: darkMode ? "#0a0a0a" : "#f5f5f5",
+                  color: colors.textPrimary,
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "6px",
+                  fontSize: "1rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "32px",
+                  height: "32px",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = darkMode
+                    ? "#2a2a2a"
+                    : "#e5e5e5";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = darkMode
+                    ? "#0a0a0a"
+                    : "#f5f5f5";
+                }}
+                title="Hide Quick Filters"
+              >
+                ◀
+              </button>
+            </div>
 
-        {/* LEVEL 3: Prescriptions */}
-        {availablePrescriptionTypes.length > 0 && (
-          <SidebarSection
-            title="Prescriptions"
-            icon="💊"
-            items={availablePrescriptionTypes}
-            activeItem={prescriptionTab}
-            onItemClick={handlePrescriptionTabChange}
-            colors={colors}
-            darkMode={darkMode}
-            totalCount={availablePrescriptionTypes.reduce(
-              (sum, p) => sum + p.count,
-              0,
+            {/* LEVEL 2: Application Type */}
+            {availableAppTypes.length > 0 && (
+              <SidebarSection
+                title="Application Type"
+                icon="📦"
+                items={availableAppTypes}
+                activeItem={subTab}
+                onItemClick={handleSubTabChange}
+                colors={colors}
+                darkMode={darkMode}
+                totalCount={availableAppTypes.reduce(
+                  (sum, a) => sum + a.count,
+                  0,
+                )}
+              />
             )}
-          />
-        )}
 
-        {/* LEVEL 4: Status */}
-        {availableAppStatusTypes.length > 0 && (
-          <SidebarSection
-            title="All Status"
-            icon="📈"
-            items={availableAppStatusTypes}
-            activeItem={appStatusTab}
-            onItemClick={handleAppStatusTabChange}
-            colors={colors}
-            darkMode={darkMode}
-            totalCount={availableAppStatusTypes.reduce(
-              (sum, s) => sum + s.count,
-              0,
+            {/* LEVEL 3: Prescriptions */}
+            {availablePrescriptionTypes.length > 0 && (
+              <SidebarSection
+                title="Prescriptions"
+                icon="💊"
+                items={availablePrescriptionTypes}
+                activeItem={prescriptionTab}
+                onItemClick={handlePrescriptionTabChange}
+                colors={colors}
+                darkMode={darkMode}
+                totalCount={availablePrescriptionTypes.reduce(
+                  (sum, p) => sum + p.count,
+                  0,
+                )}
+              />
             )}
-          />
+
+            {/* LEVEL 4: Status */}
+            {availableAppStatusTypes.length > 0 && (
+              <SidebarSection
+                title="All Status"
+                icon="📈"
+                items={availableAppStatusTypes}
+                activeItem={appStatusTab}
+                onItemClick={handleAppStatusTabChange}
+                colors={colors}
+                darkMode={darkMode}
+                totalCount={availableAppStatusTypes.reduce(
+                  (sum, s) => sum + s.count,
+                  0,
+                )}
+              />
+            )}
+          </>
+        ) : (
+          /* ========== MINIMIZED SIDEBAR ========== */
+          <>
+            {/* Open Button */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              style={{
+                padding: "0.75rem",
+                background: darkMode ? "#1a1a1a" : "#ffffff",
+                color: colors.textPrimary,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "8px",
+                fontSize: "1.2rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "44px",
+                height: "44px",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = darkMode
+                  ? "#2a2a2a"
+                  : "#f0f0f0";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = darkMode
+                  ? "#1a1a1a"
+                  : "#ffffff";
+              }}
+              title="Show Quick Filters"
+            >
+              ▶
+            </button>
+
+            {/* Icon Buttons */}
+            {availableAppTypes.length > 0 && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  background: darkMode ? "#1a1a1a" : "#ffffff",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "8px",
+                  fontSize: "1.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "44px",
+                  height: "44px",
+                  cursor: "default",
+                }}
+                title="Application Type"
+              >
+                📦
+              </div>
+            )}
+
+            {availablePrescriptionTypes.length > 0 && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  background: darkMode ? "#1a1a1a" : "#ffffff",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "8px",
+                  fontSize: "1.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "44px",
+                  height: "44px",
+                  cursor: "default",
+                }}
+                title="Prescriptions"
+              >
+                💊
+              </div>
+            )}
+
+            {availableAppStatusTypes.length > 0 && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  background: darkMode ? "#1a1a1a" : "#ffffff",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "8px",
+                  fontSize: "1.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "44px",
+                  height: "44px",
+                  cursor: "default",
+                }}
+                title="All Status"
+              >
+                📈
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -673,11 +828,11 @@ function DeckingPage({ darkMode }) {
       <div
         style={{
           flex: 1,
-          overflow: "hidden", // OK lang ito
+          overflow: "hidden",
           padding: "0rem",
           display: "flex",
           flexDirection: "column",
-          minHeight: 0, // ⭐ CRITICAL
+          minHeight: 0,
         }}
       >
         {/* Header */}
@@ -931,13 +1086,13 @@ function DeckingPage({ darkMode }) {
               colors={colors}
               activeTab={activeTab}
               onRefresh={refreshData}
-              onEdit={handleEdit} // ✅ NEW - Pass edit handler
+              onEdit={handleEdit}
             />
           )}
         </div>
       </div>
 
-      {/* ✅ NEW - Edit Modal */}
+      {/* ✅ Edit Modal */}
       {editingRecord && (
         <EditRecordModal
           record={editingRecord}

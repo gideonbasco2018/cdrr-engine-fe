@@ -17,7 +17,6 @@ function App() {
     localStorage.setItem("darkMode", JSON.stringify(darkMode));
   }, [darkMode]);
 
-  // After login, redirect to the correct dashboard based on role
   const getDefaultDashboard = () => {
     const role = getUserRole();
     switch (role) {

@@ -18,31 +18,32 @@ export const menuDefinitions = {
       roles: ["User", "Admin", "SuperAdmin"],
       comingSoon: false,
     },
+
   ],
 
   workflowItems: [
     {
       id: "for-decking",
       icon: "📥",
-      label: "For Decking",
+      label: "Decking",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "for-evaluation",
       icon: "📋",
-      label: "For Evaluation",
+      label: "Evaluation",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "for-compliance",
-      icon: "✓",
-      label: "For Compliance",
+      icon: "🗂️",
+      label: "For-Compliance",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "for-checking",
       icon: "🔍",
-      label: "For Checking",
+      label: "Checking",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
@@ -54,19 +55,19 @@ export const menuDefinitions = {
     {
       id: "for-qa",
       icon: "✔️",
-      label: "For QA",
+      label: "QA",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "for-director-signature",
       icon: "✍️",
-      label: "For Director Signature",
+      label: "Director Signature",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "for-releasing",
       icon: "📤",
-      label: "For Releasing",
+      label: "Releasing",
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],
@@ -76,6 +77,12 @@ export const menuDefinitions = {
       id: "fda-verification",
       icon: "🔍",
       label: "FDA Verification Portal",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
+    {
+      id: "otc-database",
+      label: "OTC Database",
+      icon: "💊",
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],

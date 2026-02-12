@@ -1,9 +1,67 @@
 // FILE: src/components/reports/ReportsDataTable.jsx
+// ✅ ADDED: Sorting functionality with clickable column headers
+// ✅ UPDATED: Made table height responsive to zoom using vh units
 import { useState } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import ViewDetailsModal from "./actions/ViewDetailsModal";
 import DoctrackModal from "./actions/DoctrackModal";
+
+// ✅ Map column keys to database column names for sorting
+const COLUMN_DB_KEY_MAP = {
+  dtn: "DB_DTN",
+  estCat: "DB_EST_CAT",
+  ltoCompany: "DB_EST_LTO_COMP",
+  ltoAddress: "DB_EST_LTO_ADD",
+  email: "DB_EST_EADD",
+  tin: "DB_EST_TIN",
+  contactNo: "DB_EST_CONTACT_NO",
+  ltoNo: "DB_EST_LTO_NO",
+  validity: "DB_EST_VALIDITY",
+  prodBrName: "DB_PROD_BR_NAME",
+  prodGenName: "DB_PROD_GEN_NAME",
+  dosageStrength: "DB_PROD_DOS_STR",
+  dosageForm: "DB_PROD_DOS_FORM",
+  prescription: "DB_PROD_CLASS_PRESCRIP",
+  essentialDrug: "DB_PROD_ESS_DRUG_LIST",
+  pharmaCategory: "DB_PROD_PHARMA_CAT",
+  manufacturer: "DB_PROD_MANU",
+  manufacturerAddress: "DB_PROD_MANU_ADD",
+  manufacturerCountry: "DB_PROD_MANU_COUNTRY",
+  trader: "DB_PROD_TRADER",
+  traderCountry: "DB_PROD_TRADER_COUNTRY",
+  importer: "DB_PROD_IMPORTER",
+  importerCountry: "DB_PROD_IMPORTER_COUNTRY",
+  distributor: "DB_PROD_DISTRI",
+  distributorCountry: "DB_PROD_DISTRI_COUNTRY",
+  shelfLife: "DB_PROD_DISTRI_SHELF_LIFE",
+  packaging: "DB_PACKAGING",
+  expiryDate: "DB_EXPIRY_DATE",
+  regNo: "DB_REG_NO",
+  appType: "DB_APP_TYPE",
+  motherAppType: "DB_MOTHER_APP_TYPE",
+  oldRsn: "DB_OLD_RSN",
+  productCategory: "DB_PROD_CAT",
+  fee: "DB_FEE",
+  total: "DB_TOTAL",
+  orNo: "DB_OR_NO",
+  dateIssued: "DB_DATE_ISSUED",
+  dateReceivedFdac: "DB_DATE_RECEIVED_FDAC",
+  dateReceivedCent: "DB_DATE_RECEIVED_CENT",
+  mo: "DB_MO",
+  deckingSched: "DB_DECKING_SCHED",
+  eval: "DB_EVAL",
+  dateDeck: "DB_DATE_DECK",
+  remarks1: "DB_REMARKS_1",
+  dateRemarks: "DB_DATE_REMARKS",
+  class: "DB_CLASS",
+  dateReleased: "DB_DATE_RELEASED",
+  typeDocReleased: "DB_TYPE_DOC_RELEASED",
+  appStatus: "DB_APP_STATUS",
+  uploadedBy: "DB_USER_UPLOADER",
+  uploadedAt: "DB_DATE_EXCEL_UPLOAD",
+  dbTimelineCitizenCharter: "DB_TIMELINE_CITIZEN_CHARTER",
+};
 
 function ReportsDataTable({
   data,
@@ -19,10 +77,78 @@ function ReportsDataTable({
   colors,
   indexOfFirstRow,
   indexOfLastRow,
+  onSort,
+  sortBy,
+  sortOrder,
+  darkMode,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
+
+  // ✅ Get database column name for sorting
+  const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
+
+  // ✅ Handle column header click for sorting
+  const handleSort = (colKey) => {
+    if (!onSort) return;
+    const dbKey = getDbKey(colKey);
+
+    // statusTimeline is computed client-side, can't be sorted server-side
+    if (colKey === "statusTimeline") return;
+
+    // Toggle sort order if clicking same column, otherwise default to asc
+    if (sortBy === dbKey) {
+      onSort(dbKey, sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      onSort(dbKey, "asc");
+    }
+  };
+
+  // ✅ Sort indicator component
+  const SortIcon = ({ colKey }) => {
+    if (colKey === "statusTimeline") return null;
+    const dbKey = getDbKey(colKey);
+    const isActive = sortBy === dbKey;
+
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          flexDirection: "column",
+          marginLeft: "4px",
+          lineHeight: 1,
+          verticalAlign: "middle",
+          gap: "1px",
+        }}
+      >
+        <span
+          style={{
+            fontSize: "0.48rem",
+            lineHeight: 1,
+            color:
+              isActive && sortOrder === "asc" ? "#4CAF50" : colors.textTertiary,
+            opacity: isActive && sortOrder === "asc" ? 1 : 0.3,
+          }}
+        >
+          ▲
+        </span>
+        <span
+          style={{
+            fontSize: "0.48rem",
+            lineHeight: 1,
+            color:
+              isActive && sortOrder === "desc"
+                ? "#4CAF50"
+                : colors.textTertiary,
+            opacity: isActive && sortOrder === "desc" ? 1 : 0.3,
+          }}
+        >
+          ▼
+        </span>
+      </span>
+    );
+  };
 
   // ✅ Function to calculate status timeline
   const calculateStatusTimeline = (row) => {
@@ -434,6 +560,16 @@ function ReportsDataTable({
     );
   };
 
+  // ✅ Find current sort column label
+  const activeSortLabel = (() => {
+    const entry = Object.entries(COLUMN_DB_KEY_MAP).find(
+      ([, dbKey]) => dbKey === sortBy,
+    );
+    if (!entry) return sortBy;
+    const col = tableColumns.find((c) => c.key === entry[0]);
+    return col?.label || sortBy;
+  })();
+
   return (
     <>
       <div
@@ -445,6 +581,7 @@ function ReportsDataTable({
           transition: "all 0.3s ease",
         }}
       >
+        {/* ✅ Header with sort indicator */}
         <div
           style={{
             padding: "1rem 1.5rem",
@@ -479,10 +616,36 @@ function ReportsDataTable({
               {totalRecords} total records
             </span>
           </div>
+
+          {/* ✅ Active sort indicator */}
+          {sortBy && (
+            <span
+              style={{
+                fontSize: "0.73rem",
+                color: colors.textTertiary,
+                padding: "0.2rem 0.6rem",
+                background: colors.badgeBg,
+                borderRadius: "6px",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.3rem",
+              }}
+            >
+              Sorted by{" "}
+              <strong style={{ color: "#4CAF50" }}>{activeSortLabel}</strong>
+              <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
+            </span>
+          )}
         </div>
 
+        {/* ✅ RESPONSIVE: Uses vh units for zoom-responsive height */}
         <div
-          style={{ overflowX: "auto", maxHeight: "600px", overflowY: "auto" }}
+          style={{
+            overflowX: "auto",
+            maxHeight: "calc(55vh - 150px)",
+            minHeight: "300px",
+            overflowY: "auto",
+          }}
         >
           <table
             style={{
@@ -500,6 +663,7 @@ function ReportsDataTable({
               }}
             >
               <tr>
+                {/* Number column - not sortable */}
                 <th
                   style={{
                     padding: "1rem",
@@ -521,9 +685,11 @@ function ReportsDataTable({
                   #
                 </th>
 
+                {/* ✅ Data columns - all sortable except statusTimeline */}
                 {tableColumns.map((col) => (
                   <th
                     key={col.key}
+                    onClick={() => handleSort(col.key)}
                     style={{
                       padding: "1rem",
                       textAlign: "left",
@@ -536,6 +702,10 @@ function ReportsDataTable({
                       minWidth: col.key === "dtn" ? "180px" : col.width,
                       whiteSpace: "nowrap",
                       background: col.headerBg || colors.tableBg,
+                      cursor:
+                        col.key !== "statusTimeline" ? "pointer" : "default",
+                      userSelect: "none",
+                      transition: "background 0.15s",
                       ...(col.frozen && {
                         position: "sticky",
                         left: "60px",
@@ -544,11 +714,28 @@ function ReportsDataTable({
                         boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
                       }),
                     }}
+                    onMouseEnter={(e) => {
+                      if (col.key !== "statusTimeline") {
+                        e.currentTarget.style.background = darkMode
+                          ? "#1e1e1e"
+                          : "#ebebeb";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background =
+                        col.headerBg || colors.tableBg;
+                    }}
                   >
-                    {col.label}
+                    <span
+                      style={{ display: "inline-flex", alignItems: "center" }}
+                    >
+                      {col.label}
+                      <SortIcon colKey={col.key} />
+                    </span>
                   </th>
                 ))}
 
+                {/* Actions column - not sortable */}
                 <th
                   style={{
                     padding: "1rem",

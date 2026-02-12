@@ -1,4 +1,6 @@
 // FILE: src/pages/ReportsPage.jsx
+// ✅ UPDATED: Added collapsible sidebar functionality
+
 import { useState, useEffect } from "react";
 import {
   getUploadReports,
@@ -71,6 +73,13 @@ function ReportsPage({ darkMode }) {
     [],
   );
   const [availableAppStatusTypes, setAvailableAppStatusTypes] = useState([]);
+
+  // ✅ NEW - Sidebar toggle state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // ✅ Sorting state
+  const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
+  const [sortOrder, setSortOrder] = useState("desc");
 
   const colors = getColorScheme(darkMode);
 
@@ -192,7 +201,7 @@ function ReportsPage({ darkMode }) {
   }, [subTab, prescriptionTab]);
 
   // ===============================
-  // TABLE DATA (PAGINATED)
+  // TABLE DATA (PAGINATED) - ✅ NOW INCLUDES SORTING
   // ===============================
   useEffect(() => {
     const fetchData = async () => {
@@ -203,8 +212,8 @@ function ReportsPage({ darkMode }) {
           page: currentPage,
           pageSize: rowsPerPage,
           search: searchTerm,
-          sortBy: "DB_DATE_EXCEL_UPLOAD",
-          sortOrder: "desc",
+          sortBy,
+          sortOrder,
         };
 
         if (filters.category) params.category = filters.category;
@@ -248,6 +257,8 @@ function ReportsPage({ darkMode }) {
     prescriptionTab,
     appStatusTab,
     filters,
+    sortBy,
+    sortOrder,
   ]);
 
   // ===============================
@@ -256,7 +267,6 @@ function ReportsPage({ darkMode }) {
   const getExportParams = () => {
     const params = {
       search: searchTerm,
-      // ✅ REMOVED sortBy and sortOrder - backend handles this
     };
 
     if (filters.category) params.category = filters.category;
@@ -325,6 +335,15 @@ function ReportsPage({ darkMode }) {
   };
 
   // ===============================
+  // ✅ SORT HANDLER
+  // ===============================
+  const handleSort = (column, order) => {
+    setSortBy(column);
+    setSortOrder(order);
+    setCurrentPage(1); // Reset to first page when sorting changes
+  };
+
+  // ===============================
   // TAB HANDLERS
   // ===============================
   const handleSubTabChange = (value) => {
@@ -381,86 +400,238 @@ function ReportsPage({ darkMode }) {
       {/* ========== SIDEBAR (LEVELS 2, 3, 4) ========== */}
       <div
         style={{
-          width: "320px",
+          width: isSidebarOpen ? "320px" : "60px",
           background: darkMode ? "#0a0a0a" : "#f8f9fa",
           borderRight: `1px solid ${colors.cardBorder}`,
-          padding: "1.5rem",
-          overflowY: "auto",
+          padding: isSidebarOpen ? "1.5rem" : "1rem 0.5rem",
+          overflowY: isSidebarOpen ? "auto" : "hidden",
+          overflowX: "hidden",
           display: "flex",
           flexDirection: "column",
-          gap: "1.5rem",
+          gap: "1rem",
+          transition: "all 0.3s ease",
         }}
       >
-        {/* ✅ Quick Filters Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            paddingBottom: "1rem",
-            borderBottom: `2px solid ${colors.cardBorder}`,
-          }}
-        >
-          <span style={{ fontSize: "1.25rem" }}>⚡</span>
-          <h2
-            style={{
-              fontSize: "1.1rem",
-              fontWeight: "700",
-              color: colors.textPrimary,
-              margin: 0,
-              letterSpacing: "0.5px",
-            }}
-          >
-            Quick Filters
-          </h2>
-        </div>
+        {isSidebarOpen ? (
+          <>
+            {/* ✅ Quick Filters Header with Toggle Button */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "1rem",
+                background: darkMode ? "#1a1a1a" : "#ffffff",
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "10px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <span style={{ fontSize: "1.25rem" }}>⚡</span>
+                <h2
+                  style={{
+                    fontSize: "1.1rem",
+                    fontWeight: "700",
+                    color: colors.textPrimary,
+                    margin: 0,
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Quick Filters
+                </h2>
+              </div>
 
-        {/* LEVEL 2: Application Type */}
-        {availableAppTypes.length > 0 && (
-          <SidebarSection
-            title="Application Type"
-            icon="📦"
-            items={availableAppTypes}
-            activeItem={subTab}
-            onItemClick={handleSubTabChange}
-            colors={colors}
-            darkMode={darkMode}
-            totalCount={availableAppTypes.reduce((sum, a) => sum + a.count, 0)}
-          />
-        )}
+              {/* Toggle Button */}
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                style={{
+                  padding: "0.5rem",
+                  background: darkMode ? "#0a0a0a" : "#f5f5f5",
+                  color: colors.textPrimary,
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "6px",
+                  fontSize: "1rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "32px",
+                  height: "32px",
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = darkMode
+                    ? "#2a2a2a"
+                    : "#e5e5e5";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = darkMode
+                    ? "#0a0a0a"
+                    : "#f5f5f5";
+                }}
+                title="Hide Quick Filters"
+              >
+                ◀
+              </button>
+            </div>
 
-        {/* LEVEL 3: Prescriptions */}
-        {availablePrescriptionTypes.length > 0 && (
-          <SidebarSection
-            title="Prescriptions"
-            icon="💊"
-            items={availablePrescriptionTypes}
-            activeItem={prescriptionTab}
-            onItemClick={handlePrescriptionTabChange}
-            colors={colors}
-            darkMode={darkMode}
-            totalCount={availablePrescriptionTypes.reduce(
-              (sum, p) => sum + p.count,
-              0,
+            {/* LEVEL 2: Application Type */}
+            {availableAppTypes.length > 0 && (
+              <SidebarSection
+                title="Application Type"
+                icon="📦"
+                items={availableAppTypes}
+                activeItem={subTab}
+                onItemClick={handleSubTabChange}
+                colors={colors}
+                darkMode={darkMode}
+                totalCount={availableAppTypes.reduce(
+                  (sum, a) => sum + a.count,
+                  0,
+                )}
+              />
             )}
-          />
-        )}
 
-        {/* LEVEL 4: Status */}
-        {availableAppStatusTypes.length > 0 && (
-          <SidebarSection
-            title="All Status"
-            icon="📈"
-            items={availableAppStatusTypes}
-            activeItem={appStatusTab}
-            onItemClick={handleAppStatusTabChange}
-            colors={colors}
-            darkMode={darkMode}
-            totalCount={availableAppStatusTypes.reduce(
-              (sum, s) => sum + s.count,
-              0,
+            {/* LEVEL 3: Prescriptions */}
+            {availablePrescriptionTypes.length > 0 && (
+              <SidebarSection
+                title="Prescriptions"
+                icon="💊"
+                items={availablePrescriptionTypes}
+                activeItem={prescriptionTab}
+                onItemClick={handlePrescriptionTabChange}
+                colors={colors}
+                darkMode={darkMode}
+                totalCount={availablePrescriptionTypes.reduce(
+                  (sum, p) => sum + p.count,
+                  0,
+                )}
+              />
             )}
-          />
+
+            {/* LEVEL 4: Status */}
+            {availableAppStatusTypes.length > 0 && (
+              <SidebarSection
+                title="All Status"
+                icon="📈"
+                items={availableAppStatusTypes}
+                activeItem={appStatusTab}
+                onItemClick={handleAppStatusTabChange}
+                colors={colors}
+                darkMode={darkMode}
+                totalCount={availableAppStatusTypes.reduce(
+                  (sum, s) => sum + s.count,
+                  0,
+                )}
+              />
+            )}
+          </>
+        ) : (
+          /* ========== MINIMIZED SIDEBAR ========== */
+          <>
+            {/* Open Button */}
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              style={{
+                padding: "0.75rem",
+                background: darkMode ? "#1a1a1a" : "#ffffff",
+                color: colors.textPrimary,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "8px",
+                fontSize: "1.2rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "44px",
+                height: "44px",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = darkMode
+                  ? "#2a2a2a"
+                  : "#f0f0f0";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = darkMode
+                  ? "#1a1a1a"
+                  : "#ffffff";
+              }}
+              title="Show Quick Filters"
+            >
+              ▶
+            </button>
+
+            {/* Icon Buttons */}
+            {availableAppTypes.length > 0 && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  background: darkMode ? "#1a1a1a" : "#ffffff",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "8px",
+                  fontSize: "1.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "44px",
+                  height: "44px",
+                  cursor: "default",
+                }}
+                title="Application Type"
+              >
+                📦
+              </div>
+            )}
+
+            {availablePrescriptionTypes.length > 0 && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  background: darkMode ? "#1a1a1a" : "#ffffff",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "8px",
+                  fontSize: "1.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "44px",
+                  height: "44px",
+                  cursor: "default",
+                }}
+                title="Prescriptions"
+              >
+                💊
+              </div>
+            )}
+
+            {availableAppStatusTypes.length > 0 && (
+              <div
+                style={{
+                  padding: "0.75rem",
+                  background: darkMode ? "#1a1a1a" : "#ffffff",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "8px",
+                  fontSize: "1.2rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "44px",
+                  height: "44px",
+                  cursor: "default",
+                }}
+                title="All Status"
+              >
+                📈
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -468,11 +639,11 @@ function ReportsPage({ darkMode }) {
       <div
         style={{
           flex: 1,
-          overflow: "hidden", // OK lang ito
+          overflow: "hidden",
           padding: "0rem",
           display: "flex",
           flexDirection: "column",
-          minHeight: 0, // ⭐ CRITICAL
+          minHeight: 0,
         }}
       >
         {/* Header */}
@@ -550,8 +721,8 @@ function ReportsPage({ darkMode }) {
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "1.5rem",
-              marginBottom: "1.5rem",
+              gap: "1rem",
+              marginBottom: "1rem",
             }}
           >
             {[
@@ -583,32 +754,34 @@ function ReportsPage({ darkMode }) {
                 style={{
                   background: colors.cardBg,
                   border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "12px",
-                  padding: "1.5rem",
+                  borderRadius: "10px",
+                  padding: "1rem",
                   transition: "all 0.3s ease",
                 }}
               >
                 <div
-                  style={{ display: "flex", alignItems: "center", gap: "1rem" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                  }}
                 >
-                  <span style={{ fontSize: "2rem" }}>{stat.icon}</span>
+                  <span style={{ fontSize: "1.4rem" }}>{stat.icon}</span>
                   <div>
                     <p
                       style={{
-                        fontSize: "0.8rem",
+                        fontSize: "0.7rem",
                         color: colors.textTertiary,
-                        marginBottom: "0.25rem",
-                        transition: "color 0.3s ease",
+                        marginBottom: "0.15rem",
                       }}
                     >
                       {stat.label}
                     </p>
                     <p
                       style={{
-                        fontSize: "1.75rem",
-                        fontWeight: "700",
+                        fontSize: "1.3rem",
+                        fontWeight: "600",
                         color: stat.color,
-                        transition: "color 0.3s ease",
                       }}
                     >
                       {stat.value}
@@ -745,7 +918,7 @@ function ReportsPage({ darkMode }) {
             </div>
           )}
 
-          {/* Data Table - Read-only */}
+          {/* Data Table - ✅ NOW WITH SORTING */}
           {!loading && filteredData.length > 0 && (
             <ReportsDataTable
               data={filteredData}
@@ -761,6 +934,10 @@ function ReportsPage({ darkMode }) {
               onPageChange={handlePageChange}
               onRowsPerPageChange={handleRowsPerPageChange}
               colors={colors}
+              onSort={handleSort}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              darkMode={darkMode}
             />
           )}
         </div>

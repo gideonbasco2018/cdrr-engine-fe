@@ -11,6 +11,7 @@ import FDAVerificationPortalPage from "../pages/FDAVerificationPortalPage";
 import ReportsPage from "../pages/ReportsPage";
 import UserManagementPage from "../pages/UserManagementPage";
 import GroupManagementPage from "../pages/GroupManagementPage";
+import OTCPage from "../pages/OTCPage"; // ✅ NEW - Import OTC Page
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -66,8 +67,10 @@ function MainLayout({ darkMode, setDarkMode }) {
 
     // Other databases
     if (path.includes("fda-verification")) return "fda-verification";
+    if (path.includes("otc-database")) return "otc-database"; // ✅ NEW - OTC Database
 
     if (path.includes("reports")) return "reports";
+
     // Profile
     if (path.includes("profile")) return "profile";
 
@@ -146,6 +149,11 @@ function MainLayout({ darkMode, setDarkMode }) {
         );
       case "fda-verification":
         return <FDAVerificationPortalPage darkMode={darkMode} />;
+
+      // ✅ NEW - OTC Database Page
+      case "otc-database":
+        return <OTCPage darkMode={darkMode} userRole={userRole} />;
+
       case "announcements":
         return (
           <div style={{ padding: "2rem", color: colors.textPrimary }}>
