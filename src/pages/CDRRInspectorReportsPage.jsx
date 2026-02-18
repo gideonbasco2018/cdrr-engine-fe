@@ -875,7 +875,7 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
             gap: "0",
             marginBottom: "1.2rem",
             borderBottom: `2px solid ${C.border}`,
-            overflowX: "auto", // ✅ Para hindi mag-overflow kapag maraming tabs
+            flexWrap: "wrap", // ← wrap sa next line kung hindi kasya
           }}
         >
           {TABS.map(({ key, label, icon, specialColor }) => {
