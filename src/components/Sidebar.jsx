@@ -208,6 +208,7 @@ function Sidebar({
       "for-releasing": `${basePath}/for-releasing`,
       "fda-verification": `${basePath}/fda-verification`,
       "otc-database": `${basePath}/otc-database`,
+      "cdrr-inspector-reports": `${basePath}/cdrr-inspector-reports`,
       announcements: `${basePath}/announcements`,
       support: `${basePath}/support`,
       access: `${basePath}/access`,

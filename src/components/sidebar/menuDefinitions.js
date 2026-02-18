@@ -18,7 +18,12 @@ export const menuDefinitions = {
       roles: ["User", "Admin", "SuperAdmin"],
       comingSoon: false,
     },
-
+    {
+      id: "otc-database",
+      label: "OTC Database",
+      icon: "💊",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 
   workflowItems: [
@@ -80,9 +85,9 @@ export const menuDefinitions = {
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
-      id: "otc-database",
-      label: "OTC Database",
-      icon: "💊",
+      id: "cdrr-inspector-reports",
+      icon: "📋",
+      label: "CDRR and Inspector Reports",
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],
