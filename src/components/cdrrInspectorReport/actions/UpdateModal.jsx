@@ -195,18 +195,26 @@ function UpdateModal({
     e.preventDefault();
     setLoading(true);
 
+    console.log("[Debug] activeSection:", activeSection);
+    console.log("[Debug] canUpdateFROO:", userPermissions?.canUpdateFROO);
+    console.log("[Debug] canUpdateCDRR:", userPermissions?.canUpdateCDRR);
+    console.log("[Debug] frooData:", frooData);
+
     try {
       const updatePayload = {};
 
       if (activeSection === "main" && userPermissions?.canUpdateCDRR) {
-        updatePayload.main_data = formData;
+        // Main fields lang, walang nested
+        Object.assign(updatePayload, formData);
       } else if (
         activeSection === "secondary" &&
         userPermissions?.canUpdateCDRR
       ) {
-        updatePayload.secondary_data = secondaryData;
+        // Gamitin ang "cdrr_secondary" — tama na ito
+        updatePayload.cdrr_secondary = secondaryData;
       } else if (activeSection === "froo" && userPermissions?.canUpdateFROO) {
-        updatePayload.froo_data = frooData;
+        // "froo_data" → dapat "froo_report"  ← ITO ANG BUG!
+        updatePayload.froo_report = frooData;
       }
 
       await updateCDRRReport(report.id, updatePayload);

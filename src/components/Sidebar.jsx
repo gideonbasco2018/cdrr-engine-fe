@@ -285,16 +285,15 @@ function Sidebar({
           }}
         >
           {!collapsed && (
-            <div
+            <img
+              src="/images/FDALogo.png"
+              alt="FDA Logo"
               style={{
-                fontSize: "1.4rem",
-                fontWeight: "700",
-                letterSpacing: "0.1em",
-                color: colors.textPrimary,
+                height: "40px",
+                width: "auto",
+                objectFit: "contain",
               }}
-            >
-              FDA
-            </div>
+            />
           )}
         </div>
 
