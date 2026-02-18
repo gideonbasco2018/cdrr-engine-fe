@@ -146,7 +146,7 @@ function SignupPage() {
               src="/images/FDALogo.png"
               alt="FDA Logo"
               style={{
-                width: isMobile ? "80px" : "150px",
+                width: isMobile ? "80px" : "750px",
                 height: isMobile ? "80px" : "150px",
                 objectFit: "contain",
               }}
