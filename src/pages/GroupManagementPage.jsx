@@ -96,6 +96,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       "for-director-signature": "Workflow",
       "for-releasing": "Workflow",
       "fda-verification": "Other Database",
+      "cdrr-inspector-reports": "Other Database",
       announcements: "Platform",
       support: "Platform",
     };
