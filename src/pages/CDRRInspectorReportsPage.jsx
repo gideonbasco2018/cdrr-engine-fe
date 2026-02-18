@@ -80,6 +80,8 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
     "NON-PICS": 0,
     PICS: 0,
     "LETTER AND CORRECTION": 0,
+    pending_froo: 0, // ✅ bagong count
+    pending_cdrr_review: 0, // ✅ bagong count
   });
   const [perms, setPerms] = useState({
     canViewDetails: true,
@@ -166,8 +168,17 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
         pillTxt: "#64748b",
       };
 
-  const showFROO = activeTab === "all" || activeTab === "NON-PICS";
-  const showSec = activeTab === "all" || activeTab === "NON-PICS";
+  // ── Column visibility ──────────────────────────────────────────────────────
+  // ✅ Pinalawak para isama ang bagong special tabs
+  const showFROO = [
+    "all",
+    "NON-PICS",
+    "pending_froo",
+    "pending_cdrr_review",
+  ].includes(activeTab);
+  const showSec = ["all", "NON-PICS", "pending_cdrr_review"].includes(
+    activeTab,
+  );
 
   // ── Data fetching ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -182,20 +193,52 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
         page_size: pageSize,
         search: search || undefined,
         status: statusFilter || undefined,
-        category: activeTab === "all" ? undefined : activeTab,
+        // ✅ Special tabs fetch all, then filter client-side
+        category: ["all", "pending_froo", "pending_cdrr_review"].includes(
+          activeTab,
+        )
+          ? undefined
+          : activeTab,
         sort_by: sortBy,
         sort_order: sortOrder,
       });
-      setData(res.data || []);
-      setTotalRecords(res.total || 0);
-      setTotalPages(res.total_pages || 0);
-      const d = res.data || [];
+
+      let d = res.data || [];
+
+      // ✅ Client-side filter para sa bagong tabs
+      if (activeTab === "pending_froo") {
+        // Inspector: NON-PICS na walang FROO data pa
+        d = d.filter((i) => i.category === "NON-PICS" && !i.froo_report);
+      } else if (activeTab === "pending_cdrr_review") {
+        // CDRR: may FROO na pero walang cdrr_secondary pa
+        d = d.filter((i) => i.froo_report && !i.cdrr_secondary);
+      }
+
+      setData(d);
+
+      const isSpecialTab =
+        activeTab === "pending_froo" || activeTab === "pending_cdrr_review";
+      setTotalRecords(isSpecialTab ? d.length : res.total || 0);
+      setTotalPages(
+        isSpecialTab
+          ? Math.ceil(d.length / pageSize) || 1
+          : res.total_pages || 0,
+      );
+
+      // Stats always computed from full response (bago i-filter)
+      const allD = res.data || [];
       setCatStats({
-        all: res.total || d.length,
-        "NON-PICS": d.filter((i) => i.category === "NON-PICS").length,
-        PICS: d.filter((i) => i.category === "PICS").length,
-        "LETTER AND CORRECTION": d.filter(
+        all: res.total || allD.length,
+        "NON-PICS": allD.filter((i) => i.category === "NON-PICS").length,
+        PICS: allD.filter((i) => i.category === "PICS").length,
+        "LETTER AND CORRECTION": allD.filter(
           (i) => i.category === "LETTER AND CORRECTION",
+        ).length,
+        pending_froo: allD.filter(
+          (i) => i.category === "NON-PICS" && !i.froo_report,
+        ).length,
+        pending_cdrr_review: allD.filter(
+          (i) => i.froo_report && !i.cdrr_secondary,
         ).length,
       });
     } catch (err) {
@@ -507,11 +550,34 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
   };
 
   // ── Tab config ──────────────────────────────────────────────────────────────
+  // ✅ Naidagdag ang conditional tabs base sa permissions
   const TABS = [
     { key: "all", label: "All Reports", icon: "📄" },
     { key: "NON-PICS", label: "NON-PICS", icon: "📋" },
     { key: "PICS", label: "PICS", icon: "🔬" },
     { key: "LETTER AND CORRECTION", label: "Letter & Correction", icon: "✉️" },
+    // ✅ Inspector group lang — NON-PICS na wala pang FROO Inspection
+    ...(perms.canUpdateFROO && !perms.canUpdateCDRR
+      ? [
+          {
+            key: "pending_froo",
+            label: "Received NON-PICS",
+            icon: "🔔",
+            specialColor: darkMode ? "#8b5cf6" : "#7c3aed",
+          },
+        ]
+      : []),
+    // ✅ CDRR group lang — may FROO na pero wala pang CDRR Secondary Review
+    ...(perms.canUpdateCDRR
+      ? [
+          {
+            key: "pending_cdrr_review",
+            label: "CDRR Review Pending",
+            icon: "📊",
+            specialColor: darkMode ? "#f97316" : "#b84d00",
+          },
+        ]
+      : []),
   ];
 
   // Stat cards matching reference (Total / NON-PICS / PICS / Letter&Correction)
@@ -624,8 +690,6 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
     <div
       style={{
         flex: 1,
-        background: C.bg,
-        color: C.txt,
         overflow: "auto",
         display: "flex",
         flexDirection: "column",
@@ -634,10 +698,8 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
       {/* ── HEADER ─────────────────────────────────────────────────────────── */}
       <div
         style={{
-          background: C.hBg,
           borderBottom: `1px solid ${C.border}`,
           padding: "1.1rem 2rem",
-          boxShadow: C.shadow,
         }}
       >
         <div
@@ -653,8 +715,8 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
             <h1
               style={{
                 margin: 0,
-                fontSize: "1.35rem",
-                fontWeight: "800",
+                fontSize: "1.75rem",
+                fontWeight: "600",
                 color: C.txt,
                 letterSpacing: "-0.02em",
               }}
@@ -807,23 +869,26 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
         </div>
 
         {/* ── TABS ──────────────────────────────────────────────────────── */}
-        {/* Reference design: underline tabs — "All Reports 14 | Not Yet Decked 13 | Decked 1" */}
         <div
           style={{
             display: "flex",
             gap: "0",
             marginBottom: "1.2rem",
             borderBottom: `2px solid ${C.border}`,
+            overflowX: "auto", // ✅ Para hindi mag-overflow kapag maraming tabs
           }}
         >
-          {TABS.map(({ key, label, icon }) => {
+          {TABS.map(({ key, label, icon, specialColor }) => {
             const active = activeTab === key;
+            // ✅ Gamitin ang specialColor para sa bagong tabs, green para sa dati
+            const activeColor = specialColor || "#16a34a";
             const count =
               key === "all"
                 ? totalRecords
                 : active
                   ? totalRecords
-                  : catStats[key];
+                  : (catStats[key] ?? 0);
+
             return (
               <button
                 key={key}
@@ -831,10 +896,10 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
                 style={{
                   padding: "0.6rem 1.1rem",
                   border: "none",
-                  borderBottom: `2px solid ${active ? "#16a34a" : "transparent"}`,
+                  borderBottom: `2px solid ${active ? activeColor : "transparent"}`,
                   marginBottom: "-2px",
                   background: "transparent",
-                  color: active ? "#16a34a" : C.txt2,
+                  color: active ? activeColor : C.txt2,
                   fontSize: "0.82rem",
                   fontWeight: active ? "700" : "500",
                   cursor: "pointer",
@@ -844,6 +909,11 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
                   whiteSpace: "nowrap",
                   transition: "all 0.12s",
                   borderRadius: "0",
+                  // ✅ Subtle separator bago ang special tabs
+                  borderLeft: specialColor
+                    ? `1px solid ${C.border}`
+                    : undefined,
+                  marginLeft: key === "pending_froo" ? "0.4rem" : undefined,
                 }}
                 onMouseEnter={(e) => {
                   if (!active) {
@@ -859,19 +929,33 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
                 }}
               >
                 {icon} {label}
-                {/* Count badge — filled green when active, gray when not */}
+                {/* Count badge — colored kapag active, gray kapag hindi */}
                 <span
                   style={{
                     padding: "0.06rem 0.42rem",
                     borderRadius: "20px",
                     fontSize: "0.66rem",
                     fontWeight: "700",
-                    background: active ? "#16a34a" : C.pill,
+                    background: active ? activeColor : C.pill,
                     color: active ? "#fff" : C.pillTxt,
                   }}
                 >
                   {count}
                 </span>
+                {/* ✅ Alert dot para sa special tabs kapag may pending at hindi active */}
+                {specialColor && !active && count > 0 && (
+                  <span
+                    style={{
+                      width: "6px",
+                      height: "6px",
+                      borderRadius: "50%",
+                      background: activeColor,
+                      display: "inline-block",
+                      marginLeft: "-2px",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
               </button>
             );
           })}
@@ -1041,7 +1125,12 @@ export default function CDRRInspectorReportsPage({ darkMode }) {
             <div
               style={{ padding: "4rem 0", textAlign: "center", color: C.txt2 }}
             >
-              📭 No records found
+              {/* ✅ Custom empty state para sa special tabs */}
+              {activeTab === "pending_froo"
+                ? "✅ All NON-PICS records have FROO Inspection data!"
+                : activeTab === "pending_cdrr_review"
+                  ? "✅ All inspected records have CDRR Review data!"
+                  : "📭 No records found"}
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
