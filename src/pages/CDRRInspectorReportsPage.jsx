@@ -1,42 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { getCDRRReports } from "../api/cdrr-reports";
+import { getCurrentUser } from "../api/auth";
 import ViewDetailsModal from "../components/cdrrInspectorReport/actions/ViewDetailsModal";
 import UpdateModal from "../components/cdrrInspectorReport/actions/UpdateModal";
 import AddModal from "../components/cdrrInspectorReport/actions/AddModal";
 
-// ─── PERMISSION RESOLVER ────────────────────────────────────────────────────
-// Called once on mount. Reads localStorage "user" (the login response).
-// Rules:
-//   CDRR (id:14, name:"CDRR")           → canAdd + canUpdate + canUpdateCDRR
-//   Inspector (id:10, name:"Inspector") → canUpdate + canUpdateFROO  (NO add)
-//   FDAC (id:13) / Users (id:9)         → canViewDetails only
-// Multiple groups are ADDITIVE — user in both CDRR+Inspector gets all perms.
-// ─── PERMISSION RESOLVER ────────────────────────────────────────────────────
-// Fetches current user data from API and resolves permissions
+// ─── PERMISSION RESOLVER ─────────────
 async function resolvePermissions() {
   try {
-    const token =
-      localStorage.getItem("access_token") ||
-      sessionStorage.getItem("access_token");
-
-    if (!token) {
-      console.warn("[CDRR Permissions] No token found");
-      return null;
-    }
-
-    // ✅ Call API to get current user data
-    const response = await fetch("http://localhost:8000/api/auth/me", {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      console.error("[CDRR Permissions] API call failed:", response.status);
-      return null;
-    }
-
-    const user = await response.json();
+    const user = await getCurrentUser(); // ✅ Gamit na ang existing API call
     console.log("[CDRR Permissions] User from API:", user);
 
     const groups = Array.isArray(user.groups) ? user.groups : [];
