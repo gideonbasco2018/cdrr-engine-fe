@@ -251,80 +251,97 @@ function Sidebar({
   };
 
   return (
-    <div
-      style={{
-        width: collapsed ? "64px" : "240px",
-        background: colors.sidebarBg,
-        borderRight: `1px solid ${colors.sidebarBorder}`,
-        display: "flex",
-        flexDirection: "column",
-        transition: "width 0.3s ease",
-      }}
-    >
+    <>
+      <style>{`
+      .sidebar-scroll::-webkit-scrollbar {
+        width: 4px;
+      }
+      .sidebar-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .sidebar-scroll::-webkit-scrollbar-thumb {
+        background: ${darkMode ? "#2e2e2e" : "#d4d4d4"};
+        border-radius: 999px;
+      }
+      .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+        background: ${darkMode ? "#444" : "#b0b0b0"};
+      }
+    `}</style>
       <div
         style={{
-          padding: "1rem",
-          borderBottom: `1px solid ${colors.sidebarBorder}`,
-          textAlign: collapsed ? "center" : "left",
-        }}
-      >
-        {!collapsed && (
-          <div
-            style={{
-              fontSize: "1.4rem",
-              fontWeight: "700",
-              letterSpacing: "0.1em",
-              color: colors.textPrimary,
-            }}
-          >
-            FDA
-          </div>
-        )}
-      </div>
-
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {renderSection("MAIN", visibleMainMenu)}
-        {renderSection("CDRR REPORTS", visibleCdrReports)}
-        {renderSection("WORKFLOW STATUS", visibleWorkflow)}
-        {renderSection("OTHER DATABASE", visibleOtherDatabase)}
-        {renderSection("PLATFORM", visiblePlatform)}
-      </div>
-
-      <div
-        style={{
-          padding: "0.75rem",
-          borderTop: `1px solid ${colors.sidebarBorder}`,
+          width: collapsed ? "64px" : "240px",
+          background: colors.sidebarBg,
+          borderRight: `1px solid ${colors.sidebarBorder}`,
           display: "flex",
-          justifyContent: "center",
+          flexDirection: "column",
+          transition: "width 0.3s ease",
         }}
       >
-        <button
-          onClick={() => setCollapsed(!collapsed)}
+        <div
           style={{
-            width: "36px",
-            height: "36px",
-            borderRadius: "8px",
-            border: "none",
-            background: colors.toggleBg,
-            color: colors.textSecondary,
-            cursor: "pointer",
-            fontSize: "1rem",
-            transition: "all 0.2s ease",
+            padding: "1rem",
+            borderBottom: `1px solid ${colors.sidebarBorder}`,
+            textAlign: collapsed ? "center" : "left",
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = colors.toggleHover;
-            e.currentTarget.style.color = colors.textPrimary;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = colors.toggleBg;
-            e.currentTarget.style.color = colors.textSecondary;
-          }}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? "»" : "«"}
-        </button>
+          {!collapsed && (
+            <div
+              style={{
+                fontSize: "1.4rem",
+                fontWeight: "700",
+                letterSpacing: "0.1em",
+                color: colors.textPrimary,
+              }}
+            >
+              FDA
+            </div>
+          )}
+        </div>
+
+        <div className="sidebar-scroll" style={{ flex: 1, overflowY: "auto" }}>
+          {renderSection("MAIN", visibleMainMenu)}
+          {renderSection("CDRR REPORTS", visibleCdrReports)}
+          {renderSection("WORKFLOW STATUS", visibleWorkflow)}
+          {renderSection("OTHER DATABASE", visibleOtherDatabase)}
+          {renderSection("PLATFORM", visiblePlatform)}
+        </div>
+
+        <div
+          style={{
+            padding: "0.75rem",
+            borderTop: `1px solid ${colors.sidebarBorder}`,
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "8px",
+              border: "none",
+              background: colors.toggleBg,
+              color: colors.textSecondary,
+              cursor: "pointer",
+              fontSize: "1rem",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = colors.toggleHover;
+              e.currentTarget.style.color = colors.textPrimary;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = colors.toggleBg;
+              e.currentTarget.style.color = colors.textSecondary;
+            }}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? "»" : "«"}
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
