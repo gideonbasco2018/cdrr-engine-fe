@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import { deckApplication } from "../../../api/reports";
+import { createApplicationLog } from "../../../api/application-logs";
 
 function DeckModal({ record, onClose, onSuccess, colors }) {
   const [formData, setFormData] = useState({
@@ -8,7 +9,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
     evaluator: "",
     deckerDecision: "",
     deckerRemarks: "",
-    dateDeckedEnd: "", // Will be set to current timestamp on submit
+    dateDeckedEnd: "",
   });
 
   const [loading, setLoading] = useState(false);
@@ -17,7 +18,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
   const [currentUser, setCurrentUser] = useState(null);
 
   // ✅ Evaluator group ID (based on your database)
-  const EVALUATOR_GROUP_ID = 3; // Change this to match your "Evaluator" group ID
+  const EVALUATOR_GROUP_ID = 3;
 
   // Get current logged-in user and set as decker automatically
   useEffect(() => {
@@ -79,18 +80,46 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
 
       console.log("📤 Submitting deck data:", dataToSubmit);
 
-      // ✅ Call the API to deck the application
+      // ✅ Step 1: Deck the application
       const response = await deckApplication(record.id, dataToSubmit);
-
       console.log("✅ Application decked successfully:", response);
 
-      // ✅ First close the modal
-      onClose();
+      // ✅ Step 2: Insert application log for the DECKER (Step 1)
+      const deckerLog = {
+        main_db_id: record.id,
+        application_step: "1",
+        user_name: formData.decker,
+        application_status: "COMPLETED",
+        application_decision: formData.deckerDecision,
+        application_remarks: formData.deckerRemarks || "",
+        start_date: formattedDateTime,
+        accomplished_date: formattedDateTime,
+      };
 
-      // ✅ Then show success message
+      console.log("📤 Creating decker log (Step 1):", deckerLog);
+      await createApplicationLog(deckerLog);
+      console.log("✅ Decker log created successfully");
+
+      // ✅ Step 3: Insert application log for the EVALUATOR (Step 2)
+      const evaluatorLog = {
+        main_db_id: record.id,
+        application_step: "2",
+        user_name: formData.evaluator,
+        application_status: "TO_DO",
+        application_decision: "",
+        application_remarks: "",
+        start_date: formattedDateTime,
+        accomplished_date: null,
+      };
+
+      console.log("📤 Creating evaluator log (Step 2):", evaluatorLog);
+      await createApplicationLog(evaluatorLog);
+      console.log("✅ Evaluator log created successfully");
+
+      // ✅ Close modal first, then show success, then refresh
+      onClose();
       alert("✅ Application decked successfully!");
 
-      // ✅ Finally refresh the data
       if (onSuccess) {
         await onSuccess();
       }
@@ -283,7 +312,6 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
               >
                 <option value="">Select decision</option>
                 <option value="For Evaluation">For Evaluation</option>
-                {/* <option value="On Hold">On Hold</option> */}
               </select>
             </div>
 
@@ -327,7 +355,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
               />
             </div>
 
-            {/* ✅ Evaluator Selection - Only from Evaluator group */}
+            {/* Evaluator Selection */}
             <div style={{ marginBottom: "1.5rem" }}>
               <label
                 style={{
@@ -450,7 +478,10 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
                   >
                     This will update the application delegation record and
                     assign an evaluator to this application. The record will
-                    move from "Not Yet Decked" to "Decked" tab.
+                    move from "Not Yet Decked" to "Decked" tab. Two activity
+                    logs will be created — one for the decker (Step 1:
+                    Completed) and one for the assigned evaluator (Step 2: To
+                    Do).
                   </p>
                 </div>
               </div>

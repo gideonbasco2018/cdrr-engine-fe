@@ -1,7 +1,4 @@
 // FILE: src/pages/DeckingPage.jsx
-// ✅ LAYOUT: Level 1 (All/Not Decked/Decked) = TABS | Levels 2-4 (App Type/Prescriptions/Status) = SIDEBAR
-// ✅ UPDATED: Added Edit functionality + Collapsible Sidebar
-
 import { useState, useEffect } from "react";
 import {
   getUploadReports,
@@ -11,7 +8,7 @@ import {
   getPrescriptionTypes,
   getAppStatusTypes,
   exportFilteredRecords,
-  updateUploadReport, // ✅ NEW - Import update function
+  updateUploadReport,
 } from "../api/reports";
 
 import StatsCard from "../components/reports/StatsCard";
@@ -19,37 +16,16 @@ import FilterBar from "../components/reports/FilterBar";
 import UploadButton from "../components/reports/UploadButton";
 import UploadProgress from "../components/reports/UploadProgress";
 import DataTable from "../components/reports/DataTable";
-import EditRecordModal from "../components/reports/actions/EditRecordModal"; // ✅ NEW - Import edit modal
+import EditRecordModal from "../components/reports/actions/EditRecordModal";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
 
 // ✅ Modern scrollbar styles
 const scrollbarStyles = (darkMode) => `
-  /* Webkit browsers (Chrome, Safari, Edge) */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: ${darkMode ? "#0a0a0a" : "#f1f1f1"};
-    border-radius: 10px;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: ${darkMode ? "#404040" : "#c1c1c1"};
-    border-radius: 10px;
-    transition: background 0.2s ease;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: ${darkMode ? "#606060" : "#a0a0a0"};
-  }
-
-  /* Firefox */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: ${darkMode ? "#404040 #0a0a0a" : "#c1c1c1 #f1f1f1"};
-  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: ${darkMode ? "#0a0a0a" : "#f1f1f1"}; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb { background: ${darkMode ? "#404040" : "#c1c1c1"}; border-radius: 10px; transition: background 0.2s ease; }
+  ::-webkit-scrollbar-thumb:hover { background: ${darkMode ? "#606060" : "#a0a0a0"}; }
+  * { scrollbar-width: thin; scrollbar-color: ${darkMode ? "#404040 #0a0a0a" : "#c1c1c1 #f1f1f1"}; }
 `;
 
 function DeckingPage({ darkMode }) {
@@ -72,10 +48,10 @@ function DeckingPage({ darkMode }) {
   const [uploadProgress, setUploadProgress] = useState(null);
 
   // ✅ Four levels of filtering
-  const [activeTab, setActiveTab] = useState("all"); // Level 1: TABS
-  const [subTab, setSubTab] = useState(null); // Level 2: SIDEBAR
-  const [prescriptionTab, setPrescriptionTab] = useState(null); // Level 3: SIDEBAR
-  const [appStatusTab, setAppStatusTab] = useState(null); // Level 4: SIDEBAR
+  const [activeTab, setActiveTab] = useState("all");
+  const [subTab, setSubTab] = useState(null);
+  const [prescriptionTab, setPrescriptionTab] = useState(null);
+  const [appStatusTab, setAppStatusTab] = useState(null);
 
   const [availableAppTypes, setAvailableAppTypes] = useState([]);
   const [availablePrescriptionTypes, setAvailablePrescriptionTypes] = useState(
@@ -85,11 +61,15 @@ function DeckingPage({ darkMode }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [exporting, setExporting] = useState(false);
 
-  // ✅ NEW - Edit state
+  // ✅ Edit state
   const [editingRecord, setEditingRecord] = useState(null);
 
-  // ✅ NEW - Sidebar toggle state
+  // ✅ Sidebar toggle state
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // ✅ NEW: Sort state
+  const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
+  const [sortOrder, setSortOrder] = useState("desc");
 
   const colors = getColorScheme(darkMode);
 
@@ -97,21 +77,15 @@ function DeckingPage({ darkMode }) {
   useEffect(() => {
     const styleId = "custom-scrollbar-styles";
     let styleElement = document.getElementById(styleId);
-
     if (!styleElement) {
       styleElement = document.createElement("style");
       styleElement.id = styleId;
       document.head.appendChild(styleElement);
     }
-
     styleElement.textContent = scrollbarStyles(darkMode);
-
     return () => {
-      // Cleanup on unmount
       const element = document.getElementById(styleId);
-      if (element) {
-        element.remove();
-      }
+      if (element) element.remove();
     };
   }, [darkMode]);
 
@@ -139,33 +113,32 @@ function DeckingPage({ darkMode }) {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const allData = await getUploadReports({
-          page: 1,
-          pageSize: 1,
-          search: "",
-          status: "",
-          sortBy: "DB_DATE_EXCEL_UPLOAD",
-          sortOrder: "desc",
-        });
-
-        const notDeckedData = await getUploadReports({
-          page: 1,
-          pageSize: 1,
-          search: "",
-          status: "not_decked",
-          sortBy: "DB_DATE_EXCEL_UPLOAD",
-          sortOrder: "desc",
-        });
-
-        const deckedData = await getUploadReports({
-          page: 1,
-          pageSize: 1,
-          search: "",
-          status: "decked",
-          sortBy: "DB_DATE_EXCEL_UPLOAD",
-          sortOrder: "desc",
-        });
-
+        const [allData, notDeckedData, deckedData] = await Promise.all([
+          getUploadReports({
+            page: 1,
+            pageSize: 1,
+            search: "",
+            status: "",
+            sortBy: "DB_DATE_EXCEL_UPLOAD",
+            sortOrder: "desc",
+          }),
+          getUploadReports({
+            page: 1,
+            pageSize: 1,
+            search: "",
+            status: "not_decked",
+            sortBy: "DB_DATE_EXCEL_UPLOAD",
+            sortOrder: "desc",
+          }),
+          getUploadReports({
+            page: 1,
+            pageSize: 1,
+            search: "",
+            status: "decked",
+            sortBy: "DB_DATE_EXCEL_UPLOAD",
+            sortOrder: "desc",
+          }),
+        ]);
         setStatsData({
           total: allData.total || 0,
           notDecked: notDeckedData.total || 0,
@@ -178,14 +151,13 @@ function DeckingPage({ darkMode }) {
     fetchStats();
   }, []);
 
-  // ✅ LEVEL 1 → LEVEL 2: Fetch app types
+  // LEVEL 1 → LEVEL 2: Fetch app types
   useEffect(() => {
     const fetchAppTypes = async () => {
       try {
         let status = null;
         if (activeTab === "not-decked") status = "not_decked";
         else if (activeTab === "decked") status = "decked";
-
         const appTypes = await getAppTypes(status);
         setAvailableAppTypes(appTypes);
       } catch (err) {
@@ -193,18 +165,16 @@ function DeckingPage({ darkMode }) {
         setAvailableAppTypes([]);
       }
     };
-
     fetchAppTypes();
   }, [activeTab]);
 
-  // ✅ LEVEL 2 → LEVEL 3: Fetch prescription types
+  // LEVEL 2 → LEVEL 3: Fetch prescription types
   useEffect(() => {
     const fetchPrescriptionTypes = async () => {
       try {
         let status = null;
         if (activeTab === "not-decked") status = "not_decked";
         else if (activeTab === "decked") status = "decked";
-
         const prescriptionTypes = await getPrescriptionTypes(status, subTab);
         setAvailablePrescriptionTypes(prescriptionTypes);
       } catch (err) {
@@ -212,18 +182,16 @@ function DeckingPage({ darkMode }) {
         setAvailablePrescriptionTypes([]);
       }
     };
-
     fetchPrescriptionTypes();
   }, [activeTab, subTab]);
 
-  // ✅ LEVEL 3 → LEVEL 4: Fetch app status types
+  // LEVEL 3 → LEVEL 4: Fetch app status types
   useEffect(() => {
     const fetchAppStatusTypes = async () => {
       try {
         let status = null;
         if (activeTab === "not-decked") status = "not_decked";
         else if (activeTab === "decked") status = "decked";
-
         const appStatusTypes = await getAppStatusTypes(
           status,
           subTab,
@@ -235,7 +203,6 @@ function DeckingPage({ darkMode }) {
         setAvailableAppStatusTypes([]);
       }
     };
-
     fetchAppStatusTypes();
   }, [activeTab, subTab, prescriptionTab]);
 
@@ -246,15 +213,9 @@ function DeckingPage({ darkMode }) {
   };
 
   const getExportParams = () => {
-    const params = {
-      search: searchTerm,
-      sortBy: "DB_DATE_EXCEL_UPLOAD",
-      sortOrder: "desc",
-    };
-
+    const params = { search: searchTerm, sortBy, sortOrder };
     const statusFilter = getStatusFilter();
     if (statusFilter) params.status = statusFilter;
-
     if (filters.category) params.category = filters.category;
     if (filters.manufacturer) params.manufacturer = filters.manufacturer;
     if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
@@ -262,18 +223,16 @@ function DeckingPage({ darkMode }) {
     if (filters.genericName) params.generic_name = filters.genericName;
     if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
     if (filters.dosageForm) params.dosage_form = filters.dosageForm;
-
     if (subTab !== null) params.app_type = subTab === "" ? "__EMPTY__" : subTab;
     if (prescriptionTab !== null)
       params.prescription =
         prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
     if (appStatusTab !== null)
       params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
-
     return params;
   };
 
-  // Fetch data with server-side pagination
+  // ✅ Fetch data — now includes sortBy + sortOrder in deps
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -283,10 +242,9 @@ function DeckingPage({ darkMode }) {
           pageSize: rowsPerPage,
           search: searchTerm,
           status: getStatusFilter(),
-          sortBy: "DB_DATE_EXCEL_UPLOAD",
-          sortOrder: "desc",
+          sortBy, // ✅ dynamic
+          sortOrder, // ✅ dynamic
         };
-
         if (filters.category) params.category = filters.category;
         if (filters.manufacturer) params.manufacturer = filters.manufacturer;
         if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
@@ -294,7 +252,6 @@ function DeckingPage({ darkMode }) {
         if (filters.genericName) params.generic_name = filters.genericName;
         if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
         if (filters.dosageForm) params.dosage_form = filters.dosageForm;
-
         if (subTab !== null)
           params.app_type = subTab === "" ? "__EMPTY__" : subTab;
         if (prescriptionTab !== null)
@@ -336,37 +293,39 @@ function DeckingPage({ darkMode }) {
     prescriptionTab,
     appStatusTab,
     filters,
-  ]);
+    sortBy,
+    sortOrder,
+  ]); // ✅ sortBy + sortOrder added
 
   const refreshData = async () => {
     try {
       setLoading(true);
-
-      const allData = await getUploadReports({
-        page: 1,
-        pageSize: 1,
-        search: "",
-        status: "",
-        sortBy: "DB_DATE_EXCEL_UPLOAD",
-        sortOrder: "desc",
-      });
-      const notDeckedData = await getUploadReports({
-        page: 1,
-        pageSize: 1,
-        search: "",
-        status: "not_decked",
-        sortBy: "DB_DATE_EXCEL_UPLOAD",
-        sortOrder: "desc",
-      });
-      const deckedData = await getUploadReports({
-        page: 1,
-        pageSize: 1,
-        search: "",
-        status: "decked",
-        sortBy: "DB_DATE_EXCEL_UPLOAD",
-        sortOrder: "desc",
-      });
-
+      const [allData, notDeckedData, deckedData] = await Promise.all([
+        getUploadReports({
+          page: 1,
+          pageSize: 1,
+          search: "",
+          status: "",
+          sortBy: "DB_DATE_EXCEL_UPLOAD",
+          sortOrder: "desc",
+        }),
+        getUploadReports({
+          page: 1,
+          pageSize: 1,
+          search: "",
+          status: "not_decked",
+          sortBy: "DB_DATE_EXCEL_UPLOAD",
+          sortOrder: "desc",
+        }),
+        getUploadReports({
+          page: 1,
+          pageSize: 1,
+          search: "",
+          status: "decked",
+          sortBy: "DB_DATE_EXCEL_UPLOAD",
+          sortOrder: "desc",
+        }),
+      ]);
       setStatsData({
         total: allData.total || 0,
         notDecked: notDeckedData.total || 0,
@@ -377,17 +336,13 @@ function DeckingPage({ darkMode }) {
       if (activeTab === "not-decked") status = "not_decked";
       else if (activeTab === "decked") status = "decked";
 
-      const appTypes = await getAppTypes(status);
+      const [appTypes, prescriptionTypes, appStatusTypes] = await Promise.all([
+        getAppTypes(status),
+        getPrescriptionTypes(status, subTab),
+        getAppStatusTypes(status, subTab, prescriptionTab),
+      ]);
       setAvailableAppTypes(appTypes);
-
-      const prescriptionTypes = await getPrescriptionTypes(status, subTab);
       setAvailablePrescriptionTypes(prescriptionTypes);
-
-      const appStatusTypes = await getAppStatusTypes(
-        status,
-        subTab,
-        prescriptionTab,
-      );
       setAvailableAppStatusTypes(appStatusTypes);
 
       const params = {
@@ -396,10 +351,9 @@ function DeckingPage({ darkMode }) {
         search: searchTerm,
         status: getStatusFilter(),
         category: filters.category || "",
-        sortBy: "DB_DATE_EXCEL_UPLOAD",
-        sortOrder: "desc",
+        sortBy,
+        sortOrder,
       };
-
       if (subTab !== null)
         params.app_type = subTab === "" ? "__EMPTY__" : subTab;
       if (prescriptionTab !== null)
@@ -504,7 +458,6 @@ function DeckingPage({ darkMode }) {
     setPrescriptionTab(null);
     setAppStatusTab(null);
   };
-
   const handleSubTabChange = (subTabValue) => {
     setSubTab(subTabValue);
     setCurrentPage(1);
@@ -512,18 +465,23 @@ function DeckingPage({ darkMode }) {
     setPrescriptionTab(null);
     setAppStatusTab(null);
   };
-
   const handlePrescriptionTabChange = (prescriptionValue) => {
     setPrescriptionTab(prescriptionValue);
     setCurrentPage(1);
     setSelectedRows([]);
     setAppStatusTab(null);
   };
-
   const handleAppStatusTabChange = (appStatusValue) => {
     setAppStatusTab(appStatusValue);
     setCurrentPage(1);
     setSelectedRows([]);
+  };
+
+  // ✅ NEW: Sort handler
+  const handleSort = (dbKey, order) => {
+    setSortBy(dbKey);
+    setSortOrder(order);
+    setCurrentPage(1);
   };
 
   const handleExport = async () => {
@@ -537,9 +495,7 @@ function DeckingPage({ darkMode }) {
       );
     } catch (error) {
       console.error("Export error:", error);
-
       let errorMessage = "Unknown error";
-
       if (error.response?.data) {
         if (error.response.data instanceof Blob) {
           try {
@@ -564,20 +520,16 @@ function DeckingPage({ darkMode }) {
       } else if (error.message) {
         errorMessage = error.message;
       }
-
       alert(`❌ Export failed: ${errorMessage}`);
     } finally {
       setExporting(false);
     }
   };
 
-  // ✅ NEW - Handle edit action
   const handleEdit = (record) => {
     console.log("✏️ Editing record:", record);
     setEditingRecord(record);
   };
-
-  // ✅ NEW - Handle edit success
   const handleEditSuccess = async () => {
     console.log("✅ Edit successful, refreshing data...");
     await refreshData();
@@ -586,7 +538,7 @@ function DeckingPage({ darkMode }) {
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      {/* ========== SIDEBAR (LEVELS 2, 3, 4) ========== */}
+      {/* ========== SIDEBAR ========== */}
       <div
         style={{
           width: isSidebarOpen ? "320px" : "60px",
@@ -603,7 +555,6 @@ function DeckingPage({ darkMode }) {
       >
         {isSidebarOpen ? (
           <>
-            {/* ✅ Quick Filters Header with Toggle Button */}
             <div
               style={{
                 display: "flex",
@@ -616,11 +567,7 @@ function DeckingPage({ darkMode }) {
               }}
             >
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
               >
                 <span style={{ fontSize: "1.25rem" }}>⚡</span>
                 <h2
@@ -635,8 +582,6 @@ function DeckingPage({ darkMode }) {
                   Quick Filters
                 </h2>
               </div>
-
-              {/* Toggle Button */}
               <button
                 onClick={() => setIsSidebarOpen(false)}
                 style={{
@@ -670,7 +615,6 @@ function DeckingPage({ darkMode }) {
               </button>
             </div>
 
-            {/* LEVEL 2: Application Type */}
             {availableAppTypes.length > 0 && (
               <SidebarSection
                 title="Application Type"
@@ -686,8 +630,6 @@ function DeckingPage({ darkMode }) {
                 )}
               />
             )}
-
-            {/* LEVEL 3: Prescriptions */}
             {availablePrescriptionTypes.length > 0 && (
               <SidebarSection
                 title="Prescriptions"
@@ -703,8 +645,6 @@ function DeckingPage({ darkMode }) {
                 )}
               />
             )}
-
-            {/* LEVEL 4: Status */}
             {availableAppStatusTypes.length > 0 && (
               <SidebarSection
                 title="All Status"
@@ -722,9 +662,7 @@ function DeckingPage({ darkMode }) {
             )}
           </>
         ) : (
-          /* ========== MINIMIZED SIDEBAR ========== */
           <>
-            {/* Open Button */}
             <button
               onClick={() => setIsSidebarOpen(true)}
               style={{
@@ -756,8 +694,6 @@ function DeckingPage({ darkMode }) {
             >
               ▶
             </button>
-
-            {/* Icon Buttons */}
             {availableAppTypes.length > 0 && (
               <div
                 style={{
@@ -771,14 +707,12 @@ function DeckingPage({ darkMode }) {
                   justifyContent: "center",
                   width: "44px",
                   height: "44px",
-                  cursor: "default",
                 }}
                 title="Application Type"
               >
                 📦
               </div>
             )}
-
             {availablePrescriptionTypes.length > 0 && (
               <div
                 style={{
@@ -792,14 +726,12 @@ function DeckingPage({ darkMode }) {
                   justifyContent: "center",
                   width: "44px",
                   height: "44px",
-                  cursor: "default",
                 }}
                 title="Prescriptions"
               >
                 💊
               </div>
             )}
-
             {availableAppStatusTypes.length > 0 && (
               <div
                 style={{
@@ -813,7 +745,6 @@ function DeckingPage({ darkMode }) {
                   justifyContent: "center",
                   width: "44px",
                   height: "44px",
-                  cursor: "default",
                 }}
                 title="All Status"
               >
@@ -887,14 +818,12 @@ function DeckingPage({ darkMode }) {
                   opacity: totalRecords === 0 ? 0.5 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  if (!exporting && totalRecords > 0) {
+                  if (!exporting && totalRecords > 0)
                     e.currentTarget.style.background = "#059669";
-                  }
                 }}
                 onMouseLeave={(e) => {
-                  if (!exporting && totalRecords > 0) {
+                  if (!exporting && totalRecords > 0)
                     e.currentTarget.style.background = "#10B981";
-                  }
                 }}
               >
                 <span>{exporting ? "⏳" : "📥"}</span>
@@ -913,7 +842,7 @@ function DeckingPage({ darkMode }) {
 
           <StatsCard stats={statsData} colors={colors} />
 
-          {/* ========== LEVEL 1: Main Tabs ========== */}
+          {/* LEVEL 1: Main Tabs */}
           <div
             style={{
               display: "flex",
@@ -1011,7 +940,6 @@ function DeckingPage({ darkMode }) {
             prescriptionTab={prescriptionTab}
             appStatusTab={appStatusTab}
           />
-
           <UploadProgress message={uploadProgress} colors={colors} />
 
           {loading && (
@@ -1087,12 +1015,16 @@ function DeckingPage({ darkMode }) {
               activeTab={activeTab}
               onRefresh={refreshData}
               onEdit={handleEdit}
+              darkMode={darkMode}
+              onSort={handleSort}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
             />
           )}
         </div>
       </div>
 
-      {/* ✅ Edit Modal */}
+      {/* Edit Modal */}
       {editingRecord && (
         <EditRecordModal
           record={editingRecord}
@@ -1243,7 +1175,6 @@ function SidebarSection({
           {items.map((item) => {
             const displayValue = item.value || `No ${title}`;
             const filterValue = item.value === null ? "" : item.value;
-
             return (
               <div
                 key={filterValue || `no-${title}`}

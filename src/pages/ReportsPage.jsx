@@ -1,6 +1,4 @@
 // FILE: src/pages/ReportsPage.jsx
-// ✅ UPDATED: Added collapsible sidebar functionality
-
 import { useState, useEffect } from "react";
 import {
   getUploadReports,
@@ -16,937 +14,14 @@ import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
 
 // ✅ Modern scrollbar styles
 const scrollbarStyles = (darkMode) => `
-  /* Webkit browsers (Chrome, Safari, Edge) */
-  ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: ${darkMode ? "#0a0a0a" : "#f1f1f1"};
-    border-radius: 10px;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: ${darkMode ? "#404040" : "#c1c1c1"};
-    border-radius: 10px;
-    transition: background 0.2s ease;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: ${darkMode ? "#606060" : "#a0a0a0"};
-  }
-
-  /* Firefox */
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: ${darkMode ? "#404040 #0a0a0a" : "#c1c1c1 #f1f1f1"};
-  }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: ${darkMode ? "#0a0a0a" : "#f1f1f1"}; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb { background: ${darkMode ? "#404040" : "#c1c1c1"}; border-radius: 10px; transition: background 0.2s ease; }
+  ::-webkit-scrollbar-thumb:hover { background: ${darkMode ? "#606060" : "#a0a0a0"}; }
+  * { scrollbar-width: thin; scrollbar-color: ${darkMode ? "#404040 #0a0a0a" : "#c1c1c1 #f1f1f1"}; }
 `;
 
-function ReportsPage({ darkMode }) {
-  const [filteredData, setFilteredData] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({});
-  const [selectedRows, setSelectedRows] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(100);
-  const [totalRecords, setTotalRecords] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
-  const [statsData, setStatsData] = useState({
-    total: 0,
-    completed: 0,
-    inProgress: 0,
-  });
-  const [loading, setLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [exporting, setExporting] = useState(false);
-
-  // Tabs
-  const [subTab, setSubTab] = useState(null);
-  const [prescriptionTab, setPrescriptionTab] = useState(null);
-  const [appStatusTab, setAppStatusTab] = useState(null);
-
-  const [availableAppTypes, setAvailableAppTypes] = useState([]);
-  const [availablePrescriptionTypes, setAvailablePrescriptionTypes] = useState(
-    [],
-  );
-  const [availableAppStatusTypes, setAvailableAppStatusTypes] = useState([]);
-
-  // ✅ NEW - Sidebar toggle state
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-  // ✅ Sorting state
-  const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
-  const [sortOrder, setSortOrder] = useState("desc");
-
-  const colors = getColorScheme(darkMode);
-
-  // Inject scrollbar styles
-  useEffect(() => {
-    const styleId = "custom-scrollbar-styles-reports";
-    let styleElement = document.getElementById(styleId);
-
-    if (!styleElement) {
-      styleElement = document.createElement("style");
-      styleElement.id = styleId;
-      document.head.appendChild(styleElement);
-    }
-
-    styleElement.textContent = scrollbarStyles(darkMode);
-
-    return () => {
-      // Cleanup on unmount
-      const element = document.getElementById(styleId);
-      if (element) {
-        element.remove();
-      }
-    };
-  }, [darkMode]);
-
-  // ===============================
-  // CURRENT USER
-  // ===============================
-  useEffect(() => {
-    let username = null;
-    const userStr =
-      localStorage.getItem("user") || sessionStorage.getItem("user");
-    if (userStr) {
-      try {
-        const userObj = JSON.parse(userStr);
-        username = userObj.username || userObj.email || userObj.first_name;
-      } catch {
-        username = userStr;
-      }
-    }
-    if (!username) {
-      username =
-        localStorage.getItem("username") || sessionStorage.getItem("username");
-    }
-    setCurrentUser(username || "Unknown User");
-  }, []);
-
-  // ===============================
-  // ✅ STATS - USE APP STATUS TYPES ENDPOINT
-  // ===============================
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        setStatsLoading(true);
-
-        // Get total count
-        const totalResponse = await getUploadReports({
-          page: 1,
-          pageSize: 1,
-          search: "",
-          sortBy: "DB_DATE_EXCEL_UPLOAD",
-          sortOrder: "desc",
-        });
-
-        const total = totalResponse.total || 0;
-
-        // Get status breakdown from app-status-types endpoint
-        const statusTypes = await getAppStatusTypes(null, null, null);
-
-        // Find "Completed" and "Pending" counts
-        const completedObj = statusTypes.find((s) => s.value === "Completed");
-        const pendingObj = statusTypes.find((s) => s.value === "Pending");
-
-        const completed = completedObj ? completedObj.count : 0;
-        const pending = pendingObj ? pendingObj.count : 0;
-
-        // In Progress = all statuses except Completed
-        const inProgress = total - completed;
-
-        setStatsData({
-          total,
-          completed,
-          inProgress,
-        });
-      } catch (err) {
-        console.error("Failed to fetch stats:", err);
-        setStatsData({
-          total: 0,
-          completed: 0,
-          inProgress: 0,
-        });
-      } finally {
-        setStatsLoading(false);
-      }
-    };
-
-    fetchStats();
-  }, []);
-
-  // ===============================
-  // LEVEL 2–4 TAB DATA
-  // ===============================
-  useEffect(() => {
-    getAppTypes(null)
-      .then(setAvailableAppTypes)
-      .catch(() => setAvailableAppTypes([]));
-  }, []);
-
-  useEffect(() => {
-    getPrescriptionTypes(null, subTab)
-      .then(setAvailablePrescriptionTypes)
-      .catch(() => setAvailablePrescriptionTypes([]));
-  }, [subTab]);
-
-  useEffect(() => {
-    getAppStatusTypes(null, subTab, prescriptionTab)
-      .then(setAvailableAppStatusTypes)
-      .catch(() => setAvailableAppStatusTypes([]));
-  }, [subTab, prescriptionTab]);
-
-  // ===============================
-  // TABLE DATA (PAGINATED) - ✅ NOW INCLUDES SORTING
-  // ===============================
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-
-        const params = {
-          page: currentPage,
-          pageSize: rowsPerPage,
-          search: searchTerm,
-          sortBy,
-          sortOrder,
-        };
-
-        if (filters.category) params.category = filters.category;
-        if (filters.manufacturer) params.manufacturer = filters.manufacturer;
-        if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
-        if (filters.brandName) params.brand_name = filters.brandName;
-        if (filters.genericName) params.generic_name = filters.genericName;
-        if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
-
-        if (subTab !== null)
-          params.app_type = subTab === "" ? "__EMPTY__" : subTab;
-        if (prescriptionTab !== null)
-          params.prescription =
-            prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
-        if (appStatusTab !== null)
-          params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
-
-        const json = await getUploadReports(params);
-
-        const mapped = json?.data ? json.data.map(mapDataItem) : [];
-
-        setFilteredData(mapped);
-        setTotalRecords(json?.total || 0);
-        setTotalPages(json?.total_pages || 0);
-      } catch (err) {
-        console.error("Failed to fetch reports:", err);
-        setFilteredData([]);
-        setTotalRecords(0);
-        setTotalPages(0);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [
-    currentPage,
-    rowsPerPage,
-    searchTerm,
-    subTab,
-    prescriptionTab,
-    appStatusTab,
-    filters,
-    sortBy,
-    sortOrder,
-  ]);
-
-  // ===============================
-  // EXPORT
-  // ===============================
-  const getExportParams = () => {
-    const params = {
-      search: searchTerm,
-    };
-
-    if (filters.category) params.category = filters.category;
-    if (filters.manufacturer) params.manufacturer = filters.manufacturer;
-    if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
-    if (filters.brandName) params.brand_name = filters.brandName;
-    if (filters.genericName) params.generic_name = filters.genericName;
-    if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
-
-    if (subTab !== null) params.app_type = subTab === "" ? "__EMPTY__" : subTab;
-    if (prescriptionTab !== null)
-      params.prescription =
-        prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
-    if (appStatusTab !== null)
-      params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
-
-    return params;
-  };
-
-  const handleExport = async () => {
-    if (totalRecords === 0) {
-      alert("❌ No records to export");
-      return;
-    }
-
-    try {
-      setExporting(true);
-      await exportFilteredRecords(getExportParams());
-      alert(
-        `✅ Export successful!\n\nExported ${totalRecords.toLocaleString()} records.`,
-      );
-    } catch (error) {
-      console.error("Export error:", error);
-
-      let errorMessage = "Unknown error";
-
-      if (error.response?.data) {
-        if (error.response.data instanceof Blob) {
-          try {
-            const text = await error.response.data.text();
-            try {
-              const errorData = JSON.parse(text);
-              errorMessage = errorData.detail || errorData.message || text;
-            } catch {
-              errorMessage = text;
-            }
-          } catch (e) {
-            errorMessage = "Failed to parse error response";
-          }
-        } else if (typeof error.response.data === "object") {
-          errorMessage =
-            error.response.data.detail ||
-            error.response.data.message ||
-            JSON.stringify(error.response.data);
-        } else {
-          errorMessage = String(error.response.data);
-        }
-      } else if (error.message) {
-        errorMessage = error.message;
-      }
-
-      alert(`❌ Export failed: ${errorMessage}`);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  // ===============================
-  // ✅ SORT HANDLER
-  // ===============================
-  const handleSort = (column, order) => {
-    setSortBy(column);
-    setSortOrder(order);
-    setCurrentPage(1); // Reset to first page when sorting changes
-  };
-
-  // ===============================
-  // TAB HANDLERS
-  // ===============================
-  const handleSubTabChange = (value) => {
-    setSubTab(value);
-    setPrescriptionTab(null);
-    setAppStatusTab(null);
-    setCurrentPage(1);
-  };
-
-  const handlePrescriptionTabChange = (value) => {
-    setPrescriptionTab(value);
-    setAppStatusTab(null);
-    setCurrentPage(1);
-  };
-
-  const handleAppStatusTabChange = (value) => {
-    setAppStatusTab(value);
-    setCurrentPage(1);
-  };
-
-  // ===============================
-  // TABLE SELECTION
-  // ===============================
-  const handleSelectRow = (rowId) => {
-    setSelectedRows((prev) =>
-      prev.includes(rowId)
-        ? prev.filter((id) => id !== rowId)
-        : [...prev, rowId],
-    );
-  };
-
-  const handleSelectAll = (checked, rows) => {
-    if (checked) {
-      setSelectedRows(rows.map((r) => r.id));
-    } else {
-      setSelectedRows([]);
-    }
-  };
-
-  // ===============================
-  // PAGINATION
-  // ===============================
-  const handlePageChange = (page) => {
-    setCurrentPage(page);
-  };
-
-  const handleRowsPerPageChange = (value) => {
-    setRowsPerPage(value);
-    setCurrentPage(1);
-  };
-
-  return (
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      {/* ========== SIDEBAR (LEVELS 2, 3, 4) ========== */}
-      <div
-        style={{
-          width: isSidebarOpen ? "320px" : "60px",
-          background: darkMode ? "#0a0a0a" : "#f8f9fa",
-          borderRight: `1px solid ${colors.cardBorder}`,
-          padding: isSidebarOpen ? "1.5rem" : "1rem 0.5rem",
-          overflowY: isSidebarOpen ? "auto" : "hidden",
-          overflowX: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          gap: "1rem",
-          transition: "all 0.3s ease",
-        }}
-      >
-        {isSidebarOpen ? (
-          <>
-            {/* ✅ Quick Filters Header with Toggle Button */}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "1rem",
-                background: darkMode ? "#1a1a1a" : "#ffffff",
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "10px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                }}
-              >
-                <span style={{ fontSize: "1.25rem" }}>⚡</span>
-                <h2
-                  style={{
-                    fontSize: "1.1rem",
-                    fontWeight: "700",
-                    color: colors.textPrimary,
-                    margin: 0,
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Quick Filters
-                </h2>
-              </div>
-
-              {/* Toggle Button */}
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                style={{
-                  padding: "0.5rem",
-                  background: darkMode ? "#0a0a0a" : "#f5f5f5",
-                  color: colors.textPrimary,
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "6px",
-                  fontSize: "1rem",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "32px",
-                  height: "32px",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = darkMode
-                    ? "#2a2a2a"
-                    : "#e5e5e5";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = darkMode
-                    ? "#0a0a0a"
-                    : "#f5f5f5";
-                }}
-                title="Hide Quick Filters"
-              >
-                ◀
-              </button>
-            </div>
-
-            {/* LEVEL 2: Application Type */}
-            {availableAppTypes.length > 0 && (
-              <SidebarSection
-                title="Application Type"
-                icon="📦"
-                items={availableAppTypes}
-                activeItem={subTab}
-                onItemClick={handleSubTabChange}
-                colors={colors}
-                darkMode={darkMode}
-                totalCount={availableAppTypes.reduce(
-                  (sum, a) => sum + a.count,
-                  0,
-                )}
-              />
-            )}
-
-            {/* LEVEL 3: Prescriptions */}
-            {availablePrescriptionTypes.length > 0 && (
-              <SidebarSection
-                title="Prescriptions"
-                icon="💊"
-                items={availablePrescriptionTypes}
-                activeItem={prescriptionTab}
-                onItemClick={handlePrescriptionTabChange}
-                colors={colors}
-                darkMode={darkMode}
-                totalCount={availablePrescriptionTypes.reduce(
-                  (sum, p) => sum + p.count,
-                  0,
-                )}
-              />
-            )}
-
-            {/* LEVEL 4: Status */}
-            {availableAppStatusTypes.length > 0 && (
-              <SidebarSection
-                title="All Status"
-                icon="📈"
-                items={availableAppStatusTypes}
-                activeItem={appStatusTab}
-                onItemClick={handleAppStatusTabChange}
-                colors={colors}
-                darkMode={darkMode}
-                totalCount={availableAppStatusTypes.reduce(
-                  (sum, s) => sum + s.count,
-                  0,
-                )}
-              />
-            )}
-          </>
-        ) : (
-          /* ========== MINIMIZED SIDEBAR ========== */
-          <>
-            {/* Open Button */}
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              style={{
-                padding: "0.75rem",
-                background: darkMode ? "#1a1a1a" : "#ffffff",
-                color: colors.textPrimary,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "8px",
-                fontSize: "1.2rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "44px",
-                height: "44px",
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = darkMode
-                  ? "#2a2a2a"
-                  : "#f0f0f0";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = darkMode
-                  ? "#1a1a1a"
-                  : "#ffffff";
-              }}
-              title="Show Quick Filters"
-            >
-              ▶
-            </button>
-
-            {/* Icon Buttons */}
-            {availableAppTypes.length > 0 && (
-              <div
-                style={{
-                  padding: "0.75rem",
-                  background: darkMode ? "#1a1a1a" : "#ffffff",
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
-                  fontSize: "1.2rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "44px",
-                  height: "44px",
-                  cursor: "default",
-                }}
-                title="Application Type"
-              >
-                📦
-              </div>
-            )}
-
-            {availablePrescriptionTypes.length > 0 && (
-              <div
-                style={{
-                  padding: "0.75rem",
-                  background: darkMode ? "#1a1a1a" : "#ffffff",
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
-                  fontSize: "1.2rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "44px",
-                  height: "44px",
-                  cursor: "default",
-                }}
-                title="Prescriptions"
-              >
-                💊
-              </div>
-            )}
-
-            {availableAppStatusTypes.length > 0 && (
-              <div
-                style={{
-                  padding: "0.75rem",
-                  background: darkMode ? "#1a1a1a" : "#ffffff",
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
-                  fontSize: "1.2rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: "44px",
-                  height: "44px",
-                  cursor: "default",
-                }}
-                title="All Status"
-              >
-                📈
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* ========== MAIN CONTENT ========== */}
-      <div
-        style={{
-          flex: 1,
-          overflow: "hidden",
-          padding: "0rem",
-          display: "flex",
-          flexDirection: "column",
-          minHeight: 0,
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            padding: "2rem 2rem 0",
-            background: colors.pageBg,
-            borderBottom: `1px solid ${colors.cardBorder}`,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "1.5rem",
-            }}
-          >
-            <div>
-              <h1
-                style={{
-                  fontSize: "1.75rem",
-                  fontWeight: "600",
-                  marginBottom: "0.5rem",
-                  color: colors.textPrimary,
-                }}
-              >
-                Reports
-              </h1>
-              <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
-                View and manage all CDRR reports
-              </p>
-            </div>
-            <button
-              onClick={handleExport}
-              disabled={exporting || totalRecords === 0}
-              style={{
-                padding: "0.625rem 1.25rem",
-                background: exporting ? colors.cardBorder : "#10B981",
-                color: "#fff",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                cursor:
-                  exporting || totalRecords === 0 ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                transition: "all 0.2s ease",
-                opacity: totalRecords === 0 ? 0.5 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!exporting && totalRecords > 0) {
-                  e.currentTarget.style.background = "#059669";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!exporting && totalRecords > 0) {
-                  e.currentTarget.style.background = "#10B981";
-                }
-              }}
-            >
-              <span>{exporting ? "⏳" : "📥"}</span>
-              <span>
-                {exporting
-                  ? "Exporting..."
-                  : `Export (${totalRecords.toLocaleString()})`}
-              </span>
-            </button>
-          </div>
-
-          {/* Stats Card */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "1rem",
-              marginBottom: "1rem",
-            }}
-          >
-            {[
-              {
-                icon: "📊",
-                label: "Total Reports",
-                value: statsLoading ? "..." : statsData.total.toLocaleString(),
-                color: colors.textPrimary,
-              },
-              {
-                icon: "⏳",
-                label: "In Progress / Pending",
-                value: statsLoading
-                  ? "..."
-                  : statsData.inProgress.toLocaleString(),
-                color: "#FF9800",
-              },
-              {
-                icon: "✅",
-                label: "Completed",
-                value: statsLoading
-                  ? "..."
-                  : statsData.completed.toLocaleString(),
-                color: "#4CAF50",
-              },
-            ].map((stat, index) => (
-              <div
-                key={index}
-                style={{
-                  background: colors.cardBg,
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "10px",
-                  padding: "1rem",
-                  transition: "all 0.3s ease",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                  }}
-                >
-                  <span style={{ fontSize: "1.4rem" }}>{stat.icon}</span>
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "0.7rem",
-                        color: colors.textTertiary,
-                        marginBottom: "0.15rem",
-                      }}
-                    >
-                      {stat.label}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "1.3rem",
-                        fontWeight: "600",
-                        color: stat.color,
-                      }}
-                    >
-                      {stat.value}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* ========== LEVEL 1: Single "All Reports" Tab ========== */}
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              borderBottom: `2px solid ${colors.cardBorder}`,
-              paddingBottom: "0",
-            }}
-          >
-            <button
-              style={{
-                padding: "0.5rem 1rem",
-                fontSize: "0.85rem",
-                background: "transparent",
-                border: "none",
-                borderBottom: `3px solid #4CAF50`,
-                color: colors.textPrimary,
-                fontWeight: "600",
-                cursor: "default",
-                transition: "all 0.2s ease",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                position: "relative",
-                top: "2px",
-              }}
-            >
-              <span style={{ fontSize: "1.1rem" }}>📋</span>
-              <span>All Reports</span>
-              <span
-                style={{
-                  padding: "0.2rem 0.6rem",
-                  background: "#4CAF50",
-                  color: "#fff",
-                  borderRadius: "12px",
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  minWidth: "32px",
-                  textAlign: "center",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                {statsLoading ? "..." : statsData.total.toLocaleString()}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Content Area */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "2rem",
-            background: colors.pageBg,
-          }}
-        >
-          {/* Filter Bar */}
-          <FilterBar
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            filters={filters}
-            onFilterChange={setFilters}
-            colors={colors}
-            activeTab="all"
-            subTab={subTab}
-            prescriptionTab={prescriptionTab}
-            appStatusTab={appStatusTab}
-          />
-
-          {/* Loading State */}
-          {loading && (
-            <div
-              style={{
-                background: colors.cardBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "12px",
-                padding: "3rem",
-                textAlign: "center",
-                color: colors.textSecondary,
-              }}
-            >
-              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⏳</div>
-              <div
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: "600",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                Loading reports...
-              </div>
-              <div style={{ fontSize: "0.9rem" }}>
-                Page {currentPage} of {totalPages}
-              </div>
-            </div>
-          )}
-
-          {/* Empty State */}
-          {!loading && filteredData.length === 0 && (
-            <div
-              style={{
-                background: colors.cardBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "12px",
-                padding: "3rem",
-                textAlign: "center",
-                color: colors.textSecondary,
-              }}
-            >
-              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📭</div>
-              <div
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: "600",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                No reports found
-              </div>
-              <div style={{ fontSize: "0.9rem" }}>
-                No records found for the selected criteria
-              </div>
-            </div>
-          )}
-
-          {/* Data Table - ✅ NOW WITH SORTING */}
-          {!loading && filteredData.length > 0 && (
-            <ReportsDataTable
-              data={filteredData}
-              selectedRows={selectedRows}
-              onSelectRow={handleSelectRow}
-              onSelectAll={handleSelectAll}
-              currentPage={currentPage}
-              rowsPerPage={rowsPerPage}
-              totalRecords={totalRecords}
-              totalPages={totalPages}
-              indexOfFirstRow={(currentPage - 1) * rowsPerPage + 1}
-              indexOfLastRow={Math.min(currentPage * rowsPerPage, totalRecords)}
-              onPageChange={handlePageChange}
-              onRowsPerPageChange={handleRowsPerPageChange}
-              colors={colors}
-              onSort={handleSort}
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              darkMode={darkMode}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ✅ Sidebar Section Component
+// ─── SidebarSection ───────────────────────────────────────────────────────────
 function SidebarSection({
   title,
   icon,
@@ -961,6 +36,7 @@ function SidebarSection({
 
   return (
     <div>
+      {/* Collapsible header */}
       <div
         onClick={() => setIsOpen(!isOpen)}
         style={{
@@ -1028,13 +104,13 @@ function SidebarSection({
             gap: "6px",
           }}
         >
-          {/* "All" Option */}
+          {/* "All" option */}
           <div
             onClick={() => onItemClick(null)}
             style={{
               padding: "10px 16px",
               background:
-                activeItem === null ? "rgba(33, 150, 243, 0.1)" : "transparent",
+                activeItem === null ? "rgba(33,150,243,0.1)" : "transparent",
               border: `1px solid ${activeItem === null ? "#2196F3" : "transparent"}`,
               borderRadius: "8px",
               cursor: "pointer",
@@ -1078,22 +154,19 @@ function SidebarSection({
             </span>
           </div>
 
-          {/* Individual Items */}
+          {/* Individual items */}
           {items.map((item) => {
             const displayValue = item.value || `No ${title}`;
             const filterValue = item.value === null ? "" : item.value;
-
+            const isActive = activeItem === filterValue;
             return (
               <div
                 key={filterValue || `no-${title}`}
                 onClick={() => onItemClick(filterValue)}
                 style={{
                   padding: "10px 16px",
-                  background:
-                    activeItem === filterValue
-                      ? "rgba(33, 150, 243, 0.1)"
-                      : "transparent",
-                  border: `1px solid ${activeItem === filterValue ? "#2196F3" : "transparent"}`,
+                  background: isActive ? "rgba(33,150,243,0.1)" : "transparent",
+                  border: `1px solid ${isActive ? "#2196F3" : "transparent"}`,
                   borderRadius: "8px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
@@ -1103,13 +176,13 @@ function SidebarSection({
                   fontSize: "13px",
                 }}
                 onMouseEnter={(e) => {
-                  if (activeItem !== filterValue) {
+                  if (!isActive) {
                     e.currentTarget.style.background = colors.cardBg;
                     e.currentTarget.style.borderColor = colors.cardBorder;
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (activeItem !== filterValue) {
+                  if (!isActive) {
                     e.currentTarget.style.background = "transparent";
                     e.currentTarget.style.borderColor = "transparent";
                   }
@@ -1120,14 +193,12 @@ function SidebarSection({
                 </span>
                 <span
                   style={{
-                    background:
-                      activeItem === filterValue
-                        ? "#2196F3"
-                        : darkMode
-                          ? "#1f1f1f"
-                          : "#e5e5e5",
-                    color:
-                      activeItem === filterValue ? "#fff" : colors.textTertiary,
+                    background: isActive
+                      ? "#2196F3"
+                      : darkMode
+                        ? "#1f1f1f"
+                        : "#e5e5e5",
+                    color: isActive ? "#fff" : colors.textTertiary,
                     padding: "3px 8px",
                     borderRadius: "5px",
                     fontSize: "11px",
@@ -1142,6 +213,902 @@ function SidebarSection({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── ReportsPage ──────────────────────────────────────────────────────────────
+function ReportsPage({ darkMode }) {
+  const [filteredData, setFilteredData] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filters, setFilters] = useState({});
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [statsData, setStatsData] = useState({
+    total: 0,
+    completed: 0,
+    inProgress: 0,
+  });
+  const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [exporting, setExporting] = useState(false);
+
+  const [subTab, setSubTab] = useState(null);
+  const [prescriptionTab, setPrescriptionTab] = useState(null);
+  const [appStatusTab, setAppStatusTab] = useState(null);
+
+  const [availableAppTypes, setAvailableAppTypes] = useState([]);
+  const [availablePrescriptionTypes, setAvailablePrescriptionTypes] = useState(
+    [],
+  );
+  const [availableAppStatusTypes, setAvailableAppStatusTypes] = useState([]);
+
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
+  const [sortOrder, setSortOrder] = useState("desc");
+
+  const colors = getColorScheme(darkMode);
+
+  const activeFilterCount =
+    (subTab !== null ? 1 : 0) +
+    (prescriptionTab !== null ? 1 : 0) +
+    (appStatusTab !== null ? 1 : 0);
+
+  useEffect(() => {
+    const id = "custom-scrollbar-styles-reports";
+    let el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement("style");
+      el.id = id;
+      document.head.appendChild(el);
+    }
+    el.textContent = scrollbarStyles(darkMode);
+    return () => {
+      const e = document.getElementById(id);
+      if (e) e.remove();
+    };
+  }, [darkMode]);
+
+  useEffect(() => {
+    let username = null;
+    const userStr =
+      localStorage.getItem("user") || sessionStorage.getItem("user");
+    if (userStr) {
+      try {
+        const o = JSON.parse(userStr);
+        username = o.username || o.email || o.first_name;
+      } catch {
+        username = userStr;
+      }
+    }
+    if (!username)
+      username =
+        localStorage.getItem("username") || sessionStorage.getItem("username");
+    setCurrentUser(username || "Unknown User");
+  }, []);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setStatsLoading(true);
+        const totalResponse = await getUploadReports({
+          page: 1,
+          pageSize: 1,
+          search: "",
+          sortBy: "DB_DATE_EXCEL_UPLOAD",
+          sortOrder: "desc",
+        });
+        const total = totalResponse.total || 0;
+        const statusTypes = await getAppStatusTypes(null, null, null);
+        const completedObj = statusTypes.find((s) => s.value === "Completed");
+        const completed = completedObj ? completedObj.count : 0;
+        setStatsData({ total, completed, inProgress: total - completed });
+      } catch {
+        setStatsData({ total: 0, completed: 0, inProgress: 0 });
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  useEffect(() => {
+    getAppTypes(null)
+      .then(setAvailableAppTypes)
+      .catch(() => setAvailableAppTypes([]));
+  }, []);
+  useEffect(() => {
+    getPrescriptionTypes(null, subTab)
+      .then(setAvailablePrescriptionTypes)
+      .catch(() => setAvailablePrescriptionTypes([]));
+  }, [subTab]);
+  useEffect(() => {
+    getAppStatusTypes(null, subTab, prescriptionTab)
+      .then(setAvailableAppStatusTypes)
+      .catch(() => setAvailableAppStatusTypes([]));
+  }, [subTab, prescriptionTab]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const params = {
+          page: currentPage,
+          pageSize: rowsPerPage,
+          search: searchTerm,
+          sortBy,
+          sortOrder,
+        };
+        if (filters.category) params.category = filters.category;
+        if (filters.manufacturer) params.manufacturer = filters.manufacturer;
+        if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
+        if (filters.brandName) params.brand_name = filters.brandName;
+        if (filters.genericName) params.generic_name = filters.genericName;
+        if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
+        if (subTab !== null)
+          params.app_type = subTab === "" ? "__EMPTY__" : subTab;
+        if (prescriptionTab !== null)
+          params.prescription =
+            prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
+        if (appStatusTab !== null)
+          params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
+        const json = await getUploadReports(params);
+        setFilteredData(json?.data ? json.data.map(mapDataItem) : []);
+        setTotalRecords(json?.total || 0);
+        setTotalPages(json?.total_pages || 0);
+      } catch {
+        setFilteredData([]);
+        setTotalRecords(0);
+        setTotalPages(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [
+    currentPage,
+    rowsPerPage,
+    searchTerm,
+    subTab,
+    prescriptionTab,
+    appStatusTab,
+    filters,
+    sortBy,
+    sortOrder,
+  ]);
+
+  const handleExport = async () => {
+    if (totalRecords === 0) {
+      alert("❌ No records to export");
+      return;
+    }
+    try {
+      setExporting(true);
+      const params = { search: searchTerm };
+      if (filters.category) params.category = filters.category;
+      if (filters.manufacturer) params.manufacturer = filters.manufacturer;
+      if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
+      if (filters.brandName) params.brand_name = filters.brandName;
+      if (filters.genericName) params.generic_name = filters.genericName;
+      if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
+      if (subTab !== null)
+        params.app_type = subTab === "" ? "__EMPTY__" : subTab;
+      if (prescriptionTab !== null)
+        params.prescription =
+          prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
+      if (appStatusTab !== null)
+        params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
+      await exportFilteredRecords(params);
+      alert(
+        `✅ Export successful!\n\nExported ${totalRecords.toLocaleString()} records.`,
+      );
+    } catch (error) {
+      let msg = "Unknown error";
+      if (error.response?.data) {
+        if (error.response.data instanceof Blob) {
+          try {
+            const t = await error.response.data.text();
+            try {
+              msg = JSON.parse(t).detail || t;
+            } catch {
+              msg = t;
+            }
+          } catch {
+            msg = "Failed to parse error";
+          }
+        } else if (typeof error.response.data === "object") {
+          msg =
+            error.response.data.detail ||
+            error.response.data.message ||
+            JSON.stringify(error.response.data);
+        } else {
+          msg = String(error.response.data);
+        }
+      } else if (error.message) {
+        msg = error.message;
+      }
+      alert(`❌ Export failed: ${msg}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleSort = (column, order) => {
+    setSortBy(column);
+    setSortOrder(order);
+    setCurrentPage(1);
+  };
+
+  const handleSubTabChange = (value) => {
+    setSubTab(value);
+    setPrescriptionTab(null);
+    setAppStatusTab(null);
+    setCurrentPage(1);
+  };
+  const handlePrescriptionTabChange = (value) => {
+    setPrescriptionTab(value);
+    setAppStatusTab(null);
+    setCurrentPage(1);
+  };
+  const handleAppStatusTabChange = (value) => {
+    setAppStatusTab(value);
+    setCurrentPage(1);
+  };
+
+  const handleSelectRow = (rowId) =>
+    setSelectedRows((prev) =>
+      prev.includes(rowId)
+        ? prev.filter((id) => id !== rowId)
+        : [...prev, rowId],
+    );
+  const handleSelectAll = (checked, rows) =>
+    setSelectedRows(checked ? rows.map((r) => r.id) : []);
+  const handlePageChange = (page) => setCurrentPage(page);
+  const handleRowsPerPageChange = (value) => {
+    setRowsPerPage(value);
+    setCurrentPage(1);
+  };
+
+  return (
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+      {/* ══════════════════════════════════════
+          SIDEBAR
+      ══════════════════════════════════════ */}
+      <div
+        style={{
+          width: isSidebarOpen ? "260px" : "52px",
+          minWidth: isSidebarOpen ? "260px" : "52px",
+          background: darkMode ? "#0a0a0a" : "#ffffff",
+          borderRight: `1px solid ${colors.cardBorder}`,
+          padding: isSidebarOpen ? "1.5rem 0" : "1rem 0",
+          overflowY: "hidden", // ← FIXED: hindi na mag-o-overflow ang buong sidebar
+          overflowX: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.5rem",
+          transition: "width 0.25s ease, min-width 0.25s ease",
+          flexShrink: 0,
+        }}
+      >
+        {isSidebarOpen ? (
+          /* ── EXPANDED ── */
+          <>
+            {/* Header — naka-pin, hindi nag-scroll */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0 1.25rem 1rem",
+                borderBottom: `2px solid ${colors.cardBorder}`,
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+                flexShrink: 0, // ← FIXED: hindi mag-shrink ang header
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                <span style={{ fontSize: "1.25rem" }}>⚡</span>
+                <h2
+                  style={{
+                    fontSize: "1.1rem",
+                    fontWeight: "700",
+                    color: colors.textPrimary,
+                    margin: 0,
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Quick Filters
+                </h2>
+              </div>
+
+              <button
+                onClick={() => setIsSidebarOpen(false)}
+                title="Hide Quick Filters"
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  color: colors.textTertiary,
+                  fontSize: "0.75rem",
+                  flexShrink: 0,
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = darkMode
+                    ? "#1f1f1f"
+                    : "#e5e5e5";
+                  e.currentTarget.style.color = colors.textPrimary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = colors.textTertiary;
+                }}
+              >
+                ◀
+              </button>
+            </div>
+
+            {/* Scrollable content — dito lang nag-scroll, hindi yung header */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "1rem",
+                padding: "0.75rem 0.75rem 1rem",
+                overflowY: "auto", // ← FIXED: scroll dito na lang
+                overflowX: "hidden",
+                flex: 1, // ← kumuha ng lahat ng remaining space
+              }}
+            >
+              {/* ── Search ── */}
+              <div style={{ padding: "0 0.25rem" }}>
+                <p
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: "600",
+                    color: colors.textTertiary,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    marginBottom: "0.4rem",
+                  }}
+                >
+                  Search
+                </p>
+                <div style={{ position: "relative" }}>
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: "0.65rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: colors.textTertiary,
+                      fontSize: "0.85rem",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    🔍
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="DTN, Company, Brand..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "0.6rem 2rem 0.6rem 1.9rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: "8px",
+                      color: colors.textPrimary,
+                      fontSize: "0.82rem",
+                      boxSizing: "border-box",
+                      outline: "none",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = "#4CAF50";
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = colors.inputBorder;
+                    }}
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm("")}
+                      style={{
+                        position: "absolute",
+                        right: "0.5rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: colors.textTertiary,
+                        cursor: "pointer",
+                        fontSize: "0.85rem",
+                        padding: 0,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Divider ── */}
+              <div
+                style={{
+                  height: "1px",
+                  background: colors.cardBorder,
+                  margin: "0 0.25rem",
+                }}
+              />
+
+              {/* Application Type */}
+              {availableAppTypes.length > 0 && (
+                <SidebarSection
+                  title="Application Type"
+                  icon="📦"
+                  items={availableAppTypes}
+                  activeItem={subTab}
+                  onItemClick={handleSubTabChange}
+                  colors={colors}
+                  darkMode={darkMode}
+                  totalCount={availableAppTypes.reduce(
+                    (s, a) => s + a.count,
+                    0,
+                  )}
+                />
+              )}
+
+              {/* Prescriptions */}
+              {availablePrescriptionTypes.length > 0 && (
+                <SidebarSection
+                  title="Prescriptions"
+                  icon="💊"
+                  items={availablePrescriptionTypes}
+                  activeItem={prescriptionTab}
+                  onItemClick={handlePrescriptionTabChange}
+                  colors={colors}
+                  darkMode={darkMode}
+                  totalCount={availablePrescriptionTypes.reduce(
+                    (s, p) => s + p.count,
+                    0,
+                  )}
+                />
+              )}
+
+              {/* All Status */}
+              {availableAppStatusTypes.length > 0 && (
+                <SidebarSection
+                  title="All Status"
+                  icon="📈"
+                  items={availableAppStatusTypes}
+                  activeItem={appStatusTab}
+                  onItemClick={handleAppStatusTabChange}
+                  colors={colors}
+                  darkMode={darkMode}
+                  totalCount={availableAppStatusTypes.reduce(
+                    (s, x) => s + x.count,
+                    0,
+                  )}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          /* ── COLLAPSED icon strip ── */
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "1rem",
+              paddingTop: "0.75rem",
+            }}
+          >
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              title="Show Quick Filters"
+              style={{
+                width: "28px",
+                height: "28px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "transparent",
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: colors.textTertiary,
+                fontSize: "0.75rem",
+                flexShrink: 0,
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = darkMode
+                  ? "#1f1f1f"
+                  : "#e5e5e5";
+                e.currentTarget.style.color = colors.textPrimary;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = colors.textTertiary;
+              }}
+            >
+              ▶
+            </button>
+
+            {activeFilterCount > 0 && (
+              <div
+                onClick={() => setIsSidebarOpen(true)}
+                title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""} — click to expand`}
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  background: "#2196F3",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.7rem",
+                  fontWeight: "700",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                {activeFilterCount}
+              </div>
+            )}
+
+            <span
+              title="Application Type (click to expand)"
+              style={{
+                fontSize: "1.2rem",
+                opacity: subTab !== null ? 1 : 0.3,
+                cursor: "pointer",
+              }}
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              📦
+            </span>
+            <span
+              title="Prescriptions (click to expand)"
+              style={{
+                fontSize: "1.2rem",
+                opacity: prescriptionTab !== null ? 1 : 0.3,
+                cursor: "pointer",
+              }}
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              💊
+            </span>
+            <span
+              title="All Status (click to expand)"
+              style={{
+                fontSize: "1.2rem",
+                opacity: appStatusTab !== null ? 1 : 0.3,
+                cursor: "pointer",
+              }}
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              📈
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════
+          MAIN CONTENT
+      ══════════════════════════════════════ */}
+      <div
+        style={{
+          flex: 1,
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "2rem 2rem 0",
+            background: colors.pageBg,
+            borderBottom: `1px solid ${colors.cardBorder}`,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              marginBottom: "1.5rem",
+            }}
+          >
+            <div>
+              <h1
+                style={{
+                  fontSize: "1.75rem",
+                  fontWeight: "600",
+                  marginBottom: "0.5rem",
+                  color: colors.textPrimary,
+                }}
+              >
+                Reports
+              </h1>
+              <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
+                View and manage all CDRR reports
+              </p>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exporting || totalRecords === 0}
+              style={{
+                padding: "0.625rem 1.25rem",
+                background: exporting ? colors.cardBorder : "#10B981",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                cursor:
+                  exporting || totalRecords === 0 ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                transition: "all 0.2s ease",
+                opacity: totalRecords === 0 ? 0.5 : 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!exporting && totalRecords > 0)
+                  e.currentTarget.style.background = "#059669";
+              }}
+              onMouseLeave={(e) => {
+                if (!exporting && totalRecords > 0)
+                  e.currentTarget.style.background = "#10B981";
+              }}
+            >
+              <span>{exporting ? "⏳" : "📥"}</span>
+              <span>
+                {exporting
+                  ? "Exporting..."
+                  : `Export (${totalRecords.toLocaleString()})`}
+              </span>
+            </button>
+          </div>
+
+          {/* Stats */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: "1rem",
+              marginBottom: "1rem",
+            }}
+          >
+            {[
+              {
+                icon: "📊",
+                label: "Total Reports",
+                value: statsLoading ? "..." : statsData.total.toLocaleString(),
+                color: colors.textPrimary,
+              },
+              {
+                icon: "⏳",
+                label: "In Progress / Pending",
+                value: statsLoading
+                  ? "..."
+                  : statsData.inProgress.toLocaleString(),
+                color: "#FF9800",
+              },
+              {
+                icon: "✅",
+                label: "Completed",
+                value: statsLoading
+                  ? "..."
+                  : statsData.completed.toLocaleString(),
+                color: "#4CAF50",
+              },
+            ].map((stat, i) => (
+              <div
+                key={i}
+                style={{
+                  background: colors.cardBg,
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "10px",
+                  padding: "1rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                  }}
+                >
+                  <span style={{ fontSize: "1.4rem" }}>{stat.icon}</span>
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "0.7rem",
+                        color: colors.textTertiary,
+                        marginBottom: "0.15rem",
+                      }}
+                    >
+                      {stat.label}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "1.3rem",
+                        fontWeight: "600",
+                        color: stat.color,
+                      }}
+                    >
+                      {stat.value}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Level 1 tab */}
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              borderBottom: `2px solid ${colors.cardBorder}`,
+              paddingBottom: 0,
+            }}
+          >
+            <button
+              style={{
+                padding: "0.5rem 1rem",
+                fontSize: "0.85rem",
+                background: "transparent",
+                border: "none",
+                borderBottom: "3px solid #4CAF50",
+                color: colors.textPrimary,
+                fontWeight: "600",
+                cursor: "default",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                position: "relative",
+                top: "2px",
+              }}
+            >
+              <span style={{ fontSize: "1.1rem" }}>📋</span>
+              <span>All Reports</span>
+              <span
+                style={{
+                  padding: "0.2rem 0.6rem",
+                  background: "#4CAF50",
+                  color: "#fff",
+                  borderRadius: "12px",
+                  fontSize: "0.75rem",
+                  fontWeight: "600",
+                  minWidth: "32px",
+                  textAlign: "center",
+                }}
+              >
+                {statsLoading ? "..." : statsData.total.toLocaleString()}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* Content area */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "2rem",
+            background: colors.pageBg,
+          }}
+        >
+          <FilterBar
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            filters={filters}
+            onFilterChange={setFilters}
+            colors={colors}
+            activeTab="all"
+            subTab={subTab}
+            prescriptionTab={prescriptionTab}
+            appStatusTab={appStatusTab}
+          />
+
+          {loading && (
+            <div
+              style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "12px",
+                padding: "3rem",
+                textAlign: "center",
+                color: colors.textSecondary,
+              }}
+            >
+              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⏳</div>
+              <div
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: "600",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                Loading reports...
+              </div>
+              <div style={{ fontSize: "0.9rem" }}>
+                Page {currentPage} of {totalPages}
+              </div>
+            </div>
+          )}
+
+          {!loading && filteredData.length === 0 && (
+            <div
+              style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "12px",
+                padding: "3rem",
+                textAlign: "center",
+                color: colors.textSecondary,
+              }}
+            >
+              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📭</div>
+              <div
+                style={{
+                  fontSize: "1.1rem",
+                  fontWeight: "600",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                No reports found
+              </div>
+              <div style={{ fontSize: "0.9rem" }}>
+                No records found for the selected criteria
+              </div>
+            </div>
+          )}
+
+          {!loading && filteredData.length > 0 && (
+            <ReportsDataTable
+              data={filteredData}
+              selectedRows={selectedRows}
+              onSelectRow={handleSelectRow}
+              onSelectAll={handleSelectAll}
+              currentPage={currentPage}
+              rowsPerPage={rowsPerPage}
+              totalRecords={totalRecords}
+              totalPages={totalPages}
+              indexOfFirstRow={(currentPage - 1) * rowsPerPage + 1}
+              indexOfLastRow={Math.min(currentPage * rowsPerPage, totalRecords)}
+              onPageChange={handlePageChange}
+              onRowsPerPageChange={handleRowsPerPageChange}
+              colors={colors}
+              onSort={handleSort}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              darkMode={darkMode}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
