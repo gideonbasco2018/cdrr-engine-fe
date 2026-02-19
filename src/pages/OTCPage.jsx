@@ -469,7 +469,7 @@ function OTCPage({ darkMode }) {
         style={{
           width: sidebarOpen ? "260px" : "52px",
           minWidth: sidebarOpen ? "260px" : "52px",
-          background: darkMode ? "#0a0a0a" : "#f8f9fa",
+          background: darkMode ? "#0a0a0a" : "#ffffff",
           borderRight: `1px solid ${colors.cardBorder}`,
           padding: sidebarOpen ? "1.5rem 0" : "1rem 0",
           overflowY: sidebarOpen ? "auto" : "hidden",
