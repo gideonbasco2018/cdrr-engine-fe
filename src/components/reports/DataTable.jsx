@@ -662,14 +662,7 @@ function DataTable({
         </div>
 
         {/* ✅ SCROLLABLE TABLE - maxHeight fixed, pagination OUTSIDE */}
-        <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowX: "auto",
-            overflowY: "auto",
-          }}
-        >
+        <div>
           <table
             style={{
               width: "100%",

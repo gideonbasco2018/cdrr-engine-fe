@@ -20,7 +20,7 @@ export const menuDefinitions = {
     },
     {
       id: "otc-database",
-      label: "OTC Database",
+      label: "OTC eServices",
       icon: "💊",
       roles: ["User", "Admin", "SuperAdmin"],
     },
