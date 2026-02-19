@@ -54,7 +54,13 @@ function FDADataTable({
   }
 
   return (
-    <div style={{ position: "relative", overflow: "auto", maxHeight: "600px" }}>
+    <div
+      style={{
+        overflowX: "auto",
+        overflowY: "auto",
+        maxHeight: "calc(100vh - 380px)",
+      }}
+    >
       <table
         style={{
           width: "100%",
