@@ -8,6 +8,12 @@ export const menuDefinitions = {
       label: "Dashboard",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+     {
+      id: "monitoring",
+      icon: "📈",
+      label: "Monitoring",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 
   cdrReportsItems: [
