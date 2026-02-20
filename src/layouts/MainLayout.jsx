@@ -11,8 +11,9 @@ import FDAVerificationPortalPage from "../pages/FDAVerificationPortalPage";
 import ReportsPage from "../pages/ReportsPage";
 import UserManagementPage from "../pages/UserManagementPage";
 import GroupManagementPage from "../pages/GroupManagementPage";
-import OTCPage from "../pages/OTCPage"; // ✅ NEW - Import OTC Page
-import CDRRInspectorReportsPage from "../pages/CDRRInspectorReportsPage"; // ✅ NEW
+import OTCPage from "../pages/OTCPage";
+import CDRRInspectorReportsPage from "../pages/CDRRInspectorReportsPage";
+import MonitoringPage from "../pages/MonitoringPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -68,7 +69,7 @@ function MainLayout({ darkMode, setDarkMode }) {
 
     // Other databases
     if (path.includes("fda-verification")) return "fda-verification";
-    if (path.includes("otc-database")) return "otc-database"; // ✅ NEW - OTC Database
+    if (path.includes("otc-database")) return "otc-database";
     if (path.includes("cdrr-inspector-reports"))
       return "cdrr-inspector-reports"; // ✅ NEW
 
@@ -79,6 +80,7 @@ function MainLayout({ darkMode, setDarkMode }) {
 
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
+    if (path.includes("monitoring")) return "monitoring";
 
     return "dashboard";
   };
@@ -153,15 +155,16 @@ function MainLayout({ darkMode, setDarkMode }) {
       case "fda-verification":
         return <FDAVerificationPortalPage darkMode={darkMode} />;
 
-      // ✅ NEW - OTC Database Page
       case "otc-database":
         return <OTCPage darkMode={darkMode} userRole={userRole} />;
 
-      // ✅ NEW - CDRR and Inspector Reports Page
       case "cdrr-inspector-reports":
         return (
           <CDRRInspectorReportsPage darkMode={darkMode} userRole={userRole} />
         );
+
+      case "monitoring":
+        return <MonitoringPage darkMode={darkMode} userRole={userRole} />;
 
       case "announcements":
         return (

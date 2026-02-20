@@ -3,10 +3,11 @@
 export const allMenuItems = [
   // Main
   { id: "dashboard", label: "Dashboard", icon: "📊", category: "Main" },
+  { id: "monitoring", label: "User's Monitoring", icon: "📈", category: "Main"},
   
   // CDR Reports
-  { id: "reports", label: "Reports", icon: "📄", category: "CDR Reports" },
-  { id: "otc-database", label: "OTC Database", icon: "💊", category: "CDR Reports" }, // ✅ ADD THIS
+  { id: "reports", label: "Reports", icon: "📄", category: "CDRR Reports" },
+  { id: "otc-database", label: "OTC Database", icon: "💊", category: "CDRR Reports" }, // ✅ ADD THIS
   
   // Workflow
   { id: "for-decking", label: "For Decking", icon: "📥", category: "Workflow" },

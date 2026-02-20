@@ -85,6 +85,7 @@ function GroupManagementPage({ darkMode, userRole }) {
   const getCategoryForMenu = (menuId) => {
     const categoryMap = {
       dashboard: "Main",
+      monitoring: "Main",
       reports: "CDR Reports",
       "otc-database": "CDR Reports",
       "for-decking": "Workflow",

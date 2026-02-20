@@ -197,6 +197,7 @@ function Sidebar({
     const basePath = getBasePath();
     const routeMap = {
       dashboard: `${basePath}/dashboard`,
+      monitoring: `${basePath}/monitoring`,
       reports: `${basePath}/reports`,
       "for-decking": `${basePath}/for-decking`,
       "for-evaluation": `${basePath}/for-evaluation`,
