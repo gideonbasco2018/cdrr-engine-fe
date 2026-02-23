@@ -12,6 +12,7 @@ function SignupPage() {
     first_name: "",
     surname: "",
     position: "",
+    access_request: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -25,10 +26,8 @@ function SignupPage() {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-
     checkMobile();
     window.addEventListener("resize", checkMobile);
-
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
@@ -44,7 +43,6 @@ function SignupPage() {
     setError("");
     setSuccessMessage("");
 
-    // Validation
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -65,18 +63,16 @@ function SignupPage() {
         first_name: formData.first_name,
         surname: formData.surname,
         position: formData.position || undefined,
+        access_request: formData.access_request || undefined,
       };
 
       const response = await register(registrationData);
-
       console.log("✅ Registration successful:", response);
 
-      // Show success message
       setSuccessMessage(
         "Registration successful! Your account is pending approval. You will be notified once activated.",
       );
 
-      // Clear form
       setFormData({
         email: "",
         username: "",
@@ -85,9 +81,9 @@ function SignupPage() {
         first_name: "",
         surname: "",
         position: "",
+        access_request: "",
       });
 
-      // Redirect to login after 3 seconds
       setTimeout(() => {
         navigate("/login");
       }, 3000);
@@ -98,6 +94,29 @@ function SignupPage() {
       );
       setLoading(false);
     }
+  };
+
+  // ===== SHARED INPUT STYLE =====
+  const inputStyle = {
+    width: "100%",
+    padding: "0.875rem",
+    background: "#1a1a1a",
+    border: "1px solid #2a2a2a",
+    borderRadius: "8px",
+    color: "#fff",
+    fontSize: isMobile ? "16px" : "0.95rem",
+    outline: "none",
+    transition: "border-color 0.2s",
+    opacity: loading ? 0.6 : 1,
+    boxSizing: "border-box",
+  };
+
+  const labelStyle = {
+    display: "block",
+    color: "#999",
+    fontSize: "0.85rem",
+    marginBottom: "0.5rem",
+    fontWeight: "500",
   };
 
   return (
@@ -111,7 +130,7 @@ function SignupPage() {
           '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      {/* Left Side - Branding */}
+      {/* ===== LEFT SIDE — Branding ===== */}
       <div
         style={{
           flex: isMobile ? "0 0 auto" : 1,
@@ -153,7 +172,6 @@ function SignupPage() {
             />
           </div>
 
-          {/* Main Title */}
           <h1
             style={{
               fontSize: isMobile ? "1.25rem" : "2rem",
@@ -234,39 +252,26 @@ function SignupPage() {
                   borderRadius: "2px",
                 }}
               />
-              <div
-                style={{
-                  width: "8px",
-                  height: "3px",
-                  background: "#333",
-                  borderRadius: "2px",
-                }}
-              />
-              <div
-                style={{
-                  width: "8px",
-                  height: "3px",
-                  background: "#333",
-                  borderRadius: "2px",
-                }}
-              />
-              <div
-                style={{
-                  width: "8px",
-                  height: "3px",
-                  background: "#333",
-                  borderRadius: "2px",
-                }}
-              />
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: "8px",
+                    height: "3px",
+                    background: "#333",
+                    borderRadius: "2px",
+                  }}
+                />
+              ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* Right Side - Signup Form */}
+      {/* ===== RIGHT SIDE — Form ===== */}
       <div
         style={{
-          flex: isMobile ? 1 : 1,
+          flex: 1,
           background: "#0a0a0a",
           display: "flex",
           flexDirection: "column",
@@ -276,13 +281,7 @@ function SignupPage() {
           overflowY: "auto",
         }}
       >
-        <div
-          style={{
-            maxWidth: "400px",
-            width: "100%",
-            margin: "0 auto",
-          }}
-        >
+        <div style={{ maxWidth: "400px", width: "100%", margin: "0 auto" }}>
           <h2
             style={{
               fontSize: isMobile ? "1.5rem" : "2rem",
@@ -326,17 +325,7 @@ function SignupPage() {
           <form onSubmit={handleSubmit}>
             {/* First Name */}
             <div style={{ marginBottom: "1.25rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#999",
-                  fontSize: "0.85rem",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                }}
-              >
-                First Name
-              </label>
+              <label style={labelStyle}>First Name</label>
               <input
                 type="text"
                 name="first_name"
@@ -345,19 +334,7 @@ function SignupPage() {
                 placeholder="Enter your first name"
                 required
                 disabled={loading}
-                style={{
-                  width: "100%",
-                  padding: "0.875rem",
-                  background: "#1a1a1a",
-                  border: "1px solid #2a2a2a",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: isMobile ? "16px" : "0.95rem",
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                  opacity: loading ? 0.6 : 1,
-                  boxSizing: "border-box",
-                }}
+                style={inputStyle}
                 onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                 onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
               />
@@ -365,17 +342,7 @@ function SignupPage() {
 
             {/* Surname */}
             <div style={{ marginBottom: "1.25rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#999",
-                  fontSize: "0.85rem",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                }}
-              >
-                Surname
-              </label>
+              <label style={labelStyle}>Surname</label>
               <input
                 type="text"
                 name="surname"
@@ -384,19 +351,7 @@ function SignupPage() {
                 placeholder="Enter your surname"
                 required
                 disabled={loading}
-                style={{
-                  width: "100%",
-                  padding: "0.875rem",
-                  background: "#1a1a1a",
-                  border: "1px solid #2a2a2a",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: isMobile ? "16px" : "0.95rem",
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                  opacity: loading ? 0.6 : 1,
-                  boxSizing: "border-box",
-                }}
+                style={inputStyle}
                 onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                 onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
               />
@@ -404,17 +359,7 @@ function SignupPage() {
 
             {/* Email */}
             <div style={{ marginBottom: "1.25rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#999",
-                  fontSize: "0.85rem",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                }}
-              >
-                Email
-              </label>
+              <label style={labelStyle}>Email</label>
               <input
                 type="email"
                 name="email"
@@ -423,19 +368,7 @@ function SignupPage() {
                 placeholder="Enter your email"
                 required
                 disabled={loading}
-                style={{
-                  width: "100%",
-                  padding: "0.875rem",
-                  background: "#1a1a1a",
-                  border: "1px solid #2a2a2a",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: isMobile ? "16px" : "0.95rem",
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                  opacity: loading ? 0.6 : 1,
-                  boxSizing: "border-box",
-                }}
+                style={inputStyle}
                 onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                 onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
               />
@@ -443,17 +376,7 @@ function SignupPage() {
 
             {/* Username */}
             <div style={{ marginBottom: "1.25rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#999",
-                  fontSize: "0.85rem",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                }}
-              >
-                Username
-              </label>
+              <label style={labelStyle}>Username</label>
               <input
                 type="text"
                 name="username"
@@ -462,19 +385,7 @@ function SignupPage() {
                 placeholder="Choose a username"
                 required
                 disabled={loading}
-                style={{
-                  width: "100%",
-                  padding: "0.875rem",
-                  background: "#1a1a1a",
-                  border: "1px solid #2a2a2a",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: isMobile ? "16px" : "0.95rem",
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                  opacity: loading ? 0.6 : 1,
-                  boxSizing: "border-box",
-                }}
+                style={inputStyle}
                 onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                 onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
               />
@@ -482,55 +393,68 @@ function SignupPage() {
 
             {/* Position (Optional) */}
             <div style={{ marginBottom: "1.25rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#999",
-                  fontSize: "0.85rem",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                }}
-              >
-                Position <span style={{ color: "#666" }}>(Optional)</span>
+              <label style={labelStyle}>
+                Position{" "}
+                <span style={{ color: "#666", fontWeight: "400" }}>
+                  (Optional)
+                </span>
               </label>
               <input
                 type="text"
                 name="position"
                 value={formData.position}
                 onChange={handleChange}
-                placeholder="Enter your position"
+                placeholder="Enter your position or job title"
                 disabled={loading}
-                style={{
-                  width: "100%",
-                  padding: "0.875rem",
-                  background: "#1a1a1a",
-                  border: "1px solid #2a2a2a",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: isMobile ? "16px" : "0.95rem",
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                  opacity: loading ? 0.6 : 1,
-                  boxSizing: "border-box",
-                }}
+                style={inputStyle}
                 onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                 onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
               />
             </div>
 
-            {/* Password */}
+            {/* Access Request */}
             <div style={{ marginBottom: "1.25rem" }}>
-              <label
+              <label style={labelStyle}>
+                Access Request{" "}
+                <span style={{ color: "#666", fontWeight: "400" }}>
+                  (Optional)
+                </span>
+              </label>
+              <textarea
+                name="access_request"
+                value={formData.access_request}
+                onChange={handleChange}
+                placeholder="Briefly describe why you need access to this system..."
+                disabled={loading}
+                rows={3}
                 style={{
-                  display: "block",
-                  color: "#999",
-                  fontSize: "0.85rem",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
+                  ...inputStyle,
+                  resize: "vertical",
+                  minHeight: "80px",
+                  lineHeight: "1.5",
+                  paddingTop: "0.75rem",
+                  paddingBottom: "0.75rem",
+                  fontFamily: "inherit",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
+              />
+              <p
+                style={{
+                  margin: "0.35rem 0 0",
+                  fontSize: "0.78rem",
+                  color: "#555",
+                  lineHeight: "1.4",
                 }}
               >
-                Password
-              </label>
+                This helps administrators understand your role and approve your
+                account faster.
+              </p>
+            </div>
+
+            {/* Password */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label style={labelStyle}>Password</label>
               <div style={{ position: "relative" }}>
                 <input
                   type={showPassword ? "text" : "password"}
@@ -540,20 +464,7 @@ function SignupPage() {
                   placeholder="Create a password (min. 8 characters)"
                   required
                   disabled={loading}
-                  style={{
-                    width: "100%",
-                    padding: "0.875rem",
-                    paddingRight: "3rem",
-                    background: "#1a1a1a",
-                    border: "1px solid #2a2a2a",
-                    borderRadius: "8px",
-                    color: "#fff",
-                    fontSize: isMobile ? "16px" : "0.95rem",
-                    outline: "none",
-                    transition: "border-color 0.2s",
-                    opacity: loading ? 0.6 : 1,
-                    boxSizing: "border-box",
-                  }}
+                  style={{ ...inputStyle, paddingRight: "3rem" }}
                   onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                   onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
                 />
@@ -584,17 +495,7 @@ function SignupPage() {
 
             {/* Confirm Password */}
             <div style={{ marginBottom: "1.25rem" }}>
-              <label
-                style={{
-                  display: "block",
-                  color: "#999",
-                  fontSize: "0.85rem",
-                  marginBottom: "0.5rem",
-                  fontWeight: "500",
-                }}
-              >
-                Confirm Password
-              </label>
+              <label style={labelStyle}>Confirm Password</label>
               <div style={{ position: "relative" }}>
                 <input
                   type={showConfirmPassword ? "text" : "password"}
@@ -604,20 +505,7 @@ function SignupPage() {
                   placeholder="Re-enter your password"
                   required
                   disabled={loading}
-                  style={{
-                    width: "100%",
-                    padding: "0.875rem",
-                    paddingRight: "3rem",
-                    background: "#1a1a1a",
-                    border: "1px solid #2a2a2a",
-                    borderRadius: "8px",
-                    color: "#fff",
-                    fontSize: isMobile ? "16px" : "0.95rem",
-                    outline: "none",
-                    transition: "border-color 0.2s",
-                    opacity: loading ? 0.6 : 1,
-                    boxSizing: "border-box",
-                  }}
+                  style={{ ...inputStyle, paddingRight: "3rem" }}
                   onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
                   onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
                 />
@@ -646,6 +534,7 @@ function SignupPage() {
               </div>
             </div>
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
