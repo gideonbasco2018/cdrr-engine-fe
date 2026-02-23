@@ -7,14 +7,16 @@ import {
   deactivateUser,
   resetPassword,
   updateUser,
+  getAllGroups,
 } from "../api/auth";
 
 function UserManagementPage({ darkMode, userRole }) {
   // ===== STATE =====
   const [allUsers, setAllUsers] = useState([]);
   const [pendingUsers, setPendingUsers] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("all"); // default to "All Users"
+  const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch] = useState("");
   const [actionLoading, setActionLoading] = useState(null);
   const [toast, setToast] = useState(null);
@@ -24,7 +26,10 @@ function UserManagementPage({ darkMode, userRole }) {
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [openMenuId, setOpenMenuId] = useState(null);
-  const [roleFilter, setRoleFilter] = useState(null); // For role filtering
+  const [roleFilter, setRoleFilter] = useState(null);
+  const [groupFilter, setGroupFilter] = useState([]);
+  const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+  const groupDropdownRef = useRef(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -110,12 +115,14 @@ function UserManagementPage({ darkMode, userRole }) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [all, pending] = await Promise.all([
+      const results = await Promise.all([
         getAllUsers(),
         getPendingUsers(),
+        getAllGroups(),
       ]);
-      setAllUsers(Array.isArray(all) ? all : []);
-      setPendingUsers(Array.isArray(pending) ? pending : []);
+      setAllUsers(Array.isArray(results[0]) ? results[0] : []);
+      setPendingUsers(Array.isArray(results[1]) ? results[1] : []);
+      setGroups(Array.isArray(results[2]) ? results[2] : []);
     } catch (err) {
       console.error("Failed to fetch users:", err);
       showToast("error", "Failed to load users. Please try again.");
@@ -128,6 +135,7 @@ function UserManagementPage({ darkMode, userRole }) {
     fetchData();
   }, [fetchData]);
 
+  // Close action menu on outside click
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);
     if (openMenuId) {
@@ -135,6 +143,23 @@ function UserManagementPage({ darkMode, userRole }) {
       return () => document.removeEventListener("click", handleClickOutside);
     }
   }, [openMenuId]);
+
+  // Close group dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (
+        groupDropdownRef.current &&
+        !groupDropdownRef.current.contains(e.target)
+      ) {
+        setGroupDropdownOpen(false);
+      }
+    };
+    if (groupDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [groupDropdownOpen]);
 
   // ===== TOAST =====
   const showToast = (type, message) => {
@@ -207,7 +232,6 @@ function UserManagementPage({ darkMode, userRole }) {
     const { userId } = editModal;
     const updates = {};
 
-    // Only include fields that have changed
     if (editForm.username && editForm.username !== editModal.originalUsername) {
       updates.username = editForm.username;
     }
@@ -244,7 +268,6 @@ function UserManagementPage({ darkMode, userRole }) {
   const filteredUsers = (() => {
     let source;
 
-    // Tab filtering
     if (activeTab === "pending") {
       source = pendingUsers;
     } else if (activeTab === "active") {
@@ -258,6 +281,13 @@ function UserManagementPage({ darkMode, userRole }) {
       source = source.filter((u) => (u.role || "User") === roleFilter);
     }
 
+    // Group filtering (multi-select)
+    if (groupFilter.length > 0) {
+      source = source.filter((u) =>
+        (u.groups || []).some((g) => groupFilter.includes(g.id)),
+      );
+    }
+
     // Search filtering
     if (!search.trim()) return source;
     const q = search.toLowerCase();
@@ -266,7 +296,8 @@ function UserManagementPage({ darkMode, userRole }) {
         (u.username || "").toLowerCase().includes(q) ||
         (u.email || "").toLowerCase().includes(q) ||
         (u.first_name || "").toLowerCase().includes(q) ||
-        (u.last_name || "").toLowerCase().includes(q) ||
+        (u.surname || "").toLowerCase().includes(q) ||
+        (u.access_request || "").toLowerCase().includes(q) ||
         (u.groups?.[0]?.name || "").toLowerCase().includes(q),
     );
   })();
@@ -412,6 +443,235 @@ function UserManagementPage({ darkMode, userRole }) {
     );
   };
 
+  // ===== GROUP FILTER DROPDOWN =====
+  const GroupFilterDropdown = () => {
+    const hasFilter = groupFilter.length > 0;
+
+    const toggleGroup = (groupId) => {
+      setGroupFilter((prev) =>
+        prev.includes(groupId)
+          ? prev.filter((id) => id !== groupId)
+          : [...prev, groupId],
+      );
+    };
+
+    return (
+      <div style={{ position: "relative" }} ref={groupDropdownRef}>
+        {/* Trigger Button */}
+        <button
+          onClick={() => setGroupDropdownOpen((prev) => !prev)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.45rem 0.9rem",
+            borderRadius: "8px",
+            border: `1px solid ${hasFilter ? "#6366f1" : colors.inputBorder}`,
+            background: hasFilter
+              ? darkMode
+                ? "#1a1a3a"
+                : "#ede9fe"
+              : colors.inputBg,
+            color: hasFilter
+              ? darkMode
+                ? "#a78bfa"
+                : "#7c3aed"
+              : colors.textSecondary,
+            fontSize: "0.83rem",
+            fontWeight: hasFilter ? "600" : "400",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+            whiteSpace: "nowrap",
+            height: "34px",
+            boxSizing: "border-box",
+          }}
+        >
+          <span>🏷️</span>
+          <span>
+            {hasFilter ? `Group (${groupFilter.length})` : "Filter by Group"}
+          </span>
+          <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
+            {groupDropdownOpen ? "▲" : "▼"}
+          </span>
+        </button>
+
+        {/* Dropdown Panel */}
+        {groupDropdownOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              right: 0,
+              background: colors.menuBg,
+              border: `1px solid ${colors.menuBorder}`,
+              borderRadius: "10px",
+              boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
+              minWidth: "220px",
+              zIndex: 200,
+              overflow: "hidden",
+            }}
+          >
+            {/* Dropdown Header */}
+            <div
+              style={{
+                padding: "0.6rem 1rem",
+                borderBottom: `1px solid ${colors.cardBorder}`,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  fontWeight: "700",
+                  color: colors.textTertiary,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Filter by Group
+              </span>
+              {hasFilter && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGroupFilter([]);
+                  }}
+                  style={{
+                    fontSize: "0.72rem",
+                    color: "#6366f1",
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                    padding: 0,
+                  }}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+
+            {/* Group Items */}
+            <div style={{ maxHeight: "240px", overflowY: "auto" }}>
+              {groups.length === 0 ? (
+                <div
+                  style={{
+                    padding: "1rem",
+                    fontSize: "0.82rem",
+                    color: colors.textTertiary,
+                    textAlign: "center",
+                  }}
+                >
+                  No groups found
+                </div>
+              ) : (
+                groups.map((group) => {
+                  const isChecked = groupFilter.includes(group.id);
+                  const userCount = allUsers.filter((u) =>
+                    (u.groups || []).some((g) => g.id === group.id),
+                  ).length;
+
+                  return (
+                    <div
+                      key={group.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleGroup(group.id);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.75rem",
+                        padding: "0.65rem 1rem",
+                        cursor: "pointer",
+                        background: isChecked
+                          ? darkMode
+                            ? "#1a1a3a"
+                            : "#f5f3ff"
+                          : "transparent",
+                        transition: "background 0.15s ease",
+                        borderBottom: `1px solid ${colors.cardBorder}`,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isChecked)
+                          e.currentTarget.style.background =
+                            colors.menuItemHover;
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isChecked)
+                          e.currentTarget.style.background = "transparent";
+                      }}
+                    >
+                      {/* Custom Checkbox */}
+                      <div
+                        style={{
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "4px",
+                          border: `2px solid ${
+                            isChecked ? "#6366f1" : colors.textTertiary
+                          }`,
+                          background: isChecked ? "#6366f1" : "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {isChecked && (
+                          <span
+                            style={{
+                              color: "#fff",
+                              fontSize: "0.6rem",
+                              fontWeight: "700",
+                              lineHeight: 1,
+                            }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Group Name */}
+                      <span
+                        style={{
+                          fontSize: "0.85rem",
+                          color: colors.textPrimary,
+                          fontWeight: isChecked ? "600" : "400",
+                          flex: 1,
+                        }}
+                      >
+                        {group.name}
+                      </span>
+
+                      {/* User Count Badge */}
+                      <span
+                        style={{
+                          fontSize: "0.7rem",
+                          background: darkMode ? "#222" : "#f0f0f0",
+                          color: colors.textTertiary,
+                          padding: "0.1rem 0.45rem",
+                          borderRadius: "10px",
+                          fontWeight: "600",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {userCount}
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // ===== ACTION MENU =====
   const ActionMenu = ({ user }) => {
     const menuRef = useRef(null);
@@ -426,7 +686,6 @@ function UserManagementPage({ darkMode, userRole }) {
 
     const menuItems = [];
 
-    // Edit option (always available)
     menuItems.push({
       label: "Edit User",
       action: "edit",
@@ -554,10 +813,10 @@ function UserManagementPage({ darkMode, userRole }) {
                       : "none",
                 }}
                 onMouseEnter={(e) =>
-                  (e.target.style.background = colors.menuItemHover)
+                  (e.currentTarget.style.background = colors.menuItemHover)
                 }
                 onMouseLeave={(e) =>
-                  (e.target.style.background = "transparent")
+                  (e.currentTarget.style.background = "transparent")
                 }
               >
                 <span style={{ fontSize: "0.9rem" }}>{item.icon}</span>
@@ -571,12 +830,13 @@ function UserManagementPage({ darkMode, userRole }) {
   };
 
   // ===== USER ROW =====
+  // gridTemplateColumns: avatar | name+email | username | role | group | status | access_request | actions
   const UserRow = ({ user, index }) => {
     return (
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "40px 1fr 200px 90px 120px 100px 60px",
+          gridTemplateColumns: "40px 1fr 180px 90px 120px 90px 1fr 60px",
           alignItems: "center",
           gap: "1rem",
           padding: "0.9rem 1.25rem",
@@ -620,8 +880,8 @@ function UserManagementPage({ darkMode, userRole }) {
               fontSize: "0.9rem",
             }}
           >
-            {user.first_name && user.last_name
-              ? `${user.first_name} ${user.last_name}`
+            {user.first_name && user.surname
+              ? `${user.first_name} ${user.surname}`
               : user.username}
           </div>
           <div
@@ -646,7 +906,7 @@ function UserManagementPage({ darkMode, userRole }) {
           {user.username}
         </div>
 
-        {/* Role - Now clickable */}
+        {/* Role */}
         <div>
           <RoleBadge role={user.role || "User"} clickable={true} />
         </div>
@@ -659,6 +919,28 @@ function UserManagementPage({ darkMode, userRole }) {
         {/* Status */}
         <div>
           <StatusBadge isActive={user.is_active} />
+        </div>
+
+        {/* Access Request */}
+        <div
+          title={user.access_request || ""}
+          style={{
+            fontSize: "0.8rem",
+            color: user.access_request
+              ? colors.textSecondary
+              : colors.textTertiary,
+            lineHeight: "1.45",
+            overflow: "hidden",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+          }}
+        >
+          {user.access_request ? (
+            user.access_request
+          ) : (
+            <span style={{ fontStyle: "italic" }}>—</span>
+          )}
         </div>
 
         {/* Action Menu */}
@@ -969,7 +1251,6 @@ function UserManagementPage({ darkMode, userRole }) {
               Enter new password for <strong>{passwordModal.username}</strong>
             </p>
 
-            {/* Password Input */}
             <div style={{ marginBottom: "1.5rem" }}>
               <label
                 style={{
@@ -1280,7 +1561,7 @@ function UserManagementPage({ darkMode, userRole }) {
           overflow: "visible",
         }}
       >
-        {/* Tabs + Search Row */}
+        {/* Tabs + Filters + Search Row */}
         <div
           style={{
             display: "flex",
@@ -1292,7 +1573,7 @@ function UserManagementPage({ darkMode, userRole }) {
             flexWrap: "wrap",
           }}
         >
-          {/* Tabs */}
+          {/* Left: Tabs + Role Filter Indicator */}
           <div
             style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}
           >
@@ -1370,61 +1651,74 @@ function UserManagementPage({ darkMode, userRole }) {
                   color: colors.textSecondary,
                 }}
               >
-                <span>Filtered by:</span>
+                <span>Role:</span>
                 <RoleBadge role={roleFilter} clickable={true} />
               </div>
             )}
           </div>
 
-          {/* Search */}
-          <input
-            type="text"
-            placeholder="Search users..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={{
-              padding: "0.5rem 1rem",
-              borderRadius: "8px",
-              border: `1px solid ${colors.inputBorder}`,
-              background: colors.inputBg,
-              color: colors.textPrimary,
-              fontSize: "0.85rem",
-              width: "220px",
-              outline: "none",
-            }}
-          />
+          {/* Right: Group Filter Dropdown + Search */}
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+          >
+            <GroupFilterDropdown />
+
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                padding: "0.5rem 1rem",
+                borderRadius: "8px",
+                border: `1px solid ${colors.inputBorder}`,
+                background: colors.inputBg,
+                color: colors.textPrimary,
+                fontSize: "0.85rem",
+                width: "220px",
+                outline: "none",
+                height: "34px",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
         </div>
 
         {/* TABLE HEADER */}
+        {/* Must match UserRow gridTemplateColumns exactly */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "40px 1fr 200px 90px 120px 100px 60px",
+            gridTemplateColumns: "40px 1fr 180px 90px 120px 90px 1fr 60px",
             gap: "1rem",
             padding: "0.7rem 1.25rem",
             background: darkMode ? "#1a1a1a" : "#f9f9f9",
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
         >
-          {/* OPTION 1: Use index as key (Simple fix) */}
-          {["", "Name / Email", "Username", "Role", "Group", "Status", ""].map(
-            (h, index) => (
-              <div
-                key={`header-${index}`} // ← Use index to make unique keys
-                style={{
-                  fontSize: "0.7rem",
-                  fontWeight: "700",
-                  color: colors.textTertiary,
-                  letterSpacing: "0.06em",
-                  textTransform: "uppercase",
-                  textAlign:
-                    h === "" && h !== "Name / Email" ? "right" : "left",
-                }}
-              >
-                {h}
-              </div>
-            ),
-          )}
+          {[
+            "",
+            "Name / Email",
+            "Username",
+            "Role",
+            "Group",
+            "Status",
+            "Access Request",
+            "",
+          ].map((h, index) => (
+            <div
+              key={`header-${index}`}
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: "700",
+                color: colors.textTertiary,
+                letterSpacing: "0.06em",
+                textTransform: "uppercase",
+              }}
+            >
+              {h}
+            </div>
+          ))}
         </div>
 
         {/* TABLE BODY */}
@@ -1441,14 +1735,20 @@ function UserManagementPage({ darkMode, userRole }) {
         ) : filteredUsers.length === 0 ? (
           <div style={{ padding: "3rem", textAlign: "center" }}>
             <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
-              {roleFilter ? "🔍" : activeTab === "pending" ? "🎉" : "🔍"}
+              {groupFilter.length > 0 || roleFilter
+                ? "🔍"
+                : activeTab === "pending"
+                  ? "🎉"
+                  : "🔍"}
             </div>
             <div style={{ color: colors.textSecondary, fontSize: "0.9rem" }}>
-              {roleFilter
-                ? `No ${roleFilter} users found.`
-                : activeTab === "pending" && !search
-                  ? "No pending users — all caught up!"
-                  : "No users match your search."}
+              {groupFilter.length > 0
+                ? "No users found in the selected group(s)."
+                : roleFilter
+                  ? `No ${roleFilter} users found.`
+                  : activeTab === "pending" && !search
+                    ? "No pending users — all caught up!"
+                    : "No users match your search."}
             </div>
           </div>
         ) : (

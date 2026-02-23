@@ -1524,11 +1524,11 @@ function SVGDonutChart({
 
 function MonitoringPage({ darkMode, userRole }) {
   // ── PATCHED: light grey bg in light mode (was "#f0f2f7") ──
-  const bg = darkMode ? "#0a0a0a" : "#f0f1f4";
+  const bg = darkMode ? "#0a0a0a" : "#f8f8f8";
   const cardBg = darkMode ? "#161616" : "#ffffff";
   const border = darkMode ? "#2a2a2a" : "#e2e5ee";
   const textPrimary = darkMode ? "#f5f5f5" : "#1a1f36";
-  const textMuted = darkMode ? "#6b7280" : "#8892a4";
+  const textMuted = darkMode ? "#6b7280" : "#131212";
   const headerBg = darkMode ? "#1a1a1a" : "#f6f8fd";
   const rowHover = darkMode ? "#1e1e1e" : "#f0f4ff";
   const inputBg = darkMode ? "#1a1a1a" : "#ffffff";
@@ -1537,7 +1537,7 @@ function MonitoringPage({ darkMode, userRole }) {
   const gridColor = darkMode ? "#2a2a2a" : "#e8ecf5";
   const colHeaderBg = darkMode
     ? headerBg
-    : "linear-gradient(to bottom, #f6f8fd, #f0f4fc)";
+    : "linear-gradient(to bottom, #ffffff, #ffffff)";
   // ── NEW: segmented control background ──
   const segmentBg = darkMode ? "#1e1e1e" : "#e2e5ee";
 
@@ -1877,29 +1877,12 @@ function MonitoringPage({ darkMode, userRole }) {
             marginBottom: "0.25rem",
           }}
         >
-          <div
-            style={{
-              width: "32px",
-              height: "32px",
-              borderRadius: "8px",
-              background: darkMode
-                ? "#1e293b"
-                : "linear-gradient(135deg, #4361ee, #7c3aed)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: darkMode ? "none" : "0 2px 8px rgba(67,97,238,0.35)",
-            }}
-          >
-            <span style={{ fontSize: "0.95rem" }}>🖥️</span>
-          </div>
           <h1
             style={{
-              fontSize: "1.4rem",
-              fontWeight: 700,
-              color: textPrimary,
-              margin: 0,
-              letterSpacing: "-0.02em",
+              fontSize: "1.75rem",
+              fontWeight: "600",
+              marginBottom: "0.5rem",
+              transition: "color 0.3s ease",
             }}
           >
             Monitoring
