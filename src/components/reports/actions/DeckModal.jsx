@@ -1,57 +1,101 @@
 import { useState, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
-import { deckApplication } from "../../../api/reports";
-import { createApplicationLog } from "../../../api/application-logs";
+import {
+  createApplicationLog,
+  getLastApplicationLogIndex,
+} from "../../../api/application-logs";
 
 function DeckModal({ record, onClose, onSuccess, colors }) {
   const [formData, setFormData] = useState({
     decker: "",
     evaluator: "",
+    sne: "",
     deckerDecision: "",
     deckerRemarks: "",
-    dateDeckedEnd: "",
   });
 
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [evaluators, setEvaluators] = useState([]);
+  const [loadingSneUsers, setLoadingSneUsers] = useState(false);
+  const [nextUsers, setNextUsers] = useState([]);
+  const [sneUsers, setSneUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // ✅ Evaluator group ID (based on your database)
-  const EVALUATOR_GROUP_ID = 3;
+  // Group IDs
+  const GROUP_IDS = {
+    EVALUATOR: 3,
+    SE: 15,
+  };
+
+  // Decision config
+  const DECISION_CONFIG = {
+    "For S&E": {
+      fetchEvaluator: false,
+      fetchSne: true,
+    },
+    "For Quality Evaluation": {
+      fetchEvaluator: true,
+      fetchSne: false,
+    },
+    "For S&E and Quality Evaluation": {
+      fetchEvaluator: true,
+      fetchSne: true,
+    },
+  };
 
   // Get current logged-in user and set as decker automatically
   useEffect(() => {
     const user = getUser();
     if (user) {
-      const deckerName = `${user.username}`;
       setCurrentUser(user);
       setFormData((prev) => ({
         ...prev,
-        decker: deckerName,
+        decker: user.username,
       }));
-      console.log("✅ Auto-filled decker:", deckerName);
     }
   }, []);
 
-  // ✅ Fetch users from Evaluator group (group_id = 3)
+  // Fetch users based on selected Decker Decision
   useEffect(() => {
-    const fetchEvaluators = async () => {
+    const decision = formData.deckerDecision;
+
+    setFormData((prev) => ({ ...prev, evaluator: "", sne: "" }));
+    setNextUsers([]);
+    setSneUsers([]);
+
+    if (!decision || !DECISION_CONFIG[decision]) return;
+
+    const config = DECISION_CONFIG[decision];
+
+    const fetchEvaluatorUsers = async () => {
       try {
         setLoadingUsers(true);
-        const users = await getUsersByGroup(EVALUATOR_GROUP_ID);
-        setEvaluators(users);
-        console.log("✅ Fetched evaluators:", users);
+        const users = await getUsersByGroup(GROUP_IDS.EVALUATOR);
+        setNextUsers(users);
       } catch (error) {
-        console.error("❌ Failed to fetch evaluators:", error);
-        setEvaluators([]);
+        console.error("❌ Failed to fetch evaluator users:", error);
+        setNextUsers([]);
       } finally {
         setLoadingUsers(false);
       }
     };
 
-    fetchEvaluators();
-  }, []);
+    const fetchSeUsers = async () => {
+      try {
+        setLoadingSneUsers(true);
+        const users = await getUsersByGroup(GROUP_IDS.SE);
+        setSneUsers(users);
+      } catch (error) {
+        console.error("❌ Failed to fetch S&E users:", error);
+        setSneUsers([]);
+      } finally {
+        setLoadingSneUsers(false);
+      }
+    };
+
+    if (config.fetchEvaluator) fetchEvaluatorUsers();
+    if (config.fetchSne) fetchSeUsers();
+  }, [formData.deckerDecision]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({
@@ -63,10 +107,20 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.decker || !formData.evaluator || !formData.deckerDecision) {
-      alert(
-        "⚠️ Please fill in required fields:\n- Evaluator\n- Decker Decision",
-      );
+    const config = DECISION_CONFIG[formData.deckerDecision];
+    const needsEvaluator = config?.fetchEvaluator;
+    const needsSne = config?.fetchSne;
+
+    if (!formData.decker || !formData.deckerDecision) {
+      alert("⚠️ Please fill in required fields:\n- Decker Decision");
+      return;
+    }
+    if (needsEvaluator && !formData.evaluator) {
+      alert("⚠️ Please assign an Evaluator.");
+      return;
+    }
+    if (needsSne && !formData.sne) {
+      alert("⚠️ Please assign an S&E.");
       return;
     }
 
@@ -74,49 +128,88 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
     try {
       const formattedDateTime = new Date().toISOString();
 
-      const dataToSubmit = {
-        ...formData,
-      };
+      const indexData = await getLastApplicationLogIndex(record.id);
+      const lastIndex = indexData.last_index;
+      const nextIndex = lastIndex + 1;
+      const closeTask = 0;
+      const openTask = 1;
 
-      console.log("📤 Submitting deck data:", dataToSubmit);
-
-      // ✅ Step 1: Deck the application
-      const response = await deckApplication(record.id, dataToSubmit);
-      console.log("✅ Application decked successfully:", response);
-
-      // ✅ Step 2: Insert application log for the DECKER (Step 1)
+      // Step 1: Insert decker log (always)
       const deckerLog = {
         main_db_id: record.id,
-        application_step: "1",
+        application_step: "Decking",
         user_name: formData.decker,
         application_status: "COMPLETED",
         application_decision: formData.deckerDecision,
         application_remarks: formData.deckerRemarks || "",
         start_date: formattedDateTime,
         accomplished_date: formattedDateTime,
+        del_index: nextIndex,
+        del_previous: lastIndex,
+        del_last_index: closeTask,
+        del_thread: "Close",
       };
-
-      console.log("📤 Creating decker log (Step 1):", deckerLog);
       await createApplicationLog(deckerLog);
-      console.log("✅ Decker log created successfully");
 
-      // ✅ Step 3: Insert application log for the EVALUATOR (Step 2)
-      const evaluatorLog = {
-        main_db_id: record.id,
-        application_step: "2",
-        user_name: formData.evaluator,
-        application_status: "TO_DO",
-        application_decision: "",
-        application_remarks: "",
-        start_date: formattedDateTime,
-        accomplished_date: null,
-      };
+      // Step 2: Insert next user logs
+      if (formData.deckerDecision === "For S&E and Quality Evaluation") {
+        // Log for Evaluator
+        const evaluatorLog = {
+          main_db_id: record.id,
+          application_step: "Quality Evaluation",
+          user_name: formData.evaluator,
+          application_status: "IN PROGRESS",
+          application_decision: "",
+          application_remarks: "",
+          start_date: formattedDateTime,
+          accomplished_date: null,
+          del_index: nextIndex + 1,
+          del_previous: nextIndex,
+          del_last_index: openTask,
+          del_thread: "Open",
+        };
+        await createApplicationLog(evaluatorLog);
 
-      console.log("📤 Creating evaluator log (Step 2):", evaluatorLog);
-      await createApplicationLog(evaluatorLog);
-      console.log("✅ Evaluator log created successfully");
+        // Log for S&E
+        const seLog = {
+          main_db_id: record.id,
+          application_step: "S&E",
+          user_name: formData.sne,
+          application_status: "IN PROGRESS",
+          application_decision: "",
+          application_remarks: "",
+          start_date: formattedDateTime,
+          accomplished_date: null,
+          del_index: nextIndex + 2,
+          del_previous: nextIndex,
+          del_last_index: openTask,
+          del_thread: "Open",
+        };
+        await createApplicationLog(seLog);
+      } else {
+        // Single next user log
+        const stepLabel =
+          formData.deckerDecision === "For S&E" ? "S&E" : "Quality Evaluation";
 
-      // ✅ Close modal first, then show success, then refresh
+        const assignedUser = needsEvaluator ? formData.evaluator : formData.sne;
+
+        const nextUserLog = {
+          main_db_id: record.id,
+          application_step: stepLabel,
+          user_name: assignedUser,
+          application_status: "IN PROGRESS",
+          application_decision: "",
+          application_remarks: "",
+          start_date: formattedDateTime,
+          accomplished_date: null,
+          del_index: nextIndex + 1,
+          del_previous: nextIndex,
+          del_last_index: openTask,
+          del_thread: "Open",
+        };
+        await createApplicationLog(nextUserLog);
+      }
+
       onClose();
       alert("✅ Application decked successfully!");
 
@@ -130,6 +223,21 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
       setLoading(false);
     }
   };
+
+  const config = DECISION_CONFIG[formData.deckerDecision];
+  const isDualAssign =
+    formData.deckerDecision === "For S&E and Quality Evaluation";
+  const showEvaluator = config?.fetchEvaluator;
+  const showSne = config?.fetchSne;
+  const showNextUser = !!formData.deckerDecision;
+
+  const isSubmitDisabled =
+    loading ||
+    loadingUsers ||
+    loadingSneUsers ||
+    !showNextUser ||
+    (showEvaluator && nextUsers.length === 0) ||
+    (showSne && sneUsers.length === 0);
 
   return (
     <>
@@ -164,6 +272,8 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
           zIndex: 9999,
           animation: "slideInScale 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           border: `1px solid ${colors.cardBorder}`,
+          maxHeight: "90vh",
+          overflowY: "auto",
         }}
       >
         {/* Header */}
@@ -187,12 +297,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
             >
               🎯 Deck Application
             </h2>
-            <p
-              style={{
-                fontSize: "0.875rem",
-                color: colors.textTertiary,
-              }}
-            >
+            <p style={{ fontSize: "0.875rem", color: colors.textTertiary }}>
               DTN: <strong style={{ color: "#4CAF50" }}>{record.dtn}</strong>
             </p>
           </div>
@@ -311,7 +416,13 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
                 }}
               >
                 <option value="">Select decision</option>
-                <option value="For Evaluation">For Evaluation</option>
+                <option value="For S&E">For S&amp;E</option>
+                <option value="For Quality Evaluation">
+                  For Quality Evaluation
+                </option>
+                <option value="For S&E and Quality Evaluation">
+                  For S&amp;E and Quality Evaluation
+                </option>
               </select>
             </div>
 
@@ -355,100 +466,138 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
               />
             </div>
 
-            {/* Evaluator Selection */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              <label
+            {/* Dual assign info banner */}
+            {isDualAssign && (
+              <div
                 style={{
-                  display: "block",
-                  fontSize: "0.875rem",
-                  fontWeight: "600",
-                  color: colors.textPrimary,
-                  marginBottom: "0.5rem",
+                  padding: "0.75rem 1rem",
+                  background: "#2196F310",
+                  border: "1px solid #2196F330",
+                  borderRadius: "8px",
+                  marginBottom: "1.5rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  animation: "fadeSlideIn 0.2s ease",
                 }}
               >
-                Assign Evaluator <span style={{ color: "#ef4444" }}>*</span>
-              </label>
-              {loadingUsers ? (
-                <div
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem 1rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: "8px",
-                    color: colors.textTertiary,
-                    fontSize: "0.95rem",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: "14px",
-                      height: "14px",
-                      border: "2px solid #4CAF5030",
-                      borderTopColor: "#4CAF50",
-                      borderRadius: "50%",
-                      animation: "spin 0.6s linear infinite",
-                    }}
-                  />
-                  <span>Loading evaluators...</span>
-                </div>
-              ) : (
-                <select
-                  value={formData.evaluator}
-                  onChange={(e) => handleChange("evaluator", e.target.value)}
-                  required
-                  disabled={evaluators.length === 0}
-                  style={{
-                    width: "100%",
-                    padding: "0.75rem 1rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: "8px",
-                    color: colors.textPrimary,
-                    fontSize: "0.95rem",
-                    outline: "none",
-                    cursor: evaluators.length === 0 ? "not-allowed" : "pointer",
-                    opacity: evaluators.length === 0 ? 0.6 : 1,
-                    transition: "all 0.2s",
-                  }}
-                  onFocus={(e) => {
-                    if (evaluators.length > 0) {
-                      e.target.style.borderColor = "#4CAF50";
-                    }
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = colors.inputBorder;
-                  }}
-                >
-                  <option value="">
-                    {evaluators.length === 0
-                      ? "No evaluators available"
-                      : "Select an evaluator"}
-                  </option>
-                  {evaluators.map((user) => (
-                    <option key={user.id} value={user.username}>
-                      {user.username} - {user.first_name} {user.surname}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {!loadingUsers && evaluators.length === 0 && (
+                <span>🔀</span>
                 <p
                   style={{
-                    fontSize: "0.75rem",
-                    color: "#ef4444",
-                    marginTop: "0.5rem",
-                    marginBottom: 0,
+                    margin: 0,
+                    fontSize: "0.82rem",
+                    color: colors.textSecondary,
                   }}
                 >
-                  ⚠️ No evaluators found in Evaluator group.
+                  This decision will assign{" "}
+                  <strong>two users simultaneously</strong> — one from the
+                  Evaluator group and one from the S&E group.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* Evaluator field */}
+            {showNextUser && showEvaluator && (
+              <div
+                style={{
+                  marginBottom: "1.5rem",
+                  animation: "fadeSlideIn 0.2s ease",
+                }}
+              >
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    color: colors.textPrimary,
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  {isDualAssign
+                    ? "Assign Quality Evaluator"
+                    : "Assign Evaluator"}{" "}
+                  <span style={{ color: "#ef4444" }}>*</span>
+                  <span
+                    style={{
+                      marginLeft: "0.5rem",
+                      fontSize: "0.72rem",
+                      fontWeight: "500",
+                      color: "#4CAF50",
+                      background: "#4CAF5015",
+                      border: "1px solid #4CAF5030",
+                      padding: "0.1rem 0.45rem",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    Evaluator Group
+                  </span>
+                </label>
+
+                {loadingUsers ? (
+                  <LoadingField colors={colors} />
+                ) : (
+                  <UserSelect
+                    value={formData.evaluator}
+                    onChange={(v) => handleChange("evaluator", v)}
+                    users={nextUsers}
+                    colors={colors}
+                  />
+                )}
+                {!loadingUsers && nextUsers.length === 0 && (
+                  <EmptyWarning label="Evaluator" />
+                )}
+              </div>
+            )}
+
+            {/* S&E field */}
+            {showNextUser && showSne && (
+              <div
+                style={{
+                  marginBottom: "1.5rem",
+                  animation: "fadeSlideIn 0.2s ease",
+                }}
+              >
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: "600",
+                    color: colors.textPrimary,
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  Assign S&E <span style={{ color: "#ef4444" }}>*</span>
+                  <span
+                    style={{
+                      marginLeft: "0.5rem",
+                      fontSize: "0.72rem",
+                      fontWeight: "500",
+                      color: "#2196F3",
+                      background: "#2196F315",
+                      border: "1px solid #2196F330",
+                      padding: "0.1rem 0.45rem",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    S&E Group
+                  </span>
+                </label>
+
+                {loadingSneUsers ? (
+                  <LoadingField colors={colors} />
+                ) : (
+                  <UserSelect
+                    value={formData.sne}
+                    onChange={(v) => handleChange("sne", v)}
+                    users={sneUsers}
+                    colors={colors}
+                  />
+                )}
+                {!loadingSneUsers && sneUsers.length === 0 && (
+                  <EmptyWarning label="S&E" />
+                )}
+              </div>
+            )}
 
             {/* Info Box */}
             <div
@@ -467,23 +616,18 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
                 }}
               >
                 <span style={{ fontSize: "1.25rem" }}>ℹ️</span>
-                <div>
-                  <p
-                    style={{
-                      fontSize: "0.85rem",
-                      color: colors.textSecondary,
-                      lineHeight: "1.5",
-                      margin: 0,
-                    }}
-                  >
-                    This will update the application delegation record and
-                    assign an evaluator to this application. The record will
-                    move from "Not Yet Decked" to "Decked" tab. Two activity
-                    logs will be created — one for the decker (Step 1:
-                    Completed) and one for the assigned evaluator (Step 2: To
-                    Do).
-                  </p>
-                </div>
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    color: colors.textSecondary,
+                    lineHeight: "1.5",
+                    margin: 0,
+                  }}
+                >
+                  {isDualAssign
+                    ? "Three activity logs will be created — one for the decker (Completed), one for the assigned Evaluator (In Progress), and one for the assigned S&E (In Progress)."
+                    : "Two activity logs will be created — one for the decker (Step 1: Completed) and one for the assigned user (Step 2: In Progress)."}
+                </p>
               </div>
             </div>
           </div>
@@ -515,9 +659,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
                 transition: "all 0.2s",
               }}
               onMouseEnter={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.background = colors.badgeBg;
-                }
+                if (!loading) e.currentTarget.style.background = colors.badgeBg;
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = colors.buttonSecondaryBg;
@@ -527,36 +669,28 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
             </button>
             <button
               type="submit"
-              disabled={loading || loadingUsers || evaluators.length === 0}
+              disabled={isSubmitDisabled}
               style={{
                 padding: "0.75rem 1.5rem",
-                background:
-                  loading || loadingUsers || evaluators.length === 0
-                    ? "#4CAF5080"
-                    : "#4CAF50",
+                background: isSubmitDisabled ? "#4CAF5080" : "#4CAF50",
                 border: "none",
                 borderRadius: "8px",
                 color: "#fff",
                 fontSize: "0.95rem",
                 fontWeight: "600",
-                cursor:
-                  loading || loadingUsers || evaluators.length === 0
-                    ? "not-allowed"
-                    : "pointer",
+                cursor: isSubmitDisabled ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "0.5rem",
                 transition: "all 0.2s",
               }}
               onMouseEnter={(e) => {
-                if (!loading && !loadingUsers && evaluators.length > 0) {
+                if (!isSubmitDisabled)
                   e.currentTarget.style.background = "#45a049";
-                }
               }}
               onMouseLeave={(e) => {
-                if (!loading && !loadingUsers && evaluators.length > 0) {
+                if (!isSubmitDisabled)
                   e.currentTarget.style.background = "#4CAF50";
-                }
               }}
             >
               {loading ? (
@@ -586,25 +720,105 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
       </div>
 
       <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideInScale {
-          from { 
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.9);
-          }
-          to { 
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-          }
+          from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
         }
-        @keyframes spin {
-          to { transform: rotate(360deg); }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(-6px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </>
+  );
+}
+
+// Reusable sub-components
+function LoadingField({ colors }) {
+  return (
+    <div
+      style={{
+        width: "100%",
+        padding: "0.75rem 1rem",
+        background: colors.inputBg,
+        border: `1px solid ${colors.inputBorder}`,
+        borderRadius: "8px",
+        color: colors.textTertiary,
+        fontSize: "0.95rem",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+      }}
+    >
+      <span
+        style={{
+          display: "inline-block",
+          width: "14px",
+          height: "14px",
+          border: "2px solid #4CAF5030",
+          borderTopColor: "#4CAF50",
+          borderRadius: "50%",
+          animation: "spin 0.6s linear infinite",
+        }}
+      />
+      <span>Loading users...</span>
+    </div>
+  );
+}
+
+function UserSelect({ value, onChange, users, colors }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      required
+      disabled={users.length === 0}
+      style={{
+        width: "100%",
+        padding: "0.75rem 1rem",
+        background: colors.inputBg,
+        border: `1px solid ${colors.inputBorder}`,
+        borderRadius: "8px",
+        color: colors.textPrimary,
+        fontSize: "0.95rem",
+        outline: "none",
+        cursor: users.length === 0 ? "not-allowed" : "pointer",
+        opacity: users.length === 0 ? 0.6 : 1,
+        transition: "all 0.2s",
+      }}
+      onFocus={(e) => {
+        if (users.length > 0) e.target.style.borderColor = "#4CAF50";
+      }}
+      onBlur={(e) => {
+        e.target.style.borderColor = colors.inputBorder;
+      }}
+    >
+      <option value="">
+        {users.length === 0 ? "No users available" : "Select a user"}
+      </option>
+      {users.map((user) => (
+        <option key={user.id} value={user.username}>
+          {user.username} - {user.first_name} {user.surname}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function EmptyWarning({ label }) {
+  return (
+    <p
+      style={{
+        fontSize: "0.75rem",
+        color: "#ef4444",
+        marginTop: "0.5rem",
+        marginBottom: 0,
+      }}
+    >
+      ⚠️ No users found in the {label} group.
+    </p>
   );
 }
 

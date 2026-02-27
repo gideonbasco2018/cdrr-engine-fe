@@ -6,7 +6,7 @@ import API from "./axios";
  * Uses existing /api/analytics/received endpoint
  */
 export const getDashboardStats = async () => {
-  console.log('🔍 Fetching dashboard stats...');
+  // console.log('🔍 Fetching dashboard stats...');
 
   const today = new Date();
   const year = today.getFullYear();
@@ -21,7 +21,7 @@ export const getDashboardStats = async () => {
       },
     });
 
-    console.log('✅ Dashboard Stats Response:', response.data);
+    // console.log('✅ Dashboard Stats Response:', response.data);
 
     // Extract data from response
     const { fdac = 0, central = 0 } = response.data;
@@ -49,7 +49,7 @@ export const getDashboardStats = async () => {
  * Get applications data with month/year comparison
  */
 export const getApplicationsComparison = async () => {
-  console.log('🔍 Fetching applications comparison...');
+  // console.log('🔍 Fetching applications comparison...');
 
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -87,11 +87,11 @@ export const getApplicationsComparison = async () => {
       percentageChange = 100;
     }
 
-    console.log('✅ Comparison:', {
-      current: currentTotal,
-      last: lastTotal,
-      change: percentageChange.toFixed(1) + '%'
-    });
+    // console.log('✅ Comparison:', {
+    //   current: currentTotal,
+    //   last: lastTotal,
+    //   change: percentageChange.toFixed(1) + '%'
+    // });
 
     return {
       current_month: currentTotal,
@@ -107,7 +107,7 @@ export const getApplicationsComparison = async () => {
 };
 
 export const getReceivedByPeriod = async (breakdown = "month", year = null) => {
-  console.log('🔍 Fetching received by period...', { breakdown, year });
+  // console.log('🔍 Fetching received by period...', { breakdown, year });
 
   try {
     const params = {
@@ -122,7 +122,7 @@ export const getReceivedByPeriod = async (breakdown = "month", year = null) => {
       params,
     });
 
-    console.log('✅ Received by period:', response.data);
+    // console.log('✅ Received by period:', response.data);
 
     return response.data;
   } catch (error) {

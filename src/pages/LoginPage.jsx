@@ -32,11 +32,8 @@ function LoginPage() {
     try {
       const data = await login({ username, password });
       const { access_token, user } = data;
-
-      console.log("✅ Login successful:", user);
-
+      // console.log("✅ Login successful:", user);
       const storage = rememberMe ? localStorage : sessionStorage;
-
       storage.setItem("access_token", access_token);
       storage.setItem("user", JSON.stringify(user));
       storage.setItem("userRole", user.role);

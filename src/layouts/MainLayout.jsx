@@ -13,6 +13,7 @@ import UserManagementPage from "../pages/UserManagementPage";
 import GroupManagementPage from "../pages/GroupManagementPage";
 import OTCPage from "../pages/OTCPage";
 import CDRRInspectorReportsPage from "../pages/CDRRInspectorReportsPage";
+import TaskPage from "../pages/TaskPage";
 import MonitoringPage from "../pages/MonitoringPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
@@ -36,14 +37,14 @@ function MainLayout({ darkMode, setDarkMode }) {
 
   const userGroupName = user?.groups?.[0]?.name || user?.group_name || null;
 
-  console.log("🔍 DEBUG - MainLayout User:", {
-    user,
-    userRole,
-    userGroup,
-    userGroupName,
-    allGroups: user?.groups,
-    group_id: user?.group_id,
-  });
+  // console.log("🔍 DEBUG - MainLayout User:", {
+  //   user,
+  //   userRole,
+  //   userGroup,
+  //   userGroupName,
+  //   allGroups: user?.groups,
+  //   group_id: user?.group_id,
+  // });
 
   // ✅ FIXED: Determine active menu from URL - CHECK SPECIFIC PATHS FIRST!
   const getActiveMenuFromUrl = () => {
@@ -58,6 +59,7 @@ function MainLayout({ darkMode, setDarkMode }) {
 
     // Workflow paths
     if (path.includes("for-decking")) return "for-decking";
+    if (path.includes("task")) return "task";
     if (path.includes("for-evaluation")) return "for-evaluation";
     if (path.includes("for-compliance")) return "for-compliance";
     if (path.includes("for-checking")) return "for-checking";
@@ -87,10 +89,10 @@ function MainLayout({ darkMode, setDarkMode }) {
 
   const activeMenu = getActiveMenuFromUrl();
 
-  console.log("🔍 DEBUG - Active Menu:", {
-    pathname: location.pathname,
-    activeMenu,
-  });
+  // console.log("🔍 DEBUG - Active Menu:", {
+  //   pathname: location.pathname,
+  //   activeMenu,
+  // });
 
   // Color scheme based on darkMode prop
   const colors = darkMode
@@ -105,7 +107,7 @@ function MainLayout({ darkMode, setDarkMode }) {
 
   // Render content based on active menu
   const renderContent = () => {
-    console.log("🎨 Rendering content for:", activeMenu);
+    // console.log("🎨 Rendering content for:", activeMenu);
 
     switch (activeMenu) {
       case "reports":
@@ -114,6 +116,8 @@ function MainLayout({ darkMode, setDarkMode }) {
         return <ProfilePage darkMode={darkMode} userRole={userRole} />;
       case "for-decking":
         return <DeckingPage darkMode={darkMode} userRole={userRole} />;
+      case "task":
+        return <TaskPage darkMode={darkMode} userRole={userRole} />;
       case "for-evaluation":
         return <ForEvaluationPage darkMode={darkMode} userRole={userRole} />;
       case "for-compliance":
