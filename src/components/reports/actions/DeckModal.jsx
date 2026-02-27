@@ -24,7 +24,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
   // Group IDs
   const GROUP_IDS = {
     EVALUATOR: 3,
-    SE: 15,
+    SE: 13,
   };
 
   // Decision config
