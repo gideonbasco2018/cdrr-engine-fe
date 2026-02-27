@@ -241,22 +241,8 @@ function DataTable({
   const renderProcessingTypeBadge = (value) => {
     if (!value || value === "N/A") {
       return (
-        <span
-          style={{
-            padding: "0.3rem 0.7rem",
-            background: darkMode
-              ? "rgba(255,255,255,0.06)"
-              : "rgba(0,0,0,0.06)",
-            color: colors.textTertiary,
-            borderRadius: "6px",
-            fontSize: "0.75rem",
-            fontWeight: "500",
-            display: "inline-flex",
-            alignItems: "center",
-            whiteSpace: "nowrap",
-          }}
-        >
-          Regular
+        <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
+          N/A
         </span>
       );
     }
@@ -593,7 +579,7 @@ function DataTable({
   });
 
   // ✅ Build processing type sub-tab items
-  const regularItem = availableProcessingTypes.find((p) => !p.value);
+
   const namedProcessingTypes = availableProcessingTypes.filter((p) => p.value);
   const showSubTabs =
     availableProcessingTypes.length > 0 && onProcessingTypeTabChange;
@@ -782,23 +768,7 @@ function DataTable({
               </span>
             </button>
 
-            {/* Regular tab */}
-            {regularItem && (
-              <button
-                onClick={() => onProcessingTypeTabChange("__REGULAR__")}
-                style={subTabStyle(processingTypeTab === "__REGULAR__")}
-              >
-                <span>Regular</span>
-                <span
-                  style={subTabBadgeStyle(processingTypeTab === "__REGULAR__")}
-                >
-                  {regularItem.count}
-                </span>
-              </button>
-            )}
-
-            {/* Named processing types */}
-            {namedProcessingTypes.map((pt) => (
+            {availableProcessingTypes.map((pt) => (
               <button
                 key={pt.value}
                 onClick={() => onProcessingTypeTabChange(pt.value)}

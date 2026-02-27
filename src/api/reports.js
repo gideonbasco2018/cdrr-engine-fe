@@ -61,10 +61,17 @@ export const getAppTypes = async (status = null, processingType = null) => {
   return response.data.app_types;
 };
 
-// ✅ Fetch unique processing types with counts (always unfiltered — drives the tabs)
-export const getProcessingTypes = async (status = null) => {
+export const getProcessingTypes = async (
+  status = null,
+  appType = null,
+  prescription = null,
+  appStatus = null
+) => {
   const params = {};
   if (status) params.status = status;
+  if (appType !== null) params.app_type = appType === "" ? "__EMPTY__" : appType;
+  if (prescription !== null) params.prescription = prescription === "" ? "__EMPTY__" : prescription;
+  if (appStatus !== null) params.app_status = appStatus === "" ? "__EMPTY__" : appStatus;
 
   const response = await API.get("/main-db/processing-types", { params });
   return response.data.processing_types;

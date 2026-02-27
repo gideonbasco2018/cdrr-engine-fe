@@ -7,6 +7,7 @@ import {
   getAppTypes,
   getPrescriptionTypes,
   getAppStatusTypes,
+  getProcessingTypes,
   exportFilteredRecords,
   updateUploadReport,
 } from "../api/reports";
@@ -29,7 +30,7 @@ const scrollbarStyles = (darkMode) => `
 `;
 
 /* ================================================================== */
-/*  SidebarSection — matches ReportsPage / TaskPage style exactly      */
+/*  SidebarSection                                                      */
 /* ================================================================== */
 function SidebarSection({
   title,
@@ -45,7 +46,6 @@ function SidebarSection({
 
   return (
     <div>
-      {/* Collapsible header card */}
       <div
         onClick={() => setIsOpen(!isOpen)}
         style={{
@@ -237,6 +237,126 @@ function SidebarSection({
 }
 
 /* ================================================================== */
+/*  ActiveFiltersBar                                                    */
+/* ================================================================== */
+function ActiveFiltersBar({
+  subTab,
+  prescriptionTab,
+  appStatusTab,
+  processingTypeTab,
+  onRemove,
+  onClearAll,
+  colors,
+}) {
+  const chips = [];
+
+  if (subTab !== null)
+    chips.push({
+      key: "subTab",
+      label: `App Type: ${subTab === "" ? "None" : subTab}`,
+    });
+  if (prescriptionTab !== null)
+    chips.push({
+      key: "prescriptionTab",
+      label: `Prescription: ${prescriptionTab === "" ? "None" : prescriptionTab}`,
+    });
+  if (appStatusTab !== null)
+    chips.push({
+      key: "appStatusTab",
+      label: `Status: ${appStatusTab === "" ? "None" : appStatusTab}`,
+    });
+  if (processingTypeTab !== null)
+    chips.push({
+      key: "processingTypeTab",
+      label: `Processing Type: ${processingTypeTab === "" ? "None" : processingTypeTab}`,
+    });
+
+  if (chips.length === 0) return null;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        flexWrap: "wrap",
+        marginBottom: "1rem",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.78rem",
+          color: colors.textTertiary,
+          fontWeight: "500",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Active filters:
+      </span>
+
+      {chips.map((chip) => (
+        <span
+          key={chip.key}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.4rem",
+            padding: "0.3rem 0.75rem",
+            background: "rgba(33,150,243,0.12)",
+            border: "1px solid rgba(33,150,243,0.35)",
+            borderRadius: "20px",
+            fontSize: "0.78rem",
+            color: "#2196F3",
+            fontWeight: "500",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {chip.label}
+          <button
+            onClick={() => onRemove(chip.key)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#2196F3",
+              fontSize: "0.75rem",
+              padding: "0",
+              lineHeight: 1,
+              display: "flex",
+              alignItems: "center",
+              opacity: 0.7,
+              transition: "opacity 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.7)}
+          >
+            ✕
+          </button>
+        </span>
+      ))}
+
+      <button
+        onClick={onClearAll}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "#ef4444",
+          fontSize: "0.78rem",
+          fontWeight: "600",
+          padding: "0 0.25rem",
+          transition: "opacity 0.15s",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = 0.7)}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = 1)}
+      >
+        Clear all
+      </button>
+    </div>
+  );
+}
+
+/* ================================================================== */
 /*  DeckingPage                                                         */
 /* ================================================================== */
 function DeckingPage({ darkMode }) {
@@ -262,18 +382,18 @@ function DeckingPage({ darkMode }) {
   const [subTab, setSubTab] = useState(null);
   const [prescriptionTab, setPrescriptionTab] = useState(null);
   const [appStatusTab, setAppStatusTab] = useState(null);
+  const [processingTypeTab, setProcessingTypeTab] = useState(null);
 
   const [availableAppTypes, setAvailableAppTypes] = useState([]);
   const [availablePrescriptionTypes, setAvailablePrescriptionTypes] = useState(
     [],
   );
   const [availableAppStatusTypes, setAvailableAppStatusTypes] = useState([]);
+  const [availableProcessingTypes, setAvailableProcessingTypes] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [exporting, setExporting] = useState(false);
 
   const [editingRecord, setEditingRecord] = useState(null);
-
-  // ✅ Sidebar state — same as ReportsPage (260px / 52px)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
@@ -281,11 +401,12 @@ function DeckingPage({ darkMode }) {
 
   const colors = getColorScheme(darkMode);
 
-  // Active filter count for collapsed badge
+  // Active filter count for badge
   const activeFilterCount =
     (subTab !== null ? 1 : 0) +
     (prescriptionTab !== null ? 1 : 0) +
-    (appStatusTab !== null ? 1 : 0);
+    (appStatusTab !== null ? 1 : 0) +
+    (processingTypeTab !== null ? 1 : 0);
 
   // Inject scrollbar styles
   useEffect(() => {
@@ -323,7 +444,7 @@ function DeckingPage({ darkMode }) {
     setCurrentUser(username || "Unknown User");
   }, []);
 
-  // Fetch accurate stats from backend
+  // Fetch stats
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -365,20 +486,44 @@ function DeckingPage({ darkMode }) {
     fetchStats();
   }, []);
 
+  // Fetch Processing Types — filtered by all active sidebar filters
+  useEffect(() => {
+    const fetchProcessingTypes = async () => {
+      try {
+        let status = null;
+        if (activeTab === "not-decked") status = "not_decked";
+        else if (activeTab === "decked") status = "decked";
+        setAvailableProcessingTypes(
+          await getProcessingTypes(
+            status,
+            subTab,
+            prescriptionTab,
+            appStatusTab,
+          ),
+        );
+      } catch {
+        setAvailableProcessingTypes([]);
+      }
+    };
+    fetchProcessingTypes();
+  }, [activeTab, subTab, prescriptionTab, appStatusTab]);
+
+  // Fetch App Types — filtered by processingTypeTab
   useEffect(() => {
     const fetchAppTypes = async () => {
       try {
         let status = null;
         if (activeTab === "not-decked") status = "not_decked";
         else if (activeTab === "decked") status = "decked";
-        setAvailableAppTypes(await getAppTypes(status));
+        setAvailableAppTypes(await getAppTypes(status, processingTypeTab));
       } catch {
         setAvailableAppTypes([]);
       }
     };
     fetchAppTypes();
-  }, [activeTab]);
+  }, [activeTab, processingTypeTab]);
 
+  // Fetch Prescription Types — filtered by processingTypeTab + subTab
   useEffect(() => {
     const fetchPrescriptionTypes = async () => {
       try {
@@ -386,15 +531,16 @@ function DeckingPage({ darkMode }) {
         if (activeTab === "not-decked") status = "not_decked";
         else if (activeTab === "decked") status = "decked";
         setAvailablePrescriptionTypes(
-          await getPrescriptionTypes(status, subTab),
+          await getPrescriptionTypes(status, subTab, processingTypeTab),
         );
       } catch {
         setAvailablePrescriptionTypes([]);
       }
     };
     fetchPrescriptionTypes();
-  }, [activeTab, subTab]);
+  }, [activeTab, subTab, processingTypeTab]);
 
+  // Fetch App Status Types — filtered by processingTypeTab + subTab + prescriptionTab
   useEffect(() => {
     const fetchAppStatusTypes = async () => {
       try {
@@ -402,14 +548,19 @@ function DeckingPage({ darkMode }) {
         if (activeTab === "not-decked") status = "not_decked";
         else if (activeTab === "decked") status = "decked";
         setAvailableAppStatusTypes(
-          await getAppStatusTypes(status, subTab, prescriptionTab),
+          await getAppStatusTypes(
+            status,
+            subTab,
+            prescriptionTab,
+            processingTypeTab,
+          ),
         );
       } catch {
         setAvailableAppStatusTypes([]);
       }
     };
     fetchAppStatusTypes();
-  }, [activeTab, subTab, prescriptionTab]);
+  }, [activeTab, subTab, prescriptionTab, processingTypeTab]);
 
   const getStatusFilter = () => {
     if (activeTab === "not-decked") return "not_decked";
@@ -434,9 +585,13 @@ function DeckingPage({ darkMode }) {
         prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
     if (appStatusTab !== null)
       params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
+    if (processingTypeTab !== null)
+      params.processing_type =
+        processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
     return params;
   };
 
+  // Main data fetch
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -463,6 +618,9 @@ function DeckingPage({ darkMode }) {
             prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
         if (appStatusTab !== null)
           params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
+        if (processingTypeTab !== null)
+          params.processing_type =
+            processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
 
         const json = await getUploadReports(params);
         if (!json || !json.data || !Array.isArray(json.data)) {
@@ -496,6 +654,7 @@ function DeckingPage({ darkMode }) {
     subTab,
     prescriptionTab,
     appStatusTab,
+    processingTypeTab,
     filters,
     sortBy,
     sortOrder,
@@ -540,11 +699,14 @@ function DeckingPage({ darkMode }) {
       if (activeTab === "not-decked") status = "not_decked";
       else if (activeTab === "decked") status = "decked";
 
-      const [appTypes, prescriptionTypes, appStatusTypes] = await Promise.all([
-        getAppTypes(status),
-        getPrescriptionTypes(status, subTab),
-        getAppStatusTypes(status, subTab, prescriptionTab),
-      ]);
+      const [processingTypes, appTypes, prescriptionTypes, appStatusTypes] =
+        await Promise.all([
+          getProcessingTypes(status, subTab, prescriptionTab, appStatusTab),
+          getAppTypes(status, processingTypeTab),
+          getPrescriptionTypes(status, subTab, processingTypeTab),
+          getAppStatusTypes(status, subTab, prescriptionTab, processingTypeTab),
+        ]);
+      setAvailableProcessingTypes(processingTypes);
       setAvailableAppTypes(appTypes);
       setAvailablePrescriptionTypes(prescriptionTypes);
       setAvailableAppStatusTypes(appStatusTypes);
@@ -565,6 +727,9 @@ function DeckingPage({ darkMode }) {
           prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
       if (appStatusTab !== null)
         params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
+      if (processingTypeTab !== null)
+        params.processing_type =
+          processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
 
       const json = await getUploadReports(params);
       if (json && json.data) {
@@ -637,23 +802,28 @@ function DeckingPage({ darkMode }) {
     selectedRows.length === filteredData.length
       ? setSelectedRows([])
       : setSelectedRows(filteredData.map((row) => row.id));
+
   const handleSelectRow = (id) =>
     selectedRows.includes(id)
       ? setSelectedRows(selectedRows.filter((r) => r !== id))
       : setSelectedRows([...selectedRows, id]);
+
   const clearSelections = () => setSelectedRows([]);
+
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
       setSelectedRows([]);
     }
   };
+
   const handleRowsPerPageChange = (e) => {
     const n = Math.min(Number(e.target.value), 100);
     setRowsPerPage(n);
     setCurrentPage(1);
     setSelectedRows([]);
   };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
@@ -661,7 +831,9 @@ function DeckingPage({ darkMode }) {
     setSubTab(null);
     setPrescriptionTab(null);
     setAppStatusTab(null);
+    setProcessingTypeTab(null);
   };
+
   const handleSubTabChange = (value) => {
     setSubTab(value);
     setCurrentPage(1);
@@ -669,21 +841,57 @@ function DeckingPage({ darkMode }) {
     setPrescriptionTab(null);
     setAppStatusTab(null);
   };
+
   const handlePrescriptionTabChange = (value) => {
     setPrescriptionTab(value);
     setCurrentPage(1);
     setSelectedRows([]);
     setAppStatusTab(null);
   };
+
   const handleAppStatusTabChange = (value) => {
     setAppStatusTab(value);
     setCurrentPage(1);
     setSelectedRows([]);
   };
+
+  const handleProcessingTypeTabChange = (value) => {
+    setProcessingTypeTab(value);
+    setCurrentPage(1);
+    setSelectedRows([]);
+  };
+
   const handleSort = (dbKey, order) => {
     setSortBy(dbKey);
     setSortOrder(order);
     setCurrentPage(1);
+  };
+
+  // ✅ Clear all sidebar quick filters
+  const handleClearFilters = () => {
+    setSubTab(null);
+    setPrescriptionTab(null);
+    setAppStatusTab(null);
+    setProcessingTypeTab(null);
+    setCurrentPage(1);
+    setSelectedRows([]);
+  };
+
+  // ✅ Remove a single filter chip (with cascade)
+  const handleRemoveFilter = (key) => {
+    if (key === "subTab") {
+      setSubTab(null);
+      setPrescriptionTab(null);
+      setAppStatusTab(null);
+    }
+    if (key === "prescriptionTab") {
+      setPrescriptionTab(null);
+      setAppStatusTab(null);
+    }
+    if (key === "appStatusTab") setAppStatusTab(null);
+    if (key === "processingTypeTab") setProcessingTypeTab(null);
+    setCurrentPage(1);
+    setSelectedRows([]);
   };
 
   const handleExport = async () => {
@@ -734,7 +942,7 @@ function DeckingPage({ darkMode }) {
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       {/* ══════════════════════════════════════
-          SIDEBAR — matches ReportsPage style
+          SIDEBAR
       ══════════════════════════════════════ */}
       <div
         style={{
@@ -753,7 +961,6 @@ function DeckingPage({ darkMode }) {
         }}
       >
         {isSidebarOpen ? (
-          /* ── EXPANDED ── */
           <>
             {/* Pinned header */}
             <div
@@ -768,6 +975,7 @@ function DeckingPage({ darkMode }) {
                 whiteSpace: "nowrap",
               }}
             >
+              {/* Left: title + active count badge */}
               <div
                 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
               >
@@ -783,7 +991,23 @@ function DeckingPage({ darkMode }) {
                 >
                   Quick Filters
                 </h2>
+                {activeFilterCount > 0 && (
+                  <span
+                    style={{
+                      background: "#2196F3",
+                      color: "#fff",
+                      borderRadius: "10px",
+                      padding: "2px 8px",
+                      fontSize: "0.7rem",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {activeFilterCount}
+                  </span>
+                )}
               </div>
+
+              {/* Right: collapse button */}
               <button
                 onClick={() => setIsSidebarOpen(false)}
                 title="Hide Quick Filters"
@@ -874,6 +1098,21 @@ function DeckingPage({ darkMode }) {
                   )}
                 />
               )}
+              {availableProcessingTypes.length > 0 && (
+                <SidebarSection
+                  title="Processing Type"
+                  icon="⚙️"
+                  items={availableProcessingTypes}
+                  activeItem={processingTypeTab}
+                  onItemClick={handleProcessingTypeTabChange}
+                  colors={colors}
+                  darkMode={darkMode}
+                  totalCount={availableProcessingTypes.reduce(
+                    (s, x) => s + x.count,
+                    0,
+                  )}
+                />
+              )}
             </div>
           </>
         ) : (
@@ -887,7 +1126,6 @@ function DeckingPage({ darkMode }) {
               paddingTop: "0.75rem",
             }}
           >
-            {/* Expand button */}
             <button
               onClick={() => setIsSidebarOpen(true)}
               title="Show Quick Filters"
@@ -920,7 +1158,6 @@ function DeckingPage({ darkMode }) {
               ▶
             </button>
 
-            {/* Active filter count badge */}
             {activeFilterCount > 0 && (
               <div
                 onClick={() => setIsSidebarOpen(true)}
@@ -943,7 +1180,6 @@ function DeckingPage({ darkMode }) {
               </div>
             )}
 
-            {/* Icon indicators with opacity */}
             <span
               title="Application Type (click to expand)"
               style={{
@@ -976,6 +1212,17 @@ function DeckingPage({ darkMode }) {
               onClick={() => setIsSidebarOpen(true)}
             >
               📈
+            </span>
+            <span
+              title="Processing Type (click to expand)"
+              style={{
+                fontSize: "1.2rem",
+                opacity: processingTypeTab !== null ? 1 : 0.3,
+                cursor: "pointer",
+              }}
+              onClick={() => setIsSidebarOpen(true)}
+            >
+              ⚙️
             </span>
           </div>
         )}
@@ -1069,7 +1316,7 @@ function DeckingPage({ darkMode }) {
 
           <StatsCard stats={statsData} colors={colors} />
 
-          {/* LEVEL 1: Main Tabs */}
+          {/* Main Tabs */}
           <div
             style={{
               display: "flex",
@@ -1168,6 +1415,17 @@ function DeckingPage({ darkMode }) {
             appStatusTab={appStatusTab}
           />
           <UploadProgress message={uploadProgress} colors={colors} />
+
+          {/* ✅ Active Filters Bar */}
+          <ActiveFiltersBar
+            subTab={subTab}
+            prescriptionTab={prescriptionTab}
+            appStatusTab={appStatusTab}
+            processingTypeTab={processingTypeTab}
+            onRemove={handleRemoveFilter}
+            onClearAll={handleClearFilters}
+            colors={colors}
+          />
 
           {loading && (
             <div
