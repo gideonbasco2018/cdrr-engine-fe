@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { tableColumns, COLUMN_DB_KEY_MAP } from "./tableColumns";
 import TablePagination from "./TablePagination";
-import EvaluatorModal from "./EvaluatorModal";
 import ViewDetailsModal from "./ViewDetailsModal";
 import DoctrackModal from "../../components/reports/actions/DoctrackModal";
 import ApplicationLogsModal from "./ApplicationLogsModal";
@@ -30,9 +29,8 @@ function DataTable({
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
-  const [evaluatorModalRecord, setEvaluatorModalRecord] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
-  const [appLogsRecord, setAppLogsRecord] = useState(null); // ← new
+  const [appLogsRecord, setAppLogsRecord] = useState(null);
 
   /* ── Sort helpers ── */
   const getDbKey = (k) => COLUMN_DB_KEY_MAP[k] || k;
@@ -165,10 +163,8 @@ function DataTable({
 
   const renderDTN = (v) =>
     pill("linear-gradient(135deg,#8b5cf6,#7c3aed)", "rgba(139,92,246,.3)", v);
-
   const renderGenericName = (v) =>
     pill("linear-gradient(135deg,#06b6d4,#0891b2)", "rgba(6,182,212,.3)", v);
-
   const renderBrandName = (v) =>
     pill("linear-gradient(135deg,#f59e0b,#d97706)", "rgba(245,158,11,.3)", v);
 
@@ -263,15 +259,6 @@ function DataTable({
   };
 
   /* ── Action menu helpers ── */
-  const canBeEvaluated = (r) =>
-    r.evaluator &&
-    r.evaluator !== "" &&
-    r.evaluator !== "N/A" &&
-    (!r.dateEvalEnd ||
-      r.dateEvalEnd === "" ||
-      r.dateEvalEnd === "N/A" ||
-      r.dateEvalEnd === null);
-
   const toggleMenu = (e, id) => {
     e.stopPropagation();
     setOpenMenuId(openMenuId === id ? null : id);
@@ -280,16 +267,11 @@ function DataTable({
     setOpenMenuId(null);
     setSelectedRowDetails(r);
   };
-  const openEval = (r) => {
-    setOpenMenuId(null);
-    setEvaluatorModalRecord(r);
-  };
   const openDoctrack = (r) => {
     setOpenMenuId(null);
     setDoctrackModalRecord(r);
   };
   const openAppLogs = (r) => {
-    // ← new
     setOpenMenuId(null);
     setAppLogsRecord(r);
   };
@@ -714,20 +696,19 @@ function DataTable({
                                 overflow: "hidden",
                               }}
                             >
-                              {/* ── Complete Evaluation ── */}
-                              {canBeEvaluated(row) &&
-                                menuBtn(
-                                  () => openEval(row),
-                                  {
-                                    borderBottom: `1px solid ${colors.tableBorder}`,
-                                  },
-                                  [
-                                    <span key="i">✅</span>,
-                                    <span key="t">Complete Evaluation</span>,
-                                  ],
-                                )}
+                              {/* ── View Details (now includes evaluation) ── */}
+                              {menuBtn(
+                                () => openDetails(row),
+                                {
+                                  borderBottom: `1px solid ${colors.tableBorder}`,
+                                },
+                                [
+                                  <span key="i">👁️</span>,
+                                  <span key="t">View Details</span>,
+                                ],
+                              )}
 
-                              {/* ── Application Logs ── NEW ── */}
+                              {/* ── Application Logs ── */}
                               {menuBtn(
                                 () => openAppLogs(row),
                                 {
@@ -740,21 +721,9 @@ function DataTable({
                               )}
 
                               {/* ── View Doctrack Details ── */}
-                              {menuBtn(
-                                () => openDoctrack(row),
-                                {
-                                  borderBottom: `1px solid ${colors.tableBorder}`,
-                                },
-                                [
-                                  <span key="i">📋</span>,
-                                  <span key="t">View Doctrack Details</span>,
-                                ],
-                              )}
-
-                              {/* ── View Details ── */}
-                              {menuBtn(() => openDetails(row), {}, [
-                                <span key="i">👁️</span>,
-                                <span key="t">View Details</span>,
+                              {menuBtn(() => openDoctrack(row), {}, [
+                                <span key="i">📋</span>,
+                                <span key="t">View Doctrack Details</span>,
                               ])}
                             </div>
                           </>
@@ -791,14 +760,16 @@ function DataTable({
       </div>
 
       {/* ── Modals ── */}
-      {evaluatorModalRecord && (
-        <EvaluatorModal
-          record={evaluatorModalRecord}
-          onClose={() => setEvaluatorModalRecord(null)}
+      {selectedRowDetails && (
+        <ViewDetailsModal
+          record={selectedRowDetails}
+          onClose={() => setSelectedRowDetails(null)}
           onSuccess={async () => {
+            setSelectedRowDetails(null);
             if (onRefresh) await onRefresh();
           }}
           colors={colors}
+          darkMode={darkMode}
         />
       )}
       {doctrackModalRecord && (
@@ -808,15 +779,6 @@ function DataTable({
           colors={colors}
         />
       )}
-      {selectedRowDetails && (
-        <ViewDetailsModal
-          record={selectedRowDetails}
-          onClose={() => setSelectedRowDetails(null)}
-          colors={colors}
-          darkMode={darkMode}
-        />
-      )}
-      {/* ── Application Logs Modal ── NEW ── */}
       {appLogsRecord && (
         <ApplicationLogsModal
           record={appLogsRecord}

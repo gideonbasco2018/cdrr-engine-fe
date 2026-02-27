@@ -1,6 +1,7 @@
 export const mapDataItem = (item, index) => ({
   id: item.DB_ID ?? index + 1,
   dtn: item.DB_DTN ?? "N/A",
+  processingType: item.DB_PROCESSING_TYPE ?? "Regular", 
   estCat: item.DB_EST_CAT ?? "N/A",
   ltoComp: item.DB_EST_LTO_COMP ?? "N/A",
   ltoAdd: item.DB_EST_LTO_ADD ?? "N/A",

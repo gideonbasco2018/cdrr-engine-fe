@@ -98,6 +98,7 @@ export const mapWorkflowTask = (task, index) => {
     pharmaProdCatLabel: m.DB_PHARMA_PROD_CAT_LABEL ?? "N/A",
     isInPm: m.DB_IS_IN_PM ?? "N/A",
     dbTimelineCitizenCharter: m.DB_TIMELINE_CITIZEN_CHARTER ?? null,
+    processingType: m.DB_PROCESSING_TYPE || "Regular",
     applicationStep: task.application_step,
     accomplishedDate: task.accomplished_date ?? "N/A",
     logCreatedAt: task.created_at ?? "N/A",

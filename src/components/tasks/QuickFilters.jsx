@@ -40,10 +40,25 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
       .map(([value, count]) => ({ value, count }));
   }, [data]);
 
+  const processingTypes = useMemo(() => {
+    const map = {};
+    data.forEach((r) => {
+      const v =
+        r.processingType && r.processingType !== "N/A"
+          ? r.processingType
+          : null;
+      if (v) map[v] = (map[v] || 0) + 1;
+    });
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([value, count]) => ({ value, count }));
+  }, [data]);
+
   const activeFilterCount =
     (filters.appType ? 1 : 0) +
     (filters.prescription ? 1 : 0) +
-    (filters.appStatus ? 1 : 0);
+    (filters.appStatus ? 1 : 0) +
+    (filters.processingType ? 1 : 0);
 
   if (!isSidebarOpen) {
     return (
@@ -115,24 +130,47 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
 
         <span
           title="Application Type (click to expand)"
-          style={{ fontSize: "1.2rem", opacity: filters.appType ? 1 : 0.3, cursor: "pointer" }}
+          style={{
+            fontSize: "1.2rem",
+            opacity: filters.appType ? 1 : 0.3,
+            cursor: "pointer",
+          }}
           onClick={() => setIsSidebarOpen(true)}
         >
           📄
         </span>
         <span
           title="Prescriptions (click to expand)"
-          style={{ fontSize: "1.2rem", opacity: filters.prescription ? 1 : 0.3, cursor: "pointer" }}
+          style={{
+            fontSize: "1.2rem",
+            opacity: filters.prescription ? 1 : 0.3,
+            cursor: "pointer",
+          }}
           onClick={() => setIsSidebarOpen(true)}
         >
           💊
         </span>
         <span
           title="All Status (click to expand)"
-          style={{ fontSize: "1.2rem", opacity: filters.appStatus ? 1 : 0.3, cursor: "pointer" }}
+          style={{
+            fontSize: "1.2rem",
+            opacity: filters.appStatus ? 1 : 0.3,
+            cursor: "pointer",
+          }}
           onClick={() => setIsSidebarOpen(true)}
         >
           🔖
+        </span>
+        <span
+          title="Processing Type (click to expand)"
+          style={{
+            fontSize: "1.2rem",
+            opacity: filters.processingType ? 1 : 0.3,
+            cursor: "pointer",
+          }}
+          onClick={() => setIsSidebarOpen(true)}
+        >
+          ⚙️
         </span>
       </div>
     );
@@ -270,8 +308,12 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
                 outline: "none",
                 transition: "border-color 0.2s",
               }}
-              onFocus={(e) => { e.target.style.borderColor = "#4CAF50"; }}
-              onBlur={(e) => { e.target.style.borderColor = colors.inputBorder; }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#4CAF50";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = colors.inputBorder;
+              }}
             />
             {filters.search && (
               <button
@@ -295,7 +337,13 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
           </div>
         </div>
 
-        <div style={{ height: "1px", background: colors.cardBorder, margin: "0 0.25rem" }} />
+        <div
+          style={{
+            height: "1px",
+            background: colors.cardBorder,
+            margin: "0 0.25rem",
+          }}
+        />
 
         {appTypes.length > 0 && (
           <SidebarSection
@@ -339,6 +387,21 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
             colors={colors}
             darkMode={darkMode}
             totalCount={statuses.reduce((s, x) => s + x.count, 0)}
+          />
+        )}
+
+        {processingTypes.length > 0 && (
+          <SidebarSection
+            title="Processing Type"
+            icon="⚙️"
+            items={processingTypes}
+            activeItem={filters.processingType || null}
+            onItemClick={(value) =>
+              onFiltersChange({ ...filters, processingType: value ?? "" })
+            }
+            colors={colors}
+            darkMode={darkMode}
+            totalCount={processingTypes.reduce((s, x) => s + x.count, 0)}
           />
         )}
       </div>

@@ -1,5 +1,17 @@
 export const tableColumns = [
-  { key: "dtn", label: "DTN", width: "450px", frozen: true },
+  {
+    key: "processingType",
+    label: "Processing Type",
+    width: "180px",
+  },
+  {
+    key: "dtn",
+    label: "DTN",
+    width: "180px",
+    frozen: true,
+    frozenLeft: "40px",
+  },
+
   { key: "estCat", label: "Est. Category", width: "120px" },
   { key: "ltoComp", label: "LTO Company", width: "180px" },
   { key: "ltoAdd", label: "LTO Address", width: "350px" },

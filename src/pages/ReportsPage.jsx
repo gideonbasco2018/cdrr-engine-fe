@@ -5,6 +5,7 @@ import {
   getAppTypes,
   getPrescriptionTypes,
   getAppStatusTypes,
+  getProcessingTypes,
   exportFilteredRecords,
 } from "../api/reports";
 
@@ -241,23 +242,36 @@ function ReportsPage({ darkMode }) {
   const [prescriptionTab, setPrescriptionTab] = useState(null);
   const [appStatusTab, setAppStatusTab] = useState(null);
 
+  // ✅ Processing type tab state — null = All, "__REGULAR__" = null/empty records
+  const [processingTypeTab, setProcessingTypeTab] = useState(null);
+
   const [availableAppTypes, setAvailableAppTypes] = useState([]);
   const [availablePrescriptionTypes, setAvailablePrescriptionTypes] = useState(
     [],
   );
   const [availableAppStatusTypes, setAvailableAppStatusTypes] = useState([]);
+  const [availableProcessingTypes, setAvailableProcessingTypes] = useState([]);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
   const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
   const [sortOrder, setSortOrder] = useState("desc");
 
   const colors = getColorScheme(darkMode);
 
+  // ✅ Active filter count includes processingTypeTab
   const activeFilterCount =
     (subTab !== null ? 1 : 0) +
     (prescriptionTab !== null ? 1 : 0) +
-    (appStatusTab !== null ? 1 : 0);
+    (appStatusTab !== null ? 1 : 0) +
+    (processingTypeTab !== null ? 1 : 0);
+
+  // ✅ Helper to convert processingTypeTab to API param
+  const processingTypeParam =
+    processingTypeTab === null
+      ? null
+      : processingTypeTab === "__REGULAR__"
+        ? "__EMPTY__"
+        : processingTypeTab;
 
   useEffect(() => {
     const id = "custom-scrollbar-styles-reports";
@@ -304,7 +318,7 @@ function ReportsPage({ darkMode }) {
           sortOrder: "desc",
         });
         const total = totalResponse.total || 0;
-        const statusTypes = await getAppStatusTypes(null, null, null);
+        const statusTypes = await getAppStatusTypes(null, null, null, null);
         const completedObj = statusTypes.find((s) => s.value === "Completed");
         const completed = completedObj ? completedObj.count : 0;
         setStatsData({ total, completed, inProgress: total - completed });
@@ -317,22 +331,35 @@ function ReportsPage({ darkMode }) {
     fetchStats();
   }, []);
 
+  // ✅ Fetch processing types (always shows all, never filtered)
   useEffect(() => {
-    getAppTypes(null)
+    getProcessingTypes(null)
+      .then(setAvailableProcessingTypes)
+      .catch(() => setAvailableProcessingTypes([]));
+  }, []);
+
+  // ✅ Fetch app types — updates when processingTypeTab changes
+  useEffect(() => {
+    getAppTypes(null, processingTypeParam)
       .then(setAvailableAppTypes)
       .catch(() => setAvailableAppTypes([]));
-  }, []);
+  }, [processingTypeTab]);
+
+  // ✅ Fetch prescription types — updates when processingTypeTab or subTab changes
   useEffect(() => {
-    getPrescriptionTypes(null, subTab)
+    getPrescriptionTypes(null, subTab, processingTypeParam)
       .then(setAvailablePrescriptionTypes)
       .catch(() => setAvailablePrescriptionTypes([]));
-  }, [subTab]);
+  }, [subTab, processingTypeTab]);
+
+  // ✅ Fetch app status types — updates when processingTypeTab, subTab, or prescriptionTab changes
   useEffect(() => {
-    getAppStatusTypes(null, subTab, prescriptionTab)
+    getAppStatusTypes(null, subTab, prescriptionTab, processingTypeParam)
       .then(setAvailableAppStatusTypes)
       .catch(() => setAvailableAppStatusTypes([]));
-  }, [subTab, prescriptionTab]);
+  }, [subTab, prescriptionTab, processingTypeTab]);
 
+  // ✅ Main data fetch
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -357,6 +384,9 @@ function ReportsPage({ darkMode }) {
             prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
         if (appStatusTab !== null)
           params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
+        if (processingTypeTab !== null)
+          params.processing_type = processingTypeParam;
+
         const json = await getUploadReports(params);
         setFilteredData(json?.data ? json.data.map(mapDataItem) : []);
         setTotalRecords(json?.total || 0);
@@ -377,6 +407,7 @@ function ReportsPage({ darkMode }) {
     subTab,
     prescriptionTab,
     appStatusTab,
+    processingTypeTab,
     filters,
     sortBy,
     sortOrder,
@@ -403,6 +434,9 @@ function ReportsPage({ darkMode }) {
           prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
       if (appStatusTab !== null)
         params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
+      if (processingTypeTab !== null)
+        params.processing_type = processingTypeParam;
+
       await exportFilteredRecords(params);
       alert(
         `✅ Export successful!\n\nExported ${totalRecords.toLocaleString()} records.`,
@@ -444,17 +478,28 @@ function ReportsPage({ darkMode }) {
     setCurrentPage(1);
   };
 
+  // ✅ When processing type tab changes, reset all downstream filters
+  const handleProcessingTypeTabChange = (value) => {
+    setProcessingTypeTab(value);
+    setSubTab(null);
+    setPrescriptionTab(null);
+    setAppStatusTab(null);
+    setCurrentPage(1);
+  };
+
   const handleSubTabChange = (value) => {
     setSubTab(value);
     setPrescriptionTab(null);
     setAppStatusTab(null);
     setCurrentPage(1);
   };
+
   const handlePrescriptionTabChange = (value) => {
     setPrescriptionTab(value);
     setAppStatusTab(null);
     setCurrentPage(1);
   };
+
   const handleAppStatusTabChange = (value) => {
     setAppStatusTab(value);
     setCurrentPage(1);
@@ -474,6 +519,43 @@ function ReportsPage({ darkMode }) {
     setCurrentPage(1);
   };
 
+  // ✅ Build tab data
+  const regularItem = availableProcessingTypes.find((p) => !p.value);
+  const namedProcessingTypes = availableProcessingTypes.filter((p) => p.value);
+
+  // ✅ Tab button style helper
+  const tabButtonStyle = (isActive, accentColor = "#4CAF50") => ({
+    padding: "0.5rem 1rem",
+    fontSize: "0.85rem",
+    background: "transparent",
+    border: "none",
+    borderBottom: isActive
+      ? `3px solid ${accentColor}`
+      : "3px solid transparent",
+    color: isActive ? colors.textPrimary : colors.textTertiary,
+    fontWeight: isActive ? "600" : "400",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    position: "relative",
+    top: "2px",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
+    flexShrink: 0,
+  });
+
+  const tabBadgeStyle = (isActive, accentColor = "#4CAF50") => ({
+    padding: "0.2rem 0.6rem",
+    background: isActive ? accentColor : darkMode ? "#1f1f1f" : "#e5e5e5",
+    color: isActive ? "#fff" : colors.textTertiary,
+    borderRadius: "12px",
+    fontSize: "0.75rem",
+    fontWeight: "600",
+    minWidth: "32px",
+    textAlign: "center",
+  });
+
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       {/* ══════════════════════════════════════
@@ -486,7 +568,7 @@ function ReportsPage({ darkMode }) {
           background: darkMode ? "#0a0a0a" : "#ffffff",
           borderRight: `1px solid ${colors.cardBorder}`,
           padding: isSidebarOpen ? "1.5rem 0" : "1rem 0",
-          overflowY: "hidden", // ← FIXED: hindi na mag-o-overflow ang buong sidebar
+          overflowY: "hidden",
           overflowX: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -496,9 +578,8 @@ function ReportsPage({ darkMode }) {
         }}
       >
         {isSidebarOpen ? (
-          /* ── EXPANDED ── */
           <>
-            {/* Header — naka-pin, hindi nag-scroll */}
+            {/* Header */}
             <div
               style={{
                 display: "flex",
@@ -508,7 +589,7 @@ function ReportsPage({ darkMode }) {
                 borderBottom: `2px solid ${colors.cardBorder}`,
                 overflow: "hidden",
                 whiteSpace: "nowrap",
-                flexShrink: 0, // ← FIXED: hindi mag-shrink ang header
+                flexShrink: 0,
               }}
             >
               <div
@@ -527,7 +608,6 @@ function ReportsPage({ darkMode }) {
                   Quick Filters
                 </h2>
               </div>
-
               <button
                 onClick={() => setIsSidebarOpen(false)}
                 title="Hide Quick Filters"
@@ -561,19 +641,19 @@ function ReportsPage({ darkMode }) {
               </button>
             </div>
 
-            {/* Scrollable content — dito lang nag-scroll, hindi yung header */}
+            {/* Scrollable content */}
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
                 gap: "1rem",
                 padding: "0.75rem 0.75rem 1rem",
-                overflowY: "auto", // ← FIXED: scroll dito na lang
+                overflowY: "auto",
                 overflowX: "hidden",
-                flex: 1, // ← kumuha ng lahat ng remaining space
+                flex: 1,
               }}
             >
-              {/* ── Search ── */}
+              {/* Search */}
               <div style={{ padding: "0 0.25rem" }}>
                 <p
                   style={{
@@ -647,7 +727,6 @@ function ReportsPage({ darkMode }) {
                 </div>
               </div>
 
-              {/* ── Divider ── */}
               <div
                 style={{
                   height: "1px",
@@ -965,49 +1044,69 @@ function ReportsPage({ darkMode }) {
             ))}
           </div>
 
-          {/* Level 1 tab */}
+          {/* ✅ Processing Type Tabs — dynamic, auto-expands with new DB_PROCESSING_TYPE values */}
           <div
             style={{
               display: "flex",
-              gap: "0.5rem",
+              gap: "0.25rem",
               borderBottom: `2px solid ${colors.cardBorder}`,
               paddingBottom: 0,
+              overflowX: "auto",
+              overflowY: "hidden",
+              flexShrink: 0,
             }}
           >
+            {/* ── All Reports tab ── */}
             <button
-              style={{
-                padding: "0.5rem 1rem",
-                fontSize: "0.85rem",
-                background: "transparent",
-                border: "none",
-                borderBottom: "3px solid #4CAF50",
-                color: colors.textPrimary,
-                fontWeight: "600",
-                cursor: "default",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                position: "relative",
-                top: "2px",
-              }}
+              onClick={() => handleProcessingTypeTabChange(null)}
+              style={tabButtonStyle(processingTypeTab === null, "#4CAF50")}
             >
               <span style={{ fontSize: "1.1rem" }}>📋</span>
               <span>All Reports</span>
               <span
-                style={{
-                  padding: "0.2rem 0.6rem",
-                  background: "#4CAF50",
-                  color: "#fff",
-                  borderRadius: "12px",
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
-                  minWidth: "32px",
-                  textAlign: "center",
-                }}
+                style={tabBadgeStyle(processingTypeTab === null, "#4CAF50")}
               >
-                {statsLoading ? "..." : statsData.total.toLocaleString()}
+                {loading ? "..." : totalRecords.toLocaleString()}
               </span>
             </button>
+
+            {/* ── Regular tab (records with null/empty processing type) ── */}
+            {regularItem && (
+              <button
+                onClick={() => handleProcessingTypeTabChange("__REGULAR__")}
+                style={tabButtonStyle(
+                  processingTypeTab === "__REGULAR__",
+                  "#2196F3",
+                )}
+              >
+                <span>Regular</span>
+                <span
+                  style={tabBadgeStyle(
+                    processingTypeTab === "__REGULAR__",
+                    "#2196F3",
+                  )}
+                >
+                  {regularItem.count}
+                </span>
+              </button>
+            )}
+
+            {/* ── Dynamic tabs per named DB_PROCESSING_TYPE value ── */}
+            {namedProcessingTypes.map((pt) => {
+              const isActive = processingTypeTab === pt.value;
+              return (
+                <button
+                  key={pt.value}
+                  onClick={() => handleProcessingTypeTabChange(pt.value)}
+                  style={tabButtonStyle(isActive, "#2196F3")}
+                >
+                  <span>{pt.value}</span>
+                  <span style={tabBadgeStyle(isActive, "#2196F3")}>
+                    {pt.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
