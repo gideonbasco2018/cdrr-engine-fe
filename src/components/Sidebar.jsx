@@ -200,6 +200,7 @@ function Sidebar({
       monitoring: `${basePath}/monitoring`,
       reports: `${basePath}/reports`,
       "for-decking": `${basePath}/for-decking`,
+      task: `${basePath}/task`,
       "for-evaluation": `${basePath}/for-evaluation`,
       "for-compliance": `${basePath}/for-compliance`,
       "for-checking": `${basePath}/for-checking`,

@@ -17,22 +17,6 @@ export const getOTCRecords = async ({
   sortBy = 'DB_DATE_EXCEL_UPLOAD',
   sortOrder = 'desc'
 }) => {
-  console.log('🔍 OTC API Call Parameters:', {
-    page,
-    pageSize,
-    search,
-    app_status,
-    prescription,
-    brand_name,
-    generic_name,
-    lto_company,
-    registration_no,
-    app_type,
-    is_in_pm,  // ✅ ADDED: Log is_in_pm parameter
-    sortBy,
-    sortOrder
-  });
-
   // Build params object conditionally
   const params = {
     skip: (page - 1) * pageSize,
@@ -55,16 +39,13 @@ export const getOTCRecords = async ({
     params.sort_by = sortBy;
     params.sort_order = sortOrder;
   }
-
   const response = await api.get("/otc/records", { params });
-
-  console.log('✅ OTC API Response:', {
-    total: response.data.total,
-    dataLength: response.data.records?.length,
-    skip: response.data.skip,
-    limit: response.data.limit
-  });
-
+  // console.log('✅ OTC API Response:', {
+  //   total: response.data.total,
+  //   dataLength: response.data.records?.length,
+  //   skip: response.data.skip,
+  //   limit: response.data.limit
+  // });
   return {
     data: response.data.records,
     total: response.data.total,
@@ -75,15 +56,15 @@ export const getOTCRecords = async ({
 
 // ✅ Get single OTC record by ID
 export const getOTCRecordById = async (recordId) => {
-  console.log(`🔍 Fetching OTC record ${recordId}`);
+  // console.log(`🔍 Fetching OTC record ${recordId}`);
   const response = await api.get(`/otc/records/${recordId}`);
-  console.log(`✅ OTC record ${recordId} fetched`);
+  // console.log(`✅ OTC record ${recordId} fetched`);
   return response.data;
 };
 
 // ✅ Upload OTC Excel file
 export const uploadOTCExcel = async (file, username = 'system') => {
-  console.log('📤 Uploading OTC Excel file:', file.name);
+  // console.log('📤 Uploading OTC Excel file:', file.name);
   
   const formData = new FormData();
   formData.append('file', file);
@@ -94,14 +75,13 @@ export const uploadOTCExcel = async (file, username = 'system') => {
     },
   });
   
-  console.log('✅ OTC Excel upload complete:', response.data);
+  // console.log('✅ OTC Excel upload complete:', response.data);
   return response.data;
 };
 
 // ✅ Download OTC template
 export const downloadOTCTemplate = async () => {
-  console.log('📥 Downloading OTC template');
-  
+  // console.log('📥 Downloading OTC template');
   const response = await api.get('/otc/download-template', {
     responseType: 'blob',
   });
@@ -115,16 +95,16 @@ export const downloadOTCTemplate = async () => {
   link.remove();
   window.URL.revokeObjectURL(url);
   
-  console.log('✅ OTC template downloaded');
+  // console.log('✅ OTC template downloaded');
 };
 
 // ✅ Delete OTC record
 export const deleteOTCRecord = async (recordId) => {
-  console.log(`🗑️ Deleting OTC record ${recordId}`);
+  // console.log(`🗑️ Deleting OTC record ${recordId}`);
   
   try {
     const response = await api.delete(`/otc/records/${recordId}`);
-    console.log(`✅ OTC record ${recordId} deleted successfully`);
+    // console.log(`✅ OTC record ${recordId} deleted successfully`);
     return response.data;
   } catch (error) {
     console.error(`❌ Error deleting OTC record ${recordId}:`, error);
@@ -135,11 +115,10 @@ export const deleteOTCRecord = async (recordId) => {
 
 // ✅ Update OTC record
 export const updateOTCRecord = async (recordId, data) => {
-  console.log(`📝 Updating OTC record ${recordId} with data:`, data);
-  
+  // console.log(`📝 Updating OTC record ${recordId} with data:`, data);
   try {
     const response = await api.put(`/otc/records/${recordId}`, data);
-    console.log(`✅ Successfully updated OTC record ${recordId}`);
+    // console.log(`✅ Successfully updated OTC record ${recordId}`);
     return response.data;
   } catch (error) {
     console.error(`❌ Error updating OTC record ${recordId}:`, error);
@@ -150,10 +129,10 @@ export const updateOTCRecord = async (recordId, data) => {
 
 // ✅ Get unique app statuses with counts (for filters)
 export const getOTCAppStatuses = async (params = {}) => {
-  console.log('🔍 Fetching OTC app statuses with params:', params);
+  // console.log('🔍 Fetching OTC app statuses with params:', params);
   try {
     const response = await api.get('/otc/app-statuses', { params });
-    console.log('✅ OTC app statuses fetched:', response.data);
+    // console.log('✅ OTC app statuses fetched:', response.data);
     return response.data.app_statuses;
   } catch (error) {
     console.error('❌ Error fetching OTC app statuses:', error);
@@ -163,10 +142,10 @@ export const getOTCAppStatuses = async (params = {}) => {
 
 // ✅ Get unique app types with counts (for filters)
 export const getOTCAppTypes = async (params = {}) => {
-  console.log('🔍 Fetching OTC app types with params:', params);
+  // console.log('🔍 Fetching OTC app types with params:', params);
   try {
     const response = await api.get('/otc/app-types', { params });
-    console.log('✅ OTC app types fetched:', response.data);
+    // console.log('✅ OTC app types fetched:', response.data);
     return response.data.app_types;
   } catch (error) {
     console.error('❌ Error fetching OTC app types:', error);
@@ -176,10 +155,10 @@ export const getOTCAppTypes = async (params = {}) => {
 
 // ✅ Get unique prescription types with counts (for filters)
 export const getOTCPrescriptionTypes = async (params = {}) => {
-  console.log('🔍 Fetching OTC prescription types with params:', params);
+  // console.log('🔍 Fetching OTC prescription types with params:', params);
   try {
     const response = await api.get('/otc/prescription-types', { params });
-    console.log('✅ OTC prescription types fetched:', response.data);
+    // console.log('✅ OTC prescription types fetched:', response.data);
     return response.data.prescription_types;
   } catch (error) {
     console.error('❌ Error fetching OTC prescription types:', error);
@@ -197,12 +176,12 @@ export const exportOTCRecords = async ({
   lto_company = '',
   registration_no = '',
   app_type = '',
-  is_in_pm = ''  // ✅ ADDED: Support for is_in_pm in export
+  is_in_pm = '' 
 }) => {
-  console.log('📥 Exporting filtered OTC records with params:', {
-    search, app_status, prescription, brand_name, 
-    generic_name, lto_company, registration_no, app_type, is_in_pm  // ✅ ADDED
-  });
+  // console.log('📥 Exporting filtered OTC records with params:', {
+  //   search, app_status, prescription, brand_name, 
+  //   generic_name, lto_company, registration_no, app_type, is_in_pm  
+  // });
 
   // Build params object conditionally
   const params = {};
@@ -242,7 +221,6 @@ export const exportOTCRecords = async ({
   link.click();
   link.remove();
   window.URL.revokeObjectURL(url);
-  
-  console.log('✅ OTC export complete:', filename);
+  // console.log('✅ OTC export complete:', filename);
 };
 

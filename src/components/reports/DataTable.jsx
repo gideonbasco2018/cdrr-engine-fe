@@ -1,6 +1,10 @@
 // src/components/UploadReports/DataTable.jsx
 // ✅ FIXED: Pagination moved OUTSIDE scrollable container so it's always visible
-// ✅ ADDED: Sorting functionality with clickable column headers (same approach as ReportsDataTable)
+// ✅ ADDED: Sorting functionality with clickable column headers
+// ✅ UPDATED: Removed "Complete Evaluation" from action menu
+// ✅ UPDATED: "Deck Application" only visible on Not Yet Decked tab (activeTab === "not-decked")
+// ✅ UPDATED: "Application Logs" visible on Decked and All Reports tabs
+// ✅ UPDATED: Tab order → Not Yet Decked → Decked → All Reports
 
 import { useState } from "react";
 import { tableColumns } from "./tableColumns";
@@ -10,7 +14,7 @@ import EvaluatorModal from "./actions/EvaluatorModal";
 import ViewDetailsModal from "./actions/ViewDetailsModal";
 import BulkDeckModal from "./actions/BulkDeckModal";
 import DoctrackModal from "./actions/DoctrackModal";
-import { bulkDeckApplications } from "../../api/reports";
+import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 
 // ✅ Map column keys to database column names for sorting
 const COLUMN_DB_KEY_MAP = {
@@ -68,6 +72,13 @@ const COLUMN_DB_KEY_MAP = {
   dbTimelineCitizenCharter: "DB_TIMELINE_CITIZEN_CHARTER",
 };
 
+// ✅ Tab order: Not Yet Decked → Decked → All Reports
+export const TAB_ORDER = [
+  { key: "not-decked", label: "Not Yet Decked" },
+  { key: "decked", label: "Decked" },
+  { key: "all", label: "All Reports" },
+];
+
 function DataTable({
   data,
   selectedRows,
@@ -87,7 +98,7 @@ function DataTable({
   indexOfLastRow,
   onEdit,
   darkMode,
-  // ✅ NEW: Sorting props
+  // ✅ Sorting props
   onSort,
   sortBy,
   sortOrder,
@@ -98,6 +109,11 @@ function DataTable({
   const [evaluatorModalRecord, setEvaluatorModalRecord] = useState(null);
   const [bulkDeckModalRecords, setBulkDeckModalRecords] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
+  const [appLogsRecord, setAppLogsRecord] = useState(null);
+
+  // ✅ Tab flags
+  const isNotYetDeckedTab = activeTab === "not-decked";
+  const showAppLogs = activeTab === "decked" || activeTab === "all";
 
   // ✅ Get database column name for sorting
   const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
@@ -105,7 +121,7 @@ function DataTable({
   // ✅ Handle column header click for sorting
   const handleSort = (colKey) => {
     if (!onSort) return;
-    if (colKey === "statusTimeline") return; // computed client-side, not sortable
+    if (colKey === "statusTimeline") return;
     const dbKey = getDbKey(colKey);
     if (sortBy === dbKey) {
       onSort(dbKey, sortOrder === "asc" ? "desc" : "asc");
@@ -262,6 +278,10 @@ function DataTable({
     setOpenMenuId(null);
     setDoctrackModalRecord(row);
   };
+  const handleOpenAppLogs = (row) => {
+    setOpenMenuId(null);
+    setAppLogsRecord(row);
+  };
   const handleEditClick = (row) => {
     setOpenMenuId(null);
     if (onEdit) onEdit(row);
@@ -276,17 +296,6 @@ function DataTable({
   const handleEvaluationSuccess = async () => {
     if (onRefresh) await onRefresh();
   };
-
-  const canBeDeck = (row) =>
-    !row.evaluator || row.evaluator === "" || row.evaluator === "N/A";
-  const canBeEvaluated = (row) =>
-    row.evaluator &&
-    row.evaluator !== "" &&
-    row.evaluator !== "N/A" &&
-    (!row.dateEvalEnd ||
-      row.dateEvalEnd === "" ||
-      row.dateEvalEnd === "N/A" ||
-      row.dateEvalEnd === null);
 
   // ✅ Render helpers
   const renderDTN = (dtn) => (
@@ -581,54 +590,41 @@ function DataTable({
                 >
                   {selectedRows.length} selected
                 </span>
-                <button
-                  onClick={() => {
-                    const selectedRecords = data.filter((row) =>
-                      selectedRows.includes(row.id),
-                    );
-                    const canDeckRecords = selectedRecords.filter(
-                      (row) =>
-                        !row.evaluator ||
-                        row.evaluator === "" ||
-                        row.evaluator === "N/A",
-                    );
-                    if (canDeckRecords.length === 0) {
-                      alert(
-                        "⚠️ None of the selected applications can be decked.\nThey already have evaluators assigned.",
+
+                {/* ✅ Bulk Deck button — only on Not Yet Decked tab */}
+                {isNotYetDeckedTab && (
+                  <button
+                    onClick={() => {
+                      const selectedRecords = data.filter((row) =>
+                        selectedRows.includes(row.id),
                       );
-                      return;
-                    }
-                    if (canDeckRecords.length < selectedRecords.length) {
-                      const proceed = confirm(
-                        `⚠️ ${canDeckRecords.length} out of ${selectedRecords.length} selected applications can be decked.\n\n${selectedRecords.length - canDeckRecords.length} applications already have evaluators assigned.\n\nDo you want to continue with ${canDeckRecords.length} applications?`,
-                      );
-                      if (!proceed) return;
-                    }
-                    setBulkDeckModalRecords(canDeckRecords);
-                  }}
-                  style={{
-                    padding: "0.4rem 0.8rem",
-                    background: "#4CAF50",
-                    border: "none",
-                    borderRadius: "6px",
-                    color: "#fff",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.4rem",
-                    transition: "background 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#45a049";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#4CAF50";
-                  }}
-                >
-                  <span>🎯</span> Deck Applications
-                </button>
+                      setBulkDeckModalRecords(selectedRecords);
+                    }}
+                    style={{
+                      padding: "0.4rem 0.8rem",
+                      background: "#4CAF50",
+                      border: "none",
+                      borderRadius: "6px",
+                      color: "#fff",
+                      fontSize: "0.8rem",
+                      fontWeight: "600",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      transition: "background 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#45a049";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "#4CAF50";
+                    }}
+                  >
+                    <span>🎯</span> Deck Applications
+                  </button>
+                )}
+
                 <button
                   onClick={() => {
                     if (
@@ -819,8 +815,6 @@ function DataTable({
             <tbody>
               {data.map((row, index) => {
                 const isSelected = selectedRows.includes(row.id);
-                const canDeck = canBeDeck(row);
-                const canEvaluate = canBeEvaluated(row);
                 let rowBg = isSelected
                   ? "#4CAF5015"
                   : index % 2 === 0
@@ -925,6 +919,7 @@ function DataTable({
                       </td>
                     ))}
 
+                    {/* ✅ ACTIONS CELL */}
                     <td
                       style={{
                         padding: "1rem",
@@ -982,12 +977,13 @@ function DataTable({
                                 border: `1px solid ${colors.cardBorder}`,
                                 borderRadius: "8px",
                                 boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                                minWidth: "180px",
+                                minWidth: "190px",
                                 zIndex: 9999,
                                 overflow: "visible",
                               }}
                             >
-                              {canDeck && (
+                              {/* ✅ Deck Application — ONLY on Not Yet Decked tab */}
+                              {isNotYetDeckedTab && (
                                 <button
                                   onClick={() => handleOpenDeckModal(row)}
                                   style={{
@@ -1017,17 +1013,16 @@ function DataTable({
                                   <span>Deck Application</span>
                                 </button>
                               )}
-                              {canEvaluate && (
+
+                              {/* ✅ Application Logs — ONLY on Decked and All Reports tabs */}
+                              {showAppLogs && (
                                 <button
-                                  onClick={() => handleOpenEvaluatorModal(row)}
+                                  onClick={() => handleOpenAppLogs(row)}
                                   style={{
                                     width: "100%",
                                     padding: "0.75rem 1rem",
                                     background: "transparent",
                                     border: "none",
-                                    borderTop: canDeck
-                                      ? `1px solid ${colors.tableBorder}`
-                                      : "none",
                                     color: colors.textPrimary,
                                     fontSize: "0.85rem",
                                     textAlign: "left",
@@ -1046,10 +1041,12 @@ function DataTable({
                                       "transparent")
                                   }
                                 >
-                                  <span>✅</span>
-                                  <span>Complete Evaluation</span>
+                                  <span>📦</span>
+                                  <span>Application Logs</span>
                                 </button>
                               )}
+
+                              {/* ✅ View Doctrack Details */}
                               <button
                                 onClick={() => handleOpenDoctrackModal(row)}
                                 style={{
@@ -1058,7 +1055,7 @@ function DataTable({
                                   background: "transparent",
                                   border: "none",
                                   borderTop:
-                                    canDeck || canEvaluate
+                                    isNotYetDeckedTab || showAppLogs
                                       ? `1px solid ${colors.tableBorder}`
                                       : "none",
                                   color: colors.textPrimary,
@@ -1082,6 +1079,8 @@ function DataTable({
                                 <span>📋</span>
                                 <span>View Doctrack Details</span>
                               </button>
+
+                              {/* ✅ View Details */}
                               <button
                                 onClick={() => handleViewDetails(row)}
                                 style={{
@@ -1111,6 +1110,8 @@ function DataTable({
                                 <span>👁️</span>
                                 <span>View Details</span>
                               </button>
+
+                              {/* ✅ Edit */}
                               <button
                                 onClick={() => handleEditClick(row)}
                                 style={{
@@ -1140,6 +1141,8 @@ function DataTable({
                                 <span>✏️</span>
                                 <span>Edit</span>
                               </button>
+
+                              {/* ✅ Delete */}
                               <button
                                 onClick={() => {
                                   setOpenMenuId(null);
@@ -1212,7 +1215,7 @@ function DataTable({
         </div>
       </div>
 
-      {/* Modals */}
+      {/* ✅ Modals */}
       {deckModalRecord && (
         <DeckModal
           record={deckModalRecord}
@@ -1244,32 +1247,23 @@ function DataTable({
           darkMode={darkMode}
         />
       )}
+      {/* ✅ Application Logs Modal */}
+      {appLogsRecord && (
+        <ApplicationLogsModal
+          record={appLogsRecord}
+          onClose={() => setAppLogsRecord(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
       {bulkDeckModalRecords && (
         <BulkDeckModal
           records={bulkDeckModalRecords}
           onClose={() => setBulkDeckModalRecords(null)}
-          onSubmit={async (recordIds, formData) => {
-            try {
-              const response = await bulkDeckApplications({
-                decker: formData.decker,
-                evaluator: formData.evaluator,
-                deckerDecision: formData.deckerDecision,
-                deckerRemarks: formData.deckerRemarks,
-                dateDeckedEnd: formData.dateDeckedEnd,
-                record_ids: recordIds,
-              });
-              console.log("✅ Bulk deck response:", response);
-              alert(
-                `✅ Successfully decked ${recordIds.length} applications!\n\nEvaluator: ${formData.evaluator}\nDecision: ${formData.deckerDecision}`,
-              );
-              setBulkDeckModalRecords(null);
-              if (onClearSelections) onClearSelections();
-              if (onRefresh) await onRefresh();
-            } catch (error) {
-              console.error("Failed to bulk deck applications:", error);
-              alert(`❌ Failed to deck applications:\n${error.message}`);
-              throw error;
-            }
+          onSuccess={async () => {
+            setBulkDeckModalRecords(null);
+            if (onClearSelections) onClearSelections();
+            if (onRefresh) await onRefresh();
           }}
           colors={colors}
         />

@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
-import { getUsersByGroup, getUser } from "../../../api/auth";
+import { getUsersByGroup, getUser } from "../../api/auth";
 import {
   createApplicationLog,
   getLastApplicationLogIndex,
-} from "../../../api/application-logs";
+} from "../../api/application-logs";
 
 function EvaluatorModal({ record, onClose, onSuccess, colors }) {
   const [formData, setFormData] = useState({
@@ -12,55 +12,43 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
     evalDecision: "",
     evalRemarks: "",
   });
-
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [checkers, setCheckers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-
   const CHECKER_GROUP_ID = 4;
 
-  // Get current logged-in user and set as evaluator automatically
   useEffect(() => {
     const user = getUser();
     if (user) {
       setCurrentUser(user);
-      setFormData((prev) => ({ ...prev, evaluator: user.username }));
+      setFormData((p) => ({ ...p, evaluator: user.username }));
     }
   }, []);
 
-  // Fetch users from Checker group
   useEffect(() => {
-    const fetchCheckers = async () => {
+    (async () => {
       try {
         setLoadingUsers(true);
-        const users = await getUsersByGroup(CHECKER_GROUP_ID);
-        setCheckers(users);
-      } catch (error) {
-        console.error("❌ Failed to fetch checkers:", error);
+        setCheckers(await getUsersByGroup(CHECKER_GROUP_ID));
+      } catch {
         setCheckers([]);
       } finally {
         setLoadingUsers(false);
       }
-    };
-
-    fetchCheckers();
+    })();
   }, []);
 
-  const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
+  const handleChange = (f, v) => setFormData((p) => ({ ...p, [f]: v }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     if (!formData.evaluator || !formData.checker || !formData.evalDecision) {
       alert(
         "⚠️ Please fill in required fields:\n- Checker\n- Evaluation Decision",
       );
       return;
     }
-
     setLoading(true);
     try {
       const formattedDateTime = new Date().toISOString();
@@ -72,7 +60,7 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
       const openTask = 1;
 
       // Step 1: Evaluator log (COMPLETED)
-      const evaluatorLog = {
+      await createApplicationLog({
         main_db_id: record.id,
         application_step: "Quality Evaluation",
         user_name: formData.evaluator,
@@ -85,11 +73,10 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
         del_previous: lastIndex,
         del_last_index: closeTask,
         del_thread: "Close",
-      };
-      await createApplicationLog(evaluatorLog);
+      });
 
       // Step 2: Checker log (IN PROGRESS)
-      const checkerLog = {
+      await createApplicationLog({
         main_db_id: record.id,
         application_step: "Checking",
         user_name: formData.checker,
@@ -102,26 +89,34 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
         del_previous: nextIndex,
         del_last_index: openTask,
         del_thread: "Open",
-      };
-      await createApplicationLog(checkerLog);
+      });
 
       onClose();
       alert("✅ Evaluation completed successfully!");
-
       if (onSuccess) await onSuccess();
-    } catch (error) {
-      console.error("❌ Failed to evaluate record:", error);
-      alert(`❌ Failed to evaluate record: ${error.message}`);
+    } catch (err) {
+      alert(`❌ Failed to evaluate record: ${err.message}`);
     } finally {
       setLoading(false);
     }
+  };
+
+  const inp = {
+    width: "100%",
+    padding: "0.75rem 1rem",
+    background: colors.inputBg,
+    border: `1px solid ${colors.inputBorder}`,
+    borderRadius: "8px",
+    color: colors.textPrimary,
+    fontSize: "0.95rem",
+    outline: "none",
+    transition: "all 0.2s",
   };
 
   const isSubmitDisabled = loading || loadingUsers || checkers.length === 0;
 
   return (
     <>
-      {/* Backdrop */}
       <div
         onClick={onClose}
         style={{
@@ -130,33 +125,28 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
           left: 0,
           right: 0,
           bottom: 0,
-          background: "rgba(0, 0, 0, 0.6)",
+          background: "rgba(0,0,0,0.6)",
           zIndex: 9998,
           backdropFilter: "blur(4px)",
-          animation: "fadeIn 0.2s ease",
         }}
       />
-
-      {/* Modal */}
       <div
         style={{
           position: "fixed",
           top: "50%",
           left: "50%",
-          transform: "translate(-50%, -50%)",
+          transform: "translate(-50%,-50%)",
           width: "90%",
           maxWidth: "600px",
           background: colors.cardBg,
           borderRadius: "16px",
           boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
           zIndex: 9999,
-          animation: "slideInScale 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
           border: `1px solid ${colors.cardBorder}`,
           maxHeight: "90vh",
           overflowY: "auto",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "1.5rem 2rem",
@@ -195,7 +185,6 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              transition: "all 0.2s",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = "#ef444410";
@@ -212,10 +201,9 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
           </button>
         </div>
 
-        {/* Form */}
         <form onSubmit={handleSubmit}>
           <div style={{ padding: "2rem" }}>
-            {/* Evaluator Name - Auto-filled (Read-only) */}
+            {/* Evaluator Name */}
             <div style={{ marginBottom: "1.5rem" }}>
               <label
                 style={{
@@ -233,14 +221,8 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
                 value={formData.evaluator}
                 readOnly
                 style={{
-                  width: "100%",
-                  padding: "0.75rem 1rem",
+                  ...inp,
                   background: colors.badgeBg,
-                  border: `1px solid ${colors.inputBorder}`,
-                  borderRadius: "8px",
-                  color: colors.textPrimary,
-                  fontSize: "0.95rem",
-                  outline: "none",
                   cursor: "not-allowed",
                   fontWeight: "600",
                 }}
@@ -276,18 +258,7 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
                 value={formData.evalDecision}
                 onChange={(e) => handleChange("evalDecision", e.target.value)}
                 required
-                style={{
-                  width: "100%",
-                  padding: "0.75rem 1rem",
-                  background: colors.inputBg,
-                  border: `1px solid ${colors.inputBorder}`,
-                  borderRadius: "8px",
-                  color: colors.textPrimary,
-                  fontSize: "0.95rem",
-                  outline: "none",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
+                style={{ ...inp, cursor: "pointer" }}
                 onFocus={(e) => {
                   e.target.style.borderColor = "#2196F3";
                 }}
@@ -321,19 +292,7 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
                 onChange={(e) => handleChange("evalRemarks", e.target.value)}
                 placeholder="Enter your evaluation notes and findings..."
                 rows={4}
-                style={{
-                  width: "100%",
-                  padding: "0.75rem 1rem",
-                  background: colors.inputBg,
-                  border: `1px solid ${colors.inputBorder}`,
-                  borderRadius: "8px",
-                  color: colors.textPrimary,
-                  fontSize: "0.95rem",
-                  outline: "none",
-                  resize: "vertical",
-                  fontFamily: "inherit",
-                  transition: "all 0.2s",
-                }}
+                style={{ ...inp, resize: "vertical", fontFamily: "inherit" }}
                 onFocus={(e) => {
                   e.target.style.borderColor = "#2196F3";
                 }}
@@ -355,34 +314,15 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
                 }}
               >
                 Assign Checker <span style={{ color: "#ef4444" }}>*</span>
-                <span
-                  style={{
-                    marginLeft: "0.5rem",
-                    fontSize: "0.72rem",
-                    fontWeight: "500",
-                    color: "#2196F3",
-                    background: "#2196F315",
-                    border: "1px solid #2196F330",
-                    padding: "0.1rem 0.45rem",
-                    borderRadius: "4px",
-                  }}
-                >
-                  Checker Group
-                </span>
               </label>
               {loadingUsers ? (
                 <div
                   style={{
-                    width: "100%",
-                    padding: "0.75rem 1rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: "8px",
-                    color: colors.textTertiary,
-                    fontSize: "0.95rem",
+                    ...inp,
                     display: "flex",
                     alignItems: "center",
                     gap: "0.5rem",
+                    color: colors.textTertiary,
                   }}
                 >
                   <span
@@ -405,17 +345,9 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
                   required
                   disabled={checkers.length === 0}
                   style={{
-                    width: "100%",
-                    padding: "0.75rem 1rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: "8px",
-                    color: colors.textPrimary,
-                    fontSize: "0.95rem",
-                    outline: "none",
+                    ...inp,
                     cursor: checkers.length === 0 ? "not-allowed" : "pointer",
                     opacity: checkers.length === 0 ? 0.6 : 1,
-                    transition: "all 0.2s",
                   }}
                   onFocus={(e) => {
                     if (checkers.length > 0)
@@ -430,9 +362,9 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
                       ? "No checkers available"
                       : "Select a checker"}
                   </option>
-                  {checkers.map((user) => (
-                    <option key={user.id} value={user.username}>
-                      {user.username} - {user.first_name} {user.surname}
+                  {checkers.map((u) => (
+                    <option key={u.id} value={u.username}>
+                      {u.username} - {u.first_name} {u.surname}
                     </option>
                   ))}
                 </select>
@@ -507,13 +439,6 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.5 : 1,
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                if (!loading) e.currentTarget.style.background = colors.badgeBg;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = colors.buttonSecondaryBg;
               }}
             >
               Cancel
@@ -533,7 +458,6 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
                 display: "flex",
                 alignItems: "center",
                 gap: "0.5rem",
-                transition: "all 0.2s",
               }}
               onMouseEnter={(e) => {
                 if (!isSubmitDisabled)
@@ -569,15 +493,7 @@ function EvaluatorModal({ record, onClose, onSuccess, colors }) {
           </div>
         </form>
       </div>
-
-      <style>{`
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes slideInScale {
-          from { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
-          to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   );
 }

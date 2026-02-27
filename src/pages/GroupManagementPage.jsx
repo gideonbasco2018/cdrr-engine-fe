@@ -89,6 +89,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       reports: "CDR Reports",
       "otc-database": "CDR Reports",
       "for-decking": "Workflow",
+      task: "Workflow",
       "for-evaluation": "Workflow",
       "for-compliance": "Workflow",
       "for-checking": "Workflow",

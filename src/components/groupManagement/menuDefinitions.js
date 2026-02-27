@@ -11,6 +11,7 @@ export const allMenuItems = [
   
   // Workflow
   { id: "for-decking", label: "For Decking", icon: "📥", category: "Workflow" },
+  { id: "task", label: "Task", icon: "📝", category: "Workflow" },
   { id: "for-evaluation", label: "For Evaluation", icon: "📋", category: "Workflow" },
   { id: "for-compliance", label: "For Compliance", icon: "✓", category: "Workflow" },
   { id: "for-checking", label: "For Checking", icon: "🔍", category: "Workflow" },

@@ -6,6 +6,7 @@ import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import ViewDetailsModal from "./actions/ViewDetailsModal";
 import DoctrackModal from "./actions/DoctrackModal";
+import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 
 // ✅ Map column keys to database column names for sorting
 const COLUMN_DB_KEY_MAP = {
@@ -85,6 +86,7 @@ function ReportsDataTable({
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
+  const [appLogsModalRecord, setAppLogsModalRecord] = useState(null); // ✅ ADDED
 
   // ✅ Get database column name for sorting
   const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
@@ -259,6 +261,12 @@ function ReportsDataTable({
   const handleOpenDoctrackModal = (row) => {
     setOpenMenuId(null);
     setDoctrackModalRecord(row);
+  };
+
+  const handleOpenAppLogsModal = (row) => {
+    // ✅ ADDED
+    setOpenMenuId(null);
+    setAppLogsModalRecord(row);
   };
 
   // Modal close handlers
@@ -899,6 +907,36 @@ function ReportsDataTable({
                                 overflow: "visible",
                               }}
                             >
+                              {/* ✅ ADDED: Application Logs */}
+                              <button
+                                onClick={() => handleOpenAppLogsModal(row)}
+                                style={{
+                                  width: "100%",
+                                  padding: "0.75rem 1rem",
+                                  background: "transparent",
+                                  border: "none",
+                                  color: colors.textPrimary,
+                                  fontSize: "0.85rem",
+                                  textAlign: "left",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.5rem",
+                                  transition: "background 0.2s",
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.background =
+                                    colors.tableRowHover)
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.background =
+                                    "transparent")
+                                }
+                              >
+                                <span>📦</span>
+                                <span>Application Logs</span>
+                              </button>
+
                               <button
                                 onClick={() => handleOpenDoctrackModal(row)}
                                 style={{
@@ -906,6 +944,7 @@ function ReportsDataTable({
                                   padding: "0.75rem 1rem",
                                   background: "transparent",
                                   border: "none",
+                                  borderTop: `1px solid ${colors.tableBorder}`,
                                   color: colors.textPrimary,
                                   fontSize: "0.85rem",
                                   textAlign: "left",
@@ -981,6 +1020,16 @@ function ReportsDataTable({
           colors={colors}
         />
       </div>
+
+      {/* ✅ ADDED: Application Logs Modal */}
+      {appLogsModalRecord && (
+        <ApplicationLogsModal
+          record={appLogsModalRecord}
+          onClose={() => setAppLogsModalRecord(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
 
       {doctrackModalRecord && (
         <DoctrackModal

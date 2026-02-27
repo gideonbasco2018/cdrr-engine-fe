@@ -40,6 +40,12 @@ export const menuDefinitions = {
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
+      id: "task",
+      icon: "📝",
+      label: "Task",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
+    {
       id: "for-evaluation",
       icon: "📋",
       label: "Evaluation",
