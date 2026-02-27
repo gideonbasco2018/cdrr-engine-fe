@@ -1,6 +1,4 @@
 // FILE: src/components/reports/ReportsDataTable.jsx
-// ✅ ADDED: Sorting functionality with clickable column headers
-// ✅ UPDATED: Made table height responsive to zoom using vh units
 import { useState } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
@@ -8,7 +6,6 @@ import ViewDetailsModal from "./actions/ViewDetailsModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 
-// ✅ Map column keys to database column names for sorting
 const COLUMN_DB_KEY_MAP = {
   dtn: "DB_DTN",
   estCat: "DB_EST_CAT",
@@ -62,6 +59,7 @@ const COLUMN_DB_KEY_MAP = {
   uploadedBy: "DB_USER_UPLOADER",
   uploadedAt: "DB_DATE_EXCEL_UPLOAD",
   dbTimelineCitizenCharter: "DB_TIMELINE_CITIZEN_CHARTER",
+  processingType: "DB_PROCESSING_TYPE",
 };
 
 function ReportsDataTable({
@@ -86,20 +84,14 @@ function ReportsDataTable({
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
-  const [appLogsModalRecord, setAppLogsModalRecord] = useState(null); // ✅ ADDED
+  const [appLogsModalRecord, setAppLogsModalRecord] = useState(null);
 
-  // ✅ Get database column name for sorting
   const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
 
-  // ✅ Handle column header click for sorting
   const handleSort = (colKey) => {
     if (!onSort) return;
     const dbKey = getDbKey(colKey);
-
-    // statusTimeline is computed client-side, can't be sorted server-side
     if (colKey === "statusTimeline") return;
-
-    // Toggle sort order if clicking same column, otherwise default to asc
     if (sortBy === dbKey) {
       onSort(dbKey, sortOrder === "asc" ? "desc" : "asc");
     } else {
@@ -107,12 +99,10 @@ function ReportsDataTable({
     }
   };
 
-  // ✅ Sort indicator component
   const SortIcon = ({ colKey }) => {
     if (colKey === "statusTimeline") return null;
     const dbKey = getDbKey(colKey);
     const isActive = sortBy === dbKey;
-
     return (
       <span
         style={{
@@ -152,7 +142,6 @@ function ReportsDataTable({
     );
   };
 
-  // ✅ Function to calculate status timeline
   const calculateStatusTimeline = (row) => {
     const dateReceivedCent = row.dateReceivedCent;
     const dateReleased = row.dateReleased;
@@ -181,17 +170,13 @@ function ReportsDataTable({
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     const timelineValue = parseInt(timeline, 10);
 
-    if (diffDays <= timelineValue) {
-      return { status: "WITHIN", days: diffDays };
-    } else {
-      return { status: "BEYOND", days: diffDays };
-    }
+    return diffDays <= timelineValue
+      ? { status: "WITHIN", days: diffDays }
+      : { status: "BEYOND", days: diffDays };
   };
 
-  // ✅ Function to render status timeline badge
   const renderStatusTimelineBadge = (row) => {
     const { status, days } = calculateStatusTimeline(row);
-
     if (!status)
       return (
         <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
@@ -221,7 +206,7 @@ function ReportsDataTable({
           Within ({days}d)
         </span>
       );
-    } else if (status === "BEYOND") {
+    } else {
       return (
         <span
           style={{
@@ -244,11 +229,50 @@ function ReportsDataTable({
         </span>
       );
     }
-
-    return status;
   };
 
-  // Menu handlers
+  const renderProcessingTypeBadge = (value) => {
+    if (!value || value === "N/A") {
+      return (
+        <span
+          style={{
+            padding: "0.3rem 0.7rem",
+            background: darkMode
+              ? "rgba(255,255,255,0.06)"
+              : "rgba(0,0,0,0.06)",
+            color: colors.textTertiary,
+            borderRadius: "6px",
+            fontSize: "0.75rem",
+            fontWeight: "500",
+            display: "inline-flex",
+            alignItems: "center",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Regular
+        </span>
+      );
+    }
+    return (
+      <span
+        style={{
+          padding: "0.3rem 0.7rem",
+          background: "linear-gradient(135deg, #2196F3 0%, #1976D2 100%)",
+          color: "#fff",
+          borderRadius: "6px",
+          fontSize: "0.75rem",
+          fontWeight: "600",
+          display: "inline-flex",
+          alignItems: "center",
+          whiteSpace: "nowrap",
+          boxShadow: "0 2px 6px rgba(33,150,243,0.3)",
+        }}
+      >
+        {value}
+      </span>
+    );
+  };
+
   const handleMenuToggle = (rowId) => {
     setOpenMenuId(openMenuId === rowId ? null : rowId);
   };
@@ -264,96 +288,77 @@ function ReportsDataTable({
   };
 
   const handleOpenAppLogsModal = (row) => {
-    // ✅ ADDED
     setOpenMenuId(null);
     setAppLogsModalRecord(row);
   };
 
-  // Modal close handlers
-  const handleCloseDetailsModal = () => {
-    setSelectedRowDetails(null);
-  };
+  const handleCloseDetailsModal = () => setSelectedRowDetails(null);
+  const handleCloseDoctrackModal = () => setDoctrackModalRecord(null);
 
-  const handleCloseDoctrackModal = () => {
-    setDoctrackModalRecord(null);
-  };
+  const renderDTN = (dtn) => (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "0.4rem 0.9rem",
+        background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+        color: "#fff",
+        borderRadius: "8px",
+        fontSize: "0.75rem",
+        fontWeight: "700",
+        letterSpacing: "0.5px",
+        boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {dtn || "N/A"}
+    </span>
+  );
 
-  // ✅ Render DTN with highlight
-  const renderDTN = (dtn) => {
-    return (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          padding: "0.4rem 0.9rem",
-          background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
-          color: "#fff",
-          borderRadius: "8px",
-          fontSize: "0.75rem",
-          fontWeight: "700",
-          letterSpacing: "0.5px",
-          boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
-        }}
-      >
-        <span style={{ fontSize: "0.9rem" }}>🔖</span>
-        <span>{dtn || "N/A"}</span>
-      </span>
-    );
-  };
+  const renderGenericName = (genName) => (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.4rem 0.9rem",
+        background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)",
+        color: "#fff",
+        borderRadius: "8px",
+        fontSize: "0.75rem",
+        fontWeight: "700",
+        letterSpacing: "0.3px",
+        boxShadow: "0 2px 8px rgba(6, 182, 212, 0.3)",
+      }}
+    >
+      <span style={{ fontSize: "0.9rem" }}>💊</span>
+      <span>{genName || "N/A"}</span>
+    </span>
+  );
 
-  // ✅ Render Generic Name with highlight
-  const renderGenericName = (genName) => {
-    return (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          padding: "0.4rem 0.9rem",
-          background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)",
-          color: "#fff",
-          borderRadius: "8px",
-          fontSize: "0.75rem",
-          fontWeight: "700",
-          letterSpacing: "0.3px",
-          boxShadow: "0 2px 8px rgba(6, 182, 212, 0.3)",
-        }}
-      >
-        <span style={{ fontSize: "0.9rem" }}>💊</span>
-        <span>{genName || "N/A"}</span>
-      </span>
-    );
-  };
+  const renderBrandName = (brandName) => (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.4rem 0.9rem",
+        background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+        color: "#fff",
+        borderRadius: "8px",
+        fontSize: "0.75rem",
+        fontWeight: "700",
+        letterSpacing: "0.3px",
+        boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+      }}
+    >
+      <span style={{ fontSize: "0.9rem" }}>🏷️</span>
+      <span>{brandName || "N/A"}</span>
+    </span>
+  );
 
-  // ✅ Render Brand Name with highlight
-  const renderBrandName = (brandName) => {
-    return (
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          padding: "0.4rem 0.9rem",
-          background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-          color: "#fff",
-          borderRadius: "8px",
-          fontSize: "0.75rem",
-          fontWeight: "700",
-          letterSpacing: "0.3px",
-          boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
-        }}
-      >
-        <span style={{ fontSize: "0.9rem" }}>🏷️</span>
-        <span>{brandName || "N/A"}</span>
-      </span>
-    );
-  };
-
-  // ✅ Render Type Doc Released with icons
   const renderTypeDocReleased = (typeDoc) => {
     const typeUpper = typeDoc?.toUpperCase();
-
     if (typeUpper?.includes("CPR")) {
       return (
         <span
@@ -421,7 +426,6 @@ function ReportsDataTable({
         </span>
       );
     }
-
     return (
       <span style={{ fontSize: "0.85rem", color: colors.tableText }}>
         {typeDoc || "N/A"}
@@ -429,146 +433,71 @@ function ReportsDataTable({
     );
   };
 
-  // ✅ Render APP STATUS badges
   const renderAppStatusBadge = (status) => {
     const statusUpper = status?.toUpperCase();
+    const badges = {
+      COMPLETED: {
+        bg: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
+        shadow: "rgba(16, 185, 129, 0.3)",
+        icon: "✓",
+        label: "Completed",
+      },
+      TO_DO: {
+        bg: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+        shadow: "rgba(245, 158, 11, 0.3)",
+        icon: "⏳",
+        label: "To Do",
+      },
+      APPROVED: {
+        bg: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
+        shadow: "rgba(59, 130, 246, 0.3)",
+        icon: "✅",
+        label: "Approved",
+      },
+      PENDING: {
+        bg: "linear-gradient(135deg, #eab308 0%, #ca8a04 100%)",
+        shadow: "rgba(234, 179, 8, 0.3)",
+        icon: "⏸",
+        label: "Pending",
+      },
+      REJECTED: {
+        bg: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+        shadow: "rgba(239, 68, 68, 0.3)",
+        icon: "✗",
+        label: "Rejected",
+      },
+    };
 
-    if (statusUpper === "COMPLETED") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>✓</span>
-          Completed
-        </span>
-      );
-    } else if (statusUpper === "TO_DO") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>⏳</span>
-          To Do
-        </span>
-      );
-    } else if (statusUpper === "APPROVED") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>✅</span>
-          Approved
-        </span>
-      );
-    } else if (statusUpper === "PENDING") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #eab308 0%, #ca8a04 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(234, 179, 8, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>⏸</span>
-          Pending
-        </span>
-      );
-    } else if (statusUpper === "REJECTED") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>✗</span>
-          Rejected
-        </span>
-      );
-    }
+    const badge = badges[statusUpper] || {
+      bg: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
+      shadow: "rgba(107, 114, 128, 0.3)",
+      icon: "•",
+      label: status || "N/A",
+    };
 
     return (
       <span
         style={{
           padding: "0.4rem 0.9rem",
-          background: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
+          background: badge.bg,
           color: "#fff",
           borderRadius: "8px",
           fontSize: "0.75rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
-          boxShadow: "0 2px 8px rgba(107, 114, 128, 0.3)",
+          boxShadow: `0 2px 8px ${badge.shadow}`,
           display: "inline-flex",
           alignItems: "center",
           gap: "0.4rem",
         }}
       >
-        <span style={{ fontSize: "0.9rem" }}>•</span>
-        {status || "N/A"}
+        <span style={{ fontSize: "0.9rem" }}>{badge.icon}</span>
+        {badge.label}
       </span>
     );
   };
 
-  // ✅ Find current sort column label
   const activeSortLabel = (() => {
     const entry = Object.entries(COLUMN_DB_KEY_MAP).find(
       ([, dbKey]) => dbKey === sortBy,
@@ -577,6 +506,53 @@ function ReportsDataTable({
     const col = tableColumns.find((c) => c.key === entry[0]);
     return col?.label || sortBy;
   })();
+
+  const renderCell = (col, row) => {
+    switch (col.key) {
+      case "dtn":
+        return renderDTN(row[col.key]);
+      case "prodGenName":
+        return renderGenericName(row[col.key]);
+      case "prodBrName":
+        return renderBrandName(row[col.key]);
+      case "appStatus":
+        return renderAppStatusBadge(row[col.key]);
+      case "statusTimeline":
+        return renderStatusTimelineBadge(row);
+      case "dbTimelineCitizenCharter":
+        return row.dbTimelineCitizenCharter || "N/A";
+      case "typeDocReleased":
+        return renderTypeDocReleased(row[col.key]);
+      case "processingType":
+        return renderProcessingTypeBadge(row[col.key]);
+      default:
+        return row[col.key];
+    }
+  };
+
+  // ✅ Helper: get sticky styles for frozen columns using frozenLeft from tableColumns
+  const getFrozenThStyle = (col) => {
+    if (!col.frozen) return {};
+    return {
+      position: "sticky",
+      left: col.frozenLeft,
+      background: col.headerBg || colors.tableBg,
+      zIndex: 21,
+      boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
+    };
+  };
+
+  const getFrozenTdStyle = (col, rowBg) => {
+    if (!col.frozen) return {};
+    return {
+      position: "sticky",
+      left: col.frozenLeft,
+      background: rowBg,
+      zIndex: 9,
+      fontWeight: "600",
+      boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
+    };
+  };
 
   return (
     <>
@@ -589,7 +565,7 @@ function ReportsDataTable({
           transition: "all 0.3s ease",
         }}
       >
-        {/* ✅ Header with sort indicator */}
+        {/* Header */}
         <div
           style={{
             padding: "1rem 1.5rem",
@@ -625,7 +601,6 @@ function ReportsDataTable({
             </span>
           </div>
 
-          {/* ✅ Active sort indicator */}
           {sortBy && (
             <span
               style={{
@@ -646,7 +621,6 @@ function ReportsDataTable({
           )}
         </div>
 
-        {/* ✅ RESPONSIVE: Uses vh units for zoom-responsive height */}
         <div
           style={{
             overflowX: "auto",
@@ -671,7 +645,7 @@ function ReportsDataTable({
               }}
             >
               <tr>
-                {/* Number column - not sortable */}
+                {/* # column */}
                 <th
                   style={{
                     padding: "1rem",
@@ -686,14 +660,13 @@ function ReportsDataTable({
                     position: "sticky",
                     left: 0,
                     background: colors.tableBg,
-                    zIndex: 21,
-                    boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                    zIndex: 22,
+                    boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
                   }}
                 >
                   #
                 </th>
 
-                {/* ✅ Data columns - all sortable except statusTimeline */}
                 {tableColumns.map((col) => (
                   <th
                     key={col.key}
@@ -707,20 +680,14 @@ function ReportsDataTable({
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       borderBottom: `1px solid ${colors.tableBorder}`,
-                      minWidth: col.key === "dtn" ? "180px" : col.width,
+                      minWidth: col.width,
                       whiteSpace: "nowrap",
                       background: col.headerBg || colors.tableBg,
                       cursor:
                         col.key !== "statusTimeline" ? "pointer" : "default",
                       userSelect: "none",
                       transition: "background 0.15s",
-                      ...(col.frozen && {
-                        position: "sticky",
-                        left: "60px",
-                        background: col.headerBg || colors.tableBg,
-                        zIndex: 21,
-                        boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
-                      }),
+                      ...getFrozenThStyle(col),
                     }}
                     onMouseEnter={(e) => {
                       if (col.key !== "statusTimeline") {
@@ -743,7 +710,7 @@ function ReportsDataTable({
                   </th>
                 ))}
 
-                {/* Actions column - not sortable */}
+                {/* Actions column */}
                 <th
                   style={{
                     padding: "1rem",
@@ -770,16 +737,13 @@ function ReportsDataTable({
 
             <tbody>
               {data.map((row, index) => {
-                let rowBg =
+                const rowBg =
                   index % 2 === 0 ? colors.tableRowEven : colors.tableRowOdd;
 
                 return (
                   <tr
                     key={row.id}
-                    style={{
-                      background: rowBg,
-                      transition: "background 0.2s",
-                    }}
+                    style={{ background: rowBg, transition: "background 0.2s" }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = colors.tableRowHover;
                     }}
@@ -787,6 +751,7 @@ function ReportsDataTable({
                       e.currentTarget.style.background = rowBg;
                     }}
                   >
+                    {/* Row number */}
                     <td
                       style={{
                         padding: "1rem",
@@ -798,8 +763,8 @@ function ReportsDataTable({
                         position: "sticky",
                         left: 0,
                         background: rowBg,
-                        zIndex: 9,
-                        boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                        zIndex: 10,
+                        boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
                       }}
                     >
                       {indexOfFirstRow + index}
@@ -815,35 +780,15 @@ function ReportsDataTable({
                           borderBottom: `1px solid ${colors.tableBorder}`,
                           whiteSpace: "normal",
                           wordBreak: "break-word",
-                          minWidth: col.key === "dtn" ? "180px" : col.width,
-                          ...(col.frozen && {
-                            position: "sticky",
-                            left: "60px",
-                            background: rowBg,
-                            zIndex: 9,
-                            fontWeight: "600",
-                            boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
-                          }),
+                          minWidth: col.width,
+                          ...getFrozenTdStyle(col, rowBg),
                         }}
                       >
-                        {col.key === "dtn"
-                          ? renderDTN(row[col.key])
-                          : col.key === "prodGenName"
-                            ? renderGenericName(row[col.key])
-                            : col.key === "prodBrName"
-                              ? renderBrandName(row[col.key])
-                              : col.key === "appStatus"
-                                ? renderAppStatusBadge(row[col.key])
-                                : col.key === "statusTimeline"
-                                  ? renderStatusTimelineBadge(row)
-                                  : col.key === "dbTimelineCitizenCharter"
-                                    ? row.dbTimelineCitizenCharter || "N/A"
-                                    : col.key === "typeDocReleased"
-                                      ? renderTypeDocReleased(row[col.key])
-                                      : row[col.key]}
+                        {renderCell(col, row)}
                       </td>
                     ))}
 
+                    {/* Actions */}
                     <td
                       style={{
                         padding: "1rem",
@@ -892,7 +837,6 @@ function ReportsDataTable({
                                 zIndex: 9998,
                               }}
                             />
-
                             <div
                               style={{
                                 position: "fixed",
@@ -907,95 +851,57 @@ function ReportsDataTable({
                                 overflow: "visible",
                               }}
                             >
-                              {/* ✅ ADDED: Application Logs */}
-                              <button
-                                onClick={() => handleOpenAppLogsModal(row)}
-                                style={{
-                                  width: "100%",
-                                  padding: "0.75rem 1rem",
-                                  background: "transparent",
-                                  border: "none",
-                                  color: colors.textPrimary,
-                                  fontSize: "0.85rem",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background =
-                                    colors.tableRowHover)
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
-                                }
-                              >
-                                <span>📦</span>
-                                <span>Application Logs</span>
-                              </button>
-
-                              <button
-                                onClick={() => handleOpenDoctrackModal(row)}
-                                style={{
-                                  width: "100%",
-                                  padding: "0.75rem 1rem",
-                                  background: "transparent",
-                                  border: "none",
-                                  borderTop: `1px solid ${colors.tableBorder}`,
-                                  color: colors.textPrimary,
-                                  fontSize: "0.85rem",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background =
-                                    colors.tableRowHover)
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
-                                }
-                              >
-                                <span>📋</span>
-                                <span>View Doctrack Details</span>
-                              </button>
-
-                              <button
-                                onClick={() => handleViewDetails(row)}
-                                style={{
-                                  width: "100%",
-                                  padding: "0.75rem 1rem",
-                                  background: "transparent",
-                                  border: "none",
-                                  borderTop: `1px solid ${colors.tableBorder}`,
-                                  color: colors.textPrimary,
-                                  fontSize: "0.85rem",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background =
-                                    colors.tableRowHover)
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
-                                }
-                              >
-                                <span>👁️</span>
-                                <span>View Details</span>
-                              </button>
+                              {[
+                                {
+                                  label: "Application Logs",
+                                  icon: "📦",
+                                  handler: () => handleOpenAppLogsModal(row),
+                                },
+                                {
+                                  label: "View Doctrack Details",
+                                  icon: "📋",
+                                  handler: () => handleOpenDoctrackModal(row),
+                                },
+                                {
+                                  label: "View Details",
+                                  icon: "👁️",
+                                  handler: () => handleViewDetails(row),
+                                },
+                              ].map((item, i) => (
+                                <button
+                                  key={item.label}
+                                  onClick={item.handler}
+                                  style={{
+                                    width: "100%",
+                                    padding: "0.75rem 1rem",
+                                    background: "transparent",
+                                    border: "none",
+                                    borderTop:
+                                      i > 0
+                                        ? `1px solid ${colors.tableBorder}`
+                                        : "none",
+                                    color: colors.textPrimary,
+                                    fontSize: "0.85rem",
+                                    textAlign: "left",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "0.5rem",
+                                    transition: "background 0.2s",
+                                  }}
+                                  onMouseEnter={(e) =>
+                                    (e.currentTarget.style.background =
+                                      colors.tableRowHover)
+                                  }
+                                  onMouseLeave={(e) =>
+                                    (e.currentTarget.style.background =
+                                      "transparent")
+                                  }
+                                >
+                                  <span>{item.icon}</span>
+                                  <span>{item.label}</span>
+                                </button>
+                              ))}
                             </div>
                           </>
                         )}
@@ -1021,7 +927,6 @@ function ReportsDataTable({
         />
       </div>
 
-      {/* ✅ ADDED: Application Logs Modal */}
       {appLogsModalRecord && (
         <ApplicationLogsModal
           record={appLogsModalRecord}

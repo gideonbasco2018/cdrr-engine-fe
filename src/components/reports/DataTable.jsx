@@ -1,11 +1,4 @@
 // src/components/UploadReports/DataTable.jsx
-// ✅ FIXED: Pagination moved OUTSIDE scrollable container so it's always visible
-// ✅ ADDED: Sorting functionality with clickable column headers
-// ✅ UPDATED: Removed "Complete Evaluation" from action menu
-// ✅ UPDATED: "Deck Application" only visible on Not Yet Decked tab (activeTab === "not-decked")
-// ✅ UPDATED: "Application Logs" visible on Decked and All Reports tabs
-// ✅ UPDATED: Tab order → Not Yet Decked → Decked → All Reports
-
 import { useState } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
@@ -16,7 +9,6 @@ import BulkDeckModal from "./actions/BulkDeckModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 
-// ✅ Map column keys to database column names for sorting
 const COLUMN_DB_KEY_MAP = {
   dtn: "DB_DTN",
   estCat: "DB_EST_CAT",
@@ -70,9 +62,9 @@ const COLUMN_DB_KEY_MAP = {
   uploadedBy: "DB_USER_UPLOADER",
   uploadedAt: "DB_DATE_EXCEL_UPLOAD",
   dbTimelineCitizenCharter: "DB_TIMELINE_CITIZEN_CHARTER",
+  processingType: "DB_PROCESSING_TYPE",
 };
 
-// ✅ Tab order: Not Yet Decked → Decked → All Reports
 export const TAB_ORDER = [
   { key: "not-decked", label: "Not Yet Decked" },
   { key: "decked", label: "Decked" },
@@ -98,10 +90,13 @@ function DataTable({
   indexOfLastRow,
   onEdit,
   darkMode,
-  // ✅ Sorting props
   onSort,
   sortBy,
   sortOrder,
+  // ✅ Processing type sub-tab props
+  processingTypeTab,
+  onProcessingTypeTabChange,
+  availableProcessingTypes = [],
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
@@ -111,14 +106,11 @@ function DataTable({
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
   const [appLogsRecord, setAppLogsRecord] = useState(null);
 
-  // ✅ Tab flags
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
 
-  // ✅ Get database column name for sorting
   const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
 
-  // ✅ Handle column header click for sorting
   const handleSort = (colKey) => {
     if (!onSort) return;
     if (colKey === "statusTimeline") return;
@@ -130,7 +122,6 @@ function DataTable({
     }
   };
 
-  // ✅ Sort indicator component
   const SortIcon = ({ colKey }) => {
     if (colKey === "statusTimeline") return null;
     const dbKey = getDbKey(colKey);
@@ -174,7 +165,6 @@ function DataTable({
     );
   };
 
-  // ✅ Find current sort column label
   const activeSortLabel = (() => {
     const entry = Object.entries(COLUMN_DB_KEY_MAP).find(
       ([, dbKey]) => dbKey === sortBy,
@@ -184,12 +174,10 @@ function DataTable({
     return col?.label || sortBy;
   })();
 
-  // ✅ Function to calculate status timeline
   const calculateStatusTimeline = (row) => {
     const dateReceivedCent = row.dateReceivedCent;
     const dateReleased = row.dateReleased;
     const timeline = row.dbTimelineCitizenCharter;
-
     if (
       !dateReceivedCent ||
       !timeline ||
@@ -198,37 +186,29 @@ function DataTable({
     ) {
       return { status: "", days: 0 };
     }
-
     const receivedDate = new Date(dateReceivedCent);
     const endDate =
       dateReleased && dateReleased !== "N/A"
         ? new Date(dateReleased)
         : new Date();
-
-    if (isNaN(receivedDate.getTime()) || isNaN(endDate.getTime())) {
+    if (isNaN(receivedDate.getTime()) || isNaN(endDate.getTime()))
       return { status: "", days: 0 };
-    }
-
     const diffTime = Math.abs(endDate - receivedDate);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     const timelineValue = parseInt(timeline, 10);
-
     return diffDays <= timelineValue
       ? { status: "WITHIN", days: diffDays }
       : { status: "BEYOND", days: diffDays };
   };
 
-  // ✅ Function to render status timeline badge
   const renderStatusTimelineBadge = (row) => {
     const { status, days } = calculateStatusTimeline(row);
-
     if (!status)
       return (
         <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
           N/A
         </span>
       );
-
     const isWithin = status === "WITHIN";
     return (
       <span
@@ -253,6 +233,49 @@ function DataTable({
       >
         <span style={{ fontSize: "0.9rem" }}>{isWithin ? "✓" : "⚠"}</span>
         {isWithin ? `Within (${days}d)` : `Beyond (${days}d)`}
+      </span>
+    );
+  };
+
+  // ✅ Processing Type badge
+  const renderProcessingTypeBadge = (value) => {
+    if (!value || value === "N/A") {
+      return (
+        <span
+          style={{
+            padding: "0.3rem 0.7rem",
+            background: darkMode
+              ? "rgba(255,255,255,0.06)"
+              : "rgba(0,0,0,0.06)",
+            color: colors.textTertiary,
+            borderRadius: "6px",
+            fontSize: "0.75rem",
+            fontWeight: "500",
+            display: "inline-flex",
+            alignItems: "center",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Regular
+        </span>
+      );
+    }
+    return (
+      <span
+        style={{
+          padding: "0.3rem 0.7rem",
+          background: "linear-gradient(135deg, #2196F3 0%, #1976D2 100%)",
+          color: "#fff",
+          borderRadius: "6px",
+          fontSize: "0.75rem",
+          fontWeight: "600",
+          display: "inline-flex",
+          alignItems: "center",
+          whiteSpace: "nowrap",
+          boxShadow: "0 2px 6px rgba(33,150,243,0.3)",
+        }}
+      >
+        {value}
       </span>
     );
   };
@@ -303,7 +326,6 @@ function DataTable({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.5rem",
         padding: "0.4rem 0.9rem",
         background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
         color: "#fff",
@@ -312,10 +334,10 @@ function DataTable({
         fontWeight: "700",
         letterSpacing: "0.5px",
         boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+        whiteSpace: "nowrap",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>🔖</span>
-      <span>{dtn || "N/A"}</span>
+      {dtn || "N/A"}
     </span>
   );
 
@@ -496,6 +518,86 @@ function DataTable({
     );
   };
 
+  // ✅ Central cell renderer
+  const renderCell = (col, row) => {
+    switch (col.key) {
+      case "dtn":
+        return renderDTN(row[col.key]);
+      case "processingType":
+        return renderProcessingTypeBadge(row[col.key]);
+      case "prodGenName":
+        return renderGenericName(row[col.key]);
+      case "prodBrName":
+        return renderBrandName(row[col.key]);
+      case "appStatus":
+        return renderAppStatusBadge(row[col.key]);
+      case "statusTimeline":
+        return renderStatusTimelineBadge(row);
+      case "dbTimelineCitizenCharter":
+        return row.dbTimelineCitizenCharter || "N/A";
+      case "typeDocReleased":
+        return renderTypeDocReleased(row[col.key]);
+      default:
+        return row[col.key];
+    }
+  };
+
+  // ✅ Frozen column style helpers using frozenLeft from tableColumns
+  const getFrozenThStyle = (col) => {
+    if (!col.frozen) return {};
+    return {
+      position: "sticky",
+      left: col.frozenLeft,
+      background: col.headerBg || colors.tableBg,
+      zIndex: 21,
+      boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
+    };
+  };
+
+  const getFrozenTdStyle = (col, rowBg) => {
+    if (!col.frozen) return {};
+    return {
+      position: "sticky",
+      left: col.frozenLeft,
+      background: rowBg,
+      zIndex: 9,
+      fontWeight: "600",
+      boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
+    };
+  };
+
+  // ✅ Processing type sub-tab styles
+  const subTabStyle = (isActive) => ({
+    padding: "0.4rem 1rem",
+    fontSize: "0.8rem",
+    background: "transparent",
+    border: "none",
+    borderBottom: isActive ? "2px solid #2196F3" : "2px solid transparent",
+    color: isActive ? colors.textPrimary : colors.textTertiary,
+    fontWeight: isActive ? "600" : "400",
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.4rem",
+    whiteSpace: "nowrap",
+    transition: "all 0.2s ease",
+  });
+
+  const subTabBadgeStyle = (isActive) => ({
+    padding: "0.15rem 0.5rem",
+    background: isActive ? "#2196F3" : darkMode ? "#1f1f1f" : "#e5e5e5",
+    color: isActive ? "#fff" : colors.textTertiary,
+    borderRadius: "10px",
+    fontSize: "0.7rem",
+    fontWeight: "600",
+  });
+
+  // ✅ Build processing type sub-tab items
+  const regularItem = availableProcessingTypes.find((p) => !p.value);
+  const namedProcessingTypes = availableProcessingTypes.filter((p) => p.value);
+  const showSubTabs =
+    availableProcessingTypes.length > 0 && onProcessingTypeTabChange;
+
   return (
     <>
       <div
@@ -519,6 +621,7 @@ function DataTable({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexShrink: 0,
           }}
         >
           <div
@@ -550,7 +653,6 @@ function DataTable({
           <div
             style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
           >
-            {/* ✅ Active sort indicator */}
             {sortBy && (
               <span
                 style={{
@@ -591,7 +693,6 @@ function DataTable({
                   {selectedRows.length} selected
                 </span>
 
-                {/* ✅ Bulk Deck button — only on Not Yet Decked tab */}
                 {isNotYetDeckedTab && (
                   <button
                     onClick={() => {
@@ -657,6 +758,61 @@ function DataTable({
           </div>
         </div>
 
+        {/* ✅ Processing Type Sub-Tabs (2nd row) */}
+        {showSubTabs && (
+          <div
+            style={{
+              display: "flex",
+              gap: "0",
+              borderBottom: `1px solid ${colors.cardBorder}`,
+              paddingLeft: "1rem",
+              overflowX: "auto",
+              flexShrink: 0,
+              background: colors.cardBg,
+            }}
+          >
+            {/* All tab */}
+            <button
+              onClick={() => onProcessingTypeTabChange(null)}
+              style={subTabStyle(processingTypeTab === null)}
+            >
+              <span>All</span>
+              <span style={subTabBadgeStyle(processingTypeTab === null)}>
+                {totalRecords}
+              </span>
+            </button>
+
+            {/* Regular tab */}
+            {regularItem && (
+              <button
+                onClick={() => onProcessingTypeTabChange("__REGULAR__")}
+                style={subTabStyle(processingTypeTab === "__REGULAR__")}
+              >
+                <span>Regular</span>
+                <span
+                  style={subTabBadgeStyle(processingTypeTab === "__REGULAR__")}
+                >
+                  {regularItem.count}
+                </span>
+              </button>
+            )}
+
+            {/* Named processing types */}
+            {namedProcessingTypes.map((pt) => (
+              <button
+                key={pt.value}
+                onClick={() => onProcessingTypeTabChange(pt.value)}
+                style={subTabStyle(processingTypeTab === pt.value)}
+              >
+                <span>{pt.value}</span>
+                <span style={subTabBadgeStyle(processingTypeTab === pt.value)}>
+                  {pt.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* ✅ SCROLLABLE TABLE */}
         <div
           style={{
@@ -697,8 +853,8 @@ function DataTable({
                     position: "sticky",
                     left: 0,
                     background: colors.tableBg,
-                    zIndex: 21,
-                    boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                    zIndex: 22,
+                    boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
                   }}
                 >
                   <input
@@ -731,14 +887,13 @@ function DataTable({
                     position: "sticky",
                     left: "50px",
                     background: colors.tableBg,
-                    zIndex: 21,
-                    boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                    zIndex: 22,
+                    boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
                   }}
                 >
                   #
                 </th>
 
-                {/* ✅ Data columns — sortable */}
                 {tableColumns.map((col) => (
                   <th
                     key={col.key}
@@ -752,20 +907,14 @@ function DataTable({
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       borderBottom: `1px solid ${colors.tableBorder}`,
-                      minWidth: col.key === "dtn" ? "180px" : col.width,
+                      minWidth: col.width,
                       whiteSpace: "nowrap",
                       background: col.headerBg || colors.tableBg,
                       cursor:
                         col.key !== "statusTimeline" ? "pointer" : "default",
                       userSelect: "none",
                       transition: "background 0.15s",
-                      ...(col.frozen && {
-                        position: "sticky",
-                        left: "110px",
-                        background: col.headerBg || colors.tableBg,
-                        zIndex: 21,
-                        boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
-                      }),
+                      ...getFrozenThStyle(col),
                     }}
                     onMouseEnter={(e) => {
                       if (col.key !== "statusTimeline")
@@ -815,7 +964,7 @@ function DataTable({
             <tbody>
               {data.map((row, index) => {
                 const isSelected = selectedRows.includes(row.id);
-                let rowBg = isSelected
+                const rowBg = isSelected
                   ? "#4CAF5015"
                   : index % 2 === 0
                     ? colors.tableRowEven
@@ -839,6 +988,7 @@ function DataTable({
                       e.currentTarget.style.background = rowBg;
                     }}
                   >
+                    {/* Checkbox */}
                     <td
                       style={{
                         padding: "1rem",
@@ -846,8 +996,8 @@ function DataTable({
                         position: "sticky",
                         left: 0,
                         background: rowBg,
-                        zIndex: 9,
-                        boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                        zIndex: 10,
+                        boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
                       }}
                     >
                       <input
@@ -862,6 +1012,8 @@ function DataTable({
                         }}
                       />
                     </td>
+
+                    {/* Row number */}
                     <td
                       style={{
                         padding: "1rem",
@@ -873,8 +1025,8 @@ function DataTable({
                         position: "sticky",
                         left: "50px",
                         background: rowBg,
-                        zIndex: 9,
-                        boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                        zIndex: 10,
+                        boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
                       }}
                     >
                       {indexOfFirstRow + index}
@@ -890,36 +1042,15 @@ function DataTable({
                           borderBottom: `1px solid ${colors.tableBorder}`,
                           whiteSpace: "normal",
                           wordBreak: "break-word",
-                          minWidth: col.key === "dtn" ? "180px" : col.width,
-                          ...(col.frozen && {
-                            position: "sticky",
-                            left: "110px",
-                            background: rowBg,
-                            zIndex: 9,
-                            fontWeight: "600",
-                            boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
-                          }),
+                          minWidth: col.width,
+                          ...getFrozenTdStyle(col, rowBg),
                         }}
                       >
-                        {col.key === "dtn"
-                          ? renderDTN(row[col.key])
-                          : col.key === "prodGenName"
-                            ? renderGenericName(row[col.key])
-                            : col.key === "prodBrName"
-                              ? renderBrandName(row[col.key])
-                              : col.key === "appStatus"
-                                ? renderAppStatusBadge(row[col.key])
-                                : col.key === "statusTimeline"
-                                  ? renderStatusTimelineBadge(row)
-                                  : col.key === "dbTimelineCitizenCharter"
-                                    ? row.dbTimelineCitizenCharter || "N/A"
-                                    : col.key === "typeDocReleased"
-                                      ? renderTypeDocReleased(row[col.key])
-                                      : row[col.key]}
+                        {renderCell(col, row)}
                       </td>
                     ))}
 
-                    {/* ✅ ACTIONS CELL */}
+                    {/* Actions */}
                     <td
                       style={{
                         padding: "1rem",
@@ -982,7 +1113,6 @@ function DataTable({
                                 overflow: "visible",
                               }}
                             >
-                              {/* ✅ Deck Application — ONLY on Not Yet Decked tab */}
                               {isNotYetDeckedTab && (
                                 <button
                                   onClick={() => handleOpenDeckModal(row)}
@@ -1014,7 +1144,6 @@ function DataTable({
                                 </button>
                               )}
 
-                              {/* ✅ Application Logs — ONLY on Decked and All Reports tabs */}
                               {showAppLogs && (
                                 <button
                                   onClick={() => handleOpenAppLogs(row)}
@@ -1046,142 +1175,83 @@ function DataTable({
                                 </button>
                               )}
 
-                              {/* ✅ View Doctrack Details */}
-                              <button
-                                onClick={() => handleOpenDoctrackModal(row)}
-                                style={{
-                                  width: "100%",
-                                  padding: "0.75rem 1rem",
-                                  background: "transparent",
-                                  border: "none",
-                                  borderTop:
-                                    isNotYetDeckedTab || showAppLogs
+                              {[
+                                {
+                                  label: "View Doctrack Details",
+                                  icon: "📋",
+                                  handler: () => handleOpenDoctrackModal(row),
+                                  borderTop: true,
+                                  color: colors.textPrimary,
+                                  hoverBg: colors.tableRowHover,
+                                },
+                                {
+                                  label: "View Details",
+                                  icon: "👁️",
+                                  handler: () => handleViewDetails(row),
+                                  borderTop: true,
+                                  color: colors.textPrimary,
+                                  hoverBg: colors.tableRowHover,
+                                },
+                                {
+                                  label: "Edit",
+                                  icon: "✏️",
+                                  handler: () => handleEditClick(row),
+                                  borderTop: true,
+                                  color: "#2196F3",
+                                  hoverBg: "rgba(33, 150, 243, 0.1)",
+                                },
+                                {
+                                  label: "Delete",
+                                  icon: "🗑️",
+                                  handler: () => {
+                                    setOpenMenuId(null);
+                                    if (
+                                      confirm(
+                                        `Delete record for DTN: ${row.dtn}?`,
+                                      )
+                                    )
+                                      alert(
+                                        "Delete functionality not yet implemented",
+                                      );
+                                  },
+                                  borderTop: true,
+                                  color: "#ef4444",
+                                  hoverBg: "#ef444410",
+                                },
+                              ].map((item) => (
+                                <button
+                                  key={item.label}
+                                  onClick={item.handler}
+                                  style={{
+                                    width: "100%",
+                                    padding: "0.75rem 1rem",
+                                    background: "transparent",
+                                    border: "none",
+                                    borderTop: item.borderTop
                                       ? `1px solid ${colors.tableBorder}`
                                       : "none",
-                                  color: colors.textPrimary,
-                                  fontSize: "0.85rem",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background =
-                                    colors.tableRowHover)
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
-                                }
-                              >
-                                <span>📋</span>
-                                <span>View Doctrack Details</span>
-                              </button>
-
-                              {/* ✅ View Details */}
-                              <button
-                                onClick={() => handleViewDetails(row)}
-                                style={{
-                                  width: "100%",
-                                  padding: "0.75rem 1rem",
-                                  background: "transparent",
-                                  border: "none",
-                                  borderTop: `1px solid ${colors.tableBorder}`,
-                                  color: colors.textPrimary,
-                                  fontSize: "0.85rem",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background =
-                                    colors.tableRowHover)
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
-                                }
-                              >
-                                <span>👁️</span>
-                                <span>View Details</span>
-                              </button>
-
-                              {/* ✅ Edit */}
-                              <button
-                                onClick={() => handleEditClick(row)}
-                                style={{
-                                  width: "100%",
-                                  padding: "0.75rem 1rem",
-                                  background: "transparent",
-                                  border: "none",
-                                  borderTop: `1px solid ${colors.tableBorder}`,
-                                  color: "#2196F3",
-                                  fontSize: "0.85rem",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "rgba(33, 150, 243, 0.1)")
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
-                                }
-                              >
-                                <span>✏️</span>
-                                <span>Edit</span>
-                              </button>
-
-                              {/* ✅ Delete */}
-                              <button
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  if (
-                                    confirm(
-                                      `Delete record for DTN: ${row.dtn}?`,
-                                    )
-                                  )
-                                    alert(
-                                      "Delete functionality not yet implemented",
-                                    );
-                                }}
-                                style={{
-                                  width: "100%",
-                                  padding: "0.75rem 1rem",
-                                  background: "transparent",
-                                  border: "none",
-                                  borderTop: `1px solid ${colors.tableBorder}`,
-                                  color: "#ef4444",
-                                  fontSize: "0.85rem",
-                                  textAlign: "left",
-                                  cursor: "pointer",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                  transition: "background 0.2s",
-                                }}
-                                onMouseEnter={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "#ef444410")
-                                }
-                                onMouseLeave={(e) =>
-                                  (e.currentTarget.style.background =
-                                    "transparent")
-                                }
-                              >
-                                <span>🗑️</span>
-                                <span>Delete</span>
-                              </button>
+                                    color: item.color,
+                                    fontSize: "0.85rem",
+                                    textAlign: "left",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "0.5rem",
+                                    transition: "background 0.2s",
+                                  }}
+                                  onMouseEnter={(e) =>
+                                    (e.currentTarget.style.background =
+                                      item.hoverBg)
+                                  }
+                                  onMouseLeave={(e) =>
+                                    (e.currentTarget.style.background =
+                                      "transparent")
+                                  }
+                                >
+                                  <span>{item.icon}</span>
+                                  <span>{item.label}</span>
+                                </button>
+                              ))}
                             </div>
                           </>
                         )}
@@ -1215,7 +1285,7 @@ function DataTable({
         </div>
       </div>
 
-      {/* ✅ Modals */}
+      {/* Modals */}
       {deckModalRecord && (
         <DeckModal
           record={deckModalRecord}
@@ -1247,7 +1317,6 @@ function DataTable({
           darkMode={darkMode}
         />
       )}
-      {/* ✅ Application Logs Modal */}
       {appLogsRecord && (
         <ApplicationLogsModal
           record={appLogsRecord}

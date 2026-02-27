@@ -63,6 +63,7 @@ function TaskPage({ darkMode }) {
     appType: "",
     prescription: "",
     appStatus: "",
+    processingType: "",
   });
 
   const colors = getColorScheme(darkMode);
@@ -140,7 +141,10 @@ function TaskPage({ darkMode }) {
           !filters.prescription ||
           r.prodClassPrescript === filters.prescription;
         const mst = !filters.appStatus || r.appStatus === filters.appStatus;
-        return ms && ma && mp && mst;
+        const mpt =
+          !filters.processingType ||
+          r.processingType === filters.processingType;
+        return ms && ma && mp && mst && mpt;
       }),
     [tabData, filters],
   );
@@ -170,7 +174,8 @@ function TaskPage({ darkMode }) {
     filters.search ||
     filters.appType ||
     filters.prescription ||
-    filters.appStatus;
+    filters.appStatus ||
+    filters.processingType;
 
   return (
     <div
@@ -332,6 +337,13 @@ function TaskPage({ darkMode }) {
                 colors={colors}
               />
             )}
+            {filters.processingType && (
+              <Chip
+                label={`Processing Type: ${filters.processingType}`}
+                onRemove={() => setFilters({ ...filters, processingType: "" })}
+                colors={colors}
+              />
+            )}
             <button
               onClick={() =>
                 setFilters({
@@ -339,6 +351,7 @@ function TaskPage({ darkMode }) {
                   appType: "",
                   prescription: "",
                   appStatus: "",
+                  processingType: "",
                 })
               }
               style={{

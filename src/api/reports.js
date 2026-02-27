@@ -51,15 +51,17 @@ export const getUploadReports = async ({
 };
 
 // ✅ Fetch unique application types with counts
-export const getAppTypes = async (status = null) => {
+// ✅ UPDATED: added processingType so sidebar counts filter correctly when a processing tab is active
+export const getAppTypes = async (status = null, processingType = null) => {
   const params = {};
   if (status) params.status = status;
-  
+  if (processingType !== null) params.processing_type = processingType;
+
   const response = await API.get("/main-db/app-types", { params });
   return response.data.app_types;
 };
 
-// ✅ Fetch unique processing types with counts
+// ✅ Fetch unique processing types with counts (always unfiltered — drives the tabs)
 export const getProcessingTypes = async (status = null) => {
   const params = {};
   if (status) params.status = status;
@@ -70,7 +72,7 @@ export const getProcessingTypes = async (status = null) => {
 
 export const uploadExcelFile = async (file, username = 'system') => {
   const formData = new FormData();
-  formData.append('file', file); // ✅ file must be a File object, NOT a string
+  formData.append('file', file);
 
   const response = await API.post(
     `/main-db/upload-excel?username=${username}`,
@@ -86,18 +88,33 @@ export const uploadExcelFile = async (file, username = 'system') => {
 };
 
 // ✅ Fetch unique prescription types with counts
-export const getPrescriptionTypes = async (status = null, appType = null) => {
+// ✅ UPDATED: added processingType so sidebar counts filter correctly when a processing tab is active
+export const getPrescriptionTypes = async (
+  status = null,
+  appType = null,
+  processingType = null  // ✅ NEW
+) => {
   const params = {};
   if (status) params.status = status;
   if (appType !== null) {
     params.app_type = appType === "" ? "__EMPTY__" : appType;
   }
-  
+  if (processingType !== null) {
+    params.processing_type = processingType;
+  }
+
   const response = await API.get("/main-db/prescription-types", { params });
   return response.data.prescription_types;
 };
 
-export const getAppStatusTypes = async (status = null, appType = null, prescription = null) => {
+// ✅ Fetch unique app status types with counts
+// ✅ UPDATED: added processingType so sidebar counts filter correctly when a processing tab is active
+export const getAppStatusTypes = async (
+  status = null,
+  appType = null,
+  prescription = null,
+  processingType = null  // ✅ NEW
+) => {
   const params = {};
   if (status) params.status = status;
   if (appType !== null) {
@@ -106,25 +123,27 @@ export const getAppStatusTypes = async (status = null, appType = null, prescript
   if (prescription !== null) {
     params.prescription = prescription === "" ? "__EMPTY__" : prescription;
   }
-  
+  if (processingType !== null) {
+    params.processing_type = processingType;
+  }
+
   const response = await API.get("/main-db/app-status-types", { params });
   return response.data.app_status_types;
 };
 
 // ✅ Fetch unique establishment categories with counts
 export const getEstablishmentCategories = async (
-  status = null, 
-  appType = null, 
-  prescription = null, 
+  status = null,
+  appType = null,
+  prescription = null,
   appStatus = null
 ) => {
   const params = {};
   if (status) params.status = status;
-  // ✅ Consistent __EMPTY__ handling
   if (appType !== null) params.app_type = appType === "" ? "__EMPTY__" : appType;
   if (prescription !== null) params.prescription = prescription === "" ? "__EMPTY__" : prescription;
   if (appStatus !== null) params.app_status = appStatus === "" ? "__EMPTY__" : appStatus;
-  
+
   const response = await API.get("/main-db/establishment-categories", { params });
   return response.data.categories;
 };
@@ -133,7 +152,7 @@ export const downloadTemplate = async () => {
   const response = await API.get('/main-db/download-template', {
     responseType: 'blob',
   });
-  
+
   const url = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
   link.href = url;
@@ -181,11 +200,11 @@ export const exportFilteredRecords = async ({
     params,
     responseType: 'blob',
   });
-  
+
   const url = window.URL.createObjectURL(new Blob([response.data]));
   const link = document.createElement('a');
   link.href = url;
-  
+
   const contentDisposition = response.headers['content-disposition'];
   let filename = 'main_db_export.xlsx';
   if (contentDisposition) {
@@ -194,7 +213,7 @@ export const exportFilteredRecords = async ({
       filename = filenameMatch[1];
     }
   }
-  
+
   link.setAttribute('download', filename);
   document.body.appendChild(link);
   link.click();
