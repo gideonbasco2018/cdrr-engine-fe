@@ -2,7 +2,8 @@ export const mapWorkflowTask = (task, index) => {
   const m = task.main_db || {};
   const d = task.application_delegation || {};
   return {
-    id: task.id ?? m.DB_ID ?? index + 1,
+    id: task.id ?? index + 1,
+    mainDbId: m.DB_ID ?? null,
     dtn: m.DB_DTN ?? "N/A",
     estCat: m.DB_EST_CAT ?? "N/A",
     ltoComp: m.DB_EST_LTO_COMP ?? "N/A",
