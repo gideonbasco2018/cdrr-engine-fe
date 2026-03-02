@@ -2,8 +2,43 @@ import { useState, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../api/auth";
 import {
   createApplicationLog,
+  updateApplicationLog,
   getLastApplicationLogIndex,
 } from "../../api/application-logs";
+
+/* ================================================================== */
+/*  Workflow Config                                                      */
+/* ================================================================== */
+const WORKFLOW = {
+  "Quality Evaluation": {
+    "For Compliance": "Compliance",
+    "For Checking": "Checking",
+    Approved: "Checking",
+    Rejected: "Checking",
+  },
+  Compliance: { default: "Checking" },
+  Checking: { default: "Supervisor" },
+  Supervisor: { default: "QA" },
+  QA: { default: "Director Signature" },
+  "Director Signature": { default: "Releasing" },
+  Releasing: { default: null },
+};
+
+// Maps next step → group ID to fetch users from
+const STEP_GROUP_MAP = {
+  Compliance: 4,
+  Checking: 4,
+  Supervisor: 5,
+  QA: 6,
+  "Director Signature": 7,
+  Releasing: 8,
+};
+
+const getNextStep = (currentStep, decision) => {
+  const config = WORKFLOW[currentStep];
+  if (!config) return null;
+  return config[decision] ?? config.default ?? null;
+};
 
 /* ================================================================== */
 /*  Helpers                                                             */
@@ -51,7 +86,7 @@ const calculateStatusTimeline = (record) => {
 };
 
 /* ================================================================== */
-/*  Sub-components                                                      */
+/*  Reusable UI Components                                              */
 /* ================================================================== */
 function VDSection({ title, children, colors }) {
   return (
@@ -192,7 +227,6 @@ function StatusTimelineField({ label, record, colors }) {
   );
 }
 
-/* ── Summary Card for Step 1 ── */
 function SummaryCard({ icon, label, value, accent, colors }) {
   return (
     <div
@@ -233,7 +267,6 @@ function SummaryCard({ icon, label, value, accent, colors }) {
   );
 }
 
-/* ── Step Progress Bar ── */
 function StepIndicator({ currentStep, steps, colors }) {
   return (
     <div
@@ -257,7 +290,6 @@ function StepIndicator({ currentStep, steps, colors }) {
               flex: i < steps.length - 1 ? 1 : "none",
             }}
           >
-            {/* Circle */}
             <div
               style={{
                 width: "32px",
@@ -288,7 +320,6 @@ function StepIndicator({ currentStep, steps, colors }) {
             >
               {isCompleted ? "✓" : stepNum}
             </div>
-            {/* Label below */}
             <div
               style={{
                 position: "absolute",
@@ -307,7 +338,6 @@ function StepIndicator({ currentStep, steps, colors }) {
             >
               {step}
             </div>
-            {/* Connector line */}
             {i < steps.length - 1 && (
               <div
                 style={{
@@ -327,22 +357,19 @@ function StepIndicator({ currentStep, steps, colors }) {
 }
 
 /* ================================================================== */
-/*  Step Content Components                                             */
+/*  Step 1                                                              */
 /* ================================================================== */
-
-/* Step 1: Basic Info — key summary cards */
 function Step1BasicInfo({ record, colors }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      {/* Hero row — DTN + Brand prominently */}
       <div
         style={{
           padding: "1.25rem 1.5rem",
-          background: `linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))`,
-          border: `1px solid rgba(33,150,243,0.2)`,
+          background:
+            "linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))",
+          border: "1px solid rgba(33,150,243,0.2)",
           borderRadius: "10px",
           display: "flex",
           alignItems: "center",
@@ -435,8 +462,6 @@ function Step1BasicInfo({ record, colors }) {
           </span>
         )}
       </div>
-
-      {/* Summary grid */}
       <div
         style={{
           display: "grid",
@@ -501,8 +526,6 @@ function Step1BasicInfo({ record, colors }) {
           colors={colors}
         />
       </div>
-
-      {/* Dosage & Product quick row */}
       <VDSection title="💊 Product Details" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -527,8 +550,6 @@ function Step1BasicInfo({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
-      {/* Establishment quick row */}
       <VDSection title="🏢 Establishment" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -557,7 +578,9 @@ function Step1BasicInfo({ record, colors }) {
   );
 }
 
-/* Step 2: Full Details — all remaining sections */
+/* ================================================================== */
+/*  Step 2                                                              */
+/* ================================================================== */
 function Step2FullDetails({ record, colors }) {
   return (
     <div>
@@ -595,7 +618,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="📝 Amendments" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -615,7 +637,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="🏭 Manufacturer" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -640,7 +661,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="🚢 Trader / Importer / Distributor" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -675,7 +695,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="📦 Storage & Packaging" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -700,7 +719,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="💰 Fees" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -735,7 +753,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="📅 Important Dates" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -770,7 +787,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="🔐 SECPA" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -790,7 +806,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="🎯 Decking & Evaluation" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -805,7 +820,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="📤 Release" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -825,7 +839,6 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
-
       <VDSection title="📜 CPR Conditions" colors={colors}>
         <DisplayField
           label="CPR Condition"
@@ -846,7 +859,6 @@ function Step2FullDetails({ record, colors }) {
           fullWidth
         />
       </VDSection>
-
       <VDSection title="📝 Remarks & Notes" colors={colors}>
         <DisplayField
           label="Application Remarks"
@@ -861,7 +873,6 @@ function Step2FullDetails({ record, colors }) {
           fullWidth
         />
       </VDSection>
-
       <VDSection title="📊 Metadata" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -890,92 +901,167 @@ function Step2FullDetails({ record, colors }) {
   );
 }
 
-/* Step 3: Action / Evaluation Form */
+/* ================================================================== */
+/*  Step 3: Generic Action Form                                         */
+/* ================================================================== */
 function Step3ActionForm({ record, colors, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
-    evaluator: "",
-    checker: "",
-    evalDecision: "",
-    evalRemarks: "",
+    currentUserDisplay: "",
+    assignee: "",
+    decision: "",
+    remarks: "",
   });
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [checkers, setCheckers] = useState([]);
+  const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const CHECKER_GROUP_ID = 4;
+
+  const logId = record.id;
+  const mainDbId = record.mainDbId;
+  const currentStep = record.applicationStep; // e.g. "Quality Evaluation", "Checking", etc.
+
+  // Decisions available per step
+  const STEP_DECISIONS = {
+    "Quality Evaluation": [
+      "For Checking",
+      "For Compliance",
+      "Approved",
+      "Rejected",
+    ],
+    Compliance: ["For Checking", "Approved", "Rejected"],
+    Checking: ["Approved", "Rejected", "For Compliance"],
+    Supervisor: ["Approved", "Rejected"],
+    QA: ["Approved", "Rejected"],
+    "Director Signature": ["Approved", "Rejected"],
+    Releasing: ["Released"],
+  };
+
+  const availableDecisions = STEP_DECISIONS[currentStep] ?? [
+    "Approved",
+    "Rejected",
+  ];
+
+  // Derive next step based on current step + selected decision
+  const nextStep = getNextStep(currentStep, formData.decision);
+
+  // Next group ID to fetch users from
+  const nextGroupId = STEP_GROUP_MAP[nextStep] ?? null;
+
+  // For Compliance decision → assign to self, no dropdown needed
+  const isForCompliance = formData.decision === "For Compliance";
+
+  // Show assignee dropdown only when there's a next step AND it's not self-assign
+  const needsAssignee = nextStep !== null && !isForCompliance;
 
   useEffect(() => {
     const user = getUser();
     if (user) {
       setCurrentUser(user);
-      setFormData((p) => ({ ...p, evaluator: user.username }));
+      setFormData((p) => ({ ...p, currentUserDisplay: user.username }));
     }
   }, []);
 
+  // Re-fetch users whenever nextGroupId changes
   useEffect(() => {
+    if (!needsAssignee || !nextGroupId) {
+      setAssigneeOptions([]);
+      return;
+    }
     (async () => {
       try {
         setLoadingUsers(true);
-        setCheckers(await getUsersByGroup(CHECKER_GROUP_ID));
+        setAssigneeOptions(await getUsersByGroup(nextGroupId));
       } catch {
-        setCheckers([]);
+        setAssigneeOptions([]);
       } finally {
         setLoadingUsers(false);
       }
     })();
-  }, []);
+  }, [nextGroupId, needsAssignee]);
 
-  const handleChange = (f, v) => setFormData((p) => ({ ...p, [f]: v }));
+  const handleChange = (f, v) => {
+    setFormData((p) => {
+      const updated = { ...p, [f]: v };
+      // Reset assignee when decision changes
+      if (f === "decision") updated.assignee = "";
+      return updated;
+    });
+  };
+
+  const isSubmitDisabled =
+    loading ||
+    !formData.decision ||
+    (needsAssignee &&
+      (loadingUsers || assigneeOptions.length === 0 || !formData.assignee));
+
+  const infoText = !formData.decision
+    ? "Select a decision to proceed."
+    : isForCompliance
+      ? `Your log will be completed and a Compliance log will be assigned to you (${currentUser?.username ?? ""}).`
+      : nextStep
+        ? `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
+        : "Your log will be completed. This is the final step — no further assignment needed.";
 
   const handleSubmit = async () => {
-    if (!formData.evaluator || !formData.checker || !formData.evalDecision) {
+    if (!formData.currentUserDisplay || !formData.decision) {
+      alert("⚠️ Please fill in required fields:\n- Decision");
+      return;
+    }
+    if (needsAssignee && !formData.assignee) {
+      alert("⚠️ Please assign a next user.");
+      return;
+    }
+    if (!logId || !mainDbId) {
       alert(
-        "⚠️ Please fill in required fields:\n- Checker\n- Evaluation Decision",
+        "❌ Cannot submit: Record IDs are missing. Please contact support.",
       );
       return;
     }
+
     setLoading(true);
     try {
       const formattedDateTime = new Date().toISOString();
-      const indexData = await getLastApplicationLogIndex(record.id);
+      const indexData = await getLastApplicationLogIndex(mainDbId);
       const lastIndex = indexData.last_index;
       const nextIndex = lastIndex + 1;
 
-      await createApplicationLog({
-        main_db_id: record.id,
-        application_step: "Quality Evaluation",
-        user_name: formData.evaluator,
+      // ── Step 1: COMPLETE current log ──────────────────────────────
+      await updateApplicationLog(logId, {
         application_status: "COMPLETED",
-        application_decision: formData.evalDecision,
-        application_remarks: formData.evalRemarks || "",
-        start_date: formattedDateTime,
+        application_decision: formData.decision,
+        application_remarks: formData.remarks || "",
         accomplished_date: formattedDateTime,
-        del_index: nextIndex,
-        del_previous: lastIndex,
         del_last_index: 0,
         del_thread: "Close",
       });
 
-      await createApplicationLog({
-        main_db_id: record.id,
-        application_step: "Checking",
-        user_name: formData.checker,
-        application_status: "IN PROGRESS",
-        application_decision: "",
-        application_remarks: "",
-        start_date: formattedDateTime,
-        accomplished_date: null,
-        del_index: nextIndex + 1,
-        del_previous: nextIndex,
-        del_last_index: 1,
-        del_thread: "Open",
-      });
+      // ── Step 2: CREATE next log if there's a next step ────────────
+      if (nextStep) {
+        const assignedUser = isForCompliance
+          ? currentUser?.username || formData.currentUserDisplay // self-assign
+          : formData.assignee; // selected from dropdown
 
-      onClose();
-      alert("✅ Evaluation completed successfully!");
+        await createApplicationLog({
+          main_db_id: mainDbId,
+          application_step: nextStep,
+          user_name: assignedUser,
+          application_status: "IN PROGRESS",
+          application_decision: "",
+          application_remarks: "",
+          start_date: formattedDateTime,
+          accomplished_date: null,
+          del_index: nextIndex,
+          del_previous: lastIndex,
+          del_last_index: 1,
+          del_thread: "Open",
+        });
+      }
+
       if (onSuccess) await onSuccess();
+      onClose();
+      alert("✅ Completed successfully!");
     } catch (err) {
-      alert(`❌ Failed to evaluate record: ${err.message}`);
+      alert(`❌ Failed to submit: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -996,12 +1082,13 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      {/* Record context reminder */}
+      {/* Record context banner */}
       <div
         style={{
           padding: "1rem 1.25rem",
-          background: `linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))`,
-          border: `1px solid rgba(33,150,243,0.2)`,
+          background:
+            "linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))",
+          border: "1px solid rgba(33,150,243,0.2)",
           borderRadius: "10px",
           display: "flex",
           gap: "1rem",
@@ -1077,7 +1164,7 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
               letterSpacing: "0.08em",
             }}
           >
-            App Type
+            Current Step
           </div>
           <div
             style={{
@@ -1086,12 +1173,41 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
               color: colors.textPrimary,
             }}
           >
-            {cleanValue(record.appType)}
+            {cleanValue(currentStep)}
           </div>
         </div>
+        {nextStep && (
+          <>
+            <div style={{ fontSize: "1.2rem", color: colors.textTertiary }}>
+              →
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: "700",
+                  color: colors.textTertiary,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                Next Step
+              </div>
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: "600",
+                  color: "#2196F3",
+                }}
+              >
+                {nextStep}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Evaluator (readonly) */}
+      {/* Current user (readonly) */}
       <div>
         <label
           style={{
@@ -1104,11 +1220,11 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
             letterSpacing: "0.04em",
           }}
         >
-          Evaluator (You) <span style={{ color: "#2196F3" }}>●</span>
+          Handled By (You) <span style={{ color: "#2196F3" }}>●</span>
         </label>
         <input
           type="text"
-          value={formData.evaluator}
+          value={formData.currentUserDisplay}
           readOnly
           style={{
             ...inp,
@@ -1131,7 +1247,7 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
         )}
       </div>
 
-      {/* Evaluation Decision */}
+      {/* Decision */}
       <div>
         <label
           style={{
@@ -1144,11 +1260,11 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
             letterSpacing: "0.04em",
           }}
         >
-          Evaluation Decision <span style={{ color: "#ef4444" }}>*</span>
+          Decision <span style={{ color: "#ef4444" }}>*</span>
         </label>
         <select
-          value={formData.evalDecision}
-          onChange={(e) => handleChange("evalDecision", e.target.value)}
+          value={formData.decision}
+          onChange={(e) => handleChange("decision", e.target.value)}
           required
           style={{ ...inp, cursor: "pointer" }}
           onFocus={(e) => {
@@ -1159,14 +1275,15 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
           }}
         >
           <option value="">Select decision...</option>
-          <option value="For Checking">For Checking</option>
-          <option value="For Compliance">For Compliance</option>
-          <option value="Approved">Approved</option>
-          <option value="Rejected">Rejected</option>
+          {availableDecisions.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
         </select>
       </div>
 
-      {/* Evaluation Remarks */}
+      {/* Remarks */}
       <div>
         <label
           style={{
@@ -1179,12 +1296,12 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
             letterSpacing: "0.04em",
           }}
         >
-          Evaluation Remarks
+          Remarks
         </label>
         <textarea
-          value={formData.evalRemarks}
-          onChange={(e) => handleChange("evalRemarks", e.target.value)}
-          placeholder="Enter your evaluation notes and findings..."
+          value={formData.remarks}
+          onChange={(e) => handleChange("remarks", e.target.value)}
+          placeholder="Enter your remarks and findings..."
           rows={4}
           style={{ ...inp, resize: "vertical", fontFamily: "inherit" }}
           onFocus={(e) => {
@@ -1196,87 +1313,118 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
         />
       </div>
 
-      {/* Assign Checker */}
-      <div>
-        <label
-          style={{
-            display: "block",
-            fontSize: "0.82rem",
-            fontWeight: "700",
-            color: colors.textPrimary,
-            marginBottom: "0.5rem",
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-          }}
-        >
-          Assign Checker <span style={{ color: "#ef4444" }}>*</span>
-        </label>
-        {loadingUsers ? (
-          <div
+      {/* Assignee dropdown — only shown when needed */}
+      {needsAssignee && (
+        <div>
+          <label
             style={{
-              ...inp,
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              color: colors.textTertiary,
+              display: "block",
+              fontSize: "0.82rem",
+              fontWeight: "700",
+              color: colors.textPrimary,
+              marginBottom: "0.5rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
             }}
           >
+            Assign to {nextStep}{" "}
             <span
               style={{
-                display: "inline-block",
-                width: "14px",
-                height: "14px",
-                border: "2px solid #2196F330",
-                borderTopColor: "#2196F3",
-                borderRadius: "50%",
-                animation: "spin 0.6s linear infinite",
+                fontSize: "0.72rem",
+                fontWeight: "400",
+                color: colors.textTertiary,
               }}
-            />
-            Loading checkers...
-          </div>
-        ) : (
-          <select
-            value={formData.checker}
-            onChange={(e) => handleChange("checker", e.target.value)}
-            required
-            disabled={checkers.length === 0}
-            style={{
-              ...inp,
-              cursor: checkers.length === 0 ? "not-allowed" : "pointer",
-              opacity: checkers.length === 0 ? 0.6 : 1,
-            }}
-            onFocus={(e) => {
-              if (checkers.length > 0) e.target.style.borderColor = "#2196F3";
-            }}
-            onBlur={(e) => {
-              e.target.style.borderColor = colors.inputBorder;
-            }}
-          >
-            <option value="">
-              {checkers.length === 0
-                ? "No checkers available"
-                : "Select a checker..."}
-            </option>
-            {checkers.map((u) => (
-              <option key={u.id} value={u.username}>
-                {u.username} — {u.first_name} {u.surname}
+            >
+              ({nextStep} Group)
+            </span>{" "}
+            <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          {loadingUsers ? (
+            <div
+              style={{
+                ...inp,
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                color: colors.textTertiary,
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "14px",
+                  height: "14px",
+                  border: "2px solid #2196F330",
+                  borderTopColor: "#2196F3",
+                  borderRadius: "50%",
+                  animation: "spin 0.6s linear infinite",
+                }}
+              />
+              Loading users...
+            </div>
+          ) : (
+            <select
+              value={formData.assignee}
+              onChange={(e) => handleChange("assignee", e.target.value)}
+              required
+              disabled={assigneeOptions.length === 0}
+              style={{
+                ...inp,
+                cursor:
+                  assigneeOptions.length === 0 ? "not-allowed" : "pointer",
+                opacity: assigneeOptions.length === 0 ? 0.6 : 1,
+              }}
+              onFocus={(e) => {
+                if (assigneeOptions.length > 0)
+                  e.target.style.borderColor = "#2196F3";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = colors.inputBorder;
+              }}
+            >
+              <option value="">
+                {assigneeOptions.length === 0
+                  ? "No users available"
+                  : `Select ${nextStep}...`}
               </option>
-            ))}
-          </select>
-        )}
-        {!loadingUsers && checkers.length === 0 && (
-          <p
-            style={{
-              fontSize: "0.75rem",
-              color: "#ef4444",
-              marginTop: "0.4rem",
-              marginBottom: 0,
-            }}
-          >
-            ⚠️ No checkers found in Checker group.
-          </p>
-        )}
-      </div>
+              {assigneeOptions.map((u) => (
+                <option key={u.id} value={u.username}>
+                  {u.username} — {u.first_name} {u.surname}
+                </option>
+              ))}
+            </select>
+          )}
+          {!loadingUsers && assigneeOptions.length === 0 && (
+            <p
+              style={{
+                fontSize: "0.75rem",
+                color: "#ef4444",
+                marginTop: "0.4rem",
+                marginBottom: 0,
+              }}
+            >
+              ⚠️ No users found in {nextStep} group.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Self-assign notice for For Compliance */}
+      {isForCompliance && (
+        <div
+          style={{
+            padding: "0.75rem 1rem",
+            background: "rgba(16,185,129,0.08)",
+            border: "1px solid rgba(16,185,129,0.25)",
+            borderRadius: "8px",
+            fontSize: "0.82rem",
+            color: colors.textSecondary,
+          }}
+        >
+          ✅ Compliance log will be self-assigned to you:{" "}
+          <strong>{currentUser?.username}</strong>
+        </div>
+      )}
 
       {/* Info box */}
       <div
@@ -1299,40 +1447,38 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
             margin: 0,
           }}
         >
-          Two activity logs will be created — one for the evaluator (Completed)
-          and one for the assigned checker (In Progress).
+          {infoText}
         </p>
       </div>
 
       {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={loading || loadingUsers || checkers.length === 0}
+        disabled={isSubmitDisabled}
         style={{
           width: "100%",
           padding: "0.9rem",
-          background:
-            loading || loadingUsers || checkers.length === 0
-              ? "#2196F380"
-              : "linear-gradient(135deg, #2196F3, #1976D2)",
+          background: isSubmitDisabled
+            ? "#2196F380"
+            : "linear-gradient(135deg, #2196F3, #1976D2)",
           border: "none",
           borderRadius: "10px",
           color: "#fff",
           fontSize: "0.95rem",
           fontWeight: "700",
-          cursor:
-            loading || loadingUsers || checkers.length === 0
-              ? "not-allowed"
-              : "pointer",
+          cursor: isSubmitDisabled ? "not-allowed" : "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           gap: "0.5rem",
-          boxShadow: "0 4px 12px rgba(33,150,243,0.3)",
+          boxShadow: isSubmitDisabled
+            ? "none"
+            : "0 4px 12px rgba(33,150,243,0.3)",
           transition: "all 0.2s",
         }}
         onMouseEnter={(e) => {
-          if (!loading) e.currentTarget.style.transform = "translateY(-1px)";
+          if (!isSubmitDisabled)
+            e.currentTarget.style.transform = "translateY(-1px)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = "none";
@@ -1354,7 +1500,7 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
             Submitting...
           </>
         ) : (
-          <> ✓ Complete Evaluation </>
+          <>✓ Complete {currentStep}</>
         )}
       </button>
     </div>
@@ -1362,15 +1508,14 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
 }
 
 /* ================================================================== */
-/*  Main Combined Modal                                                 */
+/*  Main Modal                                                          */
 /* ================================================================== */
 function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
   const [currentStep, setCurrentStep] = useState(1);
   if (!record) return null;
 
-  const STEPS = ["Basic Info", "Full Details", "Evaluation"];
+  const STEPS = ["Basic Info", "Full Details", "Action"];
   const totalSteps = STEPS.length;
-
   const goNext = () => setCurrentStep((s) => Math.min(s + 1, totalSteps));
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 1));
 
@@ -1408,7 +1553,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <div
           style={{
             padding: "1.25rem 1.75rem",
@@ -1435,7 +1580,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
                 ? "👁️ Basic Information"
                 : currentStep === 2
                   ? "📄 Full Details"
-                  : "✅ Evaluation"}
+                  : `✅ ${record.applicationStep}`}
             </h2>
             <p
               style={{
@@ -1452,8 +1597,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
               {cleanValue(record.prodBrName)}
             </p>
           </div>
-
-          {/* Step indicator */}
           <div
             style={{
               flex: 1,
@@ -1468,7 +1611,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
               colors={colors}
             />
           </div>
-
           <button
             onClick={onClose}
             style={{
@@ -1500,7 +1642,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
           </button>
         </div>
 
-        {/* ── Scrollable Step Content ── */}
+        {/* Content */}
         <div
           style={{
             flex: 1,
@@ -1525,7 +1667,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
           )}
         </div>
 
-        {/* ── Footer Navigation ── */}
+        {/* Footer */}
         <div
           style={{
             padding: "1rem 1.75rem",
@@ -1537,7 +1679,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
             background: colors.cardBg,
           }}
         >
-          {/* Step counter */}
           <span
             style={{
               fontSize: "0.78rem",
@@ -1547,7 +1688,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
           >
             Step {currentStep} of {totalSteps}
           </span>
-
           <div style={{ display: "flex", gap: "0.75rem" }}>
             <button
               onClick={onClose}
@@ -1564,7 +1704,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
             >
               Close
             </button>
-
             {currentStep > 1 && (
               <button
                 onClick={goPrev}
@@ -1585,7 +1724,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
                 ← Previous
               </button>
             )}
-
             {currentStep < totalSteps && (
               <button
                 onClick={goNext}
