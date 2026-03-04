@@ -1,37 +1,40 @@
 export const tableColumns = [
   { key: "dtn", label: "DTN", width: "180px" },
+  // ✅ Compliance Deadline — rendered only when activeTab === "Compliance"
+  // This entry is flagged so DataTable can skip it on other tabs
+  { key: "deadlineDate", label: "Compliance Deadline", width: "180px", complianceOnly: true },
   { key: "estCat", label: "Category", width: "120px" },
   { key: "ltoCompany", label: "LTO Company", width: "200px" },
-  { key: "ltoAdd", label: "LTO Address", width: "200px" },          // was ltoAddress
-  { key: "eadd", label: "Email", width: "180px" },                   // was email
+  { key: "ltoAdd", label: "LTO Address", width: "200px" },
+  { key: "eadd", label: "Email", width: "180px" },
   { key: "tin", label: "TIN", width: "120px" },
   { key: "contactNo", label: "Contact No.", width: "130px" },
   { key: "ltoNo", label: "LTO No.", width: "130px" },
   { key: "validity", label: "Validity", width: "120px" },
   { key: "prodBrName", label: "Brand Name", width: "180px" },
   { key: "prodGenName", label: "Generic Name", width: "180px" },
-  { key: "prodDosStr", label: "Dosage Strength", width: "140px" },   // was dosageStrength
-  { key: "prodDosForm", label: "Dosage Form", width: "130px" },      // was dosageForm
-  { key: "prodClassPrescript", label: "Prescription", width: "120px" }, // was prescription
-  { key: "prodEssDrugList", label: "Essential Drug", width: "130px" },  // was essentialDrug
-  { key: "prodPharmaCat", label: "Pharma Category", width: "140px" },   // was pharmaCategory
-  { key: "prodManu", label: "Manufacturer", width: "180px" },        // was manufacturer
-  { key: "prodManuAdd", label: "Mfr. Address", width: "180px" },     // was manufacturerAddress
-  { key: "prodManuCountry", label: "Mfr. Country", width: "130px" }, // was manufacturerCountry
-  { key: "prodTrader", label: "Trader", width: "160px" },            // was trader
-  { key: "prodTraderCountry", label: "Trader Country", width: "130px" }, // was traderCountry
-  { key: "prodImporter", label: "Importer", width: "160px" },        // was importer
-  { key: "prodImporterCountry", label: "Importer Country", width: "140px" }, // was importerCountry
-  { key: "prodDistri", label: "Distributor", width: "160px" },       // was distributor
-  { key: "prodDistriCountry", label: "Distri. Country", width: "140px" }, // was distributorCountry
-  { key: "prodDistriShelfLife", label: "Shelf Life", width: "110px" }, // was shelfLife
+  { key: "prodDosStr", label: "Dosage Strength", width: "140px" },
+  { key: "prodDosForm", label: "Dosage Form", width: "130px" },
+  { key: "prodClassPrescript", label: "Prescription", width: "120px" },
+  { key: "prodEssDrugList", label: "Essential Drug", width: "130px" },
+  { key: "prodPharmaCat", label: "Pharma Category", width: "140px" },
+  { key: "prodManu", label: "Manufacturer", width: "180px" },
+  { key: "prodManuAdd", label: "Mfr. Address", width: "180px" },
+  { key: "prodManuCountry", label: "Mfr. Country", width: "130px" },
+  { key: "prodTrader", label: "Trader", width: "160px" },
+  { key: "prodTraderCountry", label: "Trader Country", width: "130px" },
+  { key: "prodImporter", label: "Importer", width: "160px" },
+  { key: "prodImporterCountry", label: "Importer Country", width: "140px" },
+  { key: "prodDistri", label: "Distributor", width: "160px" },
+  { key: "prodDistriCountry", label: "Distri. Country", width: "140px" },
+  { key: "prodDistriShelfLife", label: "Shelf Life", width: "110px" },
   { key: "packaging", label: "Packaging", width: "140px" },
   { key: "expiryDate", label: "Expiry Date", width: "120px" },
   { key: "regNo", label: "Reg. No.", width: "130px" },
   { key: "appType", label: "App Type", width: "120px" },
   { key: "motherAppType", label: "Mother App Type", width: "140px" },
   { key: "oldRsn", label: "Old RSN", width: "120px" },
-  { key: "prodCat", label: "Product Category", width: "140px" },     // was productCategory
+  { key: "prodCat", label: "Product Category", width: "140px" },
   { key: "fee", label: "Fee", width: "100px" },
   { key: "total", label: "Total", width: "100px" },
   { key: "orNo", label: "OR No.", width: "120px" },
@@ -48,7 +51,7 @@ export const tableColumns = [
   { key: "dateReleased", label: "Date Released", width: "130px" },
   { key: "typeDocReleased", label: "Type Doc Released", width: "150px" },
   { key: "appStatus", label: "Status", width: "130px" },
-  { key: "userUploader", label: "Uploaded By", width: "140px" },     // was uploadedBy
+  { key: "userUploader", label: "Uploaded By", width: "140px" },
   { key: "uploadedAt", label: "Uploaded At", width: "140px" },
   { key: "dbTimelineCitizenCharter", label: "Timeline (Days)", width: "130px" },
   { key: "statusTimeline", label: "Status Timeline", width: "160px" },

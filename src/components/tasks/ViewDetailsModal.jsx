@@ -1,3 +1,4 @@
+// ViewDetailsModal.jsx
 import { useState, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../api/auth";
 import {
@@ -5,27 +6,42 @@ import {
   updateApplicationLog,
   getLastApplicationLogIndex,
 } from "../../api/application-logs";
+import {
+  createFieldAuditLog,
+  computeFieldChanges,
+} from "../../api/field-audit-logs";
 
+import { updateUploadReport, getApplicationLogs } from "../../api/reports";
 /* ================================================================== */
 /*  Workflow Config                                                      */
 /* ================================================================== */
 const WORKFLOW = {
   "Quality Evaluation": {
     "For Compliance": "Compliance",
-    "For Checking": "Checking",
-    Approved: "Checking",
-    Rejected: "Checking",
+    "Endorse to Checker": "Checking",
   },
-  Compliance: { default: "Checking" },
-  Checking: { default: "Supervisor" },
-  Supervisor: { default: "QA" },
-  QA: { default: "Director Signature" },
+  Compliance: {
+    "For Compliance": "Compliance",
+    "Endorse to Checker": "Checking",
+  },
+  Checking: {
+    "Return to Evaluator": "Quality Evaluation",
+    "Endorse to Supervisor": "Supervisor",
+  },
+  Supervisor: {
+    default: "QA",
+    "Return to Evaluator": "Quality Evaluation",
+  },
+  QA: {
+    default: "Director Signature",
+    "Return to Evaluator": "Quality Evaluation",
+  },
   "Director Signature": { default: "Releasing" },
   Releasing: { default: null },
 };
 
-// Maps next step → group ID to fetch users from
 const STEP_GROUP_MAP = {
+  "Quality Evaluation": 3,
   Compliance: 4,
   Checking: 4,
   Supervisor: 5,
@@ -34,12 +50,355 @@ const STEP_GROUP_MAP = {
   Releasing: 8,
 };
 
+// new added
+const DEFAULT_WORKING_DAYS = 20;
+
+/** Add N working days (Mon–Fri) to a date string, returns "YYYY-MM-DD" */
+const addWorkingDays = (startDateStr, days) => {
+  if (!days || days <= 0) return "";
+  let count = 0;
+  const current = new Date(startDateStr + "T00:00:00");
+  while (count < days) {
+    current.setDate(current.getDate() + 1);
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6) count++; // skip Sat(6) & Sun(0)
+  }
+  return current.toISOString().split("T")[0];
+};
+
+/** Count working days (Mon–Fri) between today and a target date string */
+const countWorkingDays = (startDateStr, endDateStr) => {
+  if (!endDateStr) return 0;
+  let count = 0;
+  const current = new Date(startDateStr + "T00:00:00");
+  const end = new Date(endDateStr + "T00:00:00");
+  if (end <= current) return 0;
+  while (current < end) {
+    current.setDate(current.getDate() + 1);
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+};
+
+/** Today as "YYYY-MM-DD" */
+const todayStr = () => new Date().toISOString().split("T")[0];
+
+/** Format "YYYY-MM-DD" → readable label */
+const fmtDeadline = (str) => {
+  if (!str) return "";
+  const d = new Date(str + "T00:00:00");
+  return d.toLocaleDateString("en-PH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+/** Returns urgency level of a deadline */
+const deadlineUrgency = (deadlineDateStr) => {
+  if (!deadlineDateStr) return null;
+  const today = new Date(todayStr() + "T00:00:00");
+  const end = new Date(deadlineDateStr + "T00:00:00");
+  if (end < today) return "overdue";
+  const wdays = countWorkingDays(todayStr(), deadlineDateStr);
+  if (wdays <= 3) return "critical";
+  if (wdays <= 5) return "warning";
+  return "ok";
+};
+
 const getNextStep = (currentStep, decision) => {
   const config = WORKFLOW[currentStep];
   if (!config) return null;
   return config[decision] ?? config.default ?? null;
 };
 
+/* ================================================================== */
+/*  Edit Access Config                                                   */
+/* ================================================================== */
+const EDITABLE_STEPS = [
+  "Quality Evaluation",
+  "Checking",
+  "Supervisor",
+  "Releasing",
+];
+
+const EDITABLE_FIELDS = [
+  // ── Step 1 — Establishment ──────────────────
+  "estCat",
+  "ltoNo",
+  "tin",
+  "eadd",
+  "contactNo",
+  "ltoAdd",
+
+  // ── Step 1 — Product Details ─────────────────
+  "prodDosStr",
+  "prodPharmaCat",
+  "prodEssDrugList",
+  "prodCat",
+  "pharmaProdCat",
+  "pharmaProdCatLabel",
+  "file",
+  // "isInPm",
+
+  // ── Step 1 — Manufacturer ────────────────────
+  "prodManu",
+  "prodManuCountry",
+  "prodManuLtoNo",
+  "prodManuTin",
+  "prodManuAdd",
+
+  // ── Step 1 — Trader ──────────────────────────
+  "prodTrader",
+  "prodTraderCountry",
+  "prodTraderLtoNo",
+  "prodTraderTin",
+  "prodTraderAdd",
+
+  // ── Step 1 — Importer ────────────────────────
+  "prodImporter",
+  "prodImporterCountry",
+  "prodImporterLtoNo",
+  "prodImporterTin",
+  "prodImporterAdd",
+
+  // ── Step 1 — Distributor ─────────────────────
+  "prodDistri",
+  "prodDistriCountry",
+  "prodDistriLtoNo",
+  "prodDistriTin",
+  "prodDistriShelfLife",
+  "prodDistriAdd",
+
+  // ── Step 1 — Repacker ────────────────────────
+  "prodRepacker",
+  "prodRepackerCountry",
+  "prodRepackerLtoNo",
+  "prodRepackerTin",
+  "prodRepackerAdd",
+
+  // ── Step 1 — Summary Cards ───────────────────
+  "ltoCompany",
+  "appType",
+  "prodDosForm",
+  "prodClassPrescript",
+  "appStatus",
+  "processingType",
+
+  // ── Step 2 — Remarks & Notes ─────────────────
+  "appRemarks",
+  "remarks1",
+
+  // ── Step 2 — CPR Conditions ──────────────────
+  "cprCond",
+  "cprCondRemarks",
+  "cprCondAddRemarks",
+
+  // ── Step 2 — Storage & Packaging ─────────────
+  "storageCond",
+  "packaging",
+  "suggRp",
+  "noSample",
+
+  // ── Step 2 — Amendments ──────────────────────
+  "ammend1",
+  "ammend2",
+  "ammend3",
+
+  // ── Step 2 — Amendments ──────────────────────
+  "ammend1",
+  "ammend2",
+  "ammend3",
+
+  // ── Step 2 — Application Information ─────────  ← BAGO
+  "regNo",
+  "motherAppType",
+  "oldRsn",
+  "certification",
+  "class",
+  "mo",
+
+  // ── Step 2 — Fees ─────────────────────────────  ← BAGO
+  "fee",
+  "lrf",
+  "surc",
+  "total",
+  "orNo",
+
+  // ── Step 2 — SECPA ────────────────────────────  ← BAGO
+  "secpa",
+];
+// Human-readable labels para sa audit log
+
+const FIELD_LABEL_MAP = {
+  // Establishment
+  estCat: "Category",
+  ltoNo: "LTO No.",
+  tin: "TIN",
+  eadd: "Email",
+  contactNo: "Contact No.",
+  ltoAdd: "LTO Address",
+
+  // Product Details
+  prodDosStr: "Dosage Strength",
+  prodPharmaCat: "Pharma Category",
+  prodEssDrugList: "Essential Drug",
+  prodCat: "Product Category",
+  pharmaProdCat: "Pharma Prod. Cat.",
+  pharmaProdCatLabel: "Pharma Prod. Label",
+  file: "File",
+  // isInPm: "Is in PM",
+
+  // Manufacturer
+  prodManu: "Manufacturer",
+  prodManuCountry: "Manufacturer Country",
+  prodManuLtoNo: "Manufacturer LTO No.",
+  prodManuTin: "Manufacturer TIN",
+  prodManuAdd: "Manufacturer Address",
+
+  // Trader
+  prodTrader: "Trader",
+  prodTraderCountry: "Trader Country",
+  prodTraderLtoNo: "Trader LTO No.",
+  prodTraderTin: "Trader TIN",
+  prodTraderAdd: "Trader Address",
+
+  // Importer
+  prodImporter: "Importer",
+  prodImporterCountry: "Importer Country",
+  prodImporterLtoNo: "Importer LTO No.",
+  prodImporterTin: "Importer TIN",
+  prodImporterAdd: "Importer Address",
+
+  // Distributor
+  prodDistri: "Distributor",
+  prodDistriCountry: "Distributor Country",
+  prodDistriLtoNo: "Distributor LTO No.",
+  prodDistriTin: "Distributor TIN",
+  prodDistriShelfLife: "Shelf Life",
+  prodDistriAdd: "Distributor Address",
+
+  // Repacker
+  prodRepacker: "Repacker",
+  prodRepackerCountry: "Repacker Country",
+  prodRepackerLtoNo: "Repacker LTO No.",
+  prodRepackerTin: "Repacker TIN",
+  prodRepackerAdd: "Repacker Address",
+
+  // Summary Cards
+  ltoCompany: "LTO Company",
+  appType: "Application Type",
+  prodDosForm: "Dosage Form",
+  prodClassPrescript: "Prescription",
+  appStatus: "App Status",
+  processingType: "Processing Type",
+
+  // Step 2
+  appRemarks: "Application Remarks",
+  remarks1: "General Remarks",
+  cprCond: "CPR Condition",
+  cprCondRemarks: "CPR Condition Remarks",
+  cprCondAddRemarks: "CPR Condition Additional Remarks",
+  storageCond: "Storage Condition",
+  packaging: "Packaging",
+  suggRp: "Suggested RP",
+  noSample: "No. of Samples",
+  ammend1: "Amendment 1",
+  ammend2: "Amendment 2",
+  ammend3: "Amendment 3",
+
+  // Application Information  ← BAGO
+  regNo: "Registration No.",
+  motherAppType: "Mother App Type",
+  oldRsn: "Old RSN",
+  certification: "Certification",
+  class: "Class",
+  mo: "MO",
+
+  // Fees  ← BAGO
+  fee: "Fee",
+  lrf: "LRF",
+  surc: "SURC",
+  total: "Total",
+  orNo: "OR No.",
+
+  // SECPA  ← BAGO
+  secpa: "SECPA",
+};
+
+const FIELD_KEY_TO_DB = {
+  estCat: "DB_EST_CAT",
+  ltoNo: "DB_EST_LTO_NO",
+  tin: "DB_EST_TIN",
+  eadd: "DB_EST_EADD",
+  contactNo: "DB_EST_CONTACT_NO",
+  ltoAdd: "DB_EST_LTO_ADD",
+  ltoCompany: "DB_EST_LTO_COMP",
+  prodDosStr: "DB_PROD_DOS_STR",
+  prodPharmaCat: "DB_PROD_PHARMA_CAT",
+  prodEssDrugList: "DB_PROD_ESS_DRUG_LIST",
+  prodCat: "DB_PROD_CAT",
+  pharmaProdCat: "DB_PHARMA_PROD_CAT",
+  pharmaProdCatLabel: "DB_PHARMA_PROD_CAT_LABEL",
+  file: "DB_FILE",
+  prodManu: "DB_PROD_MANU",
+  prodManuCountry: "DB_PROD_MANU_COUNTRY",
+  prodManuLtoNo: "DB_PROD_MANU_LTO_NO",
+  prodManuTin: "DB_PROD_MANU_TIN",
+  prodManuAdd: "DB_PROD_MANU_ADD",
+  prodTrader: "DB_PROD_TRADER",
+  prodTraderCountry: "DB_PROD_TRADER_COUNTRY",
+  prodTraderLtoNo: "DB_PROD_TRADER_LTO_NO",
+  prodTraderTin: "DB_PROD_TRADER_TIN",
+  prodTraderAdd: "DB_PROD_TRADER_ADD",
+  prodImporter: "DB_PROD_IMPORTER",
+  prodImporterCountry: "DB_PROD_IMPORTER_COUNTRY",
+  prodImporterLtoNo: "DB_PROD_IMPORTER_LTO_NO",
+  prodImporterTin: "DB_PROD_IMPORTER_TIN",
+  prodImporterAdd: "DB_PROD_IMPORTER_ADD",
+  prodDistri: "DB_PROD_DISTRI",
+  prodDistriCountry: "DB_PROD_DISTRI_COUNTRY",
+  prodDistriLtoNo: "DB_PROD_DISTRI_LTO_NO",
+  prodDistriTin: "DB_PROD_DISTRI_TIN",
+  prodDistriShelfLife: "DB_PROD_DISTRI_SHELF_LIFE",
+  prodDistriAdd: "DB_PROD_DISTRI_ADD",
+  prodRepacker: "DB_PROD_REPACKER",
+  prodRepackerCountry: "DB_PROD_REPACKER_COUNTRY",
+  prodRepackerLtoNo: "DB_PROD_REPACKER_LTO_NO",
+  prodRepackerTin: "DB_PROD_REPACKER_TIN",
+  prodRepackerAdd: "DB_PROD_REPACKER_ADD",
+  appType: "DB_APP_TYPE",
+  prodDosForm: "DB_PROD_DOS_FORM",
+  prodClassPrescript: "DB_PROD_CLASS_PRESCRIP",
+  appStatus: "DB_APP_STATUS",
+  processingType: "DB_PROCESSING_TYPE",
+  appRemarks: "DB_APP_REMARKS",
+  remarks1: "DB_REMARKS_1",
+  cprCond: "DB_CPR_COND",
+  cprCondRemarks: "DB_CPR_COND_REMARKS",
+  cprCondAddRemarks: "DB_CPR_COND_ADD_REMARKS",
+  storageCond: "DB_STORAGE_COND",
+  packaging: "DB_PACKAGING",
+  suggRp: "DB_SUGG_RP",
+  noSample: "DB_NO_SAMPLE",
+  ammend1: "DB_AMMEND1",
+  ammend2: "DB_AMMEND2",
+  ammend3: "DB_AMMEND3",
+  regNo: "DB_REG_NO",
+  motherAppType: "DB_MOTHER_APP_TYPE",
+  oldRsn: "DB_OLD_RSN",
+  certification: "DB_CERTIFICATION",
+  class: "DB_CLASS",
+  mo: "DB_MO",
+  fee: "DB_FEE",
+  lrf: "DB_LRF",
+  surc: "DB_SURC",
+  total: "DB_TOTAL",
+  orNo: "DB_OR_NO",
+  secpa: "DB_SECPA",
+};
 /* ================================================================== */
 /*  Helpers                                                             */
 /* ================================================================== */
@@ -162,6 +521,401 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
       >
         {value}
       </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  NEW: EditableField Component                                        */
+/* ================================================================== */
+function EditableField({
+  label,
+  fieldKey,
+  value,
+  originalValue,
+  onChange,
+  colors,
+  fullWidth = false,
+  multiline = false,
+}) {
+  const isDirty = String(value ?? "") !== String(originalValue ?? "");
+  const isEmpty = value === "" || value === null || value === undefined;
+
+  const baseStyle = {
+    width: "100%",
+    padding: "0.55rem 0.8rem",
+    background: colors.inputBg,
+    border: `1.5px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
+    borderRadius: "6px",
+    color: isEmpty ? colors.textTertiary : colors.textPrimary,
+    fontSize: "0.85rem",
+    outline: "none",
+    transition: "border-color 0.2s",
+    boxSizing: "border-box",
+    fontFamily: "inherit",
+    resize: multiline ? "vertical" : undefined,
+    minHeight: multiline ? "3.5rem" : "2.2rem",
+  };
+
+  return (
+    <div
+      style={
+        fullWidth
+          ? { gridColumn: "1 / -1", marginBottom: "0.75rem" }
+          : { display: "flex", flexDirection: "column", gap: "0.3rem" }
+      }
+    >
+      {/* Label row with dirty indicator */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        <label
+          style={{
+            fontSize: "0.72rem",
+            fontWeight: "700",
+            color: colors.textTertiary,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+          }}
+        >
+          {label}
+        </label>
+        {isDirty && (
+          <span
+            style={{
+              fontSize: "0.62rem",
+              fontWeight: "700",
+              color: "#f59e0b",
+              background: "rgba(245,158,11,0.12)",
+              padding: "0.1rem 0.4rem",
+              borderRadius: "4px",
+              letterSpacing: "0.05em",
+            }}
+          >
+            ✎ EDITED
+          </span>
+        )}
+      </div>
+
+      {/* Input or Textarea */}
+      {multiline ? (
+        <textarea
+          value={value ?? ""}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          rows={3}
+          style={baseStyle}
+          onFocus={(e) => {
+            e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = isDirty
+              ? "#f59e0b"
+              : colors.inputBorder;
+          }}
+        />
+      ) : (
+        <input
+          type="text"
+          value={value ?? ""}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          style={baseStyle}
+          onFocus={(e) => {
+            e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = isDirty
+              ? "#f59e0b"
+              : colors.inputBorder;
+          }}
+        />
+      )}
+
+      {/* Show original if dirty */}
+      {isDirty && (
+        <div
+          style={{
+            fontSize: "0.7rem",
+            color: colors.textTertiary,
+            marginTop: "0.15rem",
+            display: "flex",
+            gap: "0.3rem",
+            alignItems: "flex-start",
+          }}
+        >
+          <span style={{ flexShrink: 0, color: "#ef4444" }}>Original:</span>
+          <span style={{ fontStyle: "italic", wordBreak: "break-word" }}>
+            {originalValue || <em>empty</em>}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  CountrySelect Component                                             */
+/* ================================================================== */
+const COUNTRIES = [
+  "Afghanistan",
+  "Albania",
+  "Algeria",
+  "Andorra",
+  "Angola",
+  "Argentina",
+  "Armenia",
+  "Australia",
+  "Austria",
+  "Azerbaijan",
+  "Bahamas",
+  "Bahrain",
+  "Bangladesh",
+  "Belarus",
+  "Belgium",
+  "Belize",
+  "Benin",
+  "Bhutan",
+  "Bolivia",
+  "Bosnia and Herzegovina",
+  "Botswana",
+  "Brazil",
+  "Brunei",
+  "Bulgaria",
+  "Burkina Faso",
+  "Burundi",
+  "Cambodia",
+  "Cameroon",
+  "Canada",
+  "Chad",
+  "Chile",
+  "China",
+  "Colombia",
+  "Comoros",
+  "Congo",
+  "Costa Rica",
+  "Croatia",
+  "Cuba",
+  "Cyprus",
+  "Czech Republic",
+  "Denmark",
+  "Djibouti",
+  "Dominican Republic",
+  "Ecuador",
+  "Egypt",
+  "El Salvador",
+  "Estonia",
+  "Ethiopia",
+  "Finland",
+  "France",
+  "Gabon",
+  "Gambia",
+  "Georgia",
+  "Germany",
+  "Ghana",
+  "Greece",
+  "Guatemala",
+  "Guinea",
+  "Haiti",
+  "Honduras",
+  "Hungary",
+  "Iceland",
+  "India",
+  "Indonesia",
+  "Iran",
+  "Iraq",
+  "Ireland",
+  "Israel",
+  "Italy",
+  "Jamaica",
+  "Japan",
+  "Jordan",
+  "Kazakhstan",
+  "Kenya",
+  "Kuwait",
+  "Kyrgyzstan",
+  "Laos",
+  "Latvia",
+  "Lebanon",
+  "Lesotho",
+  "Liberia",
+  "Libya",
+  "Lithuania",
+  "Luxembourg",
+  "Madagascar",
+  "Malawi",
+  "Malaysia",
+  "Maldives",
+  "Mali",
+  "Malta",
+  "Mauritania",
+  "Mauritius",
+  "Mexico",
+  "Moldova",
+  "Monaco",
+  "Mongolia",
+  "Montenegro",
+  "Morocco",
+  "Mozambique",
+  "Myanmar",
+  "Namibia",
+  "Nepal",
+  "Netherlands",
+  "New Zealand",
+  "Nicaragua",
+  "Niger",
+  "Nigeria",
+  "North Korea",
+  "North Macedonia",
+  "Norway",
+  "Oman",
+  "Pakistan",
+  "Panama",
+  "Papua New Guinea",
+  "Paraguay",
+  "Peru",
+  "Philippines",
+  "Poland",
+  "Portugal",
+  "Qatar",
+  "Romania",
+  "Russia",
+  "Rwanda",
+  "Saudi Arabia",
+  "Senegal",
+  "Serbia",
+  "Sierra Leone",
+  "Singapore",
+  "Slovakia",
+  "Slovenia",
+  "Somalia",
+  "South Africa",
+  "South Korea",
+  "South Sudan",
+  "Spain",
+  "Sri Lanka",
+  "Sudan",
+  "Sweden",
+  "Switzerland",
+  "Syria",
+  "Taiwan",
+  "Tajikistan",
+  "Tanzania",
+  "Thailand",
+  "Togo",
+  "Trinidad and Tobago",
+  "Tunisia",
+  "Turkey",
+  "Turkmenistan",
+  "Uganda",
+  "Ukraine",
+  "United Arab Emirates",
+  "United Kingdom",
+  "United States",
+  "Uruguay",
+  "Uzbekistan",
+  "Venezuela",
+  "Vietnam",
+  "Yemen",
+  "Zambia",
+  "Zimbabwe",
+];
+
+function CountrySelect({
+  label,
+  fieldKey,
+  value,
+  originalValue,
+  onChange,
+  colors,
+  fullWidth = false,
+}) {
+  const isDirty = String(value ?? "") !== String(originalValue ?? "");
+
+  return (
+    <div
+      style={
+        fullWidth
+          ? { gridColumn: "1 / -1", marginBottom: "0.75rem" }
+          : { display: "flex", flexDirection: "column", gap: "0.3rem" }
+      }
+    >
+      {/* Label row */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        <label
+          style={{
+            fontSize: "0.72rem",
+            fontWeight: "700",
+            color: colors.textTertiary,
+            letterSpacing: "0.07em",
+            textTransform: "uppercase",
+          }}
+        >
+          {label}
+        </label>
+        {isDirty && (
+          <span
+            style={{
+              fontSize: "0.62rem",
+              fontWeight: "700",
+              color: "#f59e0b",
+              background: "rgba(245,158,11,0.12)",
+              padding: "0.1rem 0.4rem",
+              borderRadius: "4px",
+              letterSpacing: "0.05em",
+            }}
+          >
+            ✎ EDITED
+          </span>
+        )}
+      </div>
+
+      {/* Select */}
+      <select
+        value={value ?? ""}
+        onChange={(e) => onChange(fieldKey, e.target.value)}
+        style={{
+          width: "100%",
+          padding: "0.55rem 0.8rem",
+          background: colors.inputBg,
+          border: `1.5px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
+          borderRadius: "6px",
+          color: value ? colors.textPrimary : colors.textTertiary,
+          fontSize: "0.85rem",
+          outline: "none",
+          transition: "border-color 0.2s",
+          boxSizing: "border-box",
+          cursor: "pointer",
+          minHeight: "2.2rem",
+        }}
+        onFocus={(e) => {
+          e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = isDirty ? "#f59e0b" : colors.inputBorder;
+        }}
+      >
+        <option value="">— Select Country —</option>
+        {COUNTRIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
+
+      {/* Original value if dirty */}
+      {isDirty && (
+        <div
+          style={{
+            fontSize: "0.7rem",
+            color: colors.textTertiary,
+            marginTop: "0.15rem",
+            display: "flex",
+            gap: "0.3rem",
+          }}
+        >
+          <span style={{ flexShrink: 0, color: "#ef4444" }}>Original:</span>
+          <span style={{ fontStyle: "italic" }}>
+            {originalValue || <em>empty</em>}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -357,13 +1111,221 @@ function StepIndicator({ currentStep, steps, colors }) {
 }
 
 /* ================================================================== */
-/*  Step 1                                                              */
+/*  Step 1 — Basic Info                   */
 /* ================================================================== */
-function Step1BasicInfo({ record, colors }) {
+function Step1BasicInfo({
+  record,
+  editedFields,
+  onFieldChange,
+  canEdit,
+  colors,
+}) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
+
+  // Same helper pattern as Step2
+  const field = (
+    label,
+    fieldKey,
+    { fullWidth = false, multiline = false } = {},
+  ) => {
+    const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
+    const currentVal =
+      fieldKey in editedFields
+        ? editedFields[fieldKey]
+        : (record[fieldKey] ?? "");
+    const originalVal = record[fieldKey] ?? "";
+    if (isEditable) {
+      return (
+        <EditableField
+          key={fieldKey}
+          label={label}
+          fieldKey={fieldKey}
+          value={currentVal}
+          originalValue={originalVal}
+          onChange={onFieldChange}
+          colors={colors}
+          fullWidth={fullWidth}
+          multiline={multiline}
+        />
+      );
+    }
+    return (
+      <DisplayField
+        key={fieldKey}
+        label={label}
+        value={cleanValue(record[fieldKey])}
+        colors={colors}
+        fullWidth={fullWidth}
+      />
+    );
+  };
+
+  // Editable summary card — similar to SummaryCard pero may input
+  const summaryField = (icon, label, fieldKey, accent) => {
+    const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
+    const currentVal =
+      fieldKey in editedFields
+        ? editedFields[fieldKey]
+        : (record[fieldKey] ?? "");
+    const originalVal = record[fieldKey] ?? "";
+    const isDirty = String(currentVal ?? "") !== String(originalVal ?? "");
+
+    if (isEditable) {
+      return (
+        <div
+          key={fieldKey}
+          style={{
+            padding: "0.75rem 1rem",
+            background: colors.inputBg,
+            border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
+            borderLeft: `3px solid ${isDirty ? "#f59e0b" : accent}`,
+            borderRadius: "8px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.35rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: "700",
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "0.07em",
+              }}
+            >
+              {icon} {label}
+            </span>
+            {isDirty && (
+              <span
+                style={{
+                  fontSize: "0.6rem",
+                  fontWeight: "700",
+                  color: "#f59e0b",
+                  background: "rgba(245,158,11,0.12)",
+                  padding: "0.1rem 0.35rem",
+                  borderRadius: "4px",
+                }}
+              >
+                ✎ EDITED
+              </span>
+            )}
+          </div>
+          <input
+            type="text"
+            value={currentVal ?? ""}
+            onChange={(e) => onFieldChange(fieldKey, e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.3rem 0.5rem",
+              background: "transparent",
+              border: `1px solid ${isDirty ? "#f59e0b" : colors.cardBorder}`,
+              borderRadius: "4px",
+              color: colors.textPrimary,
+              fontSize: "0.88rem",
+              fontWeight: "600",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = isDirty
+                ? "#f59e0b"
+                : colors.cardBorder;
+            }}
+          />
+          {isDirty && (
+            <div
+              style={{
+                fontSize: "0.68rem",
+                color: colors.textTertiary,
+                display: "flex",
+                gap: "0.3rem",
+              }}
+            >
+              <span style={{ color: "#ef4444", flexShrink: 0 }}>Original:</span>
+              <span style={{ fontStyle: "italic", wordBreak: "break-word" }}>
+                {originalVal || <em>empty</em>}
+              </span>
+            </div>
+          )}
+        </div>
+      );
+    }
+    return (
+      <SummaryCard
+        key={fieldKey}
+        icon={icon}
+        label={label}
+        value={cleanValue(record[fieldKey])}
+        accent={accent}
+        colors={colors}
+      />
+    );
+  };
+
+  // Country dropdown helper
+  const countryField = (label, fieldKey) => {
+    const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
+    const currentVal =
+      fieldKey in editedFields
+        ? editedFields[fieldKey]
+        : (record[fieldKey] ?? "");
+    const originalVal = record[fieldKey] ?? "";
+
+    if (isEditable) {
+      return (
+        <CountrySelect
+          key={fieldKey}
+          label={label}
+          fieldKey={fieldKey}
+          value={currentVal}
+          originalValue={originalVal}
+          onChange={onFieldChange}
+          colors={colors}
+        />
+      );
+    }
+    return (
+      <DisplayField
+        key={fieldKey}
+        label={label}
+        value={cleanValue(record[fieldKey])}
+        colors={colors}
+      />
+    );
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+      {/* Edit mode banner */}
+      {canEdit && (
+        <div
+          style={{
+            padding: "0.75rem 1rem",
+            background: "rgba(245,158,11,0.08)",
+            border: "1px solid rgba(245,158,11,0.3)",
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
+            fontSize: "0.82rem",
+            color: "#b45309",
+          }}
+        >
+          <span style={{ fontSize: "1rem" }}>✎</span>
+          <span>
+            <strong>Edit Mode Active</strong> — Orange fields have been
+            modified. Changes save on Step 3 submit.
+          </span>
+        </div>
+      )}
+
+      {/* DTN / Brand header banner — display only */}
       <div
         style={{
           padding: "1.25rem 1.5rem",
@@ -462,6 +1424,8 @@ function Step1BasicInfo({ record, colors }) {
           </span>
         )}
       </div>
+
+      {/* Summary Cards — editable */}
       <div
         style={{
           display: "grid",
@@ -469,48 +1433,13 @@ function Step1BasicInfo({ record, colors }) {
           gap: "0.75rem",
         }}
       >
-        <SummaryCard
-          icon="🏢"
-          label="LTO Company"
-          value={cleanValue(record.ltoCompany)}
-          accent="#2196F3"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="📋"
-          label="Application Type"
-          value={cleanValue(record.appType)}
-          accent="#9c27b0"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="💊"
-          label="Dosage Form"
-          value={cleanValue(record.prodDosForm)}
-          accent="#ff9800"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="📌"
-          label="Prescription"
-          value={cleanValue(record.prodClassPrescript)}
-          accent="#f44336"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="🔖"
-          label="App Status"
-          value={cleanValue(record.appStatus)}
-          accent="#4caf50"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="⚙️"
-          label="Processing Type"
-          value={cleanValue(record.processingType)}
-          accent="#00bcd4"
-          colors={colors}
-        />
+        {summaryField("🏢", "LTO Company", "ltoCompany", "#2196F3")}
+        {summaryField("📋", "Application Type", "appType", "#9c27b0")}
+        {summaryField("💊", "Dosage Form", "prodDosForm", "#ff9800")}
+        {summaryField("📌", "Prescription", "prodClassPrescript", "#f44336")}
+        {summaryField("🔖", "App Status", "appStatus", "#4caf50")}
+        {summaryField("⚙️", "Processing Type", "processingType", "#00bcd4")}
+        {/* Date fields — display only, hindi dapat editable ang dates dito */}
         <SummaryCard
           icon="📅"
           label="Date Received Central"
@@ -526,226 +1455,223 @@ function Step1BasicInfo({ record, colors }) {
           colors={colors}
         />
       </div>
-      <VDSection title="💊 Product Details" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Dosage Strength"
-            value={cleanValue(record.prodDosStr)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Pharma Category"
-            value={cleanValue(record.prodPharmaCat)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Essential Drug"
-            value={cleanValue(record.prodEssDrugList)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Product Category"
-            value={cleanValue(record.prodCat)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
+
+      {/* Establishment */}
       <VDSection title="🏢 Establishment" colors={colors}>
         <FieldGrid>
+          {field("Category", "estCat")}
+          {field("LTO No.", "ltoNo")}
+          {field("TIN", "tin")}
+          {field("Email", "eadd")}
+          {field("Contact No.", "contactNo")}
           <DisplayField
-            label="Category"
-            value={cleanValue(record.estCat)}
+            label="Validity"
+            value={formatDate(record.validity)}
             colors={colors}
           />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.ltoNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO Address"
-            value={cleanValue(record.ltoAdd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Contact No."
-            value={cleanValue(record.contactNo)}
-            colors={colors}
-          />
+          {field("LTO Address", "ltoAdd", { fullWidth: true, multiline: true })}
+        </FieldGrid>
+      </VDSection>
+
+      {/* Product Details */}
+      <VDSection title="💊 Product Details" colors={colors}>
+        <FieldGrid>
+          {field("Dosage Strength", "prodDosStr")}
+          {field("Pharma Category", "prodPharmaCat")}
+          {field("Essential Drug", "prodEssDrugList")}
+          {field("Product Category", "prodCat")}
+          {field("Pharma Prod. Cat.", "pharmaProdCat")}
+          {field("Pharma Prod. Label", "pharmaProdCatLabel")}
+          {field("File", "file")}
+          {/* {field("Is in PM", "isInPm")} */}
+        </FieldGrid>
+      </VDSection>
+
+      {/* Manufacturer */}
+      <VDSection title="🏭 Manufacturer" colors={colors}>
+        <FieldGrid>
+          {field("Manufacturer", "prodManu")}
+          {countryField("Country", "prodManuCountry")}
+          {field("LTO No.", "prodManuLtoNo")}
+          {field("TIN", "prodManuTin")}
+          {field("Address", "prodManuAdd", {
+            fullWidth: true,
+            multiline: true,
+          })}
+        </FieldGrid>
+      </VDSection>
+
+      {/* Trader */}
+      <VDSection title="🤝 Trader" colors={colors}>
+        <FieldGrid>
+          {field("Trader", "prodTrader")}
+          {countryField("Country", "prodTraderCountry")}
+          {field("LTO No.", "prodTraderLtoNo")}
+          {field("TIN", "prodTraderTin")}
+          {field("Address", "prodTraderAdd", {
+            fullWidth: true,
+            multiline: true,
+          })}
+        </FieldGrid>
+      </VDSection>
+
+      {/* Importer */}
+      <VDSection title="🚢 Importer" colors={colors}>
+        <FieldGrid>
+          {field("Importer", "prodImporter")}
+          {countryField("Country", "prodImporterCountry")}
+          {field("LTO No.", "prodImporterLtoNo")}
+          {field("TIN", "prodImporterTin")}
+          {field("Address", "prodImporterAdd", {
+            fullWidth: true,
+            multiline: true,
+          })}
+        </FieldGrid>
+      </VDSection>
+
+      {/* Distributor */}
+      <VDSection title="📦 Distributor" colors={colors}>
+        <FieldGrid>
+          {field("Distributor", "prodDistri")}
+          {countryField("Country", "prodDistriCountry")}
+          {field("LTO No.", "prodDistriLtoNo")}
+          {field("TIN", "prodDistriTin")}
+          {field("Shelf Life", "prodDistriShelfLife")}
+          {field("Address", "prodDistriAdd", {
+            fullWidth: true,
+            multiline: true,
+          })}
+        </FieldGrid>
+      </VDSection>
+
+      {/* Repacker */}
+      <VDSection title="🔄 Repacker" colors={colors}>
+        <FieldGrid>
+          {field("Repacker", "prodRepacker")}
+          {countryField("Country", "prodRepackerCountry")}
+          {field("LTO No.", "prodRepackerLtoNo")}
+          {field("TIN", "prodRepackerTin")}
+          {field("Address", "prodRepackerAdd", {
+            fullWidth: true,
+            multiline: true,
+          })}
         </FieldGrid>
       </VDSection>
     </div>
   );
 }
+/* ================================================================== */
+/*  Step 2 — Full Details (editable fields for allowed roles)          */
+/* ================================================================== */
+function Step2FullDetails({
+  record,
+  editedFields,
+  onFieldChange,
+  canEdit,
+  colors,
+}) {
+  // Helper: render editable or display based on canEdit + field whitelist
+  const field = (
+    label,
+    fieldKey,
+    { fullWidth = false, multiline = false } = {},
+  ) => {
+    const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
+    const currentVal =
+      fieldKey in editedFields
+        ? editedFields[fieldKey]
+        : (record[fieldKey] ?? "");
+    const originalVal = record[fieldKey] ?? "";
 
-/* ================================================================== */
-/*  Step 2                                                              */
-/* ================================================================== */
-function Step2FullDetails({ record, colors }) {
+    if (isEditable) {
+      return (
+        <EditableField
+          key={fieldKey}
+          label={label}
+          fieldKey={fieldKey}
+          value={currentVal}
+          originalValue={originalVal}
+          onChange={onFieldChange}
+          colors={colors}
+          fullWidth={fullWidth}
+          multiline={multiline}
+        />
+      );
+    }
+    return (
+      <DisplayField
+        key={fieldKey}
+        label={label}
+        value={cleanValue(record[fieldKey])}
+        colors={colors}
+        fullWidth={fullWidth}
+      />
+    );
+  };
+
   return (
     <div>
+      {/* Edit mode notice banner */}
+      {canEdit && (
+        <div
+          style={{
+            marginBottom: "1.5rem",
+            padding: "0.75rem 1rem",
+            background: "rgba(245,158,11,0.08)",
+            border: "1px solid rgba(245,158,11,0.3)",
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
+            fontSize: "0.82rem",
+            color: "#b45309",
+          }}
+        >
+          <span style={{ fontSize: "1rem" }}>✎</span>
+          <span>
+            <strong>Edit Mode Active</strong> — Fields highlighted in orange
+            have been modified. Changes will be saved when you complete the task
+            in Step 3.
+          </span>
+        </div>
+      )}
+
       <VDSection title="📋 Application Information" colors={colors}>
         <FieldGrid>
-          <DisplayField
-            label="Registration No."
-            value={cleanValue(record.regNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Mother App Type"
-            value={cleanValue(record.motherAppType)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Old RSN"
-            value={cleanValue(record.oldRsn)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Certification"
-            value={cleanValue(record.certification)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Class"
-            value={cleanValue(record.class)}
-            colors={colors}
-          />
-          <DisplayField
-            label="MO"
-            value={cleanValue(record.mo)}
-            colors={colors}
-          />
+          {field("Registration No.", "regNo")}
+          {field("Mother App Type", "motherAppType")}
+          {field("Old RSN", "oldRsn")}
+          {field("Certification", "certification")}
+          {field("Class", "class")}
+          {field("MO", "mo")}
         </FieldGrid>
       </VDSection>
+
       <VDSection title="📝 Amendments" colors={colors}>
         <FieldGrid>
-          <DisplayField
-            label="Amendment 1"
-            value={cleanValue(record.ammend1)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Amendment 2"
-            value={cleanValue(record.ammend2)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Amendment 3"
-            value={cleanValue(record.ammend3)}
-            colors={colors}
-          />
+          {field("Amendment 1", "ammend1")}
+          {field("Amendment 2", "ammend2")}
+          {field("Amendment 3", "ammend3")}
         </FieldGrid>
       </VDSection>
-      <VDSection title="🏭 Manufacturer" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Manufacturer"
-            value={cleanValue(record.prodManu)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Country"
-            value={cleanValue(record.prodManuCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Address"
-            value={cleanValue(record.prodManuAdd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.prodManuLtoNo)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-      <VDSection title="🚢 Trader / Importer / Distributor" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Trader"
-            value={cleanValue(record.prodTrader)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Trader Country"
-            value={cleanValue(record.prodTraderCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Importer"
-            value={cleanValue(record.prodImporter)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Importer Country"
-            value={cleanValue(record.prodImporterCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Distributor"
-            value={cleanValue(record.prodDistri)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Shelf Life"
-            value={cleanValue(record.prodDistriShelfLife)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
+
       <VDSection title="📦 Storage & Packaging" colors={colors}>
         <FieldGrid>
-          <DisplayField
-            label="Storage Condition"
-            value={cleanValue(record.storageCond)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Packaging"
-            value={cleanValue(record.packaging)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Suggested RP"
-            value={cleanValue(record.suggRp)}
-            colors={colors}
-          />
-          <DisplayField
-            label="No. of Samples"
-            value={cleanValue(record.noSample)}
-            colors={colors}
-          />
+          {field("Storage Condition", "storageCond")}
+          {field("Packaging", "packaging")}
+          {field("Suggested RP", "suggRp")}
+          {field("No. of Samples", "noSample")}
         </FieldGrid>
       </VDSection>
+
+      {/* Fees — UPDATED */}
       <VDSection title="💰 Fees" colors={colors}>
         <FieldGrid>
-          <DisplayField
-            label="Fee"
-            value={cleanValue(record.fee)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LRF"
-            value={cleanValue(record.lrf)}
-            colors={colors}
-          />
-          <DisplayField
-            label="SURC"
-            value={cleanValue(record.surc)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Total"
-            value={cleanValue(record.total)}
-            colors={colors}
-          />
-          <DisplayField
-            label="OR No."
-            value={cleanValue(record.orNo)}
-            colors={colors}
-          />
+          {field("Fee", "fee")}
+          {field("LRF", "lrf")}
+          {field("SURC", "surc")}
+          {field("Total", "total")}
+          {field("OR No.", "orNo")}
           <DisplayField
             label="Date Issued"
             value={formatDate(record.dateIssued)}
@@ -753,6 +1679,7 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
+
       <VDSection title="📅 Important Dates" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -785,15 +1712,23 @@ function Step2FullDetails({ record, colors }) {
             value={formatDate(record.cprValidity)}
             colors={colors}
           />
-        </FieldGrid>
-      </VDSection>
-      <VDSection title="🔐 SECPA" colors={colors}>
-        <FieldGrid>
           <DisplayField
-            label="SECPA"
-            value={cleanValue(record.secpa)}
+            label="Date Remarks"
+            value={formatDate(record.dateRemarks)}
             colors={colors}
           />
+          <DisplayField
+            label="Validity"
+            value={formatDate(record.validity)}
+            colors={colors}
+          />
+        </FieldGrid>
+      </VDSection>
+
+      {/* SECPA — UPDATED */}
+      <VDSection title="🔐 SECPA" colors={colors}>
+        <FieldGrid>
+          {field("SECPA", "secpa")} {/* ← editable na */}
           <DisplayField
             label="SECPA Expiry Date"
             value={formatDate(record.secpaExpDate)}
@@ -806,11 +1741,12 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
+
       <VDSection title="🎯 Decking & Evaluation" colors={colors}>
         <FieldGrid>
           <DisplayField
             label="Decking Schedule"
-            value={formatDate(record.deckingSched)}
+            value={cleanValue(record.deckingSched)}
             colors={colors}
           />
           <DisplayField
@@ -820,6 +1756,7 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
+
       <VDSection title="📤 Release" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -839,40 +1776,33 @@ function Step2FullDetails({ record, colors }) {
           />
         </FieldGrid>
       </VDSection>
+
       <VDSection title="📜 CPR Conditions" colors={colors}>
-        <DisplayField
-          label="CPR Condition"
-          value={cleanValue(record.cprCond)}
-          colors={colors}
-          fullWidth
-        />
-        <DisplayField
-          label="CPR Condition Remarks"
-          value={cleanValue(record.cprCondRemarks)}
-          colors={colors}
-          fullWidth
-        />
-        <DisplayField
-          label="CPR Condition Additional Remarks"
-          value={cleanValue(record.cprCondAddRemarks)}
-          colors={colors}
-          fullWidth
-        />
+        {field("CPR Condition", "cprCond", {
+          fullWidth: true,
+          multiline: true,
+        })}
+        {field("CPR Condition Remarks", "cprCondRemarks", {
+          fullWidth: true,
+          multiline: true,
+        })}
+        {field("CPR Condition Additional Remarks", "cprCondAddRemarks", {
+          fullWidth: true,
+          multiline: true,
+        })}
       </VDSection>
+
       <VDSection title="📝 Remarks & Notes" colors={colors}>
-        <DisplayField
-          label="Application Remarks"
-          value={cleanValue(record.appRemarks)}
-          colors={colors}
-          fullWidth
-        />
-        <DisplayField
-          label="General Remarks"
-          value={cleanValue(record.remarks1)}
-          colors={colors}
-          fullWidth
-        />
+        {field("Application Remarks", "appRemarks", {
+          fullWidth: true,
+          multiline: true,
+        })}
+        {field("General Remarks", "remarks1", {
+          fullWidth: true,
+          multiline: true,
+        })}
       </VDSection>
+
       <VDSection title="📊 Metadata" colors={colors}>
         <FieldGrid>
           <DisplayField
@@ -886,13 +1816,33 @@ function Step2FullDetails({ record, colors }) {
             colors={colors}
           />
           <DisplayField
+            label="Assigned To"
+            value={cleanValue(record.evaluator)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Current Step"
+            value={cleanValue(record.applicationStep)}
+            colors={colors}
+          />
+          <DisplayField
             label="Uploaded By"
             value={cleanValue(record.userUploader)}
             colors={colors}
           />
           <DisplayField
-            label="Upload Date"
-            value={formatDate(record.dateExcelUpload)}
+            label="Uploaded At"
+            value={formatDate(record.uploadedAt)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Log Created At"
+            value={formatDate(record.logCreatedAt)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Accomplished Date"
+            value={formatDate(record.accomplishedDate)}
             colors={colors}
           />
         </FieldGrid>
@@ -902,37 +1852,823 @@ function Step2FullDetails({ record, colors }) {
 }
 
 /* ================================================================== */
-/*  Step 3: Generic Action Form                                         */
+/*  Step 3 — Application Logs                                          */
 /* ================================================================== */
-function Step3ActionForm({ record, colors, onClose, onSuccess }) {
+function Step3AppLogs({ record, colors }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!record?.mainDbId) return;
+    (async () => {
+      try {
+        setLoading(true);
+        const data = await getApplicationLogs(record.mainDbId);
+        setLogs(Array.isArray(data) ? data : []);
+      } catch (err) {
+        setError("Failed to load application logs.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [record?.mainDbId]);
+
+  const STEP_COLORS = {
+    "Quality Evaluation": "#2196F3",
+    Compliance: "#9c27b0",
+    Checking: "#ff9800",
+    Supervisor: "#f44336",
+    QA: "#00bcd4",
+    "Director Signature": "#3f51b5",
+    Releasing: "#4caf50",
+    Decking: "#607d8b",
+    Evaluation: "#8bc34a",
+  };
+
+  const STATUS_STYLE = {
+    COMPLETED: {
+      bg: "rgba(16,185,129,0.1)",
+      color: "#059669",
+      label: "✓ Completed",
+    },
+    "IN PROGRESS": {
+      bg: "rgba(33,150,243,0.1)",
+      color: "#1976D2",
+      label: "⏳ In Progress",
+    },
+  };
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: "3rem",
+          gap: "0.75rem",
+          color: colors.textTertiary,
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            width: "18px",
+            height: "18px",
+            border: "2px solid #2196F330",
+            borderTopColor: "#2196F3",
+            borderRadius: "50%",
+            animation: "spin 0.6s linear infinite",
+          }}
+        />
+        Loading application logs...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div
+        style={{
+          padding: "1.5rem",
+          background: "rgba(239,68,68,0.08)",
+          border: "1px solid rgba(239,68,68,0.2)",
+          borderRadius: "8px",
+          color: "#ef4444",
+          fontSize: "0.85rem",
+        }}
+      >
+        ❌ {error}
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div
+        style={{
+          padding: "2rem",
+          textAlign: "center",
+          color: colors.textTertiary,
+          fontSize: "0.9rem",
+          fontStyle: "italic",
+        }}
+      >
+        No application logs found for this record.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+      {/* Header summary */}
+      <div
+        style={{
+          padding: "0.85rem 1.25rem",
+          background: "rgba(33,150,243,0.06)",
+          border: "1px solid rgba(33,150,243,0.15)",
+          borderRadius: "8px",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          fontSize: "0.82rem",
+          color: colors.textSecondary,
+        }}
+      >
+        <span style={{ fontSize: "1rem" }}>📋</span>
+        <span>
+          <strong style={{ color: colors.textPrimary }}>{logs.length}</strong>{" "}
+          log{logs.length > 1 ? "s" : ""} found for DTN{" "}
+          <strong style={{ color: "#2196F3" }}>{record.dtn}</strong>
+        </span>
+      </div>
+
+      {/* Log entries */}
+      {logs.map((log, index) => {
+        const stepColor = STEP_COLORS[log.application_step] ?? "#607d8b";
+        const statusStyle = STATUS_STYLE[log.application_status] ?? {
+          bg: "rgba(100,100,100,0.1)",
+          color: colors.textTertiary,
+          label: log.application_status,
+        };
+
+        return (
+          <div
+            key={log.id}
+            style={{
+              border: `1px solid ${colors.cardBorder}`,
+              borderLeft: `4px solid ${stepColor}`,
+              borderRadius: "10px",
+              overflow: "hidden",
+              background: colors.cardBg,
+            }}
+          >
+            {/* Log header */}
+            <div
+              style={{
+                padding: "0.85rem 1.25rem",
+                background: colors.inputBg,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+                borderBottom: `1px solid ${colors.cardBorder}`,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                }}
+              >
+                {/* Index badge */}
+                <span
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    background: stepColor,
+                    color: "#fff",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.72rem",
+                    fontWeight: "700",
+                    flexShrink: 0,
+                  }}
+                >
+                  {log.del_index ?? index + 1}
+                </span>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "0.88rem",
+                      fontWeight: "700",
+                      color: colors.textPrimary,
+                    }}
+                  >
+                    {log.application_step}
+                  </div>
+                  <div
+                    style={{ fontSize: "0.72rem", color: colors.textTertiary }}
+                  >
+                    👤 {log.user_name ?? "—"}
+                  </div>
+                </div>
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                {/* Status badge */}
+                <span
+                  style={{
+                    padding: "0.25rem 0.75rem",
+                    background: statusStyle.bg,
+                    color: statusStyle.color,
+                    borderRadius: "20px",
+                    fontSize: "0.72rem",
+                    fontWeight: "700",
+                  }}
+                >
+                  {statusStyle.label}
+                </span>
+                {/* Thread badge */}
+                {log.del_thread && (
+                  <span
+                    style={{
+                      padding: "0.25rem 0.6rem",
+                      background:
+                        log.del_thread === "Close"
+                          ? "rgba(16,185,129,0.1)"
+                          : "rgba(245,158,11,0.1)",
+                      color: log.del_thread === "Close" ? "#059669" : "#b45309",
+                      borderRadius: "20px",
+                      fontSize: "0.7rem",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {log.del_thread === "Close" ? "🔒 Closed" : "🔓 Open"}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Log body */}
+            <div
+              style={{
+                padding: "1rem 1.25rem",
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "0.85rem",
+              }}
+            >
+              {/* Decision */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.68rem",
+                    fontWeight: "700",
+                    color: colors.textTertiary,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                  }}
+                >
+                  Decision
+                </span>
+                <span
+                  style={{
+                    padding: "0.35rem 0.75rem",
+                    background: log.application_decision
+                      ? log.application_decision
+                          .toLowerCase()
+                          .includes("approved") ||
+                        log.application_decision
+                          .toLowerCase()
+                          .includes("released")
+                        ? "rgba(16,185,129,0.1)"
+                        : log.application_decision
+                              .toLowerCase()
+                              .includes("rejected")
+                          ? "rgba(239,68,68,0.1)"
+                          : "rgba(33,150,243,0.1)"
+                      : colors.inputBg,
+                    color: log.application_decision
+                      ? log.application_decision
+                          .toLowerCase()
+                          .includes("approved") ||
+                        log.application_decision
+                          .toLowerCase()
+                          .includes("released")
+                        ? "#059669"
+                        : log.application_decision
+                              .toLowerCase()
+                              .includes("rejected")
+                          ? "#ef4444"
+                          : "#1976D2"
+                      : colors.textTertiary,
+                    borderRadius: "6px",
+                    fontSize: "0.82rem",
+                    fontWeight: "600",
+                    fontStyle: !log.application_decision ? "italic" : "normal",
+                    display: "inline-block",
+                    alignSelf: "flex-start",
+                  }}
+                >
+                  {log.application_decision || "—"}
+                </span>
+              </div>
+
+              {/* Dates */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.68rem",
+                    fontWeight: "700",
+                    color: colors.textTertiary,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                  }}
+                >
+                  Dates
+                </span>
+                <div
+                  style={{
+                    fontSize: "0.78rem",
+                    color: colors.textSecondary,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.15rem",
+                  }}
+                >
+                  <span>
+                    🟢 Start:{" "}
+                    <strong>
+                      {log.start_date
+                        ? new Date(log.start_date).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })
+                        : "—"}
+                    </strong>
+                  </span>
+                  <span>
+                    ✅ Done:{" "}
+                    <strong>
+                      {log.accomplished_date
+                        ? new Date(log.accomplished_date).toLocaleDateString(
+                            "en-US",
+                            { year: "numeric", month: "short", day: "numeric" },
+                          )
+                        : "—"}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Remarks — full width */}
+              {log.application_remarks && (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.25rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      fontWeight: "700",
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                    }}
+                  >
+                    Remarks
+                  </span>
+                  <div
+                    style={{
+                      padding: "0.6rem 0.85rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: "6px",
+                      fontSize: "0.82rem",
+                      color: colors.textPrimary,
+                      lineHeight: "1.5",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {log.application_remarks}
+                  </div>
+                </div>
+              )}
+
+              {/* Delegation info */}
+              <div
+                style={{
+                  gridColumn: "1 / -1",
+                  display: "flex",
+                  gap: "0.5rem",
+                  flexWrap: "wrap",
+                }}
+              >
+                {log.del_index !== null && log.del_index !== undefined && (
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      padding: "0.2rem 0.5rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: "4px",
+                      color: colors.textTertiary,
+                    }}
+                  >
+                    Index: {log.del_index}
+                  </span>
+                )}
+                {log.del_previous !== null &&
+                  log.del_previous !== undefined && (
+                    <span
+                      style={{
+                        fontSize: "0.68rem",
+                        padding: "0.2rem 0.5rem",
+                        background: colors.inputBg,
+                        border: `1px solid ${colors.cardBorder}`,
+                        borderRadius: "4px",
+                        color: colors.textTertiary,
+                      }}
+                    >
+                      Prev: {log.del_previous}
+                    </span>
+                  )}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function DeadlinePicker({
+  deadlineDate,
+  workingDays,
+  onDeadlineChange,
+  onWorkingDaysChange,
+  colors,
+}) {
+  const urgency = deadlineUrgency(deadlineDate);
+  const urgencyConfig = {
+    overdue: {
+      bg: "rgba(239,68,68,0.08)",
+      border: "rgba(239,68,68,0.35)",
+      color: "#dc2626",
+      icon: "🚨",
+      label: "OVERDUE",
+    },
+    critical: {
+      bg: "rgba(239,68,68,0.06)",
+      border: "rgba(239,68,68,0.25)",
+      color: "#ef4444",
+      icon: "🔴",
+      label: "CRITICAL — 3 days or less",
+    },
+    warning: {
+      bg: "rgba(245,158,11,0.06)",
+      border: "rgba(245,158,11,0.25)",
+      color: "#b45309",
+      icon: "🟡",
+      label: "WARNING — 5 days or less",
+    },
+    ok: {
+      bg: "rgba(16,185,129,0.06)",
+      border: "rgba(16,185,129,0.25)",
+      color: "#059669",
+      icon: "🟢",
+      label: "On Track",
+    },
+  };
+  const cfg = urgency ? urgencyConfig[urgency] : null;
+
+  return (
+    <div
+      style={{
+        padding: "1.25rem",
+        background: "rgba(156,39,176,0.04)",
+        border: "1.5px solid rgba(156,39,176,0.2)",
+        borderRadius: "12px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "1rem",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+        <span style={{ fontSize: "1.1rem" }}>⏰</span>
+        <div>
+          <div
+            style={{ fontSize: "0.82rem", fontWeight: "700", color: "#7b1fa2" }}
+          >
+            Compliance Deadline
+          </div>
+          <div
+            style={{
+              fontSize: "0.72rem",
+              color: colors.textTertiary,
+              marginTop: "0.1rem",
+            }}
+          >
+            Set working days OR pick a date — both auto-sync
+          </div>
+        </div>
+      </div>
+
+      {/* Two-column inputs */}
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}
+      >
+        {/* Working Days */}
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
+        >
+          <label
+            style={{
+              fontSize: "0.72rem",
+              fontWeight: "700",
+              color: colors.textTertiary,
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+            }}
+          >
+            Working Days
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <button
+              onClick={() => onWorkingDaysChange(Math.max(1, workingDays - 1))}
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "6px",
+                border: `1px solid ${colors.cardBorder}`,
+                background: colors.inputBg,
+                color: colors.textPrimary,
+                fontSize: "1.1rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              −
+            </button>
+            <input
+              type="number"
+              min="1"
+              max="365"
+              value={workingDays}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val > 0) onWorkingDaysChange(val);
+              }}
+              style={{
+                flex: 1,
+                padding: "0.5rem 0.4rem",
+                background: colors.inputBg,
+                border: "1.5px solid rgba(156,39,176,0.3)",
+                borderRadius: "6px",
+                color: colors.textPrimary,
+                fontSize: "0.95rem",
+                fontWeight: "700",
+                outline: "none",
+                textAlign: "center",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#9c27b0";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "rgba(156,39,176,0.3)";
+              }}
+            />
+            <button
+              onClick={() => onWorkingDaysChange(workingDays + 1)}
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "6px",
+                border: `1px solid ${colors.cardBorder}`,
+                background: colors.inputBg,
+                color: colors.textPrimary,
+                fontSize: "1.1rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              +
+            </button>
+          </div>
+
+          {/* Quick preset buttons */}
+          <div
+            style={{
+              display: "flex",
+              gap: "0.3rem",
+              flexWrap: "wrap",
+              marginTop: "0.1rem",
+            }}
+          >
+            {[7, 15, 20, 30, 60].map((d) => (
+              <button
+                key={d}
+                onClick={() => onWorkingDaysChange(d)}
+                style={{
+                  padding: "0.15rem 0.5rem",
+                  fontSize: "0.65rem",
+                  fontWeight: workingDays === d ? "700" : "500",
+                  background:
+                    workingDays === d
+                      ? "rgba(156,39,176,0.15)"
+                      : colors.inputBg,
+                  border: `1px solid ${workingDays === d ? "#9c27b0" : colors.cardBorder}`,
+                  borderRadius: "4px",
+                  color: workingDays === d ? "#7b1fa2" : colors.textTertiary,
+                  cursor: "pointer",
+                  transition: "all 0.15s",
+                }}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Deadline Date picker */}
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
+        >
+          <label
+            style={{
+              fontSize: "0.72rem",
+              fontWeight: "700",
+              color: colors.textTertiary,
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+            }}
+          >
+            Deadline Date
+          </label>
+          <input
+            type="date"
+            value={deadlineDate}
+            min={todayStr()}
+            onChange={(e) => onDeadlineChange(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.5rem 0.6rem",
+              background: colors.inputBg,
+              border: "1.5px solid rgba(156,39,176,0.3)",
+              borderRadius: "6px",
+              color: colors.textPrimary,
+              fontSize: "0.85rem",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = "#9c27b0";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = "rgba(156,39,176,0.3)";
+            }}
+          />
+          {deadlineDate && (
+            <div style={{ fontSize: "0.7rem", color: colors.textTertiary }}>
+              📅 {fmtDeadline(deadlineDate)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Urgency indicator */}
+      {cfg && deadlineDate && (
+        <div
+          style={{
+            padding: "0.65rem 0.9rem",
+            background: cfg.bg,
+            border: `1px solid ${cfg.border}`,
+            borderRadius: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            fontSize: "0.78rem",
+            color: cfg.color,
+            fontWeight: "600",
+          }}
+        >
+          <span>{cfg.icon}</span>
+          <span>{cfg.label}</span>
+          {urgency !== "overdue" && (
+            <span
+              style={{
+                marginLeft: "auto",
+                fontWeight: "400",
+                color: colors.textTertiary,
+              }}
+            >
+              {countWorkingDays(todayStr(), deadlineDate)} working day
+              {countWorkingDays(todayStr(), deadlineDate) !== 1 ? "s" : ""}{" "}
+              remaining
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Notification hint */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: "0.5rem",
+          fontSize: "0.72rem",
+          color: colors.textTertiary,
+          paddingTop: "0.35rem",
+          borderTop: `1px dashed ${colors.cardBorder}`,
+        }}
+      >
+        <span style={{ flexShrink: 0 }}>🔔</span>
+        <span>
+          The assigned compliance officer will be notified{" "}
+          <strong>3 working days before</strong> this deadline.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Step 3 — Action Form (with audit log on submit)                    */
+/* ================================================================== */
+function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     currentUserDisplay: "",
     assignee: "",
     decision: "",
     remarks: "",
   });
+
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
 
+  /* ────────────────────────────────────────────────────────────────────
+   ③ CHANGES INSIDE Step3ActionForm
+   ──────────────────────────────────────────────────────────────────── */
+
+  // A.  Add to state (after the existing useState calls):
+  const today = todayStr();
+  const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
+  const [deadlineDate, setDeadlineDate] = useState(() =>
+    addWorkingDays(todayStr(), DEFAULT_WORKING_DAYS),
+  );
+
+  // B.  Add two sync handlers (before useEffect blocks):
+  const handleWorkingDaysChange = (days) => {
+    setWorkingDays(days);
+    setDeadlineDate(addWorkingDays(today, days));
+  };
+  const handleDeadlineDateChange = (dateStr) => {
+    setDeadlineDate(dateStr);
+    setWorkingDays(countWorkingDays(today, dateStr));
+  };
+
   const logId = record.id;
   const mainDbId = record.mainDbId;
-  const currentStep = record.applicationStep; // e.g. "Quality Evaluation", "Checking", etc.
+  const currentStep = record.applicationStep;
 
-  // Decisions available per step
+  // Count of dirty fields to show in summary
+  const dirtyFields = computeFieldChanges(
+    record,
+    editedFields,
+    FIELD_LABEL_MAP,
+    currentStep,
+  );
+
   const STEP_DECISIONS = {
-    "Quality Evaluation": [
-      "For Checking",
-      "For Compliance",
-      "Approved",
-      "Rejected",
+    "Quality Evaluation": ["Endorse to Checker", "For Compliance"],
+    Compliance: ["Endorse to Checker", "For Compliance"],
+    Checking: ["Endorse to Supervisor", "Return to Evaluator"],
+    Supervisor: [
+      "Recommended for Approval",
+      "Recommended for Disapproval",
+      "Return to Evaluator",
     ],
-    Compliance: ["For Checking", "Approved", "Rejected"],
-    Checking: ["Approved", "Rejected", "For Compliance"],
-    Supervisor: ["Approved", "Rejected"],
-    QA: ["Approved", "Rejected"],
-    "Director Signature": ["Approved", "Rejected"],
+    QA: [
+      "Recommended for Approval",
+      "Recommended for Disapproval",
+      "Return to Evaluator",
+    ],
+    "Director Signature": ["Approved", "Disapproved"],
     Releasing: ["Released"],
   };
 
@@ -940,17 +2676,9 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
     "Approved",
     "Rejected",
   ];
-
-  // Derive next step based on current step + selected decision
   const nextStep = getNextStep(currentStep, formData.decision);
-
-  // Next group ID to fetch users from
   const nextGroupId = STEP_GROUP_MAP[nextStep] ?? null;
-
-  // For Compliance decision → assign to self, no dropdown needed
   const isForCompliance = formData.decision === "For Compliance";
-
-  // Show assignee dropdown only when there's a next step AND it's not self-assign
   const needsAssignee = nextStep !== null && !isForCompliance;
 
   useEffect(() => {
@@ -961,7 +2689,6 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
     }
   }, []);
 
-  // Re-fetch users whenever nextGroupId changes
   useEffect(() => {
     if (!needsAssignee || !nextGroupId) {
       setAssigneeOptions([]);
@@ -982,7 +2709,6 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
   const handleChange = (f, v) => {
     setFormData((p) => {
       const updated = { ...p, [f]: v };
-      // Reset assignee when decision changes
       if (f === "decision") updated.assignee = "";
       return updated;
     });
@@ -991,13 +2717,14 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
   const isSubmitDisabled =
     loading ||
     !formData.decision ||
+    (isForCompliance && !deadlineDate) || // ← NEW
     (needsAssignee &&
       (loadingUsers || assigneeOptions.length === 0 || !formData.assignee));
 
   const infoText = !formData.decision
     ? "Select a decision to proceed."
     : isForCompliance
-      ? `Your log will be completed and a Compliance log will be assigned to you (${currentUser?.username ?? ""}).`
+      ? `Your log will be completed and a Compliance log will be self-assigned to you (${currentUser?.username ?? ""}) with deadline: ${fmtDeadline(deadlineDate)}.`
       : nextStep
         ? `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
         : "Your log will be completed. This is the final step — no further assignment needed.";
@@ -1021,11 +2748,33 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
     setLoading(true);
     try {
       const formattedDateTime = new Date().toISOString();
+
+      // ── 1. Save field audit log if there are changes ──────────────
+      if (dirtyFields.length > 0) {
+        await createFieldAuditLog({
+          main_db_id: mainDbId,
+          log_id: logId,
+          session_id: crypto.randomUUID(),
+          changes: dirtyFields,
+        });
+
+        // ✅ Map camelCase → DB_ keys bago i-send sa API
+        const updatePayload = {};
+        dirtyFields.forEach((c) => {
+          const dbKey = FIELD_KEY_TO_DB[c.field_name];
+          if (dbKey) updatePayload[dbKey] = c.new_value;
+        });
+
+        if (Object.keys(updatePayload).length > 0) {
+          await updateUploadReport(mainDbId, updatePayload);
+        }
+      }
+
+      // ── 2. Existing workflow ──────────────────────────────────────
       const indexData = await getLastApplicationLogIndex(mainDbId);
       const lastIndex = indexData.last_index;
       const nextIndex = lastIndex + 1;
 
-      // ── Step 1: COMPLETE current log ──────────────────────────────
       await updateApplicationLog(logId, {
         application_status: "COMPLETED",
         application_decision: formData.decision,
@@ -1033,13 +2782,20 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
         accomplished_date: formattedDateTime,
         del_last_index: 0,
         del_thread: "Close",
+        // Pass edited fields so backend can update the main record too
+        ...(dirtyFields.length > 0
+          ? {
+              edited_fields: Object.fromEntries(
+                dirtyFields.map((c) => [c.field_name, c.new_value]),
+              ),
+            }
+          : {}),
       });
 
-      // ── Step 2: CREATE next log if there's a next step ────────────
       if (nextStep) {
         const assignedUser = isForCompliance
-          ? currentUser?.username || formData.currentUserDisplay // self-assign
-          : formData.assignee; // selected from dropdown
+          ? currentUser?.username || formData.currentUserDisplay
+          : formData.assignee;
 
         await createApplicationLog({
           main_db_id: mainDbId,
@@ -1054,6 +2810,9 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
           del_previous: lastIndex,
           del_last_index: 1,
           del_thread: "Open",
+          ...(isForCompliance
+            ? { deadline_date: deadlineDate, working_days: workingDays }
+            : {}),
         });
       }
 
@@ -1207,7 +2966,71 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
         )}
       </div>
 
-      {/* Current user (readonly) */}
+      {/* ── Changes Summary Banner ─────────────────────────────────── */}
+      {dirtyFields.length > 0 && (
+        <div
+          style={{
+            padding: "0.85rem 1rem",
+            background: "rgba(245,158,11,0.08)",
+            border: "1px solid rgba(245,158,11,0.3)",
+            borderRadius: "8px",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.78rem",
+              fontWeight: "700",
+              color: "#b45309",
+              marginBottom: "0.5rem",
+            }}
+          >
+            ✎ {dirtyFields.length} field{dirtyFields.length > 1 ? "s" : ""}{" "}
+            edited — will be saved with this submission
+          </div>
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
+          >
+            {dirtyFields.map((c) => (
+              <div
+                key={c.field_name}
+                style={{
+                  display: "flex",
+                  gap: "0.5rem",
+                  fontSize: "0.75rem",
+                  color: colors.textSecondary,
+                  alignItems: "flex-start",
+                }}
+              >
+                <span
+                  style={{
+                    fontWeight: "600",
+                    color: colors.textPrimary,
+                    minWidth: "140px",
+                    flexShrink: 0,
+                  }}
+                >
+                  {c.field_label}:
+                </span>
+                <span
+                  style={{
+                    color: "#ef4444",
+                    textDecoration: "line-through",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {c.old_value || <em>empty</em>}
+                </span>
+                <span style={{ color: colors.textTertiary }}>→</span>
+                <span style={{ color: "#10b981", wordBreak: "break-all" }}>
+                  {c.new_value || <em>empty</em>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Current user readonly */}
       <div>
         <label
           style={{
@@ -1283,6 +3106,16 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
         </select>
       </div>
 
+      {isForCompliance && (
+        <DeadlinePicker
+          deadlineDate={deadlineDate}
+          workingDays={workingDays}
+          onDeadlineChange={handleDeadlineDateChange}
+          onWorkingDaysChange={handleWorkingDaysChange}
+          colors={colors}
+        />
+      )}
+
       {/* Remarks */}
       <div>
         <label
@@ -1313,7 +3146,7 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
         />
       </div>
 
-      {/* Assignee dropdown — only shown when needed */}
+      {/* Assignee */}
       {needsAssignee && (
         <div>
           <label
@@ -1409,7 +3242,7 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
         </div>
       )}
 
-      {/* Self-assign notice for For Compliance */}
+      {/* Self-assign notice */}
       {isForCompliance && (
         <div
           style={{
@@ -1500,7 +3333,12 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
             Submitting...
           </>
         ) : (
-          <>✓ Complete {currentStep}</>
+          <>
+            ✓ Complete {currentStep}
+            {dirtyFields.length > 0
+              ? ` + Save ${dirtyFields.length} Edit${dirtyFields.length > 1 ? "s" : ""}`
+              : ""}
+          </>
         )}
       </button>
     </div>
@@ -1512,12 +3350,27 @@ function Step3ActionForm({ record, colors, onClose, onSuccess }) {
 /* ================================================================== */
 function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
   const [currentStep, setCurrentStep] = useState(1);
+
+  // ── Shared edit state lifted to modal level ──────────────────────
+  const [editedFields, setEditedFields] = useState({});
+
+  const canEdit = EDITABLE_STEPS.includes(record?.applicationStep);
+
+  const handleFieldChange = (fieldKey, newValue) => {
+    setEditedFields((prev) => ({ ...prev, [fieldKey]: newValue }));
+  };
+
   if (!record) return null;
 
-  const STEPS = ["Basic Info", "Full Details", "Action"];
+  const STEPS = ["Basic Info", "Full Details", "App Logs", "Action"];
   const totalSteps = STEPS.length;
   const goNext = () => setCurrentStep((s) => Math.min(s + 1, totalSteps));
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 1));
+
+  // Count dirty fields for footer badge
+  const dirtyCount = Object.entries(editedFields).filter(
+    ([k, v]) => String(v ?? "") !== String(record[k] ?? ""),
+  ).length;
 
   return (
     <>
@@ -1580,7 +3433,9 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
                 ? "👁️ Basic Information"
                 : currentStep === 2
                   ? "📄 Full Details"
-                  : `✅ ${record.applicationStep}`}
+                  : currentStep === 3
+                    ? "📋 Application Logs"
+                    : `✅ ${record.applicationStep}`}
             </h2>
             <p
               style={{
@@ -1595,7 +3450,94 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
               </strong>
               {" · "}
               {cleanValue(record.prodBrName)}
+              {canEdit && dirtyCount > 0 && (
+                <span
+                  style={{
+                    marginLeft: "0.75rem",
+                    padding: "0.1rem 0.5rem",
+                    background: "rgba(245,158,11,0.15)",
+                    color: "#b45309",
+                    borderRadius: "4px",
+                    fontSize: "0.7rem",
+                    fontWeight: "700",
+                  }}
+                >
+                  ✎ {dirtyCount} unsaved edit{dirtyCount > 1 ? "s" : ""}
+                </span>
+              )}
             </p>
+            {/* ── Compliance Due Date — visible sa lahat ng steps ── */}
+            {record.complianceDeadline &&
+              (() => {
+                const urgency = deadlineUrgency(record.complianceDeadline);
+                const wdaysLeft = countWorkingDays(
+                  todayStr(),
+                  record.complianceDeadline,
+                );
+                const cfgMap = {
+                  overdue: {
+                    bg: "rgba(239,68,68,0.15)",
+                    border: "#ef4444",
+                    color: "#ef4444",
+                    icon: "🚨",
+                    label: "OVERDUE",
+                  },
+                  critical: {
+                    bg: "rgba(239,68,68,0.1)",
+                    border: "#ef4444",
+                    color: "#ef4444",
+                    icon: "🔴",
+                    label: `${wdaysLeft}d left`,
+                  },
+                  warning: {
+                    bg: "rgba(245,158,11,0.12)",
+                    border: "#f59e0b",
+                    color: "#b45309",
+                    icon: "🟡",
+                    label: `${wdaysLeft}d left`,
+                  },
+                  ok: {
+                    bg: "rgba(16,185,129,0.1)",
+                    border: "#10b981",
+                    color: "#059669",
+                    icon: "🟢",
+                    label: `${wdaysLeft}d left`,
+                  },
+                };
+                const cfg = cfgMap[urgency] ?? cfgMap.ok;
+                return (
+                  <div
+                    style={{
+                      marginTop: "0.4rem",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.3rem 0.75rem",
+                      background: cfg.bg,
+                      border: `1px solid ${cfg.border}`,
+                      borderRadius: "20px",
+                      fontSize: "0.72rem",
+                      fontWeight: "700",
+                      color: cfg.color,
+                      width: "fit-content",
+                    }}
+                  >
+                    <span>{cfg.icon}</span>
+                    <span>Compliance Deadline:</span>
+                    <span>{fmtDeadline(record.complianceDeadline)}</span>
+                    <span
+                      style={{
+                        padding: "0.1rem 0.45rem",
+                        background: cfg.border + "25",
+                        borderRadius: "10px",
+                        fontSize: "0.68rem",
+                      }}
+                    >
+                      {urgency === "overdue" ? "OVERDUE" : cfg.label}
+                    </span>
+                  </div>
+                );
+              })()}
           </div>
           <div
             style={{
@@ -1651,15 +3593,32 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
             minHeight: 0,
           }}
         >
+          {/* Content — Step 1 */}
           {currentStep === 1 && (
-            <Step1BasicInfo record={record} colors={colors} />
+            <Step1BasicInfo
+              record={record}
+              editedFields={editedFields} // ← dagdag
+              onFieldChange={handleFieldChange} // ← dagdag
+              canEdit={canEdit} // ← dagdag
+              colors={colors}
+            />
           )}
           {currentStep === 2 && (
-            <Step2FullDetails record={record} colors={colors} />
+            <Step2FullDetails
+              record={record}
+              editedFields={editedFields}
+              onFieldChange={handleFieldChange}
+              canEdit={canEdit}
+              colors={colors}
+            />
           )}
           {currentStep === 3 && (
+            <Step3AppLogs record={record} colors={colors} />
+          )}
+          {currentStep === 4 && (
             <Step3ActionForm
               record={record}
+              editedFields={editedFields}
               colors={colors}
               onClose={onClose}
               onSuccess={onSuccess}
@@ -1687,23 +3646,19 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
             }}
           >
             Step {currentStep} of {totalSteps}
+            {canEdit && dirtyCount > 0 && (
+              <span
+                style={{
+                  marginLeft: "0.75rem",
+                  color: "#f59e0b",
+                  fontWeight: "700",
+                }}
+              >
+                · ✎ {dirtyCount} edit{dirtyCount > 1 ? "s" : ""} pending
+              </span>
+            )}
           </span>
           <div style={{ display: "flex", gap: "0.75rem" }}>
-            <button
-              onClick={onClose}
-              style={{
-                padding: "0.6rem 1.2rem",
-                background: "transparent",
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "8px",
-                color: colors.textSecondary,
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                cursor: "pointer",
-              }}
-            >
-              Close
-            </button>
             {currentStep > 1 && (
               <button
                 onClick={goPrev}

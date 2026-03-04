@@ -752,10 +752,10 @@ function ReportsPage({ darkMode }) {
                 />
               )}
 
-              {/* Prescriptions */}
+              {/* Classification */}
               {availablePrescriptionTypes.length > 0 && (
                 <SidebarSection
-                  title="Prescriptions"
+                  title="Classification"
                   icon="💊"
                   items={availablePrescriptionTypes}
                   activeItem={prescriptionTab}
@@ -772,7 +772,7 @@ function ReportsPage({ darkMode }) {
               {/* All Status */}
               {availableAppStatusTypes.length > 0 && (
                 <SidebarSection
-                  title="All Status"
+                  title="Application Status"
                   icon="📈"
                   items={availableAppStatusTypes}
                   activeItem={appStatusTab}

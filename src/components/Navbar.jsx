@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { logout, getUser } from "../api/auth";
+import NotificationBell from "./NotificationBell"; // ← BAGO
 
 function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
   const navigate = useNavigate();
@@ -8,40 +9,31 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
   const [user, setUser] = useState(null);
   const dropdownRef = useRef(null);
 
-  // Get user info on component mount
   useEffect(() => {
     const userData = getUser();
     setUser(userData);
   }, []);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowDropdown(false);
       }
     }
-
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleLogout = async () => {
-    console.log("🔴 Starting logout...");
-
     try {
       await logout();
-      console.log("✅ Logout successful");
     } catch (error) {
       console.error("❌ Logout error:", error);
     } finally {
-      // Force navigation using window.location for full page reload
-      console.log("🔄 Redirecting to login...");
       window.location.href = "/login";
     }
   };
 
-  // Define color schemes for dark and light modes
   const colors = darkMode
     ? {
         navbarBg: "#111111",
@@ -58,6 +50,11 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
         dropdownBorder: "#2a2a2a",
         dropdownHover: "#222",
         dropdownDivider: "#2a2a2a",
+        // ← para sa NotificationBell
+        cardBorder: "#2b2b2b",
+        inputBg: "#1a1a1a",
+        inputBorder: "#2b2b2b",
+        textTertiary: "#666",
       }
     : {
         navbarBg: "#ffffff",
@@ -74,34 +71,29 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
         dropdownBorder: "#e5e5e5",
         dropdownHover: "#f5f5f5",
         dropdownDivider: "#e5e5e5",
+        // ← para sa NotificationBell
+        cardBorder: "#e5e5e5",
+        inputBg: "#f9fafb",
+        inputBorder: "#e5e5e5",
+        textTertiary: "#9ca3af",
       };
 
-  // Role badge colors
   const roleBadgeColors = {
     User: { bg: "#4CAF50", text: "#4CAF50" },
     Admin: { bg: "#2196F3", text: "#2196F3" },
     SuperAdmin: { bg: "#ff9800", text: "#ff9800" },
   };
 
-  // Get user initials for avatar
   const getUserInitial = () => {
-    if (user?.first_name) {
-      return user.first_name.charAt(0).toUpperCase();
-    }
-    if (user?.username) {
-      return user.username.charAt(0).toUpperCase();
-    }
+    if (user?.first_name) return user.first_name.charAt(0).toUpperCase();
+    if (user?.username) return user.username.charAt(0).toUpperCase();
     return "U";
   };
 
-  // Get display name
   const getDisplayName = () => {
-    if (user?.first_name && user?.surname) {
+    if (user?.first_name && user?.surname)
       return `${user.first_name} ${user.surname}`;
-    }
-    if (user?.username) {
-      return user.username;
-    }
+    if (user?.username) return user.username;
     return "User";
   };
 
@@ -118,15 +110,9 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
         transition: "all 0.3s ease",
       }}
     >
-      <div style={{ flex: 1 }}></div>
+      <div style={{ flex: 1 }} />
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "1rem",
-        }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
         {/* Dark Mode Toggle */}
         <button
           onClick={() => setDarkMode(!darkMode)}
@@ -156,54 +142,15 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
           {darkMode ? "🌙" : "☀️"}
         </button>
 
-        {/* Notifications */}
-        <div style={{ position: "relative" }}>
-          <button
-            style={{
-              width: "40px",
-              height: "40px",
-              background: colors.buttonBg,
-              border: "none",
-              borderRadius: "8px",
-              color: colors.buttonColor,
-              cursor: "pointer",
-              fontSize: "1.1rem",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.background = colors.buttonBgHover;
-              e.target.style.color = colors.buttonColorHover;
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.background = colors.buttonBg;
-              e.target.style.color = colors.buttonColor;
-            }}
-          >
-            🔔
-          </button>
-          <div
-            style={{
-              position: "absolute",
-              top: "8px",
-              right: "8px",
-              width: "8px",
-              height: "8px",
-              background: colors.notificationDot,
-              borderRadius: "50%",
-              border: `2px solid ${colors.navbarBg}`,
-            }}
-          />
-        </div>
+        {/* ── NOTIFICATION BELL (replaced static button) ── */}
+        <NotificationBell
+          currentUser={user}
+          darkMode={darkMode}
+          colors={colors}
+        />
 
         <div
-          style={{
-            width: "1px",
-            height: "30px",
-            background: colors.divider,
-          }}
+          style={{ width: "1px", height: "30px", background: colors.divider }}
         />
 
         {/* User Profile with Dropdown */}
@@ -229,7 +176,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
               (e.currentTarget.style.background = "transparent")
             }
           >
-            {/* User Name and Role */}
             <div style={{ textAlign: "right" }}>
               <div
                 style={{
@@ -242,7 +188,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
               >
                 {getDisplayName()}
               </div>
-              {/* Role Badge */}
               <div
                 style={{
                   fontSize: "0.7rem",
@@ -256,7 +201,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
               </div>
             </div>
 
-            {/* Avatar */}
             <div
               style={{
                 width: "32px",
@@ -274,7 +218,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
               {getUserInitial()}
             </div>
 
-            {/* Dropdown Arrow */}
             <span
               style={{
                 color: colors.textSecondary,
@@ -303,10 +246,9 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                   : "0 10px 40px rgba(0, 0, 0, 0.1)",
                 padding: "0.5rem",
                 zIndex: 1000,
-                transition: "all 0.3s ease",
               }}
             >
-              {/* User Info Section */}
+              {/* User Info */}
               <div
                 style={{
                   padding: "0.75rem 1rem",
@@ -320,18 +262,13 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                     fontSize: "0.9rem",
                     fontWeight: "600",
                     marginBottom: "0.25rem",
-                    transition: "color 0.3s ease",
                   }}
                 >
                   {getDisplayName()}
                 </div>
                 {user?.email && (
                   <div
-                    style={{
-                      color: colors.textSecondary,
-                      fontSize: "0.8rem",
-                      transition: "color 0.3s ease",
-                    }}
+                    style={{ color: colors.textSecondary, fontSize: "0.8rem" }}
                   >
                     {user.email}
                   </div>
@@ -342,7 +279,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                       color: colors.textSecondary,
                       fontSize: "0.75rem",
                       marginTop: "0.25rem",
-                      transition: "color 0.3s ease",
                     }}
                   >
                     {user.position}
@@ -350,7 +286,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                 )}
               </div>
 
-              {/* Menu Items */}
               <button
                 onClick={() => {
                   setShowDropdown(false);
@@ -360,7 +295,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                       : userRole === "Admin"
                         ? "/admin"
                         : "/dashboard";
-
                   navigate(`${basePath}/profile`);
                 }}
                 style={{
@@ -379,10 +313,10 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                   transition: "all 0.2s",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = colors.dropdownHover;
+                  e.currentTarget.style.background = colors.dropdownHover;
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "transparent";
+                  e.currentTarget.style.background = "transparent";
                 }}
               >
                 <span>👤</span>
@@ -392,7 +326,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
               <button
                 onClick={() => {
                   setShowDropdown(false);
-                  // Navigate to settings page
                   alert("Settings page coming soon");
                 }}
                 style={{
@@ -411,10 +344,10 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                   transition: "all 0.2s",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = colors.dropdownHover;
+                  e.currentTarget.style.background = colors.dropdownHover;
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "transparent";
+                  e.currentTarget.style.background = "transparent";
                 }}
               >
                 <span>⚙️</span>
@@ -429,7 +362,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                 }}
               />
 
-              {/* Logout Button */}
               <button
                 onClick={handleLogout}
                 style={{
@@ -449,10 +381,10 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                   transition: "all 0.2s",
                 }}
                 onMouseEnter={(e) => {
-                  e.target.style.background = "rgba(244, 67, 54, 0.1)";
+                  e.currentTarget.style.background = "rgba(244, 67, 54, 0.1)";
                 }}
                 onMouseLeave={(e) => {
-                  e.target.style.background = "transparent";
+                  e.currentTarget.style.background = "transparent";
                 }}
               >
                 <span>🚪</span>

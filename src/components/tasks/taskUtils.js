@@ -1,6 +1,5 @@
 export const mapWorkflowTask = (task, index) => {
   const m = task.main_db || {};
-  const d = task.application_delegation || {};
   return {
     id: task.id ?? index + 1,
     mainDbId: m.DB_ID ?? null,
@@ -100,37 +99,14 @@ export const mapWorkflowTask = (task, index) => {
     isInPm: m.DB_IS_IN_PM ?? "N/A",
     dbTimelineCitizenCharter: m.DB_TIMELINE_CITIZEN_CHARTER ?? null,
     processingType: m.DB_PROCESSING_TYPE || "Regular",
-    applicationStep: task.application_step,
+    // ── From ApplicationLog (task itself) ──────────────────────────
+    applicationStep: task.application_step ?? "N/A",
     accomplishedDate: task.accomplished_date ?? "N/A",
     logCreatedAt: task.created_at ?? "N/A",
-    decker: d.DB_DECKER ?? "N/A",
-    deckerDecision: d.DB_DECKER_DECISION ?? "N/A",
-    deckerRemarks: d.DB_DECKER_REMARKS ?? "N/A",
-    dateDeckedEnd: d.DB_DATE_DECKED_END ?? "N/A",
-    evaluator: d.DB_EVALUATOR ?? task.user_name ?? "N/A",
-    evalDecision: d.DB_EVAL_DECISION ?? "N/A",
-    evalRemarks: d.DB_EVAL_REMARKS ?? "N/A",
-    dateEvalEnd: d.DB_DATE_EVAL_END ?? "N/A",
-    checker: d.DB_CHECKER ?? "N/A",
-    checkerDecision: d.DB_CHECKER_DECISION ?? "N/A",
-    checkerRemarks: d.DB_CHECKER_REMARKS ?? "N/A",
-    dateCheckerEnd: d.DB_DATE_CHECKER_END ?? "N/A",
-    supervisor: d.DB_SUPERVISOR ?? "N/A",
-    supervisorDecision: d.DB_SUPERVISOR_DECISION ?? "N/A",
-    supervisorRemarks: d.DB_SUPERVISOR_REMARKS ?? "N/A",
-    dateSupervisorEnd: d.DB_DATE_SUPERVISOR_END ?? "N/A",
-    qa: d.DB_QA ?? "N/A",
-    qaDecision: d.DB_QA_DECISION ?? "N/A",
-    qaRemarks: d.DB_QA_REMARKS ?? "N/A",
-    dateQaEnd: d.DB_DATE_QA_END ?? "N/A",
-    director: d.DB_DIRECTOR ?? "N/A",
-    directorDecision: d.DB_DIRECTOR_DECISION ?? "N/A",
-    directorRemarks: d.DB_DIRECTOR_REMARKS ?? "N/A",
-    dateDirectorEnd: d.DB_DATE_DIRECTOR_END ?? "N/A",
-    releasingOfficer: d.DB_RELEASING_OFFICER ?? "N/A",
-    releasingOfficerDecision: d.DB_RELEASING_OFFICER_DECISION ?? "N/A",
-    releasingOfficerRemarks: d.DB_RELEASING_OFFICER_REMARKS ?? "N/A",
-    dateReleasingOfficerEnd: d.DB_RELEASING_OFFICER_END ?? "N/A",
+    evaluator: task.user_name ?? "N/A",  // current assigned user for this log
+
+    deadlineDate: task.deadline_date ?? null,   // e.g. "2026-03-10"
+    workingDays: task.working_days ?? null,     // e.g. 5
   };
 };
 
