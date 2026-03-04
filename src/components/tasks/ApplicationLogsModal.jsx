@@ -16,9 +16,88 @@ const fmt = (v) => {
   };
 };
 
+/* ── deadline date formatter (date-only string like "2026-03-10") ── */
+const fmtDate = (v) => {
+  if (!v) return null;
+  const d = new Date(v + "T00:00:00");
+  if (isNaN(d)) return null;
+  return d.toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const todayStr = () => new Date().toISOString().split("T")[0];
+
+const countWorkingDays = (startStr, endStr) => {
+  if (!endStr) return null;
+  let count = 0;
+  const current = new Date(startStr + "T00:00:00");
+  const end = new Date(endStr + "T00:00:00");
+  if (end <= current) return 0;
+  while (current < end) {
+    current.setDate(current.getDate() + 1);
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+};
+
+const getDeadlineUrgency = (dl) => {
+  if (!dl) return null;
+  const today = new Date(todayStr() + "T00:00:00");
+  const end = new Date(dl + "T00:00:00");
+  if (end < today) return "overdue";
+  if (end.toDateString() === today.toDateString()) return "today";
+  const wdays = countWorkingDays(todayStr(), dl);
+  if (wdays <= 3) return "critical";
+  if (wdays <= 5) return "warning";
+  return "ok";
+};
+
+const URGENCY_CFG = {
+  overdue: {
+    bg: "rgba(239,68,68,0.15)",
+    color: "#fca5a5",
+    border: "#ef4444",
+    icon: "🚨",
+    label: "OVERDUE",
+  },
+  today: {
+    bg: "rgba(249,115,22,0.15)",
+    color: "#fdba74",
+    border: "#f97316",
+    icon: "🔴",
+    label: "DUE TODAY",
+  },
+  critical: {
+    bg: "rgba(245,158,11,0.15)",
+    color: "#fcd34d",
+    border: "#f59e0b",
+    icon: "🟠",
+    label: "CRITICAL",
+  },
+  warning: {
+    bg: "rgba(234,179,8,0.12)",
+    color: "#fde68a",
+    border: "#eab308",
+    icon: "🟡",
+    label: "WARNING",
+  },
+  ok: {
+    bg: "rgba(16,185,129,0.12)",
+    color: "#6ee7b7",
+    border: "#10b981",
+    icon: "🟢",
+    label: "ON TRACK",
+  },
+};
+
 /* ── step icon map ── */
 const stepMeta = (step) => {
   const s = step?.toLowerCase() || "";
+  if (s.includes("compliance")) return { icon: "📋", color: "#f59e0b" };
   if (s.includes("deck")) return { icon: "📥", color: "#f97316" };
   if (s.includes("eval")) return { icon: "🔬", color: "#8b5cf6" };
   if (s.includes("check")) return { icon: "✅", color: "#06b6d4" };
@@ -74,6 +153,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [expandedIds, setExpandedIds] = useState(new Set());
 
   useEffect(() => {
     if (!record?.dtn) {
@@ -96,9 +176,16 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
     run();
   }, [record?.dtn]);
 
+  const toggleExpand = (id) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   const onBackdrop = (e) => e.target === e.currentTarget && onClose();
 
-  /* Shopee palette */
   const shopeeOrange = "#ee4d2d";
   const shopeeLight = "#fff2ee";
   const shopeeBorder = "#ffd5c8";
@@ -110,23 +197,173 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
   const textSub = darkMode ? "#a3a3a3" : "#757575";
   const textTert = darkMode ? "#666666" : "#b0b0b0";
   const divider = darkMode ? "#2e2e2e" : "#f0f0f0";
+  const remarksBg = darkMode ? "#1a1a1a" : "#fffaf9";
+  const remarksBorder = darkMode ? "#3a1a10" : "#ffd5c8";
 
-  /* ascending = oldest first, so reverse the newest-first API order */
   const ascendingLogs = [...logs].reverse();
+
+  /* ── Compliance Deadline Card ── */
+  const renderComplianceDeadline = (log) => {
+    const dl = log.deadline_date;
+    const wdays = log.working_days;
+    if (!dl) return null;
+
+    const urgency = getDeadlineUrgency(dl);
+    const cfg = URGENCY_CFG[urgency] || URGENCY_CFG.ok;
+    const remaining = countWorkingDays(todayStr(), dl);
+    const dateLabel = fmtDate(dl);
+
+    return (
+      <div
+        style={{
+          marginTop: "0.75rem",
+          padding: "0.75rem 1rem",
+          background: cfg.bg,
+          border: `1px solid ${cfg.border}`,
+          borderRadius: 8,
+          borderLeft: `3px solid ${cfg.border}`,
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "0.5rem",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "0.65rem",
+              fontWeight: 700,
+              color: cfg.color,
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+            }}
+          >
+            ⏰ Compliance Deadline
+          </span>
+          <span
+            style={{
+              fontSize: "0.65rem",
+              fontWeight: 700,
+              color: cfg.color,
+              background: darkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.08)",
+              padding: "0.1rem 0.45rem",
+              borderRadius: 20,
+            }}
+          >
+            {cfg.icon} {cfg.label}
+          </span>
+        </div>
+
+        {/* Date + days info */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: "0.6rem",
+                color: cfg.color,
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                marginBottom: "0.1rem",
+              }}
+            >
+              Due Date
+            </div>
+            <span
+              style={{ fontSize: "0.88rem", fontWeight: 700, color: cfg.color }}
+            >
+              {dateLabel}
+            </span>
+          </div>
+
+          {wdays != null && (
+            <div>
+              <div
+                style={{
+                  fontSize: "0.6rem",
+                  color: cfg.color,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "0.1rem",
+                }}
+              >
+                Allotted
+              </div>
+              <span
+                style={{
+                  fontSize: "0.88rem",
+                  fontWeight: 700,
+                  color: cfg.color,
+                }}
+              >
+                {wdays} working day{wdays !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
+
+          {remaining !== null && (
+            <div>
+              <div
+                style={{
+                  fontSize: "0.6rem",
+                  color: cfg.color,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  marginBottom: "0.1rem",
+                }}
+              >
+                Remaining
+              </div>
+              <span
+                style={{
+                  fontSize: "0.88rem",
+                  fontWeight: 700,
+                  color: cfg.color,
+                }}
+              >
+                {urgency === "overdue"
+                  ? "OVERDUE"
+                  : urgency === "today"
+                    ? "Due today!"
+                    : `${remaining} working day${remaining !== 1 ? "s" : ""} left`}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
         .spl-modal * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+        .spl-card { animation: spl-fadeup 0.25s ease forwards; transition: transform 0.15s, box-shadow 0.15s; }
         .spl-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(238,77,45,0.10) !important; }
+        .spl-card-inner { cursor: pointer; }
+        .spl-card-inner:hover .spl-expand-hint { opacity: 1 !important; }
         .spl-close-btn:hover { background: ${shopeeLight} !important; color: ${shopeeOrange} !important; border-color: ${shopeeBorder} !important; }
         .spl-footer-btn:hover { background: ${shopeeOrange} !important; color: #fff !important; }
         @keyframes spl-spin { to { transform: rotate(360deg); } }
         @keyframes spl-fadeup { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .spl-card { animation: spl-fadeup 0.25s ease forwards; transition: transform 0.15s, box-shadow 0.15s; }
         @keyframes spl-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes spl-slidedown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 600px; } }
         .spl-inprogress { animation: spl-pulse 1.5s ease-in-out infinite; }
+        .spl-remarks-panel { animation: spl-slidedown 0.22s ease forwards; overflow: hidden; }
       `}</style>
 
       <div
@@ -283,7 +520,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
               </button>
             </div>
 
-            {/* Mini step progress strip — ASCENDING (oldest → latest) */}
+            {/* Mini step progress strip */}
             {!loading && !error && ascendingLogs.length > 0 && (
               <div
                 style={{
@@ -296,7 +533,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                 }}
               >
                 {ascendingLogs.map((log, i) => {
-                  const isActive = i === ascendingLogs.length - 1; // last = latest/active step
+                  const isActive = i === ascendingLogs.length - 1;
                   const meta = stepMeta(log.application_step);
                   return (
                     <div
@@ -310,7 +547,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                         position: "relative",
                       }}
                     >
-                      {/* connector line to the RIGHT of every dot except the last */}
                       {i !== ascendingLogs.length - 1 && (
                         <div
                           style={{
@@ -386,7 +622,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
               background: darkMode ? "#141414" : "#f8f8f8",
             }}
           >
-            {/* Loading */}
             {loading && (
               <div style={{ padding: "3rem", textAlign: "center" }}>
                 <div
@@ -406,7 +641,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
               </div>
             )}
 
-            {/* Error */}
             {!loading && error && (
               <div
                 style={{
@@ -433,7 +667,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
               </div>
             )}
 
-            {/* Empty */}
             {!loading && !error && logs.length === 0 && (
               <div style={{ padding: "3rem", textAlign: "center" }}>
                 <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>
@@ -445,10 +678,8 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
               </div>
             )}
 
-            {/* Timeline list — also ascending */}
             {!loading && !error && logs.length > 0 && (
               <div style={{ position: "relative" }}>
-                {/* Vertical guide line */}
                 <div
                   style={{
                     position: "absolute",
@@ -472,13 +703,19 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                   {ascendingLogs.map((log, idx) => {
                     const meta = stepMeta(log.application_step);
                     const sc = statusCfg(log.application_status);
-                    const isLatest = idx === ascendingLogs.length - 1; // ascending: last = latest
+                    const isLatest = idx === ascendingLogs.length - 1;
+                    const isCompliance = log.application_step
+                      ?.toLowerCase()
+                      .includes("compliance");
                     const startDt = fmt(log.start_date);
                     const doneDt = fmt(log.accomplished_date);
+                    const cardId = log.id ?? idx;
+                    const isExpanded = expandedIds.has(cardId);
+                    const hasRemarks = !!log.application_remarks?.trim();
 
                     return (
                       <div
-                        key={log.id ?? idx}
+                        key={cardId}
                         className="spl-card"
                         style={{
                           animationDelay: `${idx * 0.05}s`,
@@ -489,7 +726,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                           zIndex: 1,
                         }}
                       >
-                        {/* Dot */}
+                        {/* Timeline dot */}
                         <div style={{ flexShrink: 0 }}>
                           <div
                             style={{
@@ -529,290 +766,433 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                             border: `1px solid ${isLatest ? shopeeBorder : cardBorder}`,
                             borderLeft: `3px solid ${isLatest ? shopeeOrange : meta.color}`,
                             borderRadius: 10,
-                            padding: "0.9rem 1rem",
                             boxShadow: isLatest
                               ? "0 2px 12px rgba(238,77,45,0.10)"
                               : "0 1px 4px rgba(0,0,0,0.04)",
+                            overflow: "hidden",
                           }}
                         >
-                          {/* Top row: step name + status badge */}
+                          {/* Clickable header */}
                           <div
+                            className="spl-card-inner"
+                            onClick={() => toggleExpand(cardId)}
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: "0.5rem",
-                              flexWrap: "wrap",
+                              padding: "0.9rem 1rem",
+                              userSelect: "none",
                             }}
                           >
+                            {/* Top row: step + status */}
                             <div
                               style={{
                                 display: "flex",
                                 alignItems: "center",
-                                gap: "0.45rem",
+                                justifyContent: "space-between",
+                                gap: "0.5rem",
                                 flexWrap: "wrap",
                               }}
                             >
-                              {log.del_index != null && (
-                                <span
-                                  style={{
-                                    background: darkMode
-                                      ? "#2e2e2e"
-                                      : "#f0f0f0",
-                                    color: textSub,
-                                    fontSize: "0.63rem",
-                                    fontWeight: 700,
-                                    padding: "0.1rem 0.4rem",
-                                    borderRadius: 4,
-                                    border: `1px solid ${divider}`,
-                                  }}
-                                >
-                                  #{log.del_index}
-                                </span>
-                              )}
-                              <span
+                              <div
                                 style={{
-                                  fontSize: "0.9rem",
-                                  fontWeight: 700,
-                                  color: isLatest ? shopeeOrange : textMain,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.45rem",
+                                  flexWrap: "wrap",
                                 }}
                               >
-                                {log.application_step || "—"}
-                              </span>
-                              {isLatest && (
+                                {log.del_index != null && (
+                                  <span
+                                    style={{
+                                      background: darkMode
+                                        ? "#2e2e2e"
+                                        : "#f0f0f0",
+                                      color: textSub,
+                                      fontSize: "0.63rem",
+                                      fontWeight: 700,
+                                      padding: "0.1rem 0.4rem",
+                                      borderRadius: 4,
+                                      border: `1px solid ${divider}`,
+                                    }}
+                                  >
+                                    #{log.del_index}
+                                  </span>
+                                )}
                                 <span
                                   style={{
-                                    background: shopeeOrange,
-                                    color: "#fff",
-                                    fontSize: "0.6rem",
+                                    fontSize: "0.9rem",
                                     fontWeight: 700,
-                                    padding: "0.1rem 0.45rem",
-                                    borderRadius: 20,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
+                                    color: isLatest ? shopeeOrange : textMain,
                                   }}
                                 >
-                                  Latest
+                                  {log.application_step || "—"}
                                 </span>
-                              )}
+                                {isLatest && (
+                                  <span
+                                    style={{
+                                      background: shopeeOrange,
+                                      color: "#fff",
+                                      fontSize: "0.6rem",
+                                      fontWeight: 700,
+                                      padding: "0.1rem 0.45rem",
+                                      borderRadius: 20,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                    }}
+                                  >
+                                    Latest
+                                  </span>
+                                )}
+                                {/* ✅ Compliance badge */}
+                                {isCompliance && log.deadline_date && (
+                                  <span
+                                    style={{
+                                      background: darkMode
+                                        ? "rgba(245,158,11,0.15)"
+                                        : "rgba(245,158,11,0.1)",
+                                      color: "#f59e0b",
+                                      border: "1px solid #f59e0b",
+                                      fontSize: "0.6rem",
+                                      fontWeight: 700,
+                                      padding: "0.1rem 0.45rem",
+                                      borderRadius: 20,
+                                    }}
+                                  >
+                                    ⏰ Has Deadline
+                                  </span>
+                                )}
+                              </div>
+
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.5rem",
+                                }}
+                              >
+                                {log.application_status && (
+                                  <span
+                                    style={{
+                                      background: sc.bg,
+                                      color: sc.text,
+                                      border: `1px solid ${sc.border}`,
+                                      fontSize: "0.68rem",
+                                      fontWeight: 700,
+                                      padding: "0.2rem 0.65rem",
+                                      borderRadius: 20,
+                                      whiteSpace: "nowrap",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "0.3rem",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        width: 6,
+                                        height: 6,
+                                        borderRadius: "50%",
+                                        background: sc.dot,
+                                        flexShrink: 0,
+                                      }}
+                                    />
+                                    {log.application_status}
+                                  </span>
+                                )}
+                                <span
+                                  className="spl-expand-hint"
+                                  style={{
+                                    fontSize: "0.72rem",
+                                    color: hasRemarks ? shopeeOrange : textTert,
+                                    opacity: isExpanded ? 1 : 0.5,
+                                    transition: "transform 0.2s, opacity 0.15s",
+                                    transform: isExpanded
+                                      ? "rotate(180deg)"
+                                      : "rotate(0deg)",
+                                    display: "inline-block",
+                                    lineHeight: 1,
+                                  }}
+                                  title={
+                                    hasRemarks ? "View remarks" : "No remarks"
+                                  }
+                                >
+                                  ▾
+                                </span>
+                              </div>
                             </div>
 
-                            {log.application_status && (
-                              <span
-                                style={{
-                                  background: sc.bg,
-                                  color: sc.text,
-                                  border: `1px solid ${sc.border}`,
-                                  fontSize: "0.68rem",
-                                  fontWeight: 700,
-                                  padding: "0.2rem 0.65rem",
-                                  borderRadius: 20,
-                                  whiteSpace: "nowrap",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  gap: "0.3rem",
-                                }}
-                              >
-                                <span
-                                  style={{
-                                    width: 6,
-                                    height: 6,
-                                    borderRadius: "50%",
-                                    background: sc.dot,
-                                    flexShrink: 0,
-                                  }}
-                                />
-                                {log.application_status}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* User + decision row */}
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "0.75rem",
-                              marginTop: "0.5rem",
-                              flexWrap: "wrap",
-                            }}
-                          >
+                            {/* User + decision row */}
                             <div
                               style={{
                                 display: "flex",
                                 alignItems: "center",
-                                gap: "0.35rem",
+                                gap: "0.75rem",
+                                marginTop: "0.5rem",
+                                flexWrap: "wrap",
                               }}
                             >
                               <div
                                 style={{
-                                  width: 20,
-                                  height: 20,
-                                  borderRadius: "50%",
-                                  background: `linear-gradient(135deg, ${meta.color}, ${meta.color}99)`,
                                   display: "flex",
                                   alignItems: "center",
-                                  justifyContent: "center",
-                                  color: "#fff",
-                                  fontSize: "0.6rem",
-                                  fontWeight: 700,
+                                  gap: "0.35rem",
                                 }}
                               >
-                                {(log.user_name || "?")[0].toUpperCase()}
-                              </div>
-                              <span
-                                style={{
-                                  fontSize: "0.78rem",
-                                  color: textSub,
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {log.user_name || "—"}
-                              </span>
-                            </div>
-
-                            {log.application_decision && (
-                              <>
-                                <span style={{ color: divider }}>·</span>
+                                <div
+                                  style={{
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: "50%",
+                                    background: `linear-gradient(135deg, ${meta.color}, ${meta.color}99)`,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    color: "#fff",
+                                    fontSize: "0.6rem",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {(log.user_name || "?")[0].toUpperCase()}
+                                </div>
                                 <span
                                   style={{
-                                    fontSize: "0.76rem",
+                                    fontSize: "0.78rem",
                                     color: textSub,
+                                    fontWeight: 500,
                                   }}
                                 >
-                                  Decision:{" "}
-                                  <span
-                                    style={{ fontWeight: 600, color: textMain }}
-                                  >
-                                    {log.application_decision}
-                                  </span>
-                                </span>
-                              </>
-                            )}
-                          </div>
-
-                          {/* Dates row */}
-                          <div
-                            style={{
-                              display: "flex",
-                              gap: "1.5rem",
-                              marginTop: "0.65rem",
-                              paddingTop: "0.65rem",
-                              borderTop: `1px dashed ${divider}`,
-                              flexWrap: "wrap",
-                            }}
-                          >
-                            {startDt ? (
-                              <div>
-                                <div
-                                  style={{
-                                    fontSize: "0.6rem",
-                                    color: textTert,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    marginBottom: "0.15rem",
-                                  }}
-                                >
-                                  Started
-                                </div>
-                                <div
-                                  style={{
-                                    fontSize: "0.78rem",
-                                    lineHeight: 1.4,
-                                  }}
-                                >
-                                  <span
-                                    style={{ fontWeight: 600, color: textMain }}
-                                  >
-                                    {startDt.date}
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: textTert,
-                                      marginLeft: "0.35rem",
-                                    }}
-                                  >
-                                    {startDt.time}
-                                  </span>
-                                </div>
-                              </div>
-                            ) : (
-                              <div>
-                                <div
-                                  style={{
-                                    fontSize: "0.6rem",
-                                    color: textTert,
-                                    fontWeight: 700,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em",
-                                    marginBottom: "0.15rem",
-                                  }}
-                                >
-                                  Started
-                                </div>
-                                <span
-                                  style={{
-                                    fontSize: "0.78rem",
-                                    color: textTert,
-                                  }}
-                                >
-                                  —
+                                  {log.user_name || "—"}
                                 </span>
                               </div>
-                            )}
 
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: "0.6rem",
-                                  color: doneDt ? "#059669" : textTert,
-                                  fontWeight: 700,
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.05em",
-                                  marginBottom: "0.15rem",
-                                }}
-                              >
-                                {doneDt ? "✓ Accomplished" : "Accomplished"}
-                              </div>
-                              {doneDt ? (
-                                <div
-                                  style={{
-                                    fontSize: "0.78rem",
-                                    lineHeight: 1.4,
-                                  }}
-                                >
+                              {log.application_decision && (
+                                <>
+                                  <span style={{ color: divider }}>·</span>
                                   <span
                                     style={{
-                                      fontWeight: 600,
-                                      color: "#059669",
+                                      fontSize: "0.76rem",
+                                      color: textSub,
                                     }}
                                   >
-                                    {doneDt.date}
+                                    Decision:{" "}
+                                    <span
+                                      style={{
+                                        fontWeight: 600,
+                                        color: textMain,
+                                      }}
+                                    >
+                                      {log.application_decision}
+                                    </span>
                                   </span>
-                                  <span
-                                    style={{
-                                      color: textTert,
-                                      marginLeft: "0.35rem",
-                                    }}
-                                  >
-                                    {doneDt.time}
-                                  </span>
-                                </div>
-                              ) : (
+                                </>
+                              )}
+
+                              {hasRemarks && !isExpanded && (
                                 <span
-                                  className="spl-inprogress"
                                   style={{
-                                    fontSize: "0.78rem",
+                                    marginLeft: "auto",
+                                    fontSize: "0.65rem",
                                     color: shopeeOrange,
+                                    background: darkMode
+                                      ? "rgba(238,77,45,0.12)"
+                                      : "rgba(238,77,45,0.07)",
+                                    border: `1px solid ${shopeeBorder}`,
+                                    padding: "0.1rem 0.5rem",
+                                    borderRadius: 20,
                                     fontWeight: 600,
+                                    whiteSpace: "nowrap",
                                   }}
                                 >
-                                  In Progress…
+                                  💬 Has remarks
                                 </span>
                               )}
                             </div>
+
+                            {/* Dates row */}
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: "1.5rem",
+                                marginTop: "0.65rem",
+                                paddingTop: "0.65rem",
+                                borderTop: `1px dashed ${divider}`,
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              {startDt ? (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.6rem",
+                                      color: textTert,
+                                      fontWeight: 700,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                      marginBottom: "0.15rem",
+                                    }}
+                                  >
+                                    Started
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.78rem",
+                                      lineHeight: 1.4,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontWeight: 600,
+                                        color: textMain,
+                                      }}
+                                    >
+                                      {startDt.date}
+                                    </span>
+                                    <span
+                                      style={{
+                                        color: textTert,
+                                        marginLeft: "0.35rem",
+                                      }}
+                                    >
+                                      {startDt.time}
+                                    </span>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.6rem",
+                                      color: textTert,
+                                      fontWeight: 700,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                      marginBottom: "0.15rem",
+                                    }}
+                                  >
+                                    Started
+                                  </div>
+                                  <span
+                                    style={{
+                                      fontSize: "0.78rem",
+                                      color: textTert,
+                                    }}
+                                  >
+                                    —
+                                  </span>
+                                </div>
+                              )}
+
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.6rem",
+                                    color: doneDt ? "#059669" : textTert,
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.05em",
+                                    marginBottom: "0.15rem",
+                                  }}
+                                >
+                                  {doneDt ? "✓ Accomplished" : "Accomplished"}
+                                </div>
+                                {doneDt ? (
+                                  <div
+                                    style={{
+                                      fontSize: "0.78rem",
+                                      lineHeight: 1.4,
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        fontWeight: 600,
+                                        color: "#059669",
+                                      }}
+                                    >
+                                      {doneDt.date}
+                                    </span>
+                                    <span
+                                      style={{
+                                        color: textTert,
+                                        marginLeft: "0.35rem",
+                                      }}
+                                    >
+                                      {doneDt.time}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span
+                                    className="spl-inprogress"
+                                    style={{
+                                      fontSize: "0.78rem",
+                                      color: shopeeOrange,
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    In Progress…
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* ✅ Compliance Deadline block — shown inline, always visible */}
+                            {isCompliance && renderComplianceDeadline(log)}
                           </div>
+
+                          {/* Expandable Remarks Panel */}
+                          {isExpanded && (
+                            <div
+                              className="spl-remarks-panel"
+                              style={{
+                                borderTop: `1px solid ${remarksBorder}`,
+                                background: remarksBg,
+                                padding: "0.85rem 1rem",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  fontSize: "0.62rem",
+                                  fontWeight: 700,
+                                  color: shopeeOrange,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.07em",
+                                  marginBottom: "0.5rem",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "0.35rem",
+                                }}
+                              >
+                                💬 Remarks
+                              </div>
+                              {hasRemarks ? (
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    fontSize: "0.82rem",
+                                    color: textMain,
+                                    lineHeight: 1.65,
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                    padding: "0.65rem 0.85rem",
+                                    background: darkMode ? "#111" : "#fff",
+                                    border: `1px solid ${remarksBorder}`,
+                                    borderRadius: 8,
+                                    borderLeft: `3px solid ${shopeeOrange}`,
+                                  }}
+                                >
+                                  {log.application_remarks}
+                                </p>
+                              ) : (
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    fontSize: "0.82rem",
+                                    color: textTert,
+                                    fontStyle: "italic",
+                                    padding: "0.5rem 0.85rem",
+                                  }}
+                                >
+                                  No remarks recorded for this step.
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -839,7 +1219,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                 ? "Fetching activity…"
                 : error
                   ? "Failed to load"
-                  : `${logs.length} step${logs.length !== 1 ? "s" : ""} recorded`}
+                  : `${logs.length} step${logs.length !== 1 ? "s" : ""} recorded · click any card to view remarks`}
             </span>
             <button
               className="spl-footer-btn"

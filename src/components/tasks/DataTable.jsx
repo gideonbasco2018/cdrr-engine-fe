@@ -4,6 +4,69 @@ import TablePagination from "./TablePagination";
 import ViewDetailsModal from "./ViewDetailsModal";
 import DoctrackModal from "../../components/reports/actions/DoctrackModal";
 import ApplicationLogsModal from "./ApplicationLogsModal";
+import ChangeLogModal from "../tasks/ChangeLogModal";
+
+// ── Deadline Helpers ──────────────────────────────────────────────────
+const todayStr = () => new Date().toISOString().split("T")[0];
+
+const countWorkingDays = (startStr, endStr) => {
+  if (!endStr) return null;
+  let count = 0;
+  const current = new Date(startStr + "T00:00:00");
+  const end = new Date(endStr + "T00:00:00");
+  if (end <= current) return 0;
+  while (current < end) {
+    current.setDate(current.getDate() + 1);
+    const dow = current.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+  }
+  return count;
+};
+
+const getDeadlineUrgency = (deadlineDateStr) => {
+  if (!deadlineDateStr) return null;
+  const today = new Date(todayStr() + "T00:00:00");
+  const end = new Date(deadlineDateStr + "T00:00:00");
+  if (end < today) return "overdue";
+  if (end.toDateString() === today.toDateString()) return "today";
+  const wdays = countWorkingDays(todayStr(), deadlineDateStr);
+  if (wdays <= 3) return "critical";
+  if (wdays <= 5) return "warning";
+  return "ok";
+};
+
+const URGENCY_CONFIG = {
+  overdue: {
+    bg: "rgba(239,68,68,0.12)",
+    color: "#fca5a5",
+    border: "#ef4444",
+    icon: "🚨",
+  },
+  today: {
+    bg: "rgba(249,115,22,0.12)",
+    color: "#fdba74",
+    border: "#f97316",
+    icon: "🔴",
+  },
+  critical: {
+    bg: "rgba(245,158,11,0.12)",
+    color: "#fcd34d",
+    border: "#f59e0b",
+    icon: "🟠",
+  },
+  warning: {
+    bg: "rgba(234,179,8,0.10)",
+    color: "#fde68a",
+    border: "#eab308",
+    icon: "🟡",
+  },
+  ok: {
+    bg: "rgba(16,185,129,0.08)",
+    color: "#6ee7b7",
+    border: "#10b981",
+    icon: "🟢",
+  },
+};
 
 function DataTable({
   data,
@@ -31,17 +94,25 @@ function DataTable({
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
   const [appLogsRecord, setAppLogsRecord] = useState(null);
+  const [changeLogRecord, setChangeLogRecord] = useState(null);
+
+  const isComplianceTab = activeTab === "Compliance";
+
+  // Hide complianceOnly columns when not on Compliance tab
+  const visibleColumns = tableColumns.filter(
+    (col) => !col.complianceOnly || isComplianceTab,
+  );
 
   /* ── Sort helpers ── */
   const getDbKey = (k) => COLUMN_DB_KEY_MAP[k] || k;
   const handleSort = (k) => {
-    if (!onSort || k === "statusTimeline") return;
+    if (!onSort || k === "statusTimeline" || k === "deadlineDate") return;
     const db = getDbKey(k);
     onSort(db, sortBy === db && sortOrder === "asc" ? "desc" : "asc");
   };
 
   const SortIcon = ({ colKey }) => {
-    if (colKey === "statusTimeline") return null;
+    if (colKey === "statusTimeline" || colKey === "deadlineDate") return null;
     const db = getDbKey(colKey);
     const on = sortBy === db;
     return (
@@ -139,6 +210,60 @@ function DataTable({
         <span>{ok ? "✓" : "⚠"}</span>
         {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
       </span>
+    );
+  };
+
+  /* ── Deadline renderer ── */
+  const renderDeadline = (row) => {
+    const dl = row.deadlineDate;
+    if (!dl)
+      return (
+        <span
+          style={{
+            color: colors.textTertiary,
+            fontSize: "0.78rem",
+            fontStyle: "italic",
+          }}
+        >
+          —
+        </span>
+      );
+    const urgency = getDeadlineUrgency(dl);
+    const cfg = URGENCY_CONFIG[urgency] || URGENCY_CONFIG.ok;
+    const wdays = countWorkingDays(todayStr(), dl);
+    const dateLabel = new Date(dl + "T00:00:00").toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+        <span
+          style={{ fontSize: "0.78rem", fontWeight: 600, color: cfg.color }}
+        >
+          {cfg.icon} {dateLabel}
+        </span>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "0.15rem 0.5rem",
+            background: cfg.bg,
+            border: `1px solid ${cfg.border}`,
+            borderRadius: 4,
+            fontSize: "0.65rem",
+            fontWeight: 700,
+            color: cfg.color,
+            width: "fit-content",
+          }}
+        >
+          {urgency === "overdue"
+            ? "🚨 OVERDUE"
+            : urgency === "today"
+              ? "🔴 DUE TODAY"
+              : `${wdays} working day${wdays !== 1 ? "s" : ""} left`}
+        </span>
+      </div>
     );
   };
 
@@ -258,6 +383,30 @@ function DataTable({
     );
   };
 
+  /* ── Central cell renderer ── */
+  const renderCell = (col, row) => {
+    switch (col.key) {
+      case "dtn":
+        return renderDTN(row[col.key]);
+      case "prodGenName":
+        return renderGenericName(row[col.key]);
+      case "prodBrName":
+        return renderBrandName(row[col.key]);
+      case "appStatus":
+        return renderStatus(row[col.key]);
+      case "statusTimeline":
+        return renderTimeline(row);
+      case "typeDocReleased":
+        return renderTypeDoc(row[col.key]);
+      case "dbTimelineCitizenCharter":
+        return row.dbTimelineCitizenCharter || "N/A";
+      case "deadlineDate":
+        return renderDeadline(row);
+      default:
+        return row[col.key];
+    }
+  };
+
   /* ── Action menu helpers ── */
   const toggleMenu = (e, id) => {
     e.stopPropagation();
@@ -274,6 +423,10 @@ function DataTable({
   const openAppLogs = (r) => {
     setOpenMenuId(null);
     setAppLogsRecord(r);
+  };
+  const openChangeLog = (r) => {
+    setOpenMenuId(null);
+    setChangeLogRecord(r);
   };
 
   const menuBtn = (onClick, style = {}, children) => (
@@ -353,24 +506,58 @@ function DataTable({
               {totalRecords} total records
             </span>
           </div>
-          {sortBy && (
-            <span
-              style={{
-                fontSize: "0.73rem",
-                color: colors.textTertiary,
-                padding: "0.2rem 0.6rem",
-                background: colors.badgeBg,
-                borderRadius: 6,
-                display: "flex",
-                alignItems: "center",
-                gap: "0.3rem",
-              }}
-            >
-              Sorted by{" "}
-              <strong style={{ color: "#4CAF50" }}>{activeSortLabel}</strong>
-              <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
-            </span>
-          )}
+
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            {/* Deadline legend — Compliance tab only */}
+            {isComplianceTab && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  fontSize: "0.68rem",
+                  color: colors.textTertiary,
+                }}
+              >
+                <span style={{ color: "#ef4444", fontWeight: 700 }}>
+                  🚨 Overdue
+                </span>
+                <span>·</span>
+                <span style={{ color: "#f97316", fontWeight: 700 }}>
+                  🔴 Today
+                </span>
+                <span>·</span>
+                <span style={{ color: "#f59e0b", fontWeight: 700 }}>
+                  🟠 ≤3 days
+                </span>
+                <span>·</span>
+                <span style={{ color: "#eab308", fontWeight: 700 }}>
+                  🟡 ≤5 days
+                </span>
+                <span>·</span>
+                <span style={{ color: "#10b981", fontWeight: 700 }}>🟢 OK</span>
+              </div>
+            )}
+
+            {sortBy && (
+              <span
+                style={{
+                  fontSize: "0.73rem",
+                  color: colors.textTertiary,
+                  padding: "0.2rem 0.6rem",
+                  background: colors.badgeBg,
+                  borderRadius: 6,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.3rem",
+                }}
+              >
+                Sorted by{" "}
+                <strong style={{ color: "#4CAF50" }}>{activeSortLabel}</strong>
+                <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Scrollable table */}
@@ -398,6 +585,7 @@ function DataTable({
               }}
             >
               <tr>
+                {/* Checkbox */}
                 <th
                   style={{
                     padding: "1rem",
@@ -425,6 +613,8 @@ function DataTable({
                     }}
                   />
                 </th>
+
+                {/* # */}
                 <th
                   style={{
                     padding: "1rem",
@@ -445,7 +635,9 @@ function DataTable({
                 >
                   #
                 </th>
-                {tableColumns.map((col) => (
+
+                {/* Column headers */}
+                {visibleColumns.map((col) => (
                   <th
                     key={col.key}
                     onClick={() => handleSort(col.key)}
@@ -454,26 +646,46 @@ function DataTable({
                       textAlign: "left",
                       fontSize: "0.8rem",
                       fontWeight: 600,
-                      color: colors.textTertiary,
+                      // ✅ Amber color for Compliance Deadline header
+                      color: col.complianceOnly
+                        ? "#f59e0b"
+                        : colors.textTertiary,
                       textTransform: "uppercase",
                       letterSpacing: "0.05em",
                       borderBottom: `1px solid ${colors.tableBorder}`,
+                      borderTop: col.complianceOnly
+                        ? "2px solid #f59e0b"
+                        : undefined,
                       width: col.width,
                       minWidth: col.width,
                       whiteSpace: "nowrap",
-                      background: colors.tableBg,
+                      background: col.complianceOnly
+                        ? darkMode
+                          ? "rgba(245,158,11,0.08)"
+                          : "rgba(245,158,11,0.05)"
+                        : colors.tableBg,
                       cursor:
-                        col.key !== "statusTimeline" ? "pointer" : "default",
+                        col.key !== "statusTimeline" &&
+                        col.key !== "deadlineDate"
+                          ? "pointer"
+                          : "default",
                       userSelect: "none",
                     }}
                     onMouseEnter={(e) => {
-                      if (col.key !== "statusTimeline")
+                      if (
+                        col.key !== "statusTimeline" &&
+                        col.key !== "deadlineDate"
+                      )
                         e.currentTarget.style.background = darkMode
                           ? "#1e1e1e"
                           : "#ebebeb";
                     }}
                     onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = colors.tableBg)
+                      (e.currentTarget.style.background = col.complianceOnly
+                        ? darkMode
+                          ? "rgba(245,158,11,0.08)"
+                          : "rgba(245,158,11,0.05)"
+                        : colors.tableBg)
                     }
                   >
                     <span
@@ -484,6 +696,8 @@ function DataTable({
                     </span>
                   </th>
                 ))}
+
+                {/* Actions */}
                 <th
                   style={{
                     padding: "1rem",
@@ -512,7 +726,7 @@ function DataTable({
               {data.length === 0 && (
                 <tr>
                   <td
-                    colSpan={tableColumns.length + 3}
+                    colSpan={visibleColumns.length + 3}
                     style={{
                       padding: "3rem",
                       textAlign: "center",
@@ -524,13 +738,27 @@ function DataTable({
                   </td>
                 </tr>
               )}
+
               {data.map((row, idx) => {
                 const sel = selectedRows.includes(row.id);
+                const dl = isComplianceTab ? row.deadlineDate : null;
+                const urgency = dl ? getDeadlineUrgency(dl) : null;
                 const bg = sel
                   ? "#4CAF5015"
                   : idx % 2 === 0
                     ? colors.tableRowEven
                     : colors.tableRowOdd;
+                const rowBorderLeft = sel
+                  ? "3px solid #4CAF50"
+                  : urgency === "overdue"
+                    ? "3px solid #ef4444"
+                    : urgency === "today"
+                      ? "3px solid #f97316"
+                      : urgency === "critical"
+                        ? "3px solid #f59e0b"
+                        : urgency === "warning"
+                          ? "3px solid #eab308"
+                          : "3px solid transparent";
 
                 return (
                   <tr
@@ -538,9 +766,7 @@ function DataTable({
                     style={{
                       background: bg,
                       transition: "background .2s",
-                      borderLeft: sel
-                        ? "3px solid #4CAF50"
-                        : "3px solid transparent",
+                      borderLeft: rowBorderLeft,
                     }}
                     onMouseEnter={(e) => {
                       if (!sel)
@@ -598,8 +824,8 @@ function DataTable({
                       {(indexOfFirstRow || 0) + idx + 1}
                     </td>
 
-                    {/* Data columns */}
-                    {tableColumns.map((col) => (
+                    {/* Data cells */}
+                    {visibleColumns.map((col) => (
                       <td
                         key={col.key}
                         style={{
@@ -607,28 +833,20 @@ function DataTable({
                           fontSize: "0.85rem",
                           color: colors.tableText,
                           borderBottom: `1px solid ${colors.tableBorder}`,
-                          whiteSpace: "nowrap",
+                          whiteSpace:
+                            col.key === "deadlineDate" ? "normal" : "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           width: col.width,
                           minWidth: col.width,
+                          background: col.complianceOnly
+                            ? darkMode
+                              ? "rgba(245,158,11,0.04)"
+                              : "rgba(245,158,11,0.02)"
+                            : undefined,
                         }}
                       >
-                        {col.key === "dtn"
-                          ? renderDTN(row[col.key])
-                          : col.key === "prodGenName"
-                            ? renderGenericName(row[col.key])
-                            : col.key === "prodBrName"
-                              ? renderBrandName(row[col.key])
-                              : col.key === "appStatus"
-                                ? renderStatus(row[col.key])
-                                : col.key === "statusTimeline"
-                                  ? renderTimeline(row)
-                                  : col.key === "dbTimelineCitizenCharter"
-                                    ? row.dbTimelineCitizenCharter || "N/A"
-                                    : col.key === "typeDocReleased"
-                                      ? renderTypeDoc(row[col.key])
-                                      : row[col.key]}
+                        {renderCell(col, row)}
                       </td>
                     ))}
 
@@ -666,6 +884,7 @@ function DataTable({
                         >
                           ⋮
                         </button>
+
                         {openMenuId === row.id && (
                           <>
                             <div
@@ -696,7 +915,6 @@ function DataTable({
                                 overflow: "hidden",
                               }}
                             >
-                              {/* ── View Details (now includes evaluation) ── */}
                               {menuBtn(
                                 () => openDetails(row),
                                 {
@@ -707,8 +925,6 @@ function DataTable({
                                   <span key="t">View Details</span>,
                                 ],
                               )}
-
-                              {/* ── Application Logs ── */}
                               {menuBtn(
                                 () => openAppLogs(row),
                                 {
@@ -719,8 +935,16 @@ function DataTable({
                                   <span key="t">Application Logs</span>,
                                 ],
                               )}
-
-                              {/* ── View Doctrack Details ── */}
+                              {menuBtn(
+                                () => openChangeLog(row),
+                                {
+                                  borderBottom: `1px solid ${colors.tableBorder}`,
+                                },
+                                [
+                                  <span key="i">📋</span>,
+                                  <span key="t">Change Log</span>,
+                                ],
+                              )}
                               {menuBtn(() => openDoctrack(row), {}, [
                                 <span key="i">📋</span>,
                                 <span key="t">View Doctrack Details</span>,
@@ -776,6 +1000,13 @@ function DataTable({
         <DoctrackModal
           record={doctrackModalRecord}
           onClose={() => setDoctrackModalRecord(null)}
+          colors={colors}
+        />
+      )}
+      {changeLogRecord && (
+        <ChangeLogModal
+          record={changeLogRecord}
+          onClose={() => setChangeLogRecord(null)}
           colors={colors}
         />
       )}
