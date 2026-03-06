@@ -15,7 +15,7 @@ import OTCPage from "../pages/OTCPage";
 import CDRRInspectorReportsPage from "../pages/CDRRInspectorReportsPage";
 import TaskPage from "../pages/TaskPage";
 import MonitoringPage from "../pages/MonitoringPage";
-
+import DoctrackMagicPage from "../pages/DoctrackMagicPage";
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
 
@@ -73,9 +73,10 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("fda-verification")) return "fda-verification";
     if (path.includes("otc-database")) return "otc-database";
     if (path.includes("cdrr-inspector-reports"))
-      return "cdrr-inspector-reports"; // ✅ NEW
-
+      return "cdrr-inspector-reports";
+    if (path.includes("doctrack-magic")) return "doctrack-magic";
     if (path.includes("reports")) return "reports";
+    if (path.includes("doctrack-magic")) return "doctrack-magic";
 
     // Profile
     if (path.includes("profile")) return "profile";
@@ -166,6 +167,9 @@ function MainLayout({ darkMode, setDarkMode }) {
         return (
           <CDRRInspectorReportsPage darkMode={darkMode} userRole={userRole} />
         );
+
+      case "doctrack-magic":
+        return <DoctrackMagicPage darkMode={darkMode} userRole={userRole} />;
 
       case "monitoring":
         return <MonitoringPage darkMode={darkMode} userRole={userRole} />;

@@ -211,6 +211,7 @@ function Sidebar({
       "fda-verification": `${basePath}/fda-verification`,
       "otc-database": `${basePath}/otc-database`,
       "cdrr-inspector-reports": `${basePath}/cdrr-inspector-reports`,
+      "doctrack-magic": `${basePath}/doctrack-magic`,
       announcements: `${basePath}/announcements`,
       support: `${basePath}/support`,
       access: `${basePath}/access`,

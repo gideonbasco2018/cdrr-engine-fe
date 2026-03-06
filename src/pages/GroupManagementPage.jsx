@@ -99,6 +99,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       "for-releasing": "Workflow",
       "fda-verification": "Other Database",
       "cdrr-inspector-reports": "Other Database",
+      "doctrack-magic": "Other Database",
       announcements: "Platform",
       support: "Platform",
     };

@@ -102,6 +102,12 @@ export const menuDefinitions = {
       label: "CDRR and Inspector Reports",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+      {
+      id: "doctrack-magic",
+      icon: "📋",
+      label: "Docktrack Magic",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 
   platformItems: [

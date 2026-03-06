@@ -23,7 +23,7 @@ export const allMenuItems = [
   // Other Database
   { id: "fda-verification", label: "FDA Verification Portal", icon: "🔍", category: "Other Database" },
   { id: "cdrr-inspector-reports", label: "CDRR and Inspector Reports", icon: "📋", category: "Other Database"},
-
+  { id: "doctrack-magic", label: "Docktrack Magic", icon: "📋", category: "Other Database"},
   
   // Platform
   { id: "announcements", label: "Announcements", icon: "📢", category: "Platform" },
