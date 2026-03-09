@@ -8,6 +8,8 @@ import {
   downloadDoctrackTemplate,
 } from "../api/doctrack";
 
+import DoctrackModal from "../components/reports/actions/DoctrackModal";
+
 function formatBytes(b) {
   if (b < 1024) return b + " B";
   if (b < 1024 * 1024) return (b / 1024).toFixed(1) + " KB";
@@ -495,6 +497,8 @@ function HistoryDetailModal({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
+  const [doctrackRecord, setDoctrackRecord] = useState(null);
+
   const [insertedRows, setInsertedRows] = useState([]);
   const [insertedTotal, setInsertedTotal] = useState(
     entry.insertedCount ?? entry.inserted ?? 0,
@@ -919,6 +923,7 @@ function HistoryDetailModal({
                   </div>
                   <div style={{ padding: "0.55rem 0.75rem" }}>
                     <span
+                      onClick={() => ins && setDoctrackRecord({ dtn: rsn })}
                       style={{
                         fontFamily: "monospace",
                         fontSize: "0.78rem",
@@ -940,6 +945,9 @@ function HistoryDetailModal({
                         borderRadius: 5,
                         padding: "0.22rem 0.55rem",
                         display: "inline-block",
+                        cursor: ins ? "pointer" : "default",
+                        textDecoration: ins ? "underline" : "none",
+                        textUnderlineOffset: "2px",
                       }}
                     >
                       {rsn}
@@ -1036,6 +1044,23 @@ function HistoryDetailModal({
             </button>
           </div>
         </div>
+
+        {doctrackRecord && (
+          <DoctrackModal
+            record={doctrackRecord}
+            onClose={() => setDoctrackRecord(null)}
+            colors={{
+              cardBg,
+              cardBorder: border,
+              textPrimary,
+              textTertiary: textMuted,
+              textSecondary: textPrimary,
+              tableBg: headerBg,
+              tableRowHover: darkMode ? "#1e1e1e" : "#f0f4ff",
+              badgeBg: darkMode ? "#2a2a2a" : "#f0f0f0",
+            }}
+          />
+        )}
       </div>
     </div>
   );
