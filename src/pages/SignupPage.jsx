@@ -12,6 +12,7 @@ function SignupPage() {
     first_name: "",
     surname: "",
     position: "",
+    alias: "",
     access_request: "",
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -63,6 +64,7 @@ function SignupPage() {
         first_name: formData.first_name,
         surname: formData.surname,
         position: formData.position || undefined,
+        alias: formData.alias,
         access_request: formData.access_request || undefined,
       };
 
@@ -81,6 +83,7 @@ function SignupPage() {
         first_name: "",
         surname: "",
         position: "",
+        alias: "",
         access_request: "",
       });
 
@@ -405,6 +408,24 @@ function SignupPage() {
                 value={formData.position}
                 onChange={handleChange}
                 placeholder="Enter your position or job title"
+                disabled={loading}
+                style={inputStyle}
+                onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                onBlur={(e) => (e.target.style.borderColor = "#2a2a2a")}
+              />
+            </div>
+
+            {/* Alias */}
+            <div style={{ marginBottom: "1.25rem" }}>
+              <label style={labelStyle}>Alias</label>{" "}
+              {/* ← TANGGALIN ang (Optional) */}
+              <input
+                type="text"
+                name="alias"
+                value={formData.alias}
+                onChange={handleChange}
+                placeholder="Enter your preferred alias or user code"
+                required // ← IDAGDAG
                 disabled={loading}
                 style={inputStyle}
                 onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
