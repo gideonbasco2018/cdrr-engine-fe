@@ -104,13 +104,14 @@ export const downloadDoctrackTemplate = async () => {
 // }
 // ─────────────────────────────────────────────
 
-export const uploadDoctrackExcel = async (file, username) => {
+// AFTER:
+export const uploadDoctrackExcel = async (file, username, alias = "") => {
   try {
     const formData = new FormData();
     formData.append("file", file);
 
     const response = await API.post("/doctrack/upload-excel", formData, {
-      params:  { username },
+      params:  { username, alias },          // ← idagdag alias
       headers: { "Content-Type": "multipart/form-data" },
     });
     return response.data;

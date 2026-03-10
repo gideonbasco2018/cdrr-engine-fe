@@ -1655,68 +1655,61 @@ function DoctrackMagicPage({ darkMode }) {
   };
 
   // ── File handling ──────────────────────────────────────────────────────────
-  const handleFile = useCallback(
-    (file) => {
-      if (!file) return;
-      if (!/\.(xlsx|xls)$/i.test(file.name)) {
-        showToast("Only .xlsx or .xls files accepted.", "error");
-        return;
+  const handleFile = useCallback((file) => {
+    if (!file) return;
+    if (!/\.(xlsx|xls)$/i.test(file.name)) {
+      showToast("Only .xlsx or .xls files accepted.", "error");
+      return;
+    }
+    setRawFile(file);
+    setFileName(file.name);
+    setFileSize(formatBytes(file.size));
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        import("https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs").then(
+          (XLSX) => {
+            const wb = XLSX.read(e.target.result, { type: "array" });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
+
+            const rows = data
+              .map((row, idx) => {
+                const keys = Object.keys(row);
+                const doctractKey = keys.find((k) =>
+                  k.toLowerCase().includes("doctrack"),
+                );
+                const remarksKey = keys.find((k) =>
+                  k.toLowerCase().includes("remarks"),
+                );
+                const doctrack = String(row[doctractKey] ?? "").trim();
+
+                const rawRemarks = String(row[remarksKey] ?? "").trim();
+                const remarks = rawRemarks;
+
+                const issues = [];
+                if (!doctrack) issues.push("Missing Doctrack Number");
+                else if (!/^\d{14}$/.test(doctrack))
+                  issues.push("Invalid format (expected 14 digits)");
+                if (!remarks) issues.push("Missing Remarks");
+
+                return { rowNum: idx + 2, doctrack, remarks, issues };
+              })
+              .filter((r) => r.doctrack || r.remarks);
+
+            setAllRows(rows);
+            setStep(2);
+            setPage(1);
+            showToast(`${rows.length} records loaded.`, "success");
+          },
+        );
+      } catch {
+        showToast("Failed to parse Excel file.", "error");
       }
-      setRawFile(file);
-      setFileName(file.name);
-      setFileSize(formatBytes(file.size));
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          import("https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs").then(
-            (XLSX) => {
-              const wb = XLSX.read(e.target.result, { type: "array" });
-              const ws = wb.Sheets[wb.SheetNames[0]];
-              const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
-              const rows = data
-                .map((row, idx) => {
-                  const keys = Object.keys(row);
-                  const doctractKey = keys.find((k) =>
-                    k.toLowerCase().includes("doctrack"),
-                  );
-                  const remarksKey = keys.find((k) =>
-                    k.toLowerCase().includes("remarks"),
-                  );
-                  const doctrack = String(row[doctractKey] ?? "").trim();
-                  // AFTER:
-                  const rawRemarks = String(row[remarksKey] ?? "").trim();
-                  const remarks = rawRemarks
-                    ? currentAlias
-                      ? `${rawRemarks}  Remarks by: ${currentAlias}`
-                      : rawRemarks
-                    : "";
-
-                  const issues = [];
-                  if (!doctrack) issues.push("Missing Doctrack Number");
-                  else if (!/^\d{14}$/.test(doctrack))
-                    issues.push("Invalid format (expected 14 digits)");
-                  if (!remarks) issues.push("Missing Remarks");
-
-                  return { rowNum: idx + 2, doctrack, remarks, issues };
-                })
-                .filter((r) => r.doctrack || r.remarks);
-
-              setAllRows(rows);
-              setStep(2);
-              setPage(1);
-              showToast(`${rows.length} records loaded.`, "success");
-            },
-          );
-        } catch {
-          showToast("Failed to parse Excel file.", "error");
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    },
-    [currentAlias],
-  );
+    };
+    reader.readAsArrayBuffer(file);
+  }, []);
 
   const handleDrop = (e) => {
     e.preventDefault();
@@ -1751,7 +1744,11 @@ function DoctrackMagicPage({ darkMode }) {
 
     setSubmitting(true);
     try {
-      const uploadResult = await uploadDoctrackExcel(rawFile, currentUser);
+      const uploadResult = await uploadDoctrackExcel(
+        rawFile,
+        currentUser,
+        currentAlias,
+      );
 
       if (!uploadResult.success && uploadResult.stats?.inserted === 0) {
         showToast(uploadResult.message || "Upload failed.", "error");
