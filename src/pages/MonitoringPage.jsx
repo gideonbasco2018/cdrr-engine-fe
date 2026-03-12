@@ -50,6 +50,16 @@ const evaluatorNames = [
   "Liza Reyes",
 ];
 
+// Role map for each task-handling user
+const USER_ROLE_MAP = {
+  "Juan dela Cruz": "Evaluator",
+  "Maria Santos": "QA Officer",
+  "Pedro Reyes": "Checker",
+  "Ana Gonzales": "Releasing Officer",
+  "Jose Bautista": "Decker",
+  "Liza Reyes": "Supervisor",
+};
+
 const DRUG_CATALOG = [
   {
     name: "Furacef-750",
@@ -346,16 +356,16 @@ const COMPLIANCE_FLAGS = [
   },
 ];
 
-// Workload heatmap data (Mon-Fri, last 4 weeks)
+// Workload heatmap data (Mon-Fri, last 4 weeks) — clearly varied for accurate visual contrast
 const WORKLOAD_DATA = {
   "Juan dela Cruz": [
-    4, 7, 5, 3, 6, 5, 8, 4, 6, 7, 3, 5, 7, 4, 5, 6, 4, 8, 5, 3,
+    2, 7, 4, 0, 6, 5, 8, 1, 6, 7, 0, 5, 8, 3, 4, 7, 1, 8, 5, 0,
   ],
-  "Maria Santos": [6, 5, 8, 4, 7, 7, 5, 6, 8, 4, 5, 7, 4, 6, 8, 4, 6, 5, 7, 5],
-  "Pedro Reyes": [3, 6, 4, 7, 5, 4, 6, 3, 5, 7, 6, 4, 7, 5, 3, 7, 5, 4, 6, 4],
-  "Ana Gonzales": [5, 4, 6, 8, 3, 6, 4, 7, 5, 8, 4, 6, 3, 7, 5, 5, 7, 6, 4, 6],
-  "Jose Bautista": [7, 3, 5, 6, 4, 3, 7, 5, 4, 6, 7, 3, 6, 5, 4, 3, 5, 7, 6, 4],
-  "Liza Reyes": [4, 6, 3, 5, 7, 6, 4, 5, 7, 3, 5, 7, 4, 6, 3, 6, 3, 5, 4, 7],
+  "Maria Santos": [6, 0, 8, 4, 7, 7, 0, 6, 8, 2, 5, 7, 0, 6, 8, 0, 6, 3, 7, 5],
+  "Pedro Reyes": [0, 6, 2, 7, 5, 4, 6, 0, 5, 7, 8, 2, 7, 0, 1, 7, 3, 0, 6, 4],
+  "Ana Gonzales": [5, 0, 6, 8, 2, 6, 2, 7, 0, 8, 1, 6, 0, 7, 5, 3, 7, 6, 0, 6],
+  "Jose Bautista": [7, 1, 0, 6, 2, 0, 7, 5, 2, 6, 7, 0, 6, 3, 1, 0, 5, 7, 6, 2],
+  "Liza Reyes": [2, 6, 0, 5, 7, 6, 0, 5, 7, 1, 3, 7, 2, 6, 0, 6, 0, 5, 2, 7],
 };
 
 // ── Users Database ────────────────────────────────────────────────────────────
@@ -376,7 +386,7 @@ const USER_DATABASE = [
     id: 2,
     name: "Maria Santos",
     email: "msantos@pba.gov.ph",
-    role: "Evaluator",
+    role: "QA Officer",
     status: "Active",
     lastLogin: "Today, 8:50 AM",
     avatar: 1,
@@ -388,7 +398,7 @@ const USER_DATABASE = [
     id: 3,
     name: "Pedro Reyes",
     email: "preyes@pba.gov.ph",
-    role: "Evaluator",
+    role: "Checker",
     status: "Active",
     lastLogin: "Yesterday, 4:22 PM",
     avatar: 2,
@@ -400,7 +410,7 @@ const USER_DATABASE = [
     id: 4,
     name: "Ana Gonzales",
     email: "agonzales@pba.gov.ph",
-    role: "Evaluator",
+    role: "Releasing Officer",
     status: "Active",
     lastLogin: "Today, 10:05 AM",
     avatar: 3,
@@ -412,7 +422,7 @@ const USER_DATABASE = [
     id: 5,
     name: "Jose Bautista",
     email: "jbautista@pba.gov.ph",
-    role: "Evaluator",
+    role: "Decker",
     status: "Inactive",
     lastLogin: "Mar 8, 2026",
     avatar: 4,
@@ -424,7 +434,7 @@ const USER_DATABASE = [
     id: 6,
     name: "Liza Reyes",
     email: "lreyes@pba.gov.ph",
-    role: "Evaluator",
+    role: "Supervisor",
     status: "Active",
     lastLogin: "Today, 11:30 AM",
     avatar: 5,
@@ -436,7 +446,7 @@ const USER_DATABASE = [
     id: 7,
     name: "Carlo Mendoza",
     email: "cmendoza@pba.gov.ph",
-    role: "Supervisor",
+    role: "Director",
     status: "Active",
     lastLogin: "Today, 7:45 AM",
     avatar: 6,
@@ -472,7 +482,7 @@ const USER_DATABASE = [
     id: 10,
     name: "Nena Cruz",
     email: "ncruz@pba.gov.ph",
-    role: "Evaluator",
+    role: "Checker",
     status: "Suspended",
     lastLogin: "Feb 28, 2026",
     avatar: 1,
@@ -481,6 +491,7 @@ const USER_DATABASE = [
     specialization: "Vaccine",
   },
 ];
+
 const ROLE_COLORS = {
   Evaluator: {
     bg: "#dbeafe",
@@ -488,14 +499,44 @@ const ROLE_COLORS = {
     darkBg: "#1e2a4a",
     darkColor: "#93c5fd",
   },
-  Supervisor: {
+  "QA Officer": {
     bg: "#d1fae5",
     color: "#065f46",
     darkBg: "#0a2e1a",
     darkColor: "#6ee7b7",
   },
-  "Compliance Officer": {
+  Checker: {
+    bg: "#fce7f3",
+    color: "#be185d",
+    darkBg: "#2e0a1f",
+    darkColor: "#f9a8d4",
+  },
+  "Releasing Officer": {
+    bg: "#ffedd5",
+    color: "#c2410c",
+    darkBg: "#2e1500",
+    darkColor: "#fed7aa",
+  },
+  Decker: {
+    bg: "#f3e8ff",
+    color: "#7e22ce",
+    darkBg: "#2a1a3e",
+    darkColor: "#d8b4fe",
+  },
+  Supervisor: {
     bg: "#fef3c7",
+    color: "#92400e",
+    darkBg: "#2e1f00",
+    darkColor: "#fde68a",
+  },
+  Director: {
+    bg: "#cffafe",
+    color: "#0e7490",
+    darkBg: "#0c2a3a",
+    darkColor: "#67e8f9",
+  },
+  "Compliance Officer": {
+    bg: "#fef9c3",
     color: "#92400e",
     darkBg: "#2e1f00",
     darkColor: "#fde68a",
@@ -507,6 +548,7 @@ const ROLE_COLORS = {
     darkColor: "#d8b4fe",
   },
 };
+
 const STATUS_COLORS_MAP = {
   Active: {
     bg: "#dcfce7",
@@ -640,6 +682,7 @@ const avatarPalette = [
   { bg: "#cffafe", color: "#0e7490" },
   { bg: "#fef9c3", color: "#713f12" },
 ];
+
 function getInitials(name) {
   return name
     .split(" ")
@@ -1521,7 +1564,7 @@ function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
             >
               {[
                 "DTN",
-                "Evaluator",
+                "User",
                 "Drug / Application",
                 "Prescription",
                 "App Step",
@@ -1568,6 +1611,7 @@ function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
                   bg: "#f3f4f6",
                   color: "#374151",
                 };
+                const userRole = USER_ROLE_MAP[row.evaluator] || "User";
                 return (
                   <div
                     key={i}
@@ -1628,7 +1672,14 @@ function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
                           flexShrink: 0,
                         }}
                       />
-                      {row.evaluator}
+                      <div>
+                        <div>{row.evaluator}</div>
+                        <div
+                          style={{ fontSize: "0.65rem", color: ui.textMuted }}
+                        >
+                          {userRole}
+                        </div>
+                      </div>
                     </span>
                     <span
                       style={{
@@ -1960,7 +2011,7 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
               color: ui.textMuted,
             }}
           >
-            Current Evaluator
+            Current User
           </p>
           <p
             style={{
@@ -1970,7 +2021,10 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
               fontWeight: 500,
             }}
           >
-            {task.evaluator}
+            {task.evaluator}{" "}
+            <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+              ({USER_ROLE_MAP[task.evaluator] || "User"})
+            </span>
           </p>
           <label
             style={{
@@ -2001,12 +2055,12 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
               fontFamily: "inherit",
             }}
           >
-            <option value="">— Select Evaluator —</option>
+            <option value="">— Select User —</option>
             {evaluators
               .filter((ev) => ev !== task.evaluator)
               .map((ev) => (
                 <option key={ev} value={ev}>
-                  {ev}
+                  {ev} ({USER_ROLE_MAP[ev] || "User"})
                 </option>
               ))}
           </select>
@@ -2069,11 +2123,11 @@ function MonitoringPage({ darkMode }) {
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
   const [activeNav, setActiveNav] = useState("overview");
+  // ── Evaluators nav item REMOVED — data is now in Users view ──
   const navItems = [
     { key: "overview", icon: "🏠", label: "Overview", disabled: false },
     { key: "records", icon: "📋", label: "Records", disabled: false },
     { key: "analytics", icon: "📊", label: "Analytics", disabled: false },
-    { key: "evaluators", icon: "⭐", label: "Evaluators", disabled: false },
     { key: "deadlines", icon: "⏰", label: "Deadlines", disabled: false },
     { key: "compliance", icon: "🚩", label: "Compliance", disabled: false },
     { key: "workload", icon: "🔥", label: "Workload", disabled: false },
@@ -2113,7 +2167,7 @@ function MonitoringPage({ darkMode }) {
   const [modalDateTo, setModalDateTo] = useState("");
   const [modalSortCol, setModalSortCol] = useState("date");
   const [modalSortDir, setModalSortDir] = useState("asc");
-
+  const [modalStatusTab, setModalStatusTab] = useState("All");
   const [reassignTask, setReassignTask] = useState(null);
   const [tableData, setTableData] = useState(staticData);
   const [chartModal, setChartModal] = useState(null);
@@ -2124,7 +2178,7 @@ function MonitoringPage({ darkMode }) {
   const [rxFilter, setRxFilter] = useState("All");
 
   // Impersonation
-  const [impersonating, setImpersonating] = useState(null); // user object or null
+  const [impersonating, setImpersonating] = useState(null);
   const [userSearch, setUserSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("All");
   const [userStatusFilter, setUserStatusFilter] = useState("All");
@@ -2295,6 +2349,7 @@ function MonitoringPage({ darkMode }) {
       const d = new Date(t.date + "T00:00:00");
       if (modalDateFrom && d < new Date(modalDateFrom)) return false;
       if (modalDateTo && d > new Date(modalDateTo)) return false;
+      if (modalStatusTab !== "All" && t.status !== modalStatusTab) return false;
       return true;
     });
     return [...f].sort((a, b) => {
@@ -2317,7 +2372,14 @@ function MonitoringPage({ darkMode }) {
             : -1
           : 0;
     });
-  }, [allModalTasks, modalDateFrom, modalDateTo, modalSortCol, modalSortDir]);
+  }, [
+    allModalTasks,
+    modalDateFrom,
+    modalDateTo,
+    modalSortCol,
+    modalSortDir,
+    modalStatusTab,
+  ]);
 
   const handleModalClose = () => {
     setModalEval(null);
@@ -2325,6 +2387,7 @@ function MonitoringPage({ darkMode }) {
     setModalDateTo("");
     setModalSortCol("date");
     setModalSortDir("asc");
+    setModalStatusTab("All");
   };
   const handleSliceClick = (statusName) => {
     setChartModal({
@@ -2436,7 +2499,7 @@ function MonitoringPage({ darkMode }) {
   // ── OVERVIEW VIEW ─────────────────────────────────────────────────────────
   const OverviewView = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* KPI Row — separate boxes */}
+      {/* KPI Row */}
       <div
         style={{
           display: "grid",
@@ -2536,7 +2599,7 @@ function MonitoringPage({ darkMode }) {
         ))}
       </div>
 
-      {/* Alert row — separate boxes */}
+      {/* Alert row */}
       <div
         style={{
           display: "grid",
@@ -2644,9 +2707,9 @@ function MonitoringPage({ darkMode }) {
         ))}
       </div>
 
-      {/* Middle row: Evaluator load + Activity feed */}
+      {/* Middle row: User load + Activity feed */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        {/* Evaluator load — separate boxes per evaluator */}
+        {/* User load */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <p
             style={{
@@ -2656,7 +2719,7 @@ function MonitoringPage({ darkMode }) {
               color: ui.textPrimary,
             }}
           >
-            Evaluator Load
+            User Load
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {currentEvaluators.map((ev) => {
@@ -2671,14 +2734,13 @@ function MonitoringPage({ darkMode }) {
               const pct = tasks.length
                 ? Math.round((approved / tasks.length) * 100)
                 : 0;
+              const role = USER_ROLE_MAP[ev] || "User";
               return (
                 <Card
                   key={ev}
                   ui={ui}
                   style={{ padding: "10px 12px", cursor: "pointer" }}
-                  onClick={() => {
-                    setModalEval(ev);
-                  }}
+                  onClick={() => setModalEval(ev)}
                 >
                   <div
                     style={{ display: "flex", alignItems: "center", gap: 10 }}
@@ -2706,22 +2768,33 @@ function MonitoringPage({ darkMode }) {
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
-                          marginBottom: 3,
+                          marginBottom: 1,
                         }}
                       >
-                        <p
-                          style={{
-                            margin: 0,
-                            fontSize: "0.82rem",
-                            fontWeight: 600,
-                            color: ui.textPrimary,
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {ev}
-                        </p>
+                        <div>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.82rem",
+                              fontWeight: 600,
+                              color: ui.textPrimary,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {ev}
+                          </p>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.66rem",
+                              color: ui.textMuted,
+                            }}
+                          >
+                            {role}
+                          </p>
+                        </div>
                         <span
                           style={{
                             fontSize: "0.72rem",
@@ -2738,6 +2811,7 @@ function MonitoringPage({ darkMode }) {
                           display: "flex",
                           gap: 4,
                           alignItems: "center",
+                          marginTop: 4,
                         }}
                       >
                         <div
@@ -2804,7 +2878,7 @@ function MonitoringPage({ darkMode }) {
           </div>
         </div>
 
-        {/* Recent Activity — separate box */}
+        {/* Recent Activity */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div
             style={{
@@ -2901,7 +2975,7 @@ function MonitoringPage({ darkMode }) {
         </div>
       </div>
 
-      {/* Bottom row: Prescription breakdown — separate boxes */}
+      {/* Prescription breakdown */}
       <div>
         <p
           style={{
@@ -3021,7 +3095,7 @@ function MonitoringPage({ darkMode }) {
             margin: "0 0 8px",
           }}
         >
-          Tasks per Evaluator
+          Tasks per User
         </p>
         <Card
           ui={ui}
@@ -3036,7 +3110,7 @@ function MonitoringPage({ darkMode }) {
               padding: "8px 14px",
             }}
           >
-            {["Evaluator", "Tasks"].map((col, i) => (
+            {["User", "Tasks"].map((col, i) => (
               <span
                 key={col}
                 style={{
@@ -3061,6 +3135,7 @@ function MonitoringPage({ darkMode }) {
                 ),
               );
               const av = getAvatarColor(ev, uniqueEvaluators);
+              const role = USER_ROLE_MAP[ev] || "User";
               return (
                 <div
                   key={ev}
@@ -3124,6 +3199,15 @@ function MonitoringPage({ darkMode }) {
                       >
                         {ev}
                       </p>
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: "0.65rem",
+                          color: ui.textMuted,
+                        }}
+                      >
+                        {role}
+                      </p>
                       <div
                         style={{
                           marginTop: 3,
@@ -3166,7 +3250,7 @@ function MonitoringPage({ darkMode }) {
             }}
           >
             <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-              {currentEvaluators.length} evaluators · {tableData.length} total
+              {currentEvaluators.length} users · {tableData.length} total
             </span>
           </div>
         </Card>
@@ -3220,16 +3304,16 @@ function MonitoringPage({ darkMode }) {
               </div>
             ))}
             <div>
-              <label style={labelSt}>Evaluator</label>
+              <label style={labelSt}>User</label>
               <select
                 value={evaluatorFilter}
                 onChange={(e) => setEvalFilter(e.target.value)}
                 style={{ ...inputSt, minWidth: 150 }}
               >
-                <option value="">All Evaluators</option>
+                <option value="">All Users</option>
                 {currentEvaluators.map((ev) => (
                   <option key={ev} value={ev}>
-                    {ev}
+                    {ev} ({USER_ROLE_MAP[ev] || "User"})
                   </option>
                 ))}
               </select>
@@ -3266,7 +3350,7 @@ function MonitoringPage({ darkMode }) {
           >
             {[
               { label: "DTN", col: "dtn" },
-              { label: "Evaluator", col: "evaluator" },
+              { label: "User", col: "evaluator" },
               { label: "Drug / Application", col: "drugName" },
               { label: "Date", col: "date" },
               { label: "Timeline", col: "timeline" },
@@ -3315,6 +3399,7 @@ function MonitoringPage({ darkMode }) {
                   bg: "#f3f4f6",
                   color: "#374151",
                 };
+                const role = USER_ROLE_MAP[row.evaluator] || "User";
                 return (
                   <div
                     key={i}
@@ -3352,25 +3437,39 @@ function MonitoringPage({ darkMode }) {
                         color: ui.textPrimary,
                         fontWeight: 500,
                         display: "flex",
+                        flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: 5,
+                        gap: 1,
                         padding: "10px 12px",
                       }}
                     >
                       <span
                         style={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: "50%",
-                          background: getAvatarColor(
-                            row.evaluator,
-                            uniqueEvaluators,
-                          ).color,
-                          flexShrink: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
                         }}
-                      />
-                      {row.evaluator}
+                      >
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: getAvatarColor(
+                              row.evaluator,
+                              uniqueEvaluators,
+                            ).color,
+                            flexShrink: 0,
+                          }}
+                        />
+                        {row.evaluator}
+                      </span>
+                      <span
+                        style={{ fontSize: "0.65rem", color: ui.textMuted }}
+                      >
+                        {role}
+                      </span>
                     </span>
                     <span
                       style={{
@@ -3874,7 +3973,7 @@ function MonitoringPage({ darkMode }) {
         </Card>
       </div>
 
-      {/* Row 2: Timeline Split + Prescription Split + Yearly Table */}
+      {/* Row 2: Timeline Split + Prescription Split + Year-by-Year Table */}
       <div
         style={{
           display: "grid",
@@ -3994,7 +4093,7 @@ function MonitoringPage({ darkMode }) {
               color: ui.textPrimary,
             }}
           >
-            💊 By Prescription Type
+            💊 By Classification
           </p>
           {rxSplit.map((item, idx) => {
             const colors = ["#1877F2", "#f59e0b", "#36a420"];
@@ -4077,7 +4176,7 @@ function MonitoringPage({ darkMode }) {
           })}
         </Card>
 
-        {/* Year-by-year summary table */}
+        {/* ── Year-by-Year Summary — now with ⏳ On Process column ── */}
         <Card ui={ui} style={{ padding: 0, overflow: "hidden" }}>
           <div
             style={{
@@ -4099,12 +4198,12 @@ function MonitoringPage({ darkMode }) {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr",
+              gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr",
               background: colHdr,
               borderBottom: `1px solid ${ui.divider}`,
             }}
           >
-            {["Year", "Total", "✅", "❌", "Rate"].map((h, i) => (
+            {["Year", "Total", "✅", "❌", "⏳", "Rate"].map((h, i) => (
               <span
                 key={h}
                 style={{
@@ -4126,7 +4225,7 @@ function MonitoringPage({ darkMode }) {
               key={row.year}
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr",
+                gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr 1fr",
                 borderBottom:
                   i < yearSummary.length - 1
                     ? `1px solid ${ui.divider}`
@@ -4186,6 +4285,17 @@ function MonitoringPage({ darkMode }) {
               <span
                 style={{
                   fontSize: "0.8rem",
+                  fontWeight: 600,
+                  color: "#f59e0b",
+                  padding: "8px 10px",
+                  textAlign: "center",
+                }}
+              >
+                {row.onProcess}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.8rem",
                   fontWeight: 700,
                   padding: "8px 10px",
                   textAlign: "center",
@@ -4199,7 +4309,7 @@ function MonitoringPage({ darkMode }) {
         </Card>
       </div>
 
-      {/* Row 3: Evaluator Performance Bar Chart */}
+      {/* Row 3: User Performance Bar Chart */}
       <Card ui={ui} style={{ padding: "14px 16px" }}>
         <div
           style={{
@@ -4218,7 +4328,7 @@ function MonitoringPage({ darkMode }) {
                 color: ui.textPrimary,
               }}
             >
-              👤 Evaluator Performance
+              👤 User Performance
             </p>
             <p
               style={{
@@ -4227,7 +4337,7 @@ function MonitoringPage({ darkMode }) {
                 color: ui.textMuted,
               }}
             >
-              Tasks handled · approval rate per evaluator
+              Tasks handled · approval rate per user
             </p>
           </div>
           <div style={{ display: "flex", gap: 10, fontSize: "0.7rem" }}>
@@ -4257,6 +4367,7 @@ function MonitoringPage({ darkMode }) {
           {evalStats.map((ev) => {
             const av = getAvatarColor(ev.name, uniqueEvaluators);
             const maxTotal = Math.max(...evalStats.map((e) => e.total), 1);
+            const role = USER_ROLE_MAP[ev.name] || "User";
             return (
               <div
                 key={ev.name}
@@ -4309,11 +4420,11 @@ function MonitoringPage({ darkMode }) {
                     <p
                       style={{
                         margin: 0,
-                        fontSize: "0.65rem",
+                        fontSize: "0.63rem",
                         color: ui.textMuted,
                       }}
                     >
-                      {ev.total} tasks
+                      {role} · {ev.total} tasks
                     </p>
                   </div>
                 </div>
@@ -4326,7 +4437,6 @@ function MonitoringPage({ darkMode }) {
                     background: ui.progressBg,
                   }}
                 >
-                  {/* Approved */}
                   <div
                     style={{
                       position: "absolute",
@@ -4339,7 +4449,6 @@ function MonitoringPage({ darkMode }) {
                       transition: "width 0.4s",
                     }}
                   />
-                  {/* Disapproved stacked */}
                   <div
                     style={{
                       position: "absolute",
@@ -4351,7 +4460,6 @@ function MonitoringPage({ darkMode }) {
                       transition: "width 0.4s, left 0.4s",
                     }}
                   />
-                  {/* On Process stacked */}
                   <div
                     style={{
                       position: "absolute",
@@ -4400,7 +4508,7 @@ function MonitoringPage({ darkMode }) {
         </div>
       </Card>
 
-      {/* Row 4: Top Drugs Table + Beyond Timeline per Evaluator */}
+      {/* Row 4: Top Drugs + Beyond Timeline per User */}
       <div
         style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 14 }}
       >
@@ -4576,7 +4684,7 @@ function MonitoringPage({ darkMode }) {
           })}
         </Card>
 
-        {/* Beyond Timeline per Evaluator */}
+        {/* Beyond Timeline per User */}
         <Card ui={ui} style={{ padding: "14px 16px" }}>
           <p
             style={{
@@ -4595,7 +4703,7 @@ function MonitoringPage({ darkMode }) {
               color: ui.textMuted,
             }}
           >
-            Applications past deadline per evaluator
+            Applications past deadline per user
           </p>
           {evalStats.map((ev) => {
             const av = getAvatarColor(ev.name, uniqueEvaluators);
@@ -4608,6 +4716,7 @@ function MonitoringPage({ darkMode }) {
                 : parseInt(pct) >= 25
                   ? "#f59e0b"
                   : "#36a420";
+            const role = USER_ROLE_MAP[ev.name] || "User";
             return (
               <div key={ev.name} style={{ marginBottom: 10 }}>
                 <div
@@ -4635,19 +4744,20 @@ function MonitoringPage({ darkMode }) {
                   >
                     {getInitials(ev.name)}
                   </div>
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 600,
-                      color: ui.textPrimary,
-                      flex: 1,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {ev.name}
-                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color: ui.textPrimary,
+                      }}
+                    >
+                      {ev.name}
+                    </span>
+                    <div style={{ fontSize: "0.62rem", color: ui.textMuted }}>
+                      {role}
+                    </div>
+                  </div>
                   <span
                     style={{ fontSize: "0.75rem", fontWeight: 800, color: clr }}
                   >
@@ -4689,199 +4799,9 @@ function MonitoringPage({ darkMode }) {
     </div>
   );
 
-  // ── Evaluators View ───────────────────────────────────────────────────────
-  const EvaluatorsView = () => (
-    <div>
-      <p
-        style={{
-          fontSize: "0.9rem",
-          fontWeight: 700,
-          color: ui.textPrimary,
-          margin: "0 0 4px",
-        }}
-      >
-        Evaluator Overview
-      </p>
-      <p
-        style={{ fontSize: "0.75rem", color: ui.textMuted, margin: "0 0 12px" }}
-      >
-        Click a card to see task details
-      </p>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))",
-          gap: 12,
-        }}
-      >
-        {currentEvaluators.map((ev) => {
-          const tasks = tableData.filter((d) => d.evaluator === ev);
-          const approved = tasks.filter((t) => t.status === "Approved").length;
-          const disapproved = tasks.filter(
-            (t) => t.status === "Disapproved",
-          ).length;
-          const onProcess = tasks.filter(
-            (t) => t.status === "On Process",
-          ).length;
-          const pct = tasks.length
-            ? Math.round((approved / tasks.length) * 100)
-            : 0;
-          const av = getAvatarColor(ev, uniqueEvaluators);
-          return (
-            <div
-              key={ev}
-              onClick={() => setModalEval(ev)}
-              style={{
-                background: ui.cardBg,
-                border: `1px solid ${ui.cardBorder}`,
-                borderRadius: 10,
-                padding: "14px 16px",
-                cursor: "pointer",
-                transition: "border 0.15s,box-shadow 0.15s",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = FB;
-                e.currentTarget.style.boxShadow = `0 0 0 3px ${FB}18`;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = ui.cardBorder;
-                e.currentTarget.style.boxShadow = "0 1px 2px rgba(0,0,0,0.06)";
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: 12,
-                }}
-              >
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: "50%",
-                    background: av.bg,
-                    color: av.color,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.9rem",
-                    fontWeight: 700,
-                    border: `2px solid ${av.color}33`,
-                    flexShrink: 0,
-                  }}
-                >
-                  {getInitials(ev)}
-                </div>
-                <div>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.88rem",
-                      fontWeight: 700,
-                      color: ui.textPrimary,
-                    }}
-                  >
-                    {ev}
-                  </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.73rem",
-                      color: ui.textMuted,
-                    }}
-                  >
-                    {tasks.length} tasks total
-                  </p>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                {[
-                  { icon: "✅", val: approved, color: "#36a420" },
-                  { icon: "❌", val: disapproved, color: "#e02020" },
-                  { icon: "⏳", val: onProcess, color: "#f59e0b" },
-                ].map((item) => (
-                  <div
-                    key={item.icon}
-                    style={{
-                      flex: 1,
-                      textAlign: "center",
-                      padding: "5px 0",
-                      borderRadius: 6,
-                      background: `${item.color}10`,
-                      border: `1px solid ${item.color}22`,
-                    }}
-                  >
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: "1rem",
-                        fontWeight: 800,
-                        color: item.color,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {item.val}
-                    </p>
-                    <p
-                      style={{
-                        margin: 0,
-                        fontSize: "0.6rem",
-                        color: item.color,
-                        marginTop: 1,
-                      }}
-                    >
-                      {item.icon}
-                    </p>
-                  </div>
-                ))}
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.74rem",
-                  color: ui.textMuted,
-                  marginBottom: 5,
-                }}
-              >
-                <span>Approval rate</span>
-                <span
-                  style={{ fontWeight: 700, color: pct >= 70 ? "#36a420" : FB }}
-                >
-                  {pct}%
-                </span>
-              </div>
-              <div
-                style={{
-                  height: 4,
-                  borderRadius: 99,
-                  background: ui.progressBg,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${pct}%`,
-                    borderRadius: 99,
-                    background: pct >= 70 ? "#36a420" : FB,
-                    transition: "width 0.3s",
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-
   // ── Deadlines View ────────────────────────────────────────────────────────
   const DeadlinesView = () => {
-    const filtered =
+    const filteredDeadlines =
       deadlineFilter === "all"
         ? DEADLINES
         : DEADLINES.filter((d) => d.urgency === deadlineFilter);
@@ -4957,7 +4877,6 @@ function MonitoringPage({ darkMode }) {
             })}
           </div>
         </div>
-        {/* Summary boxes */}
         <div
           style={{
             display: "grid",
@@ -5030,9 +4949,8 @@ function MonitoringPage({ darkMode }) {
             </Card>
           ))}
         </div>
-        {/* Deadline cards — each as a separate box */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {filtered.map((d) => {
+          {filteredDeadlines.map((d) => {
             const urgColors = {
               critical: {
                 color: "#e02020",
@@ -5053,6 +4971,7 @@ function MonitoringPage({ darkMode }) {
             const uc = urgColors[d.urgency];
             const SPC = darkMode ? stepColorsDark : stepColors;
             const spc = SPC[d.step] || { bg: "#f3f4f6", color: "#374151" };
+            const role = USER_ROLE_MAP[d.evaluator] || "User";
             return (
               <Card
                 key={d.dtn}
@@ -5129,7 +5048,8 @@ function MonitoringPage({ darkMode }) {
                         color: ui.textMuted,
                       }}
                     >
-                      Assigned to: {d.evaluator}
+                      Assigned to: {d.evaluator}{" "}
+                      <span style={{ color: ui.textMuted }}>({role})</span>
                     </p>
                   </div>
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -5244,7 +5164,6 @@ function MonitoringPage({ darkMode }) {
             })}
           </div>
         </div>
-        {/* Severity summary boxes */}
         <div
           style={{
             display: "grid",
@@ -5319,6 +5238,7 @@ function MonitoringPage({ darkMode }) {
               low: { color: "#36a420", bg: darkMode ? "#0f2e1a" : "#f0fdf4" },
             };
             const sc = sevColors[flag.severity];
+            const role = USER_ROLE_MAP[flag.evaluator] || "User";
             return (
               <Card
                 key={flag.dtn}
@@ -5385,7 +5305,8 @@ function MonitoringPage({ darkMode }) {
                           color: ui.textMuted,
                         }}
                       >
-                        Evaluator: {flag.evaluator}
+                        User: {flag.evaluator}{" "}
+                        <span style={{ color: ui.textMuted }}>({role})</span>
                       </p>
                     </div>
                     <p
@@ -5432,19 +5353,18 @@ function MonitoringPage({ darkMode }) {
     const weeks = ["Wk1", "Wk2", "Wk3", "Wk4"];
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
     const maxVal = 8;
-    const getColor = (val, darkMode) => {
+    const getColor = (val, dark) => {
+      if (val === 0) return dark ? "#242526" : "#e4e6eb";
       const intensity = val / maxVal;
-      if (darkMode) {
-        if (intensity === 0) return "#2d2e2f";
-        if (intensity < 0.3) return "#1a3a5c";
-        if (intensity < 0.6) return "#1565c0";
-        if (intensity < 0.85) return "#1877F2";
+      if (dark) {
+        if (intensity < 0.25) return "#1a2e4a";
+        if (intensity < 0.5) return "#1550a0";
+        if (intensity < 0.75) return "#1877F2";
         return "#5da4f8";
       } else {
-        if (intensity === 0) return "#f0f2f5";
-        if (intensity < 0.3) return "#dbeafe";
-        if (intensity < 0.6) return "#93c5fd";
-        if (intensity < 0.85) return "#3b82f6";
+        if (intensity < 0.25) return "#bfdbfe";
+        if (intensity < 0.5) return "#60a5fa";
+        if (intensity < 0.75) return "#2563eb";
         return "#1877F2";
       }
     };
@@ -5468,17 +5388,20 @@ function MonitoringPage({ darkMode }) {
               color: ui.textMuted,
             }}
           >
-            Daily task volume per evaluator — last 4 working weeks
+            Daily task volume per user — last 4 working weeks
           </p>
         </div>
-        {/* Summary boxes — separate per evaluator */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {currentEvaluators.map((ev) => {
             const data = WORKLOAD_DATA[ev] || Array(20).fill(0);
             const total = data.reduce((a, b) => a + b, 0);
-            const avg = (total / data.length).toFixed(1);
+            const nonZero = data.filter((v) => v > 0);
+            const avg = nonZero.length
+              ? (total / nonZero.length).toFixed(1)
+              : "0.0";
             const peak = Math.max(...data);
             const av = getAvatarColor(ev, uniqueEvaluators);
+            const role = USER_ROLE_MAP[ev] || "User";
             return (
               <Card key={ev} ui={ui} style={{ padding: "12px 14px" }}>
                 <div
@@ -5520,11 +5443,12 @@ function MonitoringPage({ darkMode }) {
                     <p
                       style={{
                         margin: 0,
-                        fontSize: "0.71rem",
+                        fontSize: "0.68rem",
                         color: ui.textMuted,
                       }}
                     >
-                      Total: {total} tasks · Avg: {avg}/day · Peak: {peak}
+                      {role} · Total: {total} tasks · Avg: {avg}/active day ·
+                      Peak: {peak}
                     </p>
                   </div>
                   <div style={{ display: "flex", gap: 6 }}>
@@ -5573,7 +5497,7 @@ function MonitoringPage({ darkMode }) {
                   style={{
                     display: "grid",
                     gridTemplateColumns: "40px repeat(4, 1fr)",
-                    gap: 2,
+                    gap: 3,
                   }}
                 >
                   <div />
@@ -5604,39 +5528,50 @@ function MonitoringPage({ darkMode }) {
                         {day}
                       </div>
                       {weeks.map((_, wi) => {
-                        const val = data[wi * 5 + di] || 0;
+                        const val = data[wi * 5 + di] ?? 0;
                         const cellColor = getColor(val, darkMode);
+                        const textColor =
+                          val >= 6
+                            ? "#fff"
+                            : val > 0
+                              ? darkMode
+                                ? "#93c5fd"
+                                : "#1d4ed8"
+                              : "transparent";
                         return (
                           <div
                             key={`${day}-${wi}`}
                             title={`${ev} · ${day} Wk${wi + 1}: ${val} tasks`}
                             style={{
-                              height: 20,
-                              borderRadius: 3,
+                              height: 22,
+                              borderRadius: 4,
                               background: cellColor,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
                               cursor: "default",
                               transition: "transform 0.1s",
+                              border:
+                                val === 0
+                                  ? `1px solid ${darkMode ? "#3a3b3c" : "#dddfe2"}`
+                                  : "none",
                             }}
                             onMouseEnter={(e) =>
-                              (e.currentTarget.style.transform = "scale(1.15)")
+                              (e.currentTarget.style.transform = "scale(1.12)")
                             }
                             onMouseLeave={(e) =>
                               (e.currentTarget.style.transform = "scale(1)")
                             }
                           >
-                            {val > 0 && (
-                              <span
-                                style={{
-                                  fontSize: "0.52rem",
-                                  color: val >= 6 ? "#fff" : "transparent",
-                                }}
-                              >
-                                {val}
-                              </span>
-                            )}
+                            <span
+                              style={{
+                                fontSize: "0.56rem",
+                                fontWeight: 700,
+                                color: textColor,
+                              }}
+                            >
+                              {val > 0 ? val : ""}
+                            </span>
                           </div>
                         );
                       })}
@@ -5649,26 +5584,30 @@ function MonitoringPage({ darkMode }) {
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
-                    marginTop: 6,
+                    marginTop: 8,
                     justifyContent: "flex-end",
                   }}
                 >
                   <span style={{ fontSize: "0.6rem", color: ui.textMuted }}>
-                    Low
+                    0
                   </span>
                   {[0, 2, 4, 6, 8].map((v) => (
                     <div
                       key={v}
                       style={{
-                        width: 12,
-                        height: 12,
-                        borderRadius: 2,
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
                         background: getColor(v, darkMode),
+                        border:
+                          v === 0
+                            ? `1px solid ${darkMode ? "#3a3b3c" : "#dddfe2"}`
+                            : "none",
                       }}
                     />
                   ))}
                   <span style={{ fontSize: "0.6rem", color: ui.textMuted }}>
-                    High
+                    8+
                   </span>
                 </div>
               </Card>
@@ -5719,7 +5658,7 @@ function MonitoringPage({ darkMode }) {
                 color: ui.textMuted,
               }}
             >
-              Real-time log of evaluator actions
+              Real-time log of user actions
             </p>
           </div>
           <input
@@ -5729,7 +5668,6 @@ function MonitoringPage({ darkMode }) {
             style={{ ...inputSt, minWidth: 220 }}
           />
         </div>
-        {/* Stats row — separate boxes */}
         <div
           style={{
             display: "grid",
@@ -5792,7 +5730,6 @@ function MonitoringPage({ darkMode }) {
             </Card>
           ))}
         </div>
-        {/* Activity cards — each as separate box */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {filteredAct.map((act) => (
             <Card key={act.id} ui={ui} style={{ padding: "12px 14px" }}>
@@ -5864,12 +5801,9 @@ function MonitoringPage({ darkMode }) {
 
   // ── Users View ────────────────────────────────────────────────────────────
   const UsersView = () => {
-    const roles = [
+    const allRoles = [
       "All",
-      "Evaluator",
-      "Supervisor",
-      "Compliance Officer",
-      "Admin",
+      ...Array.from(new Set(USER_DATABASE.map((u) => u.role))),
     ];
     const statuses = ["All", "Active", "Inactive", "Suspended"];
     const filteredUsers = USER_DATABASE.filter((u) => {
@@ -5895,7 +5829,6 @@ function MonitoringPage({ darkMode }) {
     ).length;
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        {/* Header */}
         <div>
           <p
             style={{
@@ -5918,8 +5851,6 @@ function MonitoringPage({ darkMode }) {
             perspective
           </p>
         </div>
-
-        {/* Summary boxes */}
         <div
           style={{
             display: "grid",
@@ -6010,8 +5941,6 @@ function MonitoringPage({ darkMode }) {
             </Card>
           ))}
         </div>
-
-        {/* Filters */}
         <div
           style={{
             display: "flex",
@@ -6039,9 +5968,10 @@ function MonitoringPage({ darkMode }) {
                 borderRadius: 9,
                 padding: 3,
                 gap: 2,
+                flexWrap: "wrap",
               }}
             >
-              {roles.map((r) => {
+              {allRoles.map((r) => {
                 const isAct = userRoleFilter === r;
                 return (
                   <button
@@ -6104,8 +6034,6 @@ function MonitoringPage({ darkMode }) {
             </div>
           </div>
         </div>
-
-        {/* User cards grid */}
         <div
           style={{
             display: "grid",
@@ -6136,7 +6064,6 @@ function MonitoringPage({ darkMode }) {
                   transition: "border 0.15s, box-shadow 0.15s",
                 }}
               >
-                {/* Card header */}
                 <div
                   style={{
                     padding: "14px 16px 10px",
@@ -6234,8 +6161,12 @@ function MonitoringPage({ darkMode }) {
                           fontWeight: 700,
                           padding: "2px 8px",
                           borderRadius: 99,
-                          background: darkMode ? rc.darkBg : rc.bg,
-                          color: darkMode ? rc.darkColor : rc.color,
+                          background: darkMode
+                            ? rc?.darkBg || "#1e2a4a"
+                            : rc?.bg || "#dbeafe",
+                          color: darkMode
+                            ? rc?.darkColor || "#93c5fd"
+                            : rc?.color || "#1d4ed8",
                         }}
                       >
                         {user.role}
@@ -6255,8 +6186,6 @@ function MonitoringPage({ darkMode }) {
                     </div>
                   </div>
                 </div>
-
-                {/* Stats row */}
                 <div
                   style={{
                     borderTop: `1px solid ${ui.divider}`,
@@ -6312,8 +6241,6 @@ function MonitoringPage({ darkMode }) {
                     </div>
                   ))}
                 </div>
-
-                {/* Footer: last login + impersonate btn */}
                 <div
                   style={{
                     padding: "10px 14px",
@@ -6416,7 +6343,6 @@ function MonitoringPage({ darkMode }) {
   const MainContent = () => {
     if (activeNav === "overview") return <OverviewView />;
     if (activeNav === "analytics") return <AnalyticsView />;
-    if (activeNav === "evaluators") return <EvaluatorsView />;
     if (activeNav === "deadlines") return <DeadlinesView />;
     if (activeNav === "compliance") return <ComplianceView />;
     if (activeNav === "workload") return <WorkloadView />;
@@ -6506,7 +6432,6 @@ function MonitoringPage({ darkMode }) {
               boxSizing: "border-box",
             }}
           >
-            {/* Impersonation Banner */}
             {impersonating && (
               <div
                 style={{
@@ -6626,7 +6551,7 @@ function MonitoringPage({ darkMode }) {
         </div>
       </div>
 
-      {/* Evaluator Detail Modal */}
+      {/* Evaluator/User Detail Modal */}
       {modalEval && (
         <div
           onClick={handleModalClose}
@@ -6670,51 +6595,65 @@ function MonitoringPage({ darkMode }) {
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 {(() => {
                   const av = getAvatarColor(modalEval, uniqueEvaluators);
+                  const role = USER_ROLE_MAP[modalEval] || "User";
                   return (
                     <div
-                      style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: "50%",
-                        background: av.bg,
-                        color: av.color,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "1.1rem",
-                        fontWeight: 700,
-                        border: `2.5px solid ${av.color}55`,
-                        flexShrink: 0,
-                      }}
+                      style={{ display: "flex", alignItems: "center", gap: 12 }}
                     >
-                      {getInitials(modalEval)}
+                      <div
+                        style={{
+                          width: 52,
+                          height: 52,
+                          borderRadius: "50%",
+                          background: av.bg,
+                          color: av.color,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "1.1rem",
+                          fontWeight: 700,
+                          border: `2.5px solid ${av.color}55`,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {getInitials(modalEval)}
+                      </div>
+                      <div>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.68rem",
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                            color: ui.textMuted,
+                          }}
+                        >
+                          Tasks for
+                        </p>
+                        <h3
+                          style={{
+                            margin: 0,
+                            fontSize: "1rem",
+                            fontWeight: 700,
+                            color: ui.textPrimary,
+                          }}
+                        >
+                          {modalEval}
+                        </h3>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.72rem",
+                            color: ui.textMuted,
+                          }}
+                        >
+                          {role}
+                        </p>
+                      </div>
                     </div>
                   );
                 })()}
-                <div>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.68rem",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                      color: ui.textMuted,
-                    }}
-                  >
-                    Tasks for
-                  </p>
-                  <h3
-                    style={{
-                      margin: 0,
-                      fontSize: "1rem",
-                      fontWeight: 700,
-                      color: ui.textPrimary,
-                    }}
-                  >
-                    {modalEval}
-                  </h3>
-                </div>
               </div>
               <button
                 onClick={handleModalClose}
@@ -6788,10 +6727,94 @@ function MonitoringPage({ darkMode }) {
                     </button>
                   )}
                 </div>
+                {/* Status Tabs */}
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    borderBottom: `1px solid ${ui.divider}`,
+                    background: colHdr,
+                    display: "flex",
+                    gap: 6,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {[
+                    { key: "All", label: "All", color: FB },
+                    {
+                      key: "On Process",
+                      label: "⏳ On Process",
+                      color: "#f59e0b",
+                    },
+                    { key: "Approved", label: "✅ Approved", color: "#36a420" },
+                    {
+                      key: "Disapproved",
+                      label: "❌ Disapproved",
+                      color: "#e02020",
+                    },
+                  ].map(({ key, label, color }) => {
+                    const count =
+                      key === "All"
+                        ? allModalTasks.filter((t) => {
+                            const d = new Date(t.date + "T00:00:00");
+                            if (modalDateFrom && d < new Date(modalDateFrom))
+                              return false;
+                            if (modalDateTo && d > new Date(modalDateTo))
+                              return false;
+                            return true;
+                          }).length
+                        : allModalTasks.filter((t) => {
+                            const d = new Date(t.date + "T00:00:00");
+                            if (modalDateFrom && d < new Date(modalDateFrom))
+                              return false;
+                            if (modalDateTo && d > new Date(modalDateTo))
+                              return false;
+                            return t.status === key;
+                          }).length;
+                    const isAct = modalStatusTab === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setModalStatusTab(key)}
+                        style={{
+                          padding: "5px 14px",
+                          fontSize: "0.76rem",
+                          fontWeight: isAct ? 700 : 500,
+                          borderRadius: 99,
+                          border: `1.5px solid ${isAct ? color : ui.cardBorder}`,
+                          background: isAct ? `${color}15` : "transparent",
+                          color: isAct ? color : ui.textMuted,
+                          cursor: "pointer",
+                          fontFamily: font,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {label}
+                        <span
+                          style={{
+                            fontSize: "0.68rem",
+                            fontWeight: 800,
+                            padding: "1px 6px",
+                            borderRadius: 99,
+                            background: isAct ? color : ui.inputBg,
+                            color: isAct ? "#fff" : ui.textMuted,
+                            minWidth: 18,
+                            textAlign: "center",
+                          }}
+                        >
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1.5fr 1fr 2fr 1.1fr 1fr 60px",
+                    gridTemplateColumns: "1.5fr 1fr 2fr 1.1fr 1fr 0.9fr 60px",
                     background: colHdr,
                     borderBottom: `1px solid ${ui.divider}`,
                     position: "sticky",
@@ -6805,6 +6828,7 @@ function MonitoringPage({ darkMode }) {
                     { label: "Drug / Application", col: "drugName" },
                     { label: "App Step", col: "appStep" },
                     { label: "Timeline", col: "timeline" },
+                    { label: "Status", col: "status" },
                   ].map(({ label, col }) => (
                     <span
                       key={col}
@@ -6859,9 +6883,6 @@ function MonitoringPage({ darkMode }) {
                   </div>
                 ) : (
                   modalTasks.map((task, i) => {
-                    const evalStepStyle = (
-                      darkMode ? stepColorsDark : stepColors
-                    )["For Evaluation"];
                     const tlStyle = (darkMode
                       ? timelineColorsDark
                       : timelineColors)[task.timeline] || {
@@ -6873,7 +6894,8 @@ function MonitoringPage({ darkMode }) {
                         key={i}
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "1.5fr 1fr 2fr 1.1fr 1fr 60px",
+                          gridTemplateColumns:
+                            "1.5fr 1fr 2fr 1.1fr 1fr 0.9fr 60px",
                           borderBottom:
                             i < modalTasks.length - 1
                               ? `1px solid ${ui.divider}`
@@ -6935,19 +6957,29 @@ function MonitoringPage({ darkMode }) {
                             alignItems: "center",
                           }}
                         >
-                          <span
-                            style={{
-                              fontSize: "0.71rem",
-                              fontWeight: 600,
-                              padding: "3px 9px",
-                              borderRadius: 99,
-                              background: evalStepStyle.bg,
-                              color: evalStepStyle.color,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            For Evaluation
-                          </span>
+                          {(() => {
+                            const spc = (darkMode
+                              ? stepColorsDark
+                              : stepColors)[task.appStep] || {
+                              bg: "#f3f4f6",
+                              color: "#374151",
+                            };
+                            return (
+                              <span
+                                style={{
+                                  fontSize: "0.71rem",
+                                  fontWeight: 600,
+                                  padding: "3px 9px",
+                                  borderRadius: 99,
+                                  background: spc.bg,
+                                  color: spc.color,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {task.appStep}
+                              </span>
+                            );
+                          })()}
                         </span>
                         <span
                           style={{
@@ -6970,6 +7002,38 @@ function MonitoringPage({ darkMode }) {
                           >
                             {task.timeline}
                           </span>
+                        </span>
+                        <span
+                          style={{
+                            padding: "10px 14px",
+                            display: "flex",
+                            justifyContent: "center",
+                            alignItems: "center",
+                          }}
+                        >
+                          {(() => {
+                            const sc = (darkMode
+                              ? statusColorsDark
+                              : statusColors)[task.status] || {
+                              bg: "#f3f4f6",
+                              color: "#374151",
+                            };
+                            return (
+                              <span
+                                style={{
+                                  fontSize: "0.71rem",
+                                  fontWeight: 600,
+                                  padding: "3px 9px",
+                                  borderRadius: 99,
+                                  background: sc.bg,
+                                  color: sc.color,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {task.status}
+                              </span>
+                            );
+                          })()}
                         </span>
                         <div
                           style={{
@@ -7267,7 +7331,6 @@ function MonitoringPage({ darkMode }) {
                   boxShadow: "0 30px 80px rgba(0,0,0,0.4)",
                 }}
               >
-                {/* Dashboard header */}
                 <div
                   style={{
                     padding: "14px 20px",
@@ -7385,8 +7448,6 @@ function MonitoringPage({ darkMode }) {
                     </button>
                   </div>
                 </div>
-
-                {/* Dashboard body */}
                 <div
                   className="mon-scroll"
                   style={{
@@ -7398,7 +7459,6 @@ function MonitoringPage({ darkMode }) {
                     gap: 14,
                   }}
                 >
-                  {/* KPI row */}
                   <div
                     style={{
                       display: "grid",
@@ -7498,8 +7558,6 @@ function MonitoringPage({ darkMode }) {
                       </div>
                     ))}
                   </div>
-
-                  {/* Timeline + Prescription */}
                   <div
                     style={{
                       display: "grid",
@@ -7669,8 +7727,6 @@ function MonitoringPage({ darkMode }) {
                       })}
                     </div>
                   </div>
-
-                  {/* Recent Tasks */}
                   <div
                     style={{
                       background: ui.cardBg,
