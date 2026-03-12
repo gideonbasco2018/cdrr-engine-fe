@@ -4510,7 +4510,7 @@ export default function DashboardPage({
             margin: "0 0 10px 6px",
           }}
         >
-          Professional Dashboard
+          Dashboard
         </p>
         {navItems.map((n) => (
           <NavItem
