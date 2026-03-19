@@ -1,14 +1,18 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { tableColumns, COLUMN_DB_KEY_MAP } from "./tableColumns";
-// ↑ tableColumns now exports COLUMN_DB_KEY_MAP — keys aligned with API response field names
 import TablePagination from "./TablePagination";
 import ViewDetailsModal from "./ViewDetailsModal";
 import DoctrackModal from "../../components/reports/actions/DoctrackModal";
 import ApplicationLogsModal from "./ApplicationLogsModal";
 import ChangeLogModal from "../tasks/ChangeLogModal";
 import { markWorkflowTasksAsReceived } from "../../api/workflow-tasks";
+import { getUsersByGroup } from "../../api/auth";
+import {
+  getLastApplicationLogIndex,
+  updateApplicationLog,
+  createApplicationLog,
+} from "../../api/application-logs";
 
-// ── Deadline Helpers ──────────────────────────────────────────────────
 const todayStr = () => new Date().toISOString().split("T")[0];
 
 const countWorkingDays = (startStr, endStr) => {
@@ -70,6 +74,830 @@ const URGENCY_CONFIG = {
   },
 };
 
+// ── Bulk Deck config per tab ─────────────────────────────────────────
+const BULK_DECK_CONFIG = {
+  Checking: {
+    nextStep: "Supervisor",
+    nextGroupId: 5,
+    decision: "Endorse to Supervisor",
+    fromLabel: "Checking",
+  },
+  Supervisor: {
+    nextStep: "QA",
+    nextGroupId: 6,
+    decision: "Endorse to QA",
+    fromLabel: "Supervisor",
+  },
+  QA: {
+    nextStep: "Director Signature",
+    nextGroupId: 7,
+    decision: "Endorse to Director Signature",
+    fromLabel: "QA",
+  },
+  "Director Signature": {
+    nextStep: "Releasing",
+    nextGroupId: 8,
+    decision: "Endorse to Releasing",
+    fromLabel: "Director Signature",
+  },
+  Releasing: {
+    nextStep: "Released",
+    nextGroupId: 8,
+    decision: "Released",
+    fromLabel: "Releasing",
+  },
+};
+
+/* ================================================================== */
+/*  Bulk Deck Modal                                                     */
+/* ================================================================== */
+function BulkDeckModal({
+  selectedCount,
+  selectedDtns,
+  config,
+  colors,
+  darkMode,
+  onConfirm,
+  onClose,
+  onDownloadTransmittal,
+  onDone,
+}) {
+  const [assignee, setAssignee] = useState("");
+  const [users, setUsers] = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  // screen: "form" | "transmittal_prompt" | "done"
+  const [screen, setScreen] = useState("form");
+  const [result, setResult] = useState(null);
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoadingUsers(true);
+        const list = await getUsersByGroup(config.nextGroupId);
+        setUsers(list || []);
+      } catch (e) {
+        console.error("Failed to load users:", e);
+        setUsers([]);
+      } finally {
+        setLoadingUsers(false);
+      }
+    })();
+  }, []);
+
+  const handleConfirm = async () => {
+    if (!assignee || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await onConfirm(assignee);
+      setResult(res);
+      setScreen("transmittal_prompt"); // ← ask about transmittal first
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDownloadYes = async () => {
+    setDownloading(true);
+    try {
+      await onDownloadTransmittal();
+    } finally {
+      setDownloading(false);
+      setScreen("done");
+      onDone(); // refresh table + clear selections after download
+    }
+  };
+
+  const isDisabled = submitting || loadingUsers || !assignee;
+
+  // ── Screen: ask to download transmittal ──
+  if (screen === "transmittal_prompt") {
+    return (
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 10000,
+          background: "rgba(0,0,0,0.6)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backdropFilter: "blur(4px)",
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 16,
+            overflow: "hidden",
+            width: 460,
+            maxWidth: "92%",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
+          }}
+        >
+          {/* Result summary header */}
+          <div
+            style={{
+              padding: "1.25rem 1.5rem",
+              borderBottom: `1px solid ${colors.cardBorder}`,
+              background: darkMode ? "#1a1a1a" : "#f6f8fd",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            <span style={{ fontSize: "1.6rem" }}>
+              {result?.failed === 0 ? "✅" : "⚠️"}
+            </span>
+            <div>
+              <div
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: colors.textTertiary,
+                }}
+              >
+                Bulk Deck
+              </div>
+              <div
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 700,
+                  color: colors.textPrimary,
+                }}
+              >
+                {result?.failed === 0
+                  ? "Completed Successfully"
+                  : "Partially Completed"}
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: "1.5rem",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1.25rem",
+            }}
+          >
+            {/* Stats */}
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <div
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  background: "rgba(16,185,129,0.08)",
+                  border: "1px solid rgba(16,185,129,0.25)",
+                  borderRadius: 10,
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.6rem",
+                    fontWeight: 800,
+                    color: "#10b981",
+                  }}
+                >
+                  {result?.success}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.72rem",
+                    color: colors.textTertiary,
+                    marginTop: 2,
+                  }}
+                >
+                  Successfully decked
+                </div>
+              </div>
+              {result?.failed > 0 && (
+                <div
+                  style={{
+                    flex: 1,
+                    padding: "0.75rem",
+                    background: "rgba(239,68,68,0.08)",
+                    border: "1px solid rgba(239,68,68,0.25)",
+                    borderRadius: 10,
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "1.6rem",
+                      fontWeight: 800,
+                      color: "#ef4444",
+                    }}
+                  >
+                    {result?.failed}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.72rem",
+                      color: colors.textTertiary,
+                      marginTop: 2,
+                    }}
+                  >
+                    Failed
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.82rem",
+                color: colors.textSecondary,
+                textAlign: "center",
+              }}
+            >
+              Assigned to:{" "}
+              <strong style={{ color: "#2196F3" }}>{assignee}</strong> (
+              {config.nextStep})
+            </p>
+
+            {/* Transmittal prompt */}
+            <div
+              style={{
+                padding: "1rem 1.25rem",
+                background: "rgba(25,118,210,0.06)",
+                border: "1px solid rgba(25,118,210,0.2)",
+                borderRadius: 12,
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                <span style={{ fontSize: "1.1rem" }}>📄</span>
+                <span
+                  style={{
+                    fontSize: "0.88rem",
+                    fontWeight: 700,
+                    color: colors.textPrimary,
+                  }}
+                >
+                  Download Transmittal Slip?
+                </span>
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.78rem",
+                  color: colors.textSecondary,
+                  lineHeight: 1.5,
+                }}
+              >
+                Would you like to generate and download a transmittal slip for
+                the <strong>{result?.success}</strong> successfully decked
+                record{result?.success !== 1 ? "s" : ""}?
+              </p>
+            </div>
+
+            {/* Yes / No buttons */}
+            <div style={{ display: "flex", gap: "0.75rem" }}>
+              <button
+                onClick={() => {
+                  setScreen("done");
+                  onDone();
+                }}
+                style={{
+                  flex: 1,
+                  padding: "0.7rem",
+                  borderRadius: 8,
+                  border: `1px solid ${colors.cardBorder}`,
+                  background: "transparent",
+                  color: colors.textSecondary,
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                No, Skip
+              </button>
+              <button
+                onClick={handleDownloadYes}
+                disabled={downloading}
+                style={{
+                  flex: 1,
+                  padding: "0.7rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: downloading
+                    ? "rgba(25,118,210,0.4)"
+                    : "linear-gradient(135deg,#1976d2,#1565c0)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  cursor: downloading ? "not-allowed" : "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                  boxShadow: downloading
+                    ? "none"
+                    : "0 2px 8px rgba(25,118,210,0.35)",
+                  transition: "all 0.2s",
+                }}
+              >
+                {downloading ? (
+                  <>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 13,
+                        height: 13,
+                        border: "2px solid rgba(255,255,255,0.4)",
+                        borderTopColor: "#fff",
+                        borderRadius: "50%",
+                        animation: "spin 0.6s linear infinite",
+                      }}
+                    />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <span>📄</span>Yes, Download
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Screen: done (after transmittal decision) ──
+  if (screen === "done") {
+    return (
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 10000,
+          background: "rgba(0,0,0,0.55)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backdropFilter: "blur(4px)",
+        }}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 16,
+            padding: "2rem",
+            width: 380,
+            maxWidth: "90%",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "1rem",
+          }}
+        >
+          <div style={{ fontSize: "2.5rem" }}>🎉</div>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "1.05rem",
+              fontWeight: 700,
+              color: colors.textPrimary,
+              textAlign: "center",
+            }}
+          >
+            All Done!
+          </h3>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.82rem",
+              color: colors.textSecondary,
+              textAlign: "center",
+              lineHeight: 1.5,
+            }}
+          >
+            {result?.success} record{result?.success !== 1 ? "s" : ""}{" "}
+            successfully moved to{" "}
+            <strong style={{ color: "#2196F3" }}>{config.nextStep}</strong>.
+          </p>
+          <button
+            onClick={onClose}
+            style={{
+              padding: "0.6rem 2rem",
+              borderRadius: 8,
+              border: "none",
+              background: "linear-gradient(135deg,#2196F3,#1976D2)",
+              color: "#fff",
+              fontSize: "0.88rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(33,150,243,0.3)",
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Screen: form ──
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10000,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backdropFilter: "blur(4px)",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: 16,
+          overflow: "hidden",
+          width: 500,
+          maxWidth: "94%",
+          maxHeight: "88vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "1.25rem 1.5rem",
+            borderBottom: `1px solid ${colors.cardBorder}`,
+            background: darkMode ? "#1a1a1a" : "#f6f8fd",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: colors.textTertiary,
+                marginBottom: "0.2rem",
+              }}
+            >
+              Bulk Action
+            </div>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: "1rem",
+                fontWeight: 700,
+                color: colors.textPrimary,
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              <span style={{ fontSize: "1.2rem" }}>📋</span> Bulk Deck to{" "}
+              {config.nextStep}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 6,
+              color: colors.textTertiary,
+              cursor: "pointer",
+              width: 30,
+              height: 30,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.9rem",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Scrollable body */}
+        <div
+          style={{
+            overflowY: "auto",
+            flex: 1,
+            padding: "1.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.25rem",
+          }}
+        >
+          {/* Count + move info */}
+          <div
+            style={{
+              padding: "0.85rem 1rem",
+              background: "rgba(33,150,243,0.06)",
+              border: "1px solid rgba(33,150,243,0.2)",
+              borderRadius: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            <span style={{ fontSize: "1.4rem" }}>📦</span>
+            <div>
+              <div
+                style={{
+                  fontSize: "0.88rem",
+                  fontWeight: 700,
+                  color: colors.textPrimary,
+                }}
+              >
+                {selectedCount} record{selectedCount !== 1 ? "s" : ""} selected
+              </div>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: colors.textTertiary,
+                  marginTop: "0.1rem",
+                }}
+              >
+                All will be moved from <strong>{config.fromLabel}</strong> →{" "}
+                <strong style={{ color: "#2196F3" }}>{config.nextStep}</strong>
+              </div>
+            </div>
+          </div>
+
+          {/* DTN list */}
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: colors.textTertiary,
+                marginBottom: "0.5rem",
+              }}
+            >
+              📋 DTNs to be moved ({selectedDtns.length})
+            </label>
+            <div
+              style={{
+                maxHeight: 180,
+                overflowY: "auto",
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: 8,
+                background: colors.inputBg,
+              }}
+            >
+              {selectedDtns.map((dtn, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    padding: "0.5rem 0.85rem",
+                    borderBottom:
+                      i < selectedDtns.length - 1
+                        ? `1px solid ${colors.cardBorder}`
+                        : "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: "#7c3aed",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.82rem",
+                      fontWeight: 600,
+                      color: colors.textPrimary,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {dtn}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Assignee dropdown */}
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.78rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: colors.textTertiary,
+                marginBottom: "0.5rem",
+              }}
+            >
+              Assign to {config.nextStep}{" "}
+              <span style={{ color: "#ef4444" }}>*</span>
+            </label>
+            {loadingUsers ? (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  background: colors.inputBg,
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                  color: colors.textTertiary,
+                  fontSize: "0.85rem",
+                }}
+              >
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 14,
+                    height: 14,
+                    border: "2px solid #2196F330",
+                    borderTopColor: "#2196F3",
+                    borderRadius: "50%",
+                    animation: "spin 0.6s linear infinite",
+                  }}
+                />
+                Loading {config.nextStep} users...
+              </div>
+            ) : users.length === 0 ? (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  background: "rgba(239,68,68,0.06)",
+                  border: "1px solid rgba(239,68,68,0.2)",
+                  borderRadius: 8,
+                  color: "#ef4444",
+                  fontSize: "0.82rem",
+                }}
+              >
+                ⚠️ No {config.nextStep} users found. Please contact your
+                administrator.
+              </div>
+            ) : (
+              <select
+                value={assignee}
+                onChange={(e) => setAssignee(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.7rem 0.9rem",
+                  background: colors.inputBg,
+                  border: `1.5px solid ${assignee ? "#2196F3" : colors.cardBorder}`,
+                  borderRadius: 8,
+                  color: assignee ? colors.textPrimary : colors.textTertiary,
+                  fontSize: "0.88rem",
+                  outline: "none",
+                  cursor: "pointer",
+                  transition: "border-color 0.2s",
+                  boxSizing: "border-box",
+                }}
+              >
+                <option value="">— Select {config.nextStep} —</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.username}>
+                    {u.username} — {u.first_name} {u.surname}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Warning note */}
+          <div
+            style={{
+              padding: "0.85rem 1rem",
+              background: "rgba(245,158,11,0.06)",
+              border: "1px solid rgba(245,158,11,0.2)",
+              borderRadius: 8,
+              fontSize: "0.78rem",
+              color: colors.textSecondary,
+              lineHeight: 1.6,
+            }}
+          >
+            <strong style={{ color: "#b45309" }}>⚠ Note:</strong> This will
+            complete the current <strong>{config.fromLabel}</strong> log for
+            each selected record and create a new{" "}
+            <strong>{config.nextStep}</strong> log assigned to the selected
+            user. This action cannot be undone.
+          </div>
+        </div>
+
+        {/* Footer buttons */}
+        <div
+          style={{
+            padding: "1rem 1.5rem",
+            borderTop: `1px solid ${colors.cardBorder}`,
+            background: darkMode ? "#1a1a1a" : "#f6f8fd",
+            display: "flex",
+            gap: "0.75rem",
+            justifyContent: "flex-end",
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              padding: "0.6rem 1.25rem",
+              borderRadius: 8,
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textSecondary,
+              fontSize: "0.85rem",
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={isDisabled}
+            style={{
+              padding: "0.6rem 1.5rem",
+              borderRadius: 8,
+              border: "none",
+              background: isDisabled
+                ? "rgba(33,150,243,0.4)"
+                : "linear-gradient(135deg,#2196F3,#1565c0)",
+              color: "#fff",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              cursor: isDisabled ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              boxShadow: isDisabled
+                ? "none"
+                : "0 2px 8px rgba(33,150,243,0.35)",
+              transition: "all 0.2s",
+            }}
+          >
+            {submitting ? (
+              <>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 13,
+                    height: 13,
+                    border: "2px solid rgba(255,255,255,0.4)",
+                    borderTopColor: "#fff",
+                    borderRadius: "50%",
+                    animation: "spin 0.6s linear infinite",
+                  }}
+                />
+                Processing…
+              </>
+            ) : (
+              <>📋 Confirm Bulk Deck ({selectedCount})</>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  DataTable                                                           */
+/* ================================================================== */
 function DataTable({
   data,
   selectedRows,
@@ -91,10 +919,8 @@ function DataTable({
   onSort,
   sortBy,
   sortOrder,
-  // ── Unread props from TaskPage ──
   readIds = new Set(),
   onMarkAsRead,
-  // ── Sub-tab ──
   activeSubTab = "not_yet",
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -103,20 +929,23 @@ function DataTable({
   const [appLogsRecord, setAppLogsRecord] = useState(null);
   const [changeLogRecord, setChangeLogRecord] = useState(null);
   const [markingReceived, setMarkingReceived] = useState(false);
-  // ── Confirm before marking as received ──
   const [confirmReceive, setConfirmReceive] = useState(false);
-
-  // ── FIX: Track hovered row so sticky cells sync their background ──
   const [hoveredRowId, setHoveredRowId] = useState(null);
+  const [showBulkDeck, setShowBulkDeck] = useState(false);
 
   const isComplianceTab = activeTab === "Compliance";
+  const isReceivedSubTab = activeSubTab === "received";
   const showMarkAsReceived = activeSubTab !== "received";
+
+  // ── Bulk Deck: show on Checking or Supervisor tab, Received sub-tab, with selections ──
+  const bulkDeckConfig = BULK_DECK_CONFIG[activeTab] ?? null;
+  const showBulkDeckBtn =
+    !!bulkDeckConfig && isReceivedSubTab && selectedRows.length > 0;
 
   const visibleColumns = tableColumns.filter(
     (col) => !col.complianceOnly || isComplianceTab,
   );
 
-  /* ── Sort helpers ── */
   const getDbKey = (k) => COLUMN_DB_KEY_MAP[k] || k;
   const handleSort = (k) => {
     if (!onSort || k === "statusTimeline" || k === "deadlineDate") return;
@@ -169,7 +998,6 @@ function DataTable({
     return tableColumns.find((c) => c.key === e[0])?.label || sortBy;
   })();
 
-  /* ── Timeline ── */
   const calcTimeline = (row) => {
     const {
       dateReceivedCent,
@@ -226,7 +1054,6 @@ function DataTable({
     );
   };
 
-  /* ── Deadline renderer ── */
   const renderDeadline = (row) => {
     const dl = row.deadlineDate;
     if (!dl)
@@ -280,7 +1107,6 @@ function DataTable({
     );
   };
 
-  /* ── Cell renderers ── */
   const pill = (bg, shadow, text) => (
     <span
       style={{
@@ -298,14 +1124,12 @@ function DataTable({
       {text || "N/A"}
     </span>
   );
-
   const renderDTN = (v) =>
     pill("linear-gradient(135deg,#8b5cf6,#7c3aed)", "rgba(139,92,246,.3)", v);
   const renderGenericName = (v) =>
     pill("linear-gradient(135deg,#06b6d4,#0891b2)", "rgba(6,182,212,.3)", v);
   const renderBrandName = (v) =>
     pill("linear-gradient(135deg,#f59e0b,#d97706)", "rgba(245,158,11,.3)", v);
-
   const renderTypeDoc = (typeDoc) => {
     const u = typeDoc?.toUpperCase();
     if (u?.includes("CPR"))
@@ -332,7 +1156,6 @@ function DataTable({
       </span>
     );
   };
-
   const renderStatus = (status) => {
     const u = status?.toUpperCase();
     const map = {
@@ -396,8 +1219,6 @@ function DataTable({
     );
   };
 
-  /* ── Central cell renderer ── */
-  // ── Reusable plain text cell (muted N/A fallback) ──
   const plainCell = (v) =>
     v != null && v !== "" ? (
       <span style={{ fontSize: "0.85rem", color: colors.tableText }}>{v}</span>
@@ -412,8 +1233,6 @@ function DataTable({
         N/A
       </span>
     );
-
-  // ── Long-text cell (wraps, useful for remarks / CPR conditions) ──
   const wrapCell = (v) =>
     v != null && v !== "" ? (
       <span
@@ -438,8 +1257,6 @@ function DataTable({
         N/A
       </span>
     );
-
-  // ── Numeric / currency cell ──
   const numCell = (v) =>
     v != null && v !== "" ? (
       <span
@@ -466,7 +1283,6 @@ function DataTable({
   const renderCell = (col, row) => {
     const v = row[col.key];
     switch (col.key) {
-      // ── Styled badges ──────────────────────────────────────────────────────
       case "dtn":
         return renderDTN(v);
       case "prodGenName":
@@ -481,31 +1297,22 @@ function DataTable({
         return renderTypeDoc(v);
       case "deadlineDate":
         return renderDeadline(row);
-
       case "dbTimelineCitizenCharter":
         return plainCell(v);
-
-      // ── Numeric columns ────────────────────────────────────────────────────
       case "fee":
       case "lrf":
       case "surc":
       case "total":
         return numCell(v);
-
-      // ── Amendment columns (plain, short) ──────────────────────────────────
       case "ammend1":
       case "ammend2":
       case "ammend3":
         return plainCell(v);
-
-      // ── Long-text / remarks columns (wrap text) ────────────────────────────
       case "cprCondRemarks":
       case "cprCondAddRemarks":
       case "appRemarks":
       case "remarks1":
         return wrapCell(v);
-
-      // ── CPR Condition badge ───────────────────────────────────────────────
       case "cprCond":
         return v ? (
           <span
@@ -527,8 +1334,6 @@ function DataTable({
         ) : (
           plainCell(null)
         );
-
-      // ── SECPA badge ───────────────────────────────────────────────────────
       case "secpa":
         return v ? (
           <span
@@ -550,12 +1355,8 @@ function DataTable({
         ) : (
           plainCell(null)
         );
-
-      // ── Atta Released (same style as typeDoc) ─────────────────────────────
       case "attaReleased":
         return renderTypeDoc(v);
-
-      // ── Certification badge ───────────────────────────────────────────────
       case "certification":
         return v ? (
           <span
@@ -577,19 +1378,15 @@ function DataTable({
         ) : (
           plainCell(null)
         );
-
-      // ── Default: plain text ───────────────────────────────────────────────
       default:
         return plainCell(v);
     }
   };
 
-  /* ── Action menu helpers ── */
   const toggleMenu = (e, id) => {
     e.stopPropagation();
     setOpenMenuId(openMenuId === id ? null : id);
   };
-
   const openDetails = (r) => {
     setOpenMenuId(null);
     onMarkAsRead?.(r.id);
@@ -611,7 +1408,6 @@ function DataTable({
     setChangeLogRecord(r);
   };
 
-  /* ── Mark as Received handler (bulk) ── */
   const handleMarkAsReceived = async () => {
     if (!selectedRows.length || markingReceived) return;
     setMarkingReceived(true);
@@ -626,10 +1422,62 @@ function DataTable({
     }
   };
 
-  /* ── Generate Transmittal PDF ── */
+  /* ── Bulk Deck handler (dynamic — works for Checking→Supervisor and Supervisor→QA) ── */
+  const handleBulkDeck = async (assigneeUsername) => {
+    if (!bulkDeckConfig) return { success: 0, failed: 0 };
+    const selectedData = data.filter((r) => selectedRows.includes(r.id));
+    let success = 0,
+      failed = 0;
+    const now = new Date();
+    const formattedDateTime = new Date(
+      now.getTime() + 8 * 60 * 60 * 1000,
+    ).toISOString();
+
+    for (const row of selectedData) {
+      try {
+        const { id: logId, mainDbId } = row;
+        const indexData = await getLastApplicationLogIndex(mainDbId);
+        const lastIndex = indexData.last_index;
+        const nextIndex = lastIndex + 1;
+
+        // Complete the current step log
+        await updateApplicationLog(logId, {
+          application_status: "COMPLETED",
+          application_decision: bulkDeckConfig.decision,
+          application_remarks: "",
+          accomplished_date: formattedDateTime,
+          del_last_index: 0,
+          del_thread: "Close",
+        });
+
+        // Create new log for next step
+        await createApplicationLog({
+          main_db_id: mainDbId,
+          application_step: bulkDeckConfig.nextStep,
+          user_name: assigneeUsername,
+          application_status: "IN PROGRESS",
+          application_decision: "",
+          application_remarks: "",
+          start_date: formattedDateTime,
+          accomplished_date: null,
+          del_index: nextIndex,
+          del_previous: lastIndex,
+          del_last_index: 1,
+          del_thread: "Open",
+        });
+        success++;
+      } catch (e) {
+        console.error(`Bulk deck failed for row id ${row.id}:`, e);
+        failed++;
+      }
+    }
+    // NOTE: onClearSelections + onRefresh called AFTER transmittal prompt
+    // to prevent modal unmounting before user sees the prompt
+    return { success, failed };
+  };
+
   const handleGenerateTransmittal = async () => {
     if (!selectedRows.length) return;
-
     const loadScript = (src) =>
       new Promise((res, rej) => {
         if (document.querySelector(`script[src="${src}"]`)) return res();
@@ -639,7 +1487,6 @@ function DataTable({
         s.onerror = rej;
         document.head.appendChild(s);
       });
-
     await loadScript(
       "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
     );
@@ -649,14 +1496,12 @@ function DataTable({
     await loadScript(
       "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js",
     );
-
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({
       orientation: "landscape",
       unit: "mm",
       format: "a4",
     });
-
     const selectedData = data.filter((r) => selectedRows.includes(r.id));
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-PH", {
@@ -668,19 +1513,17 @@ function DataTable({
       hour: "2-digit",
       minute: "2-digit",
     });
-
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-
-    const generateBarcodeDataURL = (value) => {
+    const genBarcode = (value) => {
       try {
         const canvas = document.createElement("canvas");
         window.JsBarcode(canvas, String(value), {
           format: "CODE128",
           width: 1.4,
-          height: 14, // compact height
+          height: 14,
           displayValue: false,
-          margin: 1, // tight margin
+          margin: 1,
           background: "#ffffff",
           lineColor: "#000000",
         });
@@ -689,33 +1532,24 @@ function DataTable({
         return null;
       }
     };
-
     const barcodeImages = selectedData.map((r) =>
-      generateBarcodeDataURL(r.dtn && r.dtn !== "N/A" ? r.dtn : "N/A"),
+      genBarcode(r.dtn && r.dtn !== "N/A" ? r.dtn : "N/A"),
     );
-
-    // ── Compact header (smaller = more space for rows) ──
     doc.setFillColor(25, 118, 210);
     doc.rect(0, 0, pageW, 16, "F");
-
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text("TRANSMITTAL SLIP", 10, 7);
-
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.text(`FDA Center for Drug Regulation and Research (CDRR)`, 10, 13);
-
-    doc.setFontSize(7);
+    doc.text("FDA Center for Drug Regulation and Research (CDRR)", 10, 13);
     doc.text(`Generated: ${dateStr}  ${timeStr}`, pageW - 10, 7, {
       align: "right",
     });
     doc.text(`Total records: ${selectedData.length}`, pageW - 10, 13, {
       align: "right",
     });
-
-    // ── Columns ─────────────────────────────────────────────────────────────
     const cols = [
       { header: "#", dataKey: "_no" },
       { header: "Barcode", dataKey: "_barcode" },
@@ -728,9 +1562,7 @@ function DataTable({
       { header: "App Type", dataKey: "_appTypeFull" },
       { header: "Date Rcvd FDAC", dataKey: "dateReceivedFdac" },
     ];
-
     const rows = selectedData.map((r, i) => {
-      // ── Product Information: labeled Brand Name + Generic Name ──
       const brand =
         r.prodBrName && r.prodBrName !== "N/A" ? `Brand: ${r.prodBrName}` : "";
       const generic =
@@ -738,22 +1570,17 @@ function DataTable({
           ? `Generic: ${r.prodGenName}`
           : "";
       const productInfo = [brand, generic].filter(Boolean).join("\n") || "—";
-
-      // ── Dosage: Strength + Form combined ──
       const strength =
         r.prodDosStr && r.prodDosStr !== "N/A" ? r.prodDosStr : "";
       const form =
         r.prodDosForm && r.prodDosForm !== "N/A" ? r.prodDosForm : "";
       const dosage = [strength, form].filter(Boolean).join(" / ") || "—";
-
-      // ── App Type + amendments (include only non-empty ones) ──
       const amendments = [r.ammend1, r.ammend2, r.ammend3]
         .filter((a) => a && a !== "N/A" && a.trim() !== "")
         .join(" / ");
       const appTypeFull = [r.appType ?? "—", amendments]
         .filter(Boolean)
         .join("\n");
-
       return {
         _no: i + 1,
         _barcode: "",
@@ -767,25 +1594,22 @@ function DataTable({
         dateReceivedFdac: r.dateReceivedFdac ?? "—",
       };
     });
-
-    // Compact fixed sizes
-    const BARCODE_ROW_H = 10; // minimum row height — tight
-    const BARCODE_IMG_W = 24;
-    const BARCODE_IMG_H = 5;
-
+    const BRH = 10,
+      BIW = 24,
+      BIH = 5;
     doc.autoTable({
-      startY: 18, // starts right after compact header
+      startY: 18,
       columns: cols,
       body: rows,
       theme: "grid",
       styles: {
-        fontSize: 6.5, // smaller font = more rows per page
-        cellPadding: 1.2, // tight padding
+        fontSize: 6.5,
+        cellPadding: 1.2,
         overflow: "linebreak",
         textColor: [30, 30, 30],
-        minCellHeight: BARCODE_ROW_H,
+        minCellHeight: BRH,
         valign: "middle",
-        lineWidth: 0.1, // thinner grid lines
+        lineWidth: 0.1,
       },
       headStyles: {
         fillColor: [21, 101, 192],
@@ -798,7 +1622,7 @@ function DataTable({
         cellPadding: 1,
       },
       alternateRowStyles: { fillColor: [240, 247, 255] },
-      margin: { left: 6, right: 6 }, // tighter page margins
+      margin: { left: 6, right: 6 },
       columnStyles: {
         _no: { halign: "center", cellWidth: 7, valign: "middle" },
         _barcode: { cellWidth: 28, halign: "center", valign: "middle" },
@@ -816,56 +1640,39 @@ function DataTable({
         _appTypeFull: { cellWidth: 34, valign: "middle" },
         dateReceivedFdac: { cellWidth: 22, halign: "center", valign: "middle" },
       },
-      // ── Draw barcode image centered in the barcode cell ──
-      didDrawCell: (hookData) => {
-        if (
-          hookData.section === "body" &&
-          hookData.column.dataKey === "_barcode"
-        ) {
-          const imgData = barcodeImages[hookData.row.index];
-          if (imgData) {
-            const cell = hookData.cell;
-            // Center the fixed-size barcode image within the cell
-            const imgX = cell.x + (cell.width - BARCODE_IMG_W) / 2;
-            const imgY = cell.y + (cell.height - BARCODE_IMG_H) / 2;
+      didDrawCell: (h) => {
+        if (h.section === "body" && h.column.dataKey === "_barcode") {
+          const img = barcodeImages[h.row.index];
+          if (img) {
+            const cell = h.cell;
             doc.addImage(
-              imgData,
+              img,
               "PNG",
-              imgX,
-              imgY,
-              BARCODE_IMG_W,
-              BARCODE_IMG_H,
+              cell.x + (cell.width - BIW) / 2,
+              cell.y + (cell.height - BIH) / 2,
+              BIW,
+              BIH,
             );
           }
         }
       },
-      didDrawPage: () => {
-        // Footer is written in a second pass AFTER autoTable finishes
-        // so that the correct total page count is known. See below.
-      },
     });
-
-    // ── Two-pass footer: now that all pages exist, write correct "X of N" ──
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let pg = 1; pg <= totalPages; pg++) {
+    const totalPgs = doc.internal.getNumberOfPages();
+    for (let pg = 1; pg <= totalPgs; pg++) {
       doc.setPage(pg);
-      // White-out the footer area first (covers any partial text from first pass)
       doc.setFillColor(255, 255, 255);
       doc.rect(0, pageH - 8, pageW, 8, "F");
-      // Draw correct footer
       doc.setFontSize(7);
       doc.setTextColor(120);
       doc.text(
-        `Page ${pg} of ${totalPages}  |  FDA CDRR Engine — Transmittal Slip`,
+        `Page ${pg} of ${totalPgs}  |  FDA CDRR Engine — Transmittal Slip`,
         pageW / 2,
         pageH - 3,
         { align: "center" },
       );
       doc.setTextColor(30, 30, 30);
     }
-    // Return to last page for the signature block
-    doc.setPage(totalPages);
-
+    doc.setPage(totalPgs);
     const finalY = doc.lastAutoTable.finalY + 6;
     if (finalY < pageH - 26) {
       let preparedBy = "";
@@ -878,47 +1685,32 @@ function DataTable({
         }
       } catch (_) {}
       if (!preparedBy) preparedBy = "___________________";
-
       doc.setDrawColor(160);
       doc.setLineWidth(0.25);
-
-      // ── Column X positions ──────────────────────────────────────────
-      const col1X = 14; // Left  — Prepared by / Received by
-      const col2X = pageW / 2 - 28; // Center — Chief signatory
-      const col3X = pageW - 70; // Right  — Notice
-
-      const baseY = finalY + 4;
-
-      // ── LEFT: Prepared by / Received by Evaluator ───────────────────
-      // Single line: "Prepared by/Date: Gideon Basco / March 18, 2026"
+      const col1X = 14,
+        col2X = pageW / 2 - 28,
+        col3X = pageW - 70,
+        baseY = finalY + 4;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
       doc.setTextColor(30, 30, 30);
       doc.text("Prepared by/Date:", col1X, baseY);
-
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 30, 30);
-      const preparedLabel = doc.getTextWidth("Prepared by/Date: ");
-      doc.text(`${preparedBy} / ${dateStr}`, col1X + preparedLabel, baseY);
-
+      doc.text(
+        `${preparedBy} / ${dateStr}`,
+        col1X + doc.getTextWidth("Prepared by/Date: "),
+        baseY,
+      );
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 30, 30);
       doc.text("Received by Evaluator/Date:", col1X, baseY + 12);
-
-      // Blank line for evaluator signature
       doc.setDrawColor(120);
       doc.line(col1X, baseY + 17, col1X + 65, baseY + 17);
-
-      // ── CENTER: Chief signatory block ──────────────────────────────
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(30, 30, 30);
       doc.text("MELODY M. ZAMUDIO, RPh, MGM-ESP", col2X, baseY + 5, {
         align: "center",
       });
-
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
       doc.setTextColor(60);
@@ -926,8 +1718,6 @@ function DataTable({
       doc.text("Center for Drug Regulation and Research", col2X, baseY + 15, {
         align: "center",
       });
-
-      // ── RIGHT: Notice ───────────────────────────────────────────────
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
       doc.setTextColor(30, 30, 30);
@@ -938,9 +1728,9 @@ function DataTable({
         align: "center",
       });
     }
-
-    const filename = `transmittal_${activeTab ?? "task"}_${now.toISOString().slice(0, 10)}.pdf`;
-    doc.save(filename);
+    doc.save(
+      `transmittal_${activeTab ?? "task"}_${now.toISOString().slice(0, 10)}.pdf`,
+    );
   };
 
   const menuBtn = (onClick, style = {}, children) => (
@@ -970,7 +1760,6 @@ function DataTable({
     </button>
   );
 
-  /* ── Render ── */
   return (
     <>
       <div
@@ -985,7 +1774,7 @@ function DataTable({
           minHeight: 0,
         }}
       >
-        {/* Table header bar */}
+        {/* Header bar */}
         <div
           style={{
             padding: "1rem 1.5rem",
@@ -996,7 +1785,12 @@ function DataTable({
           }}
         >
           <div
-            style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              flexWrap: "wrap",
+            }}
           >
             <h3
               style={{
@@ -1039,7 +1833,6 @@ function DataTable({
                   fontWeight: 700,
                   cursor: markingReceived ? "not-allowed" : "pointer",
                   boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
-                  transition: "opacity .2s, box-shadow .2s",
                   letterSpacing: "0.02em",
                 }}
                 onMouseEnter={(e) => {
@@ -1060,7 +1853,7 @@ function DataTable({
                         width: 12,
                         height: 12,
                         border: "2px solid rgba(255,255,255,0.4)",
-                        borderTop: "2px solid #fff",
+                        borderTopColor: "#fff",
                         borderRadius: "50%",
                         animation: "spin 0.7s linear infinite",
                       }}
@@ -1069,8 +1862,7 @@ function DataTable({
                   </>
                 ) : (
                   <>
-                    <span>✔</span>
-                    Mark as Received
+                    <span>✔</span>Mark as Received
                     <span
                       style={{
                         display: "inline-flex",
@@ -1108,7 +1900,6 @@ function DataTable({
                   fontWeight: 700,
                   cursor: "pointer",
                   boxShadow: "0 2px 8px rgba(25,118,210,0.35)",
-                  transition: "box-shadow .2s",
                   letterSpacing: "0.02em",
                 }}
                 onMouseEnter={(e) =>
@@ -1120,8 +1911,56 @@ function DataTable({
                     "0 2px 8px rgba(25,118,210,0.35)")
                 }
               >
-                <span>📄</span>
-                Generate Transmittal
+                <span>📄</span>Generate Transmittal
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: "1.25rem",
+                    height: "1.25rem",
+                    padding: "0 0.3rem",
+                    background: "rgba(255,255,255,0.25)",
+                    borderRadius: 999,
+                    fontSize: "0.7rem",
+                    fontWeight: 800,
+                  }}
+                >
+                  {selectedRows.length}
+                </span>
+              </button>
+            )}
+
+            {/* ── Bulk Deck — Checking tab + Received sub-tab only ── */}
+            {showBulkDeckBtn && (
+              <button
+                onClick={() => setShowBulkDeck(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  padding: "0.4rem 1rem",
+                  background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(124,58,237,0.35)",
+                  letterSpacing: "0.02em",
+                  transition: "box-shadow .2s",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 4px 14px rgba(124,58,237,0.5)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(124,58,237,0.35)")
+                }
+              >
+                <span>📋</span>Bulk Deck
                 <span
                   style={{
                     display: "inline-flex",
@@ -1170,7 +2009,6 @@ function DataTable({
                 <span style={{ color: "#10b981", fontWeight: 700 }}>🟢 OK</span>
               </div>
             )}
-
             {sortBy && (
               <span
                 style={{
@@ -1192,7 +2030,7 @@ function DataTable({
           </div>
         </div>
 
-        {/* Scrollable table */}
+        {/* Table */}
         <div
           style={{
             flex: 1,
@@ -1217,7 +2055,6 @@ function DataTable({
               }}
             >
               <tr>
-                {/* Checkbox header */}
                 <th
                   style={{
                     padding: "1rem",
@@ -1245,8 +2082,6 @@ function DataTable({
                     }}
                   />
                 </th>
-
-                {/* # header */}
                 <th
                   style={{
                     padding: "1rem",
@@ -1267,8 +2102,6 @@ function DataTable({
                 >
                   #
                 </th>
-
-                {/* Column headers */}
                 {visibleColumns.map((col) => (
                   <th
                     key={col.key}
@@ -1290,7 +2123,6 @@ function DataTable({
                       width: col.width,
                       minWidth: col.width,
                       whiteSpace: "nowrap",
-                      // ── Frozen column (e.g. DTN) ──
                       ...(col.frozen
                         ? {
                             position: "sticky",
@@ -1340,8 +2172,6 @@ function DataTable({
                     </span>
                   </th>
                 ))}
-
-                {/* Actions header */}
                 <th
                   style={{
                     padding: "1rem",
@@ -1365,7 +2195,6 @@ function DataTable({
                 </th>
               </tr>
             </thead>
-
             <tbody>
               {data.length === 0 && (
                 <tr>
@@ -1382,14 +2211,11 @@ function DataTable({
                   </td>
                 </tr>
               )}
-
               {data.map((row, idx) => {
                 const sel = selectedRows.includes(row.id);
                 const isUnread = !readIds.has(row.id);
                 const dl = isComplianceTab ? row.deadlineDate : null;
                 const urgency = dl ? getDeadlineUrgency(dl) : null;
-
-                // Base background for the row (semi-transparent is fine for <tr>)
                 const bg = sel
                   ? "#4CAF5015"
                   : isUnread
@@ -1399,13 +2225,7 @@ function DataTable({
                     : idx % 2 === 0
                       ? colors.tableRowEven
                       : colors.tableRowOdd;
-
                 const isHovered = hoveredRowId === row.id;
-
-                // ── FIX: sticky <td> cells MUST use a fully opaque background ──
-                // Semi-transparent rgba backgrounds on sticky cells let horizontally
-                // scrolled content bleed through, causing the ghost-column effect.
-                // We resolve each state to its opaque equivalent for sticky cells only.
                 const solidStickyBg = (() => {
                   if (isHovered) return colors.tableRowHover;
                   if (sel) return darkMode ? "#1a2e1a" : "#edf7ed";
@@ -1414,7 +2234,6 @@ function DataTable({
                     ? colors.tableRowEven
                     : colors.tableRowOdd;
                 })();
-
                 const rowBorderLeft = sel
                   ? "3px solid #4CAF50"
                   : isUnread
@@ -1428,7 +2247,6 @@ function DataTable({
                           : urgency === "warning"
                             ? "3px solid #eab308"
                             : "3px solid transparent";
-
                 return (
                   <tr
                     key={row.id}
@@ -1440,7 +2258,6 @@ function DataTable({
                     onMouseEnter={() => setHoveredRowId(row.id)}
                     onMouseLeave={() => setHoveredRowId(null)}
                   >
-                    {/* ── Checkbox cell (sticky left) ── */}
                     <td
                       style={{
                         padding: "1rem",
@@ -1448,7 +2265,6 @@ function DataTable({
                         borderRight: `1px solid ${colors.tableBorder}`,
                         position: "sticky",
                         left: 0,
-                        // FIX: use stickyBg so it matches the row on hover
                         background: solidStickyBg,
                         zIndex: 9,
                         width: "50px",
@@ -1468,8 +2284,6 @@ function DataTable({
                         }}
                       />
                     </td>
-
-                    {/* ── Row number cell (sticky left) ── */}
                     <td
                       style={{
                         padding: "1rem",
@@ -1481,7 +2295,6 @@ function DataTable({
                         textAlign: "center",
                         position: "sticky",
                         left: "50px",
-                        // FIX: use stickyBg so it matches the row on hover
                         background: solidStickyBg,
                         zIndex: 9,
                         width: "60px",
@@ -1491,8 +2304,6 @@ function DataTable({
                     >
                       {(indexOfFirstRow || 0) + idx + 1}
                     </td>
-
-                    {/* ── Data cells ── */}
                     {visibleColumns.map((col) => (
                       <td
                         key={col.key}
@@ -1512,7 +2323,6 @@ function DataTable({
                           textOverflow: "ellipsis",
                           width: col.width,
                           minWidth: col.width,
-                          // ── Frozen column (DTN) ──
                           ...(col.frozen
                             ? {
                                 position: "sticky",
@@ -1534,8 +2344,6 @@ function DataTable({
                         {renderCell(col, row)}
                       </td>
                     ))}
-
-                    {/* ── Actions cell (sticky right) ── */}
                     <td
                       style={{
                         padding: "1rem",
@@ -1543,7 +2351,6 @@ function DataTable({
                         textAlign: "center",
                         position: "sticky",
                         right: 0,
-                        // FIX: use stickyBg so it matches the row on hover
                         background: solidStickyBg,
                         zIndex: openMenuId === row.id ? 9999 : 9,
                         boxShadow: "-4px 0 8px rgba(0,0,0,.15)",
@@ -1586,7 +2393,6 @@ function DataTable({
                             />
                           )}
                         </button>
-
                         {openMenuId === row.id && (
                           <>
                             <div
@@ -1664,7 +2470,6 @@ function DataTable({
           </table>
         </div>
 
-        {/* Pagination */}
         <div
           style={{
             flexShrink: 0,
@@ -1686,7 +2491,6 @@ function DataTable({
         </div>
       </div>
 
-      {/* ── Modals ── */}
       {selectedRowDetails && (
         <ViewDetailsModal
           record={selectedRowDetails}
@@ -1722,7 +2526,6 @@ function DataTable({
         />
       )}
 
-      {/* ── Mark as Received Confirmation Modal ── */}
       {confirmReceive && (
         <div
           onClick={() => setConfirmReceive(false)}
@@ -1748,7 +2551,6 @@ function DataTable({
               boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
             }}
           >
-            {/* Icon */}
             <div
               style={{
                 fontSize: "2rem",
@@ -1758,8 +2560,6 @@ function DataTable({
             >
               📥
             </div>
-
-            {/* Title */}
             <h3
               style={{
                 margin: "0 0 0.5rem",
@@ -1771,8 +2571,6 @@ function DataTable({
             >
               Mark as Received?
             </h3>
-
-            {/* Body */}
             <p
               style={{
                 margin: "0 0 1.5rem",
@@ -1789,8 +2587,6 @@ function DataTable({
               </strong>{" "}
               as received. This action cannot be undone.
             </p>
-
-            {/* Buttons */}
             <div
               style={{
                 display: "flex",
@@ -1839,6 +2635,28 @@ function DataTable({
           </div>
         </div>
       )}
+
+      {showBulkDeck && bulkDeckConfig && (
+        <BulkDeckModal
+          selectedCount={selectedRows.length}
+          selectedDtns={data
+            .filter((r) => selectedRows.includes(r.id))
+            .map((r) => r.dtn || r.id)}
+          config={bulkDeckConfig}
+          colors={colors}
+          darkMode={darkMode}
+          onClose={() => setShowBulkDeck(false)}
+          onConfirm={handleBulkDeck}
+          onDownloadTransmittal={handleGenerateTransmittal}
+          onDone={async () => {
+            if (onClearSelections) onClearSelections();
+            if (onRefresh) await onRefresh();
+            setShowBulkDeck(false);
+          }}
+        />
+      )}
+
+      <style>{"@keyframes spin { to { transform: rotate(360deg); } }"}</style>
     </>
   );
 }
