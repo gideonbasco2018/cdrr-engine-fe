@@ -496,15 +496,12 @@ function HistoryDetailModal({
   const [tab, setTab] = useState("inserted");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-
   const [doctrackRecord, setDoctrackRecord] = useState(null);
-
   const [insertedRows, setInsertedRows] = useState([]);
   const [insertedTotal, setInsertedTotal] = useState(
     entry.insertedCount ?? entry.inserted ?? 0,
   );
   const [insertedLoading, setInsertedLoading] = useState(false);
-
   const PAGE_SIZE = 10;
   const inputBg = darkMode ? "#1a1a1a" : "#ffffff";
   const inputBorder = darkMode ? "#2e2e2e" : "#cdd2e0";
@@ -513,7 +510,6 @@ function HistoryDetailModal({
     if (tab !== "inserted") return;
     const historyId = entry.historyID ?? entry.id;
     if (!historyId || String(historyId).startsWith("seed")) return;
-
     setInsertedLoading(true);
     getHistoryRecords(historyId, {
       limit: PAGE_SIZE,
@@ -591,7 +587,6 @@ function HistoryDetailModal({
           boxShadow: "0 24px 64px rgba(0,0,0,0.28)",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "1rem 1.25rem",
@@ -704,8 +699,6 @@ function HistoryDetailModal({
             ✕
           </button>
         </div>
-
-        {/* Tabs + Search */}
         <div
           style={{
             display: "flex",
@@ -803,8 +796,6 @@ function HistoryDetailModal({
             />
           </div>
         </div>
-
-        {/* Table */}
         <div style={{ overflowY: "auto", flex: 1 }}>
           <div
             style={{
@@ -842,7 +833,6 @@ function HistoryDetailModal({
               </div>
             ))}
           </div>
-
           {insertedLoading ? (
             <div
               style={{
@@ -992,8 +982,6 @@ function HistoryDetailModal({
             })
           )}
         </div>
-
-        {/* Footer pagination */}
         <div
           style={{
             padding: "0.55rem 1.25rem",
@@ -1044,7 +1032,6 @@ function HistoryDetailModal({
             </button>
           </div>
         </div>
-
         {doctrackRecord && (
           <DoctrackModal
             record={doctrackRecord}
@@ -1082,6 +1069,10 @@ function UploadHistory({
   const [selected, setSelected] = useState(null);
   const [filterDate, setFilterDate] = useState("");
   const [search, setSearch] = useState("");
+  // ── Pagination ──
+  const [page, setPage] = useState(1);
+  const HISTORY_PAGE_SIZE = 8;
+
   const inputBg = darkMode ? "#1a1a1a" : "#ffffff";
   const inputBorder = darkMode ? "#2e2e2e" : "#cdd2e0";
   const inputStyle = {
@@ -1104,6 +1095,18 @@ function UploadHistory({
     const md = !filterDate || h.uploadedAt.startsWith(filterDate);
     return ms && md;
   });
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterDate]);
+
+  const totalPages = Math.ceil(filtered.length / HISTORY_PAGE_SIZE);
+  const paginated = filtered.slice(
+    (page - 1) * HISTORY_PAGE_SIZE,
+    page * HISTORY_PAGE_SIZE,
+  );
+
   const totalInserted = history.reduce(
     (s, h) => s + (h.insertedCount ?? h.inserted ?? 0),
     0,
@@ -1290,6 +1293,7 @@ function UploadHistory({
             : "0 4px 20px rgba(67,97,238,0.08)",
         }}
       >
+        {/* Table Header */}
         <div
           style={{
             display: "grid",
@@ -1325,149 +1329,140 @@ function UploadHistory({
           ))}
         </div>
 
-        {loading ? (
-          <div
-            style={{
-              padding: "3rem",
-              textAlign: "center",
-              color: textMuted,
-              fontSize: "0.84rem",
-            }}
-          >
-            Loading history…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div
-            style={{
-              padding: "3rem",
-              textAlign: "center",
-              color: textMuted,
-              fontSize: "0.84rem",
-            }}
-          >
-            No upload history found
-          </div>
-        ) : (
-          filtered.map((entry, i) => {
-            const ins = entry.insertedCount ?? entry.inserted ?? 0;
-            const fld = entry.failedCount ?? entry.failed ?? 0;
-            return (
-              <div
-                key={entry.historyID ?? entry.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
-                  borderBottom:
-                    i < filtered.length - 1 ? "1px solid " + border : "none",
-                  transition: "background 0.15s",
-                  alignItems: "center",
-                  cursor: "pointer",
-                }}
-                onClick={() => setSelected(entry)}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = rowHover)
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "transparent")
-                }
-              >
+        {/* ── Fixed-height scrollable body ── */}
+        <div
+          style={{
+            minHeight: 52,
+            maxHeight: HISTORY_PAGE_SIZE * 65,
+            overflowY: "auto",
+          }}
+        >
+          {loading ? (
+            <div
+              style={{
+                padding: "3rem",
+                textAlign: "center",
+                color: textMuted,
+                fontSize: "0.84rem",
+              }}
+            >
+              Loading history…
+            </div>
+          ) : paginated.length === 0 ? (
+            <div
+              style={{
+                padding: "3rem",
+                textAlign: "center",
+                color: textMuted,
+                fontSize: "0.84rem",
+              }}
+            >
+              {filtered.length === 0 && history.length > 0
+                ? "No results match your filters."
+                : "No upload history found"}
+            </div>
+          ) : (
+            paginated.map((entry, i) => {
+              const ins = entry.insertedCount ?? entry.inserted ?? 0;
+              const fld = entry.failedCount ?? entry.failed ?? 0;
+              return (
                 <div
+                  key={entry.historyID ?? entry.id}
                   style={{
-                    padding: "0.75rem 1rem",
-                    display: "flex",
+                    display: "grid",
+                    gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
+                    borderBottom:
+                      i < paginated.length - 1 ? "1px solid " + border : "none",
+                    transition: "background 0.15s",
                     alignItems: "center",
-                    gap: "0.65rem",
+                    cursor: "pointer",
                   }}
+                  onClick={() => setSelected(entry)}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = rowHover)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "transparent")
+                  }
                 >
                   <div
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: "7px",
-                      background: darkMode ? "rgba(37,99,235,0.1)" : "#eef2ff",
+                      padding: "0.75rem 1rem",
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
-                      flexShrink: 0,
+                      gap: "0.65rem",
                     }}
                   >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke={accent}
-                      strokeWidth="2"
-                    >
-                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                      <polyline points="14 2 14 8 20 8" />
-                    </svg>
-                  </div>
-                  <div style={{ minWidth: 0 }}>
                     <div
                       style={{
-                        fontSize: "0.84rem",
-                        fontWeight: 600,
-                        color: textPrimary,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        width: 32,
+                        height: 32,
+                        borderRadius: "7px",
+                        background: darkMode
+                          ? "rgba(37,99,235,0.1)"
+                          : "#eef2ff",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
                       }}
                     >
-                      {entry.fileName}
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={accent}
+                        strokeWidth="2"
+                      >
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: "0.84rem",
+                          fontWeight: 600,
+                          color: textPrimary,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {entry.fileName}
+                      </div>
+                      <div style={{ fontSize: "0.72rem", color: textMuted }}>
+                        {ins + fld} total rows
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "0.75rem 1rem" }}>
+                    <span
+                      style={{
+                        fontSize: "0.82rem",
+                        fontWeight: 500,
+                        color: textPrimary,
+                      }}
+                    >
+                      {entry.uploadedBy}
+                    </span>
+                  </div>
+                  <div style={{ padding: "0.75rem 1rem" }}>
+                    <div style={{ fontSize: "0.82rem", color: textPrimary }}>
+                      {timeAgo(entry.uploadedAt)}
                     </div>
                     <div style={{ fontSize: "0.72rem", color: textMuted }}>
-                      {ins + fld} total rows
+                      {formatDateTime(entry.uploadedAt)}
                     </div>
                   </div>
-                </div>
-                <div style={{ padding: "0.75rem 1rem" }}>
-                  <span
+                  <div
                     style={{
-                      fontSize: "0.82rem",
-                      fontWeight: 500,
-                      color: textPrimary,
+                      padding: "0.75rem 0.5rem",
+                      display: "flex",
+                      justifyContent: "center",
                     }}
                   >
-                    {entry.uploadedBy}
-                  </span>
-                </div>
-                <div style={{ padding: "0.75rem 1rem" }}>
-                  <div style={{ fontSize: "0.82rem", color: textPrimary }}>
-                    {timeAgo(entry.uploadedAt)}
-                  </div>
-                  <div style={{ fontSize: "0.72rem", color: textMuted }}>
-                    {formatDateTime(entry.uploadedAt)}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    padding: "0.75rem 0.5rem",
-                    display: "flex",
-                    justifyContent: "center",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.82rem",
-                      fontWeight: 700,
-                      padding: "0.2rem 0.65rem",
-                      borderRadius: "99px",
-                      background: darkMode ? "rgba(34,197,94,0.1)" : "#dcfce7",
-                      color: "#22c55e",
-                    }}
-                  >
-                    {ins}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    padding: "0.75rem 0.5rem",
-                    display: "flex",
-                    justifyContent: "center",
-                  }}
-                >
-                  {fld > 0 ? (
                     <span
                       style={{
                         fontSize: "0.82rem",
@@ -1475,84 +1470,230 @@ function UploadHistory({
                         padding: "0.2rem 0.65rem",
                         borderRadius: "99px",
                         background: darkMode
-                          ? "rgba(239,68,68,0.1)"
-                          : "#fee2e2",
-                        color: "#ef4444",
+                          ? "rgba(34,197,94,0.1)"
+                          : "#dcfce7",
+                        color: "#22c55e",
                       }}
                     >
-                      {fld}
+                      {ins}
                     </span>
-                  ) : (
-                    <span style={{ fontSize: "0.82rem", color: textMuted }}>
-                      —
-                    </span>
-                  )}
-                </div>
-                <div
-                  style={{
-                    padding: "0.75rem 0.75rem",
-                    display: "flex",
-                    justifyContent: "center",
-                  }}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelected(entry);
-                    }}
+                  </div>
+                  <div
                     style={{
+                      padding: "0.75rem 0.5rem",
                       display: "flex",
-                      alignItems: "center",
-                      gap: "0.3rem",
-                      padding: "0.3rem 0.7rem",
-                      borderRadius: "6px",
-                      border: "1px solid " + border,
-                      background: "transparent",
-                      color: textMuted,
-                      fontSize: "0.75rem",
-                      fontWeight: 500,
-                      cursor: "pointer",
-                      fontFamily: "inherit",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = accent;
-                      e.currentTarget.style.color = accent;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = border;
-                      e.currentTarget.style.color = textMuted;
+                      justifyContent: "center",
                     }}
                   >
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
+                    {fld > 0 ? (
+                      <span
+                        style={{
+                          fontSize: "0.82rem",
+                          fontWeight: 700,
+                          padding: "0.2rem 0.65rem",
+                          borderRadius: "99px",
+                          background: darkMode
+                            ? "rgba(239,68,68,0.1)"
+                            : "#fee2e2",
+                          color: "#ef4444",
+                        }}
+                      >
+                        {fld}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: "0.82rem", color: textMuted }}>
+                        —
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      padding: "0.75rem 0.75rem",
+                      display: "flex",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelected(entry);
+                      }}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
+                        padding: "0.3rem 0.7rem",
+                        borderRadius: "6px",
+                        border: "1px solid " + border,
+                        background: "transparent",
+                        color: textMuted,
+                        fontSize: "0.75rem",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = accent;
+                        e.currentTarget.style.color = accent;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = border;
+                        e.currentTarget.style.color = textMuted;
+                      }}
                     >
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    View
-                  </button>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                      View
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })
-        )}
+              );
+            })
+          )}
+        </div>
+
+        {/* ── Pagination footer ── */}
         <div
           style={{
-            padding: "0.5rem 1rem",
+            padding: "0.55rem 1rem",
             borderTop: "1px solid " + border,
             background: headerBg,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
           <span style={{ fontSize: "0.74rem", color: textMuted }}>
-            {filtered.length} of {history.length} batch
-            {history.length !== 1 ? "es" : ""}
-            {filtered.length !== history.length ? " (filtered)" : ""}
+            {filtered.length === 0
+              ? "0"
+              : `${(page - 1) * HISTORY_PAGE_SIZE + 1}–${Math.min(page * HISTORY_PAGE_SIZE, filtered.length)}`}{" "}
+            of {filtered.length} batch{filtered.length !== 1 ? "es" : ""}
+            {filtered.length !== history.length
+              ? ` (filtered from ${history.length})`
+              : ""}
           </span>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
+          >
+            <button
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+              style={{
+                background: "transparent",
+                border: "1px solid " + border,
+                borderRadius: 5,
+                color: page === 1 ? textMuted : textPrimary,
+                cursor: page === 1 ? "not-allowed" : "pointer",
+                padding: "0.15rem 0.45rem",
+                fontSize: "0.72rem",
+                opacity: page === 1 ? 0.4 : 1,
+              }}
+            >
+              «
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{
+                background: "transparent",
+                border: "1px solid " + border,
+                borderRadius: 5,
+                color: page === 1 ? textMuted : textPrimary,
+                cursor: page === 1 ? "not-allowed" : "pointer",
+                padding: "0.15rem 0.5rem",
+                fontSize: "0.78rem",
+                opacity: page === 1 ? 0.4 : 1,
+              }}
+            >
+              ‹
+            </button>
+
+            {/* Page number pills */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(
+                (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1,
+              )
+              .reduce((acc, p, idx, arr) => {
+                if (idx > 0 && p - arr[idx - 1] > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                p === "..." ? (
+                  <span
+                    key={`ellipsis-${i}`}
+                    style={{
+                      fontSize: "0.75rem",
+                      color: textMuted,
+                      padding: "0 2px",
+                    }}
+                  >
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    style={{
+                      minWidth: 28,
+                      height: 26,
+                      background: page === p ? accent : "transparent",
+                      border: `1px solid ${page === p ? accent : border}`,
+                      borderRadius: 5,
+                      color: page === p ? "#fff" : textPrimary,
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                      fontWeight: page === p ? 700 : 400,
+                      padding: "0 6px",
+                    }}
+                  >
+                    {p}
+                  </button>
+                ),
+              )}
+
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              style={{
+                background: "transparent",
+                border: "1px solid " + border,
+                borderRadius: 5,
+                color: page >= totalPages ? textMuted : textPrimary,
+                cursor: page >= totalPages ? "not-allowed" : "pointer",
+                padding: "0.15rem 0.5rem",
+                fontSize: "0.78rem",
+                opacity: page >= totalPages ? 0.4 : 1,
+              }}
+            >
+              ›
+            </button>
+            <button
+              onClick={() => setPage(totalPages)}
+              disabled={page >= totalPages}
+              style={{
+                background: "transparent",
+                border: "1px solid " + border,
+                borderRadius: 5,
+                color: page >= totalPages ? textMuted : textPrimary,
+                cursor: page >= totalPages ? "not-allowed" : "pointer",
+                padding: "0.15rem 0.45rem",
+                fontSize: "0.72rem",
+                opacity: page >= totalPages ? 0.4 : 1,
+              }}
+            >
+              »
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1575,7 +1716,6 @@ function UploadHistory({
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 function DoctrackMagicPage({ darkMode }) {
-  // ── Theme ──────────────────────────────────────────────────────────────────
   const bg = darkMode ? "#0a0a0a" : "#f8f8f8";
   const cardBg = darkMode ? "#161616" : "#ffffff";
   const border = darkMode ? "#2a2a2a" : "#e2e5ee";
@@ -1607,20 +1747,17 @@ function DoctrackMagicPage({ darkMode }) {
     fontFamily: "inherit",
   };
 
-  // ── Auth — get username from API ───────────────────────────────────────────
-  // AFTER:
   const [currentUser, setCurrentUser] = useState("unknown");
   const [currentAlias, setCurrentAlias] = useState("");
-
   useEffect(() => {
     getCurrentUser()
       .then((res) => {
         setCurrentUser(res.username ?? "unknown");
-        setCurrentAlias(res.alias ?? ""); // ← IDAGDAG
+        setCurrentAlias(res.alias ?? "");
       })
       .catch(() => setCurrentUser("unknown"));
   }, []);
-  // ── State ──────────────────────────────────────────────────────────────────
+
   const [step, setStep] = useState(1);
   const [allRows, setAllRows] = useState([]);
   const [fileName, setFileName] = useState("");
@@ -1638,7 +1775,6 @@ function DoctrackMagicPage({ darkMode }) {
   const PAGE_SIZE = 10;
   const fileInputRef = useRef(null);
 
-  // ── Load history on mount ──────────────────────────────────────────────────
   useEffect(() => {
     setHistoryLoading(true);
     getUploadHistoryList({ limit: 50 })
@@ -1647,14 +1783,12 @@ function DoctrackMagicPage({ darkMode }) {
       .finally(() => setHistoryLoading(false));
   }, []);
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
   const showToast = (msg, type = "success") => {
     const id = Date.now();
     setToasts((p) => [...p, { id, msg, type }]);
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 5000);
   };
 
-  // ── File handling ──────────────────────────────────────────────────────────
   const handleFile = useCallback((file) => {
     if (!file) return;
     if (!/\.(xlsx|xls)$/i.test(file.name)) {
@@ -1664,7 +1798,6 @@ function DoctrackMagicPage({ darkMode }) {
     setRawFile(file);
     setFileName(file.name);
     setFileSize(formatBytes(file.size));
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -1673,7 +1806,6 @@ function DoctrackMagicPage({ darkMode }) {
             const wb = XLSX.read(e.target.result, { type: "array" });
             const ws = wb.Sheets[wb.SheetNames[0]];
             const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
-
             const rows = data
               .map((row, idx) => {
                 const keys = Object.keys(row);
@@ -1684,20 +1816,15 @@ function DoctrackMagicPage({ darkMode }) {
                   k.toLowerCase().includes("remarks"),
                 );
                 const doctrack = String(row[doctractKey] ?? "").trim();
-
-                const rawRemarks = String(row[remarksKey] ?? "").trim();
-                const remarks = rawRemarks;
-
+                const remarks = String(row[remarksKey] ?? "").trim();
                 const issues = [];
                 if (!doctrack) issues.push("Missing Doctrack Number");
                 else if (!/^\d{14}$/.test(doctrack))
                   issues.push("Invalid format (expected 14 digits)");
                 if (!remarks) issues.push("Missing Remarks");
-
                 return { rowNum: idx + 2, doctrack, remarks, issues };
               })
               .filter((r) => r.doctrack || r.remarks);
-
             setAllRows(rows);
             setStep(2);
             setPage(1);
@@ -1731,7 +1858,6 @@ function DoctrackMagicPage({ darkMode }) {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ── Submit ─────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validRows.length) {
       showToast("No valid records to submit.", "error");
@@ -1741,7 +1867,6 @@ function DoctrackMagicPage({ darkMode }) {
       showToast("No file found. Please re-upload.", "error");
       return;
     }
-
     setSubmitting(true);
     try {
       const uploadResult = await uploadDoctrackExcel(
@@ -1749,13 +1874,11 @@ function DoctrackMagicPage({ darkMode }) {
         currentUser,
         currentAlias,
       );
-
       if (!uploadResult.success && uploadResult.stats?.inserted === 0) {
         showToast(uploadResult.message || "Upload failed.", "error");
         setSubmitting(false);
         return;
       }
-
       let savedHistory = null;
       try {
         savedHistory = await saveUploadHistory({
@@ -1768,18 +1891,15 @@ function DoctrackMagicPage({ darkMode }) {
       } catch (histErr) {
         console.warn("History save failed (non-blocking):", histErr.message);
       }
-
       const result = {
         inserted: uploadResult.inserted_records,
         failed: uploadResult.all_failed,
         stats: uploadResult.stats,
       };
-
       setSubmitting(false);
       setSubmitted(true);
       setStep(3);
       setSubmitResult(result);
-
       const newEntry = savedHistory ?? {
         historyID: `local-${Date.now()}`,
         fileName,
@@ -1791,7 +1911,6 @@ function DoctrackMagicPage({ darkMode }) {
         records: uploadResult.inserted_records,
       };
       setUploadHistory((prev) => [newEntry, ...prev]);
-
       uploadResult.stats.failed > 0
         ? showToast(
             `${uploadResult.stats.inserted} inserted · ${uploadResult.stats.failed} skipped`,
@@ -2688,7 +2807,6 @@ function DoctrackMagicPage({ darkMode }) {
         </>
       )}
 
-      {/* UPLOAD HISTORY */}
       <UploadHistory
         history={uploadHistory}
         loading={historyLoading}
@@ -2701,7 +2819,6 @@ function DoctrackMagicPage({ darkMode }) {
         rowHover={rowHover}
         accent={accent}
       />
-
       <Toast toasts={toasts} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}`}</style>
     </div>

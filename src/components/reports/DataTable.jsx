@@ -9,47 +9,79 @@ import BulkDeckModal from "./actions/BulkDeckModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 
+// ── Keys must match tableColumns.js exactly ──────────────────────────
 const COLUMN_DB_KEY_MAP = {
+  processingType: "DB_PROCESSING_TYPE",
   dtn: "DB_DTN",
   estCat: "DB_EST_CAT",
-  ltoCompany: "DB_EST_LTO_COMP",
-  ltoAddress: "DB_EST_LTO_ADD",
-  email: "DB_EST_EADD",
+  ltoComp: "DB_EST_LTO_COMP", // tableColumns uses "ltoComp"
+  ltoAdd: "DB_EST_LTO_ADD", // tableColumns uses "ltoAdd"
+  eadd: "DB_EST_EADD", // tableColumns uses "eadd"
   tin: "DB_EST_TIN",
   contactNo: "DB_EST_CONTACT_NO",
   ltoNo: "DB_EST_LTO_NO",
   validity: "DB_EST_VALIDITY",
   prodBrName: "DB_PROD_BR_NAME",
   prodGenName: "DB_PROD_GEN_NAME",
-  dosageStrength: "DB_PROD_DOS_STR",
-  dosageForm: "DB_PROD_DOS_FORM",
-  prescription: "DB_PROD_CLASS_PRESCRIP",
-  essentialDrug: "DB_PROD_ESS_DRUG_LIST",
-  pharmaCategory: "DB_PROD_PHARMA_CAT",
-  manufacturer: "DB_PROD_MANU",
-  manufacturerAddress: "DB_PROD_MANU_ADD",
-  manufacturerCountry: "DB_PROD_MANU_COUNTRY",
-  trader: "DB_PROD_TRADER",
-  traderCountry: "DB_PROD_TRADER_COUNTRY",
-  importer: "DB_PROD_IMPORTER",
-  importerCountry: "DB_PROD_IMPORTER_COUNTRY",
-  distributor: "DB_PROD_DISTRI",
-  distributorCountry: "DB_PROD_DISTRI_COUNTRY",
-  shelfLife: "DB_PROD_DISTRI_SHELF_LIFE",
+  prodDosStr: "DB_PROD_DOS_STR", // tableColumns uses "prodDosStr"
+  prodDosForm: "DB_PROD_DOS_FORM", // tableColumns uses "prodDosForm"
+  prodClassPrescript: "DB_PROD_CLASS_PRESCRIP",
+  prodEssDrugList: "DB_PROD_ESS_DRUG_LIST",
+  prodPharmaCat: "DB_PROD_PHARMA_CAT",
+  prodManu: "DB_PROD_MANU",
+  prodManuAdd: "DB_PROD_MANU_ADD",
+  prodManuTin: "DB_PROD_MANU_TIN",
+  prodManuLtoNo: "DB_PROD_MANU_LTO_NO",
+  prodManuCountry: "DB_PROD_MANU_COUNTRY",
+  prodTrader: "DB_PROD_TRADER",
+  prodTraderAdd: "DB_PROD_TRADER_ADD",
+  prodTraderTin: "DB_PROD_TRADER_TIN",
+  prodTraderLtoNo: "DB_PROD_TRADER_LTO_NO",
+  prodTraderCountry: "DB_PROD_TRADER_COUNTRY",
+  prodRepacker: "DB_PROD_REPACKER",
+  prodRepackerAdd: "DB_PROD_REPACKER_ADD",
+  prodRepackerTin: "DB_PROD_REPACKER_TIN",
+  prodRepackerLtoNo: "DB_PROD_REPACKER_LTO_NO",
+  prodRepackerCountry: "DB_PROD_REPACKER_COUNTRY",
+  prodImporter: "DB_PROD_IMPORTER",
+  prodImporterAdd: "DB_PROD_IMPORTER_ADD",
+  prodImporterTin: "DB_PROD_IMPORTER_TIN",
+  prodImporterLtoNo: "DB_PROD_IMPORTER_LTO_NO",
+  prodImporterCountry: "DB_PROD_IMPORTER_COUNTRY",
+  prodDistri: "DB_PROD_DISTRI",
+  prodDistriAdd: "DB_PROD_DISTRI_ADD",
+  prodDistriTin: "DB_PROD_DISTRI_TIN",
+  prodDistriLtoNo: "DB_PROD_DISTRI_LTO_NO",
+  prodDistriCountry: "DB_PROD_DISTRI_COUNTRY",
+  prodDistriShelfLife: "DB_PROD_DISTRI_SHELF_LIFE",
+  storageCond: "DB_STORAGE_COND",
   packaging: "DB_PACKAGING",
+  suggRp: "DB_SUGG_RP",
+  noSample: "DB_NO_SAMPLE",
   expiryDate: "DB_EXPIRY_DATE",
+  cprValidity: "DB_CPR_VALIDITY",
   regNo: "DB_REG_NO",
   appType: "DB_APP_TYPE",
   motherAppType: "DB_MOTHER_APP_TYPE",
   oldRsn: "DB_OLD_RSN",
-  productCategory: "DB_PROD_CAT",
+  ammend1: "DB_AMMEND_1",
+  ammend2: "DB_AMMEND_2",
+  ammend3: "DB_AMMEND_3",
+  prodCat: "DB_PROD_CAT",
+  certification: "DB_CERTIFICATION",
   fee: "DB_FEE",
+  lrf: "DB_LRF",
+  surc: "DB_SURC",
   total: "DB_TOTAL",
   orNo: "DB_OR_NO",
   dateIssued: "DB_DATE_ISSUED",
   dateReceivedFdac: "DB_DATE_RECEIVED_FDAC",
   dateReceivedCent: "DB_DATE_RECEIVED_CENT",
   mo: "DB_MO",
+  file: "DB_FILE",
+  secpa: "DB_SECPA",
+  secpaExpDate: "DB_SECPA_EXP_DATE",
+  secpaIssuedOn: "DB_SECPA_ISSUED_ON",
   deckingSched: "DB_DECKING_SCHED",
   eval: "DB_EVAL",
   dateDeck: "DB_DATE_DECK",
@@ -58,11 +90,15 @@ const COLUMN_DB_KEY_MAP = {
   class: "DB_CLASS",
   dateReleased: "DB_DATE_RELEASED",
   typeDocReleased: "DB_TYPE_DOC_RELEASED",
+  attaReleased: "DB_ATTA_RELEASED",
+  cprCond: "DB_CPR_COND",
+  cprCondRemarks: "DB_CPR_COND_REMARKS",
+  cprCondAddRemarks: "DB_CPR_COND_ADD_REMARKS",
   appStatus: "DB_APP_STATUS",
-  uploadedBy: "DB_USER_UPLOADER",
-  uploadedAt: "DB_DATE_EXCEL_UPLOAD",
+  appRemarks: "DB_APP_REMARKS",
   dbTimelineCitizenCharter: "DB_TIMELINE_CITIZEN_CHARTER",
-  processingType: "DB_PROCESSING_TYPE",
+  userUploader: "DB_USER_UPLOADER", // tableColumns uses "userUploader"
+  dateExcelUpload: "DB_DATE_EXCEL_UPLOAD", // tableColumns uses "dateExcelUpload"
 };
 
 export const TAB_ORDER = [
@@ -93,7 +129,6 @@ function DataTable({
   onSort,
   sortBy,
   sortOrder,
-  // ✅ Processing type sub-tab props
   processingTypeTab,
   onProcessingTypeTabChange,
   availableProcessingTypes = [],
@@ -175,17 +210,18 @@ function DataTable({
   })();
 
   const calculateStatusTimeline = (row) => {
-    const dateReceivedCent = row.dateReceivedCent;
-    const dateReleased = row.dateReleased;
-    const timeline = row.dbTimelineCitizenCharter;
+    const {
+      dateReceivedCent,
+      dateReleased,
+      dbTimelineCitizenCharter: timeline,
+    } = row;
     if (
       !dateReceivedCent ||
       !timeline ||
       dateReceivedCent === "N/A" ||
       timeline === null
-    ) {
+    )
       return { status: "", days: 0 };
-    }
     const receivedDate = new Date(dateReceivedCent);
     const endDate =
       dateReleased && dateReleased !== "N/A"
@@ -193,10 +229,10 @@ function DataTable({
         : new Date();
     if (isNaN(receivedDate.getTime()) || isNaN(endDate.getTime()))
       return { status: "", days: 0 };
-    const diffTime = Math.abs(endDate - receivedDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const timelineValue = parseInt(timeline, 10);
-    return diffDays <= timelineValue
+    const diffDays = Math.ceil(
+      Math.abs(endDate - receivedDate) / (1000 * 60 * 60 * 24),
+    );
+    return diffDays <= parseInt(timeline, 10)
       ? { status: "WITHIN", days: diffDays }
       : { status: "BEYOND", days: diffDays };
   };
@@ -215,8 +251,8 @@ function DataTable({
         style={{
           padding: "0.4rem 0.9rem",
           background: isWithin
-            ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-            : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
+            ? "linear-gradient(135deg,#10b981,#059669)"
+            : "linear-gradient(135deg,#ef4444,#dc2626)",
           color: "#fff",
           borderRadius: "8px",
           fontSize: "0.75rem",
@@ -224,33 +260,31 @@ function DataTable({
           letterSpacing: "0.5px",
           textTransform: "uppercase",
           boxShadow: isWithin
-            ? "0 2px 8px rgba(16, 185, 129, 0.3)"
-            : "0 2px 8px rgba(239, 68, 68, 0.3)",
+            ? "0 2px 8px rgba(16,185,129,0.3)"
+            : "0 2px 8px rgba(239,68,68,0.3)",
           display: "inline-flex",
           alignItems: "center",
           gap: "0.4rem",
         }}
       >
-        <span style={{ fontSize: "0.9rem" }}>{isWithin ? "✓" : "⚠"}</span>
+        <span>{isWithin ? "✓" : "⚠"}</span>
         {isWithin ? `Within (${days}d)` : `Beyond (${days}d)`}
       </span>
     );
   };
 
-  // ✅ Processing Type badge
   const renderProcessingTypeBadge = (value) => {
-    if (!value || value === "N/A") {
+    if (!value || value === "N/A")
       return (
         <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
           N/A
         </span>
       );
-    }
     return (
       <span
         style={{
           padding: "0.3rem 0.7rem",
-          background: "linear-gradient(135deg, #2196F3 0%, #1976D2 100%)",
+          background: "linear-gradient(135deg,#2196F3,#1976D2)",
           color: "#fff",
           borderRadius: "6px",
           fontSize: "0.75rem",
@@ -266,7 +300,6 @@ function DataTable({
     );
   };
 
-  // Menu handlers
   const handleMenuToggle = (e, rowId) => {
     e.stopPropagation();
     setOpenMenuId(openMenuId === rowId ? null : rowId);
@@ -295,7 +328,6 @@ function DataTable({
     setOpenMenuId(null);
     if (onEdit) onEdit(row);
   };
-  const handleCloseDetailsModal = () => setSelectedRowDetails(null);
   const handleCloseDeckModal = () => setDeckModalRecord(null);
   const handleCloseEvaluatorModal = () => setEvaluatorModalRecord(null);
   const handleCloseDoctrackModal = () => setDoctrackModalRecord(null);
@@ -306,20 +338,19 @@ function DataTable({
     if (onRefresh) await onRefresh();
   };
 
-  // ✅ Render helpers
   const renderDTN = (dtn) => (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
         padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+        background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
         color: "#fff",
         borderRadius: "8px",
         fontSize: "0.75rem",
         fontWeight: "700",
         letterSpacing: "0.5px",
-        boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+        boxShadow: "0 2px 8px rgba(139,92,246,0.3)",
         whiteSpace: "nowrap",
       }}
     >
@@ -334,16 +365,16 @@ function DataTable({
         alignItems: "center",
         gap: "0.5rem",
         padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)",
+        background: "linear-gradient(135deg,#06b6d4,#0891b2)",
         color: "#fff",
         borderRadius: "8px",
         fontSize: "0.75rem",
         fontWeight: "700",
         letterSpacing: "0.3px",
-        boxShadow: "0 2px 8px rgba(6, 182, 212, 0.3)",
+        boxShadow: "0 2px 8px rgba(6,182,212,0.3)",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>💊</span>
+      <span>💊</span>
       <span>{genName || "N/A"}</span>
     </span>
   );
@@ -355,84 +386,58 @@ function DataTable({
         alignItems: "center",
         gap: "0.5rem",
         padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+        background: "linear-gradient(135deg,#f59e0b,#d97706)",
         color: "#fff",
         borderRadius: "8px",
         fontSize: "0.75rem",
         fontWeight: "700",
         letterSpacing: "0.3px",
-        boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+        boxShadow: "0 2px 8px rgba(245,158,11,0.3)",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>🏷️</span>
+      <span>🏷️</span>
       <span>{brandName || "N/A"}</span>
     </span>
   );
 
   const renderTypeDocReleased = (typeDoc) => {
-    const typeUpper = typeDoc?.toUpperCase();
-    if (typeUpper?.includes("CPR"))
-      return (
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.3px",
-            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-          }}
-        >
-          <span style={{ fontSize: "1rem" }}>📜</span>
-          <span>{typeDoc}</span>
-        </span>
+    const u = typeDoc?.toUpperCase();
+    const pill = (bg, sh, icon) => (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          padding: "0.4rem 0.9rem",
+          background: bg,
+          color: "#fff",
+          borderRadius: "8px",
+          fontSize: "0.75rem",
+          fontWeight: "700",
+          boxShadow: `0 2px 8px ${sh}`,
+        }}
+      >
+        <span>{icon}</span>
+        <span>{typeDoc}</span>
+      </span>
+    );
+    if (u?.includes("CPR"))
+      return pill(
+        "linear-gradient(135deg,#10b981,#059669)",
+        "rgba(16,185,129,0.3)",
+        "📜",
       );
-    if (typeUpper?.includes("LOD"))
-      return (
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.3px",
-            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
-          }}
-        >
-          <span style={{ fontSize: "1rem" }}>📋</span>
-          <span>{typeDoc}</span>
-        </span>
+    if (u?.includes("LOD"))
+      return pill(
+        "linear-gradient(135deg,#ef4444,#dc2626)",
+        "rgba(239,68,68,0.3)",
+        "📋",
       );
-    if (typeUpper?.includes("CERT") || typeUpper?.includes("CERTIFICATE"))
-      return (
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.3px",
-            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
-          }}
-        >
-          <span style={{ fontSize: "1rem" }}>🏆</span>
-          <span>{typeDoc}</span>
-        </span>
+    if (u?.includes("CERT"))
+      return pill(
+        "linear-gradient(135deg,#3b82f6,#2563eb)",
+        "rgba(59,130,246,0.3)",
+        "🏆",
       );
     return (
       <span style={{ fontSize: "0.85rem", color: colors.tableText }}>
@@ -442,42 +447,42 @@ function DataTable({
   };
 
   const renderAppStatusBadge = (status) => {
-    const statusUpper = status?.toUpperCase();
-    const configs = {
+    const u = status?.toUpperCase();
+    const map = {
       COMPLETED: {
-        bg: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-        shadow: "rgba(16, 185, 129, 0.3)",
+        bg: "linear-gradient(135deg,#10b981,#059669)",
+        sh: "rgba(16,185,129,0.3)",
         icon: "✓",
         label: "Completed",
       },
       TO_DO: {
-        bg: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-        shadow: "rgba(245, 158, 11, 0.3)",
+        bg: "linear-gradient(135deg,#f59e0b,#d97706)",
+        sh: "rgba(245,158,11,0.3)",
         icon: "⏳",
         label: "To Do",
       },
       APPROVED: {
-        bg: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-        shadow: "rgba(59, 130, 246, 0.3)",
+        bg: "linear-gradient(135deg,#3b82f6,#2563eb)",
+        sh: "rgba(59,130,246,0.3)",
         icon: "✅",
         label: "Approved",
       },
       PENDING: {
-        bg: "linear-gradient(135deg, #eab308 0%, #ca8a04 100%)",
-        shadow: "rgba(234, 179, 8, 0.3)",
+        bg: "linear-gradient(135deg,#eab308,#ca8a04)",
+        sh: "rgba(234,179,8,0.3)",
         icon: "⏸",
         label: "Pending",
       },
       REJECTED: {
-        bg: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-        shadow: "rgba(239, 68, 68, 0.3)",
+        bg: "linear-gradient(135deg,#ef4444,#dc2626)",
+        sh: "rgba(239,68,68,0.3)",
         icon: "✗",
         label: "Rejected",
       },
     };
-    const cfg = configs[statusUpper] || {
-      bg: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
-      shadow: "rgba(107, 114, 128, 0.3)",
+    const c = map[u] || {
+      bg: "linear-gradient(135deg,#6b7280,#4b5563)",
+      sh: "rgba(107,114,128,0.3)",
       icon: "•",
       label: status || "N/A",
     };
@@ -485,26 +490,25 @@ function DataTable({
       <span
         style={{
           padding: "0.4rem 0.9rem",
-          background: cfg.bg,
+          background: c.bg,
           color: "#fff",
           borderRadius: "8px",
           fontSize: "0.75rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
-          boxShadow: `0 2px 8px ${cfg.shadow}`,
+          boxShadow: `0 2px 8px ${c.sh}`,
           display: "inline-flex",
           alignItems: "center",
           gap: "0.4rem",
         }}
       >
-        <span style={{ fontSize: "0.9rem" }}>{cfg.icon}</span>
-        {cfg.label}
+        <span>{c.icon}</span>
+        {c.label}
       </span>
     );
   };
 
-  // ✅ Central cell renderer
   const renderCell = (col, row) => {
     switch (col.key) {
       case "dtn":
@@ -528,7 +532,6 @@ function DataTable({
     }
   };
 
-  // ✅ Frozen column style helpers using frozenLeft from tableColumns
   const getFrozenThStyle = (col) => {
     if (!col.frozen) return {};
     return {
@@ -552,7 +555,6 @@ function DataTable({
     };
   };
 
-  // ✅ Processing type sub-tab styles
   const subTabStyle = (isActive) => ({
     padding: "0.4rem 1rem",
     fontSize: "0.8rem",
@@ -578,12 +580,314 @@ function DataTable({
     fontWeight: "600",
   });
 
-  // ✅ Build processing type sub-tab items
-
-  const namedProcessingTypes = availableProcessingTypes.filter((p) => p.value);
   const showSubTabs =
     availableProcessingTypes.length > 0 && onProcessingTypeTabChange;
 
+  /* ── Generate Transmittal PDF ─────────────────────────────────────── */
+  const handleGenerateTransmittal = async () => {
+    if (!selectedRows.length) return;
+
+    const loadScript = (src) =>
+      new Promise((res, rej) => {
+        if (document.querySelector(`script[src="${src}"]`)) return res();
+        const s = document.createElement("script");
+        s.src = src;
+        s.onload = res;
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+
+    await loadScript(
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+    );
+    await loadScript(
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js",
+    );
+    await loadScript(
+      "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js",
+    );
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const selectedData = data.filter((r) => selectedRows.includes(r.id));
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    const timeStr = now.toLocaleTimeString("en-PH", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    const generateBarcodeDataURL = (value) => {
+      try {
+        const canvas = document.createElement("canvas");
+        window.JsBarcode(canvas, String(value), {
+          format: "CODE128",
+          width: 1.4,
+          height: 14,
+          displayValue: false,
+          margin: 1,
+          background: "#ffffff",
+          lineColor: "#000000",
+        });
+        return canvas.toDataURL("image/png");
+      } catch {
+        return null;
+      }
+    };
+
+    const barcodeImages = selectedData.map((r) =>
+      generateBarcodeDataURL(r.dtn && r.dtn !== "N/A" ? r.dtn : "N/A"),
+    );
+
+    // ── Header ──
+    doc.setFillColor(25, 118, 210);
+    doc.rect(0, 0, pageW, 16, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("TRANSMITTAL SLIP", 10, 7);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.text("FDA Center for Drug Regulation and Research (CDRR)", 10, 13);
+    doc.text(`Generated: ${dateStr}  ${timeStr}`, pageW - 10, 7, {
+      align: "right",
+    });
+    doc.text(`Total records: ${selectedData.length}`, pageW - 10, 13, {
+      align: "right",
+    });
+
+    // ── Columns ──
+    const cols = [
+      { header: "#", dataKey: "_no" },
+      { header: "Barcode", dataKey: "_barcode" },
+      { header: "Doctrack Number", dataKey: "dtn" },
+      { header: "Category", dataKey: "estCat" },
+      { header: "Applicant Company", dataKey: "ltoCompany" },
+      { header: "Product Information", dataKey: "_productInfo" },
+      { header: "Dosage Strength and Form", dataKey: "_dosage" },
+      { header: "Registration No.", dataKey: "regNo" },
+      { header: "App Type", dataKey: "_appTypeFull" },
+      { header: "Date Received from FDAC", dataKey: "dateReceivedFdac" },
+    ];
+
+    const rows = selectedData.map((r, i) => {
+      // Product Information — keys: prodBrName, prodGenName ✓
+      const brand =
+        r.prodBrName && r.prodBrName !== "N/A" ? `Brand: ${r.prodBrName}` : "";
+      const generic =
+        r.prodGenName && r.prodGenName !== "N/A"
+          ? `Generic: ${r.prodGenName}`
+          : "";
+      const productInfo = [brand, generic].filter(Boolean).join("\n") || "—";
+
+      // Dosage — tableColumns uses "prodDosStr" / "prodDosForm" (not dosageStrength/dosageForm)
+      const strength =
+        r.prodDosStr && r.prodDosStr !== "N/A" ? r.prodDosStr : "";
+      const form =
+        r.prodDosForm && r.prodDosForm !== "N/A" ? r.prodDosForm : "";
+      const dosage = [strength, form].filter(Boolean).join(" / ") || "—";
+
+      // App Type + ammend1/2/3 if present (tableColumns has ammend1/2/3)
+      const amendments = [r.ammend1, r.ammend2, r.ammend3]
+        .filter((a) => a && a !== "N/A" && a.trim() !== "")
+        .join(" / ");
+      const appTypeFull = [r.appType ?? "—", amendments]
+        .filter(Boolean)
+        .join("\n");
+
+      // LTO Company — tableColumns uses "ltoComp" not "ltoCompany"
+      return {
+        _no: i + 1,
+        _barcode: "",
+        dtn: r.dtn ?? "—",
+        estCat: r.estCat ?? "—",
+        ltoCompany: r.ltoComp ?? "—", // ← fixed: ltoComp
+        _productInfo: productInfo,
+        _dosage: dosage,
+        regNo: r.regNo ?? "—",
+        _appTypeFull: appTypeFull,
+        dateReceivedFdac: r.dateReceivedFdac ?? "—",
+      };
+    });
+
+    const BARCODE_ROW_H = 10;
+    const BARCODE_IMG_W = 24;
+    const BARCODE_IMG_H = 5;
+
+    doc.autoTable({
+      startY: 18,
+      columns: cols,
+      body: rows,
+      theme: "grid",
+      styles: {
+        fontSize: 6.5,
+        cellPadding: 1.2,
+        overflow: "linebreak",
+        textColor: [30, 30, 30],
+        minCellHeight: BARCODE_ROW_H,
+        valign: "middle",
+        lineWidth: 0.1,
+      },
+      headStyles: {
+        fillColor: [21, 101, 192],
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 6.5,
+        halign: "center",
+        minCellHeight: 7,
+        valign: "middle",
+        cellPadding: 1,
+      },
+      alternateRowStyles: { fillColor: [240, 247, 255] },
+      margin: { left: 6, right: 6 },
+      columnStyles: {
+        _no: { halign: "center", cellWidth: 7, valign: "middle" },
+        _barcode: { cellWidth: 28, halign: "center", valign: "middle" },
+        dtn: {
+          cellWidth: 28,
+          halign: "center",
+          valign: "middle",
+          fontStyle: "bold",
+        },
+        estCat: { cellWidth: 14, valign: "middle" },
+        ltoCompany: { cellWidth: 42, valign: "middle" },
+        _productInfo: { cellWidth: 48, valign: "middle" },
+        _dosage: { cellWidth: 30, valign: "middle" },
+        regNo: { cellWidth: 22, halign: "center", valign: "middle" },
+        _appTypeFull: { cellWidth: 34, valign: "middle" },
+        dateReceivedFdac: { cellWidth: 22, halign: "center", valign: "middle" },
+      },
+      didDrawCell: (hookData) => {
+        if (
+          hookData.section === "body" &&
+          hookData.column.dataKey === "_barcode"
+        ) {
+          const imgData = barcodeImages[hookData.row.index];
+          if (imgData) {
+            const cell = hookData.cell;
+            const imgX = cell.x + (cell.width - BARCODE_IMG_W) / 2;
+            const imgY = cell.y + (cell.height - BARCODE_IMG_H) / 2;
+            doc.addImage(
+              imgData,
+              "PNG",
+              imgX,
+              imgY,
+              BARCODE_IMG_W,
+              BARCODE_IMG_H,
+            );
+          }
+        }
+      },
+      didDrawPage: () => {
+        // Footer written in two-pass below
+      },
+    });
+
+    // ── Two-pass footer ──
+    const totalPagesCount = doc.internal.getNumberOfPages();
+    for (let pg = 1; pg <= totalPagesCount; pg++) {
+      doc.setPage(pg);
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, pageH - 8, pageW, 8, "F");
+      doc.setFontSize(7);
+      doc.setTextColor(120);
+      doc.text(
+        `Page ${pg} of ${totalPagesCount}  |  FDA CDRR Engine — Transmittal Slip`,
+        pageW / 2,
+        pageH - 3,
+        { align: "center" },
+      );
+      doc.setTextColor(30, 30, 30);
+    }
+    doc.setPage(totalPagesCount);
+
+    // ── Signature block ──
+    const finalY = doc.lastAutoTable.finalY + 6;
+    if (finalY < pageH - 26) {
+      let preparedBy = "";
+      try {
+        const raw =
+          localStorage.getItem("user") || sessionStorage.getItem("user");
+        if (raw) {
+          const u = JSON.parse(raw);
+          preparedBy = `${u.first_name || ""} ${u.surname || ""}`.trim();
+        }
+      } catch (_) {}
+      if (!preparedBy) preparedBy = "___________________";
+
+      doc.setDrawColor(160);
+      doc.setLineWidth(0.25);
+
+      const col1X = 14;
+      const col2X = pageW / 2 - 28;
+      const col3X = pageW - 70;
+      const baseY = finalY + 4;
+
+      // LEFT — Prepared by / Received by Evaluator
+      // Single line: "Prepared by/Date: Gideon Basco / March 18, 2026"
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 30, 30);
+      doc.text("Prepared by/Date: ", col1X, baseY);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 30, 30);
+      const preparedLabel = doc.getTextWidth("Prepared by/Date: ");
+      doc.text(`${preparedBy} / ${dateStr}`, col1X + preparedLabel, baseY);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 30, 30);
+      doc.text("Received by Evaluator/Date:", col1X, baseY + 12);
+
+      doc.setDrawColor(120);
+      doc.line(col1X, baseY + 17, col1X + 65, baseY + 17);
+
+      // CENTER — Chief signatory
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(30, 30, 30);
+      doc.text("MELODY M. ZAMUDIO, RPh, MGM-ESP", col2X, baseY + 5, {
+        align: "center",
+      });
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(60);
+      doc.text("FDRO V/Chief, LRD", col2X, baseY + 10, { align: "center" });
+      doc.text("Center for Drug Regulation and Research", col2X, baseY + 15, {
+        align: "center",
+      });
+
+      // RIGHT — Notice
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 30, 30);
+      doc.text("NON-ACCEPTANCE AND SWITCHING", col3X, baseY + 10, {
+        align: "center",
+      });
+      doc.text("REQUIRES PRIOR APPROVAL BY CHIEF LRD", col3X, baseY + 15, {
+        align: "center",
+      });
+    }
+
+    const filename = `transmittal_reports_${now.toISOString().slice(0, 10)}.pdf`;
+    doc.save(filename);
+  };
+
+  /* ── Render ───────────────────────────────────────────────────────── */
   return (
     <>
       <div
@@ -681,12 +985,11 @@ function DataTable({
 
                 {isNotYetDeckedTab && (
                   <button
-                    onClick={() => {
-                      const selectedRecords = data.filter((row) =>
-                        selectedRows.includes(row.id),
-                      );
-                      setBulkDeckModalRecords(selectedRecords);
-                    }}
+                    onClick={() =>
+                      setBulkDeckModalRecords(
+                        data.filter((row) => selectedRows.includes(row.id)),
+                      )
+                    }
                     style={{
                       padding: "0.4rem 0.8rem",
                       background: "#4CAF50",
@@ -701,16 +1004,63 @@ function DataTable({
                       gap: "0.4rem",
                       transition: "background 0.2s",
                     }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#45a049";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "#4CAF50";
-                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#45a049")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "#4CAF50")
+                    }
                   >
                     <span>🎯</span> Deck Applications
                   </button>
                 )}
+
+                {/* ── Generate Transmittal button ── */}
+                <button
+                  onClick={handleGenerateTransmittal}
+                  style={{
+                    padding: "0.4rem 0.8rem",
+                    background: "linear-gradient(135deg,#1976d2,#1565c0)",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "#fff",
+                    fontSize: "0.8rem",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    boxShadow: "0 2px 8px rgba(25,118,210,0.35)",
+                    transition: "box-shadow 0.2s",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.boxShadow =
+                      "0 4px 14px rgba(25,118,210,0.5)")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.boxShadow =
+                      "0 2px 8px rgba(25,118,210,0.35)")
+                  }
+                >
+                  <span>📄</span>
+                  Generate Transmittal
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: "1.25rem",
+                      height: "1.25rem",
+                      padding: "0 0.3rem",
+                      background: "rgba(255,255,255,0.25)",
+                      borderRadius: 999,
+                      fontSize: "0.7rem",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {selectedRows.length}
+                  </span>
+                </button>
 
                 <button
                   onClick={() => {
@@ -730,12 +1080,12 @@ function DataTable({
                     cursor: "pointer",
                     transition: "background 0.2s",
                   }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#dc2626";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "#ef4444";
-                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#dc2626")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "#ef4444")
+                  }
                 >
                   Delete
                 </button>
@@ -744,7 +1094,7 @@ function DataTable({
           </div>
         </div>
 
-        {/* ✅ Processing Type Sub-Tabs (2nd row) */}
+        {/* Processing Type Sub-Tabs */}
         {showSubTabs && (
           <div
             style={{
@@ -757,7 +1107,6 @@ function DataTable({
               background: colors.cardBg,
             }}
           >
-            {/* All tab */}
             <button
               onClick={() => onProcessingTypeTabChange(null)}
               style={subTabStyle(processingTypeTab === null)}
@@ -767,7 +1116,6 @@ function DataTable({
                 {totalRecords}
               </span>
             </button>
-
             {availableProcessingTypes.map((pt) => (
               <button
                 key={pt.value}
@@ -783,7 +1131,7 @@ function DataTable({
           </div>
         )}
 
-        {/* ✅ SCROLLABLE TABLE */}
+        {/* Scrollable Table */}
         <div
           style={{
             flex: 1,
@@ -808,7 +1156,6 @@ function DataTable({
               }}
             >
               <tr>
-                {/* Checkbox */}
                 <th
                   style={{
                     padding: "1rem",
@@ -841,8 +1188,6 @@ function DataTable({
                     }}
                   />
                 </th>
-
-                {/* # */}
                 <th
                   style={{
                     padding: "1rem",
@@ -906,7 +1251,6 @@ function DataTable({
                   </th>
                 ))}
 
-                {/* Actions */}
                 <th
                   style={{
                     padding: "1rem",
@@ -958,7 +1302,6 @@ function DataTable({
                       e.currentTarget.style.background = rowBg;
                     }}
                   >
-                    {/* Checkbox */}
                     <td
                       style={{
                         padding: "1rem",
@@ -972,7 +1315,7 @@ function DataTable({
                     >
                       <input
                         type="checkbox"
-                        checked={selectedRows.includes(row.id)}
+                        checked={isSelected}
                         onChange={() => onSelectRow(row.id)}
                         style={{
                           width: "16px",
@@ -982,8 +1325,6 @@ function DataTable({
                         }}
                       />
                     </td>
-
-                    {/* Row number */}
                     <td
                       style={{
                         padding: "1rem",
@@ -1020,7 +1361,6 @@ function DataTable({
                       </td>
                     ))}
 
-                    {/* Actions */}
                     <td
                       style={{
                         padding: "1rem",
@@ -1113,7 +1453,6 @@ function DataTable({
                                   <span>Deck Application</span>
                                 </button>
                               )}
-
                               {showAppLogs && (
                                 <button
                                   onClick={() => handleOpenAppLogs(row)}
@@ -1144,13 +1483,11 @@ function DataTable({
                                   <span>Application Logs</span>
                                 </button>
                               )}
-
                               {[
                                 {
                                   label: "View Doctrack Details",
                                   icon: "📋",
                                   handler: () => handleOpenDoctrackModal(row),
-                                  borderTop: true,
                                   color: colors.textPrimary,
                                   hoverBg: colors.tableRowHover,
                                 },
@@ -1158,7 +1495,6 @@ function DataTable({
                                   label: "View Details",
                                   icon: "👁️",
                                   handler: () => handleViewDetails(row),
-                                  borderTop: true,
                                   color: colors.textPrimary,
                                   hoverBg: colors.tableRowHover,
                                 },
@@ -1166,9 +1502,8 @@ function DataTable({
                                   label: "Edit",
                                   icon: "✏️",
                                   handler: () => handleEditClick(row),
-                                  borderTop: true,
                                   color: "#2196F3",
-                                  hoverBg: "rgba(33, 150, 243, 0.1)",
+                                  hoverBg: "rgba(33,150,243,0.1)",
                                 },
                                 {
                                   label: "Delete",
@@ -1184,7 +1519,6 @@ function DataTable({
                                         "Delete functionality not yet implemented",
                                       );
                                   },
-                                  borderTop: true,
                                   color: "#ef4444",
                                   hoverBg: "#ef444410",
                                 },
@@ -1197,9 +1531,7 @@ function DataTable({
                                     padding: "0.75rem 1rem",
                                     background: "transparent",
                                     border: "none",
-                                    borderTop: item.borderTop
-                                      ? `1px solid ${colors.tableBorder}`
-                                      : "none",
+                                    borderTop: `1px solid ${colors.tableBorder}`,
                                     color: item.color,
                                     fontSize: "0.85rem",
                                     textAlign: "left",
@@ -1282,7 +1614,7 @@ function DataTable({
       {selectedRowDetails && (
         <ViewDetailsModal
           record={selectedRowDetails}
-          onClose={handleCloseDetailsModal}
+          onClose={() => setSelectedRowDetails(null)}
           colors={colors}
           darkMode={darkMode}
         />

@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { getWorkflowTasks } from "../api/workflow-tasks";
+import {
+  getWorkflowTasks,
+  markWorkflowTaskAsRead,
+} from "../api/workflow-tasks";
 import { getColorScheme } from "../components/tasks/ColorScheme";
 import { mapWorkflowTask, getCurrentUser } from "../components/tasks/taskUtils";
 import QuickFilters from "../components/tasks/QuickFilters";
@@ -43,11 +46,108 @@ function Chip({ label, onRemove, colors }) {
 }
 
 /* ================================================================== */
+/*  Sub-tab bar component                                               */
+/* ================================================================== */
+function SubTabBar({
+  activeSubTab,
+  setActiveSubTab,
+  receivedCount,
+  notYetCount,
+  colors,
+  darkMode,
+}) {
+  const tabs = [
+    {
+      key: "not_yet",
+      label: "Not Yet Received",
+      count: notYetCount,
+      color: "#f59e0b",
+    },
+    {
+      key: "received",
+      label: "Received",
+      count: receivedCount,
+      color: "#10b981",
+    },
+  ];
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: "0.5rem",
+        padding: "0.5rem 0 0",
+        flexShrink: 0,
+      }}
+    >
+      {tabs.map((t) => {
+        const isActive = activeSubTab === t.key;
+        return (
+          <button
+            key={t.key}
+            onClick={() => setActiveSubTab(t.key)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              padding: "0.35rem 0.9rem",
+              border: `1.5px solid ${isActive ? t.color : colors.cardBorder}`,
+              borderRadius: "999px",
+              background: isActive
+                ? darkMode
+                  ? `${t.color}22`
+                  : `${t.color}15`
+                : "transparent",
+              color: isActive ? t.color : colors.textSecondary,
+              fontWeight: isActive ? 700 : 500,
+              cursor: "pointer",
+              fontSize: "0.8rem",
+              transition: "all .15s",
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: t.color,
+                flexShrink: 0,
+                opacity: isActive ? 1 : 0.4,
+              }}
+            />
+            {t.label}
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                minWidth: "1.25rem",
+                height: "1.25rem",
+                padding: "0 0.3rem",
+                borderRadius: "999px",
+                fontSize: "0.68rem",
+                fontWeight: 800,
+                background: isActive ? t.color : colors.badgeBg,
+                color: isActive ? "#fff" : colors.textTertiary,
+                transition: "all .15s",
+              }}
+            >
+              {t.count}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ================================================================== */
 /*  TaskPage                                                            */
 /* ================================================================== */
 function TaskPage({ darkMode }) {
   const [data, setData] = useState([]);
   const [activeTab, setActiveTab] = useState(null);
+  const [activeSubTab, setActiveSubTab] = useState("not_yet");
   const [selectedRows, setSelectedRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -57,6 +157,7 @@ function TaskPage({ darkMode }) {
   const [totalPages, setTotalPages] = useState(0);
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [readIds, setReadIds] = useState(new Set());
 
   const [filters, setFilters] = useState({
     search: "",
@@ -90,6 +191,11 @@ function TaskPage({ darkMode }) {
       setTotalRecords(res.total || 0);
       setTotalPages(res.total_pages || 0);
       if (!activeTab && mapped.length) setActiveTab(mapped[0].applicationStep);
+
+      const alreadyRead = new Set(
+        (res.data || []).filter((t) => t.is_read === 1).map((t) => t.id),
+      );
+      setReadIds(alreadyRead);
     } catch (e) {
       console.error(e);
       setData([]);
@@ -103,12 +209,32 @@ function TaskPage({ darkMode }) {
     fetchTasks();
   }, [fetchTasks]);
 
+  const markAsRead = useCallback(async (id) => {
+    setReadIds((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+    await markWorkflowTaskAsRead(id);
+  }, []);
+
+  const handleTabChange = (step) => {
+    setActiveTab(step);
+    setActiveSubTab("not_yet");
+    setSelectedRows([]);
+  };
+
+  const handleSubTabChange = (sub) => {
+    setActiveSubTab(sub);
+    setSelectedRows([]);
+  };
+
   const steps = useMemo(
     () => Array.from(new Set(data.map((d) => d.applicationStep))),
     [data],
   );
 
-  /* ── Count per step (from full unfiltered data) ── */
   const stepCounts = useMemo(
     () =>
       steps.reduce((acc, step) => {
@@ -118,15 +244,43 @@ function TaskPage({ darkMode }) {
     [steps, data],
   );
 
+  const stepUnreadCounts = useMemo(
+    () =>
+      steps.reduce((acc, step) => {
+        acc[step] = data.filter(
+          (d) => d.applicationStep === step && !readIds.has(d.id),
+        ).length;
+        return acc;
+      }, {}),
+    [steps, data, readIds],
+  );
+
   const tabData = useMemo(
     () =>
       !activeTab ? data : data.filter((d) => d.applicationStep === activeTab),
     [data, activeTab],
   );
 
+  const receivedCount = useMemo(
+    () => tabData.filter((d) => d.is_received === 1).length,
+    [tabData],
+  );
+  const notYetReceivedCount = useMemo(
+    () => tabData.filter((d) => d.is_received !== 1).length,
+    [tabData],
+  );
+
+  const subTabData = useMemo(
+    () =>
+      activeSubTab === "received"
+        ? tabData.filter((d) => d.is_received === 1)
+        : tabData.filter((d) => d.is_received !== 1),
+    [tabData, activeSubTab],
+  );
+
   const filteredData = useMemo(
     () =>
-      tabData.filter((r) => {
+      subTabData.filter((r) => {
         const s = filters.search;
         const ms =
           !s ||
@@ -146,7 +300,7 @@ function TaskPage({ darkMode }) {
           r.processingType === filters.processingType;
         return ms && ma && mp && mst && mpt;
       }),
-    [tabData, filters],
+    [subTabData, filters],
   );
 
   const handleSelectAll = () =>
@@ -177,6 +331,13 @@ function TaskPage({ darkMode }) {
     filters.appStatus ||
     filters.processingType;
 
+  // ── Empty state label per sub-tab ──
+  const emptyLabel =
+    activeSubTab === "received"
+      ? "No received tasks yet."
+      : "No pending tasks — all caught up!";
+  const emptyIcon = activeSubTab === "received" ? "📭" : "✅";
+
   return (
     <div
       style={{
@@ -190,7 +351,7 @@ function TaskPage({ darkMode }) {
     >
       {/* ── Quick Filters Sidebar ── */}
       <QuickFilters
-        data={tabData}
+        data={subTabData}
         filters={filters}
         onFiltersChange={(f) => {
           setFilters(f);
@@ -208,7 +369,7 @@ function TaskPage({ darkMode }) {
           display: "flex",
           flexDirection: "column",
           padding: "2rem",
-          gap: "1rem",
+          gap: "0.75rem",
           overflow: "hidden",
         }}
       >
@@ -228,7 +389,7 @@ function TaskPage({ darkMode }) {
           </p>
         </div>
 
-        {/* Step tabs */}
+        {/* ── Main step tabs ── */}
         {steps.length > 0 && (
           <div
             style={{
@@ -241,13 +402,11 @@ function TaskPage({ darkMode }) {
             {steps.map((step) => {
               const isActive = activeTab === step;
               const count = stepCounts[step] ?? 0;
+              const unread = stepUnreadCounts[step] ?? 0;
               return (
                 <button
                   key={step}
-                  onClick={() => {
-                    setActiveTab(step);
-                    setSelectedRows([]);
-                  }}
+                  onClick={() => handleTabChange(step)}
                   style={{
                     display: "inline-flex",
                     alignItems: "center",
@@ -263,6 +422,7 @@ function TaskPage({ darkMode }) {
                     cursor: "pointer",
                     fontSize: "0.875rem",
                     transition: "color .15s",
+                    position: "relative",
                   }}
                 >
                   {step}
@@ -289,10 +449,36 @@ function TaskPage({ darkMode }) {
                   >
                     {count}
                   </span>
+                  {unread > 0 && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 4,
+                        right: 2,
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "#ef4444",
+                        border: "1.5px solid " + colors.pageBg,
+                      }}
+                    />
+                  )}
                 </button>
               );
             })}
           </div>
+        )}
+
+        {/* ── Sub-tabs ── */}
+        {steps.length > 0 && (
+          <SubTabBar
+            activeSubTab={activeSubTab}
+            setActiveSubTab={handleSubTabChange}
+            receivedCount={receivedCount}
+            notYetCount={notYetReceivedCount}
+            colors={colors}
+            darkMode={darkMode}
+          />
         )}
 
         {/* Active filter chips */}
@@ -381,7 +567,44 @@ function TaskPage({ darkMode }) {
           </div>
         )}
 
-        {!loading && (
+        {/* ── Empty state — only shown when sub-tab has no records ── */}
+        {!loading && filteredData.length === 0 && (
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.75rem",
+              color: colors.textTertiary,
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 12,
+              minHeight: 0,
+            }}
+          >
+            <span style={{ fontSize: "2.5rem" }}>{emptyIcon}</span>
+            <p
+              style={{
+                fontSize: "1rem",
+                fontWeight: 600,
+                color: colors.textSecondary,
+                margin: 0,
+              }}
+            >
+              {emptyLabel}
+            </p>
+            {hasActiveFilters && (
+              <p style={{ fontSize: "0.82rem", margin: 0 }}>
+                Try clearing your filters.
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── DataTable — only shown when there are records ── */}
+        {!loading && filteredData.length > 0 && (
           <div style={{ flex: 1, minHeight: 0 }}>
             <DataTable
               data={filteredData}
@@ -400,6 +623,7 @@ function TaskPage({ darkMode }) {
               colors={colors}
               darkMode={darkMode}
               activeTab={activeTab}
+              activeSubTab={activeSubTab}
               onRefresh={fetchTasks}
               onClearSelections={() => setSelectedRows([])}
               indexOfFirstRow={indexOfFirstRow}
@@ -410,6 +634,8 @@ function TaskPage({ darkMode }) {
               sortBy={sortBy}
               sortOrder={sortOrder}
               onSort={handleSort}
+              readIds={readIds}
+              onMarkAsRead={markAsRead}
             />
           </div>
         )}
