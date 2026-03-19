@@ -1665,7 +1665,7 @@ function DataTable({
       doc.setFontSize(7);
       doc.setTextColor(120);
       doc.text(
-        `Page ${pg} of ${totalPgs}  |  FDA CDRR Engine — Transmittal Slip`,
+        `Page ${pg} of ${totalPgs}  |  FDA-CDRR DBMS — Transmittal Slip`,
         pageW / 2,
         pageH - 3,
         { align: "center" },
@@ -1697,12 +1697,12 @@ function DataTable({
       doc.text("Prepared by/Date:", col1X, baseY);
       doc.setFont("helvetica", "normal");
       doc.text(
-        `${preparedBy} / ${dateStr}`,
+        ` ${preparedBy} / ${dateStr}`,
         col1X + doc.getTextWidth("Prepared by/Date: "),
         baseY,
       );
       doc.setFont("helvetica", "bold");
-      doc.text("Received by Evaluator/Date:", col1X, baseY + 12);
+      doc.text("Received by Name/Date:", col1X, baseY + 12);
       doc.setDrawColor(120);
       doc.line(col1X, baseY + 17, col1X + 65, baseY + 17);
       doc.setFont("helvetica", "bold");
