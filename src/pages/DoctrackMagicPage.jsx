@@ -1749,11 +1749,14 @@ function DoctrackMagicPage({ darkMode }) {
 
   const [currentUser, setCurrentUser] = useState("unknown");
   const [currentAlias, setCurrentAlias] = useState("");
+  const [currentRole, setCurrentRole] = useState("User");
+
   useEffect(() => {
     getCurrentUser()
       .then((res) => {
         setCurrentUser(res.username ?? "unknown");
         setCurrentAlias(res.alias ?? "");
+        setCurrentRole(res.role ?? "User"); // ← dagdag
       })
       .catch(() => setCurrentUser("unknown"));
   }, []);
@@ -2808,7 +2811,11 @@ function DoctrackMagicPage({ darkMode }) {
       )}
 
       <UploadHistory
-        history={uploadHistory}
+        history={
+          ["Admin", "SuperAdmin"].includes(currentRole)
+            ? uploadHistory // Admin → lahat
+            : uploadHistory.filter((h) => h.uploadedBy === currentUser) // User → sarili lang
+        }
         loading={historyLoading}
         darkMode={darkMode}
         cardBg={cardBg}
