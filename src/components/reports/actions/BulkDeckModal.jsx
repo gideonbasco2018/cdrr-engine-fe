@@ -7,7 +7,594 @@ import {
   getLastApplicationLogIndex,
 } from "../../../api/application-logs";
 
-function BulkDeckModal({ records, onClose, onSuccess, colors }) {
+// ── Transmittal PDF Generator ─────────────────────────────────────────────────
+const loadScript = (src) =>
+  new Promise((res, rej) => {
+    if (document.querySelector(`script[src="${src}"]`)) return res();
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = res;
+    s.onerror = rej;
+    document.head.appendChild(s);
+  });
+
+async function generateTransmittalPDF(records) {
+  await loadScript(
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+  );
+  await loadScript(
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js",
+  );
+  await loadScript(
+    "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js",
+  );
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("en-PH", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
+  const genBarcode = (value) => {
+    try {
+      const canvas = document.createElement("canvas");
+      window.JsBarcode(canvas, String(value), {
+        format: "CODE128",
+        width: 1.4,
+        height: 14,
+        displayValue: false,
+        margin: 1,
+        background: "#ffffff",
+        lineColor: "#000000",
+      });
+      return canvas.toDataURL("image/png");
+    } catch {
+      return null;
+    }
+  };
+
+  const barcodeImages = records.map((r) =>
+    genBarcode(r.dtn && r.dtn !== "N/A" ? r.dtn : "N/A"),
+  );
+
+  // Header
+  doc.setFillColor(25, 118, 210);
+  doc.rect(0, 0, pageW, 16, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("TRANSMITTAL SLIP", 10, 7);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.text("FDA Center for Drug Regulation and Research (CDRR)", 10, 13);
+  doc.text(`Generated: ${dateStr}  ${timeStr}`, pageW - 10, 7, {
+    align: "right",
+  });
+  doc.text(`Total records: ${records.length}`, pageW - 10, 13, {
+    align: "right",
+  });
+
+  const cols = [
+    { header: "#", dataKey: "_no" },
+    { header: "Barcode", dataKey: "_barcode" },
+    { header: "Doctrack Number", dataKey: "dtn" },
+    { header: "Category", dataKey: "estCat" },
+    { header: "Applicant Company", dataKey: "ltoCompany" },
+    { header: "Product Information", dataKey: "_productInfo" },
+    { header: "Dosage Strength and Form", dataKey: "_dosage" },
+    { header: "Registration No.", dataKey: "regNo" },
+    { header: "App Type", dataKey: "_appTypeFull" },
+    { header: "Date Received from FDAC", dataKey: "dateReceivedFdac" },
+  ];
+
+  const rows = records.map((r, i) => {
+    const brand =
+      r.prodBrName && r.prodBrName !== "N/A" ? `Brand: ${r.prodBrName}` : "";
+    const generic =
+      r.prodGenName && r.prodGenName !== "N/A"
+        ? `Generic: ${r.prodGenName}`
+        : "";
+    const productInfo = [brand, generic].filter(Boolean).join("\n") || "—";
+    const strength = r.prodDosStr && r.prodDosStr !== "N/A" ? r.prodDosStr : "";
+    const form = r.prodDosForm && r.prodDosForm !== "N/A" ? r.prodDosForm : "";
+    const dosage = [strength, form].filter(Boolean).join(" / ") || "—";
+    const amendments = [r.ammend1, r.ammend2, r.ammend3]
+      .filter((a) => a && a !== "N/A" && a.trim() !== "")
+      .join(" / ");
+    const appTypeFull = [r.appType ?? "—", amendments]
+      .filter(Boolean)
+      .join("\n");
+    return {
+      _no: i + 1,
+      _barcode: "",
+      dtn: r.dtn ?? "—",
+      estCat: r.estCat ?? "—",
+      ltoCompany: r.ltoComp ?? r.ltoCompany ?? "—",
+      _productInfo: productInfo,
+      _dosage: dosage,
+      regNo: r.regNo ?? "—",
+      _appTypeFull: appTypeFull,
+      dateReceivedFdac: r.dateReceivedFdac ?? "—",
+    };
+  });
+
+  const BRH = 10,
+    BIW = 24,
+    BIH = 5;
+  doc.autoTable({
+    startY: 18,
+    columns: cols,
+    body: rows,
+    theme: "grid",
+    styles: {
+      fontSize: 6.5,
+      cellPadding: 1.2,
+      overflow: "linebreak",
+      textColor: [30, 30, 30],
+      minCellHeight: BRH,
+      valign: "middle",
+      lineWidth: 0.1,
+    },
+    headStyles: {
+      fillColor: [21, 101, 192],
+      textColor: 255,
+      fontStyle: "bold",
+      fontSize: 6.5,
+      halign: "center",
+      minCellHeight: 7,
+      valign: "middle",
+      cellPadding: 1,
+    },
+    alternateRowStyles: { fillColor: [240, 247, 255] },
+    margin: { left: 6, right: 6 },
+    columnStyles: {
+      _no: { halign: "center", cellWidth: 7, valign: "middle" },
+      _barcode: { cellWidth: 28, halign: "center", valign: "middle" },
+      dtn: {
+        cellWidth: 28,
+        halign: "center",
+        valign: "middle",
+        fontStyle: "bold",
+      },
+      estCat: { cellWidth: 14, valign: "middle" },
+      ltoCompany: { cellWidth: 42, valign: "middle" },
+      _productInfo: { cellWidth: 48, valign: "middle" },
+      _dosage: { cellWidth: 30, valign: "middle" },
+      regNo: { cellWidth: 22, halign: "center", valign: "middle" },
+      _appTypeFull: { cellWidth: 34, valign: "middle" },
+      dateReceivedFdac: { cellWidth: 22, halign: "center", valign: "middle" },
+    },
+    didDrawCell: (h) => {
+      if (h.section === "body" && h.column.dataKey === "_barcode") {
+        const img = barcodeImages[h.row.index];
+        if (img) {
+          const cell = h.cell;
+          doc.addImage(
+            img,
+            "PNG",
+            cell.x + (cell.width - BIW) / 2,
+            cell.y + (cell.height - BIH) / 2,
+            BIW,
+            BIH,
+          );
+        }
+      }
+    },
+  });
+
+  // Footer + signature block
+  const totalPgs = doc.internal.getNumberOfPages();
+  for (let pg = 1; pg <= totalPgs; pg++) {
+    doc.setPage(pg);
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, pageH - 8, pageW, 8, "F");
+    doc.setFontSize(7);
+    doc.setTextColor(120);
+    doc.text(
+      `Page ${pg} of ${totalPgs}  |  FDA CDRR Engine — Transmittal Slip`,
+      pageW / 2,
+      pageH - 3,
+      { align: "center" },
+    );
+    doc.setTextColor(30, 30, 30);
+  }
+  doc.setPage(totalPgs);
+  const finalY = doc.lastAutoTable.finalY + 6;
+  if (finalY < pageH - 26) {
+    let preparedBy = "";
+    try {
+      const raw =
+        localStorage.getItem("user") || sessionStorage.getItem("user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        preparedBy = `${u.first_name || ""} ${u.surname || ""}`.trim();
+      }
+    } catch (_) {}
+    if (!preparedBy) preparedBy = "___________________";
+
+    doc.setDrawColor(160);
+    doc.setLineWidth(0.25);
+    const col1X = 14,
+      col2X = pageW / 2 - 28,
+      col3X = pageW - 70,
+      baseY = finalY + 4;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(30, 30, 30);
+    doc.text("Prepared by/Date:", col1X, baseY);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `${preparedBy} / ${dateStr}`,
+      col1X + doc.getTextWidth("Prepared by/Date: "),
+      baseY,
+    );
+    doc.setFont("helvetica", "bold");
+    doc.text("Received by Evaluator/Date:", col1X, baseY + 12);
+    doc.setDrawColor(120);
+    doc.line(col1X, baseY + 17, col1X + 65, baseY + 17);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(30, 30, 30);
+    doc.text("MELODY M. ZAMUDIO, RPh, MGM-ESP", col2X, baseY + 5, {
+      align: "center",
+    });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(60);
+    doc.text("FDRO V/Chief, LRD", col2X, baseY + 10, { align: "center" });
+    doc.text("Center for Drug Regulation and Research", col2X, baseY + 15, {
+      align: "center",
+    });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(30, 30, 30);
+    doc.text("NON-ACCEPTANCE AND SWITCHING", col3X, baseY + 10, {
+      align: "center",
+    });
+    doc.text("REQUIRES PRIOR APPROVAL BY CHIEF LRD", col3X, baseY + 15, {
+      align: "center",
+    });
+  }
+
+  doc.save(`transmittal_reports_${now.toISOString().slice(0, 10)}.pdf`);
+}
+
+// ── Transmittal Prompt Modal ──────────────────────────────────────────────────
+function TransmittalPromptModal({
+  result,
+  records,
+  colors,
+  darkMode,
+  onYes,
+  onNo,
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleYes = async () => {
+    setDownloading(true);
+    try {
+      await onYes();
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10001,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backdropFilter: "blur(4px)",
+        animation: "fadeIn 0.2s ease",
+      }}
+      onClick={onNo}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: 16,
+          overflow: "hidden",
+          width: 460,
+          maxWidth: "92%",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
+          animation: "slideInScale 0.25s ease",
+        }}
+      >
+        {/* Result header */}
+        <div
+          style={{
+            padding: "1.25rem 1.5rem",
+            borderBottom: `1px solid ${colors.cardBorder}`,
+            background: colors.badgeBg,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <span style={{ fontSize: "1.6rem" }}>
+            {result.errors.length === 0 ? "✅" : "⚠️"}
+          </span>
+          <div>
+            <div
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: colors.textTertiary,
+              }}
+            >
+              Bulk Deck
+            </div>
+            <div
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: result.errors.length === 0 ? "#4CAF50" : "#f59e0b",
+              }}
+            >
+              {result.errors.length === 0
+                ? "Completed Successfully"
+                : "Completed with Errors"}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "1.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "1.25rem",
+          }}
+        >
+          {/* Stats */}
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <div
+              style={{
+                flex: 1,
+                padding: "0.75rem",
+                background: "rgba(76,175,80,0.08)",
+                border: "1px solid rgba(76,175,80,0.25)",
+                borderRadius: 10,
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "1.6rem",
+                  fontWeight: 800,
+                  color: "#4CAF50",
+                }}
+              >
+                {records.length - result.errors.length}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.72rem",
+                  color: colors.textTertiary,
+                  marginTop: 2,
+                }}
+              >
+                Successfully decked
+              </div>
+            </div>
+            {result.errors.length > 0 && (
+              <div
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  background: "rgba(239,68,68,0.08)",
+                  border: "1px solid rgba(239,68,68,0.25)",
+                  borderRadius: 10,
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "1.6rem",
+                    fontWeight: 800,
+                    color: "#ef4444",
+                  }}
+                >
+                  {result.errors.length}
+                </div>
+                <div
+                  style={{
+                    fontSize: "0.72rem",
+                    color: colors.textTertiary,
+                    marginTop: 2,
+                  }}
+                >
+                  Failed
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Failed DTNs if any */}
+          {result.errors.length > 0 && (
+            <div
+              style={{
+                padding: "0.75rem 1rem",
+                background: "rgba(239,68,68,0.06)",
+                border: "1px solid rgba(239,68,68,0.2)",
+                borderRadius: 8,
+              }}
+            >
+              <p
+                style={{
+                  margin: "0 0 0.4rem",
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  color: "#ef4444",
+                }}
+              >
+                Failed DTNs:
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.75rem",
+                  color: colors.textSecondary,
+                  wordBreak: "break-all",
+                }}
+              >
+                {result.errors.join(", ")}
+              </p>
+            </div>
+          )}
+
+          {/* Transmittal prompt */}
+          <div
+            style={{
+              padding: "1rem 1.25rem",
+              background: "rgba(25,118,210,0.06)",
+              border: "1px solid rgba(25,118,210,0.2)",
+              borderRadius: 12,
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.6rem",
+            }}
+          >
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <span style={{ fontSize: "1.1rem" }}>📄</span>
+              <span
+                style={{
+                  fontSize: "0.88rem",
+                  fontWeight: 700,
+                  color: colors.textPrimary,
+                }}
+              >
+                Download Transmittal Slip?
+              </span>
+            </div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.78rem",
+                color: colors.textSecondary,
+                lineHeight: 1.5,
+              }}
+            >
+              Would you like to generate and download a transmittal slip for the{" "}
+              <strong>{records.length - result.errors.length}</strong>{" "}
+              successfully decked record
+              {records.length - result.errors.length !== 1 ? "s" : ""}?
+            </p>
+          </div>
+
+          {/* Yes / No buttons */}
+          <div style={{ display: "flex", gap: "0.75rem" }}>
+            <button
+              onClick={onNo}
+              style={{
+                flex: 1,
+                padding: "0.7rem",
+                borderRadius: 8,
+                border: `1px solid ${colors.cardBorder}`,
+                background: "transparent",
+                color: colors.textSecondary,
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = colors.badgeBg)
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+            >
+              No, Skip
+            </button>
+            <button
+              onClick={handleYes}
+              disabled={downloading}
+              style={{
+                flex: 1,
+                padding: "0.7rem",
+                borderRadius: 8,
+                border: "none",
+                background: downloading
+                  ? "rgba(25,118,210,0.4)"
+                  : "linear-gradient(135deg,#1976d2,#1565c0)",
+                color: "#fff",
+                fontSize: "0.85rem",
+                fontWeight: 700,
+                cursor: downloading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.5rem",
+                boxShadow: downloading
+                  ? "none"
+                  : "0 2px 8px rgba(25,118,210,0.35)",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!downloading)
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 14px rgba(25,118,210,0.5)";
+              }}
+              onMouseLeave={(e) => {
+                if (!downloading)
+                  e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(25,118,210,0.35)";
+              }}
+            >
+              {downloading ? (
+                <>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 13,
+                      height: 13,
+                      border: "2px solid rgba(255,255,255,0.4)",
+                      borderTopColor: "#fff",
+                      borderRadius: "50%",
+                      animation: "spin 0.6s linear infinite",
+                    }}
+                  />
+                  Generating…
+                </>
+              ) : (
+                <>
+                  <span>📄</span>Yes, Download
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main BulkDeckModal ────────────────────────────────────────────────────────
+function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   const [formData, setFormData] = useState({
     decker: "",
     evaluator: "",
@@ -23,8 +610,13 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
   const [sneUsers, setSneUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
-  // ── Confirmation step ──
   const [confirmSubmit, setConfirmSubmit] = useState(false);
+
+  // ── NEW: transmittal prompt state ──
+  const [deckResult, setDeckResult] = useState(null); // { errors: [] }
+  const [showTransmittalPrompt, setShowTransmittalPrompt] = useState(false);
+  // Save records that succeeded for transmittal
+  const [succeededRecords, setSucceededRecords] = useState([]);
 
   const GROUP_IDS = { EVALUATOR: 3, SE: 15 };
 
@@ -48,69 +640,54 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
     setNextUsers([]);
     setSneUsers([]);
     if (!decision || !DECISION_CONFIG[decision]) return;
-    const config = DECISION_CONFIG[decision];
+    const cfg = DECISION_CONFIG[decision];
 
-    const fetchEvaluatorUsers = async () => {
-      try {
-        setLoadingUsers(true);
-        const users = await getUsersByGroup(GROUP_IDS.EVALUATOR);
-        setNextUsers(users);
-      } catch (error) {
-        console.error("❌ Failed to fetch evaluator users:", error);
-        setNextUsers([]);
-      } finally {
-        setLoadingUsers(false);
-      }
-    };
-
-    const fetchSeUsers = async () => {
-      try {
-        setLoadingSneUsers(true);
-        const users = await getUsersByGroup(GROUP_IDS.SE);
-        setSneUsers(users);
-      } catch (error) {
-        console.error("❌ Failed to fetch S&E users:", error);
-        setSneUsers([]);
-      } finally {
-        setLoadingSneUsers(false);
-      }
-    };
-
-    if (config.fetchEvaluator) fetchEvaluatorUsers();
-    if (config.fetchSne) fetchSeUsers();
+    if (cfg.fetchEvaluator) {
+      (async () => {
+        try {
+          setLoadingUsers(true);
+          setNextUsers(await getUsersByGroup(GROUP_IDS.EVALUATOR));
+        } catch (e) {
+          console.error(e);
+          setNextUsers([]);
+        } finally {
+          setLoadingUsers(false);
+        }
+      })();
+    }
+    if (cfg.fetchSne) {
+      (async () => {
+        try {
+          setLoadingSneUsers(true);
+          setSneUsers(await getUsersByGroup(GROUP_IDS.SE));
+        } catch (e) {
+          console.error(e);
+          setSneUsers([]);
+        } finally {
+          setLoadingSneUsers(false);
+        }
+      })();
+    }
   }, [formData.deckerDecision]);
 
-  const handleChange = (field, value) => {
+  const handleChange = (field, value) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
-  };
 
-  // ── Called after user confirms in the confirmation modal ──
-  const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
-    const config = DECISION_CONFIG[formData.deckerDecision];
-    const needsEvaluator = config?.fetchEvaluator;
-    const needsSne = config?.fetchSne;
-
-    if (!formData.decker || !formData.deckerDecision) {
-      alert("⚠️ Please fill in required fields:\n- Decker Decision");
-      return;
-    }
-    if (needsEvaluator && !formData.evaluator) {
-      alert("⚠️ Please assign an Evaluator.");
-      return;
-    }
-    if (needsSne && !formData.sne) {
-      alert("⚠️ Please assign an S&E.");
-      return;
-    }
+  // ── Core deck logic ──
+  const handleSubmit = async () => {
+    const cfg = DECISION_CONFIG[formData.deckerDecision];
+    const needsEvaluator = cfg?.fetchEvaluator;
+    const needsSne = cfg?.fetchSne;
 
     setLoading(true);
     setProgress({ current: 0, total: records.length });
 
     const now = new Date();
-    const phtOffset = 8 * 60 * 60 * 1000;
-    const formattedDateTime = new Date(now.getTime() + phtOffset).toISOString();
+    const formattedDateTime = new Date(
+      now.getTime() + 8 * 60 * 60 * 1000,
+    ).toISOString();
     const errors = [];
+    const succeeded = [];
 
     try {
       for (let i = 0; i < records.length; i++) {
@@ -121,9 +698,8 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
           const indexData = await getLastApplicationLogIndex(record.id);
           const lastIndex = indexData.last_index;
           const nextIndex = lastIndex + 1;
-          const closeTask = 0;
-          const openTask = 1;
 
+          // Decking log — COMPLETED
           await createApplicationLog({
             main_db_id: record.id,
             application_step: "Decking",
@@ -135,11 +711,12 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
             accomplished_date: formattedDateTime,
             del_index: nextIndex,
             del_previous: lastIndex,
-            del_last_index: closeTask,
+            del_last_index: 0,
             del_thread: "Close",
           });
 
           if (formData.deckerDecision === "For S&E and Quality Evaluation") {
+            // Quality Evaluation log
             await createApplicationLog({
               main_db_id: record.id,
               application_step: "Quality Evaluation",
@@ -151,9 +728,10 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
               accomplished_date: null,
               del_index: nextIndex + 1,
               del_previous: nextIndex,
-              del_last_index: openTask,
+              del_last_index: 1,
               del_thread: "Open",
             });
+            // S&E log
             await createApplicationLog({
               main_db_id: record.id,
               application_step: "S&E",
@@ -165,7 +743,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
               accomplished_date: null,
               del_index: nextIndex + 2,
               del_previous: nextIndex,
-              del_last_index: openTask,
+              del_last_index: 1,
               del_thread: "Open",
             });
           } else {
@@ -187,25 +765,25 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
               accomplished_date: null,
               del_index: nextIndex + 1,
               del_previous: nextIndex,
-              del_last_index: openTask,
+              del_last_index: 1,
               del_thread: "Open",
             });
           }
+
+          succeeded.push(record);
         } catch (err) {
           console.error(`❌ Failed to deck DTN ${record.dtn}:`, err);
           errors.push(record.dtn);
         }
       }
 
-      onClose();
-      if (errors.length > 0) {
-        alert(
-          `⚠️ Decking completed with errors.\n\nFailed DTNs:\n${errors.join(", ")}`,
-        );
-      } else {
-        alert(`✅ Successfully decked ${records.length} applications!`);
-      }
-      if (onSuccess) await onSuccess();
+      // ── Show transmittal prompt instead of alert ──
+      // NOTE: onSuccess is called AFTER transmittal decision to prevent
+      // parent re-render from unmounting this modal before user sees prompt
+      setSucceededRecords(succeeded);
+      setDeckResult({ errors });
+      setShowTransmittalPrompt(true);
+      // onSuccess called in handleTransmittalYes / handleTransmittalNo
     } catch (error) {
       console.error("❌ Bulk deck failed:", error);
       alert(`❌ Bulk deck failed: ${error.message}`);
@@ -215,25 +793,38 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
     }
   };
 
-  // ── Form validation before showing confirmation ──
+  // ── Form validation → show confirmation modal ──
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    const config = DECISION_CONFIG[formData.deckerDecision];
+    const cfg = DECISION_CONFIG[formData.deckerDecision];
     if (!formData.deckerDecision)
       return alert("⚠️ Please select a Decker Decision.");
-    if (config?.fetchEvaluator && !formData.evaluator)
+    if (cfg?.fetchEvaluator && !formData.evaluator)
       return alert("⚠️ Please assign an Evaluator.");
-    if (config?.fetchSne && !formData.sne)
+    if (cfg?.fetchSne && !formData.sne)
       return alert("⚠️ Please assign an S&E.");
-    // All valid — show confirmation
     setConfirmSubmit(true);
   };
 
-  const config = DECISION_CONFIG[formData.deckerDecision];
+  // ── Transmittal handlers ──
+  const handleTransmittalYes = async () => {
+    await generateTransmittalPDF(succeededRecords);
+    setShowTransmittalPrompt(false);
+    if (onSuccess) await onSuccess(); // refresh parent after download
+    onClose();
+  };
+
+  const handleTransmittalNo = async () => {
+    setShowTransmittalPrompt(false);
+    if (onSuccess) await onSuccess(); // refresh parent on skip too
+    onClose();
+  };
+
+  const cfg = DECISION_CONFIG[formData.deckerDecision];
   const isDualAssign =
     formData.deckerDecision === "For S&E and Quality Evaluation";
-  const showEvaluator = config?.fetchEvaluator;
-  const showSne = config?.fetchSne;
+  const showEvaluator = cfg?.fetchEvaluator;
+  const showSne = cfg?.fetchSne;
   const showNextUser = !!formData.deckerDecision;
 
   const isSubmitDisabled =
@@ -255,14 +846,14 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
           left: 0,
           right: 0,
           bottom: 0,
-          background: "rgba(0, 0, 0, 0.6)",
+          background: "rgba(0,0,0,0.6)",
           zIndex: 9998,
           backdropFilter: "blur(4px)",
           animation: "fadeIn 0.2s ease",
         }}
       />
 
-      {/* Outer centering container */}
+      {/* Centering container */}
       <div
         style={{
           position: "fixed",
@@ -291,7 +882,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
             background: colors.cardBg,
             borderRadius: "16px",
             boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-            animation: "slideInScale 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            animation: "slideInScale 0.3s cubic-bezier(0.4,0,0.2,1)",
             border: `1px solid ${colors.cardBorder}`,
             display: "flex",
             flexDirection: "column",
@@ -545,12 +1136,10 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
                     transition: "all 0.2s",
                     boxSizing: "border-box",
                   }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#4CAF50";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = colors.inputBorder;
-                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                  onBlur={(e) =>
+                    (e.target.style.borderColor = colors.inputBorder)
+                  }
                 >
                   <option value="">Select decision</option>
                   <option value="For S&E">For S&amp;E</option>
@@ -597,12 +1186,10 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
                     transition: "all 0.2s",
                     boxSizing: "border-box",
                   }}
-                  onFocus={(e) => {
-                    e.target.style.borderColor = "#4CAF50";
-                  }}
-                  onBlur={(e) => {
-                    e.target.style.borderColor = colors.inputBorder;
-                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                  onBlur={(e) =>
+                    (e.target.style.borderColor = colors.inputBorder)
+                  }
                 />
               </div>
 
@@ -738,7 +1325,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
                 </div>
               )}
 
-              {/* Info Box */}
+              {/* Info box */}
               <div
                 style={{
                   padding: "1rem",
@@ -943,63 +1530,49 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
                 gap: "0.5rem",
               }}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.85rem",
-                }}
-              >
-                <span style={{ color: colors.textTertiary }}>Decision</span>
-                <strong style={{ color: colors.textPrimary }}>
-                  {formData.deckerDecision}
-                </strong>
-              </div>
-              {formData.evaluator && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  <span style={{ color: colors.textTertiary }}>Evaluator</span>
-                  <strong style={{ color: "#4CAF50" }}>
-                    {formData.evaluator}
-                  </strong>
-                </div>
-              )}
-              {formData.sne && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  <span style={{ color: colors.textTertiary }}>S&E</span>
-                  <strong style={{ color: "#2196F3" }}>{formData.sne}</strong>
-                </div>
-              )}
-              {formData.deckerRemarks && (
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    fontSize: "0.85rem",
-                    gap: "1rem",
-                  }}
-                >
-                  <span style={{ color: colors.textTertiary, flexShrink: 0 }}>
-                    Remarks
-                  </span>
-                  <span
-                    style={{ color: colors.textSecondary, textAlign: "right" }}
+              {[
+                {
+                  label: "Decision",
+                  value: formData.deckerDecision,
+                  color: colors.textPrimary,
+                },
+                formData.evaluator
+                  ? {
+                      label: "Evaluator",
+                      value: formData.evaluator,
+                      color: "#4CAF50",
+                    }
+                  : null,
+                formData.sne
+                  ? { label: "S&E", value: formData.sne, color: "#2196F3" }
+                  : null,
+                formData.deckerRemarks
+                  ? {
+                      label: "Remarks",
+                      value: formData.deckerRemarks,
+                      color: colors.textSecondary,
+                    }
+                  : null,
+              ]
+                .filter(Boolean)
+                .map((item, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "0.85rem",
+                      gap: "1rem",
+                    }}
                   >
-                    {formData.deckerRemarks}
-                  </span>
-                </div>
-              )}
+                    <span style={{ color: colors.textTertiary, flexShrink: 0 }}>
+                      {item.label}
+                    </span>
+                    <strong style={{ color: item.color, textAlign: "right" }}>
+                      {item.value}
+                    </strong>
+                  </div>
+                ))}
               <div
                 style={{
                   borderTop: `1px solid ${colors.cardBorder}`,
@@ -1084,6 +1657,18 @@ function BulkDeckModal({ records, onClose, onSuccess, colors }) {
         </div>
       )}
 
+      {/* ── Transmittal Prompt Modal ── */}
+      {showTransmittalPrompt && deckResult && (
+        <TransmittalPromptModal
+          result={deckResult}
+          records={succeededRecords}
+          colors={colors}
+          darkMode={darkMode}
+          onYes={handleTransmittalYes}
+          onNo={handleTransmittalNo}
+        />
+      )}
+
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideInScale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
@@ -1150,9 +1735,7 @@ function UserSelect({ value, onChange, users, colors }) {
       onFocus={(e) => {
         if (users.length > 0) e.target.style.borderColor = "#4CAF50";
       }}
-      onBlur={(e) => {
-        e.target.style.borderColor = colors.inputBorder;
-      }}
+      onBlur={(e) => (e.target.style.borderColor = colors.inputBorder)}
     >
       <option value="">
         {users.length === 0 ? "No users available" : "Select a user"}
