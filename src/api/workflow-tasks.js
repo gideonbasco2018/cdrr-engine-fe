@@ -71,3 +71,41 @@ export const getWorkflowTaskThreadHistory = async (delThread, params = {}) => {
     throw new Error(errorMessage);
   }
 };
+
+/**
+ * Mark a specific ApplicationLog as read.
+ * Sets is_read = 1 and read_at = now() on the backend.
+ * Safe to call multiple times — backend only updates on first call.
+ *
+ * @param {number} logId  - The ApplicationLog id (row.id from the table)
+ * @returns {Promise<{id: number, is_read: number, read_at: string|null}>}
+ */
+export const markWorkflowTaskAsRead = async (logId) => {
+  try {
+    const response = await API.patch(`/workflow_tasks/${logId}/mark-read`);
+    return response.data;
+  } catch (error) {
+    // Non-blocking — don't crash the UI if mark-read fails
+    console.warn(`Failed to mark log ${logId} as read:`, error);
+  }
+};
+
+/**
+ * Bulk mark ApplicationLogs as received.
+ * Sets is_received = 1, received_at = now(), received_by = current user on the backend.
+ * Idempotent — already-received rows are skipped gracefully.
+ *
+ * @param {number[]} ids  - Array of ApplicationLog IDs to mark as received
+ * @returns {Promise<{updated: number, skipped: number, results: Array}>}
+ */
+export const markWorkflowTasksAsReceived = async (ids = []) => {
+  try {
+    const response = await API.patch("/workflow_tasks/mark-received", { ids });
+    return response.data;
+  } catch (error) {
+    console.error("Failed to mark logs as received:", error);
+    const errorMessage =
+      error.response?.data?.detail || error.message || "Failed to mark as received";
+    throw new Error(errorMessage);
+  }
+};

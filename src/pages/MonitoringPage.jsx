@@ -50,7 +50,6 @@ const evaluatorNames = [
   "Liza Reyes",
 ];
 
-// Role map for each task-handling user
 const USER_ROLE_MAP = {
   "Juan dela Cruz": "Evaluator",
   "Maria Santos": "QA Officer",
@@ -147,6 +146,106 @@ const DRUG_CATALOG = [
   { name: "MMR-II", generic: "MMR Vaccine", rx: "Vaccine" },
 ];
 
+// ── Country Data per Entity Type ──────────────────────────────────────────────
+const MFR_COUNTRIES = [
+  "India",
+  "China",
+  "USA",
+  "Germany",
+  "Switzerland",
+  "South Korea",
+  "Japan",
+  "UK",
+  "France",
+  "Philippines",
+  "Singapore",
+  "Belgium",
+  "Netherlands",
+  "Italy",
+  "Canada",
+];
+const TRADER_COUNTRIES = [
+  "Philippines",
+  "Singapore",
+  "Hong Kong",
+  "India",
+  "USA",
+  "UK",
+  "Switzerland",
+  "Germany",
+  "Japan",
+  "South Korea",
+  "Thailand",
+  "Malaysia",
+  "Indonesia",
+  "Australia",
+  "China",
+];
+const IMPORTER_COUNTRIES = [
+  "Philippines",
+  "Singapore",
+  "Hong Kong",
+  "India",
+  "USA",
+  "China",
+  "Germany",
+  "Japan",
+  "South Korea",
+  "UK",
+  "France",
+  "Switzerland",
+  "Netherlands",
+  "Belgium",
+  "Australia",
+];
+const DISTRIBUTOR_COUNTRIES = [
+  "Philippines",
+  "India",
+  "China",
+  "USA",
+  "Singapore",
+  "Germany",
+  "UK",
+  "Japan",
+  "South Korea",
+  "Thailand",
+  "Malaysia",
+  "Indonesia",
+  "Australia",
+  "Switzerland",
+  "France",
+];
+const REPACKER_COUNTRIES = [
+  "Philippines",
+  "India",
+  "China",
+  "Indonesia",
+  "Vietnam",
+  "Thailand",
+  "Malaysia",
+  "Singapore",
+  "South Korea",
+  "Japan",
+  "USA",
+  "Germany",
+  "Australia",
+  "UK",
+  "France",
+];
+
+const ENTITY_TYPES = [
+  { key: "mfrCountry", label: "Manufacturer", icon: "🏭", color: "#1877F2" },
+  { key: "traderCountry", label: "Trader", icon: "🤝", color: "#9333ea" },
+  { key: "importerCountry", label: "Importer", icon: "🚢", color: "#0891b2" },
+  {
+    key: "distributorCountry",
+    label: "Distributor",
+    icon: "🚚",
+    color: "#f59e0b",
+  },
+  { key: "repackerCountry", label: "Repacker", icon: "📦", color: "#36a420" },
+];
+
 const appSteps = [
   "For Evaluation",
   "For Compliance",
@@ -184,7 +283,6 @@ const yearlyMix = {
   2026: { approved: 20, disapproved: 8, onProcess: 30 },
 };
 
-// Static activity feed data
 const ACTIVITY_FEED = [
   {
     id: 1,
@@ -260,7 +358,6 @@ const ACTIVITY_FEED = [
   },
 ];
 
-// Static deadline data
 const DEADLINES = [
   {
     dtn: "20260308091422",
@@ -312,7 +409,6 @@ const DEADLINES = [
   },
 ];
 
-// Static compliance flags
 const COMPLIANCE_FLAGS = [
   {
     dtn: "20260301091234",
@@ -356,7 +452,6 @@ const COMPLIANCE_FLAGS = [
   },
 ];
 
-// Workload heatmap data (Mon-Fri, last 4 weeks) — clearly varied for accurate visual contrast
 const WORKLOAD_DATA = {
   "Juan dela Cruz": [
     2, 7, 4, 0, 6, 5, 8, 1, 6, 7, 0, 5, 8, 3, 4, 7, 1, 8, 5, 0,
@@ -368,7 +463,6 @@ const WORKLOAD_DATA = {
   "Liza Reyes": [2, 6, 0, 5, 7, 6, 0, 5, 7, 1, 3, 7, 2, 6, 0, 6, 0, 5, 2, 7],
 };
 
-// ── Users Database ────────────────────────────────────────────────────────────
 const USER_DATABASE = [
   {
     id: 1,
@@ -610,6 +704,16 @@ function generateData() {
         timeline: timelineOptions[i % 2],
         status,
         prescription: drug.rx,
+        // ── Country fields per entity type ──
+        mfrCountry: MFR_COUNTRIES[(i * 2 + seq) % MFR_COUNTRIES.length],
+        traderCountry:
+          TRADER_COUNTRIES[(i * 3 + seq) % TRADER_COUNTRIES.length],
+        importerCountry:
+          IMPORTER_COUNTRIES[(i * 5 + seq) % IMPORTER_COUNTRIES.length],
+        distributorCountry:
+          DISTRIBUTOR_COUNTRIES[(i * 7 + seq) % DISTRIBUTOR_COUNTRIES.length],
+        repackerCountry:
+          REPACKER_COUNTRIES[(i * 11 + seq) % REPACKER_COUNTRIES.length],
       });
       seq++;
     }
@@ -695,10 +799,36 @@ function getAvatarColor(name, list) {
   return avatarPalette[list.indexOf(name) % avatarPalette.length];
 }
 
+// ── Country Flag Emoji Helper ─────────────────────────────────────────────────
+const COUNTRY_FLAGS = {
+  India: "🇮🇳",
+  China: "🇨🇳",
+  USA: "🇺🇸",
+  Germany: "🇩🇪",
+  Switzerland: "🇨🇭",
+  "South Korea": "🇰🇷",
+  Japan: "🇯🇵",
+  UK: "🇬🇧",
+  France: "🇫🇷",
+  Philippines: "🇵🇭",
+  Singapore: "🇸🇬",
+  Belgium: "🇧🇪",
+  Netherlands: "🇳🇱",
+  Italy: "🇮🇹",
+  Canada: "🇨🇦",
+  "Hong Kong": "🇭🇰",
+  Thailand: "🇹🇭",
+  Malaysia: "🇲🇾",
+  Indonesia: "🇮🇩",
+  Australia: "🇦🇺",
+  Vietnam: "🇻🇳",
+};
+
 // ── Shared Card ───────────────────────────────────────────────────────────────
-function Card({ children, style = {}, ui }) {
+function Card({ children, style = {}, ui, onClick }) {
   return (
     <div
+      onClick={onClick}
       style={{
         background: ui.cardBg,
         border: `1px solid ${ui.cardBorder}`,
@@ -2123,7 +2253,6 @@ function MonitoringPage({ darkMode }) {
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
   const [activeNav, setActiveNav] = useState("overview");
-  // ── Evaluators nav item REMOVED — data is now in Users view ──
   const navItems = [
     { key: "overview", icon: "🏠", label: "Overview", disabled: false },
     { key: "records", icon: "📋", label: "Records", disabled: false },
@@ -2152,7 +2281,6 @@ function MonitoringPage({ darkMode }) {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // Records state
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [evaluatorFilter, setEvalFilter] = useState("");
@@ -2161,7 +2289,6 @@ function MonitoringPage({ darkMode }) {
   const [sortDir, setSortDir] = useState("desc");
   const PAGE_SIZE = 12;
 
-  // Evaluator modal
   const [modalEval, setModalEval] = useState(null);
   const [modalDateFrom, setModalDateFrom] = useState("");
   const [modalDateTo, setModalDateTo] = useState("");
@@ -2172,25 +2299,21 @@ function MonitoringPage({ darkMode }) {
   const [tableData, setTableData] = useState(staticData);
   const [chartModal, setChartModal] = useState(null);
 
-  // Analytics filters
   const [chartYear, setChartYear] = useState("All");
   const [chartMonth, setChartMonth] = useState("All");
   const [rxFilter, setRxFilter] = useState("All");
 
-  // Impersonation
+  // ── Top Countries Tab State ──────────────────────────────────────────────
+  const [topCountryTab, setTopCountryTab] = useState("mfrCountry");
+  const [topCountryLimit, setTopCountryLimit] = useState(10);
+
   const [impersonating, setImpersonating] = useState(null);
   const [userSearch, setUserSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("All");
   const [userStatusFilter, setUserStatusFilter] = useState("All");
   const [showImpersonateConfirm, setShowImpersonateConfirm] = useState(null);
-
-  // Activity feed
   const [activitySearch, setActivitySearch] = useState("");
-
-  // Deadline filter
   const [deadlineFilter, setDeadlineFilter] = useState("all");
-
-  // Compliance filter
   const [complianceFilter, setComplianceFilter] = useState("all");
 
   const availableYears = useMemo(
@@ -2397,6 +2520,30 @@ function MonitoringPage({ darkMode }) {
     });
   };
 
+  // ── Top Countries Computed Data ──────────────────────────────────────────
+  const topCountriesData = useMemo(() => {
+    const map = {};
+    chartFiltered.forEach((row) => {
+      const country = row[topCountryTab];
+      if (!country) return;
+      if (!map[country])
+        map[country] = {
+          country,
+          count: 0,
+          approved: 0,
+          disapproved: 0,
+          onProcess: 0,
+        };
+      map[country].count++;
+      if (row.status === "Approved") map[country].approved++;
+      else if (row.status === "Disapproved") map[country].disapproved++;
+      else map[country].onProcess++;
+    });
+    return Object.values(map)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, topCountryLimit);
+  }, [chartFiltered, topCountryTab, topCountryLimit]);
+
   const colHdr = darkMode ? ui.sidebarBg : "#f8f9fd";
   const inputSt = {
     background: ui.inputBg,
@@ -2474,7 +2621,6 @@ function MonitoringPage({ darkMode }) {
     },
   ];
 
-  // ── Overview KPI summary data ──────────────────────────────────────────────
   const totalAll = tableData.length;
   const approvedAll = tableData.filter((r) => r.status === "Approved").length;
   const disapprovedAll = tableData.filter(
@@ -2499,7 +2645,6 @@ function MonitoringPage({ darkMode }) {
   // ── OVERVIEW VIEW ─────────────────────────────────────────────────────────
   const OverviewView = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* KPI Row */}
       <div
         style={{
           display: "grid",
@@ -2598,8 +2743,6 @@ function MonitoringPage({ darkMode }) {
           </Card>
         ))}
       </div>
-
-      {/* Alert row */}
       <div
         style={{
           display: "grid",
@@ -2706,10 +2849,7 @@ function MonitoringPage({ darkMode }) {
           </Card>
         ))}
       </div>
-
-      {/* Middle row: User load + Activity feed */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        {/* User load */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <p
             style={{
@@ -2877,8 +3017,6 @@ function MonitoringPage({ darkMode }) {
             })}
           </div>
         </div>
-
-        {/* Recent Activity */}
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div
             style={{
@@ -2974,8 +3112,6 @@ function MonitoringPage({ darkMode }) {
           </div>
         </div>
       </div>
-
-      {/* Prescription breakdown */}
       <div>
         <p
           style={{
@@ -2985,7 +3121,7 @@ function MonitoringPage({ darkMode }) {
             color: ui.textPrimary,
           }}
         >
-          Applications by Prescription Type
+          Applications by Classification
         </p>
         <div
           style={{
@@ -3255,7 +3391,6 @@ function MonitoringPage({ darkMode }) {
           </div>
         </Card>
       </div>
-
       <div
         style={{
           flex: "1 1 360px",
@@ -3732,7 +3867,7 @@ function MonitoringPage({ darkMode }) {
           }}
         >
           <div>
-            <label style={labelSt}>Prescription</label>
+            <label style={labelSt}>Classification</label>
             <div
               style={{
                 display: "flex",
@@ -3981,7 +4116,6 @@ function MonitoringPage({ darkMode }) {
           gap: 14,
         }}
       >
-        {/* Timeline Split */}
         <Card ui={ui} style={{ padding: "14px 16px" }}>
           <p
             style={{
@@ -4082,8 +4216,6 @@ function MonitoringPage({ darkMode }) {
             </p>
           </div>
         </Card>
-
-        {/* Prescription Split */}
         <Card ui={ui} style={{ padding: "14px 16px" }}>
           <p
             style={{
@@ -4175,8 +4307,6 @@ function MonitoringPage({ darkMode }) {
             );
           })}
         </Card>
-
-        {/* ── Year-by-Year Summary — now with ⏳ On Process column ── */}
         <Card ui={ui} style={{ padding: 0, overflow: "hidden" }}>
           <div
             style={{
@@ -4309,7 +4439,7 @@ function MonitoringPage({ darkMode }) {
         </Card>
       </div>
 
-      {/* Row 3: User Performance Bar Chart */}
+      {/* Row 3: User Performance */}
       <Card ui={ui} style={{ padding: "14px 16px" }}>
         <div
           style={{
@@ -4512,7 +4642,6 @@ function MonitoringPage({ darkMode }) {
       <div
         style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 14 }}
       >
-        {/* Top Drugs */}
         <Card ui={ui} style={{ padding: 0, overflow: "hidden" }}>
           <div
             style={{
@@ -4683,8 +4812,6 @@ function MonitoringPage({ darkMode }) {
             );
           })}
         </Card>
-
-        {/* Beyond Timeline per User */}
         <Card ui={ui} style={{ padding: "14px 16px" }}>
           <p
             style={{
@@ -4796,6 +4923,972 @@ function MonitoringPage({ darkMode }) {
           })}
         </Card>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+          Row 5: TOP COUNTRY per Entity Type
+          ═══════════════════════════════════════════════════════════════════════ */}
+      <Card ui={ui} style={{ padding: 0, overflow: "hidden" }}>
+        {/* Card Header */}
+        <div
+          style={{
+            padding: "14px 16px",
+            borderBottom: `1px solid ${ui.divider}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 10,
+            background: colHdr,
+          }}
+        >
+          <div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.9rem",
+                fontWeight: 700,
+                color: ui.textPrimary,
+              }}
+            >
+              🌍 Top Countries by Entity Type
+            </p>
+            <p
+              style={{
+                margin: "2px 0 0",
+                fontSize: "0.72rem",
+                color: ui.textMuted,
+              }}
+            >
+              Country of origin per application role · based on current filters
+            </p>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Show Top N selector */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <label
+                style={{
+                  fontSize: "0.68rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  color: ui.textMuted,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Show Top
+              </label>
+              <select
+                value={topCountryLimit}
+                onChange={(e) => setTopCountryLimit(Number(e.target.value))}
+                style={{
+                  ...inputSt,
+                  padding: "4px 8px",
+                  fontSize: "0.78rem",
+                  minWidth: 60,
+                }}
+              >
+                {[5, 10, 15].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Entity Type Tabs */}
+        <div
+          style={{
+            padding: "10px 16px",
+            borderBottom: `1px solid ${ui.divider}`,
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            background: darkMode ? ui.cardBg : "#fafbfc",
+          }}
+        >
+          {ENTITY_TYPES.map((et) => {
+            const isAct = topCountryTab === et.key;
+            // Count distinct countries for this entity type
+            const countryCount = new Set(
+              chartFiltered.map((r) => r[et.key]).filter(Boolean),
+            ).size;
+            return (
+              <button
+                key={et.key}
+                onClick={() => setTopCountryTab(et.key)}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: "0.78rem",
+                  fontWeight: isAct ? 700 : 500,
+                  borderRadius: 8,
+                  border: `1.5px solid ${isAct ? et.color : ui.cardBorder}`,
+                  background: isAct ? `${et.color}14` : "transparent",
+                  color: isAct ? et.color : ui.textMuted,
+                  cursor: "pointer",
+                  fontFamily: font,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  transition: "all 0.15s",
+                  whiteSpace: "nowrap",
+                  boxShadow: isAct ? `0 2px 8px ${et.color}25` : "none",
+                }}
+              >
+                <span>{et.icon}</span>
+                <span>{et.label}</span>
+                <span
+                  style={{
+                    fontSize: "0.65rem",
+                    fontWeight: 800,
+                    padding: "1px 6px",
+                    borderRadius: 99,
+                    background: isAct ? et.color : ui.inputBg,
+                    color: isAct ? "#fff" : ui.textMuted,
+                    minWidth: 18,
+                    textAlign: "center",
+                  }}
+                >
+                  {countryCount}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Top Countries Content */}
+        <div style={{ padding: "16px" }}>
+          {topCountriesData.length === 0 ? (
+            <div
+              style={{
+                padding: "24px",
+                textAlign: "center",
+                color: ui.textMuted,
+                fontSize: "0.84rem",
+              }}
+            >
+              No country data available for current filters
+            </div>
+          ) : (
+            (() => {
+              const activeEntity = ENTITY_TYPES.find(
+                (et) => et.key === topCountryTab,
+              );
+              const maxCount = topCountriesData[0]?.count || 1;
+              const totalCount = topCountriesData.reduce(
+                (s, d) => s + d.count,
+                0,
+              );
+
+              return (
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 16,
+                  }}
+                >
+                  {/* Left: Bar list */}
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 7 }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 4,
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: 0,
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          color: ui.textMuted,
+                        }}
+                      >
+                        {activeEntity?.icon} {activeEntity?.label} Countries
+                      </p>
+                      <div
+                        style={{ display: "flex", gap: 8, fontSize: "0.65rem" }}
+                      >
+                        {[
+                          { dot: "#36a420", label: "Approved" },
+                          { dot: "#e02020", label: "Disapproved" },
+                          { dot: "#f59e0b", label: "On Process" },
+                        ].map((l) => (
+                          <div
+                            key={l.label}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 3,
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: "50%",
+                                background: l.dot,
+                              }}
+                            />
+                            <span style={{ color: ui.textMuted }}>
+                              {l.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {topCountriesData.map((d, i) => {
+                      const pct =
+                        totalCount > 0
+                          ? ((d.count / totalCount) * 100).toFixed(1)
+                          : "0.0";
+                      const barWidth =
+                        maxCount > 0 ? (d.count / maxCount) * 100 : 0;
+                      const approvedPct =
+                        d.count > 0 ? (d.approved / d.count) * 100 : 0;
+                      const disapprovedPct =
+                        d.count > 0 ? (d.disapproved / d.count) * 100 : 0;
+                      const onProcessPct =
+                        d.count > 0 ? (d.onProcess / d.count) * 100 : 0;
+                      const flag = COUNTRY_FLAGS[d.country] || "🌐";
+                      const isTop = i === 0;
+                      return (
+                        <div
+                          key={d.country}
+                          style={{
+                            padding: "8px 10px",
+                            borderRadius: 8,
+                            background: isTop
+                              ? darkMode
+                                ? `${activeEntity?.color}18`
+                                : `${activeEntity?.color}0a`
+                              : "transparent",
+                            border: `1px solid ${isTop ? activeEntity?.color + "30" : ui.divider}`,
+                            transition: "background 0.12s",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isTop)
+                              e.currentTarget.style.background = ui.hoverBg;
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isTop)
+                              e.currentTarget.style.background = "transparent";
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 8,
+                              marginBottom: 5,
+                            }}
+                          >
+                            {/* Rank */}
+                            <div
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: "50%",
+                                background:
+                                  i < 3
+                                    ? darkMode
+                                      ? `${activeEntity?.color}30`
+                                      : `${activeEntity?.color}18`
+                                    : ui.inputBg,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "0.58rem",
+                                  fontWeight: 800,
+                                  color:
+                                    i < 3 ? activeEntity?.color : ui.textMuted,
+                                }}
+                              >
+                                #{i + 1}
+                              </span>
+                            </div>
+                            {/* Flag + Country */}
+                            <span
+                              style={{ fontSize: "0.95rem", lineHeight: 1 }}
+                            >
+                              {flag}
+                            </span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <span
+                                style={{
+                                  fontSize: "0.8rem",
+                                  fontWeight: 600,
+                                  color: ui.textPrimary,
+                                }}
+                              >
+                                {d.country}
+                              </span>
+                            </div>
+                            {/* Count + Pct */}
+                            <div style={{ textAlign: "right", flexShrink: 0 }}>
+                              <span
+                                style={{
+                                  fontSize: "0.85rem",
+                                  fontWeight: 800,
+                                  color: activeEntity?.color,
+                                }}
+                              >
+                                {d.count}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "0.65rem",
+                                  color: ui.textMuted,
+                                  marginLeft: 4,
+                                }}
+                              >
+                                ({pct}%)
+                              </span>
+                            </div>
+                          </div>
+                          {/* Segmented bar: approved / disapproved / onProcess */}
+                          <div
+                            style={{
+                              height: 6,
+                              borderRadius: 99,
+                              background: ui.progressBg,
+                              overflow: "hidden",
+                              position: "relative",
+                            }}
+                          >
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: 0,
+                                top: 0,
+                                height: "100%",
+                                width: `${(d.count / maxCount) * 100}%`,
+                                background: activeEntity?.color + "30",
+                                borderRadius: 99,
+                              }}
+                            />
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: 0,
+                                top: 0,
+                                height: "100%",
+                                width: `${(approvedPct / 100) * barWidth}%`,
+                                background: "#36a420",
+                                transition: "width 0.4s",
+                              }}
+                            />
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: `${(approvedPct / 100) * barWidth}%`,
+                                top: 0,
+                                height: "100%",
+                                width: `${(disapprovedPct / 100) * barWidth}%`,
+                                background: "#e02020",
+                                transition: "width 0.4s, left 0.4s",
+                              }}
+                            />
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: `${((approvedPct + disapprovedPct) / 100) * barWidth}%`,
+                                top: 0,
+                                height: "100%",
+                                width: `${(onProcessPct / 100) * barWidth}%`,
+                                background: "#f59e0b",
+                                transition: "width 0.4s, left 0.4s",
+                              }}
+                            />
+                          </div>
+                          {/* Mini status breakdown */}
+                          <div
+                            style={{ display: "flex", gap: 8, marginTop: 4 }}
+                          >
+                            <span
+                              style={{ fontSize: "0.62rem", color: "#36a420" }}
+                            >
+                              ✅ {d.approved}
+                            </span>
+                            <span
+                              style={{ fontSize: "0.62rem", color: "#e02020" }}
+                            >
+                              ❌ {d.disapproved}
+                            </span>
+                            <span
+                              style={{ fontSize: "0.62rem", color: "#f59e0b" }}
+                            >
+                              ⏳ {d.onProcess}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Right: Summary cards + top 3 podium */}
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 12,
+                    }}
+                  >
+                    {/* Summary stats */}
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "1fr 1fr",
+                        gap: 8,
+                      }}
+                    >
+                      {[
+                        {
+                          label: "Countries",
+                          value: new Set(
+                            chartFiltered
+                              .map((r) => r[topCountryTab])
+                              .filter(Boolean),
+                          ).size,
+                          icon: "🌍",
+                          color: activeEntity?.color,
+                        },
+                        {
+                          label: "Total Apps",
+                          value: topCountriesData.reduce(
+                            (s, d) => s + d.count,
+                            0,
+                          ),
+                          icon: "📋",
+                          color: FB,
+                        },
+                        {
+                          label: "#1 Country",
+                          value: topCountriesData[0]?.country || "—",
+                          icon: "🥇",
+                          color: "#f59e0b",
+                          small: true,
+                        },
+                        {
+                          label: "#1 Share",
+                          value: topCountriesData[0]
+                            ? `${((topCountriesData[0].count / totalCount) * 100).toFixed(1)}%`
+                            : "—",
+                          icon: "📊",
+                          color: "#9333ea",
+                        },
+                      ].map((s) => (
+                        <div
+                          key={s.label}
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: 8,
+                            background: darkMode ? ui.inputBg : "#f8f9fd",
+                            border: `1px solid ${ui.divider}`,
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 6,
+                              marginBottom: 2,
+                            }}
+                          >
+                            <span style={{ fontSize: "0.8rem" }}>{s.icon}</span>
+                            <span
+                              style={{
+                                fontSize: "0.62rem",
+                                fontWeight: 700,
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                                color: ui.textMuted,
+                              }}
+                            >
+                              {s.label}
+                            </span>
+                          </div>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: s.small ? "0.78rem" : "1.1rem",
+                              fontWeight: 800,
+                              color: s.color,
+                              lineHeight: 1.2,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {s.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Top 3 podium */}
+                    <div
+                      style={{
+                        background: darkMode ? ui.inputBg : "#f8f9fd",
+                        borderRadius: 10,
+                        padding: "14px",
+                        border: `1px solid ${ui.divider}`,
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: "0 0 12px",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          color: ui.textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        🏆 Top 3 Podium
+                      </p>
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: 8,
+                          alignItems: "flex-end",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {/* 2nd place */}
+                        {topCountriesData[1] &&
+                          (() => {
+                            const d = topCountriesData[1];
+                            const pct =
+                              totalCount > 0
+                                ? ((d.count / totalCount) * 100).toFixed(1)
+                                : "0";
+                            const flag = COUNTRY_FLAGS[d.country] || "🌐";
+                            return (
+                              <div
+                                style={{
+                                  flex: 1,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    fontWeight: 700,
+                                    color: "#9ca3af",
+                                  }}
+                                >
+                                  🥈 #2
+                                </span>
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    background: darkMode
+                                      ? "#3a3b3c"
+                                      : "#e5e7eb",
+                                    borderRadius: "8px 8px 0 0",
+                                    height: 60,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 2,
+                                    border: `2px solid #9ca3af40`,
+                                  }}
+                                >
+                                  <span style={{ fontSize: "1.1rem" }}>
+                                    {flag}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "0.62rem",
+                                      fontWeight: 700,
+                                      color: ui.textSub,
+                                      textAlign: "center",
+                                      lineHeight: 1.2,
+                                      maxWidth: 70,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {d.country}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    background: "#9ca3af20",
+                                    borderRadius: "0 0 6px 6px",
+                                    padding: "4px 0",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.85rem",
+                                      fontWeight: 800,
+                                      color: "#9ca3af",
+                                    }}
+                                  >
+                                    {d.count}
+                                  </p>
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.6rem",
+                                      color: ui.textMuted,
+                                    }}
+                                  >
+                                    {pct}%
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        {/* 1st place */}
+                        {topCountriesData[0] &&
+                          (() => {
+                            const d = topCountriesData[0];
+                            const pct =
+                              totalCount > 0
+                                ? ((d.count / totalCount) * 100).toFixed(1)
+                                : "0";
+                            const flag = COUNTRY_FLAGS[d.country] || "🌐";
+                            return (
+                              <div
+                                style={{
+                                  flex: 1,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    fontWeight: 700,
+                                    color: "#f59e0b",
+                                  }}
+                                >
+                                  🥇 #1
+                                </span>
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    background: darkMode
+                                      ? `${activeEntity?.color}25`
+                                      : `${activeEntity?.color}12`,
+                                    borderRadius: "8px 8px 0 0",
+                                    height: 80,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 2,
+                                    border: `2px solid ${activeEntity?.color}50`,
+                                    boxShadow: `0 4px 12px ${activeEntity?.color}20`,
+                                  }}
+                                >
+                                  <span style={{ fontSize: "1.4rem" }}>
+                                    {flag}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "0.68rem",
+                                      fontWeight: 800,
+                                      color: activeEntity?.color,
+                                      textAlign: "center",
+                                      lineHeight: 1.2,
+                                      maxWidth: 75,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {d.country}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    background: `${activeEntity?.color}18`,
+                                    borderRadius: "0 0 6px 6px",
+                                    padding: "4px 0",
+                                    textAlign: "center",
+                                    border: `1px solid ${activeEntity?.color}30`,
+                                    borderTop: "none",
+                                  }}
+                                >
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "1rem",
+                                      fontWeight: 800,
+                                      color: activeEntity?.color,
+                                    }}
+                                  >
+                                    {d.count}
+                                  </p>
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.62rem",
+                                      color: activeEntity?.color,
+                                      fontWeight: 600,
+                                    }}
+                                  >
+                                    {pct}%
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        {/* 3rd place */}
+                        {topCountriesData[2] &&
+                          (() => {
+                            const d = topCountriesData[2];
+                            const pct =
+                              totalCount > 0
+                                ? ((d.count / totalCount) * 100).toFixed(1)
+                                : "0";
+                            const flag = COUNTRY_FLAGS[d.country] || "🌐";
+                            return (
+                              <div
+                                style={{
+                                  flex: 1,
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  gap: 4,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    fontWeight: 700,
+                                    color: "#b45309",
+                                  }}
+                                >
+                                  🥉 #3
+                                </span>
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    background: darkMode
+                                      ? "#3a3b3c"
+                                      : "#e5e7eb",
+                                    borderRadius: "8px 8px 0 0",
+                                    height: 48,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 2,
+                                    border: `2px solid #b4530940`,
+                                  }}
+                                >
+                                  <span style={{ fontSize: "1rem" }}>
+                                    {flag}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "0.6rem",
+                                      fontWeight: 700,
+                                      color: ui.textSub,
+                                      textAlign: "center",
+                                      lineHeight: 1.2,
+                                      maxWidth: 70,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {d.country}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    width: "100%",
+                                    background: "#b4530918",
+                                    borderRadius: "0 0 6px 6px",
+                                    padding: "4px 0",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.8rem",
+                                      fontWeight: 800,
+                                      color: "#b45309",
+                                    }}
+                                  >
+                                    {d.count}
+                                  </p>
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.6rem",
+                                      color: ui.textMuted,
+                                    }}
+                                  >
+                                    {pct}%
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                      </div>
+                    </div>
+
+                    {/* All 5 entity type quick summary */}
+                    <div
+                      style={{
+                        background: darkMode ? ui.inputBg : "#f8f9fd",
+                        borderRadius: 10,
+                        padding: "12px 14px",
+                        border: `1px solid ${ui.divider}`,
+                      }}
+                    >
+                      <p
+                        style={{
+                          margin: "0 0 10px",
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          color: ui.textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        📌 #1 Country per Entity
+                      </p>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 6,
+                        }}
+                      >
+                        {ENTITY_TYPES.map((et) => {
+                          const map = {};
+                          chartFiltered.forEach((row) => {
+                            const c = row[et.key];
+                            if (c) map[c] = (map[c] || 0) + 1;
+                          });
+                          const sorted = Object.entries(map).sort(
+                            (a, b) => b[1] - a[1],
+                          );
+                          const top = sorted[0];
+                          const flag = top
+                            ? COUNTRY_FLAGS[top[0]] || "🌐"
+                            : "—";
+                          const isActive = topCountryTab === et.key;
+                          return (
+                            <div
+                              key={et.key}
+                              onClick={() => setTopCountryTab(et.key)}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                padding: "5px 8px",
+                                borderRadius: 6,
+                                cursor: "pointer",
+                                background: isActive
+                                  ? `${et.color}14`
+                                  : "transparent",
+                                border: `1px solid ${isActive ? et.color + "30" : "transparent"}`,
+                                transition: "all 0.12s",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!isActive)
+                                  e.currentTarget.style.background = ui.hoverBg;
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!isActive)
+                                  e.currentTarget.style.background = isActive
+                                    ? `${et.color}14`
+                                    : "transparent";
+                              }}
+                            >
+                              <span style={{ fontSize: "0.85rem" }}>
+                                {et.icon}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "0.72rem",
+                                  fontWeight: 600,
+                                  color: et.color,
+                                  minWidth: 80,
+                                }}
+                              >
+                                {et.label}
+                              </span>
+                              <span style={{ fontSize: "0.85rem" }}>
+                                {flag}
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: "0.75rem",
+                                  fontWeight: 700,
+                                  color: ui.textPrimary,
+                                  flex: 1,
+                                }}
+                              >
+                                {top ? top[0] : "N/A"}
+                              </span>
+                              {top && (
+                                <span
+                                  style={{
+                                    fontSize: "0.7rem",
+                                    fontWeight: 700,
+                                    color: et.color,
+                                    background: `${et.color}15`,
+                                    padding: "1px 7px",
+                                    borderRadius: 99,
+                                  }}
+                                >
+                                  {top[1]}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()
+          )}
+        </div>
+      </Card>
+      {/* ── End Top Countries ── */}
     </div>
   );
 
@@ -5492,7 +6585,6 @@ function MonitoringPage({ darkMode }) {
                     ))}
                   </div>
                 </div>
-                {/* Heatmap grid */}
                 <div
                   style={{
                     display: "grid",
@@ -5578,7 +6670,6 @@ function MonitoringPage({ darkMode }) {
                     </>
                   ))}
                 </div>
-                {/* Legend */}
                 <div
                   style={{
                     display: "flex",
@@ -6727,7 +7818,6 @@ function MonitoringPage({ darkMode }) {
                     </button>
                   )}
                 </div>
-                {/* Status Tabs */}
                 <div
                   style={{
                     padding: "10px 14px",
@@ -7103,7 +8193,6 @@ function MonitoringPage({ darkMode }) {
         />
       )}
 
-      {/* Impersonate Confirm Modal */}
       {showImpersonateConfirm && (
         <div
           onClick={() => setShowImpersonateConfirm(null)}

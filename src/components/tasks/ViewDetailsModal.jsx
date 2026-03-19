@@ -1436,7 +1436,7 @@ function Step1BasicInfo({
         {summaryField("🏢", "LTO Company", "ltoCompany", "#2196F3")}
         {summaryField("📋", "Application Type", "appType", "#9c27b0")}
         {summaryField("💊", "Dosage Form", "prodDosForm", "#ff9800")}
-        {summaryField("📌", "Prescription", "prodClassPrescript", "#f44336")}
+        {summaryField("📌", "Classification", "prodClassPrescript", "#f44336")}
         {summaryField("🔖", "App Status", "appStatus", "#4caf50")}
         {summaryField("⚙️", "Processing Type", "processingType", "#00bcd4")}
         {/* Date fields — display only, hindi dapat editable ang dates dito */}
@@ -1477,6 +1477,7 @@ function Step1BasicInfo({
       <VDSection title="💊 Product Details" colors={colors}>
         <FieldGrid>
           {field("Dosage Strength", "prodDosStr")}
+          {field("Shelf Life", "prodDistriShelfLife")}
           {field("Pharma Category", "prodPharmaCat")}
           {field("Essential Drug", "prodEssDrugList")}
           {field("Product Category", "prodCat")}
@@ -1536,7 +1537,6 @@ function Step1BasicInfo({
           {countryField("Country", "prodDistriCountry")}
           {field("LTO No.", "prodDistriLtoNo")}
           {field("TIN", "prodDistriTin")}
-          {field("Shelf Life", "prodDistriShelfLife")}
           {field("Address", "prodDistriAdd", {
             fullWidth: true,
             multiline: true,
@@ -2747,7 +2747,11 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
 
     setLoading(true);
     try {
-      const formattedDateTime = new Date().toISOString();
+      const now = new Date();
+      const phtOffset = 8 * 60 * 60 * 1000;
+      const formattedDateTime = new Date(
+        now.getTime() + phtOffset,
+      ).toISOString();
 
       // ── 1. Save field audit log if there are changes ──────────────
       if (dirtyFields.length > 0) {

@@ -24,7 +24,7 @@ export const tableColumns = [
   { key: "prodGenName", label: "Generic Name", width: "650px" },
   { key: "prodDosStr", label: "Dosage Str.", width: "500px" },
   { key: "prodDosForm", label: "Dosage Form", width: "200px" },
-  { key: "prodClassPrescript", label: "Prescription", width: "100px" },
+  { key: "prodClassPrescript", label: "Classification", width: "100px" },
   { key: "prodEssDrugList", label: "Essential Drug", width: "120px" },
   { key: "prodPharmaCat", label: "Pharma Cat.", width: "250px" },
   { key: "prodManu", label: "Manufacturer", width: "250px" },

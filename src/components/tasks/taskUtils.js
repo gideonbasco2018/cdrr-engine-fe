@@ -99,14 +99,25 @@ export const mapWorkflowTask = (task, index) => {
     isInPm: m.DB_IS_IN_PM ?? "N/A",
     dbTimelineCitizenCharter: m.DB_TIMELINE_CITIZEN_CHARTER ?? null,
     processingType: m.DB_PROCESSING_TYPE || "Regular",
+
     // ── From ApplicationLog (task itself) ──────────────────────────
     applicationStep: task.application_step ?? "N/A",
     accomplishedDate: task.accomplished_date ?? "N/A",
     logCreatedAt: task.created_at ?? "N/A",
-    evaluator: task.user_name ?? "N/A",  // current assigned user for this log
+    evaluator: task.user_name ?? "N/A",
 
-    deadlineDate: task.deadline_date ?? null,   // e.g. "2026-03-10"
-    workingDays: task.working_days ?? null,     // e.g. 5
+    deadlineDate: task.deadline_date ?? null,
+    workingDays: task.working_days ?? null,
+
+    // ── Read tracking ──────────────────────────────────────────────
+    // NOTE: kept here for reference — TaskPage reads is_read directly
+    // from the raw API response, not from mapped data
+    is_read: task.is_read ?? 0,
+
+    // ── Received tracking ─────────────────────────────────────────
+    is_received: task.is_received ?? 0,   // ← THIS WAS MISSING — caused rows to never appear in Received tab
+    received_at: task.received_at ?? null,
+    received_by: task.received_by ?? null,
   };
 };
 

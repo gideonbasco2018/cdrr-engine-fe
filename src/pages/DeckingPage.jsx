@@ -258,7 +258,7 @@ function ActiveFiltersBar({
   if (prescriptionTab !== null)
     chips.push({
       key: "prescriptionTab",
-      label: `Prescription: ${prescriptionTab === "" ? "None" : prescriptionTab}`,
+      label: `Classification: ${prescriptionTab === "" ? "None" : prescriptionTab}`,
     });
   if (appStatusTab !== null)
     chips.push({
@@ -1070,7 +1070,7 @@ function DeckingPage({ darkMode }) {
               )}
               {availablePrescriptionTypes.length > 0 && (
                 <SidebarSection
-                  title="Prescriptions"
+                  title="Classification"
                   icon="💊"
                   items={availablePrescriptionTypes}
                   activeItem={prescriptionTab}
