@@ -1053,7 +1053,7 @@ function HistoryDetailModal({
   );
 }
 
-// ── UPLOAD HISTORY ────────────────────────────────────────────────────────────
+// ── UPLOAD HISTORY — list + detail panel ─────────────────────────────────────
 function UploadHistory({
   history,
   loading,
@@ -1066,12 +1066,10 @@ function UploadHistory({
   rowHover,
   accent,
 }) {
-  const [selected, setSelected] = useState(null);
-  const [filterDate, setFilterDate] = useState("");
+  const [activeId, setActiveId] = useState(null);
+  const [detailModal, setDetailModal] = useState(null);
   const [search, setSearch] = useState("");
-  // ── Pagination ──
-  const [page, setPage] = useState(1);
-  const HISTORY_PAGE_SIZE = 8;
+  const [filterDate, setFilterDate] = useState("");
 
   const inputBg = darkMode ? "#1a1a1a" : "#ffffff";
   const inputBorder = darkMode ? "#2e2e2e" : "#cdd2e0";
@@ -1096,17 +1094,21 @@ function UploadHistory({
     return ms && md;
   });
 
-  // Reset to page 1 when filters change
+  // Auto-select first item on load or when filters change
   useEffect(() => {
-    setPage(1);
-  }, [search, filterDate]);
+    if (filtered.length > 0) {
+      const currentStillVisible = filtered.find(
+        (h) => (h.historyID ?? h.id) === activeId,
+      );
+      if (!currentStillVisible)
+        setActiveId(filtered[0].historyID ?? filtered[0].id);
+    } else {
+      setActiveId(null);
+    }
+  }, [filtered.length, search, filterDate]);
 
-  const totalPages = Math.ceil(filtered.length / HISTORY_PAGE_SIZE);
-  const paginated = filtered.slice(
-    (page - 1) * HISTORY_PAGE_SIZE,
-    page * HISTORY_PAGE_SIZE,
-  );
-
+  const activeEntry =
+    filtered.find((h) => (h.historyID ?? h.id) === activeId) ?? null;
   const totalInserted = history.reduce(
     (s, h) => s + (h.insertedCount ?? h.inserted ?? 0),
     0,
@@ -1116,315 +1118,361 @@ function UploadHistory({
     0,
   );
 
+  // ── Success rate ring (SVG donut) ──
+  const SuccessRing = ({ ins, total, size = 52 }) => {
+    const pct = total > 0 ? ins / total : 1;
+    const r = 20,
+      cx = size / 2,
+      cy = size / 2;
+    const circ = 2 * Math.PI * r;
+    const dash = pct * circ;
+    const color = pct === 1 ? "#22c55e" : pct >= 0.8 ? "#f59e0b" : "#ef4444";
+    return (
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ flexShrink: 0 }}
+      >
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke={darkMode ? "#2a2a2a" : "#e5e7eb"}
+          strokeWidth="4"
+        />
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="none"
+          stroke={color}
+          strokeWidth="4"
+          strokeDasharray={`${dash} ${circ}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`}
+        />
+        <text
+          x={cx}
+          y={cy + 1}
+          textAnchor="middle"
+          dominantBaseline="central"
+          style={{
+            fontSize: "10px",
+            fontWeight: 700,
+            fill: color,
+            fontFamily: "inherit",
+          }}
+        >
+          {Math.round(pct * 100)}%
+        </text>
+      </svg>
+    );
+  };
+
   return (
     <>
-      <div style={{ marginTop: "2.5rem", marginBottom: "1rem" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: "1rem",
-            marginBottom: "1rem",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: "7px",
-                background: darkMode ? "rgba(37,99,235,0.15)" : accent + "18",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "1px solid " + accent + "33",
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={accent}
-                strokeWidth="2"
-              >
-                <path d="M12 20h9" />
-                <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
-              </svg>
-            </div>
-            <div>
-              <h2
-                style={{
-                  fontSize: "0.95rem",
-                  fontWeight: 700,
-                  color: textPrimary,
-                  margin: 0,
-                }}
-              >
-                Upload History
-              </h2>
-              <p style={{ fontSize: "0.78rem", color: textMuted, margin: 0 }}>
-                All bulk uploads — click a row to view records
-              </p>
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <span
-              style={{
-                fontSize: "0.74rem",
-                fontWeight: 700,
-                padding: "0.28rem 0.8rem",
-                borderRadius: "99px",
-                background: darkMode ? "rgba(37,99,235,0.12)" : accent + "12",
-                color: accent,
-                border: "1px solid " + accent + "22",
-              }}
-            >
-              {history.length} batch{history.length !== 1 ? "es" : ""}
-            </span>
-            <span
-              style={{
-                fontSize: "0.74rem",
-                fontWeight: 700,
-                padding: "0.28rem 0.8rem",
-                borderRadius: "99px",
-                background: darkMode ? "rgba(34,197,94,0.12)" : "#dcfce7",
-                color: "#22c55e",
-                border: "1px solid rgba(34,197,94,0.2)",
-              }}
-            >
-              {totalInserted} inserted
-            </span>
-            {totalFailed > 0 && (
-              <span
-                style={{
-                  fontSize: "0.74rem",
-                  fontWeight: 700,
-                  padding: "0.28rem 0.8rem",
-                  borderRadius: "99px",
-                  background: darkMode ? "rgba(239,68,68,0.12)" : "#fee2e2",
-                  color: "#ef4444",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                }}
-              >
-                {totalFailed} failed
-              </span>
-            )}
-          </div>
-        </div>
-        <div
-          style={{
-            display: "flex",
-            gap: "0.6rem",
-            marginBottom: "0.75rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
+      {/* ── Section header ── */}
+      <div
+        style={{
+          marginTop: "2.5rem",
+          marginBottom: "1rem",
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "0.75rem",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "7px",
+              background: darkMode ? "rgba(37,99,235,0.15)" : accent + "18",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid " + accent + "33",
+            }}
+          >
             <svg
-              width="13"
-              height="13"
+              width="14"
+              height="14"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={textMuted}
+              stroke={accent}
               strokeWidth="2"
-              style={{
-                position: "absolute",
-                left: 8,
-                top: "50%",
-                transform: "translateY(-50%)",
-                pointerEvents: "none",
-              }}
             >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z" />
             </svg>
-            <input
-              placeholder="Search filename or user…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                ...inputStyle,
-                width: "100%",
-                paddingLeft: "1.85rem",
-                boxSizing: "border-box",
-              }}
-            />
           </div>
-          <input
-            type="date"
-            value={filterDate}
-            onChange={(e) => setFilterDate(e.target.value)}
-            style={inputStyle}
-          />
-          {(search || filterDate) && (
-            <button
-              onClick={() => {
-                setSearch("");
-                setFilterDate("");
-              }}
+          <div>
+            <h2
               style={{
-                padding: "0.38rem 0.8rem",
-                borderRadius: "6px",
-                border: "1px solid " + inputBorder,
-                background: "transparent",
-                color: textMuted,
-                fontSize: "0.8rem",
-                cursor: "pointer",
-                fontFamily: "inherit",
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: textPrimary,
+                margin: 0,
               }}
             >
-              Reset
-            </button>
+              Upload History
+            </h2>
+            <p style={{ fontSize: "0.78rem", color: textMuted, margin: 0 }}>
+              Click a batch to inspect its records
+            </p>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
+          <span
+            style={{
+              fontSize: "0.73rem",
+              fontWeight: 600,
+              padding: "0.22rem 0.7rem",
+              borderRadius: "99px",
+              background: darkMode ? "rgba(37,99,235,0.12)" : accent + "12",
+              color: accent,
+              border: "1px solid " + accent + "22",
+            }}
+          >
+            {history.length} batch{history.length !== 1 ? "es" : ""}
+          </span>
+          <span
+            style={{
+              fontSize: "0.73rem",
+              fontWeight: 600,
+              padding: "0.22rem 0.7rem",
+              borderRadius: "99px",
+              background: darkMode ? "rgba(34,197,94,0.1)" : "#dcfce7",
+              color: "#22c55e",
+              border: "1px solid rgba(34,197,94,0.18)",
+            }}
+          >
+            {totalInserted} inserted
+          </span>
+          {totalFailed > 0 && (
+            <span
+              style={{
+                fontSize: "0.73rem",
+                fontWeight: 600,
+                padding: "0.22rem 0.7rem",
+                borderRadius: "99px",
+                background: darkMode ? "rgba(239,68,68,0.1)" : "#fee2e2",
+                color: "#ef4444",
+                border: "1px solid rgba(239,68,68,0.18)",
+              }}
+            >
+              {totalFailed} failed
+            </span>
           )}
         </div>
       </div>
 
+      {/* ── Main panel ── */}
       <div
         style={{
           background: cardBg,
           border: "1px solid " + border,
-          borderRadius: "12px",
+          borderRadius: "14px",
           overflow: "hidden",
           boxShadow: darkMode
-            ? "0 2px 12px rgba(0,0,0,0.4)"
-            : "0 4px 20px rgba(67,97,238,0.08)",
+            ? "0 2px 16px rgba(0,0,0,0.45)"
+            : "0 4px 24px rgba(67,97,238,0.08)",
+          display: "grid",
+          gridTemplateColumns: "280px 1fr",
+          minHeight: 420,
         }}
       >
-        {/* Table Header */}
+        {/* ── LEFT: list panel ── */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
-            background: headerBg,
-            borderBottom: "1px solid " + border,
+            borderRight: "1px solid " + border,
+            display: "flex",
+            flexDirection: "column",
           }}
         >
-          {[
-            { l: "File / Batch", j: "flex-start" },
-            { l: "Uploaded By", j: "flex-start" },
-            { l: "Date & Time", j: "flex-start" },
-            { l: "Inserted", j: "center" },
-            { l: "Failed", j: "center" },
-            { l: "View", j: "center" },
-          ].map(({ l, j }) => (
-            <div
-              key={l}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: j,
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
-                color: textMuted,
-                padding: "0.6rem 1rem",
-              }}
-            >
-              {l}
+          {/* Search + date */}
+          <div
+            style={{
+              padding: "0.75rem",
+              borderBottom: "1px solid " + border,
+              background: headerBg,
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.5rem",
+            }}
+          >
+            <div style={{ position: "relative" }}>
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={textMuted}
+                strokeWidth="2"
+                style={{
+                  position: "absolute",
+                  left: 8,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                }}
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                placeholder="Search…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  width: "100%",
+                  paddingLeft: "1.75rem",
+                  boxSizing: "border-box",
+                  fontSize: "0.78rem",
+                  padding: "0.32rem 0.65rem 0.32rem 1.75rem",
+                }}
+              />
             </div>
-          ))}
-        </div>
-
-        {/* ── Fixed-height scrollable body ── */}
-        <div
-          style={{
-            minHeight: 52,
-            maxHeight: HISTORY_PAGE_SIZE * 65,
-            overflowY: "auto",
-          }}
-        >
-          {loading ? (
-            <div
-              style={{
-                padding: "3rem",
-                textAlign: "center",
-                color: textMuted,
-                fontSize: "0.84rem",
-              }}
-            >
-              Loading history…
-            </div>
-          ) : paginated.length === 0 ? (
-            <div
-              style={{
-                padding: "3rem",
-                textAlign: "center",
-                color: textMuted,
-                fontSize: "0.84rem",
-              }}
-            >
-              {filtered.length === 0 && history.length > 0
-                ? "No results match your filters."
-                : "No upload history found"}
-            </div>
-          ) : (
-            paginated.map((entry, i) => {
-              const ins = entry.insertedCount ?? entry.inserted ?? 0;
-              const fld = entry.failedCount ?? entry.failed ?? 0;
-              return (
-                <div
-                  key={entry.historyID ?? entry.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
-                    borderBottom:
-                      i < paginated.length - 1 ? "1px solid " + border : "none",
-                    transition: "background 0.15s",
-                    alignItems: "center",
-                    cursor: "pointer",
+            <div style={{ display: "flex", gap: "0.4rem" }}>
+              <input
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                style={{
+                  ...inputStyle,
+                  flex: 1,
+                  fontSize: "0.75rem",
+                  padding: "0.3rem 0.5rem",
+                }}
+              />
+              {(search || filterDate) && (
+                <button
+                  onClick={() => {
+                    setSearch("");
+                    setFilterDate("");
                   }}
-                  onClick={() => setSelected(entry)}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = rowHover)
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
+                  style={{
+                    padding: "0.3rem 0.6rem",
+                    borderRadius: "6px",
+                    border: "1px solid " + inputBorder,
+                    background: "transparent",
+                    color: textMuted,
+                    fontSize: "0.75rem",
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                    whiteSpace: "nowrap",
+                  }}
                 >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* List items */}
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {loading ? (
+              <div
+                style={{
+                  padding: "2.5rem 1rem",
+                  textAlign: "center",
+                  color: textMuted,
+                  fontSize: "0.82rem",
+                }}
+              >
+                Loading…
+              </div>
+            ) : filtered.length === 0 ? (
+              <div
+                style={{
+                  padding: "2.5rem 1rem",
+                  textAlign: "center",
+                  color: textMuted,
+                  fontSize: "0.82rem",
+                }}
+              >
+                No batches found
+              </div>
+            ) : (
+              filtered.map((entry) => {
+                const id = entry.historyID ?? entry.id;
+                const ins = entry.insertedCount ?? entry.inserted ?? 0;
+                const fld = entry.failedCount ?? entry.failed ?? 0;
+                const isActive = id === activeId;
+                return (
                   <div
+                    key={id}
+                    onClick={() => setActiveId(id)}
                     style={{
-                      padding: "0.75rem 1rem",
                       display: "flex",
                       alignItems: "center",
                       gap: "0.65rem",
+                      padding: "0.7rem 0.85rem",
+                      borderBottom: "1px solid " + border,
+                      borderLeft: isActive
+                        ? "2px solid " + accent
+                        : "2px solid transparent",
+                      background: isActive
+                        ? darkMode
+                          ? "rgba(37,99,235,0.07)"
+                          : accent + "08"
+                        : "transparent",
+                      cursor: "pointer",
+                      transition: "all 0.15s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive)
+                        e.currentTarget.style.background = rowHover;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive)
+                        e.currentTarget.style.background = "transparent";
                     }}
                   >
+                    {/* File icon */}
                     <div
                       style={{
-                        width: 32,
-                        height: 32,
+                        width: 30,
+                        height: 30,
                         borderRadius: "7px",
-                        background: darkMode
-                          ? "rgba(37,99,235,0.1)"
-                          : "#eef2ff",
+                        background: isActive
+                          ? darkMode
+                            ? "rgba(37,99,235,0.2)"
+                            : accent + "18"
+                          : darkMode
+                            ? "#222"
+                            : "#f0f4ff",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
                         flexShrink: 0,
+                        transition: "background 0.15s",
                       }}
                     >
                       <svg
-                        width="14"
-                        height="14"
+                        width="13"
+                        height="13"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke={accent}
+                        stroke={isActive ? accent : textMuted}
                         strokeWidth="2"
                       >
                         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
                       </svg>
                     </div>
-                    <div style={{ minWidth: 0 }}>
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <div
                         style={{
-                          fontSize: "0.84rem",
-                          fontWeight: 600,
-                          color: textPrimary,
+                          fontSize: "0.8rem",
+                          fontWeight: isActive ? 600 : 500,
+                          color: isActive ? textPrimary : textPrimary,
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -1432,274 +1480,513 @@ function UploadHistory({
                       >
                         {entry.fileName}
                       </div>
-                      <div style={{ fontSize: "0.72rem", color: textMuted }}>
-                        {ins + fld} total rows
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ padding: "0.75rem 1rem" }}>
-                    <span
-                      style={{
-                        fontSize: "0.82rem",
-                        fontWeight: 500,
-                        color: textPrimary,
-                      }}
-                    >
-                      {entry.uploadedBy}
-                    </span>
-                  </div>
-                  <div style={{ padding: "0.75rem 1rem" }}>
-                    <div style={{ fontSize: "0.82rem", color: textPrimary }}>
-                      {timeAgo(entry.uploadedAt)}
-                    </div>
-                    <div style={{ fontSize: "0.72rem", color: textMuted }}>
-                      {formatDateTime(entry.uploadedAt)}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: "0.75rem 0.5rem",
-                      display: "flex",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.82rem",
-                        fontWeight: 700,
-                        padding: "0.2rem 0.65rem",
-                        borderRadius: "99px",
-                        background: darkMode
-                          ? "rgba(34,197,94,0.1)"
-                          : "#dcfce7",
-                        color: "#22c55e",
-                      }}
-                    >
-                      {ins}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      padding: "0.75rem 0.5rem",
-                      display: "flex",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {fld > 0 ? (
-                      <span
+                      <div
                         style={{
-                          fontSize: "0.82rem",
-                          fontWeight: 700,
-                          padding: "0.2rem 0.65rem",
-                          borderRadius: "99px",
-                          background: darkMode
-                            ? "rgba(239,68,68,0.1)"
-                            : "#fee2e2",
-                          color: "#ef4444",
+                          fontSize: "0.7rem",
+                          color: textMuted,
+                          marginTop: "0.1rem",
                         }}
                       >
-                        {fld}
+                        {entry.uploadedBy} · {timeAgo(entry.uploadedAt)}
+                      </div>
+                    </div>
+                    {/* Mini stats */}
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-end",
+                        gap: "0.15rem",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.7rem",
+                          fontWeight: 600,
+                          color: "#22c55e",
+                        }}
+                      >
+                        +{ins}
                       </span>
-                    ) : (
-                      <span style={{ fontSize: "0.82rem", color: textMuted }}>
-                        —
-                      </span>
-                    )}
+                      {fld > 0 && (
+                        <span
+                          style={{
+                            fontSize: "0.7rem",
+                            fontWeight: 600,
+                            color: "#ef4444",
+                          }}
+                        >
+                          −{fld}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* List footer */}
+          <div
+            style={{
+              padding: "0.5rem 0.85rem",
+              borderTop: "1px solid " + border,
+              background: headerBg,
+            }}
+          >
+            <span style={{ fontSize: "0.72rem", color: textMuted }}>
+              {filtered.length} of {history.length} batch
+              {history.length !== 1 ? "es" : ""}
+              {filtered.length !== history.length ? " (filtered)" : ""}
+            </span>
+          </div>
+        </div>
+
+        {/* ── RIGHT: detail panel ── */}
+        {!activeEntry ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "3rem",
+              color: textMuted,
+            }}
+          >
+            <svg
+              width="40"
+              height="40"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={textMuted}
+              strokeWidth="1.2"
+              style={{ marginBottom: "0.75rem", opacity: 0.4 }}
+            >
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            <p style={{ fontSize: "0.85rem", color: textMuted, margin: 0 }}>
+              Select a batch to view details
+            </p>
+          </div>
+        ) : (
+          (() => {
+            const ins = activeEntry.insertedCount ?? activeEntry.inserted ?? 0;
+            const fld = activeEntry.failedCount ?? activeEntry.failed ?? 0;
+            const total = ins + fld;
+            const rate = total > 0 ? Math.round((ins / total) * 100) : 100;
+            return (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {/* Detail header */}
+                <div
+                  style={{
+                    padding: "1rem 1.25rem",
+                    borderBottom: "1px solid " + border,
+                    background: headerBg,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "1rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: "10px",
+                      background: darkMode
+                        ? "rgba(37,99,235,0.15)"
+                        : accent + "15",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={accent}
+                      strokeWidth="2"
+                    >
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: "0.92rem",
+                        fontWeight: 700,
+                        color: textPrimary,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {activeEntry.fileName}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: textMuted,
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      Uploaded by{" "}
+                      <strong style={{ color: accent }}>
+                        {activeEntry.uploadedBy}
+                      </strong>{" "}
+                      · {formatDateTime(activeEntry.uploadedAt)}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setDetailModal(activeEntry)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      padding: "0.4rem 0.9rem",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: accent,
+                      color: "#fff",
+                      fontSize: "0.78rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      fontFamily: "inherit",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    View Records
+                  </button>
+                </div>
+
+                {/* Stat cards */}
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(4, 1fr)",
+                    gap: "0.75rem",
+                    padding: "1rem 1.25rem",
+                    borderBottom: "1px solid " + border,
+                  }}
+                >
+                  {[
+                    {
+                      label: "Total rows",
+                      value: total,
+                      color: textPrimary,
+                      bg: darkMode ? "#1e1e1e" : "#f6f8fd",
+                    },
+                    {
+                      label: "Inserted",
+                      value: ins,
+                      color: "#22c55e",
+                      bg: darkMode ? "rgba(34,197,94,0.08)" : "#f0fdf4",
+                    },
+                    {
+                      label: "Failed",
+                      value: fld,
+                      color: fld > 0 ? "#ef4444" : textMuted,
+                      bg:
+                        fld > 0
+                          ? darkMode
+                            ? "rgba(239,68,68,0.08)"
+                            : "#fff1f2"
+                          : darkMode
+                            ? "#1e1e1e"
+                            : "#f6f8fd",
+                    },
+                    {
+                      label: "Success rate",
+                      value: rate + "%",
+                      color:
+                        rate === 100
+                          ? "#22c55e"
+                          : rate >= 80
+                            ? "#f59e0b"
+                            : "#ef4444",
+                      bg: darkMode ? "#1e1e1e" : "#f6f8fd",
+                    },
+                  ].map(({ label, value, color, bg }) => (
+                    <div
+                      key={label}
+                      style={{
+                        background: bg,
+                        borderRadius: "10px",
+                        padding: "0.75rem",
+                        border: "1px solid " + border,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "0.65rem",
+                          fontWeight: 600,
+                          color: textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          marginBottom: "0.3rem",
+                        }}
+                      >
+                        {label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "1.35rem",
+                          fontWeight: 700,
+                          color,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Progress bar */}
+                <div
+                  style={{
+                    padding: "0.85rem 1.25rem",
+                    borderBottom: "1px solid " + border,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "0.4rem",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.75rem", color: textMuted }}>
+                      Insert success
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color:
+                          rate === 100
+                            ? "#22c55e"
+                            : rate >= 80
+                              ? "#f59e0b"
+                              : "#ef4444",
+                      }}
+                    >
+                      {rate}%
+                    </span>
                   </div>
                   <div
                     style={{
-                      padding: "0.75rem 0.75rem",
-                      display: "flex",
-                      justifyContent: "center",
+                      height: 6,
+                      borderRadius: 99,
+                      background: darkMode ? "#2a2a2a" : "#e5e7eb",
+                      overflow: "hidden",
                     }}
                   >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelected(entry);
+                    <div
+                      style={{
+                        height: "100%",
+                        width: rate + "%",
+                        borderRadius: 99,
+                        background:
+                          rate === 100
+                            ? "#22c55e"
+                            : rate >= 80
+                              ? "#f59e0b"
+                              : "#ef4444",
+                        transition: "width 0.4s ease",
                       }}
+                    />
+                  </div>
+                </div>
+
+                {/* Failed records preview (if any) */}
+                {fld > 0 && (
+                  <div
+                    style={{
+                      padding: "0.85rem 1.25rem",
+                      borderBottom: "1px solid " + border,
+                    }}
+                  >
+                    <div
                       style={{
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "space-between",
+                        marginBottom: "0.6rem",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.78rem",
+                          fontWeight: 600,
+                          color: "#ef4444",
+                        }}
+                      >
+                        {fld} failed row{fld !== 1 ? "s" : ""}
+                      </span>
+                      <button
+                        onClick={() => setDetailModal(activeEntry)}
+                        style={{
+                          fontSize: "0.72rem",
+                          color: textMuted,
+                          background: "transparent",
+                          border: "none",
+                          cursor: "pointer",
+                          textDecoration: "underline",
+                          fontFamily: "inherit",
+                        }}
+                      >
+                        View all →
+                      </button>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
                         gap: "0.3rem",
-                        padding: "0.3rem 0.7rem",
-                        borderRadius: "6px",
-                        border: "1px solid " + border,
-                        background: "transparent",
-                        color: textMuted,
-                        fontSize: "0.75rem",
-                        fontWeight: 500,
-                        cursor: "pointer",
-                        fontFamily: "inherit",
                       }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = accent;
-                        e.currentTarget.style.color = accent;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = border;
-                        e.currentTarget.style.color = textMuted;
+                    >
+                      {(activeEntry.failedRecords ?? [])
+                        .slice(0, 3)
+                        .map((r, i) => (
+                          <div
+                            key={i}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              padding: "0.35rem 0.6rem",
+                              background: darkMode
+                                ? "rgba(239,68,68,0.06)"
+                                : "#fff5f5",
+                              borderRadius: "6px",
+                              border: "1px solid rgba(239,68,68,0.15)",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                color: "#ef4444",
+                                fontFamily: "monospace",
+                                background: darkMode
+                                  ? "rgba(239,68,68,0.12)"
+                                  : "#fee2e2",
+                                padding: "0.1rem 0.4rem",
+                                borderRadius: 4,
+                              }}
+                            >
+                              {r.rsn ?? r.doctrack ?? "—"}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.72rem",
+                                color: textMuted,
+                                flex: 1,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {r.reason ??
+                                (r.issues ?? []).join(", ") ??
+                                "Unknown error"}
+                            </span>
+                          </div>
+                        ))}
+                      {fld > 3 && (
+                        <span
+                          style={{
+                            fontSize: "0.72rem",
+                            color: textMuted,
+                            paddingLeft: "0.2rem",
+                          }}
+                        >
+                          +{fld - 3} more failed rows…
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Empty state when all success */}
+                {fld === 0 && (
+                  <div
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "2rem",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: "50%",
+                        background: darkMode
+                          ? "rgba(34,197,94,0.1)"
+                          : "#dcfce7",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
                       }}
                     >
                       <svg
-                        width="12"
-                        height="12"
+                        width="20"
+                        height="20"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
+                        stroke="#22c55e"
+                        strokeWidth="2.5"
                       >
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
+                        <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      View
-                    </button>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.82rem",
+                        fontWeight: 600,
+                        color: "#22c55e",
+                      }}
+                    >
+                      All records inserted
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: textMuted }}>
+                      No errors in this batch
+                    </span>
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {/* ── Pagination footer ── */}
-        <div
-          style={{
-            padding: "0.55rem 1rem",
-            borderTop: "1px solid " + border,
-            background: headerBg,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <span style={{ fontSize: "0.74rem", color: textMuted }}>
-            {filtered.length === 0
-              ? "0"
-              : `${(page - 1) * HISTORY_PAGE_SIZE + 1}–${Math.min(page * HISTORY_PAGE_SIZE, filtered.length)}`}{" "}
-            of {filtered.length} batch{filtered.length !== 1 ? "es" : ""}
-            {filtered.length !== history.length
-              ? ` (filtered from ${history.length})`
-              : ""}
-          </span>
-          <div
-            style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
-          >
-            <button
-              onClick={() => setPage(1)}
-              disabled={page === 1}
-              style={{
-                background: "transparent",
-                border: "1px solid " + border,
-                borderRadius: 5,
-                color: page === 1 ? textMuted : textPrimary,
-                cursor: page === 1 ? "not-allowed" : "pointer",
-                padding: "0.15rem 0.45rem",
-                fontSize: "0.72rem",
-                opacity: page === 1 ? 0.4 : 1,
-              }}
-            >
-              «
-            </button>
-            <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              disabled={page === 1}
-              style={{
-                background: "transparent",
-                border: "1px solid " + border,
-                borderRadius: 5,
-                color: page === 1 ? textMuted : textPrimary,
-                cursor: page === 1 ? "not-allowed" : "pointer",
-                padding: "0.15rem 0.5rem",
-                fontSize: "0.78rem",
-                opacity: page === 1 ? 0.4 : 1,
-              }}
-            >
-              ‹
-            </button>
-
-            {/* Page number pills */}
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter(
-                (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1,
-              )
-              .reduce((acc, p, idx, arr) => {
-                if (idx > 0 && p - arr[idx - 1] > 1) acc.push("...");
-                acc.push(p);
-                return acc;
-              }, [])
-              .map((p, i) =>
-                p === "..." ? (
-                  <span
-                    key={`ellipsis-${i}`}
-                    style={{
-                      fontSize: "0.75rem",
-                      color: textMuted,
-                      padding: "0 2px",
-                    }}
-                  >
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    style={{
-                      minWidth: 28,
-                      height: 26,
-                      background: page === p ? accent : "transparent",
-                      border: `1px solid ${page === p ? accent : border}`,
-                      borderRadius: 5,
-                      color: page === p ? "#fff" : textPrimary,
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                      fontWeight: page === p ? 700 : 400,
-                      padding: "0 6px",
-                    }}
-                  >
-                    {p}
-                  </button>
-                ),
-              )}
-
-            <button
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page >= totalPages}
-              style={{
-                background: "transparent",
-                border: "1px solid " + border,
-                borderRadius: 5,
-                color: page >= totalPages ? textMuted : textPrimary,
-                cursor: page >= totalPages ? "not-allowed" : "pointer",
-                padding: "0.15rem 0.5rem",
-                fontSize: "0.78rem",
-                opacity: page >= totalPages ? 0.4 : 1,
-              }}
-            >
-              ›
-            </button>
-            <button
-              onClick={() => setPage(totalPages)}
-              disabled={page >= totalPages}
-              style={{
-                background: "transparent",
-                border: "1px solid " + border,
-                borderRadius: 5,
-                color: page >= totalPages ? textMuted : textPrimary,
-                cursor: page >= totalPages ? "not-allowed" : "pointer",
-                padding: "0.15rem 0.45rem",
-                fontSize: "0.72rem",
-                opacity: page >= totalPages ? 0.4 : 1,
-              }}
-            >
-              »
-            </button>
-          </div>
-        </div>
+                )}
+              </div>
+            );
+          })()
+        )}
       </div>
 
-      {selected && (
+      {/* Full records modal */}
+      {detailModal && (
         <HistoryDetailModal
-          entry={selected}
+          entry={detailModal}
           darkMode={darkMode}
           cardBg={cardBg}
           border={border}
@@ -1707,7 +1994,7 @@ function UploadHistory({
           textMuted={textMuted}
           headerBg={headerBg}
           accent={accent}
-          onClose={() => setSelected(null)}
+          onClose={() => setDetailModal(null)}
         />
       )}
     </>
