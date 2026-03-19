@@ -231,10 +231,10 @@ async function generateTransmittalPDF(records) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.5);
     doc.setTextColor(30, 30, 30);
-    doc.text("Prepared by/Date:", col1X, baseY);
+    doc.text("Prepared by/Date: ", col1X, baseY);
     doc.setFont("helvetica", "normal");
     doc.text(
-      `${preparedBy} / ${dateStr}`,
+      ` ${preparedBy} / ${dateStr}`,
       col1X + doc.getTextWidth("Prepared by/Date: "),
       baseY,
     );
