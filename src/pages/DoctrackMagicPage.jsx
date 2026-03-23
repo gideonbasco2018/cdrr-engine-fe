@@ -7,8 +7,20 @@ import {
   getHistoryRecords,
   downloadDoctrackTemplate,
 } from "../api/doctrack";
-
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
+
+// ── RESPONSIVE HOOK ───────────────────────────────────────────────────────────
+function useIsMobile(breakpoint = 768) {
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < breakpoint : false,
+  );
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, [breakpoint]);
+  return isMobile;
+}
 
 function formatBytes(b) {
   if (b < 1024) return b + " B";
@@ -47,11 +59,12 @@ function Toast({ toasts }) {
     <div
       style={{
         position: "fixed",
-        bottom: 24,
-        right: 24,
+        bottom: 16,
+        right: 16,
+        left: 16,
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 8,
         zIndex: 999,
       }}
     >
@@ -67,7 +80,6 @@ function Toast({ toasts }) {
             borderLeft: `3px solid ${t.type === "success" ? "#22c55e" : t.type === "warn" ? "#f59e0b" : "#ef4444"}`,
             borderRadius: 10,
             padding: "12px 16px",
-            minWidth: 300,
             boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
             animation: "slideIn 0.25s ease",
           }}
@@ -109,11 +121,18 @@ function Toast({ toasts }) {
 }
 
 // ── STEP INDICATOR ────────────────────────────────────────────────────────────
-function StepIndicator({ current, accent, textMuted, textPrimary, border }) {
+function StepIndicator({
+  current,
+  accent,
+  textMuted,
+  textPrimary,
+  border,
+  isMobile,
+}) {
   const steps = ["Upload File", "Review Data", "Submit"];
   return (
     <div
-      style={{ display: "flex", alignItems: "center", marginBottom: "1.75rem" }}
+      style={{ display: "flex", alignItems: "center", marginBottom: "1.5rem" }}
     >
       {steps.map((label, i) => {
         const n = i + 1,
@@ -129,12 +148,12 @@ function StepIndicator({ current, accent, textMuted, textPrimary, border }) {
             }}
           >
             <div
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
             >
               <div
                 style={{
-                  width: 30,
-                  height: 30,
+                  width: 28,
+                  height: 28,
                   borderRadius: "50%",
                   flexShrink: 0,
                   transition: "all 0.3s",
@@ -148,22 +167,24 @@ function StepIndicator({ current, accent, textMuted, textPrimary, border }) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "0.78rem",
+                  fontSize: "0.75rem",
                   fontWeight: 700,
                 }}
               >
                 {isDone ? "✓" : n}
               </div>
-              <span
-                style={{
-                  fontSize: "0.8rem",
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive ? textPrimary : textMuted,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {label}
-              </span>
+              {(!isMobile || isActive) && (
+                <span
+                  style={{
+                    fontSize: isMobile ? "0.72rem" : "0.8rem",
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? textPrimary : textMuted,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {label}
+                </span>
+              )}
             </div>
             {i < steps.length - 1 && (
               <div
@@ -171,8 +192,8 @@ function StepIndicator({ current, accent, textMuted, textPrimary, border }) {
                   flex: 1,
                   height: 1,
                   background: isDone ? "#22c55e" : border,
-                  margin: "0 0.75rem",
-                  maxWidth: 80,
+                  margin: "0 0.5rem",
+                  maxWidth: isMobile ? 30 : 80,
                 }}
               />
             )}
@@ -209,7 +230,7 @@ function FailedRecordsPanel({
           display: "flex",
           alignItems: "center",
           gap: "0.75rem",
-          padding: "0.85rem 1.25rem",
+          padding: "0.85rem 1rem",
           background: darkMode ? "rgba(239,68,68,0.08)" : "#fff1f2",
           borderBottom: open
             ? `1px solid ${darkMode ? "rgba(239,68,68,0.2)" : "#fecaca"}`
@@ -258,7 +279,7 @@ function FailedRecordsPanel({
             These rows were skipped — fix and re-upload
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -268,7 +289,7 @@ function FailedRecordsPanel({
               display: "flex",
               alignItems: "center",
               gap: "0.4rem",
-              padding: "0.35rem 0.8rem",
+              padding: "0.35rem 0.7rem",
               borderRadius: "6px",
               border: "1px solid #ef4444",
               background: "transparent",
@@ -319,146 +340,153 @@ function FailedRecordsPanel({
       </div>
       {open && (
         <div style={{ background: cardBg }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "44px 1fr 2fr 1fr",
-              background: headerBg,
-              borderBottom: "1px solid " + border,
-            }}
-          >
-            {["Row", "Doctrack Number", "Remarks", "Reason"].map((col, i) => (
-              <div
-                key={col}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: i === 0 ? "center" : "flex-start",
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.07em",
-                  color: textMuted,
-                  padding: "0.55rem 1rem",
-                }}
-              >
-                {col}
-              </div>
-            ))}
-          </div>
-          {rows.map((row, i) => (
+          <div style={{ overflowX: "auto" }}>
             <div
-              key={i}
               style={{
                 display: "grid",
                 gridTemplateColumns: "44px 1fr 2fr 1fr",
-                borderBottom:
-                  i < rows.length - 1 ? "1px solid " + border : "none",
-                alignItems: "center",
+                background: headerBg,
+                borderBottom: "1px solid " + border,
+                minWidth: 480,
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = darkMode
-                  ? "rgba(239,68,68,0.04)"
-                  : "#fff5f5")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  padding: "0.7rem 0.5rem",
-                }}
-              >
-                <span
+              {["Row", "Doctrack Number", "Remarks", "Reason"].map((col, i) => (
+                <div
+                  key={col}
                   style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    background: darkMode ? "rgba(239,68,68,0.15)" : "#fee2e2",
-                    color: "#ef4444",
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
+                    justifyContent: i === 0 ? "center" : "flex-start",
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    color: textMuted,
+                    padding: "0.55rem 1rem",
                   }}
                 >
-                  {row.rowNum}
-                </span>
-              </div>
-              <div style={{ padding: "0.55rem 0.75rem" }}>
-                {row.rsn || row.doctrack ? (
+                  {col}
+                </div>
+              ))}
+            </div>
+            {rows.map((row, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "44px 1fr 2fr 1fr",
+                  borderBottom:
+                    i < rows.length - 1 ? "1px solid " + border : "none",
+                  alignItems: "center",
+                  minWidth: 480,
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = darkMode
+                    ? "rgba(239,68,68,0.04)"
+                    : "#fff5f5")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "center",
+                    padding: "0.7rem 0.5rem",
+                  }}
+                >
                   <span
                     style={{
-                      fontFamily: "monospace",
-                      fontSize: "0.78rem",
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      background: darkMode ? "rgba(239,68,68,0.15)" : "#fee2e2",
+                      color: "#ef4444",
+                      fontSize: "0.7rem",
                       fontWeight: 700,
-                      color: darkMode ? "#f87171" : "#b91c1c",
-                      background: darkMode ? "rgba(239,68,68,0.1)" : "#fee2e2",
-                      borderRadius: 5,
-                      padding: "0.22rem 0.55rem",
-                      display: "inline-block",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    {row.rsn || row.doctrack}
+                    {row.rowNum}
                   </span>
-                ) : (
-                  <span
-                    style={{
-                      fontSize: "0.78rem",
-                      color: "#ef4444",
-                      fontStyle: "italic",
-                    }}
-                  >
-                    — empty —
-                  </span>
-                )}
-              </div>
-              <div style={{ padding: "0.55rem 1rem" }}>
-                {row.remarks ? (
-                  <span style={{ fontSize: "0.82rem", color: textPrimary }}>
-                    {row.remarks}
-                  </span>
-                ) : (
-                  <span
-                    style={{
-                      fontSize: "0.78rem",
-                      color: "#ef4444",
-                      fontStyle: "italic",
-                    }}
-                  >
-                    — empty —
-                  </span>
-                )}
-              </div>
-              <div style={{ padding: "0.55rem 1rem" }}>
-                {(row.reason ? [row.reason] : (row.issues ?? [])).map(
-                  (issue, j) => (
-                    <div
-                      key={j}
+                </div>
+                <div style={{ padding: "0.55rem 0.75rem" }}>
+                  {row.rsn || row.doctrack ? (
+                    <span
                       style={{
-                        fontSize: "0.72rem",
-                        fontWeight: 600,
-                        color: "#ef4444",
+                        fontFamily: "monospace",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        color: darkMode ? "#f87171" : "#b91c1c",
                         background: darkMode
                           ? "rgba(239,68,68,0.1)"
                           : "#fee2e2",
-                        border: "1px solid rgba(239,68,68,0.25)",
-                        borderRadius: "5px",
-                        padding: "0.18rem 0.55rem",
-                        marginBottom: j < (row.issues?.length ?? 1) - 1 ? 4 : 0,
+                        borderRadius: 5,
+                        padding: "0.22rem 0.55rem",
+                        display: "inline-block",
                       }}
                     >
-                      ⚠ {issue}
-                    </div>
-                  ),
-                )}
+                      {row.rsn || row.doctrack}
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: "0.78rem",
+                        color: "#ef4444",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      — empty —
+                    </span>
+                  )}
+                </div>
+                <div style={{ padding: "0.55rem 1rem" }}>
+                  {row.remarks ? (
+                    <span style={{ fontSize: "0.82rem", color: textPrimary }}>
+                      {row.remarks}
+                    </span>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: "0.78rem",
+                        color: "#ef4444",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      — empty —
+                    </span>
+                  )}
+                </div>
+                <div style={{ padding: "0.55rem 1rem" }}>
+                  {(row.reason ? [row.reason] : (row.issues ?? [])).map(
+                    (issue, j) => (
+                      <div
+                        key={j}
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 600,
+                          color: "#ef4444",
+                          background: darkMode
+                            ? "rgba(239,68,68,0.1)"
+                            : "#fee2e2",
+                          border: "1px solid rgba(239,68,68,0.25)",
+                          borderRadius: "5px",
+                          padding: "0.18rem 0.55rem",
+                          marginBottom:
+                            j < (row.issues?.length ?? 1) - 1 ? 4 : 0,
+                        }}
+                      >
+                        ⚠ {issue}
+                      </div>
+                    ),
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
           <div
             style={{
               padding: "0.55rem 1.25rem",
@@ -466,6 +494,8 @@ function FailedRecordsPanel({
               background: headerBg,
               display: "flex",
               justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "0.5rem",
             }}
           >
             <span style={{ fontSize: "0.74rem", color: textMuted }}>
@@ -520,9 +550,7 @@ function HistoryDetailModal({
         setInsertedRows(res.data.map((r) => ({ ...r, doctrack: r.rsn })));
         setInsertedTotal(res.total);
       })
-      .catch(() => {
-        setInsertedRows(entry.records ?? []);
-      })
+      .catch(() => setInsertedRows(entry.records ?? []))
       .finally(() => setInsertedLoading(false));
   }, [tab, page, search, entry.historyID, entry.id]);
 
@@ -540,7 +568,6 @@ function HistoryDetailModal({
             );
           }).length / PAGE_SIZE,
         );
-
   const displayRows =
     tab === "inserted"
       ? insertedRows
@@ -554,7 +581,6 @@ function HistoryDetailModal({
             );
           })
           .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
   const insertedCount = entry.insertedCount ?? entry.inserted ?? 0;
   const failedCount = entry.failedCount ?? entry.failed ?? 0;
 
@@ -570,6 +596,7 @@ function HistoryDetailModal({
         justifyContent: "center",
         zIndex: 2000,
         backdropFilter: "blur(4px)",
+        padding: "1rem",
       }}
     >
       <div
@@ -580,27 +607,29 @@ function HistoryDetailModal({
           borderRadius: "14px",
           overflow: "hidden",
           width: "860px",
-          maxWidth: "95vw",
-          maxHeight: "85vh",
+          maxWidth: "100%",
+          maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
           boxShadow: "0 24px 64px rgba(0,0,0,0.28)",
         }}
       >
+        {/* Header */}
         <div
           style={{
-            padding: "1rem 1.25rem",
+            padding: "0.85rem 1rem",
             borderBottom: "1px solid " + border,
             background: headerBg,
             display: "flex",
             alignItems: "center",
-            gap: "0.75rem",
+            gap: "0.65rem",
+            flexWrap: "wrap",
           }}
         >
           <div
             style={{
-              width: 38,
-              height: 38,
+              width: 34,
+              height: 34,
               borderRadius: "9px",
               background: darkMode ? "rgba(37,99,235,0.15)" : "#eef2ff",
               display: "flex",
@@ -610,8 +639,8 @@ function HistoryDetailModal({
             }}
           >
             <svg
-              width="18"
-              height="18"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke={accent}
@@ -625,7 +654,7 @@ function HistoryDetailModal({
             <p
               style={{
                 margin: 0,
-                fontSize: "0.72rem",
+                fontSize: "0.7rem",
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
                 color: textMuted,
@@ -637,7 +666,7 @@ function HistoryDetailModal({
             <h3
               style={{
                 margin: "0.1rem 0 0",
-                fontSize: "0.95rem",
+                fontSize: "0.9rem",
                 fontWeight: 700,
                 color: textPrimary,
                 whiteSpace: "nowrap",
@@ -647,36 +676,43 @@ function HistoryDetailModal({
             >
               {entry.fileName}
             </h3>
-            <p style={{ margin: 0, fontSize: "0.74rem", color: textMuted }}>
+            <p style={{ margin: 0, fontSize: "0.72rem", color: textMuted }}>
               {formatDateTime(entry.uploadedAt)} · by{" "}
               <strong style={{ color: accent }}>{entry.uploadedBy}</strong>
             </p>
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: "0.4rem",
+              flexWrap: "wrap",
+              flexShrink: 0,
+            }}
+          >
             <span
               style={{
-                fontSize: "0.74rem",
+                fontSize: "0.72rem",
                 fontWeight: 700,
-                padding: "0.25rem 0.7rem",
+                padding: "0.22rem 0.6rem",
                 borderRadius: "99px",
                 background: darkMode ? "rgba(34,197,94,0.12)" : "#dcfce7",
                 color: "#22c55e",
               }}
             >
-              ✓ {insertedCount} inserted
+              ✓ {insertedCount}
             </span>
             {failedCount > 0 && (
               <span
                 style={{
-                  fontSize: "0.74rem",
+                  fontSize: "0.72rem",
                   fontWeight: 700,
-                  padding: "0.25rem 0.7rem",
+                  padding: "0.22rem 0.6rem",
                   borderRadius: "99px",
                   background: darkMode ? "rgba(239,68,68,0.12)" : "#fee2e2",
                   color: "#ef4444",
                 }}
               >
-                ✕ {failedCount} failed
+                ✕ {failedCount}
               </span>
             )}
           </div>
@@ -688,8 +724,8 @@ function HistoryDetailModal({
               borderRadius: "6px",
               color: textMuted,
               cursor: "pointer",
-              width: 30,
-              height: 30,
+              width: 28,
+              height: 28,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -699,14 +735,16 @@ function HistoryDetailModal({
             ✕
           </button>
         </div>
+        {/* Tabs + Search */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: "0.75rem",
-            padding: "0.7rem 1.25rem",
+            gap: "0.6rem",
+            padding: "0.6rem 1rem",
             borderBottom: "1px solid " + border,
             background: headerBg,
+            flexWrap: "wrap",
           }}
         >
           <div style={{ display: "flex", gap: "0.25rem" }}>
@@ -734,7 +772,7 @@ function HistoryDetailModal({
                   setSearch("");
                 }}
                 style={{
-                  padding: "0.35rem 0.85rem",
+                  padding: "0.3rem 0.75rem",
                   borderRadius: "7px",
                   border: `1px solid ${tab === t.key ? t.color + "55" : border}`,
                   background:
@@ -744,7 +782,7 @@ function HistoryDetailModal({
                         : t.color + "12"
                       : "transparent",
                   color: tab === t.key ? t.color : textMuted,
-                  fontSize: "0.8rem",
+                  fontSize: "0.78rem",
                   fontWeight: tab === t.key ? 700 : 500,
                   cursor: "pointer",
                   fontFamily: "inherit",
@@ -754,7 +792,7 @@ function HistoryDetailModal({
               </button>
             ))}
           </div>
-          <div style={{ position: "relative", flex: 1 }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 120 }}>
             <svg
               width="13"
               height="13"
@@ -784,8 +822,8 @@ function HistoryDetailModal({
                 background: inputBg,
                 border: "1px solid " + inputBorder,
                 borderRadius: "6px",
-                padding: "0.35rem 0.7rem 0.35rem 1.85rem",
-                fontSize: "0.8rem",
+                padding: "0.32rem 0.7rem 0.32rem 1.85rem",
+                fontSize: "0.78rem",
                 color: textPrimary,
                 outline: "none",
                 width: "100%",
@@ -796,195 +834,201 @@ function HistoryDetailModal({
             />
           </div>
         </div>
+        {/* Table */}
         <div style={{ overflowY: "auto", flex: 1 }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns:
-                "44px 1.2fr 2fr" + (tab === "failed" ? " 1.2fr" : ""),
-              background: headerBg,
-              borderBottom: "1px solid " + border,
-              position: "sticky",
-              top: 0,
-              zIndex: 2,
-            }}
-          >
-            {[
-              "Row",
-              "Doctrack Number",
-              "Remarks",
-              ...(tab === "failed" ? ["Reason"] : []),
-            ].map((col, i) => (
+          <div style={{ overflowX: "auto" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns:
+                  "44px 1.2fr 2fr" + (tab === "failed" ? " 1.2fr" : ""),
+                background: headerBg,
+                borderBottom: "1px solid " + border,
+                position: "sticky",
+                top: 0,
+                zIndex: 2,
+                minWidth: tab === "failed" ? 560 : 420,
+              }}
+            >
+              {[
+                "Row",
+                "Doctrack Number",
+                "Remarks",
+                ...(tab === "failed" ? ["Reason"] : []),
+              ].map((col, i) => (
+                <div
+                  key={col}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: i === 0 ? "center" : "flex-start",
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    color: textMuted,
+                    padding: "0.55rem 1rem",
+                  }}
+                >
+                  {col}
+                </div>
+              ))}
+            </div>
+            {insertedLoading ? (
               <div
-                key={col}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: i === 0 ? "center" : "flex-start",
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.07em",
+                  padding: "3rem",
+                  textAlign: "center",
                   color: textMuted,
-                  padding: "0.55rem 1rem",
+                  fontSize: "0.84rem",
                 }}
               >
-                {col}
+                Loading…
               </div>
-            ))}
-          </div>
-          {insertedLoading ? (
-            <div
-              style={{
-                padding: "3rem",
-                textAlign: "center",
-                color: textMuted,
-                fontSize: "0.84rem",
-              }}
-            >
-              Loading…
-            </div>
-          ) : displayRows.length === 0 ? (
-            <div
-              style={{
-                padding: "3rem",
-                textAlign: "center",
-                color: textMuted,
-                fontSize: "0.84rem",
-              }}
-            >
-              No records found
-            </div>
-          ) : (
-            displayRows.map((row, i) => {
-              const ins = tab === "inserted";
-              const rsn = row.rsn ?? row.doctrack ?? "—";
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns:
-                      "44px 1.2fr 2fr" + (tab === "failed" ? " 1.2fr" : ""),
-                    borderBottom:
-                      i < displayRows.length - 1
-                        ? "1px solid " + border
-                        : "none",
-                    alignItems: "center",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = darkMode
-                      ? "#1e1e1e"
-                      : "#f0f4ff")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
-                >
+            ) : displayRows.length === 0 ? (
+              <div
+                style={{
+                  padding: "3rem",
+                  textAlign: "center",
+                  color: textMuted,
+                  fontSize: "0.84rem",
+                }}
+              >
+                No records found
+              </div>
+            ) : (
+              displayRows.map((row, i) => {
+                const ins = tab === "inserted";
+                const rsn = row.rsn ?? row.doctrack ?? "—";
+                return (
                   <div
+                    key={i}
                     style={{
-                      display: "flex",
-                      justifyContent: "center",
-                      padding: "0.65rem 0.5rem",
+                      display: "grid",
+                      gridTemplateColumns:
+                        "44px 1.2fr 2fr" + (tab === "failed" ? " 1.2fr" : ""),
+                      borderBottom:
+                        i < displayRows.length - 1
+                          ? "1px solid " + border
+                          : "none",
+                      alignItems: "center",
+                      minWidth: tab === "failed" ? 560 : 420,
                     }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = darkMode
+                        ? "#1e1e1e"
+                        : "#f0f4ff")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
                   >
-                    <span
+                    <div
                       style={{
-                        width: 22,
-                        height: 22,
-                        borderRadius: "50%",
-                        fontSize: "0.7rem",
-                        fontWeight: 700,
                         display: "flex",
-                        alignItems: "center",
                         justifyContent: "center",
-                        background: ins
-                          ? darkMode
-                            ? "rgba(34,197,94,0.12)"
-                            : "#dcfce7"
-                          : darkMode
-                            ? "rgba(239,68,68,0.12)"
-                            : "#fee2e2",
-                        color: ins ? "#22c55e" : "#ef4444",
+                        padding: "0.65rem 0.5rem",
                       }}
                     >
-                      {row.rowNum}
-                    </span>
-                  </div>
-                  <div style={{ padding: "0.55rem 0.75rem" }}>
-                    <span
-                      onClick={() => ins && setDoctrackRecord({ dtn: rsn })}
-                      style={{
-                        fontFamily: "monospace",
-                        fontSize: "0.78rem",
-                        fontWeight: 700,
-                        color: ins
-                          ? darkMode
-                            ? "#06b6d4"
-                            : "#0369a1"
-                          : darkMode
-                            ? "#f87171"
-                            : "#b91c1c",
-                        background: ins
-                          ? darkMode
-                            ? "rgba(6,182,212,0.08)"
-                            : "#e0f2fe"
-                          : darkMode
-                            ? "rgba(239,68,68,0.1)"
-                            : "#fee2e2",
-                        borderRadius: 5,
-                        padding: "0.22rem 0.55rem",
-                        display: "inline-block",
-                        cursor: ins ? "pointer" : "default",
-                        textDecoration: ins ? "underline" : "none",
-                        textUnderlineOffset: "2px",
-                      }}
-                    >
-                      {rsn}
-                    </span>
-                  </div>
-                  <div style={{ padding: "0.55rem 1rem" }}>
-                    <span style={{ fontSize: "0.82rem", color: textPrimary }}>
-                      {row.remarks || (
-                        <em style={{ color: textMuted, fontStyle: "italic" }}>
-                          —
-                        </em>
-                      )}
-                    </span>
-                  </div>
-                  {tab === "failed" && (
-                    <div style={{ padding: "0.55rem 1rem" }}>
-                      {(row.reason ? [row.reason] : (row.issues ?? [])).map(
-                        (issue, j) => (
-                          <div
-                            key={j}
-                            style={{
-                              fontSize: "0.72rem",
-                              fontWeight: 600,
-                              color: "#ef4444",
-                              background: darkMode
-                                ? "rgba(239,68,68,0.1)"
-                                : "#fee2e2",
-                              border: "1px solid rgba(239,68,68,0.25)",
-                              borderRadius: "5px",
-                              padding: "0.18rem 0.55rem",
-                              marginBottom: 3,
-                            }}
-                          >
-                            ⚠ {issue}
-                          </div>
-                        ),
-                      )}
+                      <span
+                        style={{
+                          width: 22,
+                          height: 22,
+                          borderRadius: "50%",
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: ins
+                            ? darkMode
+                              ? "rgba(34,197,94,0.12)"
+                              : "#dcfce7"
+                            : darkMode
+                              ? "rgba(239,68,68,0.12)"
+                              : "#fee2e2",
+                          color: ins ? "#22c55e" : "#ef4444",
+                        }}
+                      >
+                        {row.rowNum}
+                      </span>
                     </div>
-                  )}
-                </div>
-              );
-            })
-          )}
+                    <div style={{ padding: "0.55rem 0.75rem" }}>
+                      <span
+                        onClick={() => ins && setDoctrackRecord({ dtn: rsn })}
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: "0.78rem",
+                          fontWeight: 700,
+                          color: ins
+                            ? darkMode
+                              ? "#06b6d4"
+                              : "#0369a1"
+                            : darkMode
+                              ? "#f87171"
+                              : "#b91c1c",
+                          background: ins
+                            ? darkMode
+                              ? "rgba(6,182,212,0.08)"
+                              : "#e0f2fe"
+                            : darkMode
+                              ? "rgba(239,68,68,0.1)"
+                              : "#fee2e2",
+                          borderRadius: 5,
+                          padding: "0.22rem 0.55rem",
+                          display: "inline-block",
+                          cursor: ins ? "pointer" : "default",
+                          textDecoration: ins ? "underline" : "none",
+                          textUnderlineOffset: "2px",
+                        }}
+                      >
+                        {rsn}
+                      </span>
+                    </div>
+                    <div style={{ padding: "0.55rem 1rem" }}>
+                      <span style={{ fontSize: "0.82rem", color: textPrimary }}>
+                        {row.remarks || (
+                          <em style={{ color: textMuted, fontStyle: "italic" }}>
+                            —
+                          </em>
+                        )}
+                      </span>
+                    </div>
+                    {tab === "failed" && (
+                      <div style={{ padding: "0.55rem 1rem" }}>
+                        {(row.reason ? [row.reason] : (row.issues ?? [])).map(
+                          (issue, j) => (
+                            <div
+                              key={j}
+                              style={{
+                                fontSize: "0.72rem",
+                                fontWeight: 600,
+                                color: "#ef4444",
+                                background: darkMode
+                                  ? "rgba(239,68,68,0.1)"
+                                  : "#fee2e2",
+                                border: "1px solid rgba(239,68,68,0.25)",
+                                borderRadius: "5px",
+                                padding: "0.18rem 0.55rem",
+                                marginBottom: 3,
+                              }}
+                            >
+                              ⚠ {issue}
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
+        {/* Footer pagination */}
         <div
           style={{
-            padding: "0.55rem 1.25rem",
+            padding: "0.55rem 1rem",
             borderTop: "1px solid " + border,
             background: headerBg,
             display: "flex",
@@ -1065,13 +1109,13 @@ function UploadHistory({
   headerBg,
   rowHover,
   accent,
+  isMobile,
 }) {
   const [selected, setSelected] = useState(null);
   const [filterDate, setFilterDate] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const HISTORY_PAGE_SIZE = 8;
-
   const inputBg = darkMode ? "#1a1a1a" : "#ffffff";
   const inputBorder = darkMode ? "#2e2e2e" : "#cdd2e0";
   const inputStyle = {
@@ -1104,7 +1148,6 @@ function UploadHistory({
     (page - 1) * HISTORY_PAGE_SIZE,
     page * HISTORY_PAGE_SIZE,
   );
-
   const totalInserted = history.reduce(
     (s, h) => s + (h.insertedCount ?? h.inserted ?? 0),
     0,
@@ -1120,11 +1163,11 @@ function UploadHistory({
         <div
           style={{
             display: "flex",
-            alignItems: "flex-end",
+            alignItems: "flex-start",
             justifyContent: "space-between",
             flexWrap: "wrap",
-            gap: "1rem",
-            marginBottom: "1rem",
+            gap: "0.75rem",
+            marginBottom: "0.85rem",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -1163,17 +1206,17 @@ function UploadHistory({
               >
                 Upload History
               </h2>
-              <p style={{ fontSize: "0.78rem", color: textMuted, margin: 0 }}>
-                All bulk uploads — click a row to view records
+              <p style={{ fontSize: "0.75rem", color: textMuted, margin: 0 }}>
+                All bulk uploads — tap a row to view
               </p>
             </div>
           </div>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
             <span
               style={{
-                fontSize: "0.74rem",
+                fontSize: "0.72rem",
                 fontWeight: 700,
-                padding: "0.28rem 0.8rem",
+                padding: "0.25rem 0.7rem",
                 borderRadius: "99px",
                 background: darkMode ? "rgba(37,99,235,0.12)" : accent + "12",
                 color: accent,
@@ -1184,9 +1227,9 @@ function UploadHistory({
             </span>
             <span
               style={{
-                fontSize: "0.74rem",
+                fontSize: "0.72rem",
                 fontWeight: 700,
-                padding: "0.28rem 0.8rem",
+                padding: "0.25rem 0.7rem",
                 borderRadius: "99px",
                 background: darkMode ? "rgba(34,197,94,0.12)" : "#dcfce7",
                 color: "#22c55e",
@@ -1198,9 +1241,9 @@ function UploadHistory({
             {totalFailed > 0 && (
               <span
                 style={{
-                  fontSize: "0.74rem",
+                  fontSize: "0.72rem",
                   fontWeight: 700,
-                  padding: "0.28rem 0.8rem",
+                  padding: "0.25rem 0.7rem",
                   borderRadius: "99px",
                   background: darkMode ? "rgba(239,68,68,0.12)" : "#fee2e2",
                   color: "#ef4444",
@@ -1212,15 +1255,8 @@ function UploadHistory({
             )}
           </div>
         </div>
-        <div
-          style={{
-            display: "flex",
-            gap: "0.6rem",
-            marginBottom: "0.75rem",
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ position: "relative", flex: 1, minWidth: 180 }}>
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 140 }}>
             <svg
               width="13"
               height="13"
@@ -1240,7 +1276,7 @@ function UploadHistory({
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
-              placeholder="Search filename or user…"
+              placeholder="Search…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
@@ -1255,7 +1291,7 @@ function UploadHistory({
             type="date"
             value={filterDate}
             onChange={(e) => setFilterDate(e.target.value)}
-            style={inputStyle}
+            style={{ ...inputStyle, maxWidth: isMobile ? "100%" : 160 }}
           />
           {(search || filterDate) && (
             <button
@@ -1264,7 +1300,7 @@ function UploadHistory({
                 setFilterDate("");
               }}
               style={{
-                padding: "0.38rem 0.8rem",
+                padding: "0.38rem 0.7rem",
                 borderRadius: "6px",
                 border: "1px solid " + inputBorder,
                 background: "transparent",
@@ -1291,199 +1327,313 @@ function UploadHistory({
             : "0 4px 20px rgba(67,97,238,0.08)",
         }}
       >
-        {/* Table Header */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
-            background: headerBg,
-            borderBottom: "1px solid " + border,
-          }}
-        >
-          {[
-            { l: "File / Batch", j: "flex-start" },
-            { l: "Uploaded By", j: "flex-start" },
-            { l: "Date & Time", j: "flex-start" },
-            { l: "Inserted", j: "center" },
-            { l: "Failed", j: "center" },
-            { l: "View", j: "center" },
-          ].map(({ l, j }) => (
-            <div
-              key={l}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: j,
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
-                color: textMuted,
-                padding: "0.6rem 1rem",
-              }}
-            >
-              {l}
-            </div>
-          ))}
-        </div>
-
-        {/* Scrollable body */}
-        <div
-          style={{
-            minHeight: 52,
-            maxHeight: HISTORY_PAGE_SIZE * 65,
-            overflowY: "auto",
-          }}
-        >
-          {loading ? (
+        <div style={{ overflowX: "auto" }}>
+          {/* Table header — hidden on mobile, show card-style rows instead */}
+          {!isMobile && (
             <div
               style={{
-                padding: "3rem",
-                textAlign: "center",
-                color: textMuted,
-                fontSize: "0.84rem",
+                display: "grid",
+                gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
+                background: headerBg,
+                borderBottom: "1px solid " + border,
+                minWidth: 520,
               }}
             >
-              Loading history…
-            </div>
-          ) : paginated.length === 0 ? (
-            <div
-              style={{
-                padding: "3rem",
-                textAlign: "center",
-                color: textMuted,
-                fontSize: "0.84rem",
-              }}
-            >
-              {filtered.length === 0 && history.length > 0
-                ? "No results match your filters."
-                : "No upload history found"}
-            </div>
-          ) : (
-            paginated.map((entry, i) => {
-              const ins = entry.insertedCount ?? entry.inserted ?? 0;
-              const fld = entry.failedCount ?? entry.failed ?? 0;
-              return (
+              {[
+                { l: "File / Batch", j: "flex-start" },
+                { l: "Uploaded By", j: "flex-start" },
+                { l: "Date & Time", j: "flex-start" },
+                { l: "Inserted", j: "center" },
+                { l: "Failed", j: "center" },
+                { l: "View", j: "center" },
+              ].map(({ l, j }) => (
                 <div
-                  key={entry.historyID ?? entry.id}
+                  key={l}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
-                    borderBottom:
-                      i < paginated.length - 1 ? "1px solid " + border : "none",
-                    transition: "background 0.15s",
+                    display: "flex",
                     alignItems: "center",
-                    cursor: "pointer",
+                    justifyContent: j,
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    color: textMuted,
+                    padding: "0.6rem 1rem",
                   }}
-                  onClick={() => setSelected(entry)}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = rowHover)
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
-                  }
                 >
+                  {l}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div
+            style={{
+              minHeight: 52,
+              maxHeight: isMobile ? "none" : HISTORY_PAGE_SIZE * 65,
+              overflowY: isMobile ? "visible" : "auto",
+            }}
+          >
+            {loading ? (
+              <div
+                style={{
+                  padding: "3rem",
+                  textAlign: "center",
+                  color: textMuted,
+                  fontSize: "0.84rem",
+                }}
+              >
+                Loading history…
+              </div>
+            ) : paginated.length === 0 ? (
+              <div
+                style={{
+                  padding: "3rem",
+                  textAlign: "center",
+                  color: textMuted,
+                  fontSize: "0.84rem",
+                }}
+              >
+                {filtered.length === 0 && history.length > 0
+                  ? "No results match your filters."
+                  : "No upload history found"}
+              </div>
+            ) : isMobile ? (
+              // ── MOBILE CARD VIEW ──
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {paginated.map((entry, i) => {
+                  const ins = entry.insertedCount ?? entry.inserted ?? 0;
+                  const fld = entry.failedCount ?? entry.failed ?? 0;
+                  return (
+                    <div
+                      key={entry.historyID ?? entry.id}
+                      style={{
+                        padding: "0.85rem 1rem",
+                        borderBottom:
+                          i < paginated.length - 1
+                            ? "1px solid " + border
+                            : "none",
+                        cursor: "pointer",
+                        transition: "background 0.15s",
+                      }}
+                      onClick={() => setSelected(entry)}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = rowHover)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.65rem",
+                          marginBottom: "0.5rem",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: "7px",
+                            background: darkMode
+                              ? "rgba(37,99,235,0.1)"
+                              : "#eef2ff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke={accent}
+                            strokeWidth="2"
+                          >
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                          </svg>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: "0.82rem",
+                              fontWeight: 600,
+                              color: textPrimary,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {entry.fileName}
+                          </div>
+                          <div style={{ fontSize: "0.7rem", color: textMuted }}>
+                            {entry.uploadedBy} · {timeAgo(entry.uploadedAt)}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "0.35rem",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                              padding: "0.18rem 0.55rem",
+                              borderRadius: "99px",
+                              background: darkMode
+                                ? "rgba(34,197,94,0.1)"
+                                : "#dcfce7",
+                              color: "#22c55e",
+                            }}
+                          >
+                            {ins}
+                          </span>
+                          {fld > 0 && (
+                            <span
+                              style={{
+                                fontSize: "0.72rem",
+                                fontWeight: 700,
+                                padding: "0.18rem 0.55rem",
+                                borderRadius: "99px",
+                                background: darkMode
+                                  ? "rgba(239,68,68,0.1)"
+                                  : "#fee2e2",
+                                color: "#ef4444",
+                              }}
+                            >
+                              {fld}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.7rem",
+                          color: textMuted,
+                          paddingLeft: "2.4rem",
+                        }}
+                      >
+                        {formatDateTime(entry.uploadedAt)} · {ins + fld} total
+                        rows
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              // ── DESKTOP TABLE VIEW ──
+              paginated.map((entry, i) => {
+                const ins = entry.insertedCount ?? entry.inserted ?? 0;
+                const fld = entry.failedCount ?? entry.failed ?? 0;
+                return (
                   <div
+                    key={entry.historyID ?? entry.id}
                     style={{
-                      padding: "0.75rem 1rem",
-                      display: "flex",
+                      display: "grid",
+                      gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
+                      borderBottom:
+                        i < paginated.length - 1
+                          ? "1px solid " + border
+                          : "none",
+                      transition: "background 0.15s",
                       alignItems: "center",
-                      gap: "0.65rem",
+                      cursor: "pointer",
+                      minWidth: 520,
                     }}
+                    onClick={() => setSelected(entry)}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = rowHover)
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
                   >
                     <div
                       style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: "7px",
-                        background: darkMode
-                          ? "rgba(37,99,235,0.1)"
-                          : "#eef2ff",
+                        padding: "0.75rem 1rem",
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
+                        gap: "0.65rem",
                       }}
                     >
-                      <svg
-                        width="14"
-                        height="14"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke={accent}
-                        strokeWidth="2"
-                      >
-                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                      </svg>
-                    </div>
-                    <div style={{ minWidth: 0 }}>
                       <div
                         style={{
-                          fontSize: "0.84rem",
-                          fontWeight: 600,
-                          color: textPrimary,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
+                          width: 32,
+                          height: 32,
+                          borderRadius: "7px",
+                          background: darkMode
+                            ? "rgba(37,99,235,0.1)"
+                            : "#eef2ff",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
                         }}
                       >
-                        {entry.fileName}
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke={accent}
+                          strokeWidth="2"
+                        >
+                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: "0.84rem",
+                            fontWeight: 600,
+                            color: textPrimary,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {entry.fileName}
+                        </div>
+                        <div style={{ fontSize: "0.72rem", color: textMuted }}>
+                          {ins + fld} total rows
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ padding: "0.75rem 1rem" }}>
+                      <span
+                        style={{
+                          fontSize: "0.82rem",
+                          fontWeight: 500,
+                          color: textPrimary,
+                        }}
+                      >
+                        {entry.uploadedBy}
+                      </span>
+                    </div>
+                    <div style={{ padding: "0.75rem 1rem" }}>
+                      <div style={{ fontSize: "0.82rem", color: textPrimary }}>
+                        {timeAgo(entry.uploadedAt)}
                       </div>
                       <div style={{ fontSize: "0.72rem", color: textMuted }}>
-                        {ins + fld} total rows
+                        {formatDateTime(entry.uploadedAt)}
                       </div>
                     </div>
-                  </div>
-                  <div style={{ padding: "0.75rem 1rem" }}>
-                    <span
+                    <div
                       style={{
-                        fontSize: "0.82rem",
-                        fontWeight: 500,
-                        color: textPrimary,
+                        padding: "0.75rem 0.5rem",
+                        display: "flex",
+                        justifyContent: "center",
                       }}
                     >
-                      {entry.uploadedBy}
-                    </span>
-                  </div>
-                  <div style={{ padding: "0.75rem 1rem" }}>
-                    <div style={{ fontSize: "0.82rem", color: textPrimary }}>
-                      {timeAgo(entry.uploadedAt)}
-                    </div>
-                    <div style={{ fontSize: "0.72rem", color: textMuted }}>
-                      {formatDateTime(entry.uploadedAt)}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      padding: "0.75rem 0.5rem",
-                      display: "flex",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.82rem",
-                        fontWeight: 700,
-                        padding: "0.2rem 0.65rem",
-                        borderRadius: "99px",
-                        background: darkMode
-                          ? "rgba(34,197,94,0.1)"
-                          : "#dcfce7",
-                        color: "#22c55e",
-                      }}
-                    >
-                      {ins}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      padding: "0.75rem 0.5rem",
-                      display: "flex",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {fld > 0 ? (
                       <span
                         style={{
                           fontSize: "0.82rem",
@@ -1491,72 +1641,96 @@ function UploadHistory({
                           padding: "0.2rem 0.65rem",
                           borderRadius: "99px",
                           background: darkMode
-                            ? "rgba(239,68,68,0.1)"
-                            : "#fee2e2",
-                          color: "#ef4444",
+                            ? "rgba(34,197,94,0.1)"
+                            : "#dcfce7",
+                          color: "#22c55e",
                         }}
                       >
-                        {fld}
+                        {ins}
                       </span>
-                    ) : (
-                      <span style={{ fontSize: "0.82rem", color: textMuted }}>
-                        —
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      padding: "0.75rem 0.75rem",
-                      display: "flex",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelected(entry);
-                      }}
+                    </div>
+                    <div
                       style={{
+                        padding: "0.75rem 0.5rem",
                         display: "flex",
-                        alignItems: "center",
-                        gap: "0.3rem",
-                        padding: "0.3rem 0.7rem",
-                        borderRadius: "6px",
-                        border: "1px solid " + border,
-                        background: "transparent",
-                        color: textMuted,
-                        fontSize: "0.75rem",
-                        fontWeight: 500,
-                        cursor: "pointer",
-                        fontFamily: "inherit",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = accent;
-                        e.currentTarget.style.color = accent;
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = border;
-                        e.currentTarget.style.color = textMuted;
+                        justifyContent: "center",
                       }}
                     >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
+                      {fld > 0 ? (
+                        <span
+                          style={{
+                            fontSize: "0.82rem",
+                            fontWeight: 700,
+                            padding: "0.2rem 0.65rem",
+                            borderRadius: "99px",
+                            background: darkMode
+                              ? "rgba(239,68,68,0.1)"
+                              : "#fee2e2",
+                            color: "#ef4444",
+                          }}
+                        >
+                          {fld}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: "0.82rem", color: textMuted }}>
+                          —
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        padding: "0.75rem 0.75rem",
+                        display: "flex",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelected(entry);
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.3rem",
+                          padding: "0.3rem 0.7rem",
+                          borderRadius: "6px",
+                          border: "1px solid " + border,
+                          background: "transparent",
+                          color: textMuted,
+                          fontSize: "0.75rem",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = accent;
+                          e.currentTarget.style.color = accent;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = border;
+                          e.currentTarget.style.color = textMuted;
+                        }}
                       >
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                      View
-                    </button>
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        View
+                      </button>
+                    </div>
                   </div>
-                </div>
-              );
-            })
-          )}
+                );
+              })
+            )}
+          </div>
         </div>
 
         {/* Pagination footer */}
@@ -1568,6 +1742,8 @@ function UploadHistory({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "0.5rem",
           }}
         >
           <span style={{ fontSize: "0.74rem", color: textMuted }}>
@@ -1626,7 +1802,7 @@ function UploadHistory({
               .map((p, i) =>
                 p === "..." ? (
                   <span
-                    key={`ellipsis-${i}`}
+                    key={`e-${i}`}
                     style={{
                       fontSize: "0.75rem",
                       color: textMuted,
@@ -1711,6 +1887,7 @@ function UploadHistory({
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
 function DoctrackMagicPage({ darkMode }) {
+  const isMobile = useIsMobile(768);
   const bg = darkMode ? "#0a0a0a" : "#f8f8f8";
   const cardBg = darkMode ? "#161616" : "#ffffff";
   const border = darkMode ? "#2a2a2a" : "#e2e5ee";
@@ -1745,7 +1922,6 @@ function DoctrackMagicPage({ darkMode }) {
   const [currentUser, setCurrentUser] = useState("unknown");
   const [currentAlias, setCurrentAlias] = useState("");
   const [currentRole, setCurrentRole] = useState("User");
-
   useEffect(() => {
     getCurrentUser()
       .then((res) => {
@@ -1949,59 +2125,96 @@ function DoctrackMagicPage({ darkMode }) {
   const validRows = allRows.filter((r) => r.issues.length === 0);
   const issueRows = allRows.filter((r) => r.issues.length > 0);
 
+  const columnCardStyle = {
+    background: cardBg,
+    border: "1px solid " + border,
+    borderRadius: "14px",
+    padding: "1.25rem",
+    boxShadow: darkMode
+      ? "0 2px 12px rgba(0,0,0,0.4)"
+      : "0 4px 20px rgba(67,97,238,0.08)",
+    position: "relative",
+  };
+
   return (
     <div
       style={{
         flex: 1,
         overflowY: "auto",
         background: bg,
-        padding: "2rem",
+        padding: isMobile ? "1rem" : "2rem",
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      {/* ── PAGE HEADER ── */}
-      {/* <div style={{ marginBottom: "1.75rem" }}>
-        <h1
-          style={{
-            fontSize: "1.75rem",
-            fontWeight: 600,
-            margin: "0 0 0.25rem",
-            color: textPrimary,
-          }}
-        >
-          Bulk Upload
-        </h1>
-        <p style={{ color: textMuted, fontSize: "0.85rem", margin: 0 }}>
-          Import Doctrack records via Excel — your session account will be used
-          as the submitting user.
-        </p>
-      </div> */}
-
-      {/* ── TWO-COLUMN LAYOUT ── */}
+      {/* ── TWO-COLUMN / SINGLE-COLUMN LAYOUT ── */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "35fr 65fr",
-          gap: "1.5rem",
+          gridTemplateColumns: isMobile ? "1fr" : "35fr 65fr",
+          gap: isMobile ? "1rem" : "1.5rem",
           alignItems: "start",
         }}
       >
-        {/* ── LEFT 35%: Upload section ── */}
-        <div
-          style={{
-            background: cardBg,
-            border: "1px solid " + border,
-            borderRadius: "14px",
-            padding: "1.25rem",
-            boxShadow: darkMode
-              ? "0 2px 12px rgba(0,0,0,0.4)"
-              : "0 4px 20px rgba(67,97,238,0.08)",
-          }}
-        >
-          <div style={{ marginBottom: "1.75rem" }}>
+        {/* ── LEFT: Upload section ── */}
+        <div style={columnCardStyle}>
+          {/* UPLOADING OVERLAY */}
+          {submitting && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                borderRadius: "14px",
+                background: darkMode
+                  ? "rgba(10,10,10,0.85)"
+                  : "rgba(255,255,255,0.88)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 10,
+                backdropFilter: "blur(3px)",
+                gap: "1.25rem",
+              }}
+            >
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  border: `4px solid ${darkMode ? "#2a2a2a" : "#e2e5ee"}`,
+                  borderTop: `4px solid ${accent}`,
+                  animation: "spin 0.75s linear infinite",
+                }}
+              />
+              <div style={{ textAlign: "center" }}>
+                <p
+                  style={{
+                    margin: 0,
+                    fontWeight: 700,
+                    fontSize: "0.95rem",
+                    color: textPrimary,
+                  }}
+                >
+                  Uploading to database…
+                </p>
+                <p
+                  style={{
+                    margin: "5px 0 0",
+                    fontSize: "0.78rem",
+                    color: textMuted,
+                  }}
+                >
+                  Please wait while we process your file
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* PAGE HEADER */}
+          <div style={{ marginBottom: "1.25rem" }}>
             <h1
               style={{
-                fontSize: "1.75rem",
+                fontSize: isMobile ? "1.35rem" : "1.75rem",
                 fontWeight: 600,
                 margin: "0 0 0.25rem",
                 color: textPrimary,
@@ -2009,9 +2222,8 @@ function DoctrackMagicPage({ darkMode }) {
             >
               Bulk Upload
             </h1>
-            <p style={{ color: textMuted, fontSize: "0.85rem", margin: 0 }}>
-              Import Doctrack records via Excel — your session account will be
-              used as the submitting user.
+            <p style={{ color: textMuted, fontSize: "0.82rem", margin: 0 }}>
+              Import Doctrack records via Excel.
             </p>
           </div>
 
@@ -2021,7 +2233,9 @@ function DoctrackMagicPage({ darkMode }) {
             textMuted={textMuted}
             textPrimary={textPrimary}
             border={border}
+            isMobile={isMobile}
           />
+
           {/* UPLOAD CARD */}
           <div
             style={{
@@ -2032,17 +2246,18 @@ function DoctrackMagicPage({ darkMode }) {
           >
             <div
               style={{
-                padding: "0.85rem 1.25rem",
+                padding: "0.75rem 1rem",
                 borderBottom: "1px solid " + border,
                 background: headerBg,
                 display: "flex",
                 alignItems: "center",
-                gap: "0.6rem",
+                gap: "0.5rem",
+                flexWrap: "wrap",
               }}
             >
               <svg
-                width="16"
-                height="16"
+                width="15"
+                height="15"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke={accent}
@@ -2054,22 +2269,16 @@ function DoctrackMagicPage({ darkMode }) {
               </svg>
               <span
                 style={{
-                  fontSize: "0.88rem",
+                  fontSize: "0.85rem",
                   fontWeight: 600,
                   color: textPrimary,
+                  flex: 1,
                 }}
               >
                 Upload Excel File
               </span>
-              <span
-                style={{
-                  marginLeft: "auto",
-                  fontSize: "0.75rem",
-                  color: textMuted,
-                }}
-              >
-                User code:{" "}
-                <strong style={{ color: accent }}>{currentAlias}</strong>
+              <span style={{ fontSize: "0.72rem", color: textMuted }}>
+                Code: <strong style={{ color: accent }}>{currentAlias}</strong>
               </span>
               <button
                 onClick={async () => {
@@ -2083,13 +2292,13 @@ function DoctrackMagicPage({ darkMode }) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.35rem 0.85rem",
+                  gap: "0.35rem",
+                  padding: "0.3rem 0.7rem",
                   borderRadius: "6px",
                   border: "1px solid " + border,
                   background: "transparent",
                   color: textMuted,
-                  fontSize: "0.78rem",
+                  fontSize: "0.74rem",
                   fontWeight: 600,
                   cursor: "pointer",
                   fontFamily: "inherit",
@@ -2104,8 +2313,8 @@ function DoctrackMagicPage({ darkMode }) {
                 }}
               >
                 <svg
-                  width="13"
-                  height="13"
+                  width="12"
+                  height="12"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -2115,27 +2324,27 @@ function DoctrackMagicPage({ darkMode }) {
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Download Template
+                {!isMobile && "Download "}Template
               </button>
             </div>
-            <div style={{ padding: "1.25rem" }}>
+            <div style={{ padding: "1rem" }}>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: "0.6rem",
-                  padding: "0.7rem 1rem",
+                  padding: "0.6rem 0.85rem",
                   marginBottom: "1rem",
                   background: darkMode ? "rgba(245,158,11,0.07)" : "#fffbeb",
                   border: "1px solid rgba(245,158,11,0.25)",
                   borderRadius: "8px",
-                  fontSize: "0.8rem",
+                  fontSize: "0.78rem",
                   color: textMuted,
                 }}
               >
                 <svg
-                  width="16"
-                  height="16"
+                  width="15"
+                  height="15"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="#f59e0b"
@@ -2146,7 +2355,7 @@ function DoctrackMagicPage({ darkMode }) {
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
                 <span>
-                  Required columns:{" "}
+                  Required:{" "}
                   <strong style={{ color: textPrimary }}>
                     Doctrack Number
                   </strong>
@@ -2165,7 +2374,7 @@ function DoctrackMagicPage({ darkMode }) {
                   style={{
                     border: `2px dashed ${isOver ? accent : border}`,
                     borderRadius: "10px",
-                    padding: "48px 24px",
+                    padding: isMobile ? "32px 16px" : "48px 24px",
                     textAlign: "center",
                     cursor: "pointer",
                     background: isOver
@@ -2189,9 +2398,9 @@ function DoctrackMagicPage({ darkMode }) {
                   />
                   <div
                     style={{
-                      width: 48,
-                      height: 48,
-                      margin: "0 auto 14px",
+                      width: 42,
+                      height: 42,
+                      margin: "0 auto 12px",
                       background: darkMode ? "rgba(37,99,235,0.12)" : "#eef2ff",
                       borderRadius: "10px",
                       display: "flex",
@@ -2200,8 +2409,8 @@ function DoctrackMagicPage({ darkMode }) {
                     }}
                   >
                     <svg
-                      width="24"
-                      height="24"
+                      width="22"
+                      height="22"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke={accent}
@@ -2214,26 +2423,28 @@ function DoctrackMagicPage({ darkMode }) {
                   <p
                     style={{
                       fontWeight: 600,
-                      fontSize: "0.9rem",
+                      fontSize: "0.88rem",
                       color: textPrimary,
                       margin: "0 0 4px",
                     }}
                   >
-                    Drop your Excel file here
+                    {isMobile ? "Tap to browse" : "Drop your Excel file here"}
                   </p>
-                  <p
-                    style={{
-                      fontSize: "0.8rem",
-                      color: textMuted,
-                      margin: "0 0 10px",
-                    }}
-                  >
-                    or click to browse from your computer
-                  </p>
+                  {!isMobile && (
+                    <p
+                      style={{
+                        fontSize: "0.78rem",
+                        color: textMuted,
+                        margin: "0 0 10px",
+                      }}
+                    >
+                      or click to browse from your computer
+                    </p>
+                  )}
                   <span
                     style={{
                       display: "inline-block",
-                      fontSize: "0.7rem",
+                      fontSize: "0.68rem",
                       fontWeight: 700,
                       padding: "2px 10px",
                       borderRadius: "5px",
@@ -2251,8 +2462,8 @@ function DoctrackMagicPage({ darkMode }) {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.9rem",
-                    padding: "0.85rem 1rem",
+                    gap: "0.75rem",
+                    padding: "0.75rem 0.85rem",
                     background: darkMode ? "#1a1a1a" : "#f0fdf4",
                     border: `1px solid ${darkMode ? "#2a2a2a" : "#bbf7d0"}`,
                     borderRadius: "8px",
@@ -2260,8 +2471,8 @@ function DoctrackMagicPage({ darkMode }) {
                 >
                   <div
                     style={{
-                      width: 36,
-                      height: 36,
+                      width: 34,
+                      height: 34,
                       borderRadius: "8px",
                       background: darkMode ? "rgba(34,197,94,0.12)" : "#dcfce7",
                       display: "flex",
@@ -2271,8 +2482,8 @@ function DoctrackMagicPage({ darkMode }) {
                     }}
                   >
                     <svg
-                      width="18"
-                      height="18"
+                      width="16"
+                      height="16"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="#22c55e"
@@ -2282,17 +2493,20 @@ function DoctrackMagicPage({ darkMode }) {
                       <polyline points="14 2 14 8 20 8" />
                     </svg>
                   </div>
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        fontSize: "0.84rem",
+                        fontSize: "0.82rem",
                         fontWeight: 600,
                         color: textPrimary,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
                       }}
                     >
                       {fileName}
                     </div>
-                    <div style={{ fontSize: "0.74rem", color: textMuted }}>
+                    <div style={{ fontSize: "0.72rem", color: textMuted }}>
                       {fileSize}
                     </div>
                   </div>
@@ -2317,8 +2531,8 @@ function DoctrackMagicPage({ darkMode }) {
                       }
                     >
                       <svg
-                        width="18"
-                        height="18"
+                        width="17"
+                        height="17"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
@@ -2341,13 +2555,13 @@ function DoctrackMagicPage({ darkMode }) {
                 style={{
                   display: "grid",
                   gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: "0.75rem",
-                  marginBottom: "1.25rem",
+                  gap: "0.6rem",
+                  marginBottom: "1rem",
                 }}
               >
                 {[
                   {
-                    label: "Total Records",
+                    label: "Total",
                     value: allRows.length,
                     color: accent,
                     bg: darkMode ? "#1a2744" : accent + "12",
@@ -2359,7 +2573,7 @@ function DoctrackMagicPage({ darkMode }) {
                     bg: darkMode ? "#0f2e1a" : "#f0fdf4",
                   },
                   {
-                    label: "With Issues",
+                    label: "Issues",
                     value: issueRows.length,
                     color: issueRows.length > 0 ? "#ef4444" : "#22c55e",
                     bg:
@@ -2378,24 +2592,24 @@ function DoctrackMagicPage({ darkMode }) {
                       background: s.bg,
                       border: "1px solid " + s.color + "33",
                       borderRadius: "10px",
-                      padding: "0.85rem 1rem",
+                      padding: "0.75rem 0.85rem",
                     }}
                   >
                     <div
                       style={{
-                        fontSize: "0.65rem",
+                        fontSize: "0.6rem",
                         fontWeight: 700,
                         textTransform: "uppercase",
                         letterSpacing: "0.07em",
                         color: s.color,
-                        marginBottom: 4,
+                        marginBottom: 3,
                       }}
                     >
                       {s.label}
                     </div>
                     <div
                       style={{
-                        fontSize: "1.6rem",
+                        fontSize: "1.4rem",
                         fontWeight: 800,
                         color: s.color,
                         letterSpacing: "-0.03em",
@@ -2408,28 +2622,28 @@ function DoctrackMagicPage({ darkMode }) {
                 ))}
               </div>
 
-              <div style={{ ...cardStyle, marginBottom: "1.25rem" }}>
+              <div style={{ ...cardStyle, marginBottom: "1rem" }}>
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.75rem",
-                    padding: "0.75rem 1rem",
+                    gap: "0.65rem",
+                    padding: "0.65rem 0.85rem",
                     borderBottom: "1px solid " + border,
                     background: headerBg,
                   }}
                 >
                   <div style={{ position: "relative", flex: 1 }}>
                     <svg
-                      width="14"
-                      height="14"
+                      width="13"
+                      height="13"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke={textMuted}
                       strokeWidth="2"
                       style={{
                         position: "absolute",
-                        left: 9,
+                        left: 8,
                         top: "50%",
                         transform: "translateY(-50%)",
                         pointerEvents: "none",
@@ -2440,7 +2654,7 @@ function DoctrackMagicPage({ darkMode }) {
                     </svg>
                     <input
                       type="text"
-                      placeholder="Search doctrack or remarks…"
+                      placeholder="Search…"
                       value={search}
                       onChange={(e) => {
                         setSearch(e.target.value);
@@ -2449,159 +2663,167 @@ function DoctrackMagicPage({ darkMode }) {
                       style={{
                         ...inputStyle,
                         width: "100%",
-                        paddingLeft: "2rem",
+                        paddingLeft: "1.85rem",
                         boxSizing: "border-box",
+                        fontSize: "0.78rem",
                       }}
                     />
                   </div>
                   <span
                     style={{
-                      fontSize: "0.75rem",
+                      fontSize: "0.72rem",
                       color: textMuted,
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {filtered.length} row{filtered.length !== 1 ? "s" : ""}
+                    {filtered.length} rows
                   </span>
                 </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "40px 1.2fr 2fr 80px",
-                    background: headerBg,
-                    borderBottom: "1px solid " + border,
-                  }}
-                >
-                  {[
-                    { l: "#", j: "center" },
-                    { l: "Doctrack Number", j: "flex-start" },
-                    { l: "Remarks", j: "flex-start" },
-                    { l: "Status", j: "center" },
-                  ].map(({ l, j }) => (
-                    <div
-                      key={l}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: j,
-                        fontSize: "0.72rem",
-                        fontWeight: 600,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.07em",
-                        color: textMuted,
-                        padding: "0.6rem 1rem",
-                      }}
-                    >
-                      {l}
-                    </div>
-                  ))}
-                </div>
-                <div style={{ maxHeight: 380, overflowY: "auto" }}>
-                  {paginated.map((row, i) => {
-                    const isValid = row.issues.length === 0;
-                    return (
+                <div style={{ overflowX: "auto" }}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "40px 1.2fr 2fr 60px",
+                      background: headerBg,
+                      borderBottom: "1px solid " + border,
+                      minWidth: 360,
+                    }}
+                  >
+                    {[
+                      { l: "#", j: "center" },
+                      { l: "Doctrack No.", j: "flex-start" },
+                      { l: "Remarks", j: "flex-start" },
+                      { l: "Status", j: "center" },
+                    ].map(({ l, j }) => (
                       <div
-                        key={i}
+                        key={l}
                         style={{
-                          display: "grid",
-                          gridTemplateColumns: "40px 1.2fr 2fr 80px",
-                          borderBottom:
-                            i < paginated.length - 1
-                              ? "1px solid " + border
-                              : "none",
-                          transition: "background 0.15s",
+                          display: "flex",
                           alignItems: "center",
+                          justifyContent: j,
+                          fontSize: "0.68rem",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          color: textMuted,
+                          padding: "0.55rem 0.75rem",
                         }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = rowHover)
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = "transparent")
-                        }
                       >
-                        <span
+                        {l}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ maxHeight: 300, overflowY: "auto" }}>
+                    {paginated.map((row, i) => {
+                      const isValid = row.issues.length === 0;
+                      return (
+                        <div
+                          key={i}
                           style={{
-                            fontSize: "0.72rem",
-                            color: textMuted,
-                            fontWeight: 600,
-                            padding: "0.7rem 0.5rem",
-                            textAlign: "center",
+                            display: "grid",
+                            gridTemplateColumns: "40px 1.2fr 2fr 60px",
+                            borderBottom:
+                              i < paginated.length - 1
+                                ? "1px solid " + border
+                                : "none",
+                            transition: "background 0.15s",
+                            alignItems: "center",
+                            minWidth: 360,
                           }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = rowHover)
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
                         >
-                          {row.rowNum}
-                        </span>
-                        <div style={{ padding: "0.55rem 0.75rem" }}>
                           <span
                             style={{
-                              fontFamily: "monospace",
-                              fontSize: "0.78rem",
-                              fontWeight: 700,
-                              color: darkMode ? "#06b6d4" : "#0369a1",
-                              background: darkMode
-                                ? "rgba(6,182,212,0.08)"
-                                : "#e0f2fe",
-                              borderRadius: 5,
-                              padding: "0.25rem 0.6rem",
-                              display: "inline-block",
+                              fontSize: "0.7rem",
+                              color: textMuted,
+                              fontWeight: 600,
+                              padding: "0.65rem 0.5rem",
+                              textAlign: "center",
                             }}
                           >
-                            {row.doctrack || "—"}
+                            {row.rowNum}
                           </span>
-                        </div>
-                        <div style={{ padding: "0.55rem 1rem" }}>
-                          <span
-                            style={{ fontSize: "0.82rem", color: textPrimary }}
-                          >
-                            {row.remarks || (
-                              <em
-                                style={{
-                                  color: "#ef4444",
-                                  fontStyle: "normal",
-                                }}
-                              >
-                                —
-                              </em>
-                            )}
-                          </span>
-                          {!isValid && (
-                            <div
+                          <div style={{ padding: "0.5rem 0.65rem" }}>
+                            <span
                               style={{
-                                fontSize: "0.7rem",
-                                color: "#ef4444",
-                                marginTop: 2,
-                                fontWeight: 500,
+                                fontFamily: "monospace",
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                                color: darkMode ? "#06b6d4" : "#0369a1",
+                                background: darkMode
+                                  ? "rgba(6,182,212,0.08)"
+                                  : "#e0f2fe",
+                                borderRadius: 5,
+                                padding: "0.2rem 0.5rem",
+                                display: "inline-block",
                               }}
                             >
-                              ⚠ {row.issues.join(" · ")}
-                            </div>
-                          )}
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "center",
-                            padding: "0.7rem 0",
-                          }}
-                        >
-                          <span
-                            title={isValid ? "Valid" : row.issues.join(", ")}
+                              {row.doctrack || "—"}
+                            </span>
+                          </div>
+                          <div style={{ padding: "0.5rem 0.75rem" }}>
+                            <span
+                              style={{
+                                fontSize: "0.78rem",
+                                color: textPrimary,
+                              }}
+                            >
+                              {row.remarks || (
+                                <em
+                                  style={{
+                                    color: "#ef4444",
+                                    fontStyle: "normal",
+                                  }}
+                                >
+                                  —
+                                </em>
+                              )}
+                            </span>
+                            {!isValid && (
+                              <div
+                                style={{
+                                  fontSize: "0.68rem",
+                                  color: "#ef4444",
+                                  marginTop: 2,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                ⚠ {row.issues.join(" · ")}
+                              </div>
+                            )}
+                          </div>
+                          <div
                             style={{
-                              width: 9,
-                              height: 9,
-                              borderRadius: "50%",
-                              display: "inline-block",
-                              background: isValid ? "#22c55e" : "#ef4444",
-                              boxShadow: `0 0 6px ${isValid ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"}`,
+                              display: "flex",
+                              justifyContent: "center",
+                              padding: "0.65rem 0",
                             }}
-                          />
+                          >
+                            <span
+                              title={isValid ? "Valid" : row.issues.join(", ")}
+                              style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: "50%",
+                                display: "inline-block",
+                                background: isValid ? "#22c55e" : "#ef4444",
+                                boxShadow: `0 0 5px ${isValid ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"}`,
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
                 <div
                   style={{
-                    padding: "0.5rem 1rem",
+                    padding: "0.45rem 0.85rem",
                     borderTop: "1px solid " + border,
                     background: headerBg,
                     display: "flex",
@@ -2609,14 +2831,14 @@ function DoctrackMagicPage({ darkMode }) {
                     justifyContent: "space-between",
                   }}
                 >
-                  <span style={{ fontSize: "0.75rem", color: textMuted }}>
+                  <span style={{ fontSize: "0.72rem", color: textMuted }}>
                     {filtered.length} of {allRows.length} records
                   </span>
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "0.4rem",
+                      gap: "0.35rem",
                     }}
                   >
                     <button
@@ -2628,13 +2850,13 @@ function DoctrackMagicPage({ darkMode }) {
                         borderRadius: 5,
                         color: page === 1 ? textMuted : textPrimary,
                         cursor: page === 1 ? "not-allowed" : "pointer",
-                        padding: "0.15rem 0.5rem",
-                        fontSize: "0.78rem",
+                        padding: "0.12rem 0.45rem",
+                        fontSize: "0.75rem",
                       }}
                     >
                       ‹
                     </button>
-                    <span style={{ fontSize: "0.75rem", color: textMuted }}>
+                    <span style={{ fontSize: "0.72rem", color: textMuted }}>
                       {page} / {totalPages || 1}
                     </span>
                     <button
@@ -2648,8 +2870,8 @@ function DoctrackMagicPage({ darkMode }) {
                         borderRadius: 5,
                         color: page >= totalPages ? textMuted : textPrimary,
                         cursor: page >= totalPages ? "not-allowed" : "pointer",
-                        padding: "0.15rem 0.5rem",
-                        fontSize: "0.78rem",
+                        padding: "0.12rem 0.45rem",
+                        fontSize: "0.75rem",
                       }}
                     >
                       ›
@@ -2662,7 +2884,7 @@ function DoctrackMagicPage({ darkMode }) {
                 <div
                   style={{
                     display: "flex",
-                    gap: "0.75rem",
+                    gap: "0.65rem",
                     justifyContent: "flex-end",
                   }}
                 >
@@ -2671,14 +2893,14 @@ function DoctrackMagicPage({ darkMode }) {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.6rem 1.2rem",
+                      gap: "0.45rem",
+                      padding: "0.55rem 1rem",
                       borderRadius: "8px",
                       border: "1px solid " + border,
                       background: "transparent",
                       color: textMuted,
                       cursor: "pointer",
-                      fontSize: "0.85rem",
+                      fontSize: "0.82rem",
                       fontWeight: 500,
                       fontFamily: "inherit",
                     }}
@@ -2692,8 +2914,8 @@ function DoctrackMagicPage({ darkMode }) {
                     }}
                   >
                     <svg
-                      width="14"
-                      height="14"
+                      width="13"
+                      height="13"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -2710,8 +2932,8 @@ function DoctrackMagicPage({ darkMode }) {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.6rem 1.4rem",
+                      gap: "0.45rem",
+                      padding: "0.55rem 1.2rem",
                       borderRadius: "8px",
                       border: "none",
                       background: !validRows.length
@@ -2721,46 +2943,25 @@ function DoctrackMagicPage({ darkMode }) {
                         : `linear-gradient(135deg, ${accent}, #2563eb)`,
                       color: !validRows.length ? textMuted : "#fff",
                       cursor: !validRows.length ? "not-allowed" : "pointer",
-                      fontSize: "0.85rem",
+                      fontSize: "0.82rem",
                       fontWeight: 600,
                       fontFamily: "inherit",
                       boxShadow: validRows.length
                         ? "0 4px 14px rgba(67,97,238,0.35)"
                         : "none",
-                      opacity: submitting ? 0.8 : 1,
                     }}
                   >
-                    {submitting ? (
-                      <>
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          style={{ animation: "spin 1s linear infinite" }}
-                        >
-                          <path d="M21 12a9 9 0 11-6.22-8.56" />
-                        </svg>
-                        Submitting…
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          width="14"
-                          height="14"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        Submit to Database
-                        {validRows.length > 0 ? ` (${validRows.length})` : ""}
-                      </>
-                    )}
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Submit{validRows.length > 0 ? ` (${validRows.length})` : ""}
                   </button>
                 </div>
               ) : (
@@ -2769,17 +2970,18 @@ function DoctrackMagicPage({ darkMode }) {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "1rem",
-                      padding: "1rem 1.25rem",
+                      gap: "0.85rem",
+                      padding: "0.85rem 1rem",
                       background: darkMode ? "rgba(34,197,94,0.06)" : "#f0fdf4",
                       border: `1px solid ${darkMode ? "rgba(34,197,94,0.2)" : "#bbf7d0"}`,
                       borderRadius: "12px",
+                      flexWrap: "wrap",
                     }}
                   >
                     <div
                       style={{
-                        width: 42,
-                        height: 42,
+                        width: 38,
+                        height: 38,
                         borderRadius: "50%",
                         background: darkMode
                           ? "rgba(34,197,94,0.15)"
@@ -2791,8 +2993,8 @@ function DoctrackMagicPage({ darkMode }) {
                       }}
                     >
                       <svg
-                        width="20"
-                        height="20"
+                        width="18"
+                        height="18"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="#22c55e"
@@ -2801,11 +3003,11 @@ function DoctrackMagicPage({ darkMode }) {
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
                     </div>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <p
                         style={{
                           fontWeight: 700,
-                          fontSize: "0.92rem",
+                          fontSize: "0.88rem",
                           color: textPrimary,
                           margin: "0 0 2px",
                         }}
@@ -2814,7 +3016,7 @@ function DoctrackMagicPage({ darkMode }) {
                       </p>
                       <p
                         style={{
-                          fontSize: "0.8rem",
+                          fontSize: "0.78rem",
                           color: textMuted,
                           margin: 0,
                         }}
@@ -2823,7 +3025,7 @@ function DoctrackMagicPage({ darkMode }) {
                           {submitResult?.stats?.inserted ??
                             submitResult?.inserted?.length}
                         </strong>{" "}
-                        records inserted as{" "}
+                        inserted as{" "}
                         <strong style={{ color: accent }}>{currentUser}</strong>
                         {(submitResult?.stats?.failed ??
                           submitResult?.failed?.length) > 0 && (
@@ -2842,13 +3044,13 @@ function DoctrackMagicPage({ darkMode }) {
                     <button
                       onClick={removeFile}
                       style={{
-                        padding: "0.45rem 1rem",
+                        padding: "0.4rem 0.85rem",
                         borderRadius: "8px",
                         border: "1px solid " + border,
                         background: cardBg,
                         color: textPrimary,
                         cursor: "pointer",
-                        fontSize: "0.8rem",
+                        fontSize: "0.78rem",
                         fontWeight: 500,
                         fontFamily: "inherit",
                         whiteSpace: "nowrap",
@@ -2876,18 +3078,8 @@ function DoctrackMagicPage({ darkMode }) {
         </div>
         {/* END LEFT */}
 
-        {/* ── RIGHT 65%: Upload History ── */}
-        <div
-          style={{
-            background: cardBg,
-            border: "1px solid " + border,
-            borderRadius: "14px",
-            padding: "1.25rem",
-            boxShadow: darkMode
-              ? "0 2px 12px rgba(0,0,0,0.4)"
-              : "0 4px 20px rgba(67,97,238,0.08)",
-          }}
-        >
+        {/* ── RIGHT: Upload History ── */}
+        <div style={columnCardStyle}>
           <UploadHistory
             history={
               ["Admin", "SuperAdmin"].includes(currentRole)
@@ -2903,14 +3095,19 @@ function DoctrackMagicPage({ darkMode }) {
             headerBg={headerBg}
             rowHover={rowHover}
             accent={accent}
+            isMobile={isMobile}
           />
         </div>
         {/* END RIGHT */}
       </div>
-      {/* END TWO-COLUMN GRID */}
 
       <Toast toasts={toasts} />
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg) } }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(16px) } to { opacity: 1; transform: translateX(0) } }
+        * { -webkit-tap-highlight-color: transparent; }
+        input, button { touch-action: manipulation; }
+      `}</style>
     </div>
   );
 }
