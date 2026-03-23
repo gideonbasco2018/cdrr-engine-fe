@@ -1780,7 +1780,8 @@ function DoctrackMagicPage({ darkMode }) {
 
   useEffect(() => {
     setHistoryLoading(true);
-    getUploadHistoryList({ limit: 500 })
+    // getUploadHistoryList({ limit: 50 })
+    getUploadHistoryList({})
       .then((res) => setUploadHistory(res.data))
       .catch(() => setUploadHistory([]))
       .finally(() => setHistoryLoading(false));
