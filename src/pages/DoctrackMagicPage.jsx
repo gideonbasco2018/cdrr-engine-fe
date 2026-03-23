@@ -614,7 +614,6 @@ function HistoryDetailModal({
           boxShadow: "0 24px 64px rgba(0,0,0,0.28)",
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "0.85rem 1rem",
@@ -735,7 +734,6 @@ function HistoryDetailModal({
             ✕
           </button>
         </div>
-        {/* Tabs + Search */}
         <div
           style={{
             display: "flex",
@@ -834,7 +832,6 @@ function HistoryDetailModal({
             />
           </div>
         </div>
-        {/* Table */}
         <div style={{ overflowY: "auto", flex: 1 }}>
           <div style={{ overflowX: "auto" }}>
             <div
@@ -1025,7 +1022,6 @@ function HistoryDetailModal({
             )}
           </div>
         </div>
-        {/* Footer pagination */}
         <div
           style={{
             padding: "0.55rem 1rem",
@@ -1098,6 +1094,9 @@ function HistoryDetailModal({
 }
 
 // ── UPLOAD HISTORY ────────────────────────────────────────────────────────────
+// Fixed grid: 2fr 1fr 1.4fr 70px 70px 70px — pantay-pantay ang columns
+const HISTORY_COLS = "2fr 1fr 1.4fr 70px 70px 70px";
+
 function UploadHistory({
   history,
   loading,
@@ -1328,15 +1327,15 @@ function UploadHistory({
         }}
       >
         <div style={{ overflowX: "auto" }}>
-          {/* Table header — hidden on mobile, show card-style rows instead */}
+          {/* ── DESKTOP TABLE HEADER ── */}
           {!isMobile && (
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
+                gridTemplateColumns: HISTORY_COLS,
                 background: headerBg,
                 borderBottom: "1px solid " + border,
-                minWidth: 520,
+                minWidth: 560,
               }}
             >
               {[
@@ -1358,7 +1357,7 @@ function UploadHistory({
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
                     color: textMuted,
-                    padding: "0.6rem 1rem",
+                    padding: "0.6rem 0.85rem",
                   }}
                 >
                   {l}
@@ -1400,7 +1399,7 @@ function UploadHistory({
               </div>
             ) : isMobile ? (
               // ── MOBILE CARD VIEW ──
-              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              <div style={{ display: "flex", flexDirection: "column" }}>
                 {paginated.map((entry, i) => {
                   const ins = entry.insertedCount ?? entry.inserted ?? 0;
                   const fld = entry.failedCount ?? entry.failed ?? 0;
@@ -1529,7 +1528,7 @@ function UploadHistory({
                 })}
               </div>
             ) : (
-              // ── DESKTOP TABLE VIEW ──
+              // ── DESKTOP TABLE ROWS ──
               paginated.map((entry, i) => {
                 const ins = entry.insertedCount ?? entry.inserted ?? 0;
                 const fld = entry.failedCount ?? entry.failed ?? 0;
@@ -1538,15 +1537,15 @@ function UploadHistory({
                     key={entry.historyID ?? entry.id}
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "2fr 1fr 1fr 80px 80px 80px",
+                      gridTemplateColumns: HISTORY_COLS,
                       borderBottom:
                         i < paginated.length - 1
                           ? "1px solid " + border
                           : "none",
                       transition: "background 0.15s",
-                      alignItems: "center",
+                      alignItems: "stretch",
                       cursor: "pointer",
-                      minWidth: 520,
+                      minWidth: 560,
                     }}
                     onClick={() => setSelected(entry)}
                     onMouseEnter={(e) =>
@@ -1556,9 +1555,10 @@ function UploadHistory({
                       (e.currentTarget.style.background = "transparent")
                     }
                   >
+                    {/* File / Batch */}
                     <div
                       style={{
-                        padding: "0.75rem 1rem",
+                        padding: "0.75rem 0.85rem",
                         display: "flex",
                         alignItems: "center",
                         gap: "0.65rem",
@@ -1608,7 +1608,15 @@ function UploadHistory({
                         </div>
                       </div>
                     </div>
-                    <div style={{ padding: "0.75rem 1rem" }}>
+
+                    {/* Uploaded By */}
+                    <div
+                      style={{
+                        padding: "0.75rem 0.85rem",
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                    >
                       <span
                         style={{
                           fontSize: "0.82rem",
@@ -1619,18 +1627,42 @@ function UploadHistory({
                         {entry.uploadedBy}
                       </span>
                     </div>
-                    <div style={{ padding: "0.75rem 1rem" }}>
-                      <div style={{ fontSize: "0.82rem", color: textPrimary }}>
+
+                    {/* Date & Time — fixed: flex column, consistent padding */}
+                    <div
+                      style={{
+                        padding: "0.75rem 0.85rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "0.78rem",
+                          fontWeight: 500,
+                          color: textPrimary,
+                        }}
+                      >
                         {timeAgo(entry.uploadedAt)}
                       </div>
-                      <div style={{ fontSize: "0.72rem", color: textMuted }}>
+                      <div
+                        style={{
+                          fontSize: "0.68rem",
+                          color: textMuted,
+                          marginTop: 2,
+                        }}
+                      >
                         {formatDateTime(entry.uploadedAt)}
                       </div>
                     </div>
+
+                    {/* Inserted */}
                     <div
                       style={{
                         padding: "0.75rem 0.5rem",
                         display: "flex",
+                        alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
@@ -1649,10 +1681,13 @@ function UploadHistory({
                         {ins}
                       </span>
                     </div>
+
+                    {/* Failed */}
                     <div
                       style={{
                         padding: "0.75rem 0.5rem",
                         display: "flex",
+                        alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
@@ -1677,10 +1712,13 @@ function UploadHistory({
                         </span>
                       )}
                     </div>
+
+                    {/* View */}
                     <div
                       style={{
-                        padding: "0.75rem 0.75rem",
+                        padding: "0.75rem 0.5rem",
                         display: "flex",
+                        alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
@@ -1693,7 +1731,7 @@ function UploadHistory({
                           display: "flex",
                           alignItems: "center",
                           gap: "0.3rem",
-                          padding: "0.3rem 0.7rem",
+                          padding: "0.3rem 0.65rem",
                           borderRadius: "6px",
                           border: "1px solid " + border,
                           background: "transparent",
@@ -2146,7 +2184,6 @@ function DoctrackMagicPage({ darkMode }) {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      {/* ── TWO-COLUMN / SINGLE-COLUMN LAYOUT ── */}
       <div
         style={{
           display: "grid",
@@ -2157,7 +2194,6 @@ function DoctrackMagicPage({ darkMode }) {
       >
         {/* ── LEFT: Upload section ── */}
         <div style={columnCardStyle}>
-          {/* UPLOADING OVERLAY */}
           {submitting && (
             <div
               style={{
@@ -2210,7 +2246,6 @@ function DoctrackMagicPage({ darkMode }) {
             </div>
           )}
 
-          {/* PAGE HEADER */}
           <div style={{ marginBottom: "1.25rem" }}>
             <h1
               style={{
@@ -3076,7 +3111,6 @@ function DoctrackMagicPage({ darkMode }) {
             </>
           )}
         </div>
-        {/* END LEFT */}
 
         {/* ── RIGHT: Upload History ── */}
         <div style={columnCardStyle}>
@@ -3098,7 +3132,6 @@ function DoctrackMagicPage({ darkMode }) {
             isMobile={isMobile}
           />
         </div>
-        {/* END RIGHT */}
       </div>
 
       <Toast toasts={toasts} />
