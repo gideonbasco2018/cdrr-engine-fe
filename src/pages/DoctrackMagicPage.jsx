@@ -1069,7 +1069,6 @@ function UploadHistory({
   const [selected, setSelected] = useState(null);
   const [filterDate, setFilterDate] = useState("");
   const [search, setSearch] = useState("");
-  // ── Pagination ──
   const [page, setPage] = useState(1);
   const HISTORY_PAGE_SIZE = 8;
 
@@ -1096,7 +1095,6 @@ function UploadHistory({
     return ms && md;
   });
 
-  // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
   }, [search, filterDate]);
@@ -1118,7 +1116,7 @@ function UploadHistory({
 
   return (
     <>
-      <div style={{ marginTop: "2.5rem", marginBottom: "1rem" }}>
+      <div style={{ marginBottom: "1rem" }}>
         <div
           style={{
             display: "flex",
@@ -1329,7 +1327,7 @@ function UploadHistory({
           ))}
         </div>
 
-        {/* ── Fixed-height scrollable body ── */}
+        {/* Scrollable body */}
         <div
           style={{
             minHeight: 52,
@@ -1561,7 +1559,7 @@ function UploadHistory({
           )}
         </div>
 
-        {/* ── Pagination footer ── */}
+        {/* Pagination footer */}
         <div
           style={{
             padding: "0.55rem 1rem",
@@ -1616,8 +1614,6 @@ function UploadHistory({
             >
               ‹
             </button>
-
-            {/* Page number pills */}
             {Array.from({ length: totalPages }, (_, i) => i + 1)
               .filter(
                 (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1,
@@ -1660,7 +1656,6 @@ function UploadHistory({
                   </button>
                 ),
               )}
-
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
@@ -1756,7 +1751,7 @@ function DoctrackMagicPage({ darkMode }) {
       .then((res) => {
         setCurrentUser(res.username ?? "unknown");
         setCurrentAlias(res.alias ?? "");
-        setCurrentRole(res.role ?? "User"); // ← dagdag
+        setCurrentRole(res.role ?? "User");
       })
       .catch(() => setCurrentUser("unknown"));
   }, []);
@@ -1780,7 +1775,6 @@ function DoctrackMagicPage({ darkMode }) {
 
   useEffect(() => {
     setHistoryLoading(true);
-    // getUploadHistoryList({ limit: 50 })
     getUploadHistoryList({})
       .then((res) => setUploadHistory(res.data))
       .catch(() => setUploadHistory([]))
@@ -1965,7 +1959,8 @@ function DoctrackMagicPage({ darkMode }) {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <div style={{ marginBottom: "1.75rem" }}>
+      {/* ── PAGE HEADER ── */}
+      {/* <div style={{ marginBottom: "1.75rem" }}>
         <h1
           style={{
             fontSize: "1.75rem",
@@ -1980,853 +1975,940 @@ function DoctrackMagicPage({ darkMode }) {
           Import Doctrack records via Excel — your session account will be used
           as the submitting user.
         </p>
-      </div>
+      </div> */}
 
-      <StepIndicator
-        current={step}
-        accent={accent}
-        textMuted={textMuted}
-        textPrimary={textPrimary}
-        border={border}
-      />
-
-      {/* UPLOAD CARD */}
-      <div style={{ ...cardStyle, marginBottom: "1.25rem" }}>
+      {/* ── TWO-COLUMN LAYOUT ── */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "35fr 65fr",
+          gap: "1.5rem",
+          alignItems: "start",
+        }}
+      >
+        {/* ── LEFT 35%: Upload section ── */}
         <div
           style={{
-            padding: "0.85rem 1.25rem",
-            borderBottom: "1px solid " + border,
-            background: headerBg,
-            display: "flex",
-            alignItems: "center",
-            gap: "0.6rem",
+            background: cardBg,
+            border: "1px solid " + border,
+            borderRadius: "14px",
+            padding: "1.25rem",
+            boxShadow: darkMode
+              ? "0 2px 12px rgba(0,0,0,0.4)"
+              : "0 4px 20px rgba(67,97,238,0.08)",
           }}
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={accent}
-            strokeWidth="2"
-          >
-            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-            <polyline points="17 8 12 3 7 8" />
-            <line x1="12" y1="3" x2="12" y2="15" />
-          </svg>
-          <span
-            style={{ fontSize: "0.88rem", fontWeight: 600, color: textPrimary }}
-          >
-            Upload Excel File
-          </span>
-          <span
-            style={{
-              marginLeft: "auto",
-              fontSize: "0.75rem",
-              color: textMuted,
-            }}
-          >
-            Logged in as:{" "}
-            <strong style={{ color: accent }}>{currentUser}</strong>
-          </span>
-          <button
-            onClick={async () => {
-              try {
-                await downloadDoctrackTemplate();
-                showToast("Template downloaded.", "success");
-              } catch {
-                showToast("Failed to download template.", "error");
-              }
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              padding: "0.35rem 0.85rem",
-              borderRadius: "6px",
-              border: "1px solid " + border,
-              background: "transparent",
-              color: textMuted,
-              fontSize: "0.78rem",
-              fontWeight: 600,
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = accent;
-              e.currentTarget.style.color = accent;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = border;
-              e.currentTarget.style.color = textMuted;
-            }}
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
+          <div style={{ marginBottom: "1.75rem" }}>
+            <h1
+              style={{
+                fontSize: "1.75rem",
+                fontWeight: 600,
+                margin: "0 0 0.25rem",
+                color: textPrimary,
+              }}
             >
-              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Download Template
-          </button>
-        </div>
-        <div style={{ padding: "1.25rem" }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.6rem",
-              padding: "0.7rem 1rem",
-              marginBottom: "1rem",
-              background: darkMode ? "rgba(245,158,11,0.07)" : "#fffbeb",
-              border: "1px solid rgba(245,158,11,0.25)",
-              borderRadius: "8px",
-              fontSize: "0.8rem",
-              color: textMuted,
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#f59e0b"
-              strokeWidth="2"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            <span>
-              Required columns:{" "}
-              <strong style={{ color: textPrimary }}>Doctrack Number</strong>,{" "}
-              <strong style={{ color: textPrimary }}>Remarks</strong>
-            </span>
+              Bulk Upload
+            </h1>
+            <p style={{ color: textMuted, fontSize: "0.85rem", margin: 0 }}>
+              Import Doctrack records via Excel — your session account will be
+              used as the submitting user.
+            </p>
           </div>
-          {!fileName ? (
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsOver(true);
-              }}
-              onDragLeave={() => setIsOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                border: `2px dashed ${isOver ? accent : border}`,
-                borderRadius: "10px",
-                padding: "48px 24px",
-                textAlign: "center",
-                cursor: "pointer",
-                background: isOver
-                  ? darkMode
-                    ? "rgba(37,99,235,0.08)"
-                    : "rgba(67,97,238,0.04)"
-                  : darkMode
-                    ? "#1a1a1a"
-                    : "#fafbff",
-                transition: "all 0.2s",
-              }}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                  if (e.target.files[0]) handleFile(e.target.files[0]);
-                }}
-              />
-              <div
-                style={{
-                  width: 48,
-                  height: 48,
-                  margin: "0 auto 14px",
-                  background: darkMode ? "rgba(37,99,235,0.12)" : "#eef2ff",
-                  borderRadius: "10px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={accent}
-                  strokeWidth="1.5"
-                >
-                  <path d="M4 16l4-4 4 4 4-8 4 8" />
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                </svg>
-              </div>
-              <p
-                style={{
-                  fontWeight: 600,
-                  fontSize: "0.9rem",
-                  color: textPrimary,
-                  margin: "0 0 4px",
-                }}
-              >
-                Drop your Excel file here
-              </p>
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  color: textMuted,
-                  margin: "0 0 10px",
-                }}
-              >
-                or click to browse from your computer
-              </p>
-              <span
-                style={{
-                  display: "inline-block",
-                  fontSize: "0.7rem",
-                  fontWeight: 700,
-                  padding: "2px 10px",
-                  borderRadius: "5px",
-                  letterSpacing: "0.05em",
-                  background: darkMode ? "rgba(37,99,235,0.15)" : "#eef2ff",
-                  color: accent,
-                  border: "1px solid " + accent + "33",
-                }}
-              >
-                📊 .XLSX / .XLS
-              </span>
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.9rem",
-                padding: "0.85rem 1rem",
-                background: darkMode ? "#1a1a1a" : "#f0fdf4",
-                border: `1px solid ${darkMode ? "#2a2a2a" : "#bbf7d0"}`,
-                borderRadius: "8px",
-              }}
-            >
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: "8px",
-                  background: darkMode ? "rgba(34,197,94,0.12)" : "#dcfce7",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#22c55e"
-                  strokeWidth="2"
-                >
-                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div
-                  style={{
-                    fontSize: "0.84rem",
-                    fontWeight: 600,
-                    color: textPrimary,
-                  }}
-                >
-                  {fileName}
-                </div>
-                <div style={{ fontSize: "0.74rem", color: textMuted }}>
-                  {fileSize}
-                </div>
-              </div>
-              {!submitted && (
-                <button
-                  onClick={removeFile}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: textMuted,
-                    padding: 4,
-                    borderRadius: 6,
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.color = "#ef4444")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.color = textMuted)
-                  }
-                >
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* PREVIEW */}
-      {allRows.length > 0 && (
-        <>
+          <StepIndicator
+            current={step}
+            accent={accent}
+            textMuted={textMuted}
+            textPrimary={textPrimary}
+            border={border}
+          />
+          {/* UPLOAD CARD */}
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "0.75rem",
+              ...cardStyle,
               marginBottom: "1.25rem",
+              borderRadius: "10px",
             }}
           >
-            {[
-              {
-                label: "Total Records",
-                value: allRows.length,
-                color: accent,
-                bg: darkMode ? "#1a2744" : accent + "12",
-              },
-              {
-                label: "Valid",
-                value: validRows.length,
-                color: "#22c55e",
-                bg: darkMode ? "#0f2e1a" : "#f0fdf4",
-              },
-              {
-                label: "With Issues",
-                value: issueRows.length,
-                color: issueRows.length > 0 ? "#ef4444" : "#22c55e",
-                bg:
-                  issueRows.length > 0
-                    ? darkMode
-                      ? "#2e0f1a"
-                      : "#fff1f3"
-                    : darkMode
-                      ? "#0f2e1a"
-                      : "#f0fdf4",
-              },
-            ].map((s) => (
-              <div
-                key={s.label}
-                style={{
-                  background: s.bg,
-                  border: "1px solid " + s.color + "33",
-                  borderRadius: "10px",
-                  padding: "0.85rem 1rem",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "0.65rem",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
-                    color: s.color,
-                    marginBottom: 4,
-                  }}
-                >
-                  {s.label}
-                </div>
-                <div
-                  style={{
-                    fontSize: "1.6rem",
-                    fontWeight: 800,
-                    color: s.color,
-                    letterSpacing: "-0.03em",
-                    lineHeight: 1,
-                  }}
-                >
-                  {s.value}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ ...cardStyle, marginBottom: "1.25rem" }}>
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                padding: "0.75rem 1rem",
+                padding: "0.85rem 1.25rem",
                 borderBottom: "1px solid " + border,
                 background: headerBg,
+                display: "flex",
+                alignItems: "center",
+                gap: "0.6rem",
               }}
             >
-              <div style={{ position: "relative", flex: 1 }}>
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={textMuted}
-                  strokeWidth="2"
-                  style={{
-                    position: "absolute",
-                    left: 9,
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    pointerEvents: "none",
-                  }}
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Search doctrack or remarks…"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setPage(1);
-                  }}
-                  style={{
-                    ...inputStyle,
-                    width: "100%",
-                    paddingLeft: "2rem",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={accent}
+                strokeWidth="2"
+              >
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
               <span
                 style={{
+                  fontSize: "0.88rem",
+                  fontWeight: 600,
+                  color: textPrimary,
+                }}
+              >
+                Upload Excel File
+              </span>
+              <span
+                style={{
+                  marginLeft: "auto",
                   fontSize: "0.75rem",
                   color: textMuted,
-                  whiteSpace: "nowrap",
                 }}
               >
-                {filtered.length} row{filtered.length !== 1 ? "s" : ""}
+                User code:{" "}
+                <strong style={{ color: accent }}>{currentAlias}</strong>
               </span>
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "40px 1.2fr 2fr 80px",
-                background: headerBg,
-                borderBottom: "1px solid " + border,
-              }}
-            >
-              {[
-                { l: "#", j: "center" },
-                { l: "Doctrack Number", j: "flex-start" },
-                { l: "Remarks", j: "flex-start" },
-                { l: "Status", j: "center" },
-              ].map(({ l, j }) => (
-                <div
-                  key={l}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: j,
-                    fontSize: "0.72rem",
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
-                    color: textMuted,
-                    padding: "0.6rem 1rem",
-                  }}
-                >
-                  {l}
-                </div>
-              ))}
-            </div>
-            <div style={{ maxHeight: 380, overflowY: "auto" }}>
-              {paginated.map((row, i) => {
-                const isValid = row.issues.length === 0;
-                return (
-                  <div
-                    key={i}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "40px 1.2fr 2fr 80px",
-                      borderBottom:
-                        i < paginated.length - 1
-                          ? "1px solid " + border
-                          : "none",
-                      transition: "background 0.15s",
-                      alignItems: "center",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = rowHover)
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.72rem",
-                        color: textMuted,
-                        fontWeight: 600,
-                        padding: "0.7rem 0.5rem",
-                        textAlign: "center",
-                      }}
-                    >
-                      {row.rowNum}
-                    </span>
-                    <div style={{ padding: "0.55rem 0.75rem" }}>
-                      <span
-                        style={{
-                          fontFamily: "monospace",
-                          fontSize: "0.78rem",
-                          fontWeight: 700,
-                          color: darkMode ? "#06b6d4" : "#0369a1",
-                          background: darkMode
-                            ? "rgba(6,182,212,0.08)"
-                            : "#e0f2fe",
-                          borderRadius: 5,
-                          padding: "0.25rem 0.6rem",
-                          display: "inline-block",
-                        }}
-                      >
-                        {row.doctrack || "—"}
-                      </span>
-                    </div>
-                    <div style={{ padding: "0.55rem 1rem" }}>
-                      <span style={{ fontSize: "0.82rem", color: textPrimary }}>
-                        {row.remarks || (
-                          <em style={{ color: "#ef4444", fontStyle: "normal" }}>
-                            —
-                          </em>
-                        )}
-                      </span>
-                      {!isValid && (
-                        <div
-                          style={{
-                            fontSize: "0.7rem",
-                            color: "#ef4444",
-                            marginTop: 2,
-                            fontWeight: 500,
-                          }}
-                        >
-                          ⚠ {row.issues.join(" · ")}
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "center",
-                        padding: "0.7rem 0",
-                      }}
-                    >
-                      <span
-                        title={isValid ? "Valid" : row.issues.join(", ")}
-                        style={{
-                          width: 9,
-                          height: 9,
-                          borderRadius: "50%",
-                          display: "inline-block",
-                          background: isValid ? "#22c55e" : "#ef4444",
-                          boxShadow: `0 0 6px ${isValid ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"}`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div
-              style={{
-                padding: "0.5rem 1rem",
-                borderTop: "1px solid " + border,
-                background: headerBg,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span style={{ fontSize: "0.75rem", color: textMuted }}>
-                {filtered.length} of {allRows.length} records
-              </span>
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
-              >
-                <button
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid " + border,
-                    borderRadius: 5,
-                    color: page === 1 ? textMuted : textPrimary,
-                    cursor: page === 1 ? "not-allowed" : "pointer",
-                    padding: "0.15rem 0.5rem",
-                    fontSize: "0.78rem",
-                  }}
-                >
-                  ‹
-                </button>
-                <span style={{ fontSize: "0.75rem", color: textMuted }}>
-                  {page} / {totalPages || 1}
-                </span>
-                <button
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  style={{
-                    background: "transparent",
-                    border: "1px solid " + border,
-                    borderRadius: 5,
-                    color: page >= totalPages ? textMuted : textPrimary,
-                    cursor: page >= totalPages ? "not-allowed" : "pointer",
-                    padding: "0.15rem 0.5rem",
-                    fontSize: "0.78rem",
-                  }}
-                >
-                  ›
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {!submitted ? (
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                justifyContent: "flex-end",
-              }}
-            >
               <button
-                onClick={removeFile}
+                onClick={async () => {
+                  try {
+                    await downloadDoctrackTemplate();
+                    showToast("Template downloaded.", "success");
+                  } catch {
+                    showToast("Failed to download template.", "error");
+                  }
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.6rem 1.2rem",
-                  borderRadius: "8px",
+                  gap: "0.4rem",
+                  padding: "0.35rem 0.85rem",
+                  borderRadius: "6px",
                   border: "1px solid " + border,
                   background: "transparent",
                   color: textMuted,
+                  fontSize: "0.78rem",
+                  fontWeight: 600,
                   cursor: "pointer",
-                  fontSize: "0.85rem",
-                  fontWeight: 500,
                   fontFamily: "inherit",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = rowHover;
-                  e.currentTarget.style.color = textPrimary;
+                  e.currentTarget.style.borderColor = accent;
+                  e.currentTarget.style.color = accent;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.borderColor = border;
                   e.currentTarget.style.color = textMuted;
                 }}
               >
                 <svg
-                  width="14"
-                  height="14"
+                  width="13"
+                  height="13"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2"
                 >
-                  <polyline points="1 4 1 10 7 10" />
-                  <path d="M3.51 15a9 9 0 1 0 .49-3.85" />
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Reset
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={submitting || !validRows.length}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.6rem 1.4rem",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: !validRows.length
-                    ? darkMode
-                      ? "#2a2a2a"
-                      : "#e5e7eb"
-                    : `linear-gradient(135deg, ${accent}, #2563eb)`,
-                  color: !validRows.length ? textMuted : "#fff",
-                  cursor: !validRows.length ? "not-allowed" : "pointer",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  fontFamily: "inherit",
-                  boxShadow: validRows.length
-                    ? "0 4px 14px rgba(67,97,238,0.35)"
-                    : "none",
-                  opacity: submitting ? 0.8 : 1,
-                }}
-              >
-                {submitting ? (
-                  <>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      style={{ animation: "spin 1s linear infinite" }}
-                    >
-                      <path d="M21 12a9 9 0 11-6.22-8.56" />
-                    </svg>
-                    Submitting…
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                    Submit to Database
-                    {validRows.length > 0 ? ` (${validRows.length})` : ""}
-                  </>
-                )}
+                Download Template
               </button>
             </div>
-          ) : (
-            <>
+            <div style={{ padding: "1.25rem" }}>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "1rem",
-                  padding: "1rem 1.25rem",
-                  background: darkMode ? "rgba(34,197,94,0.06)" : "#f0fdf4",
-                  border: `1px solid ${darkMode ? "rgba(34,197,94,0.2)" : "#bbf7d0"}`,
-                  borderRadius: "12px",
+                  gap: "0.6rem",
+                  padding: "0.7rem 1rem",
+                  marginBottom: "1rem",
+                  background: darkMode ? "rgba(245,158,11,0.07)" : "#fffbeb",
+                  border: "1px solid rgba(245,158,11,0.25)",
+                  borderRadius: "8px",
+                  fontSize: "0.8rem",
+                  color: textMuted,
                 }}
               >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth="2"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>
+                  Required columns:{" "}
+                  <strong style={{ color: textPrimary }}>
+                    Doctrack Number
+                  </strong>
+                  , <strong style={{ color: textPrimary }}>Remarks</strong>
+                </span>
+              </div>
+              {!fileName ? (
                 <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsOver(true);
+                  }}
+                  onDragLeave={() => setIsOver(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
                   style={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: "50%",
-                    background: darkMode ? "rgba(34,197,94,0.15)" : "#dcfce7",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
+                    border: `2px dashed ${isOver ? accent : border}`,
+                    borderRadius: "10px",
+                    padding: "48px 24px",
+                    textAlign: "center",
+                    cursor: "pointer",
+                    background: isOver
+                      ? darkMode
+                        ? "rgba(37,99,235,0.08)"
+                        : "rgba(67,97,238,0.04)"
+                      : darkMode
+                        ? "#1a1a1a"
+                        : "#fafbff",
+                    transition: "all 0.2s",
                   }}
                 >
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="#22c55e"
-                    strokeWidth="2.5"
-                  >
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <p
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      if (e.target.files[0]) handleFile(e.target.files[0]);
+                    }}
+                  />
+                  <div
                     style={{
-                      fontWeight: 700,
-                      fontSize: "0.92rem",
-                      color: textPrimary,
-                      margin: "0 0 2px",
+                      width: 48,
+                      height: 48,
+                      margin: "0 auto 14px",
+                      background: darkMode ? "rgba(37,99,235,0.12)" : "#eef2ff",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    Upload Complete
+                    <svg
+                      width="24"
+                      height="24"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={accent}
+                      strokeWidth="1.5"
+                    >
+                      <path d="M4 16l4-4 4 4 4-8 4 8" />
+                      <rect x="3" y="3" width="18" height="18" rx="2" />
+                    </svg>
+                  </div>
+                  <p
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "0.9rem",
+                      color: textPrimary,
+                      margin: "0 0 4px",
+                    }}
+                  >
+                    Drop your Excel file here
                   </p>
                   <p
-                    style={{ fontSize: "0.8rem", color: textMuted, margin: 0 }}
+                    style={{
+                      fontSize: "0.8rem",
+                      color: textMuted,
+                      margin: "0 0 10px",
+                    }}
                   >
-                    <strong style={{ color: "#22c55e" }}>
-                      {submitResult?.stats?.inserted ??
-                        submitResult?.inserted?.length}
-                    </strong>{" "}
-                    records inserted as{" "}
-                    <strong style={{ color: accent }}>{currentUser}</strong>
-                    {(submitResult?.stats?.failed ??
-                      submitResult?.failed?.length) > 0 && (
-                      <>
-                        {" "}
-                        ·{" "}
-                        <strong style={{ color: "#ef4444" }}>
-                          {submitResult?.stats?.failed ??
-                            submitResult?.failed?.length}
-                        </strong>{" "}
-                        skipped
-                      </>
-                    )}
+                    or click to browse from your computer
                   </p>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      fontSize: "0.7rem",
+                      fontWeight: 700,
+                      padding: "2px 10px",
+                      borderRadius: "5px",
+                      letterSpacing: "0.05em",
+                      background: darkMode ? "rgba(37,99,235,0.15)" : "#eef2ff",
+                      color: accent,
+                      border: "1px solid " + accent + "33",
+                    }}
+                  >
+                    📊 .XLSX / .XLS
+                  </span>
                 </div>
-                <button
-                  onClick={removeFile}
+              ) : (
+                <div
                   style={{
-                    padding: "0.45rem 1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.9rem",
+                    padding: "0.85rem 1rem",
+                    background: darkMode ? "#1a1a1a" : "#f0fdf4",
+                    border: `1px solid ${darkMode ? "#2a2a2a" : "#bbf7d0"}`,
                     borderRadius: "8px",
-                    border: "1px solid " + border,
-                    background: cardBg,
-                    color: textPrimary,
-                    cursor: "pointer",
-                    fontSize: "0.8rem",
-                    fontWeight: 500,
-                    fontFamily: "inherit",
-                    whiteSpace: "nowrap",
                   }}
                 >
-                  Upload Another
-                </button>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: "8px",
+                      background: darkMode ? "rgba(34,197,94,0.12)" : "#dcfce7",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#22c55e"
+                      strokeWidth="2"
+                    >
+                      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "0.84rem",
+                        fontWeight: 600,
+                        color: textPrimary,
+                      }}
+                    >
+                      {fileName}
+                    </div>
+                    <div style={{ fontSize: "0.74rem", color: textMuted }}>
+                      {fileSize}
+                    </div>
+                  </div>
+                  {!submitted && (
+                    <button
+                      onClick={removeFile}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        color: textMuted,
+                        padding: 4,
+                        borderRadius: 6,
+                        display: "flex",
+                        alignItems: "center",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.color = "#ef4444")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.color = textMuted)
+                      }
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* PREVIEW */}
+          {allRows.length > 0 && (
+            <>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: "0.75rem",
+                  marginBottom: "1.25rem",
+                }}
+              >
+                {[
+                  {
+                    label: "Total Records",
+                    value: allRows.length,
+                    color: accent,
+                    bg: darkMode ? "#1a2744" : accent + "12",
+                  },
+                  {
+                    label: "Valid",
+                    value: validRows.length,
+                    color: "#22c55e",
+                    bg: darkMode ? "#0f2e1a" : "#f0fdf4",
+                  },
+                  {
+                    label: "With Issues",
+                    value: issueRows.length,
+                    color: issueRows.length > 0 ? "#ef4444" : "#22c55e",
+                    bg:
+                      issueRows.length > 0
+                        ? darkMode
+                          ? "#2e0f1a"
+                          : "#fff1f3"
+                        : darkMode
+                          ? "#0f2e1a"
+                          : "#f0fdf4",
+                  },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    style={{
+                      background: s.bg,
+                      border: "1px solid " + s.color + "33",
+                      borderRadius: "10px",
+                      padding: "0.85rem 1rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.65rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.07em",
+                        color: s.color,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {s.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "1.6rem",
+                        fontWeight: 800,
+                        color: s.color,
+                        letterSpacing: "-0.03em",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {s.value}
+                    </div>
+                  </div>
+                ))}
               </div>
-              {submitResult?.failed?.length > 0 && (
-                <FailedRecordsPanel
-                  rows={submitResult.failed}
-                  darkMode={darkMode}
-                  cardBg={cardBg}
-                  border={border}
-                  textPrimary={textPrimary}
-                  textMuted={textMuted}
-                  headerBg={headerBg}
-                  onDownload={handleDownloadFailed}
-                />
+
+              <div style={{ ...cardStyle, marginBottom: "1.25rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.75rem",
+                    padding: "0.75rem 1rem",
+                    borderBottom: "1px solid " + border,
+                    background: headerBg,
+                  }}
+                >
+                  <div style={{ position: "relative", flex: 1 }}>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={textMuted}
+                      strokeWidth="2"
+                      style={{
+                        position: "absolute",
+                        left: 9,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search doctrack or remarks…"
+                      value={search}
+                      onChange={(e) => {
+                        setSearch(e.target.value);
+                        setPage(1);
+                      }}
+                      style={{
+                        ...inputStyle,
+                        width: "100%",
+                        paddingLeft: "2rem",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color: textMuted,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {filtered.length} row{filtered.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "40px 1.2fr 2fr 80px",
+                    background: headerBg,
+                    borderBottom: "1px solid " + border,
+                  }}
+                >
+                  {[
+                    { l: "#", j: "center" },
+                    { l: "Doctrack Number", j: "flex-start" },
+                    { l: "Remarks", j: "flex-start" },
+                    { l: "Status", j: "center" },
+                  ].map(({ l, j }) => (
+                    <div
+                      key={l}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: j,
+                        fontSize: "0.72rem",
+                        fontWeight: 600,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.07em",
+                        color: textMuted,
+                        padding: "0.6rem 1rem",
+                      }}
+                    >
+                      {l}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ maxHeight: 380, overflowY: "auto" }}>
+                  {paginated.map((row, i) => {
+                    const isValid = row.issues.length === 0;
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "40px 1.2fr 2fr 80px",
+                          borderBottom:
+                            i < paginated.length - 1
+                              ? "1px solid " + border
+                              : "none",
+                          transition: "background 0.15s",
+                          alignItems: "center",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = rowHover)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "transparent")
+                        }
+                      >
+                        <span
+                          style={{
+                            fontSize: "0.72rem",
+                            color: textMuted,
+                            fontWeight: 600,
+                            padding: "0.7rem 0.5rem",
+                            textAlign: "center",
+                          }}
+                        >
+                          {row.rowNum}
+                        </span>
+                        <div style={{ padding: "0.55rem 0.75rem" }}>
+                          <span
+                            style={{
+                              fontFamily: "monospace",
+                              fontSize: "0.78rem",
+                              fontWeight: 700,
+                              color: darkMode ? "#06b6d4" : "#0369a1",
+                              background: darkMode
+                                ? "rgba(6,182,212,0.08)"
+                                : "#e0f2fe",
+                              borderRadius: 5,
+                              padding: "0.25rem 0.6rem",
+                              display: "inline-block",
+                            }}
+                          >
+                            {row.doctrack || "—"}
+                          </span>
+                        </div>
+                        <div style={{ padding: "0.55rem 1rem" }}>
+                          <span
+                            style={{ fontSize: "0.82rem", color: textPrimary }}
+                          >
+                            {row.remarks || (
+                              <em
+                                style={{
+                                  color: "#ef4444",
+                                  fontStyle: "normal",
+                                }}
+                              >
+                                —
+                              </em>
+                            )}
+                          </span>
+                          {!isValid && (
+                            <div
+                              style={{
+                                fontSize: "0.7rem",
+                                color: "#ef4444",
+                                marginTop: 2,
+                                fontWeight: 500,
+                              }}
+                            >
+                              ⚠ {row.issues.join(" · ")}
+                            </div>
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            padding: "0.7rem 0",
+                          }}
+                        >
+                          <span
+                            title={isValid ? "Valid" : row.issues.join(", ")}
+                            style={{
+                              width: 9,
+                              height: 9,
+                              borderRadius: "50%",
+                              display: "inline-block",
+                              background: isValid ? "#22c55e" : "#ef4444",
+                              boxShadow: `0 0 6px ${isValid ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)"}`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div
+                  style={{
+                    padding: "0.5rem 1rem",
+                    borderTop: "1px solid " + border,
+                    background: headerBg,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <span style={{ fontSize: "0.75rem", color: textMuted }}>
+                    {filtered.length} of {allRows.length} records
+                  </span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                    }}
+                  >
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page === 1}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid " + border,
+                        borderRadius: 5,
+                        color: page === 1 ? textMuted : textPrimary,
+                        cursor: page === 1 ? "not-allowed" : "pointer",
+                        padding: "0.15rem 0.5rem",
+                        fontSize: "0.78rem",
+                      }}
+                    >
+                      ‹
+                    </button>
+                    <span style={{ fontSize: "0.75rem", color: textMuted }}>
+                      {page} / {totalPages || 1}
+                    </span>
+                    <button
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={page >= totalPages}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid " + border,
+                        borderRadius: 5,
+                        color: page >= totalPages ? textMuted : textPrimary,
+                        cursor: page >= totalPages ? "not-allowed" : "pointer",
+                        padding: "0.15rem 0.5rem",
+                        fontSize: "0.78rem",
+                      }}
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {!submitted ? (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.75rem",
+                    justifyContent: "flex-end",
+                  }}
+                >
+                  <button
+                    onClick={removeFile}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.6rem 1.2rem",
+                      borderRadius: "8px",
+                      border: "1px solid " + border,
+                      background: "transparent",
+                      color: textMuted,
+                      cursor: "pointer",
+                      fontSize: "0.85rem",
+                      fontWeight: 500,
+                      fontFamily: "inherit",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = rowHover;
+                      e.currentTarget.style.color = textPrimary;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = textMuted;
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <polyline points="1 4 1 10 7 10" />
+                      <path d="M3.51 15a9 9 0 1 0 .49-3.85" />
+                    </svg>
+                    Reset
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting || !validRows.length}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.6rem 1.4rem",
+                      borderRadius: "8px",
+                      border: "none",
+                      background: !validRows.length
+                        ? darkMode
+                          ? "#2a2a2a"
+                          : "#e5e7eb"
+                        : `linear-gradient(135deg, ${accent}, #2563eb)`,
+                      color: !validRows.length ? textMuted : "#fff",
+                      cursor: !validRows.length ? "not-allowed" : "pointer",
+                      fontSize: "0.85rem",
+                      fontWeight: 600,
+                      fontFamily: "inherit",
+                      boxShadow: validRows.length
+                        ? "0 4px 14px rgba(67,97,238,0.35)"
+                        : "none",
+                      opacity: submitting ? 0.8 : 1,
+                    }}
+                  >
+                    {submitting ? (
+                      <>
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          style={{ animation: "spin 1s linear infinite" }}
+                        >
+                          <path d="M21 12a9 9 0 11-6.22-8.56" />
+                        </svg>
+                        Submitting…
+                      </>
+                    ) : (
+                      <>
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Submit to Database
+                        {validRows.length > 0 ? ` (${validRows.length})` : ""}
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "1rem",
+                      padding: "1rem 1.25rem",
+                      background: darkMode ? "rgba(34,197,94,0.06)" : "#f0fdf4",
+                      border: `1px solid ${darkMode ? "rgba(34,197,94,0.2)" : "#bbf7d0"}`,
+                      borderRadius: "12px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: "50%",
+                        background: darkMode
+                          ? "rgba(34,197,94,0.15)"
+                          : "#dcfce7",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <svg
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#22c55e"
+                        strokeWidth="2.5"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <p
+                        style={{
+                          fontWeight: 700,
+                          fontSize: "0.92rem",
+                          color: textPrimary,
+                          margin: "0 0 2px",
+                        }}
+                      >
+                        Upload Complete
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "0.8rem",
+                          color: textMuted,
+                          margin: 0,
+                        }}
+                      >
+                        <strong style={{ color: "#22c55e" }}>
+                          {submitResult?.stats?.inserted ??
+                            submitResult?.inserted?.length}
+                        </strong>{" "}
+                        records inserted as{" "}
+                        <strong style={{ color: accent }}>{currentUser}</strong>
+                        {(submitResult?.stats?.failed ??
+                          submitResult?.failed?.length) > 0 && (
+                          <>
+                            {" "}
+                            ·{" "}
+                            <strong style={{ color: "#ef4444" }}>
+                              {submitResult?.stats?.failed ??
+                                submitResult?.failed?.length}
+                            </strong>{" "}
+                            skipped
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      onClick={removeFile}
+                      style={{
+                        padding: "0.45rem 1rem",
+                        borderRadius: "8px",
+                        border: "1px solid " + border,
+                        background: cardBg,
+                        color: textPrimary,
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        fontWeight: 500,
+                        fontFamily: "inherit",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Upload Another
+                    </button>
+                  </div>
+                  {submitResult?.failed?.length > 0 && (
+                    <FailedRecordsPanel
+                      rows={submitResult.failed}
+                      darkMode={darkMode}
+                      cardBg={cardBg}
+                      border={border}
+                      textPrimary={textPrimary}
+                      textMuted={textMuted}
+                      headerBg={headerBg}
+                      onDownload={handleDownloadFailed}
+                    />
+                  )}
+                </>
               )}
             </>
           )}
-        </>
-      )}
+        </div>
+        {/* END LEFT */}
 
-      <UploadHistory
-        history={
-          ["Admin", "SuperAdmin"].includes(currentRole)
-            ? uploadHistory // Admin → lahat
-            : uploadHistory.filter((h) => h.uploadedBy === currentUser) // User → sarili lang
-        }
-        loading={historyLoading}
-        darkMode={darkMode}
-        cardBg={cardBg}
-        border={border}
-        textPrimary={textPrimary}
-        textMuted={textMuted}
-        headerBg={headerBg}
-        rowHover={rowHover}
-        accent={accent}
-      />
+        {/* ── RIGHT 65%: Upload History ── */}
+        <div
+          style={{
+            background: cardBg,
+            border: "1px solid " + border,
+            borderRadius: "14px",
+            padding: "1.25rem",
+            boxShadow: darkMode
+              ? "0 2px 12px rgba(0,0,0,0.4)"
+              : "0 4px 20px rgba(67,97,238,0.08)",
+          }}
+        >
+          <UploadHistory
+            history={
+              ["Admin", "SuperAdmin"].includes(currentRole)
+                ? uploadHistory
+                : uploadHistory.filter((h) => h.uploadedBy === currentUser)
+            }
+            loading={historyLoading}
+            darkMode={darkMode}
+            cardBg={cardBg}
+            border={border}
+            textPrimary={textPrimary}
+            textMuted={textMuted}
+            headerBg={headerBg}
+            rowHover={rowHover}
+            accent={accent}
+          />
+        </div>
+        {/* END RIGHT */}
+      </div>
+      {/* END TWO-COLUMN GRID */}
+
       <Toast toasts={toasts} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}`}</style>
     </div>
