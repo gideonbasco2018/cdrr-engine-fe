@@ -158,17 +158,16 @@ export const saveUploadHistory = async ({ fileName, uploadedBy, stats, insertedR
 // NEW: Get paginated upload history list
 // GET /api/bulk-upload-history/
 // ─────────────────────────────────────────────
-
-export const getUploadHistoryList = async ({ limit = 50, offset = 0, uploadedBy } = {}) => {
+export const getUploadHistoryList = async ({ limit, offset = 0, uploadedBy } = {}) => {
   try {
     const response = await API.get("/bulk-upload-history/", {
       params: {
-        limit,
+        ...(limit !== undefined ? { limit } : {}),  
         offset,
         ...(uploadedBy ? { uploaded_by: uploadedBy } : {}),
       },
     });
-    return response.data;  // { total, limit, offset, data: [...] }
+    return response.data; 
   } catch (error) {
     const errorMessage = error.response?.data?.detail || error.message || "Failed to fetch upload history";
     throw new Error(errorMessage);
