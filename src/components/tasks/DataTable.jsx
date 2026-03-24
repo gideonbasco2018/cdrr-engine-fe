@@ -101,10 +101,18 @@ const BULK_DECK_CONFIG = {
     fromLabel: "Director Signature",
   },
   Releasing: {
-    nextStep: "Released",
-    nextGroupId: 8,
+    nextStep: "Record",
+    nextGroupId: 15,
     decision: "Released",
     fromLabel: "Releasing",
+  },
+  Record: {
+    // ← dito ang fix, "Released" → "Record"
+    nextStep: null,
+    nextGroupId: null,
+    decision: "Completed",
+    fromLabel: "Record",
+    isEndTask: true,
   },
 };
 
@@ -124,14 +132,14 @@ function BulkDeckModal({
 }) {
   const [assignee, setAssignee] = useState("");
   const [users, setUsers] = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [loadingUsers, setLoadingUsers] = useState(!config.isEndTask);
   const [submitting, setSubmitting] = useState(false);
-  // screen: "form" | "transmittal_prompt" | "done"
   const [screen, setScreen] = useState("form");
   const [result, setResult] = useState(null);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
+    if (config.isEndTask) return; // no users needed for end task
     (async () => {
       try {
         setLoadingUsers(true);
@@ -147,12 +155,13 @@ function BulkDeckModal({
   }, []);
 
   const handleConfirm = async () => {
-    if (!assignee || submitting) return;
+    if (submitting) return;
+    if (!config.isEndTask && !assignee) return;
     setSubmitting(true);
     try {
-      const res = await onConfirm(assignee);
+      const res = await onConfirm(config.isEndTask ? null : assignee);
       setResult(res);
-      setScreen("transmittal_prompt"); // ← ask about transmittal first
+      setScreen("transmittal_prompt");
     } finally {
       setSubmitting(false);
     }
@@ -165,11 +174,12 @@ function BulkDeckModal({
     } finally {
       setDownloading(false);
       setScreen("done");
-      onDone(); // refresh table + clear selections after download
+      onDone();
     }
   };
 
-  const isDisabled = submitting || loadingUsers || !assignee;
+  const isDisabled =
+    submitting || loadingUsers || (!config.isEndTask && !assignee);
 
   // ── Screen: ask to download transmittal ──
   if (screen === "transmittal_prompt") {
@@ -199,7 +209,6 @@ function BulkDeckModal({
             boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
           }}
         >
-          {/* Result summary header */}
           <div
             style={{
               padding: "1.25rem 1.5rem",
@@ -223,7 +232,7 @@ function BulkDeckModal({
                   color: colors.textTertiary,
                 }}
               >
-                Bulk Deck
+                {config.isEndTask ? "End Task" : "Bulk Deck"}
               </div>
               <div
                 style={{
@@ -247,7 +256,6 @@ function BulkDeckModal({
               gap: "1.25rem",
             }}
           >
-            {/* Stats */}
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <div
                 style={{
@@ -275,7 +283,7 @@ function BulkDeckModal({
                     marginTop: 2,
                   }}
                 >
-                  Successfully decked
+                  Successfully {config.isEndTask ? "ended" : "decked"}
                 </div>
               </div>
               {result?.failed > 0 && (
@@ -311,20 +319,21 @@ function BulkDeckModal({
               )}
             </div>
 
-            <p
-              style={{
-                margin: 0,
-                fontSize: "0.82rem",
-                color: colors.textSecondary,
-                textAlign: "center",
-              }}
-            >
-              Assigned to:{" "}
-              <strong style={{ color: "#2196F3" }}>{assignee}</strong> (
-              {config.nextStep})
-            </p>
+            {!config.isEndTask && (
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.82rem",
+                  color: colors.textSecondary,
+                  textAlign: "center",
+                }}
+              >
+                Assigned to:{" "}
+                <strong style={{ color: "#2196F3" }}>{assignee}</strong> (
+                {config.nextStep})
+              </p>
+            )}
 
-            {/* Transmittal prompt */}
             <div
               style={{
                 padding: "1rem 1.25rem",
@@ -359,12 +368,12 @@ function BulkDeckModal({
                 }}
               >
                 Would you like to generate and download a transmittal slip for
-                the <strong>{result?.success}</strong> successfully decked
-                record{result?.success !== 1 ? "s" : ""}?
+                the <strong>{result?.success}</strong> successfully{" "}
+                {config.isEndTask ? "ended" : "decked"} record
+                {result?.success !== 1 ? "s" : ""}?
               </p>
             </div>
 
-            {/* Yes / No buttons */}
             <div style={{ display: "flex", gap: "0.75rem" }}>
               <button
                 onClick={() => {
@@ -438,7 +447,7 @@ function BulkDeckModal({
     );
   }
 
-  // ── Screen: done (after transmittal decision) ──
+  // ── Screen: done ──
   if (screen === "done") {
     return (
       <div
@@ -492,8 +501,14 @@ function BulkDeckModal({
             }}
           >
             {result?.success} record{result?.success !== 1 ? "s" : ""}{" "}
-            successfully moved to{" "}
-            <strong style={{ color: "#2196F3" }}>{config.nextStep}</strong>.
+            {config.isEndTask ? (
+              "successfully completed."
+            ) : (
+              <>
+                successfully moved to{" "}
+                <strong style={{ color: "#2196F3" }}>{config.nextStep}</strong>.
+              </>
+            )}
           </p>
           <button
             onClick={onClose}
@@ -569,7 +584,7 @@ function BulkDeckModal({
                 marginBottom: "0.2rem",
               }}
             >
-              Bulk Action
+              {config.isEndTask ? "End Task" : "Bulk Action"}
             </div>
             <h3
               style={{
@@ -582,8 +597,12 @@ function BulkDeckModal({
                 gap: "0.5rem",
               }}
             >
-              <span style={{ fontSize: "1.2rem" }}>📋</span> Bulk Deck to{" "}
-              {config.nextStep}
+              <span style={{ fontSize: "1.2rem" }}>
+                {config.isEndTask ? "✅" : "📋"}
+              </span>{" "}
+              {config.isEndTask
+                ? "End Task — Mark as Completed"
+                : `Bulk Deck to ${config.nextStep}`}
             </h3>
           </div>
           <button
@@ -621,15 +640,19 @@ function BulkDeckModal({
           <div
             style={{
               padding: "0.85rem 1rem",
-              background: "rgba(33,150,243,0.06)",
-              border: "1px solid rgba(33,150,243,0.2)",
+              background: config.isEndTask
+                ? "rgba(16,185,129,0.06)"
+                : "rgba(33,150,243,0.06)",
+              border: `1px solid ${config.isEndTask ? "rgba(16,185,129,0.2)" : "rgba(33,150,243,0.2)"}`,
               borderRadius: 10,
               display: "flex",
               alignItems: "center",
               gap: "0.75rem",
             }}
           >
-            <span style={{ fontSize: "1.4rem" }}>📦</span>
+            <span style={{ fontSize: "1.4rem" }}>
+              {config.isEndTask ? "✅" : "📦"}
+            </span>
             <div>
               <div
                 style={{
@@ -647,8 +670,20 @@ function BulkDeckModal({
                   marginTop: "0.1rem",
                 }}
               >
-                All will be moved from <strong>{config.fromLabel}</strong> →{" "}
-                <strong style={{ color: "#2196F3" }}>{config.nextStep}</strong>
+                {config.isEndTask ? (
+                  <>
+                    All will be marked as{" "}
+                    <strong style={{ color: "#10b981" }}>Completed</strong> from{" "}
+                    <strong>{config.fromLabel}</strong>
+                  </>
+                ) : (
+                  <>
+                    All will be moved from <strong>{config.fromLabel}</strong> →{" "}
+                    <strong style={{ color: "#2196F3" }}>
+                      {config.nextStep}
+                    </strong>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -666,7 +701,8 @@ function BulkDeckModal({
                 marginBottom: "0.5rem",
               }}
             >
-              📋 DTNs to be moved ({selectedDtns.length})
+              📋 DTNs to be {config.isEndTask ? "completed" : "moved"} (
+              {selectedDtns.length})
             </label>
             <div
               style={{
@@ -696,7 +732,7 @@ function BulkDeckModal({
                       width: 6,
                       height: 6,
                       borderRadius: "50%",
-                      background: "#7c3aed",
+                      background: config.isEndTask ? "#10b981" : "#7c3aed",
                       flexShrink: 0,
                     }}
                   />
@@ -715,108 +751,123 @@ function BulkDeckModal({
             </div>
           </div>
 
-          {/* Assignee dropdown */}
-          <div>
-            <label
-              style={{
-                display: "block",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: colors.textTertiary,
-                marginBottom: "0.5rem",
-              }}
-            >
-              Assign to {config.nextStep}{" "}
-              <span style={{ color: "#ef4444" }}>*</span>
-            </label>
-            {loadingUsers ? (
-              <div
+          {/* Assignee dropdown — hidden for end task */}
+          {!config.isEndTask && (
+            <div>
+              <label
                 style={{
-                  padding: "0.75rem 1rem",
-                  background: colors.inputBg,
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: 8,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.6rem",
+                  display: "block",
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
                   color: colors.textTertiary,
-                  fontSize: "0.85rem",
+                  marginBottom: "0.5rem",
                 }}
               >
-                <span
+                Assign to {config.nextStep}{" "}
+                <span style={{ color: "#ef4444" }}>*</span>
+              </label>
+              {loadingUsers ? (
+                <div
                   style={{
-                    display: "inline-block",
-                    width: 14,
-                    height: 14,
-                    border: "2px solid #2196F330",
-                    borderTopColor: "#2196F3",
-                    borderRadius: "50%",
-                    animation: "spin 0.6s linear infinite",
+                    padding: "0.75rem 1rem",
+                    background: colors.inputBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.6rem",
+                    color: colors.textTertiary,
+                    fontSize: "0.85rem",
                   }}
-                />
-                Loading {config.nextStep} users...
-              </div>
-            ) : users.length === 0 ? (
-              <div
-                style={{
-                  padding: "0.75rem 1rem",
-                  background: "rgba(239,68,68,0.06)",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                  borderRadius: 8,
-                  color: "#ef4444",
-                  fontSize: "0.82rem",
-                }}
-              >
-                ⚠️ No {config.nextStep} users found. Please contact your
-                administrator.
-              </div>
-            ) : (
-              <select
-                value={assignee}
-                onChange={(e) => setAssignee(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.7rem 0.9rem",
-                  background: colors.inputBg,
-                  border: `1.5px solid ${assignee ? "#2196F3" : colors.cardBorder}`,
-                  borderRadius: 8,
-                  color: assignee ? colors.textPrimary : colors.textTertiary,
-                  fontSize: "0.88rem",
-                  outline: "none",
-                  cursor: "pointer",
-                  transition: "border-color 0.2s",
-                  boxSizing: "border-box",
-                }}
-              >
-                <option value="">— Select {config.nextStep} —</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.username}>
-                    {u.username} — {u.first_name} {u.surname}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 14,
+                      height: 14,
+                      border: "2px solid #2196F330",
+                      borderTopColor: "#2196F3",
+                      borderRadius: "50%",
+                      animation: "spin 0.6s linear infinite",
+                    }}
+                  />
+                  Loading {config.nextStep} users...
+                </div>
+              ) : users.length === 0 ? (
+                <div
+                  style={{
+                    padding: "0.75rem 1rem",
+                    background: "rgba(239,68,68,0.06)",
+                    border: "1px solid rgba(239,68,68,0.2)",
+                    borderRadius: 8,
+                    color: "#ef4444",
+                    fontSize: "0.82rem",
+                  }}
+                >
+                  ⚠️ No {config.nextStep} users found. Please contact your
+                  administrator.
+                </div>
+              ) : (
+                <select
+                  value={assignee}
+                  onChange={(e) => setAssignee(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "0.7rem 0.9rem",
+                    background: colors.inputBg,
+                    border: `1.5px solid ${assignee ? "#2196F3" : colors.cardBorder}`,
+                    borderRadius: 8,
+                    color: assignee ? colors.textPrimary : colors.textTertiary,
+                    fontSize: "0.88rem",
+                    outline: "none",
+                    cursor: "pointer",
+                    transition: "border-color 0.2s",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  <option value="">— Select {config.nextStep} —</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.username}>
+                      {u.username} — {u.first_name} {u.surname}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
 
           {/* Warning note */}
           <div
             style={{
               padding: "0.85rem 1rem",
-              background: "rgba(245,158,11,0.06)",
-              border: "1px solid rgba(245,158,11,0.2)",
+              background: config.isEndTask
+                ? "rgba(16,185,129,0.06)"
+                : "rgba(245,158,11,0.06)",
+              border: `1px solid ${config.isEndTask ? "rgba(16,185,129,0.2)" : "rgba(245,158,11,0.2)"}`,
               borderRadius: 8,
               fontSize: "0.78rem",
               color: colors.textSecondary,
               lineHeight: 1.6,
             }}
           >
-            <strong style={{ color: "#b45309" }}>⚠ Note:</strong> This will
-            complete the current <strong>{config.fromLabel}</strong> log for
-            each selected record and create a new{" "}
-            <strong>{config.nextStep}</strong> log assigned to the selected
-            user. This action cannot be undone.
+            {config.isEndTask ? (
+              <>
+                <strong style={{ color: "#059669" }}>✅ Note:</strong> This will
+                mark the <strong>{config.fromLabel}</strong> log as{" "}
+                <strong>Completed</strong> for each selected record. The task
+                will be fully ended. This action cannot be undone.
+              </>
+            ) : (
+              <>
+                <strong style={{ color: "#b45309" }}>⚠ Note:</strong> This will
+                complete the current <strong>{config.fromLabel}</strong> log for
+                each selected record and create a new{" "}
+                <strong>{config.nextStep}</strong> log assigned to the selected
+                user. This action cannot be undone.
+              </>
+            )}
           </div>
         </div>
 
@@ -855,8 +906,12 @@ function BulkDeckModal({
               borderRadius: 8,
               border: "none",
               background: isDisabled
-                ? "rgba(33,150,243,0.4)"
-                : "linear-gradient(135deg,#2196F3,#1565c0)",
+                ? config.isEndTask
+                  ? "rgba(16,185,129,0.4)"
+                  : "rgba(33,150,243,0.4)"
+                : config.isEndTask
+                  ? "linear-gradient(135deg,#10b981,#059669)"
+                  : "linear-gradient(135deg,#2196F3,#1565c0)",
               color: "#fff",
               fontSize: "0.85rem",
               fontWeight: 700,
@@ -866,7 +921,9 @@ function BulkDeckModal({
               gap: "0.5rem",
               boxShadow: isDisabled
                 ? "none"
-                : "0 2px 8px rgba(33,150,243,0.35)",
+                : config.isEndTask
+                  ? "0 2px 8px rgba(16,185,129,0.35)"
+                  : "0 2px 8px rgba(33,150,243,0.35)",
               transition: "all 0.2s",
             }}
           >
@@ -885,6 +942,8 @@ function BulkDeckModal({
                 />
                 Processing…
               </>
+            ) : config.isEndTask ? (
+              <>✅ Confirm End Task ({selectedCount})</>
             ) : (
               <>📋 Confirm Bulk Deck ({selectedCount})</>
             )}
@@ -937,7 +996,6 @@ function DataTable({
   const isReceivedSubTab = activeSubTab === "received";
   const showMarkAsReceived = activeSubTab !== "received";
 
-  // ── Bulk Deck: show on Checking or Supervisor tab, Received sub-tab, with selections ──
   const bulkDeckConfig = BULK_DECK_CONFIG[activeTab] ?? null;
   const showBulkDeckBtn =
     !!bulkDeckConfig && isReceivedSubTab && selectedRows.length > 0;
@@ -1422,7 +1480,7 @@ function DataTable({
     }
   };
 
-  /* ── Bulk Deck handler (dynamic — works for Checking→Supervisor and Supervisor→QA) ── */
+  /* ── Bulk Deck / End Task handler ── */
   const handleBulkDeck = async (assigneeUsername) => {
     if (!bulkDeckConfig) return { success: 0, failed: 0 };
     const selectedData = data.filter((r) => selectedRows.includes(r.id));
@@ -1436,43 +1494,53 @@ function DataTable({
     for (const row of selectedData) {
       try {
         const { id: logId, mainDbId } = row;
-        const indexData = await getLastApplicationLogIndex(mainDbId);
-        const lastIndex = indexData.last_index;
-        const nextIndex = lastIndex + 1;
 
-        // Complete the current step log
-        await updateApplicationLog(logId, {
-          application_status: "COMPLETED",
-          application_decision: bulkDeckConfig.decision,
-          application_remarks: "",
-          accomplished_date: formattedDateTime,
-          del_last_index: 0,
-          del_thread: "Close",
-        });
+        if (bulkDeckConfig.isEndTask) {
+          // ── End Task: just complete the current log, no new log created ──
+          await updateApplicationLog(logId, {
+            application_status: "COMPLETED",
+            application_decision: bulkDeckConfig.decision,
+            application_remarks: "",
+            accomplished_date: formattedDateTime,
+            del_last_index: 0,
+            del_thread: "Close",
+          });
+        } else {
+          // ── Normal Bulk Deck: complete current + create next ──
+          const indexData = await getLastApplicationLogIndex(mainDbId);
+          const lastIndex = indexData.last_index;
+          const nextIndex = lastIndex + 1;
 
-        // Create new log for next step
-        await createApplicationLog({
-          main_db_id: mainDbId,
-          application_step: bulkDeckConfig.nextStep,
-          user_name: assigneeUsername,
-          application_status: "IN PROGRESS",
-          application_decision: "",
-          application_remarks: "",
-          start_date: formattedDateTime,
-          accomplished_date: null,
-          del_index: nextIndex,
-          del_previous: lastIndex,
-          del_last_index: 1,
-          del_thread: "Open",
-        });
+          await updateApplicationLog(logId, {
+            application_status: "COMPLETED",
+            application_decision: bulkDeckConfig.decision,
+            application_remarks: "",
+            accomplished_date: formattedDateTime,
+            del_last_index: 0,
+            del_thread: "Close",
+          });
+
+          await createApplicationLog({
+            main_db_id: mainDbId,
+            application_step: bulkDeckConfig.nextStep,
+            user_name: assigneeUsername,
+            application_status: "IN PROGRESS",
+            application_decision: "",
+            application_remarks: "",
+            start_date: formattedDateTime,
+            accomplished_date: null,
+            del_index: nextIndex,
+            del_previous: lastIndex,
+            del_last_index: 1,
+            del_thread: "Open",
+          });
+        }
         success++;
       } catch (e) {
         console.error(`Bulk deck failed for row id ${row.id}:`, e);
         failed++;
       }
     }
-    // NOTE: onClearSelections + onRefresh called AFTER transmittal prompt
-    // to prevent modal unmounting before user sees the prompt
     return { success, failed };
   };
 
@@ -1835,15 +1903,6 @@ function DataTable({
                   boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
                   letterSpacing: "0.02em",
                 }}
-                onMouseEnter={(e) => {
-                  if (!markingReceived)
-                    e.currentTarget.style.boxShadow =
-                      "0 4px 14px rgba(16,185,129,0.5)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.boxShadow =
-                    "0 2px 8px rgba(16,185,129,0.35)";
-                }}
               >
                 {markingReceived ? (
                   <>
@@ -1902,14 +1961,6 @@ function DataTable({
                   boxShadow: "0 2px 8px rgba(25,118,210,0.35)",
                   letterSpacing: "0.02em",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.boxShadow =
-                    "0 4px 14px rgba(25,118,210,0.5)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.boxShadow =
-                    "0 2px 8px rgba(25,118,210,0.35)")
-                }
               >
                 <span>📄</span>Generate Transmittal
                 <span
@@ -1931,7 +1982,7 @@ function DataTable({
               </button>
             )}
 
-            {/* ── Bulk Deck — Checking tab + Received sub-tab only ── */}
+            {/* ── Bulk Deck / End Task button ── */}
             {showBulkDeckBtn && (
               <button
                 onClick={() => setShowBulkDeck(true)}
@@ -1940,27 +1991,34 @@ function DataTable({
                   alignItems: "center",
                   gap: "0.4rem",
                   padding: "0.4rem 1rem",
-                  background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                  background: bulkDeckConfig.isEndTask
+                    ? "linear-gradient(135deg,#10b981,#059669)"
+                    : "linear-gradient(135deg,#7c3aed,#6d28d9)",
                   color: "#fff",
                   border: "none",
                   borderRadius: 8,
                   fontSize: "0.8rem",
                   fontWeight: 700,
                   cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(124,58,237,0.35)",
+                  boxShadow: bulkDeckConfig.isEndTask
+                    ? "0 2px 8px rgba(16,185,129,0.35)"
+                    : "0 2px 8px rgba(124,58,237,0.35)",
                   letterSpacing: "0.02em",
                   transition: "box-shadow .2s",
                 }}
                 onMouseEnter={(e) =>
-                  (e.currentTarget.style.boxShadow =
-                    "0 4px 14px rgba(124,58,237,0.5)")
+                  (e.currentTarget.style.boxShadow = bulkDeckConfig.isEndTask
+                    ? "0 4px 14px rgba(16,185,129,0.5)"
+                    : "0 4px 14px rgba(124,58,237,0.5)")
                 }
                 onMouseLeave={(e) =>
-                  (e.currentTarget.style.boxShadow =
-                    "0 2px 8px rgba(124,58,237,0.35)")
+                  (e.currentTarget.style.boxShadow = bulkDeckConfig.isEndTask
+                    ? "0 2px 8px rgba(16,185,129,0.35)"
+                    : "0 2px 8px rgba(124,58,237,0.35)")
                 }
               >
-                <span>📋</span>Bulk Deck
+                <span>{bulkDeckConfig.isEndTask ? "✅" : "📋"}</span>
+                {bulkDeckConfig.isEndTask ? "End Task" : "Bulk Deck"}
                 <span
                   style={{
                     display: "inline-flex",

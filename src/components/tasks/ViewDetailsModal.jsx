@@ -37,7 +37,7 @@ const WORKFLOW = {
     "Return to Evaluator": "Quality Evaluation",
   },
   "Director Signature": { default: "Releasing" },
-  Releasing: { default: null },
+  Releasing: { default: "Record" },
 };
 
 const STEP_GROUP_MAP = {
@@ -48,6 +48,7 @@ const STEP_GROUP_MAP = {
   QA: 6,
   "Director Signature": 7,
   Releasing: 8,
+  Record: 15,
 };
 
 // new added
@@ -2670,6 +2671,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
     ],
     "Director Signature": ["Approved", "Disapproved"],
     Releasing: ["Released"],
+    Record: ["Completed"],
   };
 
   const availableDecisions = STEP_DECISIONS[currentStep] ?? [
