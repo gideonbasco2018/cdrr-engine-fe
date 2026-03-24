@@ -31,7 +31,6 @@ function Sidebar({
   const isMobile = useIsMobile(768);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pendingEvalCount, setPendingEvalCount] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [userGroups, setUserGroups] = useState([]);
   const [menuPermissions, setMenuPermissions] = useState({});
@@ -120,47 +119,6 @@ function Sidebar({
     }
   }, [userGroup]);
 
-  // ===== FETCH PENDING EVAL COUNT =====
-  useEffect(() => {
-    const fetchPendingCount = async () => {
-      if (!currentUser || currentUser === "Unknown User") {
-        setPendingEvalCount(0);
-        return;
-      }
-      try {
-        const json = await getUploadReports({
-          page: 1,
-          pageSize: 10000,
-          search: "",
-        });
-        if (!json || !json.data || !Array.isArray(json.data)) {
-          setPendingEvalCount(0);
-          return;
-        }
-        const mappedData = json.data.map(mapDataItem);
-        const userRecords = mappedData.filter((item) => {
-          const evaluator = item.evaluator || "";
-          return (
-            evaluator.toLowerCase().trim() ===
-            (currentUser || "").toLowerCase().trim()
-          );
-        });
-        const pendingCount = userRecords.filter(
-          (item) =>
-            !item.dateEvalEnd ||
-            item.dateEvalEnd === "" ||
-            item.dateEvalEnd === "N/A" ||
-            item.dateEvalEnd === null,
-        ).length;
-        setPendingEvalCount(pendingCount);
-      } catch (err) {
-        console.error("Failed to fetch pending count:", err);
-        setPendingEvalCount(0);
-      }
-    };
-    fetchPendingCount();
-  }, [currentUser]);
-
   // ===== FILTER MENUS BY ROLE + GROUP PERMISSIONS =====
   const filterByRoleAndGroup = (items) => {
     if (!permissionsLoaded) {
@@ -184,15 +142,11 @@ function Sidebar({
     });
   };
 
-  const workflowItemsWithBadge = menuDefinitions.workflowItems.map((item) =>
-    item.id === "for-evaluation" ? { ...item, badge: pendingEvalCount } : item,
-  );
-
   const visibleMainMenu = filterByRoleAndGroup(menuDefinitions.mainMenuItems);
   const visibleCdrReports = filterByRoleAndGroup(
     menuDefinitions.cdrReportsItems,
   );
-  const visibleWorkflow = filterByRoleAndGroup(workflowItemsWithBadge);
+  const visibleWorkflow = filterByRoleAndGroup(menuDefinitions.workflowItems);
   const visibleOtherDatabase = filterByRoleAndGroup(
     menuDefinitions.otherDatabaseItems,
   );

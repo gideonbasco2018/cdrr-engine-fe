@@ -142,6 +142,7 @@ export const saveUploadHistory = async ({ fileName, uploadedBy, stats, insertedR
         remarks: r.remarks,
       })),
       failedRecords: allFailed.map((r) => ({
+        rowNum:  r.rowNum,
         rsn:     r.rsn,
         remarks: r.remarks ?? "",
         reason:  r.reason,
@@ -192,6 +193,20 @@ export const getHistoryRecords = async (historyId, { limit = 10, offset = 0, sea
     return response.data;  // { total, limit, offset, historyID, data: [...] }
   } catch (error) {
     const errorMessage = error.response?.data?.detail || error.message || "Failed to fetch history records";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// NEW: Get single history entry (with failedRecords JSON)
+// GET /api/bulk-upload-history/{historyId}
+// ─────────────────────────────────────────────
+export const getUploadHistoryById = async (historyId) => {
+  try {
+    const response = await API.get(`/bulk-upload-history/${historyId}`);
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to fetch history detail";
     throw new Error(errorMessage);
   }
 };

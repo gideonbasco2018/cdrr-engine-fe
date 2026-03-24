@@ -5,6 +5,7 @@ import {
   saveUploadHistory,
   getUploadHistoryList,
   getHistoryRecords,
+  getUploadHistoryById,
   downloadDoctrackTemplate,
 } from "../api/doctrack";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
@@ -554,7 +555,8 @@ function HistoryDetailModal({
       .finally(() => setInsertedLoading(false));
   }, [tab, page, search, entry.historyID, entry.id]);
 
-  const failedRows = entry.failedRecords ?? [];
+  const [failedRows, setFailedRows] = useState(entry.failedRecords ?? []);
+  const [failedLoading, setFailedLoading] = useState(false);
   const totalPages =
     tab === "inserted"
       ? Math.ceil(insertedTotal / PAGE_SIZE)
@@ -583,6 +585,21 @@ function HistoryDetailModal({
           .slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const insertedCount = entry.insertedCount ?? entry.inserted ?? 0;
   const failedCount = entry.failedCount ?? entry.failed ?? 0;
+
+  useEffect(() => {
+    const historyId = entry.historyID ?? entry.id;
+    if (!historyId || String(historyId).startsWith("seed")) return;
+    if ((entry.failedRecords ?? []).length > 0) return; // may data na, skip
+    if ((entry.failedCount ?? entry.failed ?? 0) === 0) return; // walang failed, skip
+
+    setFailedLoading(true);
+    getUploadHistoryById(historyId)
+      .then((res) => {
+        setFailedRows(res.failedRecords ?? []);
+      })
+      .catch(() => {}) // silent fail, empty na lang
+      .finally(() => setFailedLoading(false));
+  }, [entry.historyID, entry.id]);
 
   return (
     <div
@@ -871,7 +888,7 @@ function HistoryDetailModal({
                 </div>
               ))}
             </div>
-            {insertedLoading ? (
+            {(tab === "inserted" ? insertedLoading : failedLoading) ? (
               <div
                 style={{
                   padding: "3rem",

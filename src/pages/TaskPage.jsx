@@ -46,7 +46,7 @@ function Chip({ label, onRemove, colors }) {
 }
 
 /* ================================================================== */
-/*  Sub-tab bar component                                               */
+/*  Sub-tab bar component — matches main step tab style                 */
 /* ================================================================== */
 function SubTabBar({
   activeSubTab,
@@ -75,8 +75,8 @@ function SubTabBar({
     <div
       style={{
         display: "flex",
-        gap: "0.5rem",
-        padding: "0.5rem 0 0",
+        gap: "0.25rem",
+        borderBottom: `2px solid ${colors.cardBorder}`,
         flexShrink: 0,
       }}
     >
@@ -89,47 +89,41 @@ function SubTabBar({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "0.4rem",
-              padding: "0.35rem 0.9rem",
-              border: `1.5px solid ${isActive ? t.color : colors.cardBorder}`,
-              borderRadius: "999px",
-              background: isActive
-                ? darkMode
-                  ? `${t.color}22`
-                  : `${t.color}15`
-                : "transparent",
-              color: isActive ? t.color : colors.textSecondary,
-              fontWeight: isActive ? 700 : 500,
+              gap: "0.45rem",
+              padding: "0.5rem 1rem",
+              border: "none",
+              background: "transparent",
+              borderBottom: isActive
+                ? `3px solid ${t.color}`
+                : "3px solid transparent",
+              color: isActive ? colors.textPrimary : colors.textSecondary,
+              fontWeight: isActive ? 600 : 500,
               cursor: "pointer",
-              fontSize: "0.8rem",
-              transition: "all .15s",
+              fontSize: "0.875rem",
+              transition: "color .15s",
+              marginBottom: "-2px",
             }}
           >
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: t.color,
-                flexShrink: 0,
-                opacity: isActive ? 1 : 0.4,
-              }}
-            />
             {t.label}
             <span
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                minWidth: "1.25rem",
-                height: "1.25rem",
-                padding: "0 0.3rem",
+                minWidth: "1.35rem",
+                height: "1.35rem",
+                padding: "0 0.35rem",
                 borderRadius: "999px",
-                fontSize: "0.68rem",
-                fontWeight: 800,
-                background: isActive ? t.color : colors.badgeBg,
-                color: isActive ? "#fff" : colors.textTertiary,
-                transition: "all .15s",
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                lineHeight: 1,
+                background: isActive
+                  ? t.color
+                  : darkMode
+                    ? "rgba(255,255,255,0.12)"
+                    : "rgba(0,0,0,0.10)",
+                color: isActive ? "#fff" : colors.textSecondary,
+                transition: "background .15s, color .15s",
               }}
             >
               {t.count}
@@ -331,7 +325,6 @@ function TaskPage({ darkMode }) {
     filters.appStatus ||
     filters.processingType;
 
-  // ── Empty state label per sub-tab ──
   const emptyLabel =
     activeSubTab === "received"
       ? "No received tasks yet."
@@ -423,6 +416,7 @@ function TaskPage({ darkMode }) {
                     fontSize: "0.875rem",
                     transition: "color .15s",
                     position: "relative",
+                    marginBottom: "-2px",
                   }}
                 >
                   {step}
@@ -567,7 +561,6 @@ function TaskPage({ darkMode }) {
           </div>
         )}
 
-        {/* ── Empty state — only shown when sub-tab has no records ── */}
         {!loading && filteredData.length === 0 && (
           <div
             style={{
@@ -603,7 +596,6 @@ function TaskPage({ darkMode }) {
           </div>
         )}
 
-        {/* ── DataTable — only shown when there are records ── */}
         {!loading && filteredData.length > 0 && (
           <div style={{ flex: 1, minHeight: 0 }}>
             <DataTable
