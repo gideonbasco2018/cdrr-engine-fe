@@ -411,7 +411,7 @@ function FailedRecordsPanel({
                       justifyContent: "center",
                     }}
                   >
-                    {row.rowNum}
+                    {(page - 1) * PAGE_SIZE + i + 1}
                   </span>
                 </div>
                 <div style={{ padding: "0.55rem 0.75rem" }}>
@@ -1115,7 +1115,7 @@ function HistoryDetailModal({
                           color: ins ? "#22c55e" : "#ef4444",
                         }}
                       >
-                        {row.rowNum}
+                        {(page - 1) * PAGE_SIZE + i + 1}
                       </span>
                     </div>
                     <div style={{ padding: "0.55rem 0.75rem" }}>
@@ -2949,7 +2949,7 @@ function DoctrackMagicPage({ darkMode }) {
                               textAlign: "center",
                             }}
                           >
-                            {row.rowNum}
+                            {(page - 1) * PAGE_SIZE + i + 1}
                           </span>
                           <div style={{ padding: "0.5rem 0.65rem" }}>
                             <span
