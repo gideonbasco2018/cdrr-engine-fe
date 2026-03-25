@@ -520,10 +520,10 @@ function exportHistoryToExcel({ rows, tab, fileName, entry }) {
         ? ["Row #", "Doctrack Number", "Remarks", "Reason"]
         : ["Row #", "Doctrack Number", "Remarks"];
 
-      const data = rows.map((row) => {
+      const data = rows.map((row, idx) => {
         const rsn = row.rsn ?? row.doctrack ?? "";
         const base = {
-          "Row #": row.rowNum ?? "",
+          "Row #": idx + 1,
           "Doctrack Number": rsn,
           Remarks: row.remarks ?? "",
         };
