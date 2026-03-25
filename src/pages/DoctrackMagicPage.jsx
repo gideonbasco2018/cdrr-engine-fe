@@ -512,6 +512,51 @@ function FailedRecordsPanel({
   );
 }
 
+function exportHistoryToExcel({ rows, tab, fileName, entry }) {
+  import("https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs").then(
+    (XLSX) => {
+      const isFailed = tab === "failed";
+      const headers = isFailed
+        ? ["Row #", "Doctrack Number", "Remarks", "Reason"]
+        : ["Row #", "Doctrack Number", "Remarks"];
+
+      const data = rows.map((row) => {
+        const rsn = row.rsn ?? row.doctrack ?? "";
+        const base = {
+          "Row #": row.rowNum ?? "",
+          "Doctrack Number": rsn,
+          Remarks: row.remarks ?? "",
+        };
+        if (isFailed) {
+          const issues = row.reason ? [row.reason] : (row.issues ?? []);
+          base["Reason"] = issues.join("; ");
+        }
+        return base;
+      });
+
+      const ws = XLSX.utils.json_to_sheet(data, { header: headers });
+      ws["!cols"] = [
+        { wch: 8 },
+        { wch: 28 },
+        { wch: 40 },
+        ...(isFailed ? [{ wch: 40 }] : []),
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, isFailed ? "Failed" : "Inserted");
+
+      const safeName = (fileName ?? "export")
+        .replace(/\.[^/.]+$/, "")
+        .replace(/[^a-zA-Z0-9_\-]/g, "_");
+      const ts = new Date()
+        .toISOString()
+        .slice(0, 16)
+        .replace("T", "_")
+        .replace(":", "-");
+      XLSX.writeFile(wb, `${safeName}_${tab}_${ts}.xlsx`);
+    },
+  );
+}
 // ── HISTORY DETAIL MODAL ──────────────────────────────────────────────────────
 function HistoryDetailModal({
   entry,
@@ -848,6 +893,81 @@ function HistoryDetailModal({
               }}
             />
           </div>
+
+          {/* Export Excel button — add this after the search input div */}
+          <button
+            onClick={() =>
+              exportHistoryToExcel({
+                rows: tab === "inserted" ? insertedRows : failedRows,
+                tab,
+                fileName: entry.fileName,
+              })
+            }
+            disabled={
+              tab === "inserted"
+                ? insertedRows.length === 0
+                : failedRows.length === 0
+            }
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              padding: "0.32rem 0.75rem",
+              borderRadius: "6px",
+              border: `1px solid ${darkMode ? "#2e2e2e" : "#cdd2e0"}`,
+              background: darkMode ? "#1a1a1a" : "#ffffff",
+              color: textPrimary,
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              cursor: (
+                tab === "inserted"
+                  ? insertedRows.length === 0
+                  : failedRows.length === 0
+              )
+                ? "not-allowed"
+                : "pointer",
+              opacity: (
+                tab === "inserted"
+                  ? insertedRows.length === 0
+                  : failedRows.length === 0
+              )
+                ? 0.45
+                : 1,
+              fontFamily: "inherit",
+              flexShrink: 0,
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={(e) => {
+              if (
+                tab === "inserted"
+                  ? insertedRows.length > 0
+                  : failedRows.length > 0
+              ) {
+                e.currentTarget.style.borderColor = "#22c55e";
+                e.currentTarget.style.color = "#22c55e";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = darkMode
+                ? "#2e2e2e"
+                : "#cdd2e0";
+              e.currentTarget.style.color = textPrimary;
+            }}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export
+          </button>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
           <div style={{ overflowX: "auto" }}>
