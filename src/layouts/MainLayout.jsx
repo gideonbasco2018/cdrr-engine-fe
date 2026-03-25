@@ -51,18 +51,17 @@ function MainLayout({ darkMode, setDarkMode }) {
   // ✅ FIXED: Determine active menu from URL - CHECK SPECIFIC PATHS FIRST!
   const getActiveMenuFromUrl = () => {
     const path = location.pathname;
-    // Main
-    if (path.includes("dashboard")) return "dashboard";
-    if (path.includes("monitoring")) return "monitoring";
 
-    // CDRR Reports
-    if (path.includes("reports")) return "reports";
-    if (path.includes("otc-database")) return "otc-database";
+    // ✅ Check specific paths BEFORE checking dashboard
+    if (path.includes("announcements")) return "announcements";
+    if (path.includes("support")) return "support";
+    if (path.includes("access")) return "access";
+    if (path.includes("users")) return "users";
+    if (path.includes("settings")) return "settings";
 
-    // Workflow
+    // Workflow paths
     if (path.includes("for-decking")) return "for-decking";
     if (path.includes("task")) return "task";
-
     if (path.includes("for-evaluation")) return "for-evaluation";
     if (path.includes("for-compliance")) return "for-compliance";
     if (path.includes("for-checking")) return "for-checking";
@@ -74,25 +73,31 @@ function MainLayout({ darkMode, setDarkMode }) {
 
     // Other databases
     if (path.includes("fda-verification")) return "fda-verification";
+    if (path.includes("otc-database")) return "otc-database";
     if (path.includes("cdrr-inspector-reports"))
       return "cdrr-inspector-reports";
     if (path.includes("doctrack-magic")) return "doctrack-magic";
+    if (path.includes("reports")) return "reports";
     if (path.includes("records-report")) return "records-report";
 
     // Profile
     if (path.includes("profile")) return "profile";
-    if (path.includes("announcements")) return "announcements";
-    if (path.includes("support")) return "support";
 
-    if (path.includes("access")) return "access";
-    if (path.includes("users")) return "users";
-    if (path.includes("settings")) return "settings";
+    // ✅ Check dashboard LAST (default)
+    if (path.includes("dashboard")) return "dashboard";
+    if (path.includes("monitoring")) return "monitoring";
 
     return "dashboard";
   };
 
   const activeMenu = getActiveMenuFromUrl();
 
+  // console.log("🔍 DEBUG - Active Menu:", {
+  //   pathname: location.pathname,
+  //   activeMenu,
+  // });
+
+  // Color scheme based on darkMode prop
   const colors = darkMode
     ? {
         mainBg: "#0a0a0a",
@@ -103,7 +108,10 @@ function MainLayout({ darkMode, setDarkMode }) {
         textPrimary: "#000",
       };
 
+  // Render content based on active menu
   const renderContent = () => {
+    // console.log("🎨 Rendering content for:", activeMenu);
+
     switch (activeMenu) {
       case "reports":
         return <ReportsPage darkMode={darkMode} userRole={userRole} />;
