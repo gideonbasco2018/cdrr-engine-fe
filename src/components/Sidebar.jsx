@@ -171,6 +171,7 @@ function Sidebar({
       "otc-database": `${basePath}/otc-database`,
       "cdrr-inspector-reports": `${basePath}/cdrr-inspector-reports`,
       "doctrack-magic": `${basePath}/doctrack-magic`,
+      "records-report": `${basePath}/records-report`,
       announcements: `${basePath}/announcements`,
       support: `${basePath}/support`,
       access: `${basePath}/access`,

@@ -12,6 +12,7 @@ import {
   updateApplicationLog,
   createApplicationLog,
 } from "../../api/application-logs";
+import { updateUploadReport } from "../../api/reports";
 
 const todayStr = () => new Date().toISOString().split("T")[0];
 
@@ -1000,9 +1001,30 @@ function DataTable({
   const showBulkDeckBtn =
     !!bulkDeckConfig && isReceivedSubTab && selectedRows.length > 0;
 
-  const visibleColumns = tableColumns.filter(
-    (col) => !col.complianceOnly || isComplianceTab,
-  );
+  // const visibleColumns = tableColumns.filter(
+  //   (col) => !col.complianceOnly || isComplianceTab,
+  // );
+
+  const RECORD_TAB_COLUMNS = [
+    "dtn",
+    "estCat",
+    "ltoCompany",
+    "ltoAdd",
+    "prodGenName",
+    "prodBrName",
+    "prodDosStr",
+    "prodDosForm",
+    "regNo",
+    "appType",
+  ];
+
+  const isRecordTab = activeTab === "Record";
+
+  const visibleColumns = isRecordTab
+    ? RECORD_TAB_COLUMNS.map((key) =>
+        tableColumns.find((col) => col.key === key),
+      ).filter(Boolean)
+    : tableColumns.filter((col) => !col.complianceOnly || isComplianceTab);
 
   const getDbKey = (k) => COLUMN_DB_KEY_MAP[k] || k;
   const handleSort = (k) => {
@@ -1534,6 +1556,12 @@ function DataTable({
             del_last_index: 1,
             del_thread: "Open",
           });
+          // ──DB_APP_STATUS UPDATE from Releasing → Record ──
+          if (bulkDeckConfig.fromLabel === "Releasing") {
+            await updateUploadReport(mainDbId, {
+              DB_APP_STATUS: "COMPLETED",
+            });
+          }
         }
         success++;
       } catch (e) {
@@ -2482,6 +2510,7 @@ function DataTable({
                               }}
                             >
                               {activeSubTab === "received" &&
+                                !isRecordTab &&
                                 menuBtn(
                                   () => openDetails(row),
                                   {
@@ -2502,16 +2531,17 @@ function DataTable({
                                   <span key="t">Application Logs</span>,
                                 ],
                               )}
-                              {menuBtn(
-                                () => openChangeLog(row),
-                                {
-                                  borderBottom: `1px solid ${colors.tableBorder}`,
-                                },
-                                [
-                                  <span key="i">📋</span>,
-                                  <span key="t">Change Log</span>,
-                                ],
-                              )}
+                              {!isRecordTab &&
+                                menuBtn(
+                                  () => openChangeLog(row),
+                                  {
+                                    borderBottom: `1px solid ${colors.tableBorder}`,
+                                  },
+                                  [
+                                    <span key="i">📋</span>,
+                                    <span key="t">Change Log</span>,
+                                  ],
+                                )}
                               {menuBtn(() => openDoctrack(row), {}, [
                                 <span key="i">📋</span>,
                                 <span key="t">View Doctrack Details</span>,
