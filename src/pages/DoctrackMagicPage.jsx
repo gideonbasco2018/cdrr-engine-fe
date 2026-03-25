@@ -578,6 +578,8 @@ function HistoryDetailModal({
     entry.insertedCount ?? entry.inserted ?? 0,
   );
   const [insertedLoading, setInsertedLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
   const PAGE_SIZE = 10;
   const inputBg = darkMode ? "#1a1a1a" : "#ffffff";
   const inputBorder = darkMode ? "#2e2e2e" : "#cdd2e0";
@@ -896,13 +898,42 @@ function HistoryDetailModal({
 
           {/* Export Excel button — add this after the search input div */}
           <button
-            onClick={() =>
-              exportHistoryToExcel({
-                rows: tab === "inserted" ? insertedRows : failedRows,
-                tab,
-                fileName: entry.fileName,
-              })
-            }
+            onClick={async () => {
+              if (tab === "failed") {
+                exportHistoryToExcel({
+                  rows: failedRows,
+                  tab,
+                  fileName: entry.fileName,
+                });
+                return;
+              }
+              setExporting(true);
+              try {
+                const historyId = entry.historyID ?? entry.id;
+                const res = await getHistoryRecords(historyId, {
+                  limit: insertedTotal,
+                  offset: 0,
+                  search: undefined,
+                });
+                const allInserted = res.data.map((r) => ({
+                  ...r,
+                  doctrack: r.rsn,
+                }));
+                exportHistoryToExcel({
+                  rows: allInserted,
+                  tab,
+                  fileName: entry.fileName,
+                });
+              } catch {
+                exportHistoryToExcel({
+                  rows: insertedRows,
+                  tab,
+                  fileName: entry.fileName,
+                });
+              } finally {
+                setExporting(false);
+              }
+            }}
             disabled={
               tab === "inserted"
                 ? insertedRows.length === 0
@@ -966,7 +997,7 @@ function HistoryDetailModal({
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            Export
+            {exporting ? "Exporting…" : "Export"}
           </button>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>
