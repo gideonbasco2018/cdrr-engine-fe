@@ -8,9 +8,9 @@ export const menuDefinitions = {
       label: "Dashboard",
       roles: ["User", "Admin", "SuperAdmin"],
     },
-     {
+    {
       id: "monitoring",
-      icon: "📈",
+      icon: "📡", // improved
       label: "Monitoring",
       roles: ["User", "Admin", "SuperAdmin"],
     },
@@ -19,14 +19,14 @@ export const menuDefinitions = {
   cdrReportsItems: [
     {
       id: "reports",
-      icon: "📄",
-      label: "Reports",
+      icon: "🗃️", // improved
+      label: "CDRR Reports",
       roles: ["User", "Admin", "SuperAdmin"],
       comingSoon: false,
     },
     {
       id: "otc-database",
-      label: "OTC eServices",
+      label: "OTC Services",
       icon: "💊",
       roles: ["User", "Admin", "SuperAdmin"],
     },
@@ -36,25 +36,25 @@ export const menuDefinitions = {
     {
       id: "for-decking",
       icon: "📥",
-      label: "Decking",
+      label: "Assignment / Queue",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "task",
       icon: "📝",
-      label: "Task",
+      label: "Tasks",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "for-evaluation",
-      icon: "📋",
+      icon: "📊", // improved
       label: "Evaluation",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "for-compliance",
-      icon: "🗂️",
-      label: "For-Compliance",
+      icon: "⚠️", // improved
+      label: "For Compliance", // fixed spacing
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
@@ -71,13 +71,13 @@ export const menuDefinitions = {
     },
     {
       id: "for-qa",
-      icon: "✔️",
+      icon: "✅", // improved
       label: "QA",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "for-director-signature",
-      icon: "✍️",
+      icon: "🖊️", // improved
       label: "Director Signature",
       roles: ["User", "Admin", "SuperAdmin"],
     },
@@ -92,20 +92,26 @@ export const menuDefinitions = {
   otherDatabaseItems: [
     {
       id: "fda-verification",
-      icon: "🔍",
+      icon: "🔎", // refined
       label: "FDA Verification Portal",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "cdrr-inspector-reports",
-      icon: "📋",
-      label: "CDRR and Inspector Reports",
+      icon: "📑", // improved
+      label: "CDRR Inspection Reports",
       roles: ["User", "Admin", "SuperAdmin"],
     },
-      {
+    {
       id: "doctrack-magic",
-      icon: "📋",
-      label: "Docktrack Magic",
+      icon: "📦", // improved (bulk)
+      label: "Doctrack (Bulk Upload)",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
+    {
+      id: "records-report",
+      icon: "🗂️", // BEST for records
+      label: "Records List", // 👈 recommended change
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],
@@ -119,7 +125,7 @@ export const menuDefinitions = {
     },
     {
       id: "support",
-      icon: "🎧",
+      icon: "🛠️", // improved
       label: "Support",
       roles: ["User", "Admin", "SuperAdmin"],
     },

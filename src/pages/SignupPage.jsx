@@ -417,15 +417,36 @@ function SignupPage() {
 
             {/* Alias */}
             <div style={{ marginBottom: "1.25rem" }}>
-              <label style={labelStyle}>Alias</label>{" "}
-              {/* ← TANGGALIN ang (Optional) */}
+              <label style={labelStyle}>Alias</label>
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "#888",
+                  margin: "4px 0 8px 0",
+                  lineHeight: "1.5",
+                }}
+              >
+                This will appear in Doctrack Remarks as:{" "}
+                <code
+                  style={{
+                    background: "#2a2a2a",
+                    border: "1px solid #3a3a3a",
+                    borderRadius: "4px",
+                    padding: "1px 6px",
+                    color: "#9ecbff",
+                    fontSize: "11px",
+                  }}
+                >
+                  Remarks by: (Alias)
+                </code>
+              </p>
               <input
                 type="text"
                 name="alias"
                 value={formData.alias}
                 onChange={handleChange}
                 placeholder="Enter your preferred alias or user code"
-                required // ← IDAGDAG
+                required
                 disabled={loading}
                 style={inputStyle}
                 onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}

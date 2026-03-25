@@ -51,10 +51,8 @@ const STEP_GROUP_MAP = {
   Record: 15,
 };
 
-// new added
 const DEFAULT_WORKING_DAYS = 20;
 
-/** Add N working days (Mon–Fri) to a date string, returns "YYYY-MM-DD" */
 const addWorkingDays = (startDateStr, days) => {
   if (!days || days <= 0) return "";
   let count = 0;
@@ -62,12 +60,11 @@ const addWorkingDays = (startDateStr, days) => {
   while (count < days) {
     current.setDate(current.getDate() + 1);
     const dow = current.getDay();
-    if (dow !== 0 && dow !== 6) count++; // skip Sat(6) & Sun(0)
+    if (dow !== 0 && dow !== 6) count++;
   }
   return current.toISOString().split("T")[0];
 };
 
-/** Count working days (Mon–Fri) between today and a target date string */
 const countWorkingDays = (startDateStr, endDateStr) => {
   if (!endDateStr) return 0;
   let count = 0;
@@ -82,10 +79,8 @@ const countWorkingDays = (startDateStr, endDateStr) => {
   return count;
 };
 
-/** Today as "YYYY-MM-DD" */
 const todayStr = () => new Date().toISOString().split("T")[0];
 
-/** Format "YYYY-MM-DD" → readable label */
 const fmtDeadline = (str) => {
   if (!str) return "";
   const d = new Date(str + "T00:00:00");
@@ -97,7 +92,6 @@ const fmtDeadline = (str) => {
   });
 };
 
-/** Returns urgency level of a deadline */
 const deadlineUrgency = (deadlineDateStr) => {
   if (!deadlineDateStr) return null;
   const today = new Date(todayStr() + "T00:00:00");
@@ -126,15 +120,12 @@ const EDITABLE_STEPS = [
 ];
 
 const EDITABLE_FIELDS = [
-  // ── Step 1 — Establishment ──────────────────
   "estCat",
   "ltoNo",
   "tin",
   "eadd",
   "contactNo",
   "ltoAdd",
-
-  // ── Step 1 — Product Details ─────────────────
   "prodDosStr",
   "prodPharmaCat",
   "prodEssDrugList",
@@ -142,107 +133,74 @@ const EDITABLE_FIELDS = [
   "pharmaProdCat",
   "pharmaProdCatLabel",
   "file",
-  // "isInPm",
-
-  // ── Step 1 — Manufacturer ────────────────────
   "prodManu",
   "prodManuCountry",
   "prodManuLtoNo",
   "prodManuTin",
   "prodManuAdd",
-
-  // ── Step 1 — Trader ──────────────────────────
   "prodTrader",
   "prodTraderCountry",
   "prodTraderLtoNo",
   "prodTraderTin",
   "prodTraderAdd",
-
-  // ── Step 1 — Importer ────────────────────────
   "prodImporter",
   "prodImporterCountry",
   "prodImporterLtoNo",
   "prodImporterTin",
   "prodImporterAdd",
-
-  // ── Step 1 — Distributor ─────────────────────
   "prodDistri",
   "prodDistriCountry",
   "prodDistriLtoNo",
   "prodDistriTin",
   "prodDistriShelfLife",
   "prodDistriAdd",
-
-  // ── Step 1 — Repacker ────────────────────────
   "prodRepacker",
   "prodRepackerCountry",
   "prodRepackerLtoNo",
   "prodRepackerTin",
   "prodRepackerAdd",
-
-  // ── Step 1 — Summary Cards ───────────────────
   "ltoCompany",
   "appType",
   "prodDosForm",
   "prodClassPrescript",
   "appStatus",
   "processingType",
-
-  // ── Step 2 — Remarks & Notes ─────────────────
   "appRemarks",
   "remarks1",
-
-  // ── Step 2 — CPR Conditions ──────────────────
   "cprCond",
   "cprCondRemarks",
   "cprCondAddRemarks",
-
-  // ── Step 2 — Storage & Packaging ─────────────
   "storageCond",
   "packaging",
   "suggRp",
   "noSample",
-
-  // ── Step 2 — Amendments ──────────────────────
   "ammend1",
   "ammend2",
   "ammend3",
-
-  // ── Step 2 — Amendments ──────────────────────
-  "ammend1",
-  "ammend2",
-  "ammend3",
-
-  // ── Step 2 — Application Information ─────────  ← BAGO
   "regNo",
   "motherAppType",
   "oldRsn",
   "certification",
   "class",
   "mo",
-
-  // ── Step 2 — Fees ─────────────────────────────  ← BAGO
   "fee",
   "lrf",
   "surc",
   "total",
   "orNo",
-
-  // ── Step 2 — SECPA ────────────────────────────  ← BAGO
   "secpa",
+  "validity",
+  "prodBrName",
+  "prodGenName",
 ];
-// Human-readable labels para sa audit log
 
 const FIELD_LABEL_MAP = {
-  // Establishment
   estCat: "Category",
   ltoNo: "LTO No.",
   tin: "TIN",
   eadd: "Email",
   contactNo: "Contact No.",
   ltoAdd: "LTO Address",
-
-  // Product Details
   prodDosStr: "Dosage Strength",
   prodPharmaCat: "Pharma Category",
   prodEssDrugList: "Essential Drug",
@@ -250,53 +208,38 @@ const FIELD_LABEL_MAP = {
   pharmaProdCat: "Pharma Prod. Cat.",
   pharmaProdCatLabel: "Pharma Prod. Label",
   file: "File",
-  // isInPm: "Is in PM",
-
-  // Manufacturer
   prodManu: "Manufacturer",
   prodManuCountry: "Manufacturer Country",
   prodManuLtoNo: "Manufacturer LTO No.",
   prodManuTin: "Manufacturer TIN",
   prodManuAdd: "Manufacturer Address",
-
-  // Trader
   prodTrader: "Trader",
   prodTraderCountry: "Trader Country",
   prodTraderLtoNo: "Trader LTO No.",
   prodTraderTin: "Trader TIN",
   prodTraderAdd: "Trader Address",
-
-  // Importer
   prodImporter: "Importer",
   prodImporterCountry: "Importer Country",
   prodImporterLtoNo: "Importer LTO No.",
   prodImporterTin: "Importer TIN",
   prodImporterAdd: "Importer Address",
-
-  // Distributor
   prodDistri: "Distributor",
   prodDistriCountry: "Distributor Country",
   prodDistriLtoNo: "Distributor LTO No.",
   prodDistriTin: "Distributor TIN",
   prodDistriShelfLife: "Shelf Life",
   prodDistriAdd: "Distributor Address",
-
-  // Repacker
   prodRepacker: "Repacker",
   prodRepackerCountry: "Repacker Country",
   prodRepackerLtoNo: "Repacker LTO No.",
   prodRepackerTin: "Repacker TIN",
   prodRepackerAdd: "Repacker Address",
-
-  // Summary Cards
   ltoCompany: "LTO Company",
   appType: "Application Type",
   prodDosForm: "Dosage Form",
   prodClassPrescript: "Prescription",
   appStatus: "App Status",
   processingType: "Processing Type",
-
-  // Step 2
   appRemarks: "Application Remarks",
   remarks1: "General Remarks",
   cprCond: "CPR Condition",
@@ -309,24 +252,19 @@ const FIELD_LABEL_MAP = {
   ammend1: "Amendment 1",
   ammend2: "Amendment 2",
   ammend3: "Amendment 3",
-
-  // Application Information  ← BAGO
   regNo: "Registration No.",
   motherAppType: "Mother App Type",
   oldRsn: "Old RSN",
   certification: "Certification",
   class: "Class",
   mo: "MO",
-
-  // Fees  ← BAGO
   fee: "Fee",
   lrf: "LRF",
   surc: "SURC",
   total: "Total",
   orNo: "OR No.",
-
-  // SECPA  ← BAGO
   secpa: "SECPA",
+  validity: "Validity",
 };
 
 const FIELD_KEY_TO_DB = {
@@ -399,7 +337,9 @@ const FIELD_KEY_TO_DB = {
   total: "DB_TOTAL",
   orNo: "DB_OR_NO",
   secpa: "DB_SECPA",
+  validity: "DB_VALIDITY",
 };
+
 /* ================================================================== */
 /*  Helpers                                                             */
 /* ================================================================== */
@@ -526,9 +466,6 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
   );
 }
 
-/* ================================================================== */
-/*  NEW: EditableField Component                                        */
-/* ================================================================== */
 function EditableField({
   label,
   fieldKey,
@@ -566,7 +503,6 @@ function EditableField({
           : { display: "flex", flexDirection: "column", gap: "0.3rem" }
       }
     >
-      {/* Label row with dirty indicator */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
         <label
           style={{
@@ -595,8 +531,6 @@ function EditableField({
           </span>
         )}
       </div>
-
-      {/* Input or Textarea */}
       {multiline ? (
         <textarea
           value={value ?? ""}
@@ -628,8 +562,6 @@ function EditableField({
           }}
         />
       )}
-
-      {/* Show original if dirty */}
       {isDirty && (
         <div
           style={{
@@ -828,7 +760,6 @@ function CountrySelect({
   fullWidth = false,
 }) {
   const isDirty = String(value ?? "") !== String(originalValue ?? "");
-
   return (
     <div
       style={
@@ -837,7 +768,6 @@ function CountrySelect({
           : { display: "flex", flexDirection: "column", gap: "0.3rem" }
       }
     >
-      {/* Label row */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
         <label
           style={{
@@ -866,8 +796,6 @@ function CountrySelect({
           </span>
         )}
       </div>
-
-      {/* Select */}
       <select
         value={value ?? ""}
         onChange={(e) => onChange(fieldKey, e.target.value)}
@@ -899,8 +827,6 @@ function CountrySelect({
           </option>
         ))}
       </select>
-
-      {/* Original value if dirty */}
       {isDirty && (
         <div
           style={{
@@ -1112,7 +1038,7 @@ function StepIndicator({ currentStep, steps, colors }) {
 }
 
 /* ================================================================== */
-/*  Step 1 — Basic Info                   */
+/*  Step 1 — Basic Info                                                 */
 /* ================================================================== */
 function Step1BasicInfo({
   record,
@@ -1124,7 +1050,6 @@ function Step1BasicInfo({
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
 
-  // Same helper pattern as Step2
   const field = (
     label,
     fieldKey,
@@ -1162,8 +1087,8 @@ function Step1BasicInfo({
     );
   };
 
-  // Editable summary card — similar to SummaryCard pero may input
-  const summaryField = (icon, label, fieldKey, accent) => {
+  // ── summaryField with fullWidth support ──
+  const summaryField = (icon, label, fieldKey, accent, fullWidth = false) => {
     const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
     const currentVal =
       fieldKey in editedFields
@@ -1172,21 +1097,22 @@ function Step1BasicInfo({
     const originalVal = record[fieldKey] ?? "";
     const isDirty = String(currentVal ?? "") !== String(originalVal ?? "");
 
+    // ← FIX: containerStyle now drives gridColumn for fullWidth
+    const containerStyle = {
+      ...(fullWidth ? { gridColumn: "1 / -1" } : {}),
+      padding: "0.75rem 1rem",
+      background: colors.inputBg,
+      border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
+      borderLeft: `3px solid ${isDirty ? "#f59e0b" : accent}`,
+      borderRadius: "8px",
+      display: "flex",
+      flexDirection: "column",
+      gap: "0.35rem",
+    };
+
     if (isEditable) {
       return (
-        <div
-          key={fieldKey}
-          style={{
-            padding: "0.75rem 1rem",
-            background: colors.inputBg,
-            border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
-            borderLeft: `3px solid ${isDirty ? "#f59e0b" : accent}`,
-            borderRadius: "8px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.35rem",
-          }}
-        >
+        <div key={fieldKey} style={containerStyle}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
             <span
               style={{
@@ -1257,19 +1183,142 @@ function Step1BasicInfo({
         </div>
       );
     }
+
+    // Non-editable: wrap SummaryCard in a div for gridColumn support
+    return (
+      <div key={fieldKey} style={fullWidth ? { gridColumn: "1 / -1" } : {}}>
+        <SummaryCard
+          icon={icon}
+          label={label}
+          value={cleanValue(record[fieldKey])}
+          accent={accent}
+          colors={colors}
+        />
+      </div>
+    );
+  };
+
+  // ── DateSummaryField — for date picker in summary card style ──
+  const dateSummaryField = (icon, label, fieldKey, accent) => {
+    const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
+    const currentVal =
+      fieldKey in editedFields
+        ? editedFields[fieldKey]
+        : (record[fieldKey] ?? "");
+    const originalVal = record[fieldKey] ?? "";
+    const isDirty = String(currentVal ?? "") !== String(originalVal ?? "");
+
+    // Convert any date string to YYYY-MM-DD for the input
+    const toInputDate = (val) => {
+      if (!val || val === "N/A") return "";
+      try {
+        const d = new Date(val);
+        if (isNaN(d.getTime())) return "";
+        return d.toISOString().split("T")[0];
+      } catch {
+        return "";
+      }
+    };
+
+    if (isEditable) {
+      return (
+        <div
+          key={fieldKey}
+          style={{
+            padding: "0.75rem 1rem",
+            background: colors.inputBg,
+            border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
+            borderLeft: `3px solid ${isDirty ? "#f59e0b" : accent}`,
+            borderRadius: "8px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.35rem",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: "700",
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "0.07em",
+              }}
+            >
+              {icon} {label}
+            </span>
+            {isDirty && (
+              <span
+                style={{
+                  fontSize: "0.6rem",
+                  fontWeight: "700",
+                  color: "#f59e0b",
+                  background: "rgba(245,158,11,0.12)",
+                  padding: "0.1rem 0.35rem",
+                  borderRadius: "4px",
+                }}
+              >
+                ✎ EDITED
+              </span>
+            )}
+          </div>
+          <input
+            type="date"
+            value={toInputDate(currentVal)}
+            onChange={(e) => onFieldChange(fieldKey, e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.3rem 0.5rem",
+              background: "transparent",
+              border: `1px solid ${isDirty ? "#f59e0b" : colors.cardBorder}`,
+              borderRadius: "4px",
+              color: colors.textPrimary,
+              fontSize: "0.88rem",
+              fontWeight: "600",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = isDirty
+                ? "#f59e0b"
+                : colors.cardBorder;
+            }}
+          />
+          {isDirty && (
+            <div
+              style={{
+                fontSize: "0.68rem",
+                color: colors.textTertiary,
+                display: "flex",
+                gap: "0.3rem",
+              }}
+            >
+              <span style={{ color: "#ef4444", flexShrink: 0 }}>Original:</span>
+              <span style={{ fontStyle: "italic" }}>
+                {originalVal ? formatDate(originalVal) : <em>empty</em>}
+              </span>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Non-editable
     return (
       <SummaryCard
         key={fieldKey}
         icon={icon}
         label={label}
-        value={cleanValue(record[fieldKey])}
+        value={formatDate(record[fieldKey])}
         accent={accent}
         colors={colors}
       />
     );
   };
 
-  // Country dropdown helper
   const countryField = (label, fieldKey) => {
     const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
     const currentVal =
@@ -1277,7 +1326,6 @@ function Step1BasicInfo({
         ? editedFields[fieldKey]
         : (record[fieldKey] ?? "");
     const originalVal = record[fieldKey] ?? "";
-
     if (isEditable) {
       return (
         <CountrySelect
@@ -1321,12 +1369,12 @@ function Step1BasicInfo({
           <span style={{ fontSize: "1rem" }}>✎</span>
           <span>
             <strong>Edit Mode Active</strong> — Orange fields have been
-            modified. Changes save on Step 3 submit.
+            modified. Changes save on Step 4 submit.
           </span>
         </div>
       )}
 
-      {/* DTN / Brand header banner — display only */}
+      {/* DTN / Brand / Timeline header banner */}
       <div
         style={{
           padding: "1.25rem 1.5rem",
@@ -1379,30 +1427,81 @@ function Step1BasicInfo({
               color: colors.textTertiary,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              marginBottom: "0.2rem",
+              marginBottom: "0.3rem",
             }}
           >
-            Brand Name
+            App Status
           </div>
           <div
             style={{
-              fontSize: "1.1rem",
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "0.35rem 0.9rem",
+              background: (() => {
+                const s = record.appStatus?.toUpperCase();
+                if (s === "COMPLETED" || s === "APPROVED")
+                  return "linear-gradient(135deg,#10b981,#059669)";
+                if (s === "PENDING")
+                  return "linear-gradient(135deg,#eab308,#ca8a04)";
+                if (s === "REJECTED")
+                  return "linear-gradient(135deg,#ef4444,#dc2626)";
+                return "linear-gradient(135deg,#6b7280,#4b5563)";
+              })(),
+              color: "#fff",
+              borderRadius: "8px",
+              fontSize: "0.85rem",
               fontWeight: "700",
-              color: colors.textPrimary,
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
             }}
           >
-            {cleanValue(record.prodBrName)}
-          </div>
-          <div
-            style={{
-              fontSize: "0.82rem",
-              color: colors.textSecondary,
-              marginTop: "0.15rem",
-            }}
-          >
-            {cleanValue(record.prodGenName)}
+            {cleanValue(record.appStatus)}
           </div>
         </div>
+        {/* Timeline (Days) */}
+        {record.dbTimelineCitizenCharter && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.15rem",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: "700",
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              Timeline
+            </div>
+            <div
+              style={{
+                fontSize: "1.1rem",
+                fontWeight: "800",
+                color: colors.textPrimary,
+              }}
+            >
+              {cleanValue(record.dbTimelineCitizenCharter)}
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: "500",
+                  color: colors.textTertiary,
+                  marginLeft: "0.2rem",
+                }}
+              >
+                working days
+              </span>
+            </div>
+          </div>
+        )}
+
         {status && (
           <span
             style={{
@@ -1426,7 +1525,7 @@ function Step1BasicInfo({
         )}
       </div>
 
-      {/* Summary Cards — editable */}
+      {/* Summary Cards */}
       <div
         style={{
           display: "grid",
@@ -1434,13 +1533,22 @@ function Step1BasicInfo({
           gap: "0.75rem",
         }}
       >
-        {summaryField("🏢", "LTO Company", "ltoCompany", "#2196F3")}
-        {summaryField("📋", "Application Type", "appType", "#9c27b0")}
-        {summaryField("💊", "Dosage Form", "prodDosForm", "#ff9800")}
-        {summaryField("📌", "Classification", "prodClassPrescript", "#f44336")}
-        {summaryField("🔖", "App Status", "appStatus", "#4caf50")}
-        {summaryField("⚙️", "Processing Type", "processingType", "#00bcd4")}
-        {/* Date fields — display only, hindi dapat editable ang dates dito */}
+        {summaryField("⚙️", "Processing Type", "processingType", "#005cd4")}
+        {summaryField("🗂️", "Category", "estCat", "#fbff00")}
+        {summaryField("📋", "Application Type", "appType", "#ff1547")}
+        {/* Full width — LTO Company & Address */}
+        {summaryField("🏢", "LTO Company", "ltoCompany", "#0fff2f", true)}
+        {summaryField("📍", "LTO Address", "ltoAdd", "#ff950a", true)}
+
+        {/* 2-column cards */}
+        {summaryField("📧", "Email Address", "eadd", "#fa3a93")}
+        {summaryField("🪪", "TIN Number", "tin", "#ca44ff")}
+        {summaryField("📞", "Contact Number", "contactNo", "#00f18d", true)}
+        {summaryField("🔑", "LTO Number", "ltoNo", "#781192")}
+
+        {/* Validity — after LTO Number */}
+        {dateSummaryField("📅", "Validity", "validity", "#607d8b")}
+
         <SummaryCard
           icon="📅"
           label="Date Received Central"
@@ -1457,35 +1565,24 @@ function Step1BasicInfo({
         />
       </div>
 
-      {/* Establishment */}
-      <VDSection title="🏢 Establishment" colors={colors}>
-        <FieldGrid>
-          {field("Category", "estCat")}
-          {field("LTO No.", "ltoNo")}
-          {field("TIN", "tin")}
-          {field("Email", "eadd")}
-          {field("Contact No.", "contactNo")}
-          <DisplayField
-            label="Validity"
-            value={formatDate(record.validity)}
-            colors={colors}
-          />
-          {field("LTO Address", "ltoAdd", { fullWidth: true, multiline: true })}
-        </FieldGrid>
-      </VDSection>
-
       {/* Product Details */}
       <VDSection title="💊 Product Details" colors={colors}>
         <FieldGrid>
+          {field("Brand Name", "prodBrName")}
+          {field("Generic Name", "prodGenName")}
           {field("Dosage Strength", "prodDosStr")}
-          {field("Shelf Life", "prodDistriShelfLife")}
-          {field("Pharma Category", "prodPharmaCat")}
+          {field("Dosage Form", "prodDosForm")}
+          {field("Classification", "prodClassPrescript")}
           {field("Essential Drug", "prodEssDrugList")}
+
+          {field("Shelf Life", "prodDistriShelfLife")}
+
+          {field("Pharma Category", "prodPharmaCat")}
+
           {field("Product Category", "prodCat")}
           {field("Pharma Prod. Cat.", "pharmaProdCat")}
           {field("Pharma Prod. Label", "pharmaProdCatLabel")}
           {field("File", "file")}
-          {/* {field("Is in PM", "isInPm")} */}
         </FieldGrid>
       </VDSection>
 
@@ -1561,8 +1658,9 @@ function Step1BasicInfo({
     </div>
   );
 }
+
 /* ================================================================== */
-/*  Step 2 — Full Details (editable fields for allowed roles)          */
+/*  Step 2 — Full Details                                               */
 /* ================================================================== */
 function Step2FullDetails({
   record,
@@ -1571,7 +1669,6 @@ function Step2FullDetails({
   canEdit,
   colors,
 }) {
-  // Helper: render editable or display based on canEdit + field whitelist
   const field = (
     label,
     fieldKey,
@@ -1583,7 +1680,6 @@ function Step2FullDetails({
         ? editedFields[fieldKey]
         : (record[fieldKey] ?? "");
     const originalVal = record[fieldKey] ?? "";
-
     if (isEditable) {
       return (
         <EditableField
@@ -1612,7 +1708,6 @@ function Step2FullDetails({
 
   return (
     <div>
-      {/* Edit mode notice banner */}
       {canEdit && (
         <div
           style={{
@@ -1632,7 +1727,7 @@ function Step2FullDetails({
           <span>
             <strong>Edit Mode Active</strong> — Fields highlighted in orange
             have been modified. Changes will be saved when you complete the task
-            in Step 3.
+            in Step 4.
           </span>
         </div>
       )}
@@ -1665,7 +1760,6 @@ function Step2FullDetails({
         </FieldGrid>
       </VDSection>
 
-      {/* Fees — UPDATED */}
       <VDSection title="💰 Fees" colors={colors}>
         <FieldGrid>
           {field("Fee", "fee")}
@@ -1726,10 +1820,9 @@ function Step2FullDetails({
         </FieldGrid>
       </VDSection>
 
-      {/* SECPA — UPDATED */}
       <VDSection title="🔐 SECPA" colors={colors}>
         <FieldGrid>
-          {field("SECPA", "secpa")} {/* ← editable na */}
+          {field("SECPA", "secpa")}
           <DisplayField
             label="SECPA Expiry Date"
             value={formatDate(record.secpaExpDate)}
@@ -1743,22 +1836,7 @@ function Step2FullDetails({
         </FieldGrid>
       </VDSection>
 
-      <VDSection title="🎯 Decking & Evaluation" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Decking Schedule"
-            value={cleanValue(record.deckingSched)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Evaluator"
-            value={cleanValue(record.eval)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📤 Release" colors={colors}>
+      <VDSection title="📤 Released Information" colors={colors}>
         <FieldGrid>
           <DisplayField
             label="Type Doc Released"
@@ -1802,51 +1880,6 @@ function Step2FullDetails({
           fullWidth: true,
           multiline: true,
         })}
-      </VDSection>
-
-      <VDSection title="📊 Metadata" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Timeline (Days)"
-            value={cleanValue(record.dbTimelineCitizenCharter)}
-            colors={colors}
-          />
-          <StatusTimelineField
-            label="Status Timeline"
-            record={record}
-            colors={colors}
-          />
-          <DisplayField
-            label="Assigned To"
-            value={cleanValue(record.evaluator)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Current Step"
-            value={cleanValue(record.applicationStep)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Uploaded By"
-            value={cleanValue(record.userUploader)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Uploaded At"
-            value={formatDate(record.uploadedAt)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Log Created At"
-            value={formatDate(record.logCreatedAt)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Accomplished Date"
-            value={formatDate(record.accomplishedDate)}
-            colors={colors}
-          />
-        </FieldGrid>
       </VDSection>
     </div>
   );
@@ -1963,7 +1996,6 @@ function Step3AppLogs({ record, colors }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-      {/* Header summary */}
       <div
         style={{
           padding: "0.85rem 1.25rem",
@@ -1985,7 +2017,6 @@ function Step3AppLogs({ record, colors }) {
         </span>
       </div>
 
-      {/* Log entries */}
       {logs.map((log, index) => {
         const stepColor = STEP_COLORS[log.application_step] ?? "#607d8b";
         const statusStyle = STATUS_STYLE[log.application_status] ?? {
@@ -1993,7 +2024,6 @@ function Step3AppLogs({ record, colors }) {
           color: colors.textTertiary,
           label: log.application_status,
         };
-
         return (
           <div
             key={log.id}
@@ -2005,7 +2035,6 @@ function Step3AppLogs({ record, colors }) {
               background: colors.cardBg,
             }}
           >
-            {/* Log header */}
             <div
               style={{
                 padding: "0.85rem 1.25rem",
@@ -2025,7 +2054,6 @@ function Step3AppLogs({ record, colors }) {
                   gap: "0.75rem",
                 }}
               >
-                {/* Index badge */}
                 <span
                   style={{
                     width: "28px",
@@ -2063,7 +2091,6 @@ function Step3AppLogs({ record, colors }) {
               <div
                 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
               >
-                {/* Status badge */}
                 <span
                   style={{
                     padding: "0.25rem 0.75rem",
@@ -2076,7 +2103,6 @@ function Step3AppLogs({ record, colors }) {
                 >
                   {statusStyle.label}
                 </span>
-                {/* Thread badge */}
                 {log.del_thread && (
                   <span
                     style={{
@@ -2096,8 +2122,6 @@ function Step3AppLogs({ record, colors }) {
                 )}
               </div>
             </div>
-
-            {/* Log body */}
             <div
               style={{
                 padding: "1rem 1.25rem",
@@ -2106,7 +2130,6 @@ function Step3AppLogs({ record, colors }) {
                 gap: "0.85rem",
               }}
             >
-              {/* Decision */}
               <div
                 style={{
                   display: "flex",
@@ -2167,8 +2190,6 @@ function Step3AppLogs({ record, colors }) {
                   {log.application_decision || "—"}
                 </span>
               </div>
-
-              {/* Dates */}
               <div
                 style={{
                   display: "flex",
@@ -2221,8 +2242,6 @@ function Step3AppLogs({ record, colors }) {
                   </span>
                 </div>
               </div>
-
-              {/* Remarks — full width */}
               {log.application_remarks && (
                 <div
                   style={{
@@ -2260,8 +2279,6 @@ function Step3AppLogs({ record, colors }) {
                   </div>
                 </div>
               )}
-
-              {/* Delegation info */}
               <div
                 style={{
                   gridColumn: "1 / -1",
@@ -2308,6 +2325,9 @@ function Step3AppLogs({ record, colors }) {
   );
 }
 
+/* ================================================================== */
+/*  DeadlinePicker                                                      */
+/* ================================================================== */
 function DeadlinePicker({
   deadlineDate,
   workingDays,
@@ -2360,7 +2380,6 @@ function DeadlinePicker({
         gap: "1rem",
       }}
     >
-      {/* Header */}
       <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
         <span style={{ fontSize: "1.1rem" }}>⏰</span>
         <div>
@@ -2380,12 +2399,9 @@ function DeadlinePicker({
           </div>
         </div>
       </div>
-
-      {/* Two-column inputs */}
       <div
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}
       >
-        {/* Working Days */}
         <div
           style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
         >
@@ -2469,8 +2485,6 @@ function DeadlinePicker({
               +
             </button>
           </div>
-
-          {/* Quick preset buttons */}
           <div
             style={{
               display: "flex",
@@ -2503,8 +2517,6 @@ function DeadlinePicker({
             ))}
           </div>
         </div>
-
-        {/* Deadline Date picker */}
         <div
           style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
         >
@@ -2549,8 +2561,6 @@ function DeadlinePicker({
           )}
         </div>
       </div>
-
-      {/* Urgency indicator */}
       {cfg && deadlineDate && (
         <div
           style={{
@@ -2583,8 +2593,6 @@ function DeadlinePicker({
           )}
         </div>
       )}
-
-      {/* Notification hint */}
       <div
         style={{
           display: "flex",
@@ -2607,7 +2615,7 @@ function DeadlinePicker({
 }
 
 /* ================================================================== */
-/*  Step 3 — Action Form (with audit log on submit)                    */
+/*  Step 4 — Action Form                                                */
 /* ================================================================== */
 function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
@@ -2616,24 +2624,16 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
     decision: "",
     remarks: "",
   });
-
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-
-  /* ────────────────────────────────────────────────────────────────────
-   ③ CHANGES INSIDE Step3ActionForm
-   ──────────────────────────────────────────────────────────────────── */
-
-  // A.  Add to state (after the existing useState calls):
   const today = todayStr();
   const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
   const [deadlineDate, setDeadlineDate] = useState(() =>
     addWorkingDays(todayStr(), DEFAULT_WORKING_DAYS),
   );
 
-  // B.  Add two sync handlers (before useEffect blocks):
   const handleWorkingDaysChange = (days) => {
     setWorkingDays(days);
     setDeadlineDate(addWorkingDays(today, days));
@@ -2647,7 +2647,6 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
   const mainDbId = record.mainDbId;
   const currentStep = record.applicationStep;
 
-  // Count of dirty fields to show in summary
   const dirtyFields = computeFieldChanges(
     record,
     editedFields,
@@ -2719,7 +2718,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
   const isSubmitDisabled =
     loading ||
     !formData.decision ||
-    (isForCompliance && !deadlineDate) || // ← NEW
+    (isForCompliance && !deadlineDate) ||
     (needsAssignee &&
       (loadingUsers || assigneeOptions.length === 0 || !formData.assignee));
 
@@ -2750,12 +2749,10 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
     setLoading(true);
     try {
       const now = new Date();
-      const phtOffset = 8 * 60 * 60 * 1000;
       const formattedDateTime = new Date(
-        now.getTime() + phtOffset,
+        now.getTime() + 8 * 60 * 60 * 1000,
       ).toISOString();
 
-      // ── 1. Save field audit log if there are changes ──────────────
       if (dirtyFields.length > 0) {
         await createFieldAuditLog({
           main_db_id: mainDbId,
@@ -2763,20 +2760,15 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           session_id: crypto.randomUUID(),
           changes: dirtyFields,
         });
-
-        // ✅ Map camelCase → DB_ keys bago i-send sa API
         const updatePayload = {};
         dirtyFields.forEach((c) => {
           const dbKey = FIELD_KEY_TO_DB[c.field_name];
           if (dbKey) updatePayload[dbKey] = c.new_value;
         });
-
-        if (Object.keys(updatePayload).length > 0) {
+        if (Object.keys(updatePayload).length > 0)
           await updateUploadReport(mainDbId, updatePayload);
-        }
       }
 
-      // ── 2. Existing workflow ──────────────────────────────────────
       const indexData = await getLastApplicationLogIndex(mainDbId);
       const lastIndex = indexData.last_index;
       const nextIndex = lastIndex + 1;
@@ -2788,7 +2780,6 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         accomplished_date: formattedDateTime,
         del_last_index: 0,
         del_thread: "Close",
-        // Pass edited fields so backend can update the main record too
         ...(dirtyFields.length > 0
           ? {
               edited_fields: Object.fromEntries(
@@ -2802,7 +2793,6 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         const assignedUser = isForCompliance
           ? currentUser?.username || formData.currentUserDisplay
           : formData.assignee;
-
         await createApplicationLog({
           main_db_id: mainDbId,
           application_step: nextStep,
@@ -2820,6 +2810,11 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
             ? { deadline_date: deadlineDate, working_days: workingDays }
             : {}),
         });
+      }
+
+      // Update DB_APP_STATUS when Releasing → Record
+      if (currentStep === "Releasing" && formData.decision === "Released") {
+        await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
       }
 
       if (onSuccess) await onSuccess();
@@ -2972,7 +2967,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         )}
       </div>
 
-      {/* ── Changes Summary Banner ─────────────────────────────────── */}
+      {/* Changes Summary Banner */}
       {dirtyFields.length > 0 && (
         <div
           style={{
@@ -3036,7 +3031,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         </div>
       )}
 
-      {/* Current user readonly */}
+      {/* Handled By */}
       <div>
         <label
           style={{
@@ -3248,7 +3243,6 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         </div>
       )}
 
-      {/* Self-assign notice */}
       {isForCompliance && (
         <div
           style={{
@@ -3356,8 +3350,6 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
 /* ================================================================== */
 function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
   const [currentStep, setCurrentStep] = useState(1);
-
-  // ── Shared edit state lifted to modal level ──────────────────────
   const [editedFields, setEditedFields] = useState({});
 
   const canEdit = EDITABLE_STEPS.includes(record?.applicationStep);
@@ -3373,7 +3365,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
   const goNext = () => setCurrentStep((s) => Math.min(s + 1, totalSteps));
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 1));
 
-  // Count dirty fields for footer badge
   const dirtyCount = Object.entries(editedFields).filter(
     ([k, v]) => String(v ?? "") !== String(record[k] ?? ""),
   ).length;
@@ -3472,7 +3463,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
                 </span>
               )}
             </p>
-            {/* ── Compliance Due Date — visible sa lahat ng steps ── */}
             {record.complianceDeadline &&
               (() => {
                 const urgency = deadlineUrgency(record.complianceDeadline);
@@ -3599,13 +3589,12 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
             minHeight: 0,
           }}
         >
-          {/* Content — Step 1 */}
           {currentStep === 1 && (
             <Step1BasicInfo
               record={record}
-              editedFields={editedFields} // ← dagdag
-              onFieldChange={handleFieldChange} // ← dagdag
-              canEdit={canEdit} // ← dagdag
+              editedFields={editedFields}
+              onFieldChange={handleFieldChange}
+              canEdit={canEdit}
               colors={colors}
             />
           )}
