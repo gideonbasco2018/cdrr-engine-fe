@@ -58,6 +58,8 @@ function UserManagementPage({ darkMode, userRole }) {
     access_request: "",
   });
   const [viewMode, setViewMode] = useState("card");
+  const [tablePage, setTablePage] = useState(1);
+  const TABLE_PAGE_SIZE = 20;
 
   const c = darkMode
     ? {
@@ -127,15 +129,8 @@ function UserManagementPage({ darkMode, userRole }) {
 
   // ── Fetch ALL users handling pagination ──────────────────────────────
   const fetchAll = async (apiFn) => {
-    let response = await apiFn({ limit: 100, offset: 0 });
-    if (Array.isArray(response)) return response;
-    let allResults = [...(response.results ?? [])];
-    while (response.next) {
-      const offset = allResults.length;
-      response = await apiFn({ limit: 100, offset });
-      allResults = [...allResults, ...(response.results ?? [])];
-    }
-    return allResults;
+    const response = await apiFn();
+    return Array.isArray(response) ? response : (response.results ?? []);
   };
 
   const fetchData = useCallback(async () => {
@@ -159,6 +154,11 @@ function UserManagementPage({ darkMode, userRole }) {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Reset table page whenever filters/search/tab change
+  useEffect(() => {
+    setTablePage(1);
+  }, [activeTab, search, roleFilter, groupFilter]);
 
   useEffect(() => {
     const h = () => setOpenMenuId(null);
@@ -1877,336 +1877,510 @@ function UserManagementPage({ darkMode, userRole }) {
           </div>
 
           {/* Table Rows */}
-          {filteredUsers.map((user, index) => {
-            const name =
-              user.first_name && user.surname
-                ? `${user.first_name} ${user.surname}`
-                : user.username;
-            const initial = (user.first_name ||
-              user.username ||
-              "?")[0].toUpperCase();
-            const [fg, bg] = avatarColor(name);
-            const roleC =
-              roleBadgeColor[user.role || "User"] || roleBadgeColor.User;
-            const rowBg =
-              index % 2 === 0
-                ? "transparent"
-                : darkMode
-                  ? "#1a1a1a"
-                  : "#fafafa";
+          {filteredUsers
+            .slice(
+              (tablePage - 1) * TABLE_PAGE_SIZE,
+              tablePage * TABLE_PAGE_SIZE,
+            )
+            .map((user, index) => {
+              const name =
+                user.first_name && user.surname
+                  ? `${user.first_name} ${user.surname}`
+                  : user.username;
+              const initial = (user.first_name ||
+                user.username ||
+                "?")[0].toUpperCase();
+              const [fg, bg] = avatarColor(name);
+              const roleC =
+                roleBadgeColor[user.role || "User"] || roleBadgeColor.User;
+              const rowBg =
+                index % 2 === 0
+                  ? "transparent"
+                  : darkMode
+                    ? "#1a1a1a"
+                    : "#fafafa";
 
-            return (
-              <div
-                key={user.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: tableGrid,
-                  alignItems: "center",
-                  gap: "1rem",
-                  padding: "0.9rem 1.25rem",
-                  background: rowBg,
-                  borderBottom: `1px solid ${c.rowBorder}`,
-                  transition: "background 0.15s",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = c.rowHover)
-                }
-                onMouseLeave={(e) => (e.currentTarget.style.background = rowBg)}
-              >
-                {/* Avatar */}
+              return (
                 <div
+                  key={user.id}
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    background: bg,
-                    color: fg,
-                    display: "flex",
+                    display: "grid",
+                    gridTemplateColumns: tableGrid,
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.82rem",
-                    fontWeight: 700,
-                    border: `2px solid ${fg}30`,
+                    gap: "1rem",
+                    padding: "0.9rem 1.25rem",
+                    background: rowBg,
+                    borderBottom: `1px solid ${c.rowBorder}`,
+                    transition: "background 0.15s",
                   }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = c.rowHover)
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = rowBg)
+                  }
                 >
-                  {initial}
-                </div>
-
-                {/* Name + Email */}
-                <div>
+                  {/* Avatar */}
                   <div
                     style={{
-                      fontWeight: 600,
-                      color: c.textPrimary,
-                      fontSize: "0.9rem",
+                      width: 36,
+                      height: 36,
+                      borderRadius: "50%",
+                      background: bg,
+                      color: fg,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                      border: `2px solid ${fg}30`,
                     }}
                   >
-                    {name}
+                    {initial}
                   </div>
+
+                  {/* Name + Email */}
+                  <div>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        color: c.textPrimary,
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      {name}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.78rem",
+                        color: c.textTertiary,
+                        marginTop: 1,
+                      }}
+                    >
+                      {user.email || user.username}
+                    </div>
+                  </div>
+
+                  {/* Username */}
                   <div
                     style={{
-                      fontSize: "0.78rem",
-                      color: c.textTertiary,
-                      marginTop: 1,
+                      color: c.textSecondary,
+                      fontSize: "0.85rem",
+                      fontFamily: "monospace",
                     }}
                   >
-                    {user.email || user.username}
+                    @{user.username}
                   </div>
-                </div>
 
-                {/* Username */}
-                <div
-                  style={{
-                    color: c.textSecondary,
-                    fontSize: "0.85rem",
-                    fontFamily: "monospace",
-                  }}
-                >
-                  @{user.username}
-                </div>
+                  {/* Alias ← NEW */}
+                  <div>
+                    {user.alias ? (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "0.2rem 0.65rem",
+                          borderRadius: 6,
+                          fontSize: "0.78rem",
+                          fontWeight: 600,
+                          background: darkMode
+                            ? "rgba(99,102,241,0.15)"
+                            : "#eef2ff",
+                          color: darkMode ? "#a5b4fc" : "#4338ca",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {user.alias}
+                      </span>
+                    ) : (
+                      <span
+                        style={{ color: c.textTertiary, fontSize: "0.8rem" }}
+                      >
+                        —
+                      </span>
+                    )}
+                  </div>
 
-                {/* Alias ← NEW */}
-                <div>
-                  {user.alias ? (
+                  {/* Role */}
+                  <div>
+                    <span
+                      onClick={() =>
+                        setRoleFilter(
+                          roleFilter === user.role ? null : user.role || "User",
+                        )
+                      }
+                      style={{
+                        display: "inline-block",
+                        padding: "0.2rem 0.65rem",
+                        borderRadius: 20,
+                        fontSize: "0.72rem",
+                        fontWeight: 600,
+                        background:
+                          roleFilter === (user.role || "User")
+                            ? roleC.text
+                            : roleC.bg,
+                        color:
+                          roleFilter === (user.role || "User")
+                            ? "#fff"
+                            : roleC.text,
+                        cursor: "pointer",
+                        border: `1px solid ${roleC.text}40`,
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {user.role || "User"}
+                    </span>
+                  </div>
+
+                  {/* Groups */}
+                  <div
+                    style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}
+                  >
+                    {(user.groups || []).length === 0 ? (
+                      <span
+                        style={{ color: c.textTertiary, fontSize: "0.8rem" }}
+                      >
+                        —
+                      </span>
+                    ) : (
+                      (user.groups || []).map((g) => (
+                        <span
+                          key={g.id}
+                          style={{
+                            padding: "0.2rem 0.65rem",
+                            borderRadius: 20,
+                            fontSize: "0.72rem",
+                            fontWeight: 600,
+                            background: darkMode ? "#1a2a1a" : "#f0fdf4",
+                            color: darkMode ? "#86efac" : "#15803d",
+                          }}
+                        >
+                          {g.name}
+                        </span>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Status */}
+                  <div>
                     <span
                       style={{
                         display: "inline-block",
                         padding: "0.2rem 0.65rem",
-                        borderRadius: 6,
-                        fontSize: "0.78rem",
+                        borderRadius: 20,
+                        fontSize: "0.72rem",
                         fontWeight: 600,
-                        background: darkMode
-                          ? "rgba(99,102,241,0.15)"
-                          : "#eef2ff",
-                        color: darkMode ? "#a5b4fc" : "#4338ca",
-                        fontFamily: "monospace",
+                        background: user.is_active
+                          ? c.badgeActive.bg
+                          : c.badgeInactive.bg,
+                        color: user.is_active
+                          ? c.badgeActive.text
+                          : c.badgeInactive.text,
                       }}
                     >
-                      {user.alias}
+                      {user.is_active ? "Active" : "Inactive"}
                     </span>
-                  ) : (
-                    <span style={{ color: c.textTertiary, fontSize: "0.8rem" }}>
-                      —
-                    </span>
-                  )}
-                </div>
+                  </div>
 
-                {/* Role */}
-                <div>
-                  <span
-                    onClick={() =>
-                      setRoleFilter(
-                        roleFilter === user.role ? null : user.role || "User",
-                      )
-                    }
+                  {/* Access Request */}
+                  <div
+                    title={user.access_request || ""}
                     style={{
-                      display: "inline-block",
-                      padding: "0.2rem 0.65rem",
-                      borderRadius: 20,
-                      fontSize: "0.72rem",
-                      fontWeight: 600,
-                      background:
-                        roleFilter === (user.role || "User")
-                          ? roleC.text
-                          : roleC.bg,
-                      color:
-                        roleFilter === (user.role || "User")
-                          ? "#fff"
-                          : roleC.text,
-                      cursor: "pointer",
-                      border: `1px solid ${roleC.text}40`,
-                      transition: "all 0.15s",
+                      fontSize: "0.8rem",
+                      color: user.access_request
+                        ? c.textSecondary
+                        : c.textTertiary,
+                      lineHeight: 1.45,
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
                     }}
                   >
-                    {user.role || "User"}
-                  </span>
-                </div>
+                    {user.access_request || (
+                      <span style={{ fontStyle: "italic" }}>—</span>
+                    )}
+                  </div>
 
-                {/* Groups */}
-                <div
-                  style={{ display: "flex", gap: "0.3rem", flexWrap: "wrap" }}
-                >
-                  {(user.groups || []).length === 0 ? (
-                    <span style={{ color: c.textTertiary, fontSize: "0.8rem" }}>
-                      —
-                    </span>
-                  ) : (
-                    (user.groups || []).map((g) => (
-                      <span
-                        key={g.id}
+                  {/* Actions */}
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      position: "relative",
+                    }}
+                  >
+                    <div
+                      style={{ position: "relative" }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(
+                            openMenuId === user.id ? null : user.id,
+                          );
+                        }}
+                        disabled={actionLoading === user.id}
                         style={{
-                          padding: "0.2rem 0.65rem",
-                          borderRadius: 20,
-                          fontSize: "0.72rem",
-                          fontWeight: 600,
-                          background: darkMode ? "#1a2a1a" : "#f0fdf4",
-                          color: darkMode ? "#86efac" : "#15803d",
+                          width: 32,
+                          height: 32,
+                          borderRadius: 6,
+                          border: `1px solid ${c.cardBorder}`,
+                          background: "transparent",
+                          color: c.textSecondary,
+                          cursor:
+                            actionLoading === user.id
+                              ? "not-allowed"
+                              : "pointer",
+                          fontSize: "1rem",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
                         }}
                       >
-                        {g.name}
-                      </span>
-                    ))
-                  )}
+                        {actionLoading === user.id ? "…" : "⋯"}
+                      </button>
+                      {openMenuId === user.id && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "calc(100% + 4px)",
+                            right: 0,
+                            background: c.menuBg,
+                            border: `1px solid ${c.menuBorder}`,
+                            borderRadius: 10,
+                            boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
+                            minWidth: 160,
+                            zIndex: 200,
+                            overflow: "hidden",
+                          }}
+                        >
+                          {[
+                            { label: "Edit User", icon: "✏️", action: "edit" },
+                            {
+                              label: !user.is_active
+                                ? "Activate"
+                                : "Deactivate",
+                              icon: !user.is_active ? "✓" : "✕",
+                              action: !user.is_active
+                                ? "activate"
+                                : "deactivate",
+                            },
+                            {
+                              label: "Reset Password",
+                              icon: "🔑",
+                              action: "reset_password",
+                            },
+                          ].map((item, idx, arr) => (
+                            <button
+                              key={item.action}
+                              onClick={() => {
+                                setOpenMenuId(null);
+                                if (item.action === "reset_password")
+                                  setPasswordModal({
+                                    userId: user.id,
+                                    username: user.username,
+                                  });
+                                else if (item.action === "edit")
+                                  openEditModal(user);
+                                else
+                                  setConfirmModal({
+                                    userId: user.id,
+                                    username: user.username,
+                                    action: item.action,
+                                  });
+                              }}
+                              style={{
+                                width: "100%",
+                                padding: "0.6rem 1rem",
+                                border: "none",
+                                borderBottom:
+                                  idx < arr.length - 1
+                                    ? `1px solid ${c.cardBorder}`
+                                    : "none",
+                                background: "transparent",
+                                color: c.textPrimary,
+                                fontSize: "0.82rem",
+                                textAlign: "left",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.55rem",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.background =
+                                  c.menuItemHover)
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.background =
+                                  "transparent")
+                              }
+                            >
+                              <span>{item.icon}</span>
+                              <span>{item.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              );
+            })}
 
-                {/* Status */}
-                <div>
-                  <span
-                    style={{
-                      display: "inline-block",
-                      padding: "0.2rem 0.65rem",
-                      borderRadius: 20,
-                      fontSize: "0.72rem",
-                      fontWeight: 600,
-                      background: user.is_active
-                        ? c.badgeActive.bg
-                        : c.badgeInactive.bg,
-                      color: user.is_active
-                        ? c.badgeActive.text
-                        : c.badgeInactive.text,
-                    }}
-                  >
-                    {user.is_active ? "Active" : "Inactive"}
-                  </span>
-                </div>
-
-                {/* Access Request */}
-                <div
-                  title={user.access_request || ""}
-                  style={{
-                    fontSize: "0.8rem",
-                    color: user.access_request
-                      ? c.textSecondary
-                      : c.textTertiary,
-                    lineHeight: 1.45,
-                    overflow: "hidden",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                  }}
-                >
-                  {user.access_request || (
-                    <span style={{ fontStyle: "italic" }}>—</span>
-                  )}
-                </div>
-
-                {/* Actions */}
+          {/* ── Table Pagination Footer ── */}
+          {filteredUsers.length > TABLE_PAGE_SIZE &&
+            (() => {
+              const totalPages = Math.ceil(
+                filteredUsers.length / TABLE_PAGE_SIZE,
+              );
+              const startItem = (tablePage - 1) * TABLE_PAGE_SIZE + 1;
+              const endItem = Math.min(
+                tablePage * TABLE_PAGE_SIZE,
+                filteredUsers.length,
+              );
+              return (
                 <div
                   style={{
                     display: "flex",
-                    justifyContent: "flex-end",
-                    position: "relative",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    padding: "0.85rem 1.25rem",
+                    borderTop: `1px solid ${c.cardBorder}`,
+                    background: darkMode ? "#1a1a1a" : "#f9f9f9",
                   }}
                 >
+                  {/* Count info */}
+                  <span style={{ fontSize: "0.8rem", color: c.textTertiary }}>
+                    Showing{" "}
+                    <strong style={{ color: c.textSecondary }}>
+                      {startItem}–{endItem}
+                    </strong>{" "}
+                    of{" "}
+                    <strong style={{ color: c.textSecondary }}>
+                      {filteredUsers.length}
+                    </strong>{" "}
+                    users
+                  </span>
+
+                  {/* Page controls */}
                   <div
-                    style={{ position: "relative" }}
-                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                    }}
                   >
+                    {/* Prev */}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(openMenuId === user.id ? null : user.id);
-                      }}
-                      disabled={actionLoading === user.id}
+                      onClick={() => setTablePage((p) => Math.max(1, p - 1))}
+                      disabled={tablePage === 1}
                       style={{
                         width: 32,
                         height: 32,
-                        borderRadius: 6,
+                        borderRadius: 7,
                         border: `1px solid ${c.cardBorder}`,
                         background: "transparent",
-                        color: c.textSecondary,
-                        cursor:
-                          actionLoading === user.id ? "not-allowed" : "pointer",
-                        fontSize: "1rem",
+                        color:
+                          tablePage === 1 ? c.textTertiary : c.textSecondary,
+                        cursor: tablePage === 1 ? "not-allowed" : "pointer",
+                        fontSize: "0.85rem",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
+                        opacity: tablePage === 1 ? 0.4 : 1,
                       }}
                     >
-                      {actionLoading === user.id ? "…" : "⋯"}
+                      ‹
                     </button>
-                    {openMenuId === user.id && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "calc(100% + 4px)",
-                          right: 0,
-                          background: c.menuBg,
-                          border: `1px solid ${c.menuBorder}`,
-                          borderRadius: 10,
-                          boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
-                          minWidth: 160,
-                          zIndex: 200,
-                          overflow: "hidden",
-                        }}
-                      >
-                        {[
-                          { label: "Edit User", icon: "✏️", action: "edit" },
-                          {
-                            label: !user.is_active ? "Activate" : "Deactivate",
-                            icon: !user.is_active ? "✓" : "✕",
-                            action: !user.is_active ? "activate" : "deactivate",
-                          },
-                          {
-                            label: "Reset Password",
-                            icon: "🔑",
-                            action: "reset_password",
-                          },
-                        ].map((item, idx, arr) => (
-                          <button
-                            key={item.action}
-                            onClick={() => {
-                              setOpenMenuId(null);
-                              if (item.action === "reset_password")
-                                setPasswordModal({
-                                  userId: user.id,
-                                  username: user.username,
-                                });
-                              else if (item.action === "edit")
-                                openEditModal(user);
-                              else
-                                setConfirmModal({
-                                  userId: user.id,
-                                  username: user.username,
-                                  action: item.action,
-                                });
-                            }}
+
+                    {/* Page number buttons */}
+                    {Array.from({ length: totalPages }, (_, i) => i + 1)
+                      .filter(
+                        (p) =>
+                          p === 1 ||
+                          p === totalPages ||
+                          Math.abs(p - tablePage) <= 1,
+                      )
+                      .reduce((acc, p, i, arr) => {
+                        if (i > 0 && p - arr[i - 1] > 1) acc.push("…");
+                        acc.push(p);
+                        return acc;
+                      }, [])
+                      .map((item, i) =>
+                        item === "…" ? (
+                          <span
+                            key={`ellipsis-${i}`}
                             style={{
-                              width: "100%",
-                              padding: "0.6rem 1rem",
-                              border: "none",
-                              borderBottom:
-                                idx < arr.length - 1
-                                  ? `1px solid ${c.cardBorder}`
-                                  : "none",
-                              background: "transparent",
-                              color: c.textPrimary,
-                              fontSize: "0.82rem",
-                              textAlign: "left",
+                              fontSize: "0.8rem",
+                              color: c.textTertiary,
+                              padding: "0 0.25rem",
+                            }}
+                          >
+                            …
+                          </span>
+                        ) : (
+                          <button
+                            key={item}
+                            onClick={() => setTablePage(item)}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 7,
+                              border: `1px solid ${item === tablePage ? (darkMode ? "#555" : "#ccc") : c.cardBorder}`,
+                              background:
+                                item === tablePage
+                                  ? darkMode
+                                    ? "#333"
+                                    : "#111"
+                                  : "transparent",
+                              color:
+                                item === tablePage ? "#fff" : c.textSecondary,
                               cursor: "pointer",
+                              fontSize: "0.82rem",
+                              fontWeight: item === tablePage ? 700 : 400,
                               display: "flex",
                               alignItems: "center",
-                              gap: "0.55rem",
+                              justifyContent: "center",
+                              transition: "all 0.15s",
                             }}
-                            onMouseEnter={(e) =>
-                              (e.currentTarget.style.background =
-                                c.menuItemHover)
-                            }
-                            onMouseLeave={(e) =>
-                              (e.currentTarget.style.background = "transparent")
-                            }
                           >
-                            <span>{item.icon}</span>
-                            <span>{item.label}</span>
+                            {item}
                           </button>
-                        ))}
-                      </div>
-                    )}
+                        ),
+                      )}
+
+                    {/* Next */}
+                    <button
+                      onClick={() =>
+                        setTablePage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={tablePage === totalPages}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 7,
+                        border: `1px solid ${c.cardBorder}`,
+                        background: "transparent",
+                        color:
+                          tablePage === totalPages
+                            ? c.textTertiary
+                            : c.textSecondary,
+                        cursor:
+                          tablePage === totalPages ? "not-allowed" : "pointer",
+                        fontSize: "0.85rem",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        opacity: tablePage === totalPages ? 0.4 : 1,
+                      }}
+                    >
+                      ›
+                    </button>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })()}
         </div>
       )}
     </div>
