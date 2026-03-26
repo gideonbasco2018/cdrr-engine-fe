@@ -29,15 +29,17 @@ const WORKFLOW = {
     "Endorse to Supervisor": "Supervisor",
   },
   Supervisor: {
-    default: "QA",
+    default: "QA Admin",
     "Return to Evaluator": "Quality Evaluation",
   },
-  QA: {
-    default: "Director Signature",
+  "QA Admin": {
+    default: "LRD Chief Admin",
     "Return to Evaluator": "Quality Evaluation",
   },
-  "Director Signature": { default: "Releasing" },
-  Releasing: { default: "Record" },
+  "LRD Chief Admin": { default: "OD-Receiving" },
+  "OD-Receiving": { default: "OD-Releasing" },
+  "OD-Releasing": { default: "Releasing Officer" },
+  "Releasing Officer": { default: null },
 };
 
 const STEP_GROUP_MAP = {
@@ -45,9 +47,11 @@ const STEP_GROUP_MAP = {
   Compliance: 4,
   Checking: 4,
   Supervisor: 5,
-  QA: 6,
-  "Director Signature": 7,
-  Releasing: 8,
+  "QA Admin": 16,
+  "LRD Chief Admin": 17,
+  "OD-Receiving": 18,
+  "OD-Releasing": 19,
+  "Releasing Officer": 8,
   Record: 15,
 };
 
@@ -116,7 +120,8 @@ const EDITABLE_STEPS = [
   "Quality Evaluation",
   "Checking",
   "Supervisor",
-  "Releasing",
+  "Releasing Officer",
+  "QA Admin",
 ];
 
 const EDITABLE_FIELDS = [
@@ -2663,14 +2668,15 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
       "Recommended for Disapproval",
       "Return to Evaluator",
     ],
-    QA: [
+    "QA Admin": [
       "Recommended for Approval",
       "Recommended for Disapproval",
       "Return to Evaluator",
     ],
-    "Director Signature": ["Approved", "Disapproved"],
-    Releasing: ["Released"],
-    Record: ["Completed"],
+    "LRD Chief Admin": ["Approved", "Disapproved"],
+    "OD-Receiving": ["Received", "Return to LRD Chief Admin"], // ← renamed
+    "OD-Releasing": ["Approved for Release", "Disapproved"], // ← renamed
+    "Releasing Officer": ["Released"],
   };
 
   const availableDecisions = STEP_DECISIONS[currentStep] ?? [
@@ -2813,7 +2819,10 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
       }
 
       // Update DB_APP_STATUS when Releasing → Record
-      if (currentStep === "Releasing" && formData.decision === "Released") {
+      if (
+        currentStep === "Releasing Officer" &&
+        formData.decision === "Released"
+      ) {
         await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
       }
 

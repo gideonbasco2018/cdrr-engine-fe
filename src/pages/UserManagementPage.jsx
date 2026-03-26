@@ -871,7 +871,7 @@ function UserManagementPage({ darkMode, userRole }) {
         <div
           style={{
             position: "fixed",
-            top: "1.5rem",
+            bottom: "1.5rem",
             right: "1.5rem",
             zIndex: 1000,
             padding: "0.85rem 1.4rem",

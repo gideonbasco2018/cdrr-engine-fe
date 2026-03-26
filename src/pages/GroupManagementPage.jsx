@@ -1,5 +1,5 @@
 // FILE: src/pages/GroupManagementPage.jsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getAllGroups,
   createGroup,
@@ -40,6 +40,13 @@ function GroupManagementPage({ darkMode, userRole }) {
   const [confirmModal, setConfirmModal] = useState(null);
   const [assignSearch, setAssignSearch] = useState("");
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+
+  // ── DnD state ──────────────────────────────────────────────────
+  // dragging: { userId, fromGroupId: number|null }
+  // fromGroupId === null means user came from the "pool" (not yet in selectedGroup)
+  const [dragging, setDragging] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null); // "pool" | "members" | groupId(number)
+  const dragCounters = useRef({}); // per-zone enter/leave counters
 
   const colors = useColors(darkMode);
 
@@ -107,13 +114,10 @@ function GroupManagementPage({ darkMode, userRole }) {
     return categoryMap[menuId] || "Other";
   };
 
-  // ===== LOAD MENU PERMISSIONS — API ONLY, NO localStorage =====
+  // ===== LOAD MENU PERMISSIONS =====
   const fetchMenuPermissions = useCallback(async () => {
     try {
-      // getMenuPermissions() returns raw array:
-      // [{ id: 1, menu_id: "dashboard", name: "Dashboard", group_ids: [1, 2], ... }]
       const rawPermissions = await getMenuPermissions();
-
       if (Array.isArray(rawPermissions) && rawPermissions.length > 0) {
         const menuItemsFromBackend = rawPermissions.map((item) => ({
           id: item.menu_id,
@@ -126,7 +130,6 @@ function GroupManagementPage({ darkMode, userRole }) {
         }));
         setMenuItems(menuItemsFromBackend);
       } else {
-        // API returned empty — fallback with empty groups
         setMenuItems(
           allMenuItems.map((item) => ({ ...item, allowedGroups: [] })),
         );
@@ -144,15 +147,12 @@ function GroupManagementPage({ darkMode, userRole }) {
     fetchMenuPermissions();
   }, [fetchMenuPermissions]);
 
-  // ===== SAVE MENU PERMISSIONS — API ONLY, NO localStorage =====
+  // ===== SAVE MENU PERMISSIONS =====
   const handleMenuPermissionsSave = async () => {
     if (!menuPermissionsModal) return;
     const { menuId, selectedGroups } = menuPermissionsModal;
-
     try {
       await updateMenuPermissions(menuId, selectedGroups);
-
-      // Update local state directly
       setMenuItems((prev) =>
         prev.map((item) =>
           item.id === menuId
@@ -160,10 +160,7 @@ function GroupManagementPage({ darkMode, userRole }) {
             : item,
         ),
       );
-
-      // Notify Sidebar to re-fetch from API
       window.dispatchEvent(new Event("menuPermissionsUpdated"));
-
       showToast("success", "Menu permissions updated successfully!");
       setMenuPermissionsModal(null);
     } catch (err) {
@@ -190,7 +187,6 @@ function GroupManagementPage({ darkMode, userRole }) {
       showToast("error", "Group name is required.");
       return;
     }
-
     setActionLoading("group-form");
     try {
       if (mode === "create") {
@@ -252,6 +248,7 @@ function GroupManagementPage({ darkMode, userRole }) {
 
   // ===== ASSIGN / REMOVE USER =====
   const handleAssignUser = async (userId) => {
+    if (!selectedGroup) return;
     setActionLoading(`assign-${userId}`);
     setShowAssignDropdown(false);
     setAssignSearch("");
@@ -260,6 +257,8 @@ function GroupManagementPage({ darkMode, userRole }) {
       if (result.success) {
         showToast("success", result.message);
         await fetchGroupUsers(selectedGroup.id);
+        // Refresh group list to update user_count badge
+        await fetchGroups();
       } else {
         showToast("error", result.message);
       }
@@ -286,6 +285,7 @@ function GroupManagementPage({ darkMode, userRole }) {
           if (result.success) {
             showToast("success", result.message);
             await fetchGroupUsers(selectedGroup.id);
+            await fetchGroups();
           } else {
             showToast("error", result.message);
           }
@@ -300,6 +300,143 @@ function GroupManagementPage({ darkMode, userRole }) {
       },
     });
   };
+
+  // ===== DnD HANDLERS =====
+  // Called by UsersTable (dragging a member) or UserPool (dragging an unassigned user)
+  const handleDragStart = useCallback((userId, fromGroupId) => {
+    setDragging({ userId, fromGroupId });
+    dragCounters.current = {};
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    setDragging(null);
+    setDropTarget(null);
+    dragCounters.current = {};
+  }, []);
+
+  // Generic enter/leave helpers (uses counter to ignore child re-fires)
+  const handleDragEnter = useCallback((zone) => {
+    dragCounters.current[zone] = (dragCounters.current[zone] || 0) + 1;
+    setDropTarget(zone);
+  }, []);
+
+  const handleDragLeave = useCallback((zone) => {
+    dragCounters.current[zone] = (dragCounters.current[zone] || 0) - 1;
+    if (dragCounters.current[zone] <= 0) {
+      setDropTarget((prev) => (prev === zone ? null : prev));
+    }
+  }, []);
+
+  // Drop onto a group row in GroupsList → assign user to THAT group
+  const handleDropOnGroup = useCallback(
+    async (targetGroupId) => {
+      setDropTarget(null);
+      dragCounters.current = {};
+      if (!dragging) return;
+      const { userId, fromGroupId } = dragging;
+      setDragging(null);
+
+      // Already in this group → no-op
+      if (fromGroupId === targetGroupId) return;
+
+      const user = allUsers.find((u) => u.id === userId);
+      const targetGroup = groups.find((g) => g.id === targetGroupId);
+
+      setActionLoading(`assign-${userId}`);
+      try {
+        const result = await assignUserToGroup(targetGroupId, userId);
+        if (result.success) {
+          showToast(
+            "success",
+            `${user?.first_name || user?.username} added to ${targetGroup?.name}.`,
+          );
+          // Refresh currently viewed group & counts
+          if (selectedGroup) await fetchGroupUsers(selectedGroup.id);
+          await fetchGroups();
+        } else {
+          showToast("error", result.message);
+        }
+      } catch (err) {
+        showToast(
+          "error",
+          err?.response?.data?.detail || "Failed to assign user.",
+        );
+      } finally {
+        setActionLoading(null);
+      }
+    },
+    [dragging, allUsers, groups, selectedGroup, fetchGroupUsers, fetchGroups],
+  );
+
+  // Drop onto the members panel → assign to selectedGroup
+  const handleDropOnMembers = useCallback(async () => {
+    setDropTarget(null);
+    dragCounters.current = {};
+    if (!dragging || !selectedGroup) return;
+    const { userId, fromGroupId } = dragging;
+    setDragging(null);
+
+    if (fromGroupId === selectedGroup.id) return; // already a member
+
+    const user = allUsers.find((u) => u.id === userId);
+    setActionLoading(`assign-${userId}`);
+    try {
+      const result = await assignUserToGroup(selectedGroup.id, userId);
+      if (result.success) {
+        showToast(
+          "success",
+          `${user?.first_name || user?.username} added to ${selectedGroup.name}.`,
+        );
+        await fetchGroupUsers(selectedGroup.id);
+        await fetchGroups();
+      } else {
+        showToast("error", result.message);
+      }
+    } catch (err) {
+      showToast(
+        "error",
+        err?.response?.data?.detail || "Failed to assign user.",
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  }, [dragging, selectedGroup, allUsers, fetchGroupUsers, fetchGroups]);
+
+  // Drop onto the pool panel → remove from selectedGroup
+  const handleDropOnPool = useCallback(async () => {
+    setDropTarget(null);
+    dragCounters.current = {};
+    if (!dragging) return;
+    const { userId, fromGroupId } = dragging;
+    setDragging(null);
+
+    if (!fromGroupId) return; // not in any group, nothing to remove
+
+    const user = allUsers.find((u) => u.id === userId);
+    const group = groups.find((g) => g.id === fromGroupId);
+
+    setActionLoading(`remove-${userId}`);
+    try {
+      const result = await removeUserFromGroup(fromGroupId, userId);
+      if (result.success) {
+        showToast(
+          "success",
+          `${user?.first_name || user?.username} removed from ${group?.name}.`,
+        );
+        await fetchGroupUsers(fromGroupId);
+        await fetchGroups();
+      } else {
+        showToast("error", result.message);
+      }
+    } catch (err) {
+      showToast(
+        "error",
+        err?.response?.data?.detail || "Failed to remove user.",
+      );
+    } finally {
+      setActionLoading(null);
+    }
+  }, [dragging, allUsers, groups, fetchGroupUsers, fetchGroups]);
 
   const toggleGroupPermission = (groupId) => {
     if (!menuPermissionsModal) return;
@@ -500,6 +637,16 @@ function GroupManagementPage({ darkMode, userRole }) {
           colors={colors}
           darkMode={darkMode}
           userRole={userRole}
+          // DnD props
+          dragging={dragging}
+          dropTarget={dropTarget}
+          handleDragStart={handleDragStart}
+          handleDragEnd={handleDragEnd}
+          handleDragEnter={handleDragEnter}
+          handleDragLeave={handleDragLeave}
+          handleDropOnGroup={handleDropOnGroup}
+          handleDropOnMembers={handleDropOnMembers}
+          handleDropOnPool={handleDropOnPool}
         />
       )}
 
