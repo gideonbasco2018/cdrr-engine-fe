@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-const FDA_URL = "http://ecprdrugs.fda.gov.ph/login.php";
+const FDA_URL = "/fda-portal/login.php";
+const FDA_DISPLAY_URL = "http://ecprdrugs.fda.gov.ph/login.php";
 
 function getColorScheme(darkMode) {
   if (darkMode) {
@@ -88,12 +89,12 @@ export default function RecordSectionPage({ darkMode = true }) {
               userSelect: "all",
             }}
           >
-            {FDA_URL}
+            {FDA_DISPLAY_URL}
           </span>
         </div>
 
         <a
-          href={FDA_URL}
+          href={FDA_DISPLAY_URL}
           target="_blank"
           rel="noopener noreferrer"
           style={{
@@ -185,7 +186,7 @@ export default function RecordSectionPage({ darkMode = true }) {
               You can still access it directly.
             </p>
             <a
-              href={FDA_URL}
+              href={FDA_DISPLAY_URL}
               target="_blank"
               rel="noopener noreferrer"
               style={{
