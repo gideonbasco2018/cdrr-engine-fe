@@ -1,7 +1,7 @@
 // FILE: src/components/groupManagement/GroupsTab.jsx
-
 import StatsCards from "./StatsCards";
 import GroupsList from "./GroupsList";
+import UsersPool from "./UsersPool";
 import GroupDetail from "./GroupDetail";
 
 function GroupsTab({
@@ -26,6 +26,16 @@ function GroupsTab({
   colors,
   darkMode,
   userRole,
+  // DnD
+  dragging,
+  dropTarget,
+  handleDragStart,
+  handleDragEnd,
+  handleDragEnter,
+  handleDragLeave,
+  handleDropOnGroup,
+  handleDropOnMembers,
+  handleDropOnPool,
 }) {
   return (
     <>
@@ -39,12 +49,16 @@ function GroupsTab({
       <div
         style={{
           flex: 1,
-          display: "flex",
+          display: "grid",
+          // Groups list | Users pool | Group detail
+          gridTemplateColumns: "240px 1fr 1fr",
           gap: "1.25rem",
           padding: "0 2rem 2rem",
-          overflow: "auto",
+          overflow: "hidden",
+          minHeight: 0,
         }}
       >
+        {/* COL 1 — Groups List (also a drop zone per group row) */}
         <GroupsList
           groups={groups}
           selectedGroup={selectedGroup}
@@ -52,8 +66,36 @@ function GroupsTab({
           loading={loading}
           colors={colors}
           darkMode={darkMode}
+          // DnD
+          dragging={dragging}
+          dropTarget={dropTarget}
+          handleDragEnter={handleDragEnter}
+          handleDragLeave={handleDragLeave}
+          handleDropOnGroup={handleDropOnGroup}
         />
 
+        {/* COL 2 — Users Pool (all users not in selectedGroup) */}
+        <UsersPool
+          allUsers={allUsers}
+          groupUsers={groupUsers}
+          selectedGroup={selectedGroup}
+          assignSearch={assignSearch}
+          setAssignSearch={setAssignSearch}
+          handleAssignUser={handleAssignUser}
+          actionLoading={actionLoading}
+          colors={colors}
+          darkMode={darkMode}
+          // DnD
+          dragging={dragging}
+          dropTarget={dropTarget}
+          handleDragStart={handleDragStart}
+          handleDragEnd={handleDragEnd}
+          handleDragEnter={handleDragEnter}
+          handleDragLeave={handleDragLeave}
+          handleDropOnPool={handleDropOnPool}
+        />
+
+        {/* COL 3 — Group Detail (members of selectedGroup) */}
         <GroupDetail
           selectedGroup={selectedGroup}
           groupUsers={groupUsers}
@@ -73,6 +115,14 @@ function GroupsTab({
           colors={colors}
           darkMode={darkMode}
           userRole={userRole}
+          // DnD
+          dragging={dragging}
+          dropTarget={dropTarget}
+          handleDragStart={handleDragStart}
+          handleDragEnd={handleDragEnd}
+          handleDragEnter={handleDragEnter}
+          handleDragLeave={handleDragLeave}
+          handleDropOnMembers={handleDropOnMembers}
         />
       </div>
     </>

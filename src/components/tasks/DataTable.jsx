@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useRef } from "react";
 import { tableColumns, COLUMN_DB_KEY_MAP } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import ViewDetailsModal from "./ViewDetailsModal";
@@ -82,37 +82,56 @@ const BULK_DECK_CONFIG = {
     nextGroupId: 5,
     decision: "Endorse to Supervisor",
     fromLabel: "Checking",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to Supervisor",
   },
   Supervisor: {
-    nextStep: "QA",
-    nextGroupId: 6,
-    decision: "Endorse to QA",
+    nextStep: "QA Admin",
+    nextGroupId: 16,
+    decision: "Endorse to QA Admin",
     fromLabel: "Supervisor",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to QA Admin",
   },
-  QA: {
-    nextStep: "Director Signature",
-    nextGroupId: 7,
-    decision: "Endorse to Director Signature",
-    fromLabel: "QA",
+  "QA Admin": {
+    nextStep: "LRD Chief Admin",
+    nextGroupId: 17,
+    decision: "Endorse to LRD Chief Admin",
+    fromLabel: "QA Admin",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to LRD Chief Admin",
   },
-  "Director Signature": {
-    nextStep: "Releasing",
+  "LRD Chief Admin": {
+    nextStep: "OD-Receiving", // ← renamed from "Director Receiving"
+    nextGroupId: 18,
+    decision: "Endorse to OD-Receiving",
+    fromLabel: "LRD Chief Admin",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to OD-Receiving",
+  },
+  // ── NEW: OD-Receiving (was "Director Receiving") ──
+  "OD-Receiving": {
+    nextStep: "OD-Releasing",
+    nextGroupId: 19,
+    decision: "Endorse to OD-Releasing",
+    fromLabel: "OD-Receiving",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to OD-Releasing",
+  },
+  // ── NEW: OD-Releasing (was "Director Releasing") ──
+  "OD-Releasing": {
+    nextStep: "Releasing Officer",
     nextGroupId: 8,
-    decision: "Endorse to Releasing",
-    fromLabel: "Director Signature",
+    decision: "Endorse to Releasing Officer",
+    fromLabel: "OD-Releasing",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to Releasing Officer",
   },
-  Releasing: {
-    nextStep: "Record",
-    nextGroupId: 15,
-    decision: "Released",
-    fromLabel: "Releasing",
-  },
-  Record: {
-    // ← dito ang fix, "Released" → "Record"
+  "Releasing Officer": {
     nextStep: null,
     nextGroupId: null,
-    decision: "Completed",
-    fromLabel: "Record",
+    decision: "Released",
+    fromLabel: "Releasing Officer",
     isEndTask: true,
   },
 };
@@ -135,12 +154,13 @@ function BulkDeckModal({
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(!config.isEndTask);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [screen, setScreen] = useState("form");
   const [result, setResult] = useState(null);
   const [downloading, setDownloading] = useState(false);
 
-  useEffect(() => {
-    if (config.isEndTask) return; // no users needed for end task
+  useState(() => {
+    if (config.isEndTask) return;
     (async () => {
       try {
         setLoadingUsers(true);
@@ -156,14 +176,16 @@ function BulkDeckModal({
   }, []);
 
   const handleConfirm = async () => {
-    if (submitting) return;
+    if (submittingRef.current) return;
     if (!config.isEndTask && !assignee) return;
+    submittingRef.current = true;
     setSubmitting(true);
     try {
       const res = await onConfirm(config.isEndTask ? null : assignee);
       setResult(res);
       setScreen("transmittal_prompt");
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
@@ -233,7 +255,7 @@ function BulkDeckModal({
                   color: colors.textTertiary,
                 }}
               >
-                {config.isEndTask ? "End Task" : "Bulk Deck"}
+                {config.isEndTask ? "End Task" : "Bulk Action"}
               </div>
               <div
                 style={{
@@ -284,7 +306,7 @@ function BulkDeckModal({
                     marginTop: 2,
                   }}
                 >
-                  Successfully {config.isEndTask ? "ended" : "decked"}
+                  Successfully endorsed
                 </div>
               </div>
               {result?.failed > 0 && (
@@ -370,8 +392,11 @@ function BulkDeckModal({
               >
                 Would you like to generate and download a transmittal slip for
                 the <strong>{result?.success}</strong> successfully{" "}
-                {config.isEndTask ? "ended" : "decked"} record
-                {result?.success !== 1 ? "s" : ""}?
+                {config.isEndTask ? "ended" : "endorsed"} record
+                {result?.success !== 1 ? "s" : ""}?{" "}
+                <span style={{ color: colors.textTertiary }}>
+                  (PDF + Excel)
+                </span>
               </p>
             </div>
 
@@ -437,7 +462,7 @@ function BulkDeckModal({
                   </>
                 ) : (
                   <>
-                    <span>📄</span>Yes, Download
+                    <span>📄</span>Yes, Download (PDF + Excel)
                   </>
                 )}
               </button>
@@ -506,7 +531,7 @@ function BulkDeckModal({
               "successfully completed."
             ) : (
               <>
-                successfully moved to{" "}
+                successfully endorsed to{" "}
                 <strong style={{ color: "#2196F3" }}>{config.nextStep}</strong>.
               </>
             )}
@@ -603,7 +628,7 @@ function BulkDeckModal({
               </span>{" "}
               {config.isEndTask
                 ? "End Task — Mark as Completed"
-                : `Bulk Deck to ${config.nextStep}`}
+                : config.modalTitle || `Endorse to ${config.nextStep}`}
             </h3>
           </div>
           <button
@@ -679,7 +704,8 @@ function BulkDeckModal({
                   </>
                 ) : (
                   <>
-                    All will be moved from <strong>{config.fromLabel}</strong> →{" "}
+                    All will be endorsed from{" "}
+                    <strong>{config.fromLabel}</strong> →{" "}
                     <strong style={{ color: "#2196F3" }}>
                       {config.nextStep}
                     </strong>
@@ -702,7 +728,7 @@ function BulkDeckModal({
                 marginBottom: "0.5rem",
               }}
             >
-              📋 DTNs to be {config.isEndTask ? "completed" : "moved"} (
+              📋 DTNs to be {config.isEndTask ? "completed" : "endorsed"} (
               {selectedDtns.length})
             </label>
             <div
@@ -946,7 +972,7 @@ function BulkDeckModal({
             ) : config.isEndTask ? (
               <>✅ Confirm End Task ({selectedCount})</>
             ) : (
-              <>📋 Confirm Bulk Deck ({selectedCount})</>
+              <>📋 Confirm Endorsement ({selectedCount})</>
             )}
           </button>
         </div>
@@ -1000,10 +1026,6 @@ function DataTable({
   const bulkDeckConfig = BULK_DECK_CONFIG[activeTab] ?? null;
   const showBulkDeckBtn =
     !!bulkDeckConfig && isReceivedSubTab && selectedRows.length > 0;
-
-  // const visibleColumns = tableColumns.filter(
-  //   (col) => !col.complianceOnly || isComplianceTab,
-  // );
 
   const RECORD_TAB_COLUMNS = [
     "dtn",
@@ -1505,7 +1527,17 @@ function DataTable({
   /* ── Bulk Deck / End Task handler ── */
   const handleBulkDeck = async (assigneeUsername) => {
     if (!bulkDeckConfig) return { success: 0, failed: 0 };
-    const selectedData = data.filter((r) => selectedRows.includes(r.id));
+
+    // ← FIX 3: deduplicate selectedRows to prevent processing the same record twice
+    const seen = new Set();
+    const selectedData = data
+      .filter((r) => selectedRows.includes(r.id))
+      .filter((r) => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+
     let success = 0,
       failed = 0;
     const now = new Date();
@@ -1518,7 +1550,6 @@ function DataTable({
         const { id: logId, mainDbId } = row;
 
         if (bulkDeckConfig.isEndTask) {
-          // ── End Task: just complete the current log, no new log created ──
           await updateApplicationLog(logId, {
             application_status: "COMPLETED",
             application_decision: bulkDeckConfig.decision,
@@ -1527,8 +1558,8 @@ function DataTable({
             del_last_index: 0,
             del_thread: "Close",
           });
+          await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
         } else {
-          // ── Normal Bulk Deck: complete current + create next ──
           const indexData = await getLastApplicationLogIndex(mainDbId);
           const lastIndex = indexData.last_index;
           const nextIndex = lastIndex + 1;
@@ -1556,12 +1587,6 @@ function DataTable({
             del_last_index: 1,
             del_thread: "Open",
           });
-          // ──DB_APP_STATUS UPDATE from Releasing → Record ──
-          if (bulkDeckConfig.fromLabel === "Releasing") {
-            await updateUploadReport(mainDbId, {
-              DB_APP_STATUS: "COMPLETED",
-            });
-          }
         }
         success++;
       } catch (e) {
@@ -1572,6 +1597,142 @@ function DataTable({
     return { success, failed };
   };
 
+  /* ── Excel transmittal generator ── */
+  const handleGenerateExcel = async () => {
+    if (!selectedRows.length) return;
+    const loadScript = (src) =>
+      new Promise((res, rej) => {
+        if (document.querySelector(`script[src="${src}"]`)) return res();
+        const s = document.createElement("script");
+        s.src = src;
+        s.onload = res;
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+
+    await loadScript(
+      "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+    );
+
+    const selectedData = data.filter((r) => selectedRows.includes(r.id));
+    const now = new Date();
+    const dateStr = now.toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    const timeStr = now.toLocaleTimeString("en-PH", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const wsData = [
+      ["TRANSMITTAL SLIP — FDA Center for Drug Regulation and Research (CDRR)"],
+      [
+        `Generated: ${dateStr} ${timeStr}`,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        `Total Records: ${selectedData.length}`,
+      ],
+      [],
+      [
+        "#",
+        "DTN",
+        "Category",
+        "LTO Company",
+        "Brand Name",
+        "Generic Name",
+        "Dosage Strength",
+        "Dosage Form",
+        "App No.",
+        "App Type",
+        "Amendment 1",
+        "Amendment 2",
+        "Amendment 3",
+        "Date Rcvd FDAC",
+      ],
+    ];
+
+    selectedData.forEach((r, i) => {
+      wsData.push([
+        i + 1,
+        r.dtn ?? "—",
+        r.estCat ?? "—",
+        r.ltoCompany ?? "—",
+        r.prodBrName ?? "—",
+        r.prodGenName ?? "—",
+        r.prodDosStr ?? "—",
+        r.prodDosForm ?? "—",
+        r.regNo ?? "—",
+        r.appType ?? "—",
+        r.ammend1 && r.ammend1 !== "N/A" ? r.ammend1 : "",
+        r.ammend2 && r.ammend2 !== "N/A" ? r.ammend2 : "",
+        r.ammend3 && r.ammend3 !== "N/A" ? r.ammend3 : "",
+        r.dateReceivedFdac ?? "—",
+      ]);
+    });
+
+    wsData.push([], []);
+
+    let preparedBy = "";
+    try {
+      const raw =
+        localStorage.getItem("user") || sessionStorage.getItem("user");
+      if (raw) {
+        const u = JSON.parse(raw);
+        preparedBy = `${u.first_name || ""} ${u.surname || ""}`.trim();
+      }
+    } catch (_) {}
+    if (!preparedBy) preparedBy = "___________________";
+
+    wsData.push([`Prepared by/Date: ${preparedBy} / ${dateStr}`]);
+    wsData.push(["Received by Name/Date:"]);
+    wsData.push([]);
+    wsData.push(["MELODY M. ZAMUDIO, RPh, MGM-ESP"]);
+    wsData.push(["FDRO V/Chief, LRD"]);
+    wsData.push(["Center for Drug Regulation and Research"]);
+    wsData.push([]);
+    wsData.push([
+      "NON-ACCEPTANCE AND SWITCHING REQUIRES PRIOR APPROVAL BY CHIEF LRD",
+    ]);
+
+    const ws = window.XLSX.utils.aoa_to_sheet(wsData);
+    ws["!cols"] = [
+      { wch: 4 },
+      { wch: 22 },
+      { wch: 12 },
+      { wch: 36 },
+      { wch: 30 },
+      { wch: 30 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 18 },
+    ];
+    ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }];
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, "Transmittal");
+    window.XLSX.writeFile(
+      wb,
+      `transmittal_${activeTab ?? "task"}_${now.toISOString().slice(0, 10)}.xlsx`,
+    );
+  };
+
+  /* ── PDF + Excel transmittal ── */
   const handleGenerateTransmittal = async () => {
     if (!selectedRows.length) return;
     const loadScript = (src) =>
@@ -1827,6 +1988,7 @@ function DataTable({
     doc.save(
       `transmittal_${activeTab ?? "task"}_${now.toISOString().slice(0, 10)}.pdf`,
     );
+    await handleGenerateExcel();
   };
 
   const menuBtn = (onClick, style = {}, children) => (
@@ -2010,7 +2172,7 @@ function DataTable({
               </button>
             )}
 
-            {/* ── Bulk Deck / End Task button ── */}
+            {/* ── Endorse / End Task button ── */}
             {showBulkDeckBtn && (
               <button
                 onClick={() => setShowBulkDeck(true)}
@@ -2046,7 +2208,9 @@ function DataTable({
                 }
               >
                 <span>{bulkDeckConfig.isEndTask ? "✅" : "📋"}</span>
-                {bulkDeckConfig.isEndTask ? "End Task" : "Bulk Deck"}
+                {bulkDeckConfig.isEndTask
+                  ? "End Task"
+                  : bulkDeckConfig.buttonLabel || "Bulk Deck"}
                 <span
                   style={{
                     display: "inline-flex",
