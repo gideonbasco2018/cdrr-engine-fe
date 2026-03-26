@@ -4,13 +4,20 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: '0.0.0.0',  // ✅ Allow external connections
+    host: '0.0.0.0',
     port: 5173,
     watch: {
-      usePolling: true,  // ✅ For Docker file watching
+      usePolling: true,
     },
     hmr: {
-      clientPort: 5173,  // ✅ Fix HMR in Docker
+      clientPort: 5173,
+    },
+    proxy: {
+      '/fda-portal': {
+        target: 'http://ecprdrugs.fda.gov.ph',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/fda-portal/, ''),
+      }
     }
   }
 })
