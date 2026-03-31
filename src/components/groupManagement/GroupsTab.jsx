@@ -36,6 +36,8 @@ function GroupsTab({
   handleDropOnGroup,
   handleDropOnMembers,
   handleDropOnPool,
+  handleBulkRemove,
+  handleBulkAssign,
 }) {
   return (
     <>
@@ -50,12 +52,12 @@ function GroupsTab({
         style={{
           flex: 1,
           display: "grid",
-          // Groups list | Users pool | Group detail
           gridTemplateColumns: "240px 1fr 1fr",
           gap: "1.25rem",
           padding: "0 2rem 2rem",
           overflow: "hidden",
           minHeight: 0,
+          height: 0,
         }}
       >
         {/* COL 1 — Groups List (also a drop zone per group row) */}
@@ -93,6 +95,7 @@ function GroupsTab({
           handleDragEnter={handleDragEnter}
           handleDragLeave={handleDragLeave}
           handleDropOnPool={handleDropOnPool}
+          handleBulkAssign={handleBulkAssign}
         />
 
         {/* COL 3 — Group Detail (members of selectedGroup) */}
@@ -123,6 +126,7 @@ function GroupsTab({
           handleDragEnter={handleDragEnter}
           handleDragLeave={handleDragLeave}
           handleDropOnMembers={handleDropOnMembers}
+          handleBulkRemove={handleBulkRemove}
         />
       </div>
     </>

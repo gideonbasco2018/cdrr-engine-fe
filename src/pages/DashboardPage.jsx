@@ -1,5 +1,6 @@
 // FILE: src/pages/DashboardPage.jsx
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react"; // ★ added useCallback
+import { getDashboardSummary } from "../api/dashboard"; // ★ NEW — real API
 
 const FB = "#1877F2";
 const FB_LIGHT = "#E7F0FD";
@@ -1030,13 +1031,7 @@ function formatDateShort(dateStr) {
   });
 }
 function formatDateDisplay(dateStr) {
-  if (!dateStr) return "";
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-PH", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatDateShort(dateStr);
 }
 function formatDateRange(start, end) {
   if (!start && !end) return "";
@@ -1055,28 +1050,97 @@ function daysUntil(end) {
   return Math.max(0, Math.round(ms / 86400000));
 }
 
-// ─── Helper: resolve targets for a custom date range ─────────────────────────
-// Maps the selected date range to the most appropriate target set,
-// or builds a minimal placeholder if nothing matches.
 function resolveTargetsForRange(start, end) {
   if (!start || !end) return TARGETS_WEEKLY;
   const s = new Date(start + "T00:00:00");
   const e = new Date(end + "T00:00:00");
   const diffDays = Math.round((e - s) / 86400000);
-
-  // Weekly-ish (1–9 days)
   if (diffDays <= 9) return TARGETS_WEEKLY;
-  // First-half of month (spans roughly Mar 1–15)
   if (s.getDate() <= 5 && e.getDate() <= 16) return TARGETS_1_15;
-  // Second-half of month (spans roughly Mar 16–30)
   if (s.getDate() >= 14 && e.getDate() >= 20) return TARGETS_16_30;
-  // Monthly-ish (20+ days)
   if (diffDays >= 20) return TARGETS_MONTHLY;
-  // Default fallback
   return TARGETS_WEEKLY;
 }
 
-// ─── TARGET MODAL ─────────────────────────────────────────────────────────────
+// ★ NEW ── helper: convert breakdown + selYear + selMonth to date_from / date_to
+// Used to pass the matching date range to the API so the KPI tiles reflect
+// the same window as the chart.
+function buildDateParams(breakdown, selYear, selMonth) {
+  if (breakdown === "year" || selYear === "All") {
+    // All-years view → no date filter (return all-time stats)
+    return {};
+  }
+  if (breakdown === "month") {
+    return {
+      date_from: `${selYear}-01-01`,
+      date_to: `${selYear}-12-31`,
+    };
+  }
+  // breakdown === "day"
+  const monthNum = MONTH_NUM[selMonth];
+  const daysInMonth = new Date(
+    parseInt(selYear),
+    parseInt(monthNum),
+    0,
+  ).getDate();
+  return {
+    date_from: `${selYear}-${monthNum}-01`,
+    date_to: `${selYear}-${monthNum}-${String(daysInMonth).padStart(2, "0")}`,
+  };
+}
+
+// ─── ★ NEW ── Skeleton shimmer for loading state ───────────────────────────────
+function SkeletonTile({ ui }) {
+  return (
+    <div
+      style={{
+        flex: "1 1 0",
+        padding: "12px 14px",
+        borderRadius: 8,
+        border: `1.5px solid ${ui.metricBorder}`,
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          marginBottom: 8,
+        }}
+      >
+        <div
+          style={{
+            width: 18,
+            height: 18,
+            borderRadius: "50%",
+            background: ui.progressBg,
+            animation: "pulse 1.2s ease-in-out infinite",
+          }}
+        />
+        <div
+          style={{
+            width: 80,
+            height: 10,
+            borderRadius: 4,
+            background: ui.progressBg,
+            animation: "pulse 1.2s ease-in-out infinite",
+          }}
+        />
+      </div>
+      <div
+        style={{
+          width: 60,
+          height: 22,
+          borderRadius: 4,
+          background: ui.progressBg,
+          animation: "pulse 1.2s ease-in-out infinite",
+        }}
+      />
+    </div>
+  );
+}
+
 function TargetModal({ target, onClose, ui }) {
   if (!target) return null;
   const pct = Math.round((target.done / target.goal) * 100);
@@ -1285,25 +1349,20 @@ function TargetModal({ target, onClose, ui }) {
   );
 }
 
-// ─── MULTI-LINE CHART ─────────────────────────────────────────────────────────
 function AreaChart({ data, subtitle, ui }) {
   const [hov, setHov] = useState(null);
   const W = 700,
     H = 200;
   const PAD = { top: 18, right: 16, bottom: 28, left: 44 };
-  const cW = W - PAD.left - PAD.right;
-  const cH = H - PAD.top - PAD.bottom;
-
+  const cW = W - PAD.left - PAD.right,
+    cH = H - PAD.top - PAD.bottom;
   const allVals = data.flatMap((d) => SERIES.map((s) => d[s.key] ?? 0));
   const maxV = (Math.max(...allVals) || 1) * 1.18;
-
   const toX = (i) => PAD.left + (i / Math.max(data.length - 1, 1)) * cW;
   const toY = (v) => PAD.top + cH - (v / maxV) * cH;
-
   const yticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxV * f));
   const xstep = Math.max(1, Math.ceil(data.length / 10));
   const showLabels = data.length <= 12;
-
   return (
     <div>
       <div
@@ -1576,7 +1635,18 @@ function AreaChart({ data, subtitle, ui }) {
   );
 }
 
-function MetricTile({ icon, label, value, change, active, onClick, ui }) {
+// ★ UPDATED ── MetricTile now accepts `loading` and `isLive` props
+function MetricTile({
+  icon,
+  label,
+  value,
+  change,
+  active,
+  onClick,
+  ui,
+  loading = false,
+  isLive = false,
+}) {
   const up = change >= 0;
   return (
     <div
@@ -1590,8 +1660,28 @@ function MetricTile({ icon, label, value, change, active, onClick, ui }) {
         cursor: "pointer",
         transition: "all 0.15s",
         minWidth: 0,
+        position: "relative",
       }}
     >
+      {/* ★ LIVE badge — shown on the 3 real-API tiles */}
+      {isLive && !loading && (
+        <span
+          style={{
+            position: "absolute",
+            top: 6,
+            right: 8,
+            fontSize: "0.56rem",
+            fontWeight: 700,
+            color: "#36a420",
+            background: "#e9f7e6",
+            padding: "1px 5px",
+            borderRadius: 99,
+            letterSpacing: "0.04em",
+          }}
+        >
+          ● LIVE
+        </span>
+      )}
       <div
         style={{
           display: "flex",
@@ -1603,36 +1693,48 @@ function MetricTile({ icon, label, value, change, active, onClick, ui }) {
         <span style={{ fontSize: "1rem" }}>{icon}</span>
         <span style={{ fontSize: "0.78rem", color: ui.textSub }}>{label}</span>
       </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "baseline",
-          gap: 8,
-          flexWrap: "wrap",
-        }}
-      >
-        <span
+      {loading ? (
+        <div
           style={{
-            fontSize: "1.4rem",
-            fontWeight: 700,
-            color: ui.textPrimary,
-            lineHeight: 1,
+            width: 60,
+            height: 22,
+            borderRadius: 4,
+            background: ui.progressBg,
+            animation: "cdrrPulse 1.2s ease-in-out infinite",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 8,
+            flexWrap: "wrap",
           }}
         >
-          {typeof value === "number" ? value.toLocaleString() : value}
-        </span>
-        {change !== null && (
           <span
             style={{
-              fontSize: "0.8rem",
+              fontSize: "1.4rem",
               fontWeight: 700,
-              color: up ? "#36a420" : "#e02020",
+              color: ui.textPrimary,
+              lineHeight: 1,
             }}
           >
-            {up ? "↑" : "↓"} {Math.abs(change)}%
+            {typeof value === "number" ? value.toLocaleString() : value}
           </span>
-        )}
-      </div>
+          {change !== null && (
+            <span
+              style={{
+                fontSize: "0.8rem",
+                fontWeight: 700,
+                color: up ? "#36a420" : "#e02020",
+              }}
+            >
+              {up ? "↑" : "↓"} {Math.abs(change)}%
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1779,36 +1881,29 @@ const SeeAll = () => (
   </button>
 );
 
-// ─── TARGETS PANEL ────────────────────────────────────────────────────────────
-// ─── WORKING WEEK HELPERS ─────────────────────────────────────────────────────
-// Safe local date formatter — avoids UTC timezone shift from toISOString()
 function fmtLocal(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const y = d.getFullYear(),
+    m = String(d.getMonth() + 1).padStart(2, "0"),
+    day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
 function getWorkingWeek() {
-  const today = new Date("2026-03-11T00:00:00");
-  const dow = today.getDay(); // 0=Sun,1=Mon,...,6=Sat  → Mar 11 Wed = 3
-  const diffToMon = dow === 0 ? -6 : 1 - dow; // Wed: 1-3 = -2
+  const today = new Date("2026-03-11T00:00:00"),
+    dow = today.getDay();
+  const diffToMon = dow === 0 ? -6 : 1 - dow;
   const mon = new Date(today);
-  mon.setDate(today.getDate() + diffToMon); // Mar 11 - 2 = Mar 9
+  mon.setDate(today.getDate() + diffToMon);
   const fri = new Date(mon);
-  fri.setDate(mon.getDate() + 4); // Mar 9 + 4 = Mar 13
+  fri.setDate(mon.getDate() + 4);
   return { start: fmtLocal(mon), end: fmtLocal(fri) };
 }
-
-// Returns Mon–Fri labels for the current working week
 function getWorkingDayLabels() {
-  const week = getWorkingWeek();
-  const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-  const result = [];
+  const week = getWorkingWeek(),
+    dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    result = [];
   for (let i = 0; i < 5; i++) {
-    // Parse start as local (avoids UTC shift)
     const [yr, mo, da] = week.start.split("-").map(Number);
-    const d = new Date(yr, mo - 1, da + i); // local constructor, no UTC shift
+    const d = new Date(yr, mo - 1, da + i);
     result.push({
       dayLabel: dayNames[i],
       dateNum: d.getDate(),
@@ -1818,14 +1913,12 @@ function getWorkingDayLabels() {
   }
   return result;
 }
-
-// Count remaining working days from today inclusive (Wed+Thu+Fri = 3)
 function workingDaysLeft(endDateStr) {
   const TODAY_STR = "2026-03-11";
-  const [ey, em, ed] = endDateStr.split("-").map(Number);
-  const [ty, tm, td] = TODAY_STR.split("-").map(Number);
-  const end = new Date(ey, em - 1, ed);
-  const cur = new Date(ty, tm - 1, td);
+  const [ey, em, ed] = endDateStr.split("-").map(Number),
+    [ty, tm, td] = TODAY_STR.split("-").map(Number);
+  const end = new Date(ey, em - 1, ed),
+    cur = new Date(ty, tm - 1, td);
   let count = 0;
   while (cur <= end) {
     const dow = cur.getDay();
@@ -1835,23 +1928,18 @@ function workingDaysLeft(endDateStr) {
   return count;
 }
 
-// ─── TARGETS PANEL (working week view, no date pickers) ───────────────────────
 function TargetsPanel({ ui, onSelectTarget }) {
-  const week = getWorkingWeek();
-  const workingDays = getWorkingDayLabels();
-  const TODAY_STR = "2026-03-11";
-  const targets = TARGETS_WEEKLY;
-
-  const totalDone = targets.reduce((s, t) => s + t.done, 0);
-  const totalGoal = targets.reduce((s, t) => s + t.goal, 0);
-  const pct = Math.round((totalDone / totalGoal) * 100);
-  // Count remaining working days including today (Wed=today, Thu, Fri = 3)
-  const wdLeft = workingDaysLeft(week.end);
+  const week = getWorkingWeek(),
+    workingDays = getWorkingDayLabels(),
+    TODAY_STR = "2026-03-11",
+    targets = TARGETS_WEEKLY;
+  const totalDone = targets.reduce((s, t) => s + t.done, 0),
+    totalGoal = targets.reduce((s, t) => s + t.goal, 0);
+  const pct = Math.round((totalDone / totalGoal) * 100),
+    wdLeft = workingDaysLeft(week.end);
   const weekLabel = `${workingDays[0].monthLabel} ${workingDays[0].dateNum} – ${workingDays[4].monthLabel} ${workingDays[4].dateNum}, 2026`;
-
   return (
     <Card ui={ui}>
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -1883,14 +1971,11 @@ function TargetsPanel({ ui, onSelectTarget }) {
         </div>
         <SeeAll />
       </div>
-
-      {/* Week strip — Mon to Fri */}
       <div style={{ padding: "0 16px 12px" }}>
         <div style={{ display: "flex", gap: 4, marginBottom: 10 }}>
           {workingDays.map((wd) => {
-            const isPast = wd.dateStr < TODAY_STR;
-            const isToday = wd.dateStr === TODAY_STR;
-            const isFuture = wd.dateStr > TODAY_STR;
+            const isPast = wd.dateStr < TODAY_STR,
+              isToday = wd.dateStr === TODAY_STR;
             return (
               <div
                 key={wd.dateStr}
@@ -1970,8 +2055,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
             );
           })}
         </div>
-
-        {/* Week label + working days left */}
         <div
           style={{
             display: "flex",
@@ -2027,8 +2110,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
             </p>
           </div>
         </div>
-
-        {/* Overall progress */}
         <div style={{ marginTop: 10 }}>
           <div
             style={{
@@ -2066,8 +2147,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
           </div>
         </div>
       </div>
-
-      {/* Target rows */}
       <div style={{ borderTop: `1px solid ${ui.divider}` }}>
         {targets.map((t) => {
           const tp = Math.round((t.done / t.goal) * 100);
@@ -2163,7 +2242,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
   );
 }
 
-// ─── ACCOMPLISHMENT REPORT ────────────────────────────────────────────────────
 function AccomplishmentReport({
   onClose,
   totals,
@@ -2173,30 +2251,23 @@ function AccomplishmentReport({
 }) {
   const isCustom = reportPeriodKey === "custom";
   const period = isCustom ? null : TARGET_PERIODS[reportPeriodKey];
-
-  // ── KEY CHANGE: resolve correct targets from the custom date range ──────────
   const targets = isCustom
     ? resolveTargetsForRange(customDates?.start, customDates?.end)
     : period.data;
-
   const customRangeLabel = isCustom
     ? formatDateRange(customDates?.start, customDates?.end)
     : "";
   const displayPeriod = isCustom ? customRangeLabel : period.reportPeriod;
   const periodLabel = isCustom ? "Custom Period" : period.label;
   const daysLeftVal = isCustom ? daysUntil(customDates?.end) : period.daysLeft;
-
-  const totalDone = targets.reduce((s, t) => s + t.done, 0);
-  const totalGoal = targets.reduce((s, t) => s + t.goal, 0);
+  const totalDone = targets.reduce((s, t) => s + t.done, 0),
+    totalGoal = targets.reduce((s, t) => s + t.goal, 0);
   const overallPct = Math.round((totalDone / totalGoal) * 100);
-
   const completedRate =
     totals.received > 0
       ? ((totals.completed / totals.received) * 100).toFixed(1)
       : "0.0";
   const handlePrint = () => window.print();
-
-  // ── Show which target set was auto-matched ──────────────────────────────────
   const rangeLabel = isCustom
     ? (() => {
         const diffDays =
@@ -2208,15 +2279,14 @@ function AccomplishmentReport({
               )
             : 0;
         if (diffDays <= 9) return "Weekly Targets";
-        const s = new Date((customDates?.start || "") + "T00:00:00");
-        const e = new Date((customDates?.end || "") + "T00:00:00");
+        const s = new Date((customDates?.start || "") + "T00:00:00"),
+          e = new Date((customDates?.end || "") + "T00:00:00");
         if (s.getDate() <= 5 && e.getDate() <= 16) return "Mar 1–15 Targets";
         if (s.getDate() >= 14 && e.getDate() >= 20) return "Mar 16–30 Targets";
         if (diffDays >= 20) return "Monthly Targets";
         return "Weekly Targets";
       })()
     : null;
-
   return (
     <div
       style={{
@@ -2343,53 +2413,7 @@ function AccomplishmentReport({
             >
               {displayPeriod} &nbsp;|&nbsp; Generated: March 11, 2026
             </p>
-            <div
-              style={{
-                marginTop: 10,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "4px 14px",
-                borderRadius: 99,
-                background: isCustom ? "#9333ea" : FB,
-                color: "#fff",
-                fontSize: "0.76rem",
-                fontWeight: 700,
-              }}
-            >
-              {isCustom
-                ? "📅 Custom Range"
-                : reportPeriodKey === "weekly"
-                  ? "📅 Weekly"
-                  : reportPeriodKey === "monthly"
-                    ? "🗓️ Monthly"
-                    : reportPeriodKey === "first15"
-                      ? "📆 First Half"
-                      : "📆 Second Half"}
-              {!isCustom && <>&nbsp;· {period.sublabel}</>}
-            </div>
-            {/* ── Show which targets were auto-matched for custom range ── */}
-            {isCustom && rangeLabel && (
-              <div
-                style={{
-                  marginTop: 8,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "3px 12px",
-                  borderRadius: 99,
-                  background: `${FB}18`,
-                  border: `1px solid ${FB}30`,
-                  fontSize: "0.72rem",
-                  color: FB,
-                  fontWeight: 600,
-                }}
-              >
-                🎯 Matched: {rangeLabel}
-              </div>
-            )}
           </div>
-
           <h4
             style={{
               margin: "0 0 10px",
@@ -2473,7 +2497,6 @@ function AccomplishmentReport({
               </div>
             ))}
           </div>
-
           <h4
             style={{
               margin: "0 0 10px",
@@ -2642,7 +2665,6 @@ function AccomplishmentReport({
               );
             })}
           </div>
-
           <h4
             style={{
               margin: "0 0 8px",
@@ -2744,7 +2766,6 @@ function AccomplishmentReport({
   );
 }
 
-// ─── MOBILE TOP HEADER ────────────────────────────────────────────────────────
 function MobileTopHeader({ darkMode, onToggleDark, ui }) {
   return (
     <div
@@ -2834,7 +2855,6 @@ function MobileTopHeader({ darkMode, onToggleDark, ui }) {
             lineHeight: 1,
             color: darkMode ? "#f59e0b" : ui.textMuted,
           }}
-          title="Toggle dark mode"
         >
           🌙
         </button>
@@ -2920,7 +2940,6 @@ function MobileTopHeader({ darkMode, onToggleDark, ui }) {
   );
 }
 
-// ─── EVALUATORS VIEW ──────────────────────────────────────────────────────────
 function EvaluatorsView({ ui }) {
   const [evaluators, setEvaluators] = useState(EVALUATORS_DATA);
   const [selectedEval, setSelectedEval] = useState(null);
@@ -2969,7 +2988,6 @@ function EvaluatorsView({ ui }) {
     setNewStartDate("2026-03-11");
     setShowAddTarget(false);
   };
-
   const handleToggleStatus = (evalId, targetId) => {
     setEvaluators((prev) =>
       prev.map((ev) => {
@@ -2987,7 +3005,6 @@ function EvaluatorsView({ ui }) {
       }),
     );
   };
-
   const handleAddMember = () => {
     if (!selectedUserId) return;
     const user = USER_DATABASE.find((u) => u.id === selectedUserId);
@@ -3103,7 +3120,6 @@ function EvaluatorsView({ ui }) {
           + Add Member
         </button>
       </div>
-
       {showAddMember && (
         <Card ui={ui} style={{ padding: 16 }}>
           <p
@@ -3147,65 +3163,6 @@ function EvaluatorsView({ ui }) {
                     </option>
                   ))}
                 </select>
-                {selectedUserId &&
-                  (() => {
-                    const u = USER_DATABASE.find(
-                      (x) => x.id === selectedUserId,
-                    );
-                    return u ? (
-                      <div
-                        style={{
-                          marginTop: 10,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 10,
-                          padding: "8px 12px",
-                          borderRadius: 8,
-                          background: `${FB}0f`,
-                          border: `1px solid ${FB}30`,
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: 34,
-                            height: 34,
-                            borderRadius: "50%",
-                            background: u.avatarColor,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#fff",
-                            fontWeight: 700,
-                            fontSize: "0.9rem",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {u.avatar}
-                        </div>
-                        <div>
-                          <p
-                            style={{
-                              margin: 0,
-                              fontSize: "0.86rem",
-                              fontWeight: 700,
-                              color: ui.textPrimary,
-                            }}
-                          >
-                            {u.name}
-                          </p>
-                          <p
-                            style={{
-                              margin: 0,
-                              fontSize: "0.74rem",
-                              color: ui.textSub,
-                            }}
-                          >
-                            {u.role} · {u.department}
-                          </p>
-                        </div>
-                      </div>
-                    ) : null;
-                  })()}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
@@ -3247,7 +3204,6 @@ function EvaluatorsView({ ui }) {
           )}
         </Card>
       )}
-
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {evaluators.map((ev) => {
           const { done, total, pct } = getEvalProgress(ev);
@@ -3366,7 +3322,6 @@ function EvaluatorsView({ ui }) {
           );
         })}
       </div>
-
       {selectedEval && (
         <Card ui={ui}>
           <div
@@ -3430,7 +3385,6 @@ function EvaluatorsView({ ui }) {
               {showAddTarget ? "✕ Cancel" : "+ Add Target"}
             </button>
           </div>
-
           {showAddTarget && (
             <div
               style={{
@@ -3486,45 +3440,6 @@ function EvaluatorsView({ ui }) {
                       ))}
                     </select>
                   </div>
-                  {selectedTaskId &&
-                    (() => {
-                      const task = CURRENT_TASKS_DECK.find(
-                        (t) => t.id === selectedTaskId,
-                      );
-                      return task ? (
-                        <div
-                          style={{
-                            padding: "8px 12px",
-                            borderRadius: 8,
-                            background: `${FB}0f`,
-                            border: `1px solid ${FB}25`,
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 2,
-                          }}
-                        >
-                          <p
-                            style={{
-                              margin: 0,
-                              fontSize: "0.78rem",
-                              fontWeight: 700,
-                              color: ui.textPrimary,
-                            }}
-                          >
-                            {task.name}
-                          </p>
-                          <p
-                            style={{
-                              margin: 0,
-                              fontSize: "0.72rem",
-                              color: ui.textSub,
-                            }}
-                          >
-                            Code: {task.code} · Type: {task.type}
-                          </p>
-                        </div>
-                      ) : null;
-                    })()}
                   <div style={{ display: "flex", gap: 10 }}>
                     <div style={{ flex: 1 }}>
                       <p
@@ -3608,7 +3523,6 @@ function EvaluatorsView({ ui }) {
               )}
             </div>
           )}
-
           {selectedEval.targets.length === 0 ? (
             <div
               style={{
@@ -3672,7 +3586,6 @@ function EvaluatorsView({ ui }) {
                     </div>
                     <button
                       onClick={() => handleToggleStatus(selectedEval.id, t.id)}
-                      title="Click to toggle status"
                       style={{
                         fontSize: "0.72rem",
                         fontWeight: 700,
@@ -3838,6 +3751,33 @@ export default function DashboardPage({
   const [tablePage, setTablePage] = useState(0);
   const TABLE_PAGE_SIZE = 13;
 
+  // ★ NEW ── Live API stats state
+  const [liveStats, setLiveStats] = useState(null); // { received, completed, on_process }
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState(null);
+
+  // ★ NEW ── Fetch real stats whenever the chart window changes
+  const fetchStats = useCallback(async () => {
+    setStatsLoading(true);
+    setStatsError(null);
+    try {
+      const params = buildDateParams(breakdown, selYear, selMonth);
+      const data = await getDashboardSummary(params);
+      setLiveStats(data);
+    } catch (err) {
+      setStatsError(
+        err?.response?.data?.detail || err.message || "Failed to load stats",
+      );
+      setLiveStats(null);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [breakdown, selYear, selMonth]);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
   const { chartData, chartSubtitle } = useMemo(() => {
     if (breakdown === "year")
       return { chartData: DATA_ALL_YEARS, chartSubtitle: "All Years" };
@@ -3919,27 +3859,32 @@ export default function DashboardPage({
       ? ((totals.completed / totals.received) * 100).toFixed(1)
       : "0.0";
 
+  // ★ UPDATED ── metrics array now reads from liveStats for the 3 real KPIs
+  // Target stays chart-derived (no backend endpoint for it yet).
   const metrics = [
     {
       icon: "👁️",
       label: "Total Received",
-      value: totals.received,
+      value: liveStats ? liveStats.received : totals.received,
       change: 8,
       key: "received",
+      isLive: true,
     },
     {
       icon: "✅",
       label: "Completed",
-      value: totals.completed,
+      value: liveStats ? liveStats.completed : totals.completed,
       change: -3,
       key: "completed",
+      isLive: true,
     },
     {
       icon: "⏳",
       label: "On Process",
-      value: totals.onProcess,
+      value: liveStats ? liveStats.on_process : totals.onProcess,
       change: 12,
       key: "onProcess",
+      isLive: true,
     },
     {
       icon: "🎯",
@@ -3947,18 +3892,19 @@ export default function DashboardPage({
       value: totals.target,
       change: 0,
       key: "target",
+      isLive: false, // still chart-derived
     },
   ];
 
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
   const handleShowReport = (periodKey, customDates) => {
     setReportPeriodKey(periodKey);
     setCustomReportDates(customDates || null);
     setShowReport(true);
   };
 
-  // ── DB connection data — toggle active/inactive to simulate monitoring ────────
   const [dbConnections, setDbConnections] = useState([
     {
       id: "doctrack",
@@ -3986,14 +3932,12 @@ export default function DashboardPage({
     setDbConnections((prev) =>
       prev.map((c) => (c.id === id ? { ...c, active: !c.active } : c)),
     );
-  const allActive = dbConnections.every((c) => c.active);
-  const someInactive = dbConnections.some((c) => !c.active);
+  const allActive = dbConnections.every((c) => c.active),
+    someInactive = dbConnections.some((c) => !c.active);
 
-  // ── Accomplishment report date state (separate from Targets) ─────────────────
   const [reportStart, setReportStart] = useState(getWorkingWeek().start);
   const [reportEnd, setReportEnd] = useState(getWorkingWeek().end);
   const [reportDateErr, setReportDateErr] = useState("");
-
   const handleReportStartChange = (v) => {
     setReportStart(v);
     setReportDateErr(
@@ -4023,7 +3967,6 @@ export default function DashboardPage({
 
   const RightPanel = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* ── SYSTEM STATUS ──────────────────────────────────────────────────── */}
       <Card ui={ui}>
         <div
           style={{
@@ -4100,7 +4043,6 @@ export default function DashboardPage({
                 transition: "all 0.2s",
               }}
             >
-              {/* DB icon */}
               <div
                 style={{
                   width: 36,
@@ -4116,7 +4058,6 @@ export default function DashboardPage({
               >
                 {conn.icon}
               </div>
-              {/* Labels */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p
                   style={{
@@ -4141,10 +4082,8 @@ export default function DashboardPage({
                   {conn.desc}
                 </p>
               </div>
-              {/* Status badge — clickable to toggle */}
               <button
                 onClick={() => toggleConn(conn.id)}
-                title="Click to toggle connection"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -4168,7 +4107,6 @@ export default function DashboardPage({
                     display: "inline-block",
                     flexShrink: 0,
                     boxShadow: conn.active ? "0 0 0 2px #36a42030" : "none",
-                    animation: conn.active ? "none" : "none",
                   }}
                 />
                 <span
@@ -4187,7 +4125,6 @@ export default function DashboardPage({
         </div>
       </Card>
 
-      {/* ── ACCOMPLISHMENT REPORT (date filter here) ───────────────────────── */}
       <Card ui={ui}>
         <div style={{ padding: "14px 16px 10px" }}>
           <h3
@@ -4218,7 +4155,6 @@ export default function DashboardPage({
             gap: 8,
           }}
         >
-          {/* Date pickers */}
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
               <p
@@ -4240,7 +4176,7 @@ export default function DashboardPage({
                 onChange={(e) => handleReportStartChange(e.target.value)}
                 style={{
                   ...inputSt2,
-                  border: `1.5px solid ${reportDateErr ? "#e02020" : ui.metricBorder}`,
+                  border: `1.5px solid ${reportDateErr ? ui.metricBorder : ui.metricBorder}`,
                 }}
               />
             </div>
@@ -4264,7 +4200,7 @@ export default function DashboardPage({
                 onChange={(e) => handleReportEndChange(e.target.value)}
                 style={{
                   ...inputSt2,
-                  border: `1.5px solid ${reportDateErr ? "#e02020" : ui.metricBorder}`,
+                  border: `1.5px solid ${reportDateErr ? ui.metricBorder : ui.metricBorder}`,
                 }}
               />
             </div>
@@ -4309,7 +4245,6 @@ export default function DashboardPage({
               </span>
             </div>
           )}
-          {/* Generate button */}
           <button
             onClick={() =>
               canGenReport &&
@@ -4346,10 +4281,8 @@ export default function DashboardPage({
         </div>
       </Card>
 
-      {/* ── WEEKLY TARGETS ─────────────────────────────────────────────────── */}
       <TargetsPanel ui={ui} onSelectTarget={setActiveTarget} />
 
-      {/* ── NEXT STEPS ─────────────────────────────────────────────────────── */}
       <Card ui={ui}>
         <div
           style={{
@@ -4449,12 +4382,20 @@ export default function DashboardPage({
     return () => window.removeEventListener("resize", handler);
   }, []);
 
+  // ★ NEW ── inject pulse keyframe once
   useEffect(() => {
-    const id = "cdrr-scrollbar-style";
+    const id = "cdrr-style";
     if (!document.getElementById(id)) {
       const style = document.createElement("style");
       style.id = id;
-      style.textContent = `.cdrr-scroll::-webkit-scrollbar{width:7px}.cdrr-scroll::-webkit-scrollbar-track{background:transparent}.cdrr-scroll::-webkit-scrollbar-thumb{background:#3a3b3c;border-radius:99px}.cdrr-scroll::-webkit-scrollbar-thumb:hover{background:#555}.cdrr-scroll{scrollbar-width:thin;scrollbar-color:#3a3b3c transparent}`;
+      style.textContent = `
+        .cdrr-scroll::-webkit-scrollbar{width:7px}
+        .cdrr-scroll::-webkit-scrollbar-track{background:transparent}
+        .cdrr-scroll::-webkit-scrollbar-thumb{background:#3a3b3c;border-radius:99px}
+        .cdrr-scroll::-webkit-scrollbar-thumb:hover{background:#555}
+        .cdrr-scroll{scrollbar-width:thin;scrollbar-color:#3a3b3c transparent}
+        @keyframes cdrrPulse{0%,100%{opacity:1}50%{opacity:0.4}}
+      `;
       document.head.appendChild(style);
     }
     return () => {
@@ -4464,8 +4405,6 @@ export default function DashboardPage({
   }, []);
 
   const [activeNav, setActiveNav] = useState("home");
-
-  // ── UPDATED: mark Insights, Content, Backlogs, Settings as disabled ──────────
   const navItems = [
     { key: "home", icon: "🏠", label: "Home", disabled: false },
     {
@@ -4605,6 +4544,48 @@ export default function DashboardPage({
 
   return (
     <>
+      {/* ★ NEW ── error toast when API fails */}
+      {statsError && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: 20,
+            right: 20,
+            zIndex: 9999,
+            background: "#e02020",
+            color: "#fff",
+            padding: "10px 16px",
+            borderRadius: 8,
+            fontSize: "0.8rem",
+            fontWeight: 600,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            maxWidth: 320,
+          }}
+        >
+          <span>⚠️</span>
+          <span>Stats API error: {statsError}</span>
+          <button
+            onClick={fetchStats}
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              border: "none",
+              color: "#fff",
+              padding: "3px 10px",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontSize: "0.76rem",
+              fontWeight: 700,
+              fontFamily: "inherit",
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <div
         style={{
           display: "flex",
@@ -4661,7 +4642,6 @@ export default function DashboardPage({
                 <div
                   style={{ display: "flex", flexDirection: "column", gap: 16 }}
                 >
-                  {/* INSIGHTS */}
                   <Card ui={ui}>
                     <div style={{ padding: "14px 16px 0" }}>
                       <div
@@ -4821,6 +4801,8 @@ export default function DashboardPage({
                           <SeeAll />
                         </div>
                       </div>
+
+                      {/* ★ UPDATED metric tiles row */}
                       <div
                         style={{
                           display: "flex",
@@ -4831,10 +4813,15 @@ export default function DashboardPage({
                         {metrics.map((m, i) => (
                           <MetricTile
                             key={i}
-                            {...m}
+                            icon={m.icon}
+                            label={m.label}
+                            value={m.value}
+                            change={m.change}
                             active={activeMetric === i}
                             onClick={() => setActiveMetric(i)}
                             ui={ui}
+                            loading={m.isLive ? statsLoading : false}
+                            isLive={m.isLive}
                           />
                         ))}
                       </div>
@@ -4866,11 +4853,11 @@ export default function DashboardPage({
                           : breakdown === "month"
                             ? "month"
                             : "year";
-                      const startRow = safePage * TABLE_PAGE_SIZE + 1;
-                      const endRow = Math.min(
-                        startRow + TABLE_PAGE_SIZE - 1,
-                        chartData.length,
-                      );
+                      const startRow = safePage * TABLE_PAGE_SIZE + 1,
+                        endRow = Math.min(
+                          startRow + TABLE_PAGE_SIZE - 1,
+                          chartData.length,
+                        );
                       return (
                         <div
                           style={{
@@ -5002,8 +4989,8 @@ export default function DashboardPage({
                                       : "—";
                                   const rateN =
                                     row.received > 0 ? parseFloat(rate) : null;
-                                  const isEven = ri % 2 === 0;
-                                  const isLast = ri === pagedRows.length - 1;
+                                  const isEven = ri % 2 === 0,
+                                    isLast = ri === pagedRows.length - 1;
                                   const border = !isLast
                                     ? `1px solid ${ui.divider}`
                                     : "none";
@@ -5284,9 +5271,10 @@ export default function DashboardPage({
                                     pi === totalPages - 1 ||
                                     Math.abs(pi - safePage) <= 1;
                                   const showEllipsisBefore =
-                                    pi === safePage - 2 && pi > 1;
-                                  const showEllipsisAfter =
-                                    pi === safePage + 2 && pi < totalPages - 2;
+                                      pi === safePage - 2 && pi > 1,
+                                    showEllipsisAfter =
+                                      pi === safePage + 2 &&
+                                      pi < totalPages - 2;
                                   if (
                                     !show &&
                                     !showEllipsisBefore &&
@@ -5373,7 +5361,6 @@ export default function DashboardPage({
                     })()}
                   </Card>
 
-                  {/* RECENT APPLICATIONS */}
                   <Card ui={ui}>
                     <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
                       <CardHeader
@@ -5529,7 +5516,6 @@ export default function DashboardPage({
                     ))}
                   </Card>
 
-                  {/* SUMMARY */}
                   <Card ui={ui}>
                     <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
                       <CardHeader
@@ -5634,7 +5620,15 @@ export default function DashboardPage({
       {showReport && (
         <AccomplishmentReport
           onClose={() => setShowReport(false)}
-          totals={totals}
+          totals={
+            liveStats
+              ? {
+                  received: liveStats.received,
+                  completed: liveStats.completed,
+                  onProcess: liveStats.on_process,
+                }
+              : totals
+          }
           ui={ui}
           reportPeriodKey={reportPeriodKey}
           customDates={customReportDates}

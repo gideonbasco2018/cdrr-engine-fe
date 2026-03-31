@@ -7,6 +7,7 @@
 //
 // The pool itself is also a DROP ZONE:
 //   dropping a member here removes them from the selected group.
+import { useState, useEffect } from "react";
 
 function UsersPool({
   allUsers,
@@ -26,6 +27,7 @@ function UsersPool({
   handleDragEnter,
   handleDragLeave,
   handleDropOnPool,
+  handleBulkAssign,
 }) {
   const groupUserIds = new Set(groupUsers.map((u) => u.id));
 
@@ -50,6 +52,34 @@ function UsersPool({
     u.first_name && u.surname
       ? `${u.first_name} ${u.surname}`
       : u.first_name || u.username;
+
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [selectedGroup?.id]);
+
+  const allChecked =
+    poolUsers.length > 0 && selectedIds.size === poolUsers.length;
+  const someChecked = selectedIds.size > 0 && !allChecked;
+
+  const toggleAll = () => {
+    if (allChecked || someChecked) setSelectedIds(new Set());
+    else setSelectedIds(new Set(poolUsers.map((u) => u.id)));
+  };
+
+  const toggleOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkAddClick = async () => {
+    await handleBulkAssign([...selectedIds]);
+    setSelectedIds(new Set());
+  };
 
   return (
     <div
@@ -154,6 +184,60 @@ function UsersPool({
         </div>
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && selectedGroup && (
+        <div
+          style={{
+            padding: "0.5rem 1rem",
+            background: darkMode ? "#0f1a0f" : "#f0fff4",
+            borderBottom: `1px solid ${colors.cardBorder}`,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: "0.8rem",
+              fontWeight: "600",
+              color: colors.textSecondary,
+            }}
+          >
+            {selectedIds.size} selected
+          </span>
+          <button
+            onClick={handleBulkAddClick}
+            style={{
+              padding: "0.3rem 0.85rem",
+              borderRadius: "6px",
+              border: "none",
+              background: colors.btnPrimary,
+              color: "#fff",
+              fontSize: "0.78rem",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
+            + Add Selected
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            style={{
+              padding: "0.3rem 0.75rem",
+              borderRadius: "6px",
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textSecondary,
+              fontSize: "0.78rem",
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
       {/* Drop hint — only visible when dragging a member */}
       {isDraggingMember && (
         <div
@@ -185,6 +269,41 @@ function UsersPool({
 
       {/* User rows */}
       <div style={{ flex: 1, overflowY: "auto" }}>
+        {/* Select all row — ADD THIS */}
+        {poolUsers.length > 0 && selectedGroup && (
+          <div
+            style={{
+              padding: "0.45rem 1rem",
+              borderBottom: `1px solid ${colors.rowBorder}`,
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              background: darkMode ? "#1a1a1a" : "#f9f9f9",
+              position: "sticky",
+              top: 0,
+              zIndex: 1,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={allChecked}
+              ref={(el) => {
+                if (el) el.indeterminate = someChecked;
+              }}
+              onChange={toggleAll}
+              style={{ cursor: "pointer", width: "15px", height: "15px" }}
+            />
+            <span
+              style={{
+                fontSize: "0.72rem",
+                color: colors.textTertiary,
+                fontWeight: "600",
+              }}
+            >
+              Select all ({poolUsers.length})
+            </span>
+          </div>
+        )}
         {poolUsers.length === 0 ? (
           <div
             style={{
@@ -229,6 +348,8 @@ function UsersPool({
                 displayName={displayName(user)}
                 isDraggingThis={isDraggingThis}
                 isAssigning={isAssigning}
+                isChecked={selectedIds.has(user.id)} // ← ADD
+                onToggle={() => toggleOne(user.id)} // ← ADD
                 selectedGroup={selectedGroup}
                 handleAssignUser={handleAssignUser}
                 handleDragStart={handleDragStart}
@@ -249,6 +370,8 @@ function PoolUserRow({
   displayName,
   isDraggingThis,
   isAssigning,
+  isChecked, // ← ADD
+  onToggle, // ← ADD
   selectedGroup,
   handleAssignUser,
   handleDragStart,
@@ -283,6 +406,21 @@ function PoolUserRow({
         e.currentTarget.style.background = "transparent";
       }}
     >
+      {/* Checkbox */}
+      {selectedGroup && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ display: "flex", alignItems: "center", flexShrink: 0 }}
+        >
+          <input
+            type="checkbox"
+            checked={isChecked || false}
+            onChange={onToggle}
+            style={{ cursor: "pointer", width: "15px", height: "15px" }}
+          />
+        </div>
+      )}
+
       {/* Drag handle */}
       <span
         style={{
@@ -355,9 +493,6 @@ function PoolUserRow({
                 border: "1px solid #f59e0b44",
                 flexShrink: 0,
                 whiteSpace: "nowrap",
-                maxWidth: "120px",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
               }}
             >
               <span style={{ fontSize: "0.6rem" }}>📋</span>
