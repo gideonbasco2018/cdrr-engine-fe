@@ -33,6 +33,7 @@ function GroupDetail({
   handleDragEnter,
   handleDragLeave,
   handleDropOnMembers,
+  handleBulkRemove,
 }) {
   const isMembersDropTarget = dropTarget === "members";
   // Show drop target highlight only when dragging a pool user (fromGroupId === null)
@@ -77,7 +78,13 @@ function GroupDetail({
 
   return (
     <div
-      style={{ flex: 1, display: "flex", flexDirection: "column" }}
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        overflow: "hidden",
+      }}
       onDragOver={(e) => {
         if (isDraggingPoolUser) e.preventDefault();
       }}
@@ -135,10 +142,9 @@ function GroupDetail({
           flex: 1,
           display: "flex",
           flexDirection: "column",
+          minHeight: 0, // ← ADD
+          overflow: "hidden", // ← ADD
           borderRadius: showDropHighlight ? "0" : "inherit",
-          outline: showDropHighlight
-            ? `2px solid ${colors.btnPrimary}55`
-            : "2px solid transparent",
           transition: "outline-color 0.2s ease",
         }}
       >
@@ -167,6 +173,7 @@ function GroupDetail({
           handleDragEnd={handleDragEnd}
           selectedGroupId={selectedGroup.id}
           dragging={dragging}
+          handleBulkRemove={handleBulkRemove}
         />
       </div>
     </div>

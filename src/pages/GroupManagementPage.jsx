@@ -301,6 +301,44 @@ function GroupManagementPage({ darkMode, userRole }) {
     });
   };
 
+  // ===== BULK ACTIONS =====
+  const handleBulkRemove = async (userIds) => {
+    if (!selectedGroup || userIds.length === 0) return;
+    setActionLoading("bulk-remove");
+    let successCount = 0;
+    for (const userId of userIds) {
+      try {
+        const result = await removeUserFromGroup(selectedGroup.id, userId);
+        if (result.success) successCount++;
+      } catch {}
+    }
+    showToast(
+      "success",
+      `Removed ${successCount} user(s) from ${selectedGroup.name}.`,
+    );
+    await fetchGroupUsers(selectedGroup.id);
+    await fetchGroups();
+    setActionLoading(null);
+  };
+
+  const handleBulkAssign = async (userIds) => {
+    if (!selectedGroup || userIds.length === 0) return;
+    setActionLoading("bulk-assign");
+    let successCount = 0;
+    for (const userId of userIds) {
+      try {
+        const result = await assignUserToGroup(selectedGroup.id, userId);
+        if (result.success) successCount++;
+      } catch {}
+    }
+    showToast(
+      "success",
+      `Added ${successCount} user(s) to ${selectedGroup.name}.`,
+    );
+    await fetchGroupUsers(selectedGroup.id);
+    await fetchGroups();
+    setActionLoading(null);
+  };
   // ===== DnD HANDLERS =====
   // Called by UsersTable (dragging a member) or UserPool (dragging an unassigned user)
   const handleDragStart = useCallback((userId, fromGroupId) => {
@@ -481,9 +519,11 @@ function GroupManagementPage({ darkMode, userRole }) {
         flex: 1,
         background: colors.pageBg,
         color: colors.textPrimary,
-        overflow: "auto",
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
+        height: "100%",
+        minHeight: 0,
       }}
     >
       {toast && <Toast toast={toast} colors={colors} />}
@@ -615,39 +655,51 @@ function GroupManagementPage({ darkMode, userRole }) {
       </div>
 
       {activeTab === "groups" && (
-        <GroupsTab
-          groups={groups}
-          allUsers={allUsers}
-          selectedGroup={selectedGroup}
-          setSelectedGroup={setSelectedGroup}
-          groupUsers={groupUsers}
-          loading={loading}
-          groupUsersLoading={groupUsersLoading}
-          actionLoading={actionLoading}
-          assignSearch={assignSearch}
-          setAssignSearch={setAssignSearch}
-          showAssignDropdown={showAssignDropdown}
-          setShowAssignDropdown={setShowAssignDropdown}
-          availableUsers={availableUsers}
-          handleAssignUser={handleAssignUser}
-          handleRemoveUser={handleRemoveUser}
-          setGroupModal={setGroupModal}
-          setConfirmModal={setConfirmModal}
-          handleDeleteGroup={handleDeleteGroup}
-          colors={colors}
-          darkMode={darkMode}
-          userRole={userRole}
-          // DnD props
-          dragging={dragging}
-          dropTarget={dropTarget}
-          handleDragStart={handleDragStart}
-          handleDragEnd={handleDragEnd}
-          handleDragEnter={handleDragEnter}
-          handleDragLeave={handleDragLeave}
-          handleDropOnGroup={handleDropOnGroup}
-          handleDropOnMembers={handleDropOnMembers}
-          handleDropOnPool={handleDropOnPool}
-        />
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
+          <GroupsTab
+            groups={groups}
+            allUsers={allUsers}
+            selectedGroup={selectedGroup}
+            setSelectedGroup={setSelectedGroup}
+            groupUsers={groupUsers}
+            loading={loading}
+            groupUsersLoading={groupUsersLoading}
+            actionLoading={actionLoading}
+            assignSearch={assignSearch}
+            setAssignSearch={setAssignSearch}
+            showAssignDropdown={showAssignDropdown}
+            setShowAssignDropdown={setShowAssignDropdown}
+            availableUsers={availableUsers}
+            handleAssignUser={handleAssignUser}
+            handleRemoveUser={handleRemoveUser}
+            setGroupModal={setGroupModal}
+            setConfirmModal={setConfirmModal}
+            handleDeleteGroup={handleDeleteGroup}
+            colors={colors}
+            darkMode={darkMode}
+            userRole={userRole}
+            // DnD props
+            dragging={dragging}
+            dropTarget={dropTarget}
+            handleDragStart={handleDragStart}
+            handleDragEnd={handleDragEnd}
+            handleDragEnter={handleDragEnter}
+            handleDragLeave={handleDragLeave}
+            handleDropOnGroup={handleDropOnGroup}
+            handleDropOnMembers={handleDropOnMembers}
+            handleDropOnPool={handleDropOnPool}
+            handleBulkRemove={handleBulkRemove}
+            handleBulkAssign={handleBulkAssign}
+          />
+        </div>
       )}
 
       {activeTab === "menu-permissions" && (
