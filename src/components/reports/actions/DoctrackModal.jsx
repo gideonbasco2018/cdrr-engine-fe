@@ -577,7 +577,7 @@ function DetailRow({ label, value, colors }) {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "flex-start",
-        gap: "1.5rem",
+        gap: "0.75rem",
       }}
     >
       <span
@@ -585,7 +585,9 @@ function DetailRow({ label, value, colors }) {
           fontSize: "0.9rem",
           color: colors.textTertiary,
           fontWeight: "500",
-          minWidth: "140px",
+          width: "50%", // ← fixed 50%
+          flexShrink: 0, // ← don't let it shrink
+          wordBreak: "break-word",
         }}
       >
         {label}:
@@ -595,7 +597,7 @@ function DetailRow({ label, value, colors }) {
           fontSize: "0.9rem",
           color: colors.textSecondary,
           textAlign: "right",
-          flex: 1,
+          width: "50%", // ← fixed 50%
           wordBreak: "break-word",
         }}
       >
