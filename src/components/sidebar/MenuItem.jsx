@@ -60,8 +60,9 @@ function MenuItem({
           gap: collapsed ? 0 : "0.75rem",
         }}
       >
-        <span style={{ fontSize: "1.1rem" }}>{item.icon}</span>
-        {!collapsed && <span>{item.label}</span>}
+        {/* sidebar Icon size and text */}
+        <span style={{ fontSize: "0.8rem" }}>{item.icon}</span>
+        {!collapsed && <span style={{ fontSize: "0.8rem" }}>{item.label}</span>}
       </div>
 
       {!collapsed && isDisabled && (

@@ -563,7 +563,7 @@ function ReportsPage({ darkMode }) {
       ══════════════════════════════════════ */}
       <div
         style={{
-          width: isSidebarOpen ? "260px" : "52px",
+          width: isSidebarOpen ? "100px" : "52px",
           minWidth: isSidebarOpen ? "260px" : "52px",
           background: darkMode ? "#0a0a0a" : "#ffffff",
           borderRight: `1px solid ${colors.cardBorder}`,
