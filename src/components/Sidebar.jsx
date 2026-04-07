@@ -217,7 +217,7 @@ function Sidebar({
   };
 
   // ── SIDEBAR WIDTH ─────────────────────────────────────────────────────────
-  const sidebarWidth = isMobile ? "260px" : collapsed ? "64px" : "240px";
+  const sidebarWidth = isMobile ? "260px" : collapsed ? "64px" : "200px";
 
   // ── MOBILE: render overlay drawer ─────────────────────────────────────────
   if (isMobile) {
@@ -401,8 +401,8 @@ function Sidebar({
 
         <div className="sidebar-scroll" style={{ flex: 1, overflowY: "auto" }}>
           {renderSection("MAIN", visibleMainMenu)}
-          {renderSection("CDRR REPORTS", visibleCdrReports)}
-          {renderSection("WORKFLOW STATUS", visibleWorkflow)}
+          {renderSection("REPORTS", visibleCdrReports)}
+          {renderSection("WORKFLOW", visibleWorkflow)}
           {renderSection("OTHER DATABASE", visibleOtherDatabase)}
           {renderSection("PLATFORM", visiblePlatform)}
         </div>
