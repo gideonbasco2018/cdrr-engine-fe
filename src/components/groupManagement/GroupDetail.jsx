@@ -1,9 +1,6 @@
 // FILE: src/components/groupManagement/GroupDetail.jsx
-// Revised: the whole panel is a drop zone for adding users from the pool.
-// AssignUserBar is kept but visually de-emphasised (fallback for non-drag users).
-
+import { useState } from "react";
 import GroupHeader from "./GroupHeader";
-import AssignUserBar from "./AssignUserBar";
 import UsersTable from "./UsersTable";
 
 function GroupDetail({
@@ -11,13 +8,6 @@ function GroupDetail({
   groupUsers,
   groupUsersLoading,
   actionLoading,
-  assignSearch,
-  setAssignSearch,
-  showAssignDropdown,
-  setShowAssignDropdown,
-  availableUsers,
-  allUsers,
-  handleAssignUser,
   handleRemoveUser,
   setGroupModal,
   setConfirmModal,
@@ -25,7 +15,6 @@ function GroupDetail({
   colors,
   darkMode,
   userRole,
-  // DnD
   dragging,
   dropTarget,
   handleDragStart,
@@ -35,8 +24,9 @@ function GroupDetail({
   handleDropOnMembers,
   handleBulkRemove,
 }) {
+  const [memberSearch, setMemberSearch] = useState("");
+
   const isMembersDropTarget = dropTarget === "members";
-  // Show drop target highlight only when dragging a pool user (fromGroupId === null)
   const isDraggingPoolUser = dragging && dragging.fromGroupId === null;
   const showDropHighlight = isMembersDropTarget && isDraggingPoolUser;
 
@@ -109,7 +99,7 @@ function GroupDetail({
         userRole={userRole}
       />
 
-      {/* Drop zone banner — appears when dragging a pool user over this panel */}
+      {/* Drop zone banner */}
       <div
         style={{
           padding: showDropHighlight ? "0.65rem 1.5rem" : "0 1.5rem",
@@ -132,48 +122,60 @@ function GroupDetail({
           fontWeight: "600",
         }}
       >
-        <span>✚</span>
-        Drop here to add to {selectedGroup.name}
+        <span>✚</span> Drop here to add to {selectedGroup.name}
       </div>
 
-      {/* Subtle "dragging" border glow on the whole column */}
       <div
         style={{
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          minHeight: 0, // ← ADD
-          overflow: "hidden", // ← ADD
-          borderRadius: showDropHighlight ? "0" : "inherit",
-          transition: "outline-color 0.2s ease",
+          minHeight: 0,
+          overflow: "hidden",
         }}
       >
-        <AssignUserBar
-          selectedGroup={selectedGroup}
-          assignSearch={assignSearch}
-          setAssignSearch={setAssignSearch}
-          showAssignDropdown={showAssignDropdown}
-          setShowAssignDropdown={setShowAssignDropdown}
-          availableUsers={availableUsers}
-          allUsers={allUsers}
-          handleAssignUser={handleAssignUser}
-          colors={colors}
-        />
+        {/* ← BAGONG search bar, kapalit ng AssignUserBar */}
+        <div
+          style={{
+            background: colors.cardBg,
+            borderLeft: `1px solid ${colors.cardBorder}`,
+            borderRight: `1px solid ${colors.cardBorder}`,
+            borderBottom: `1px solid ${colors.cardBorder}`,
+            padding: "0.65rem 1rem",
+          }}
+        >
+          <input
+            type="text"
+            placeholder="🔍 Search members..."
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "0.45rem 0.75rem",
+              borderRadius: "8px",
+              border: `1px solid ${colors.inputBorder}`,
+              background: colors.inputBg,
+              color: colors.textPrimary,
+              fontSize: "0.82rem",
+              outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
 
         <UsersTable
           groupUsers={groupUsers}
           groupUsersLoading={groupUsersLoading}
           actionLoading={actionLoading}
           handleRemoveUser={handleRemoveUser}
-          setShowAssignDropdown={setShowAssignDropdown}
           colors={colors}
           darkMode={darkMode}
-          // DnD — members can be dragged back to pool or onto another group
           handleDragStart={handleDragStart}
           handleDragEnd={handleDragEnd}
           selectedGroupId={selectedGroup.id}
           dragging={dragging}
           handleBulkRemove={handleBulkRemove}
+          memberSearch={memberSearch} // ← BAGO
         />
       </div>
     </div>

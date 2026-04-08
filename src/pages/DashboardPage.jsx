@@ -1805,7 +1805,7 @@ function NavItem({ icon, label, active, hasArrow, onClick, ui, disabled }) {
         display: "flex",
         alignItems: "center",
         gap: 12,
-        padding: "10px 14px",
+        padding: "5px 4px",
         borderRadius: 8,
         margin: "2px 8px",
         background: active ? ui.activeNavBg : hov ? ui.hoverBg : "transparent",
@@ -1817,14 +1817,14 @@ function NavItem({ icon, label, active, hasArrow, onClick, ui, disabled }) {
     >
       <span
         style={{
-          width: 36,
-          height: 36,
+          width: 30,
+          height: 30,
           borderRadius: "50%",
           background: active ? FB : ui.inputBg,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: "1.1rem",
+          fontSize: ".75rem",
           flexShrink: 0,
           transition: "background 0.15s",
         }}
@@ -1834,7 +1834,7 @@ function NavItem({ icon, label, active, hasArrow, onClick, ui, disabled }) {
       <span
         style={{
           flex: 1,
-          fontSize: "0.92rem",
+          fontSize: "0.75rem",
           fontWeight: active ? 700 : 500,
           color: active ? FB : ui.textPrimary,
         }}
@@ -1844,7 +1844,7 @@ function NavItem({ icon, label, active, hasArrow, onClick, ui, disabled }) {
       {disabled ? (
         <span
           style={{
-            fontSize: "0.58rem",
+            fontSize: "0.4rem",
             fontWeight: 700,
             color: "#fff",
             background: "#f59e0b",
@@ -4611,7 +4611,7 @@ export default function DashboardPage({
             <div
               style={{
                 flexShrink: 0,
-                width: 220,
+                width: 180,
                 position: "sticky",
                 top: 0,
                 alignSelf: "stretch",

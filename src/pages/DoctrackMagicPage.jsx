@@ -133,7 +133,7 @@ function StepIndicator({
   const steps = ["Upload File", "Review Data", "Submit"];
   return (
     <div
-      style={{ display: "flex", alignItems: "center", marginBottom: "1.5rem" }}
+      style={{ display: "flex", alignItems: "center", marginBottom: ".5rem" }}
     >
       {steps.map((label, i) => {
         const n = i + 1,
@@ -231,7 +231,7 @@ function FailedRecordsPanel({
           display: "flex",
           alignItems: "center",
           gap: "0.75rem",
-          padding: "0.85rem 1rem",
+          padding: "0.85rem .5rem",
           background: darkMode ? "rgba(239,68,68,0.08)" : "#fff1f2",
           borderBottom: open
             ? `1px solid ${darkMode ? "rgba(239,68,68,0.2)" : "#fecaca"}`
@@ -1053,7 +1053,7 @@ function HistoryDetailModal({
             ) : displayRows.length === 0 ? (
               <div
                 style={{
-                  padding: "3rem",
+                  padding: "1rem",
                   textAlign: "center",
                   color: textMuted,
                   fontSize: "0.84rem",
@@ -1263,7 +1263,8 @@ function HistoryDetailModal({
 
 // ── UPLOAD HISTORY ────────────────────────────────────────────────────────────
 // Fixed grid: 2fr 1fr 1.4fr 70px 70px 70px — pantay-pantay ang columns
-const HISTORY_COLS = "2fr 1fr 1.4fr 70px 70px 70px";
+const HISTORY_COLS =
+  "minmax(0,2fr) minmax(120px,1fr) minmax(0,1.6fr) 80px 70px 80px";
 
 function UploadHistory({
   history,
@@ -1503,7 +1504,7 @@ function UploadHistory({
                 gridTemplateColumns: HISTORY_COLS,
                 background: headerBg,
                 borderBottom: "1px solid " + border,
-                minWidth: 560,
+                minWidth: 680,
               }}
             >
               {[
@@ -1520,7 +1521,7 @@ function UploadHistory({
                     display: "flex",
                     alignItems: "center",
                     justifyContent: j,
-                    fontSize: "0.7rem",
+                    fontSize: "0.6rem",
                     fontWeight: 600,
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
@@ -1713,7 +1714,7 @@ function UploadHistory({
                       transition: "background 0.15s",
                       alignItems: "stretch",
                       cursor: "pointer",
-                      minWidth: 560,
+                      minWidth: 680,
                     }}
                     onClick={() => setSelected(entry)}
                     onMouseEnter={(e) =>
@@ -1726,10 +1727,12 @@ function UploadHistory({
                     {/* File / Batch */}
                     <div
                       style={{
-                        padding: "0.75rem 0.85rem",
+                        padding: "0.5rem 0.5rem",
                         display: "flex",
                         alignItems: "center",
-                        gap: "0.65rem",
+                        gap: "0.5rem",
+                        minWidth: 0,
+                        overflow: "hidden",
                       }}
                     >
                       <div
@@ -1803,6 +1806,7 @@ function UploadHistory({
                         display: "flex",
                         flexDirection: "column",
                         justifyContent: "center",
+                        whiteSpace: "nowrap", // ← dagdag ito
                       }}
                     >
                       <div
@@ -2417,7 +2421,7 @@ function DoctrackMagicPage({ darkMode }) {
           <div style={{ marginBottom: "1.25rem" }}>
             <h1
               style={{
-                fontSize: isMobile ? "1.35rem" : "1.75rem",
+                fontSize: isMobile ? "1rem" : "1.1rem",
                 fontWeight: 600,
                 margin: "0 0 0.25rem",
                 color: textPrimary,
@@ -2449,7 +2453,7 @@ function DoctrackMagicPage({ darkMode }) {
           >
             <div
               style={{
-                padding: "0.75rem 1rem",
+                padding: ".75rem 1rem",
                 borderBottom: "1px solid " + border,
                 background: headerBg,
                 display: "flex",
@@ -2530,7 +2534,7 @@ function DoctrackMagicPage({ darkMode }) {
                 {!isMobile && "Download "}Template
               </button>
             </div>
-            <div style={{ padding: "1rem" }}>
+            <div style={{ padding: ".5rem" }}>
               <div
                 style={{
                   display: "flex",
@@ -2577,7 +2581,7 @@ function DoctrackMagicPage({ darkMode }) {
                   style={{
                     border: `2px dashed ${isOver ? accent : border}`,
                     borderRadius: "10px",
-                    padding: isMobile ? "32px 16px" : "48px 24px",
+                    padding: isMobile ? "32px 16px" : "28px 14px",
                     textAlign: "center",
                     cursor: "pointer",
                     background: isOver
@@ -2601,8 +2605,8 @@ function DoctrackMagicPage({ darkMode }) {
                   />
                   <div
                     style={{
-                      width: 42,
-                      height: 42,
+                      width: 29,
+                      height: 29,
                       margin: "0 auto 12px",
                       background: darkMode ? "rgba(37,99,235,0.12)" : "#eef2ff",
                       borderRadius: "10px",

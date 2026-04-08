@@ -49,12 +49,12 @@ function GroupsList({
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
             width: "100%",
-            padding: "0.5rem 0.85rem",
+            padding: "0.3rem 0.5rem",
             borderRadius: "8px",
             border: `1px solid ${colors.inputBorder}`,
             background: colors.inputBg,
             color: colors.textPrimary,
-            fontSize: "0.85rem",
+            fontSize: "0.8rem",
             outline: "none",
             boxSizing: "border-box",
           }}
@@ -162,7 +162,7 @@ function GroupRow({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       style={{
-        padding: "0.85rem 1rem",
+        padding: "0.5rem .5rem",
         cursor: "pointer",
         background: isDropTarget
           ? `${colors.btnPrimary}18`
@@ -201,7 +201,7 @@ function GroupRow({
         <div
           style={{
             fontWeight: "600",
-            fontSize: "0.88rem",
+            fontSize: "0.75rem",
             color:
               isSelected || isDropTarget
                 ? colors.btnPrimary

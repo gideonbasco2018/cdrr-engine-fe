@@ -23,6 +23,7 @@ import GroupsTab from "../components/groupManagement/GroupsTab";
 import MenuPermissionsTab from "../components/groupManagement/MenuPermissionsTab";
 import { useColors } from "../components/groupManagement/useColors";
 import { allMenuItems } from "../components/groupManagement/menuDefinitions";
+import { useIsMobile } from "../hooks/useIsMobile";
 
 function GroupManagementPage({ darkMode, userRole }) {
   const [groups, setGroups] = useState([]);
@@ -40,7 +41,8 @@ function GroupManagementPage({ darkMode, userRole }) {
   const [confirmModal, setConfirmModal] = useState(null);
   const [assignSearch, setAssignSearch] = useState("");
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
-
+  const isMobile = useIsMobile();
+  const [memberSearch, setMemberSearch] = useState("");
   // ── DnD state ──────────────────────────────────────────────────
   // dragging: { userId, fromGroupId: number|null }
   // fromGroupId === null means user came from the "pool" (not yet in selectedGroup)
@@ -556,24 +558,31 @@ function GroupManagementPage({ darkMode, userRole }) {
       )}
 
       {/* HEADER WITH TABS */}
-      <div style={{ padding: "2rem 2rem 0" }}>
+      <div style={{ padding: isMobile ? "0.75rem 0.75rem 0" : "1rem 1rem 0" }}>
         <div
           style={{
             display: "flex",
-            alignItems: "center",
+            alignItems: isMobile ? "flex-start" : "center",
             justifyContent: "space-between",
-            marginBottom: "1.5rem",
+            gap: "8px",
+            marginBottom: "0.5rem",
           }}
         >
           <div>
-            <h1 style={{ margin: 0, fontSize: "1.6rem", fontWeight: "700" }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: isMobile ? "1rem" : "1.1rem",
+                fontWeight: "700",
+              }}
+            >
               🔐 Access Management
             </h1>
             <p
               style={{
-                margin: "0.35rem 0 0",
+                margin: "0.25rem 0 0",
                 color: colors.textSecondary,
-                fontSize: "0.88rem",
+                fontSize: "0.8rem",
               }}
             >
               Manage groups, users, and menu permissions
@@ -588,29 +597,81 @@ function GroupManagementPage({ darkMode, userRole }) {
                 })
               }
               style={{
-                padding: "0.55rem 1.1rem",
+                padding: "0.4rem 0.75rem",
                 borderRadius: "8px",
                 border: "none",
                 background: colors.btnPrimary,
                 color: "#fff",
-                fontSize: "0.85rem",
+                fontSize: "0.78rem",
                 fontWeight: "600",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: "0.4rem",
+                gap: "0.3rem",
+                flexShrink: 0,
+                whiteSpace: "nowrap",
               }}
             >
-              <span style={{ fontSize: "1rem" }}>+</span> New Group
+              <span>+</span> New Group
             </button>
           )}
         </div>
 
+        {/* STATS ROW */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "6px",
+            marginBottom: "0.75rem",
+          }}
+        >
+          {[
+            { label: "Total Groups", value: groups.length },
+            { label: "Total Users", value: allUsers.length },
+            {
+              label: "Active Users",
+              value: allUsers.filter((u) => u.is_active).length,
+            },
+          ].map(({ label, value }) => (
+            <div
+              key={label}
+              style={{
+                background: colors.cardBg,
+                border: `0.5px solid ${colors.cardBorder}`,
+                borderRadius: "8px",
+                padding: isMobile ? "8px" : "10px 12px",
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "9px",
+                  color: colors.textTertiary,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  marginBottom: "4px",
+                }}
+              >
+                {label}
+              </div>
+              <div
+                style={{
+                  fontSize: isMobile ? "18px" : "22px",
+                  fontWeight: "500",
+                }}
+              >
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* TABS */}
         <div
           style={{
             display: "flex",
-            gap: "0.5rem",
-            borderBottom: `2px solid ${colors.cardBorder}`,
+            borderBottom: `1px solid ${colors.cardBorder}`,
           }}
         >
           {[
@@ -621,33 +682,27 @@ function GroupManagementPage({ darkMode, userRole }) {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                padding: "0.75rem 1.5rem",
+                flex: isMobile ? 1 : "unset",
+                padding: isMobile ? "0.65rem 0.5rem" : "0.75rem 1.5rem",
                 border: "none",
                 background: "transparent",
                 color:
                   activeTab === tab.id
                     ? colors.btnPrimary
                     : colors.textSecondary,
-                fontSize: "0.88rem",
+                fontSize: isMobile ? "0.75rem" : "0.8rem",
                 fontWeight: "600",
                 cursor: "pointer",
                 borderBottom: `2px solid ${activeTab === tab.id ? colors.tabActive : "transparent"}`,
                 marginBottom: "-2px",
                 display: "flex",
                 alignItems: "center",
-                gap: "0.5rem",
+                justifyContent: "center",
+                gap: "0.4rem",
                 transition: "all 0.2s",
               }}
-              onMouseEnter={(e) => {
-                if (activeTab !== tab.id)
-                  e.currentTarget.style.color = colors.textPrimary;
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== tab.id)
-                  e.currentTarget.style.color = colors.textSecondary;
-              }}
             >
-              <span>{tab.icon}</span>
+              <span style={{ fontSize: "14px" }}>{tab.icon}</span>
               {tab.label}
             </button>
           ))}
@@ -673,11 +728,6 @@ function GroupManagementPage({ darkMode, userRole }) {
             loading={loading}
             groupUsersLoading={groupUsersLoading}
             actionLoading={actionLoading}
-            assignSearch={assignSearch}
-            setAssignSearch={setAssignSearch}
-            showAssignDropdown={showAssignDropdown}
-            setShowAssignDropdown={setShowAssignDropdown}
-            availableUsers={availableUsers}
             handleAssignUser={handleAssignUser}
             handleRemoveUser={handleRemoveUser}
             setGroupModal={setGroupModal}

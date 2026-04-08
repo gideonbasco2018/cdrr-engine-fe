@@ -1,20 +1,10 @@
 // FILE: src/components/groupManagement/UsersPool.jsx
-// NEW component — center column showing all users not yet in the selected group.
-// Users can be:
-//   • Clicked (+ Add button) to assign to the selected group
-//   • Dragged onto a group row (GroupsList) to assign to that group
-//   • Dragged onto the members panel (GroupDetail) to assign to selectedGroup
-//
-// The pool itself is also a DROP ZONE:
-//   dropping a member here removes them from the selected group.
 import { useState, useEffect } from "react";
 
 function UsersPool({
   allUsers,
   groupUsers,
   selectedGroup,
-  assignSearch,
-  setAssignSearch,
   handleAssignUser,
   actionLoading,
   colors,
@@ -30,7 +20,7 @@ function UsersPool({
   handleBulkAssign,
 }) {
   const groupUserIds = new Set(groupUsers.map((u) => u.id));
-
+  const [assignSearch, setAssignSearch] = useState("");
   const poolUsers = allUsers
     .filter((u) => u.is_active && !groupUserIds.has(u.id))
     .filter((u) => {
@@ -45,7 +35,6 @@ function UsersPool({
     });
 
   const isPoolDropTarget = dropTarget === "pool";
-  // Only show pool as drop target when dragging a member (fromGroupId is set)
   const isDraggingMember = dragging && dragging.fromGroupId !== null;
 
   const displayName = (u) =>
@@ -95,7 +84,6 @@ function UsersPool({
         borderRadius: "14px",
         overflow: "hidden",
         transition: "border-color 0.15s ease",
-        // Glow when dragging a member over pool (signals "remove")
         boxShadow:
           isPoolDropTarget && isDraggingMember
             ? `0 0 0 2px ${colors.btnDanger}33`
@@ -117,24 +105,24 @@ function UsersPool({
       {/* Header */}
       <div
         style={{
-          padding: "0.85rem 1rem",
+          padding: "0.6rem 0.85rem",
           borderBottom: `1px solid ${colors.cardBorder}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: "0.75rem",
+          gap: "0.5rem",
           flexShrink: 0,
         }}
       >
         <div style={{ flex: 1 }}>
           <div
             style={{
-              fontSize: "0.72rem",
+              fontSize: "0.65rem",
               fontWeight: "700",
               color: colors.textTertiary,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
-              marginBottom: "0.5rem",
+              marginBottom: "0.4rem",
             }}
           >
             All Users
@@ -159,12 +147,12 @@ function UsersPool({
             onChange={(e) => setAssignSearch(e.target.value)}
             style={{
               width: "100%",
-              padding: "0.45rem 0.75rem",
+              padding: "0.35rem 0.65rem",
               borderRadius: "7px",
               border: `1px solid ${colors.inputBorder}`,
               background: colors.inputBg,
               color: colors.textPrimary,
-              fontSize: "0.82rem",
+              fontSize: "0.72rem",
               outline: "none",
               boxSizing: "border-box",
             }}
@@ -173,10 +161,10 @@ function UsersPool({
 
         <div
           style={{
-            fontSize: "1.3rem",
+            fontSize: "0.95rem",
             fontWeight: "700",
             color: colors.textTertiary,
-            minWidth: "2.5rem",
+            minWidth: "2rem",
             textAlign: "right",
           }}
         >
@@ -188,18 +176,18 @@ function UsersPool({
       {selectedIds.size > 0 && selectedGroup && (
         <div
           style={{
-            padding: "0.5rem 1rem",
+            padding: "0.4rem 0.85rem",
             background: darkMode ? "#0f1a0f" : "#f0fff4",
             borderBottom: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
-            gap: "0.75rem",
+            gap: "0.5rem",
             flexShrink: 0,
           }}
         >
           <span
             style={{
-              fontSize: "0.8rem",
+              fontSize: "0.7rem",
               fontWeight: "600",
               color: colors.textSecondary,
             }}
@@ -209,12 +197,12 @@ function UsersPool({
           <button
             onClick={handleBulkAddClick}
             style={{
-              padding: "0.3rem 0.85rem",
+              padding: "0.22rem 0.65rem",
               borderRadius: "6px",
               border: "none",
               background: colors.btnPrimary,
               color: "#fff",
-              fontSize: "0.78rem",
+              fontSize: "0.65rem",
               fontWeight: "600",
               cursor: "pointer",
             }}
@@ -224,12 +212,12 @@ function UsersPool({
           <button
             onClick={() => setSelectedIds(new Set())}
             style={{
-              padding: "0.3rem 0.75rem",
+              padding: "0.22rem 0.55rem",
               borderRadius: "6px",
               border: `1px solid ${colors.cardBorder}`,
               background: "transparent",
               color: colors.textSecondary,
-              fontSize: "0.78rem",
+              fontSize: "0.65rem",
               cursor: "pointer",
             }}
           >
@@ -238,11 +226,11 @@ function UsersPool({
         </div>
       )}
 
-      {/* Drop hint — only visible when dragging a member */}
+      {/* Drop hint */}
       {isDraggingMember && (
         <div
           style={{
-            padding: "0.5rem 1rem",
+            padding: "0.4rem 0.85rem",
             background: isPoolDropTarget
               ? `${colors.btnDanger}18`
               : darkMode
@@ -251,7 +239,7 @@ function UsersPool({
             borderBottom: `1px solid ${
               isPoolDropTarget ? colors.btnDanger + "55" : colors.rowBorder
             }`,
-            fontSize: "0.75rem",
+            fontSize: "0.68rem",
             color: isPoolDropTarget ? colors.btnDanger : colors.textTertiary,
             display: "flex",
             alignItems: "center",
@@ -269,15 +257,15 @@ function UsersPool({
 
       {/* User rows */}
       <div style={{ flex: 1, overflowY: "auto" }}>
-        {/* Select all row — ADD THIS */}
+        {/* Select all row */}
         {poolUsers.length > 0 && selectedGroup && (
           <div
             style={{
-              padding: "0.45rem 1rem",
+              padding: "0.35rem 0.85rem",
               borderBottom: `1px solid ${colors.rowBorder}`,
               display: "flex",
               alignItems: "center",
-              gap: "0.75rem",
+              gap: "0.6rem",
               background: darkMode ? "#1a1a1a" : "#f9f9f9",
               position: "sticky",
               top: 0,
@@ -291,11 +279,11 @@ function UsersPool({
                 if (el) el.indeterminate = someChecked;
               }}
               onChange={toggleAll}
-              style={{ cursor: "pointer", width: "15px", height: "15px" }}
+              style={{ cursor: "pointer", width: "13px", height: "13px" }}
             />
             <span
               style={{
-                fontSize: "0.72rem",
+                fontSize: "0.62rem",
                 color: colors.textTertiary,
                 fontWeight: "600",
               }}
@@ -304,32 +292,33 @@ function UsersPool({
             </span>
           </div>
         )}
+
         {poolUsers.length === 0 ? (
           <div
             style={{
-              padding: "2.5rem",
+              padding: "2rem",
               textAlign: "center",
               color: colors.textTertiary,
-              fontSize: "0.85rem",
+              fontSize: "0.78rem",
             }}
           >
             {assignSearch ? (
               <>
-                <div style={{ fontSize: "1.5rem", marginBottom: "0.4rem" }}>
+                <div style={{ fontSize: "1.3rem", marginBottom: "0.4rem" }}>
                   🔍
                 </div>
                 No users match your search
               </>
             ) : selectedGroup ? (
               <>
-                <div style={{ fontSize: "1.5rem", marginBottom: "0.4rem" }}>
+                <div style={{ fontSize: "1.3rem", marginBottom: "0.4rem" }}>
                   ✅
                 </div>
                 All active users are in this group
               </>
             ) : (
               <>
-                <div style={{ fontSize: "1.5rem", marginBottom: "0.4rem" }}>
+                <div style={{ fontSize: "1.3rem", marginBottom: "0.4rem" }}>
                   👥
                 </div>
                 Select a group to see available users
@@ -348,8 +337,8 @@ function UsersPool({
                 displayName={displayName(user)}
                 isDraggingThis={isDraggingThis}
                 isAssigning={isAssigning}
-                isChecked={selectedIds.has(user.id)} // ← ADD
-                onToggle={() => toggleOne(user.id)} // ← ADD
+                isChecked={selectedIds.has(user.id)}
+                onToggle={() => toggleOne(user.id)}
                 selectedGroup={selectedGroup}
                 handleAssignUser={handleAssignUser}
                 handleDragStart={handleDragStart}
@@ -370,8 +359,8 @@ function PoolUserRow({
   displayName,
   isDraggingThis,
   isAssigning,
-  isChecked, // ← ADD
-  onToggle, // ← ADD
+  isChecked,
+  onToggle,
   selectedGroup,
   handleAssignUser,
   handleDragStart,
@@ -389,8 +378,8 @@ function PoolUserRow({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "0.75rem",
-        padding: "0.6rem 1rem",
+        gap: "0.5rem",
+        padding: "0.45rem 0.85rem",
         borderBottom: `1px solid ${colors.rowBorder}`,
         cursor: isAssigning ? "not-allowed" : "grab",
         opacity: isDraggingThis || isAssigning ? 0.45 : 1,
@@ -416,7 +405,7 @@ function PoolUserRow({
             type="checkbox"
             checked={isChecked || false}
             onChange={onToggle}
-            style={{ cursor: "pointer", width: "15px", height: "15px" }}
+            style={{ cursor: "pointer", width: "13px", height: "13px" }}
           />
         </div>
       )}
@@ -425,7 +414,7 @@ function PoolUserRow({
       <span
         style={{
           color: colors.textTertiary,
-          fontSize: "0.75rem",
+          fontSize: "0.65rem",
           flexShrink: 0,
           lineHeight: 1,
           cursor: "grab",
@@ -437,14 +426,14 @@ function PoolUserRow({
       {/* Avatar */}
       <div
         style={{
-          width: "30px",
-          height: "30px",
+          width: "24px",
+          height: "24px",
+          fontSize: "0.62rem",
           borderRadius: "50%",
           background: darkMode ? "#2a2a2a" : "#e5e5e5",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: "0.75rem",
           fontWeight: "700",
           color: colors.textSecondary,
           flexShrink: 0,
@@ -455,84 +444,83 @@ function PoolUserRow({
 
       {/* Name + email */}
       <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Name */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.4rem",
-            flexWrap: "wrap",
+            fontWeight: "600",
+            fontSize: "0.72rem",
+            color: colors.textPrimary,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
-          <span
-            style={{
-              fontWeight: "600",
-              fontSize: "0.83rem",
-              color: colors.textPrimary,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {displayName}
-          </span>
-          {/* access_request badge — shown when value is not null/empty */}
-          {user.access_request && (
-            <span
-              title={`Access request: ${user.access_request}`}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.25rem",
-                padding: "0.1rem 0.45rem",
-                borderRadius: "20px",
-                fontSize: "0.65rem",
-                fontWeight: "700",
-                letterSpacing: "0.03em",
-                background: darkMode ? "#2a1f00" : "#fef9ec",
-                color: "#f59e0b",
-                border: "1px solid #f59e0b44",
-                flexShrink: 0,
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span style={{ fontSize: "0.6rem" }}>📋</span>
-              {user.access_request}
-            </span>
-          )}
+          {displayName}
         </div>
+
+        {/* Username · email */}
         <div
           style={{
-            fontSize: "0.72rem",
+            fontSize: "0.62rem",
             color: colors.textTertiary,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
-            marginTop: "0.1rem",
+            marginTop: "0.08rem",
           }}
         >
           {user.username}
           {user.email ? ` · ${user.email}` : ""}
         </div>
+
+        {/* Access request badge — nakalagay sa sariling line */}
+        {user.access_request && (
+          <div
+            title={`Access request: ${user.access_request}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.2rem",
+              marginTop: "0.2rem",
+              padding: "0.08rem 0.45rem",
+              borderRadius: "20px",
+              fontSize: "0.58rem",
+              fontWeight: "700",
+              letterSpacing: "0.03em",
+              background: darkMode ? "#2a1f00" : "#fef9ec",
+              color: "#f59e0b",
+              border: "1px solid #f59e0b44",
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span style={{ fontSize: "0.55rem", flexShrink: 0 }}>📋</span>
+            {user.access_request}
+          </div>
+        )}
       </div>
 
-      {/* Add button — only shown when a group is selected */}
+      {/* Add button */}
       {selectedGroup && (
         <button
           disabled={isAssigning}
           onClick={() => handleAssignUser(user.id)}
           title={`Add to ${selectedGroup.name}`}
           style={{
-            padding: "0.3rem 0.7rem",
-            borderRadius: "6px",
+            padding: "0.22rem 0.55rem",
+            borderRadius: "5px",
             border: `1px solid ${colors.btnPrimary}`,
             background: "transparent",
             color: colors.btnPrimary,
-            fontSize: "0.75rem",
+            fontSize: "0.65rem",
             fontWeight: "700",
             cursor: isAssigning ? "not-allowed" : "pointer",
             flexShrink: 0,
             transition: "all 0.15s ease",
             opacity: isAssigning ? 0.5 : 1,
+            whiteSpace: "nowrap",
           }}
           onMouseEnter={(e) => {
             if (!isAssigning) {

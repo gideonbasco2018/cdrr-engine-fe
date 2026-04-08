@@ -25,7 +25,7 @@ function StatsCards({ groups, allUsers, colors, darkMode }) {
   return (
     <div
       style={{
-        padding: "1.25rem 2rem",
+        padding: "1rem 1rem",
         display: "grid",
         gridTemplateColumns: "repeat(3, 1fr)",
         gap: "1rem",
@@ -38,22 +38,23 @@ function StatsCards({ groups, allUsers, colors, darkMode }) {
             background: colors.cardBg,
             border: `1px solid ${colors.cardBorder}`,
             borderRadius: "12px",
-            padding: "1.1rem 1.25rem",
+            padding: "1rem 1rem",
             display: "flex",
             alignItems: "center",
             gap: "1rem",
+            maxHeight: "80%",
           }}
         >
           <div
             style={{
-              width: "42px",
-              height: "42px",
+              width: "29px",
+              height: "29px",
               borderRadius: "10px",
               background: darkMode ? `${stat.color}18` : `${stat.color}12`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "1.2rem",
+              fontSize: ".7rem",
             }}
           >
             {stat.icon}
@@ -61,7 +62,7 @@ function StatsCards({ groups, allUsers, colors, darkMode }) {
           <div>
             <div
               style={{
-                fontSize: "0.75rem",
+                fontSize: "0.7rem",
                 color: colors.textTertiary,
                 fontWeight: "600",
                 letterSpacing: "0.04em",
@@ -71,7 +72,7 @@ function StatsCards({ groups, allUsers, colors, darkMode }) {
             </div>
             <div
               style={{
-                fontSize: "1.5rem",
+                fontSize: ".7rem",
                 fontWeight: "700",
                 color: colors.textPrimary,
               }}

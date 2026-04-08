@@ -136,7 +136,7 @@ function DoctrackModal({ record, onClose, colors }) {
           <div>
             <h2
               style={{
-                fontSize: "1.5rem",
+                fontSize: "1.2rem",
                 fontWeight: "700",
                 color: colors.textPrimary,
                 margin: 0,

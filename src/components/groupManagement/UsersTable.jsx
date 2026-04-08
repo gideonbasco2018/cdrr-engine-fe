@@ -7,7 +7,7 @@ function UsersTable({
   actionLoading,
   handleRemoveUser,
   handleBulkRemove,
-  setShowAssignDropdown,
+  memberSearch,
   colors,
   darkMode,
   handleDragStart,
@@ -55,13 +55,12 @@ function UsersTable({
         minHeight: 0,
         overflow: "hidden",
       }}
-      onClick={() => setShowAssignDropdown(false)}
     >
       {/* Bulk action bar */}
       {selectedIds.size > 0 && (
         <div
           style={{
-            padding: "0.5rem 1.5rem",
+            padding: "0.5rem 1rem",
             background: darkMode ? "#1a1220" : "#fdf4ff",
             borderBottom: `1px solid ${colors.cardBorder}`,
             display: "flex",
@@ -72,7 +71,7 @@ function UsersTable({
         >
           <span
             style={{
-              fontSize: "0.8rem",
+              fontSize: "0.75rem",
               fontWeight: "600",
               color: colors.textSecondary,
             }}
@@ -83,12 +82,12 @@ function UsersTable({
             onClick={handleBulkRemoveClick}
             disabled={!!actionLoading}
             style={{
-              padding: "0.3rem 0.85rem",
+              padding: "0.25rem 0.65rem",
               borderRadius: "6px",
               border: "none",
               background: colors.btnDanger,
               color: "#fff",
-              fontSize: "0.78rem",
+              fontSize: "0.65rem",
               fontWeight: "600",
               cursor: actionLoading ? "not-allowed" : "pointer",
               opacity: actionLoading ? 0.6 : 1,
@@ -99,12 +98,12 @@ function UsersTable({
           <button
             onClick={() => setSelectedIds(new Set())}
             style={{
-              padding: "0.3rem 0.75rem",
+              padding: "0.25rem 0.65rem",
               borderRadius: "6px",
               border: `1px solid ${colors.cardBorder}`,
               background: "transparent",
               color: colors.textSecondary,
-              fontSize: "0.78rem",
+              fontSize: "0.65rem",
               cursor: "pointer",
             }}
           >
@@ -117,9 +116,9 @@ function UsersTable({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "32px 20px 36px 1fr 140px 100px 110px",
-          gap: "1rem",
-          padding: "0.7rem 1.5rem",
+          gridTemplateColumns: "28px 18px 30px 1fr 110px 80px 90px",
+          gap: "0.5rem",
+          padding: "0.5rem 1rem",
           background: darkMode ? "#1a1a1a" : "#f9f9f9",
           borderBottom: `1px solid ${colors.cardBorder}`,
           position: "sticky",
@@ -137,22 +136,29 @@ function UsersTable({
             }}
             onChange={toggleAll}
             disabled={groupUsers.length === 0}
-            style={{ cursor: "pointer", width: "15px", height: "15px" }}
+            style={{ cursor: "pointer", width: "14px", height: "14px" }}
           />
         </div>
-        {["", "", "Name / Email", "Username", "Status", "Action"].map((h) => (
+        {[
+          { key: "drag", label: "" },
+          { key: "avatar", label: "" },
+          { key: "name", label: "Name / Email" },
+          { key: "username", label: "Username" },
+          { key: "status", label: "Status" },
+          { key: "action", label: "Action" },
+        ].map(({ key, label }) => (
           <div
-            key={h}
+            key={key}
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.65rem",
               fontWeight: "700",
               color: colors.textTertiary,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
-              textAlign: h === "Action" ? "right" : "left",
+              textAlign: label === "Action" ? "right" : "left",
             }}
           >
-            {h}
+            {label}
           </div>
         ))}
       </div>
@@ -165,7 +171,7 @@ function UsersTable({
               padding: "2rem",
               textAlign: "center",
               color: colors.textTertiary,
-              fontSize: "0.85rem",
+              fontSize: "0.8rem",
             }}
           >
             Loading users...
@@ -173,43 +179,54 @@ function UsersTable({
         ) : groupUsers.length === 0 ? (
           <div style={{ padding: "2.5rem", textAlign: "center" }}>
             <div style={{ fontSize: "1.8rem", marginBottom: "0.4rem" }}>👤</div>
-            <div style={{ color: colors.textSecondary, fontSize: "0.85rem" }}>
+            <div style={{ color: colors.textSecondary, fontSize: "0.8rem" }}>
               No users in this group yet.
             </div>
             <div
               style={{
                 marginTop: "0.4rem",
                 color: colors.textTertiary,
-                fontSize: "0.78rem",
+                fontSize: "0.72rem",
               }}
             >
               Click "+ Add" or drag users from the center panel
             </div>
           </div>
         ) : (
-          groupUsers.map((user, i) => {
-            const isRemoving = actionLoading === `remove-${user.id}`;
-            const isDraggingThis = dragging?.userId === user.id;
-            const isChecked = selectedIds.has(user.id);
+          groupUsers
+            .filter((u) => {
+              if (!memberSearch?.trim()) return true;
+              const q = memberSearch.toLowerCase();
+              return (
+                (u.username || "").toLowerCase().includes(q) ||
+                (u.email || "").toLowerCase().includes(q) ||
+                (u.first_name || "").toLowerCase().includes(q) ||
+                (u.surname || "").toLowerCase().includes(q)
+              );
+            })
+            .map((user, i) => {
+              const isRemoving = actionLoading === `remove-${user.id}`;
+              const isDraggingThis = dragging?.userId === user.id;
+              const isChecked = selectedIds.has(user.id);
 
-            return (
-              <MemberRow
-                key={user.id}
-                user={user}
-                index={i}
-                isRemoving={isRemoving}
-                isDraggingThis={isDraggingThis}
-                isChecked={isChecked}
-                onToggle={() => toggleOne(user.id)}
-                selectedGroupId={selectedGroupId}
-                handleRemoveUser={handleRemoveUser}
-                handleDragStart={handleDragStart}
-                handleDragEnd={handleDragEnd}
-                colors={colors}
-                darkMode={darkMode}
-              />
-            );
-          })
+              return (
+                <MemberRow
+                  key={user.id}
+                  user={user}
+                  index={i}
+                  isRemoving={isRemoving}
+                  isDraggingThis={isDraggingThis}
+                  isChecked={isChecked}
+                  onToggle={() => toggleOne(user.id)}
+                  selectedGroupId={selectedGroupId}
+                  handleRemoveUser={handleRemoveUser}
+                  handleDragStart={handleDragStart}
+                  handleDragEnd={handleDragEnd}
+                  colors={colors}
+                  darkMode={darkMode}
+                />
+              );
+            })
         )}
       </div>
     </div>
@@ -241,10 +258,10 @@ function MemberRow({
       onDragEnd={handleDragEnd}
       style={{
         display: "grid",
-        gridTemplateColumns: "32px 20px 36px 1fr 140px 100px 110px",
+        gridTemplateColumns: "28px 18px 30px 1fr 110px 80px 90px",
         alignItems: "center",
-        gap: "1rem",
-        padding: "0.75rem 1.5rem",
+        gap: "0.5rem",
+        padding: "0.45rem 1rem",
         background: isDraggingThis
           ? `${colors.btnPrimary}0d`
           : isChecked
@@ -277,7 +294,7 @@ function MemberRow({
           type="checkbox"
           checked={isChecked}
           onChange={onToggle}
-          style={{ cursor: "pointer", width: "15px", height: "15px" }}
+          style={{ cursor: "pointer", width: "14px", height: "14px" }}
         />
       </div>
 
@@ -285,7 +302,7 @@ function MemberRow({
       <span
         style={{
           color: colors.textTertiary,
-          fontSize: "0.7rem",
+          fontSize: "0.65rem",
           lineHeight: 1,
           cursor: "grab",
         }}
@@ -296,35 +313,47 @@ function MemberRow({
       {/* Avatar */}
       <div
         style={{
-          width: "32px",
-          height: "32px",
+          width: "26px",
+          height: "26px",
           borderRadius: "50%",
           background: darkMode ? "#2a2a2a" : "#e5e5e5",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: "0.8rem",
+          fontSize: "0.68rem",
           fontWeight: "700",
           color: colors.textSecondary,
+          flexShrink: 0,
         }}
       >
         {(user.first_name || user.username || "?")[0].toUpperCase()}
       </div>
 
       {/* Name + email */}
-      <div>
+      <div style={{ minWidth: 0 }}>
         <div
           style={{
             fontWeight: "600",
-            fontSize: "0.88rem",
+            fontSize: "0.76rem",
             color: colors.textPrimary,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
           }}
         >
           {user.first_name && user.surname
             ? `${user.first_name} ${user.surname}`
             : user.username}
         </div>
-        <div style={{ fontSize: "0.75rem", color: colors.textTertiary }}>
+        <div
+          style={{
+            fontSize: "0.65rem",
+            color: colors.textTertiary,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
           {user.email || "—"}
         </div>
       </div>
@@ -332,9 +361,12 @@ function MemberRow({
       {/* Username */}
       <div
         style={{
-          fontSize: "0.83rem",
+          fontSize: "0.7rem",
           color: colors.textSecondary,
           fontFamily: "monospace",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
         }}
       >
         {user.username}
@@ -345,9 +377,9 @@ function MemberRow({
         <span
           style={{
             display: "inline-block",
-            padding: "0.18rem 0.6rem",
+            padding: "0.15rem 0.45rem",
             borderRadius: "20px",
-            fontSize: "0.72rem",
+            fontSize: "0.62rem",
             fontWeight: "600",
             background: user.is_active
               ? colors.badgeActive.bg
@@ -367,16 +399,17 @@ function MemberRow({
           disabled={isRemoving}
           onClick={() => handleRemoveUser(user.id, user.username)}
           style={{
-            padding: "0.38rem 0.85rem",
+            padding: "0.22rem 0.5rem",
             borderRadius: "6px",
             border: `1px solid ${colors.btnDanger}`,
             background: "transparent",
             color: colors.btnDanger,
-            fontSize: "0.78rem",
+            fontSize: "0.65rem",
             fontWeight: "600",
             cursor: isRemoving ? "not-allowed" : "pointer",
             opacity: isRemoving ? 0.5 : 1,
             transition: "all 0.15s",
+            whiteSpace: "nowrap",
           }}
           onMouseEnter={(e) => {
             if (!isRemoving) {
