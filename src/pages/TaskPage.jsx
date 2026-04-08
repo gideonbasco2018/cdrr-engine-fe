@@ -75,7 +75,7 @@ function SubTabBar({
     <div
       style={{
         display: "flex",
-        gap: "0.25rem",
+        gap: "0.1rem",
         borderBottom: `2px solid ${colors.cardBorder}`,
         flexShrink: 0,
       }}
@@ -361,7 +361,7 @@ function TaskPage({ darkMode }) {
           minWidth: 0,
           display: "flex",
           flexDirection: "column",
-          padding: "2rem",
+          padding: "1rem",
           gap: "0.75rem",
           overflow: "hidden",
         }}
@@ -369,7 +369,7 @@ function TaskPage({ darkMode }) {
         <div>
           <h1
             style={{
-              fontSize: "1.75rem",
+              fontSize: "1.1rem",
               fontWeight: "600",
               marginBottom: "0.5rem",
               color: colors.textPrimary,
