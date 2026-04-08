@@ -2028,7 +2028,7 @@ function DataTable({
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          height: "90%",
+          height: "100%",
           minHeight: 0,
         }}
       >
@@ -2052,7 +2052,7 @@ function DataTable({
           >
             <h3
               style={{
-                fontSize: "1rem",
+                fontSize: ".8rem",
                 fontWeight: 600,
                 color: colors.textPrimary,
               }}
@@ -2064,7 +2064,7 @@ function DataTable({
                 padding: "0.25rem 0.75rem",
                 background: colors.badgeBg,
                 borderRadius: 12,
-                fontSize: "0.8rem",
+                fontSize: "0.6rem",
                 color: colors.textTertiary,
                 fontWeight: 600,
               }}
@@ -2087,7 +2087,7 @@ function DataTable({
                   color: "#fff",
                   border: "none",
                   borderRadius: 8,
-                  fontSize: "0.8rem",
+                  fontSize: "0.6rem",
                   fontWeight: 700,
                   cursor: markingReceived ? "not-allowed" : "pointer",
                   boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
@@ -2262,7 +2262,7 @@ function DataTable({
             {sortBy && (
               <span
                 style={{
-                  fontSize: "0.73rem",
+                  fontSize: "0.6rem",
                   color: colors.textTertiary,
                   padding: "0.2rem 0.6rem",
                   background: colors.badgeBg,
@@ -2336,7 +2336,7 @@ function DataTable({
                   style={{
                     padding: "1rem",
                     textAlign: "center",
-                    fontSize: "0.8rem",
+                    fontSize: "0.6rem",
                     fontWeight: 600,
                     color: colors.textTertiary,
                     textTransform: "uppercase",
@@ -2359,7 +2359,7 @@ function DataTable({
                     style={{
                       padding: "1rem",
                       textAlign: "left",
-                      fontSize: "0.8rem",
+                      fontSize: "0.6rem",
                       fontWeight: 600,
                       color: col.complianceOnly
                         ? "#f59e0b"
@@ -2426,7 +2426,7 @@ function DataTable({
                   style={{
                     padding: "1rem",
                     textAlign: "center",
-                    fontSize: "0.8rem",
+                    fontSize: "0.6rem",
                     fontWeight: 600,
                     color: colors.textTertiary,
                     textTransform: "uppercase",

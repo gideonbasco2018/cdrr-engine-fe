@@ -81,8 +81,8 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
           onClick={() => setIsSidebarOpen(true)}
           title="Show Quick Filters"
           style={{
-            width: "28px",
-            height: "28px",
+            width: "30px",
+            height: "30px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -179,8 +179,8 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
   return (
     <div
       style={{
-        width: "260px",
-        minWidth: "260px",
+        width: "190px",
+        minWidth: "190px",
         background: darkMode ? "#0a0a0a" : "#ffffff",
         borderRight: `1px solid ${colors.cardBorder}`,
         display: "flex",
@@ -207,7 +207,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
           <span style={{ fontSize: "1.25rem" }}>⚡</span>
           <h2
             style={{
-              fontSize: "1.1rem",
+              fontSize: ".88rem",
               fontWeight: "700",
               color: colors.textPrimary,
               margin: 0,
@@ -267,7 +267,6 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
               fontSize: "0.75rem",
               fontWeight: "600",
               color: colors.textTertiary,
-              textTransform: "uppercase",
               letterSpacing: "0.06em",
               marginBottom: "0.4rem",
               marginTop: 0,
@@ -283,7 +282,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
                 top: "50%",
                 transform: "translateY(-50%)",
                 color: colors.textTertiary,
-                fontSize: "0.85rem",
+                fontSize: "0.65rem",
                 pointerEvents: "none",
               }}
             >
@@ -303,7 +302,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
                 border: `1px solid ${colors.inputBorder}`,
                 borderRadius: "8px",
                 color: colors.textPrimary,
-                fontSize: "0.82rem",
+                fontSize: "0.65rem",
                 boxSizing: "border-box",
                 outline: "none",
                 transition: "border-color 0.2s",

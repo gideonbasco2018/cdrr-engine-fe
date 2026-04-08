@@ -37,7 +37,7 @@ function SidebarSection({
       >
         <div
           style={{
-            fontSize: "14px",
+            fontSize: "10px",
             fontWeight: "600",
             display: "flex",
             alignItems: "center",
@@ -52,7 +52,7 @@ function SidebarSection({
               background: darkMode ? "#1f1f1f" : "#e5e5e5",
               padding: "4px 10px",
               borderRadius: "6px",
-              fontSize: "12px",
+              fontSize: "10px",
               fontWeight: "600",
               fontFamily: "monospace",
               color: colors.textTertiary,
@@ -96,7 +96,7 @@ function SidebarSection({
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              fontSize: "13px",
+              fontSize: "9px",
             }}
             onMouseEnter={(e) => {
               if (activeItem !== null) {
@@ -123,7 +123,7 @@ function SidebarSection({
                 color: activeItem === null ? "#fff" : colors.textTertiary,
                 padding: "3px 8px",
                 borderRadius: "5px",
-                fontSize: "11px",
+                fontSize: "9px",
                 fontWeight: "600",
                 fontFamily: "monospace",
               }}
@@ -149,7 +149,7 @@ function SidebarSection({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  fontSize: "13px",
+                  fontSize: "9px",
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
