@@ -135,7 +135,7 @@ function LoginPage() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#000",
+        background: "#020202",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -898,9 +898,10 @@ function LoginPage() {
                       marginBottom: "6px",
                     }}
                   >
-                    CDRR Reports &<br />
+                    Reports &{" "}
                     <span style={{ color: "#4CAF50" }}>
-                      Application Tracking
+                      Application <br />
+                      Tracking
                     </span>
                   </div>
                   <div
@@ -941,9 +942,10 @@ function LoginPage() {
                       marginBottom: "8px",
                     }}
                   >
-                    Monitoring &<br />
+                    Monitoring &{" "}
                     <span style={{ color: "#4CAF50" }}>
-                      Workflow Management
+                      Workflow <br />
+                      Management
                     </span>
                   </div>
                   <div

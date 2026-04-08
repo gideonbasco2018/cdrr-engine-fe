@@ -858,7 +858,7 @@ function UserManagementPage({ darkMode, userRole }) {
         background: c.pageBg,
         color: c.textPrimary,
         overflow: "auto",
-        padding: "2rem",
+        padding: "1rem",
       }}
     >
       <style>{`
@@ -1271,11 +1271,11 @@ function UserManagementPage({ darkMode, userRole }) {
       )}
 
       {/* ── Header ── */}
-      <div style={{ marginBottom: "1.5rem" }}>
+      <div style={{ marginBottom: ".5rem" }}>
         <h1
           style={{
             margin: 0,
-            fontSize: "1.6rem",
+            fontSize: "1.15rem",
             fontWeight: 700,
             color: c.textPrimary,
           }}
@@ -1286,7 +1286,7 @@ function UserManagementPage({ darkMode, userRole }) {
           style={{
             margin: "0.3rem 0 0",
             color: c.textSecondary,
-            fontSize: "0.88rem",
+            fontSize: "0.8rem",
           }}
         >
           Manage user accounts — approve, activate, or deactivate registrations.
@@ -1298,8 +1298,8 @@ function UserManagementPage({ darkMode, userRole }) {
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(3,1fr)",
-          gap: "1rem",
-          marginBottom: "1.5rem",
+          gap: ".8rem",
+          marginBottom: "0.8rem",
         }}
       >
         {[

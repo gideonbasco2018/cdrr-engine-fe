@@ -1,4 +1,4 @@
-// FILE: src/components/groupManagement/MenuPermissionsTab.jsx
+const MAX_VISIBLE_GROUPS = 5;
 
 function MenuPermissionsTab({
   menuByCategory,
@@ -8,16 +8,16 @@ function MenuPermissionsTab({
   darkMode,
 }) {
   return (
-    <div style={{ flex: 1, padding: "1.5rem 2rem 2rem", overflow: "auto" }}>
+    <div style={{ flex: 1, padding: "0.75rem 1rem 1rem", overflow: "auto" }}>
       {Object.entries(menuByCategory).map(([category, items]) => (
-        <div key={category} style={{ marginBottom: "2rem" }}>
+        <div key={category} style={{ marginBottom: "1.5rem" }}>
           <h3
             style={{
-              margin: "0 0 1rem",
-              fontSize: "0.85rem",
-              fontWeight: "700",
+              margin: "0 0 8px",
+              fontSize: "11px",
+              fontWeight: "500",
               color: colors.textTertiary,
-              letterSpacing: "0.1em",
+              letterSpacing: "0.08em",
               textTransform: "uppercase",
             }}
           >
@@ -27,110 +27,155 @@ function MenuPermissionsTab({
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: "1rem",
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: "8px",
             }}
           >
-            {items.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  background: colors.cardBg,
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "12px",
-                  padding: "1.25rem",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-                onClick={() =>
-                  setMenuPermissionsModal({
-                    menuId: item.id,
-                    label: item.label,
-                    icon: item.icon,
-                    selectedGroups: item.allowedGroups || [],
-                  })
-                }
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = colors.btnPrimary;
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = colors.cardBorder;
-                  e.currentTarget.style.transform = "translateY(0)";
-                }}
-              >
+            {items.map((item) => {
+              const allowed = item.allowedGroups || [];
+              const visible = allowed.slice(0, MAX_VISIBLE_GROUPS);
+              const overflow = allowed.length - MAX_VISIBLE_GROUPS;
+
+              return (
                 <div
+                  key={item.id}
+                  onClick={() =>
+                    setMenuPermissionsModal({
+                      menuId: item.id,
+                      label: item.label,
+                      icon: item.icon,
+                      selectedGroups: allowed,
+                    })
+                  }
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = colors.borderPrimary;
+                    e.currentTarget.style.transform = "translateY(-1px)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = colors.cardBorder;
+                    e.currentTarget.style.transform = "translateY(0)";
+                  }}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.75rem",
-                    marginBottom: "0.75rem",
+                    background: colors.cardBg,
+                    border: `0.5px solid ${colors.cardBorder}`,
+                    borderRadius: "12px",
+                    padding: "12px 14px",
+                    cursor: "pointer",
+                    transition: "border-color 0.15s, transform 0.15s",
                   }}
                 >
-                  <span style={{ fontSize: "1.5rem" }}>{item.icon}</span>
-                  <div style={{ flex: 1 }}>
+                  {/* Header */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginBottom: "10px",
+                    }}
+                  >
                     <div
                       style={{
-                        fontWeight: "600",
-                        fontSize: "0.95rem",
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "7px",
+                        background: darkMode ? "#2a2a2a" : "#f4f4f4",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "14px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {item.icon}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: "500",
                         color: colors.textPrimary,
+                        lineHeight: 1.2,
                       }}
                     >
                       {item.label}
-                    </div>
+                    </span>
+                  </div>
+
+                  {/* Divider */}
+                  <div
+                    style={{
+                      height: "0.5px",
+                      background: colors.cardBorder,
+                      marginBottom: "9px",
+                    }}
+                  />
+
+                  {/* Groups */}
+                  <div
+                    style={{
+                      fontSize: "11px",
+                      color: colors.textTertiary,
+                      marginBottom: "6px",
+                    }}
+                  >
+                    Allowed groups
+                  </div>
+
+                  <div
+                    style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}
+                  >
+                    {allowed.length > 0 ? (
+                      <>
+                        {visible.map((groupId) => {
+                          const group = groups.find((g) => g.id === groupId);
+                          return group ? (
+                            <span
+                              key={groupId}
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: "500",
+                                padding: "3px 8px",
+                                borderRadius: "20px",
+                                background: darkMode ? "#2a2a2a" : "#f4f4f4",
+                                color: colors.textSecondary,
+                                border: `0.5px solid ${colors.cardBorder}`,
+                                lineHeight: 1.4,
+                              }}
+                            >
+                              {group.name}
+                            </span>
+                          ) : null;
+                        })}
+                        {overflow > 0 && (
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "500",
+                              padding: "3px 8px",
+                              borderRadius: "20px",
+                              background: colors.infoBg,
+                              color: colors.infoText,
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            +{overflow} more
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: "11px",
+                          color: colors.textTertiary,
+                          fontStyle: "italic",
+                        }}
+                      >
+                        No groups assigned
+                      </span>
+                    )}
                   </div>
                 </div>
-
-                <div
-                  style={{
-                    fontSize: "0.75rem",
-                    color: colors.textTertiary,
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  Allowed Groups:
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "0.4rem",
-                  }}
-                >
-                  {item.allowedGroups && item.allowedGroups.length > 0 ? (
-                    item.allowedGroups.map((groupId) => {
-                      const group = groups.find((g) => g.id === groupId);
-                      return group ? (
-                        <span
-                          key={groupId}
-                          style={{
-                            padding: "0.25rem 0.6rem",
-                            borderRadius: "12px",
-                            background: darkMode ? "#2a2a2a" : "#f0f0f0",
-                            color: colors.textSecondary,
-                            fontSize: "0.75rem",
-                            fontWeight: "500",
-                          }}
-                        >
-                          {group.name}
-                        </span>
-                      ) : null;
-                    })
-                  ) : (
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        color: colors.textTertiary,
-                        fontStyle: "italic",
-                      }}
-                    >
-                      No groups assigned
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ))}

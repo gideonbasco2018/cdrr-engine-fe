@@ -191,11 +191,11 @@ function Sidebar({
         {!isCollapsed && (
           <div
             style={{
-              padding: "0 1.25rem",
+              padding: "0 1rem",
               fontSize: "0.7rem",
-              fontWeight: "600",
+              fontWeight: "700",
               color: colors.sectionLabel,
-              marginBottom: "0.5rem",
+              marginBottom: "0.3rem",
             }}
           >
             {title}
@@ -217,7 +217,7 @@ function Sidebar({
   };
 
   // ── SIDEBAR WIDTH ─────────────────────────────────────────────────────────
-  const sidebarWidth = isMobile ? "260px" : collapsed ? "64px" : "200px";
+  const sidebarWidth = isMobile ? "240px" : collapsed ? "64px" : "200px";
 
   // ── MOBILE: render overlay drawer ─────────────────────────────────────────
   if (isMobile) {
@@ -385,7 +385,7 @@ function Sidebar({
       >
         <div
           style={{
-            padding: "1rem",
+            padding: ".7rem",
             borderBottom: `1px solid ${colors.sidebarBorder}`,
             textAlign: collapsed ? "center" : "left",
           }}
@@ -394,7 +394,7 @@ function Sidebar({
             <img
               src="/images/FDALogo.png"
               alt="FDA Logo"
-              style={{ height: "40px", width: "auto", objectFit: "contain" }}
+              style={{ height: "50px", width: "auto", objectFit: "contain" }}
             />
           )}
         </div>
@@ -409,7 +409,7 @@ function Sidebar({
 
         <div
           style={{
-            padding: "0.75rem",
+            padding: "0.5rem",
             borderTop: `1px solid ${colors.sidebarBorder}`,
             display: "flex",
             justifyContent: "center",
@@ -418,8 +418,8 @@ function Sidebar({
           <button
             onClick={() => setCollapsed(!collapsed)}
             style={{
-              width: "36px",
-              height: "36px",
+              width: "30px",
+              height: "30px",
               borderRadius: "8px",
               border: "none",
               background: colors.toggleBg,

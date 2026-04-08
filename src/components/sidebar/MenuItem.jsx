@@ -20,8 +20,8 @@ function MenuItem({
         display: "flex",
         alignItems: "center",
         justifyContent: collapsed ? "center" : "space-between",
-        gap: collapsed ? 0 : "0.75rem",
-        padding: collapsed ? "0.75rem" : "0.75rem 1.25rem",
+        gap: collapsed ? 0 : "0.5rem",
+        padding: collapsed ? "0.5rem" : "0.5rem 1.25rem",
         cursor: isDisabled ? "not-allowed" : "pointer",
         background:
           activeMenu === item.id ? colors.activeItemBg : "transparent",
@@ -72,7 +72,7 @@ function MenuItem({
             background: colors.comingSoonBg,
             color: colors.comingSoonText,
             borderRadius: "10px",
-            fontSize: "0.65rem",
+            fontSize: "0.5rem",
             fontWeight: "600",
             letterSpacing: "0.02em",
           }}

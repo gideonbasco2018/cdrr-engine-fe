@@ -16,7 +16,7 @@ function GroupHeader({
         background: colors.cardBg,
         border: `1px solid ${colors.cardBorder}`,
         borderRadius: "14px 14px 0 0",
-        padding: "1.25rem 1.5rem",
+        padding: ".25rem .5rem",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -26,7 +26,7 @@ function GroupHeader({
         <h2
           style={{
             margin: 0,
-            fontSize: "1.2rem",
+            fontSize: "0.95rem",
             fontWeight: "700",
             color: colors.textPrimary,
           }}
@@ -37,7 +37,7 @@ function GroupHeader({
           style={{
             margin: "0.25rem 0 0",
             color: colors.textTertiary,
-            fontSize: "0.82rem",
+            fontSize: "0.72rem",
           }}
         >
           {selectedGroup.description || "No description"}
@@ -65,12 +65,12 @@ function GroupHeader({
             })
           }
           style={{
-            padding: "0.45rem 0.9rem",
+            padding: "0.3rem 0.65rem",
             borderRadius: "7px",
             border: `1px solid ${colors.btnGhostBorder}`,
             background: colors.btnGhost,
             color: colors.btnGhostText,
-            fontSize: "0.8rem",
+            fontSize: "0.72rem",
             cursor: "pointer",
           }}
         >
@@ -88,12 +88,12 @@ function GroupHeader({
               })
             }
             style={{
-              padding: "0.45rem 0.9rem",
+              padding: "0.3rem 0.65rem",
+              fontSize: "0.72rem",
               borderRadius: "7px",
               border: "none",
               background: darkMode ? "#2a1a1a" : "#fef2f2",
               color: colors.btnDanger,
-              fontSize: "0.8rem",
               cursor: "pointer",
               fontWeight: "600",
             }}

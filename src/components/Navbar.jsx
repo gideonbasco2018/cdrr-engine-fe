@@ -100,7 +100,7 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
   return (
     <div
       style={{
-        height: "70px",
+        height: "55px",
         background: colors.navbarBg,
         borderBottom: `1px solid ${colors.navbarBorder}`,
         display: "flex",
@@ -179,7 +179,7 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
             <div style={{ textAlign: "right" }}>
               <div
                 style={{
-                  fontSize: "0.9rem",
+                  fontSize: "0.8rem",
                   fontWeight: "500",
                   color: colors.textPrimary,
                   transition: "color 0.3s ease",
@@ -190,7 +190,7 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
               </div>
               <div
                 style={{
-                  fontSize: "0.7rem",
+                  fontSize: "0.6rem",
                   fontWeight: "600",
                   color: roleBadgeColors[userRole]?.text || "#4CAF50",
                   marginTop: "0.15rem",
