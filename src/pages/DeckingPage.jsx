@@ -12,22 +12,12 @@ import {
   updateUploadReport,
 } from "../api/reports";
 
-import StatsCard from "../components/reports/StatsCard";
 import FilterBar from "../components/reports/FilterBar";
 import UploadButton from "../components/reports/UploadButton";
 import UploadProgress from "../components/reports/UploadProgress";
 import DataTable from "../components/reports/DataTable";
 import EditRecordModal from "../components/reports/actions/EditRecordModal";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
-
-// ✅ Modern scrollbar styles
-const scrollbarStyles = (darkMode) => `
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: ${darkMode ? "#0a0a0a" : "#f1f1f1"}; border-radius: 10px; }
-  ::-webkit-scrollbar-thumb { background: ${darkMode ? "#404040" : "#c1c1c1"}; border-radius: 10px; transition: background 0.2s ease; }
-  ::-webkit-scrollbar-thumb:hover { background: ${darkMode ? "#606060" : "#a0a0a0"}; }
-  * { scrollbar-width: thin; scrollbar-color: ${darkMode ? "#404040 #0a0a0a" : "#c1c1c1 #f1f1f1"}; }
-`;
 
 /* ================================================================== */
 /*  SidebarSection                                                      */
@@ -52,13 +42,13 @@ function SidebarSection({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 16px",
+          padding: "8px 12px",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "10px",
+          borderRadius: "8px",
           cursor: "pointer",
           transition: "all 0.2s ease",
-          marginBottom: "12px",
+          marginBottom: "6px",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#f0f0f0";
@@ -69,22 +59,22 @@ function SidebarSection({
       >
         <div
           style={{
-            fontSize: "14px",
+            fontSize: "0.72rem",
             fontWeight: "600",
             display: "flex",
             alignItems: "center",
-            gap: "10px",
+            gap: "6px",
             color: colors.textPrimary,
           }}
         >
-          <span>{icon}</span>
+          <span style={{ fontSize: "0.8rem" }}>{icon}</span>
           <span>{title}</span>
           <span
             style={{
               background: darkMode ? "#1f1f1f" : "#e5e5e5",
-              padding: "4px 10px",
-              borderRadius: "6px",
-              fontSize: "12px",
+              padding: "2px 7px",
+              borderRadius: "5px",
+              fontSize: "0.68rem",
               fontWeight: "600",
               fontFamily: "monospace",
               color: colors.textTertiary,
@@ -98,7 +88,7 @@ function SidebarSection({
             color: colors.textTertiary,
             transition: "transform 0.2s",
             transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
-            fontSize: "10px",
+            fontSize: "0.6rem",
           }}
         >
           ▼
@@ -108,27 +98,27 @@ function SidebarSection({
       {isOpen && (
         <div
           style={{
-            paddingLeft: "12px",
+            paddingLeft: "8px",
             display: "flex",
             flexDirection: "column",
-            gap: "6px",
+            gap: "4px",
           }}
         >
           {/* "All" Option */}
           <div
             onClick={() => onItemClick(null)}
             style={{
-              padding: "10px 16px",
+              padding: "7px 12px",
               background:
                 activeItem === null ? "rgba(33,150,243,0.1)" : "transparent",
               border: `1px solid ${activeItem === null ? "#2196F3" : "transparent"}`,
-              borderRadius: "8px",
+              borderRadius: "6px",
               cursor: "pointer",
               transition: "all 0.2s ease",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              fontSize: "13px",
+              fontSize: "0.72rem",
             }}
             onMouseEnter={(e) => {
               if (activeItem !== null) {
@@ -143,7 +133,9 @@ function SidebarSection({
               }
             }}
           >
-            <span style={{ color: colors.textPrimary }}>All {title}</span>
+            <span style={{ color: colors.textPrimary, fontWeight: 500 }}>
+              All {title}
+            </span>
             <span
               style={{
                 background:
@@ -153,9 +145,9 @@ function SidebarSection({
                       ? "#1f1f1f"
                       : "#e5e5e5",
                 color: activeItem === null ? "#fff" : colors.textTertiary,
-                padding: "3px 8px",
-                borderRadius: "5px",
-                fontSize: "11px",
+                padding: "2px 7px",
+                borderRadius: "4px",
+                fontSize: "0.68rem",
                 fontWeight: "600",
                 fontFamily: "monospace",
               }}
@@ -174,16 +166,17 @@ function SidebarSection({
                 key={filterValue || `no-${title}`}
                 onClick={() => onItemClick(filterValue)}
                 style={{
-                  padding: "10px 16px",
+                  padding: "7px 12px",
                   background: isActive ? "rgba(33,150,243,0.1)" : "transparent",
                   border: `1px solid ${isActive ? "#2196F3" : "transparent"}`,
-                  borderRadius: "8px",
+                  borderRadius: "6px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  fontSize: "13px",
+                  gap: "6px",
+                  fontSize: "0.72rem",
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
@@ -204,7 +197,8 @@ function SidebarSection({
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
-                    maxWidth: "130px",
+                    flex: 1,
+                    minWidth: 0,
                   }}
                 >
                   {displayValue}
@@ -217,9 +211,9 @@ function SidebarSection({
                         ? "#1f1f1f"
                         : "#e5e5e5",
                     color: isActive ? "#fff" : colors.textTertiary,
-                    padding: "3px 8px",
-                    borderRadius: "5px",
-                    fontSize: "11px",
+                    padding: "2px 7px",
+                    borderRadius: "4px",
+                    fontSize: "0.68rem",
                     fontWeight: "600",
                     fontFamily: "monospace",
                     flexShrink: 0,
@@ -249,7 +243,6 @@ function ActiveFiltersBar({
   colors,
 }) {
   const chips = [];
-
   if (subTab !== null)
     chips.push({
       key: "subTab",
@@ -270,7 +263,6 @@ function ActiveFiltersBar({
       key: "processingTypeTab",
       label: `Processing Type: ${processingTypeTab === "" ? "None" : processingTypeTab}`,
     });
-
   if (chips.length === 0) return null;
 
   return (
@@ -280,12 +272,12 @@ function ActiveFiltersBar({
         alignItems: "center",
         gap: "0.5rem",
         flexWrap: "wrap",
-        marginBottom: "1rem",
+        marginBottom: "0.75rem",
       }}
     >
       <span
         style={{
-          fontSize: "0.78rem",
+          fontSize: "0.72rem",
           color: colors.textTertiary,
           fontWeight: "500",
           whiteSpace: "nowrap",
@@ -293,7 +285,6 @@ function ActiveFiltersBar({
       >
         Active filters:
       </span>
-
       {chips.map((chip) => (
         <span
           key={chip.key}
@@ -301,11 +292,11 @@ function ActiveFiltersBar({
             display: "inline-flex",
             alignItems: "center",
             gap: "0.4rem",
-            padding: "0.3rem 0.75rem",
+            padding: "0.2rem 0.65rem",
             background: "rgba(33,150,243,0.12)",
             border: "1px solid rgba(33,150,243,0.35)",
             borderRadius: "20px",
-            fontSize: "0.78rem",
+            fontSize: "0.72rem",
             color: "#2196F3",
             fontWeight: "500",
             whiteSpace: "nowrap",
@@ -319,7 +310,7 @@ function ActiveFiltersBar({
               border: "none",
               cursor: "pointer",
               color: "#2196F3",
-              fontSize: "0.75rem",
+              fontSize: "0.68rem",
               padding: "0",
               lineHeight: 1,
               display: "flex",
@@ -334,7 +325,6 @@ function ActiveFiltersBar({
           </button>
         </span>
       ))}
-
       <button
         onClick={onClearAll}
         style={{
@@ -342,7 +332,7 @@ function ActiveFiltersBar({
           border: "none",
           cursor: "pointer",
           color: "#ef4444",
-          fontSize: "0.78rem",
+          fontSize: "0.72rem",
           fontWeight: "600",
           padding: "0 0.25rem",
           transition: "opacity 0.15s",
@@ -377,13 +367,11 @@ function DeckingPage({ darkMode }) {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
-
   const [activeTab, setActiveTab] = useState("all");
   const [subTab, setSubTab] = useState(null);
   const [prescriptionTab, setPrescriptionTab] = useState(null);
   const [appStatusTab, setAppStatusTab] = useState(null);
   const [processingTypeTab, setProcessingTypeTab] = useState(null);
-
   const [availableAppTypes, setAvailableAppTypes] = useState([]);
   const [availablePrescriptionTypes, setAvailablePrescriptionTypes] = useState(
     [],
@@ -392,39 +380,19 @@ function DeckingPage({ darkMode }) {
   const [availableProcessingTypes, setAvailableProcessingTypes] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [exporting, setExporting] = useState(false);
-
   const [editingRecord, setEditingRecord] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
   const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
   const [sortOrder, setSortOrder] = useState("desc");
 
   const colors = getColorScheme(darkMode);
 
-  // Active filter count for badge
   const activeFilterCount =
     (subTab !== null ? 1 : 0) +
     (prescriptionTab !== null ? 1 : 0) +
     (appStatusTab !== null ? 1 : 0) +
     (processingTypeTab !== null ? 1 : 0);
 
-  // Inject scrollbar styles
-  useEffect(() => {
-    const styleId = "custom-scrollbar-styles";
-    let styleElement = document.getElementById(styleId);
-    if (!styleElement) {
-      styleElement = document.createElement("style");
-      styleElement.id = styleId;
-      document.head.appendChild(styleElement);
-    }
-    styleElement.textContent = scrollbarStyles(darkMode);
-    return () => {
-      const element = document.getElementById(styleId);
-      if (element) element.remove();
-    };
-  }, [darkMode]);
-
-  // Get current logged-in user
   useEffect(() => {
     let username = null;
     const userStr =
@@ -437,14 +405,12 @@ function DeckingPage({ darkMode }) {
         username = userStr;
       }
     }
-    if (!username) {
+    if (!username)
       username =
         localStorage.getItem("username") || sessionStorage.getItem("username");
-    }
     setCurrentUser(username || "Unknown User");
   }, []);
 
-  // Fetch stats
   useEffect(() => {
     const fetchStats = async () => {
       try {
@@ -486,9 +452,8 @@ function DeckingPage({ darkMode }) {
     fetchStats();
   }, []);
 
-  // Fetch Processing Types — filtered by all active sidebar filters
   useEffect(() => {
-    const fetchProcessingTypes = async () => {
+    const fetch = async () => {
       try {
         let status = null;
         if (activeTab === "not-decked") status = "not_decked";
@@ -505,12 +470,11 @@ function DeckingPage({ darkMode }) {
         setAvailableProcessingTypes([]);
       }
     };
-    fetchProcessingTypes();
+    fetch();
   }, [activeTab, subTab, prescriptionTab, appStatusTab]);
 
-  // Fetch App Types — filtered by processingTypeTab
   useEffect(() => {
-    const fetchAppTypes = async () => {
+    const fetch = async () => {
       try {
         let status = null;
         if (activeTab === "not-decked") status = "not_decked";
@@ -520,12 +484,11 @@ function DeckingPage({ darkMode }) {
         setAvailableAppTypes([]);
       }
     };
-    fetchAppTypes();
+    fetch();
   }, [activeTab, processingTypeTab]);
 
-  // Fetch Prescription Types — filtered by processingTypeTab + subTab
   useEffect(() => {
-    const fetchPrescriptionTypes = async () => {
+    const fetch = async () => {
       try {
         let status = null;
         if (activeTab === "not-decked") status = "not_decked";
@@ -537,12 +500,11 @@ function DeckingPage({ darkMode }) {
         setAvailablePrescriptionTypes([]);
       }
     };
-    fetchPrescriptionTypes();
+    fetch();
   }, [activeTab, subTab, processingTypeTab]);
 
-  // Fetch App Status Types — filtered by processingTypeTab + subTab + prescriptionTab
   useEffect(() => {
-    const fetchAppStatusTypes = async () => {
+    const fetch = async () => {
       try {
         let status = null;
         if (activeTab === "not-decked") status = "not_decked";
@@ -559,7 +521,7 @@ function DeckingPage({ darkMode }) {
         setAvailableAppStatusTypes([]);
       }
     };
-    fetchAppStatusTypes();
+    fetch();
   }, [activeTab, subTab, prescriptionTab, processingTypeTab]);
 
   const getStatusFilter = () => {
@@ -591,7 +553,6 @@ function DeckingPage({ darkMode }) {
     return params;
   };
 
-  // Main data fetch
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -621,7 +582,6 @@ function DeckingPage({ darkMode }) {
         if (processingTypeTab !== null)
           params.processing_type =
             processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
-
         const json = await getUploadReports(params);
         if (!json || !json.data || !Array.isArray(json.data)) {
           setUploadReportsData([]);
@@ -694,11 +654,9 @@ function DeckingPage({ darkMode }) {
         notDecked: notDeckedData.total || 0,
         decked: deckedData.total || 0,
       });
-
       let status = null;
       if (activeTab === "not-decked") status = "not_decked";
       else if (activeTab === "decked") status = "decked";
-
       const [processingTypes, appTypes, prescriptionTypes, appStatusTypes] =
         await Promise.all([
           getProcessingTypes(status, subTab, prescriptionTab, appStatusTab),
@@ -710,7 +668,6 @@ function DeckingPage({ darkMode }) {
       setAvailableAppTypes(appTypes);
       setAvailablePrescriptionTypes(prescriptionTypes);
       setAvailableAppStatusTypes(appStatusTypes);
-
       const params = {
         page: currentPage,
         pageSize: rowsPerPage,
@@ -730,7 +687,6 @@ function DeckingPage({ darkMode }) {
       if (processingTypeTab !== null)
         params.processing_type =
           processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
-
       const json = await getUploadReports(params);
       if (json && json.data) {
         const mappedData = json.data.map(mapDataItem);
@@ -802,12 +758,10 @@ function DeckingPage({ darkMode }) {
     selectedRows.length === filteredData.length
       ? setSelectedRows([])
       : setSelectedRows(filteredData.map((row) => row.id));
-
   const handleSelectRow = (id) =>
     selectedRows.includes(id)
       ? setSelectedRows(selectedRows.filter((r) => r !== id))
       : setSelectedRows([...selectedRows, id]);
-
   const clearSelections = () => setSelectedRows([]);
 
   const handlePageChange = (newPage) => {
@@ -816,14 +770,12 @@ function DeckingPage({ darkMode }) {
       setSelectedRows([]);
     }
   };
-
   const handleRowsPerPageChange = (e) => {
     const n = Math.min(Number(e.target.value), 100);
     setRowsPerPage(n);
     setCurrentPage(1);
     setSelectedRows([]);
   };
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
@@ -833,7 +785,6 @@ function DeckingPage({ darkMode }) {
     setAppStatusTab(null);
     setProcessingTypeTab(null);
   };
-
   const handleSubTabChange = (value) => {
     setSubTab(value);
     setCurrentPage(1);
@@ -841,33 +792,27 @@ function DeckingPage({ darkMode }) {
     setPrescriptionTab(null);
     setAppStatusTab(null);
   };
-
   const handlePrescriptionTabChange = (value) => {
     setPrescriptionTab(value);
     setCurrentPage(1);
     setSelectedRows([]);
     setAppStatusTab(null);
   };
-
   const handleAppStatusTabChange = (value) => {
     setAppStatusTab(value);
     setCurrentPage(1);
     setSelectedRows([]);
   };
-
   const handleProcessingTypeTabChange = (value) => {
     setProcessingTypeTab(value);
     setCurrentPage(1);
     setSelectedRows([]);
   };
-
   const handleSort = (dbKey, order) => {
     setSortBy(dbKey);
     setSortOrder(order);
     setCurrentPage(1);
   };
-
-  // ✅ Clear all sidebar quick filters
   const handleClearFilters = () => {
     setSubTab(null);
     setPrescriptionTab(null);
@@ -876,8 +821,6 @@ function DeckingPage({ darkMode }) {
     setCurrentPage(1);
     setSelectedRows([]);
   };
-
-  // ✅ Remove a single filter chip (with cascade)
   const handleRemoveFilter = (key) => {
     if (key === "subTab") {
       setSubTab(null);
@@ -941,16 +884,14 @@ function DeckingPage({ darkMode }) {
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      {/* ══════════════════════════════════════
-          SIDEBAR
-      ══════════════════════════════════════ */}
+      {/* ══════ SIDEBAR ══════ */}
       <div
         style={{
-          width: isSidebarOpen ? "260px" : "52px",
-          minWidth: isSidebarOpen ? "260px" : "52px",
+          width: isSidebarOpen ? "200px" : "52px",
+          minWidth: isSidebarOpen ? "200px" : "52px",
           background: darkMode ? "#0a0a0a" : "#ffffff",
           borderRight: `1px solid ${colors.cardBorder}`,
-          padding: isSidebarOpen ? "1.5rem 0" : "1rem 0",
+          padding: isSidebarOpen ? "1rem 0" : "1rem 0",
           overflowY: "hidden",
           overflowX: "hidden",
           display: "flex",
@@ -968,25 +909,23 @@ function DeckingPage({ darkMode }) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "0 1.25rem 1rem",
+                padding: "0 1rem 0.75rem",
                 borderBottom: `2px solid ${colors.cardBorder}`,
                 flexShrink: 0,
                 overflow: "hidden",
                 whiteSpace: "nowrap",
               }}
             >
-              {/* Left: title + active count badge */}
               <div
                 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
               >
-                <span style={{ fontSize: "1.25rem" }}>⚡</span>
+                <span style={{ fontSize: "1rem" }}>⚡</span>
                 <h2
                   style={{
-                    fontSize: "1.1rem",
-                    fontWeight: "700",
+                    fontSize: "0.82rem",
+                    fontWeight: "600",
                     color: colors.textPrimary,
                     margin: 0,
-                    letterSpacing: "0.5px",
                   }}
                 >
                   Quick Filters
@@ -998,7 +937,7 @@ function DeckingPage({ darkMode }) {
                       color: "#fff",
                       borderRadius: "10px",
                       padding: "2px 8px",
-                      fontSize: "0.7rem",
+                      fontSize: "0.68rem",
                       fontWeight: "700",
                     }}
                   >
@@ -1006,14 +945,12 @@ function DeckingPage({ darkMode }) {
                   </span>
                 )}
               </div>
-
-              {/* Right: collapse button */}
               <button
                 onClick={() => setIsSidebarOpen(false)}
                 title="Hide Quick Filters"
                 style={{
-                  width: "28px",
-                  height: "28px",
+                  width: "26px",
+                  height: "26px",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -1022,7 +959,7 @@ function DeckingPage({ darkMode }) {
                   borderRadius: "6px",
                   cursor: "pointer",
                   color: colors.textTertiary,
-                  fontSize: "0.75rem",
+                  fontSize: "0.7rem",
                   flexShrink: 0,
                   transition: "all 0.2s ease",
                 }}
@@ -1046,7 +983,7 @@ function DeckingPage({ darkMode }) {
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: "1rem",
+                gap: "0.75rem",
                 padding: "0.75rem 0.75rem 1rem",
                 overflowY: "auto",
                 overflowX: "hidden",
@@ -1116,7 +1053,7 @@ function DeckingPage({ darkMode }) {
             </div>
           </>
         ) : (
-          /* ── COLLAPSED icon strip ── */
+          /* COLLAPSED icon strip */
           <div
             style={{
               display: "flex",
@@ -1130,8 +1067,8 @@ function DeckingPage({ darkMode }) {
               onClick={() => setIsSidebarOpen(true)}
               title="Show Quick Filters"
               style={{
-                width: "28px",
-                height: "28px",
+                width: "26px",
+                height: "26px",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -1140,7 +1077,7 @@ function DeckingPage({ darkMode }) {
                 borderRadius: "6px",
                 cursor: "pointer",
                 color: colors.textTertiary,
-                fontSize: "0.75rem",
+                fontSize: "0.7rem",
                 flexShrink: 0,
                 transition: "all 0.2s ease",
               }}
@@ -1157,20 +1094,19 @@ function DeckingPage({ darkMode }) {
             >
               ▶
             </button>
-
             {activeFilterCount > 0 && (
               <div
                 onClick={() => setIsSidebarOpen(true)}
                 title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""} — click to expand`}
                 style={{
-                  width: "20px",
-                  height: "20px",
+                  width: "18px",
+                  height: "18px",
                   background: "#2196F3",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "0.7rem",
+                  fontSize: "0.65rem",
                   fontWeight: "700",
                   color: "#fff",
                   cursor: "pointer",
@@ -1179,58 +1115,46 @@ function DeckingPage({ darkMode }) {
                 {activeFilterCount}
               </div>
             )}
-
-            <span
-              title="Application Type (click to expand)"
-              style={{
-                fontSize: "1.2rem",
-                opacity: subTab !== null ? 1 : 0.3,
-                cursor: "pointer",
-              }}
-              onClick={() => setIsSidebarOpen(true)}
-            >
-              📦
-            </span>
-            <span
-              title="Prescriptions (click to expand)"
-              style={{
-                fontSize: "1.2rem",
-                opacity: prescriptionTab !== null ? 1 : 0.3,
-                cursor: "pointer",
-              }}
-              onClick={() => setIsSidebarOpen(true)}
-            >
-              💊
-            </span>
-            <span
-              title="All Status (click to expand)"
-              style={{
-                fontSize: "1.2rem",
-                opacity: appStatusTab !== null ? 1 : 0.3,
-                cursor: "pointer",
-              }}
-              onClick={() => setIsSidebarOpen(true)}
-            >
-              📈
-            </span>
-            <span
-              title="Processing Type (click to expand)"
-              style={{
-                fontSize: "1.2rem",
-                opacity: processingTypeTab !== null ? 1 : 0.3,
-                cursor: "pointer",
-              }}
-              onClick={() => setIsSidebarOpen(true)}
-            >
-              ⚙️
-            </span>
+            {[
+              {
+                icon: "📦",
+                title: "Application Type",
+                active: subTab !== null,
+              },
+              {
+                icon: "💊",
+                title: "Classification",
+                active: prescriptionTab !== null,
+              },
+              {
+                icon: "📈",
+                title: "All Status",
+                active: appStatusTab !== null,
+              },
+              {
+                icon: "⚙️",
+                title: "Processing Type",
+                active: processingTypeTab !== null,
+              },
+            ].map((item) => (
+              <span
+                key={item.icon}
+                title={`${item.title} (click to expand)`}
+                style={{
+                  fontSize: "1rem",
+                  opacity: item.active ? 1 : 0.3,
+                  cursor: "pointer",
+                }}
+                onClick={() => setIsSidebarOpen(true)}
+              >
+                {item.icon}
+              </span>
+            ))}
           </div>
         )}
       </div>
 
-      {/* ══════════════════════════════════════
-          MAIN CONTENT
-      ══════════════════════════════════════ */}
+      {/* ══════ MAIN CONTENT ══════ */}
       <div
         style={{
           flex: 1,
@@ -1243,7 +1167,7 @@ function DeckingPage({ darkMode }) {
         {/* Header */}
         <div
           style={{
-            padding: "2rem 2rem 0",
+            padding: "0.85rem 1.5rem 0",
             background: colors.pageBg,
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
@@ -1253,41 +1177,50 @@ function DeckingPage({ darkMode }) {
               display: "flex",
               justifyContent: "space-between",
               alignItems: "flex-start",
-              marginBottom: "1.5rem",
+              marginBottom: "0.6rem",
             }}
           >
             <div>
               <h1
                 style={{
-                  fontSize: "1.75rem",
+                  fontSize: "1.1rem",
                   fontWeight: "600",
-                  marginBottom: "0.5rem",
+                  marginBottom: "0.2rem",
                   color: colors.textPrimary,
+                  margin: 0,
                 }}
               >
                 Decking
               </h1>
-              <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
+              <p
+                style={{
+                  color: colors.textTertiary,
+                  fontSize: "0.75rem",
+                  margin: "0.2rem 0 0",
+                }}
+              >
                 Upload reports and assign evaluators for decking
               </p>
             </div>
-            <div style={{ display: "flex", gap: "0.75rem" }}>
+            <div
+              style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+            >
               <button
                 onClick={handleExport}
                 disabled={exporting || totalRecords === 0}
                 style={{
-                  padding: "0.625rem 1.25rem",
+                  padding: "0.7rem 1rem",
                   background: exporting ? colors.cardBorder : "#10B981",
                   color: "#fff",
                   border: "none",
                   borderRadius: "8px",
-                  fontSize: "0.875rem",
+                  fontSize: "0.75rem",
                   fontWeight: "500",
                   cursor:
                     exporting || totalRecords === 0 ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.4rem",
                   transition: "all 0.2s ease",
                   opacity: totalRecords === 0 ? 0.5 : 1,
                 }}
@@ -1314,16 +1247,13 @@ function DeckingPage({ darkMode }) {
             </div>
           </div>
 
-          <StatsCard stats={statsData} colors={colors} />
-
           {/* Main Tabs */}
           <div
             style={{
               display: "flex",
-              gap: "0.5rem",
-              marginTop: "1.5rem",
+              gap: "0.25rem",
+              marginTop: "0.5rem",
               borderBottom: `2px solid ${colors.cardBorder}`,
-              paddingBottom: "0",
             }}
           >
             {[
@@ -1350,8 +1280,8 @@ function DeckingPage({ darkMode }) {
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
                 style={{
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.85rem",
+                  padding: "0.35rem 0.85rem",
+                  fontSize: "0.78rem",
                   background: "transparent",
                   border: "none",
                   borderBottom:
@@ -1367,23 +1297,23 @@ function DeckingPage({ darkMode }) {
                   transition: "all 0.2s ease",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.4rem",
                   position: "relative",
                   top: "2px",
                 }}
               >
-                <span style={{ fontSize: "1.1rem" }}>{tab.icon}</span>
+                <span style={{ fontSize: "0.82rem" }}>{tab.icon}</span>
                 <span>{tab.label}</span>
                 <span
                   style={{
-                    padding: "0.2rem 0.6rem",
+                    padding: "0.1rem 0.45rem",
                     background:
                       activeTab === tab.id ? "#4CAF50" : colors.badgeBg,
                     color: activeTab === tab.id ? "#fff" : colors.textTertiary,
                     borderRadius: "12px",
-                    fontSize: "0.75rem",
+                    fontSize: "0.68rem",
                     fontWeight: "600",
-                    minWidth: "32px",
+                    minWidth: "28px",
                     textAlign: "center",
                   }}
                 >
@@ -1399,7 +1329,7 @@ function DeckingPage({ darkMode }) {
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "2rem",
+            padding: "0.85rem 1.5rem",
             background: colors.pageBg,
           }}
         >
@@ -1415,8 +1345,6 @@ function DeckingPage({ darkMode }) {
             appStatusTab={appStatusTab}
           />
           <UploadProgress message={uploadProgress} colors={colors} />
-
-          {/* ✅ Active Filters Bar */}
           <ActiveFiltersBar
             subTab={subTab}
             prescriptionTab={prescriptionTab}
@@ -1438,17 +1366,19 @@ function DeckingPage({ darkMode }) {
                 color: colors.textSecondary,
               }}
             >
-              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⏳</div>
+              <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
+                ⏳
+              </div>
               <div
                 style={{
-                  fontSize: "1.1rem",
+                  fontSize: "0.88rem",
                   fontWeight: "600",
-                  marginBottom: "0.5rem",
+                  marginBottom: "0.35rem",
                 }}
               >
                 Loading reports...
               </div>
-              <div style={{ fontSize: "0.9rem" }}>
+              <div style={{ fontSize: "0.75rem" }}>
                 Page {currentPage} of {totalPages}
               </div>
             </div>
@@ -1465,17 +1395,19 @@ function DeckingPage({ darkMode }) {
                 color: colors.textSecondary,
               }}
             >
-              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📭</div>
+              <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
+                📭
+              </div>
               <div
                 style={{
-                  fontSize: "1.1rem",
+                  fontSize: "0.88rem",
                   fontWeight: "600",
-                  marginBottom: "0.5rem",
+                  marginBottom: "0.35rem",
                 }}
               >
                 No reports found
               </div>
-              <div style={{ fontSize: "0.9rem" }}>
+              <div style={{ fontSize: "0.75rem" }}>
                 No records found for the selected criteria
               </div>
             </div>
@@ -1509,7 +1441,6 @@ function DeckingPage({ darkMode }) {
         </div>
       </div>
 
-      {/* Edit Modal */}
       {editingRecord && (
         <EditRecordModal
           record={editingRecord}

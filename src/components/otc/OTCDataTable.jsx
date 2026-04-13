@@ -1,11 +1,6 @@
 // FILE: src/components/otc/OTCDataTable.jsx
-// ✅ FIXED: Frozen columns (#, DTN, Actions) now use SOLID backgrounds matching row colors
-// ✅ All 91 columns in EXACT database order
-// ✅ NEW: Sortable column headers with ▲▼ indicators
-
 import { useState } from "react";
 
-// ─── ALL Columns in EXACT DATABASE ORDER ──────────────────────────────────────
 const OTC_COLUMNS = [
   { key: "DB_DTN", label: "DTN", width: "180px", frozen: true },
   { key: "DB_EST_CAT", label: "Est. Category", width: "150px" },
@@ -137,25 +132,26 @@ const OTC_COLUMNS = [
   },
 ];
 
-// ─── Badge renderers ──────────────────────────────────────────────────────────
+// ── Badge renderers ───────────────────────────────────────────────────────────
 function DTNBadge({ value }) {
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg,#8b5cf6 0%,#7c3aed 100%)",
+        gap: "0.4rem",
+        padding: "0.3rem 0.7rem",
+        background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
         letterSpacing: "0.5px",
         boxShadow: "0 2px 8px rgba(139,92,246,0.3)",
+        whiteSpace: "nowrap",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>🔖</span>
+      <span>🔖</span>
       <span>{value || "N/A"}</span>
     </span>
   );
@@ -167,18 +163,17 @@ function GenericNameBadge({ value }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg,#06b6d4 0%,#0891b2 100%)",
+        gap: "0.4rem",
+        padding: "0.3rem 0.7rem",
+        background: "linear-gradient(135deg,#06b6d4,#0891b2)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
-        letterSpacing: "0.3px",
         boxShadow: "0 2px 8px rgba(6,182,212,0.3)",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>💊</span>
+      <span>💊</span>
       <span>{value || "N/A"}</span>
     </span>
   );
@@ -190,18 +185,17 @@ function BrandNameBadge({ value }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg,#f59e0b 0%,#d97706 100%)",
+        gap: "0.4rem",
+        padding: "0.3rem 0.7rem",
+        background: "linear-gradient(135deg,#f59e0b,#d97706)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
-        letterSpacing: "0.3px",
         boxShadow: "0 2px 8px rgba(245,158,11,0.3)",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>🏷️</span>
+      <span>🏷️</span>
       <span>{value || "N/A"}</span>
     </span>
   );
@@ -211,38 +205,38 @@ function AppStatusBadge({ status, colors }) {
   const s = status?.toUpperCase();
   const themes = {
     COMPLETED: {
-      bg: "linear-gradient(135deg,#10b981 0%,#059669 100%)",
+      bg: "linear-gradient(135deg,#10b981,#059669)",
       shadow: "rgba(16,185,129,0.3)",
       icon: "✓",
       label: "Completed",
     },
     APPROVED: {
-      bg: "linear-gradient(135deg,#3b82f6 0%,#2563eb 100%)",
+      bg: "linear-gradient(135deg,#3b82f6,#2563eb)",
       shadow: "rgba(59,130,246,0.3)",
       icon: "✅",
       label: "Approved",
     },
     PENDING: {
-      bg: "linear-gradient(135deg,#eab308 0%,#ca8a04 100%)",
+      bg: "linear-gradient(135deg,#eab308,#ca8a04)",
       shadow: "rgba(234,179,8,0.3)",
       icon: "⏸",
       label: "Pending",
     },
     TO_DO: {
-      bg: "linear-gradient(135deg,#f59e0b 0%,#d97706 100%)",
+      bg: "linear-gradient(135deg,#f59e0b,#d97706)",
       shadow: "rgba(245,158,11,0.3)",
       icon: "⏳",
       label: "To Do",
     },
     REJECTED: {
-      bg: "linear-gradient(135deg,#ef4444 0%,#dc2626 100%)",
+      bg: "linear-gradient(135deg,#ef4444,#dc2626)",
       shadow: "rgba(239,68,68,0.3)",
       icon: "✗",
       label: "Rejected",
     },
   };
   const t = themes[s] ?? {
-    bg: "linear-gradient(135deg,#6b7280 0%,#4b5563 100%)",
+    bg: "linear-gradient(135deg,#6b7280,#4b5563)",
     shadow: "rgba(107,114,128,0.3)",
     icon: "•",
     label: status || "N/A",
@@ -250,11 +244,11 @@ function AppStatusBadge({ status, colors }) {
   return (
     <span
       style={{
-        padding: "0.4rem 0.9rem",
+        padding: "0.3rem 0.7rem",
         background: t.bg,
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
         letterSpacing: "0.5px",
         textTransform: "uppercase",
@@ -264,27 +258,26 @@ function AppStatusBadge({ status, colors }) {
         gap: "0.4rem",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>{t.icon}</span>
+      <span>{t.icon}</span>
       {t.label}
     </span>
   );
 }
 
 function PrescriptionBadge({ value }) {
-  if (!value || value === "N/A") {
-    return <span style={{ fontSize: "0.85rem", color: "#6b7280" }}>N/A</span>;
-  }
+  if (!value || value === "N/A")
+    return <span style={{ fontSize: "0.78rem", color: "#6b7280" }}>N/A</span>;
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: "0.4rem",
-        padding: "0.35rem 0.8rem",
-        background: "linear-gradient(135deg,#ec4899 0%,#be185d 100%)",
+        padding: "0.3rem 0.7rem",
+        background: "linear-gradient(135deg,#ec4899,#be185d)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
         boxShadow: "0 2px 8px rgba(236,72,153,0.3)",
       }}
@@ -295,7 +288,7 @@ function PrescriptionBadge({ value }) {
   );
 }
 
-// ─── TablePagination ──────────────────────────────────────────────────────────
+// ── Inline TablePagination ────────────────────────────────────────────────────
 function TablePagination({
   currentPage,
   rowsPerPage,
@@ -308,31 +301,28 @@ function TablePagination({
   colors,
 }) {
   const pages = () => {
-    const delta = 2;
-    const range = [];
+    const delta = 2,
+      range = [];
     for (
       let i = Math.max(2, currentPage - delta);
       i <= Math.min(totalPages - 1, currentPage + delta);
       i++
-    ) {
+    )
       range.push(i);
-    }
     if (currentPage - delta > 2) range.unshift("...");
     if (currentPage + delta < totalPages - 1) range.push("...");
     if (totalPages > 1) {
       range.unshift(1);
       range.push(totalPages);
-    } else if (totalPages === 1) {
-      range.push(1);
-    }
+    } else if (totalPages === 1) range.push(1);
     return range;
   };
 
   const btnBase = {
-    padding: "0.4rem 0.75rem",
+    padding: "0.3rem 0.6rem",
     border: `1px solid ${colors.cardBorder}`,
     borderRadius: "6px",
-    fontSize: "0.8rem",
+    fontSize: "0.72rem",
     cursor: "pointer",
     transition: "all 0.2s",
     background: colors.cardBg,
@@ -342,16 +332,16 @@ function TablePagination({
   return (
     <div
       style={{
-        padding: "1rem 1.5rem",
+        padding: "0.75rem 1.25rem",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         flexWrap: "wrap",
-        gap: "0.75rem",
+        gap: "0.5rem",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-        <span style={{ fontSize: "0.85rem", color: colors.textSecondary }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+        <span style={{ fontSize: "0.75rem", color: colors.textSecondary }}>
           Showing{" "}
           <strong style={{ color: colors.textPrimary }}>
             {indexOfFirstRow}–{indexOfLastRow}
@@ -362,20 +352,20 @@ function TablePagination({
           </strong>{" "}
           records
         </span>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.8rem", color: colors.textTertiary }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <span style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
             Rows:
           </span>
           <select
             value={rowsPerPage}
             onChange={onRowsPerPageChange}
             style={{
-              padding: "0.35rem 0.5rem",
+              padding: "0.25rem 0.45rem",
               background: colors.cardBg,
               border: `1px solid ${colors.cardBorder}`,
               borderRadius: "6px",
               color: colors.textPrimary,
-              fontSize: "0.8rem",
+              fontSize: "0.72rem",
               cursor: "pointer",
             }}
           >
@@ -387,7 +377,7 @@ function TablePagination({
           </select>
         </div>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
         <button
           disabled={currentPage === 1}
           onClick={() => onPageChange(currentPage - 1)}
@@ -406,7 +396,7 @@ function TablePagination({
               style={{
                 padding: "0 0.25rem",
                 color: colors.textTertiary,
-                fontSize: "0.85rem",
+                fontSize: "0.72rem",
               }}
             >
               …
@@ -443,7 +433,36 @@ function TablePagination({
   );
 }
 
-// ─── Main OTCDataTable ────────────────────────────────────────────────────────
+// ── MenuBtn ───────────────────────────────────────────────────────────────────
+function MenuBtn({ icon, label, color, hoverBg, borderTop, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        width: "100%",
+        padding: "0.6rem 0.85rem",
+        background: "transparent",
+        border: "none",
+        borderTop: borderTop || "none",
+        color,
+        fontSize: "0.78rem",
+        textAlign: "left",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        transition: "background 0.2s",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = hoverBg)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      <span>{icon}</span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// ── Main OTCDataTable ─────────────────────────────────────────────────────────
 function OTCDataTable({
   data,
   selectedRows,
@@ -471,7 +490,6 @@ function OTCDataTable({
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPos, setMenuPos] = useState({ top: 0 });
 
-  // ✅ Sort click handler
   const handleSort = (colKey) => {
     if (!onSort) return;
     if (sortBy === colKey) {
@@ -481,7 +499,6 @@ function OTCDataTable({
     }
   };
 
-  // ✅ Sort indicator — active direction is green, inactive is dimmed
   const SortIcon = ({ colKey }) => {
     const isActive = sortBy === colKey;
     return (
@@ -489,7 +506,7 @@ function OTCDataTable({
         style={{
           display: "inline-flex",
           flexDirection: "column",
-          marginLeft: "5px",
+          marginLeft: "4px",
           lineHeight: 1,
           verticalAlign: "middle",
           gap: "1px",
@@ -497,7 +514,7 @@ function OTCDataTable({
       >
         <span
           style={{
-            fontSize: "0.5rem",
+            fontSize: "0.48rem",
             lineHeight: 1,
             color:
               isActive && sortOrder === "asc" ? "#4CAF50" : colors.textTertiary,
@@ -508,7 +525,7 @@ function OTCDataTable({
         </span>
         <span
           style={{
-            fontSize: "0.5rem",
+            fontSize: "0.48rem",
             lineHeight: 1,
             color:
               isActive && sortOrder === "desc"
@@ -538,7 +555,7 @@ function OTCDataTable({
         return <PrescriptionBadge value={value} />;
       default:
         return (
-          <span style={{ fontSize: "0.85rem", color: colors.tableText }}>
+          <span style={{ fontSize: "0.78rem", color: colors.tableText }}>
             {value || "N/A"}
           </span>
         );
@@ -558,11 +575,11 @@ function OTCDataTable({
 
   const headerBg = darkMode ? "#141414" : "#f5f5f5";
 
-  // ✅ Base th style — sortable columns get pointer cursor + hover
-  const thStyle = (extra = {}, sortable = false) => ({
-    padding: "1rem",
+  // ── Shared base styles ────────────────────────────────────────────
+  const thBase = {
+    padding: "0.65rem 0.85rem",
     textAlign: "left",
-    fontSize: "0.8rem",
+    fontSize: "0.6rem",
     fontWeight: "600",
     color: colors.textTertiary,
     textTransform: "uppercase",
@@ -570,11 +587,17 @@ function OTCDataTable({
     borderBottom: `1px solid ${colors.tableBorder}`,
     whiteSpace: "nowrap",
     background: headerBg,
-    cursor: sortable ? "pointer" : "default",
     userSelect: "none",
     transition: "background 0.15s",
-    ...extra,
-  });
+  };
+
+  // tdBase does NOT include whiteSpace — we set it per-cell intentionally
+  const tdBase = {
+    padding: "0.65rem 0.85rem",
+    fontSize: "0.78rem",
+    color: colors.tableText,
+    borderBottom: `1px solid ${colors.tableBorder}`,
+  };
 
   return (
     <>
@@ -587,15 +610,14 @@ function OTCDataTable({
           transition: "all 0.3s ease",
           display: "flex",
           flexDirection: "column",
-          height: "calc(100vh - 420px)",
-          minHeight: "400px",
-          maxHeight: "calc(95vh - 420px)",
+          height: "100%", // ← stretch to parent
+          minHeight: 0, // ← required for flex children
         }}
       >
         {/* Header bar */}
         <div
           style={{
-            padding: "1rem 1.5rem",
+            padding: "0.75rem 1.25rem",
             borderBottom: `1px solid ${colors.tableBorder}`,
             display: "flex",
             alignItems: "center",
@@ -608,7 +630,7 @@ function OTCDataTable({
           >
             <h3
               style={{
-                fontSize: "1rem",
+                fontSize: "0.8rem",
                 fontWeight: "600",
                 color: colors.textPrimary,
                 margin: 0,
@@ -618,37 +640,36 @@ function OTCDataTable({
             </h3>
             <span
               style={{
-                padding: "0.25rem 0.75rem",
+                padding: "0.2rem 0.6rem",
                 background: colors.badgeBg,
                 borderRadius: "12px",
-                fontSize: "0.8rem",
+                fontSize: "0.68rem",
                 color: colors.textTertiary,
                 fontWeight: "600",
               }}
             >
-              {totalRecords.toLocaleString()} records • {OTC_COLUMNS.length}{" "}
+              {totalRecords.toLocaleString()} records · {OTC_COLUMNS.length}{" "}
               columns
             </span>
           </div>
 
-          {/* ✅ Show sort indicator in header bar */}
           <div
             style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
           >
             {sortBy && (
               <span
                 style={{
-                  fontSize: "0.75rem",
+                  fontSize: "0.68rem",
                   color: colors.textTertiary,
-                  padding: "0.25rem 0.6rem",
+                  padding: "0.2rem 0.6rem",
                   background: colors.badgeBg,
                   borderRadius: "6px",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.35rem",
+                  gap: "0.3rem",
                 }}
               >
-                <span>Sorted by</span>
+                Sorted by{" "}
                 <strong style={{ color: "#4CAF50" }}>
                   {OTC_COLUMNS.find((c) => c.key === sortBy)?.label || sortBy}
                 </strong>
@@ -661,7 +682,7 @@ function OTCDataTable({
                   display: "flex",
                   alignItems: "center",
                   gap: "0.5rem",
-                  padding: "0.5rem 1rem",
+                  padding: "0.35rem 0.85rem",
                   background: colors.badgeBg,
                   borderRadius: "8px",
                 }}
@@ -669,7 +690,7 @@ function OTCDataTable({
                 <span
                   style={{
                     color: "#4CAF50",
-                    fontSize: "0.85rem",
+                    fontSize: "0.75rem",
                     fontWeight: "600",
                   }}
                 >
@@ -680,7 +701,7 @@ function OTCDataTable({
           </div>
         </div>
 
-        {/* Scrollable table */}
+        {/* Scrollable table — flex: 1 fills remaining height */}
         <div
           style={{
             flex: 1,
@@ -705,18 +726,18 @@ function OTCDataTable({
               }}
             >
               <tr>
-                {/* Checkbox header — not sortable */}
+                {/* Checkbox */}
                 <th
-                  style={thStyle(
-                    {
-                      width: "50px",
-                      position: "sticky",
-                      left: 0,
-                      zIndex: 21,
-                      boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
-                    },
-                    false,
-                  )}
+                  style={{
+                    ...thBase,
+                    cursor: "default",
+                    width: "50px",
+                    minWidth: "50px",
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 21,
+                    boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                  }}
                 >
                   <input
                     type="checkbox"
@@ -733,28 +754,46 @@ function OTCDataTable({
                   />
                 </th>
 
-                {/* # header — not sortable */}
+                {/* # */}
                 <th
-                  style={thStyle(
-                    {
-                      width: "60px",
-                      textAlign: "center",
-                      position: "sticky",
-                      left: "50px",
-                      zIndex: 21,
-                      boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
-                    },
-                    false,
-                  )}
+                  style={{
+                    ...thBase,
+                    cursor: "default",
+                    textAlign: "center",
+                    width: "60px",
+                    minWidth: "60px",
+                    position: "sticky",
+                    left: "50px",
+                    zIndex: 21,
+                    boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                  }}
                 >
                   #
                 </th>
 
-                {/* ✅ Data column headers — all sortable */}
+                {/* Data columns */}
                 {OTC_COLUMNS.map((col, idx) => (
                   <th
                     key={col.key}
                     onClick={() => handleSort(col.key)}
+                    style={{
+                      ...thBase,
+                      cursor: "pointer",
+                      minWidth: col.width,
+                      ...(col.frozen && idx < 3
+                        ? {
+                            position: "sticky",
+                            left:
+                              idx === 0
+                                ? "110px"
+                                : idx === 1
+                                  ? "290px"
+                                  : "490px",
+                            zIndex: 21,
+                            boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
+                          }
+                        : {}),
+                    }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = darkMode
                         ? "#1e1e1e"
@@ -763,25 +802,6 @@ function OTCDataTable({
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background = headerBg;
                     }}
-                    style={thStyle(
-                      {
-                        minWidth: col.width,
-                        ...(col.frozen && idx < 3
-                          ? {
-                              position: "sticky",
-                              left:
-                                idx === 0
-                                  ? "110px"
-                                  : idx === 1
-                                    ? "290px"
-                                    : "490px",
-                              zIndex: 21,
-                              boxShadow: "4px 0 8px rgba(0,0,0,0.15)",
-                            }
-                          : {}),
-                      },
-                      true,
-                    )}
                   >
                     <span
                       style={{ display: "inline-flex", alignItems: "center" }}
@@ -792,19 +812,19 @@ function OTCDataTable({
                   </th>
                 ))}
 
-                {/* Actions header — not sortable */}
+                {/* Actions */}
                 <th
-                  style={thStyle(
-                    {
-                      width: "80px",
-                      textAlign: "center",
-                      position: "sticky",
-                      right: 0,
-                      zIndex: 21,
-                      boxShadow: "-4px 0 8px rgba(0,0,0,0.15)",
-                    },
-                    false,
-                  )}
+                  style={{
+                    ...thBase,
+                    cursor: "default",
+                    textAlign: "center",
+                    width: "80px",
+                    minWidth: "80px",
+                    position: "sticky",
+                    right: 0,
+                    zIndex: 21,
+                    boxShadow: "-4px 0 8px rgba(0,0,0,0.15)",
+                  }}
                 >
                   Actions
                 </th>
@@ -839,8 +859,10 @@ function OTCDataTable({
                     {/* Checkbox */}
                     <td
                       style={{
-                        padding: "1rem",
-                        borderBottom: `1px solid ${colors.tableBorder}`,
+                        ...tdBase,
+                        whiteSpace: "nowrap",
+                        width: "50px",
+                        minWidth: "50px",
                         position: "sticky",
                         left: 0,
                         background: solidRowBg,
@@ -861,15 +883,16 @@ function OTCDataTable({
                       />
                     </td>
 
-                    {/* Row number */}
+                    {/* Row number — nowrap prevents digit splitting */}
                     <td
                       style={{
-                        padding: "1rem",
-                        fontSize: "0.85rem",
+                        ...tdBase,
                         fontWeight: "700",
                         color: colors.textTertiary,
-                        borderBottom: `1px solid ${colors.tableBorder}`,
                         textAlign: "center",
+                        whiteSpace: "nowrap", // ← key fix
+                        width: "60px",
+                        minWidth: "60px",
                         position: "sticky",
                         left: "50px",
                         background: solidRowBg,
@@ -885,10 +908,7 @@ function OTCDataTable({
                       <td
                         key={col.key}
                         style={{
-                          padding: "1rem",
-                          fontSize: "0.85rem",
-                          color: colors.tableText,
-                          borderBottom: `1px solid ${colors.tableBorder}`,
+                          ...tdBase,
                           whiteSpace: "normal",
                           wordBreak: "break-word",
                           minWidth: col.width,
@@ -916,9 +936,11 @@ function OTCDataTable({
                     {/* Actions */}
                     <td
                       style={{
-                        padding: "1rem",
-                        borderBottom: `1px solid ${colors.tableBorder}`,
+                        ...tdBase,
+                        whiteSpace: "nowrap",
                         textAlign: "center",
+                        width: "80px",
+                        minWidth: "80px",
                         position: "sticky",
                         right: 0,
                         background: solidRowBg,
@@ -943,14 +965,14 @@ function OTCDataTable({
                             );
                           }}
                           style={{
-                            padding: "0.5rem",
+                            padding: "0.4rem",
                             background: "transparent",
                             border: `1px solid ${colors.cardBorder}`,
                             borderRadius: "6px",
                             color: colors.textPrimary,
                             cursor: "pointer",
-                            width: "32px",
-                            height: "32px",
+                            width: "28px",
+                            height: "28px",
                             transition: "all 0.2s ease",
                           }}
                           onMouseEnter={(e) =>
@@ -964,6 +986,7 @@ function OTCDataTable({
                         >
                           ⋮
                         </button>
+
                         {openMenuId === row.DB_ID && (
                           <>
                             <div
@@ -983,7 +1006,7 @@ function OTCDataTable({
                                 border: `1px solid ${colors.cardBorder}`,
                                 borderRadius: "8px",
                                 boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                                minWidth: "180px",
+                                minWidth: "185px",
                                 zIndex: 9999,
                               }}
                             >
@@ -1010,7 +1033,7 @@ function OTCDataTable({
           </table>
         </div>
 
-        {/* Pagination */}
+        {/* Pagination — flexShrink: 0 so it never gets squished */}
         <div
           style={{
             flexShrink: 0,
@@ -1032,34 +1055,6 @@ function OTCDataTable({
         </div>
       </div>
     </>
-  );
-}
-
-function MenuBtn({ icon, label, color, hoverBg, borderTop, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        width: "100%",
-        padding: "0.75rem 1rem",
-        background: "transparent",
-        border: "none",
-        borderTop: borderTop || "none",
-        color,
-        fontSize: "0.85rem",
-        textAlign: "left",
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.5rem",
-        transition: "background 0.2s",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = hoverBg)}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-    >
-      <span>{icon}</span>
-      <span>{label}</span>
-    </button>
   );
 }
 

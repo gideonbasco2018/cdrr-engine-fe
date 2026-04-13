@@ -20,13 +20,13 @@ function SidebarSection({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 16px",
+          padding: "8px 12px",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "10px",
+          borderRadius: "8px",
           cursor: "pointer",
           transition: "all 0.2s ease",
-          marginBottom: "12px",
+          marginBottom: "6px",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#f0f0f0";
@@ -37,22 +37,22 @@ function SidebarSection({
       >
         <div
           style={{
-            fontSize: "10px",
+            fontSize: "0.72rem",
             fontWeight: "600",
             display: "flex",
             alignItems: "center",
-            gap: "10px",
+            gap: "6px",
             color: colors.textPrimary,
           }}
         >
-          <span>{icon}</span>
+          <span style={{ fontSize: "0.8rem" }}>{icon}</span>
           <span>{title}</span>
           <span
             style={{
               background: darkMode ? "#1f1f1f" : "#e5e5e5",
-              padding: "4px 10px",
-              borderRadius: "6px",
-              fontSize: "10px",
+              padding: "2px 7px",
+              borderRadius: "5px",
+              fontSize: "0.68rem",
               fontWeight: "600",
               fontFamily: "monospace",
               color: colors.textTertiary,
@@ -66,7 +66,7 @@ function SidebarSection({
             color: colors.textTertiary,
             transition: "transform 0.2s",
             transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
-            fontSize: "10px",
+            fontSize: "0.6rem",
           }}
         >
           ▼
@@ -76,27 +76,27 @@ function SidebarSection({
       {isOpen && (
         <div
           style={{
-            paddingLeft: "12px",
+            paddingLeft: "8px",
             display: "flex",
             flexDirection: "column",
-            gap: "6px",
+            gap: "4px",
           }}
         >
           {/* "All" option */}
           <div
             onClick={() => onItemClick(null)}
             style={{
-              padding: "10px 16px",
+              padding: "7px 12px",
               background:
                 activeItem === null ? "rgba(33,150,243,0.1)" : "transparent",
               border: `1px solid ${activeItem === null ? "#2196F3" : "transparent"}`,
-              borderRadius: "8px",
+              borderRadius: "6px",
               cursor: "pointer",
               transition: "all 0.2s ease",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              fontSize: "9px",
+              fontSize: "0.72rem",
             }}
             onMouseEnter={(e) => {
               if (activeItem !== null) {
@@ -111,7 +111,9 @@ function SidebarSection({
               }
             }}
           >
-            <span style={{ color: colors.textPrimary }}>All {title}</span>
+            <span style={{ color: colors.textPrimary, fontWeight: 500 }}>
+              All {title}
+            </span>
             <span
               style={{
                 background:
@@ -121,9 +123,9 @@ function SidebarSection({
                       ? "#1f1f1f"
                       : "#e5e5e5",
                 color: activeItem === null ? "#fff" : colors.textTertiary,
-                padding: "3px 8px",
-                borderRadius: "5px",
-                fontSize: "9px",
+                padding: "2px 7px",
+                borderRadius: "4px",
+                fontSize: "0.68rem",
                 fontWeight: "600",
                 fontFamily: "monospace",
               }}
@@ -140,16 +142,17 @@ function SidebarSection({
                 key={item.value ?? `no-${title}`}
                 onClick={() => onItemClick(isActive ? null : item.value)}
                 style={{
-                  padding: "10px 16px",
+                  padding: "7px 12px",
                   background: isActive ? "rgba(33,150,243,0.1)" : "transparent",
                   border: `1px solid ${isActive ? "#2196F3" : "transparent"}`,
-                  borderRadius: "8px",
+                  borderRadius: "6px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  fontSize: "9px",
+                  gap: "6px",
+                  fontSize: "0.72rem",
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
@@ -170,7 +173,8 @@ function SidebarSection({
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
-                    maxWidth: "130px",
+                    flex: 1,
+                    minWidth: 0,
                   }}
                 >
                   {item.value || `No ${title}`}
@@ -183,9 +187,9 @@ function SidebarSection({
                         ? "#1f1f1f"
                         : "#e5e5e5",
                     color: isActive ? "#fff" : colors.textTertiary,
-                    padding: "3px 8px",
-                    borderRadius: "5px",
-                    fontSize: "11px",
+                    padding: "2px 7px",
+                    borderRadius: "4px",
+                    fontSize: "0.68rem",
                     fontWeight: "600",
                     fontFamily: "monospace",
                     flexShrink: 0,

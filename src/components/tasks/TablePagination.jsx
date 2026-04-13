@@ -30,7 +30,7 @@ function TablePagination({
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: "0.85rem",
+    fontSize: "0.75rem",
     opacity: disabled ? 0.5 : 1,
   });
 
@@ -50,7 +50,7 @@ function TablePagination({
           alignItems: "center",
           gap: "0.5rem",
           color: colors.textTertiary,
-          fontSize: "0.85rem",
+          fontSize: "0.75rem",
         }}
       >
         <span>Rows per page:</span>
@@ -63,7 +63,7 @@ function TablePagination({
             border: `1px solid ${colors.inputBorder}`,
             borderRadius: "6px",
             color: colors.textPrimary,
-            fontSize: "0.85rem",
+            fontSize: "0.75rem",
             cursor: "pointer",
             outline: "none",
           }}
@@ -76,7 +76,9 @@ function TablePagination({
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-        <span style={{ color: colors.textTertiary, fontSize: "0.85rem" }}>Page</span>
+        <span style={{ color: colors.textTertiary, fontSize: "0.75rem" }}>
+          Page
+        </span>
         <input
           type="text"
           value={pageInput}
@@ -102,16 +104,18 @@ function TablePagination({
             border: `1px solid ${colors.inputBorder}`,
             borderRadius: "6px",
             color: colors.textPrimary,
-            fontSize: "0.85rem",
+            fontSize: "0.75rem",
             textAlign: "center",
             outline: "none",
           }}
         />
-        <span style={{ color: colors.textTertiary, fontSize: "0.85rem" }}>of {totalPages}</span>
+        <span style={{ color: colors.textTertiary, fontSize: "0.75rem" }}>
+          of {totalPages}
+        </span>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-        <span style={{ color: colors.textTertiary, fontSize: "0.85rem" }}>
+        <span style={{ color: colors.textTertiary, fontSize: "0.75rem" }}>
           {indexOfFirstRow}-{indexOfLastRow} of {totalRecords}
         </span>
         <div style={{ display: "flex", gap: "0.5rem" }}>

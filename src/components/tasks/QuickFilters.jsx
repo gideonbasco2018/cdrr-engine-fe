@@ -179,15 +179,18 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
   return (
     <div
       style={{
-        width: "190px",
-        minWidth: "190px",
+        width: isSidebarOpen ? "200px" : "52px",
+        minWidth: isSidebarOpen ? "200px" : "52px",
         background: darkMode ? "#0a0a0a" : "#ffffff",
         borderRight: `1px solid ${colors.cardBorder}`,
+        padding: isSidebarOpen ? "1rem 0" : "1rem 0",
+        overflowY: "hidden",
+        overflowX: "hidden",
         display: "flex",
         flexDirection: "column",
-        flexShrink: 0,
-        overflow: "hidden",
+        gap: "0.5rem",
         transition: "width 0.25s ease, min-width 0.25s ease",
+        flexShrink: 0,
       }}
     >
       {/* Fixed header */}
@@ -196,7 +199,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "1.5rem 1.25rem 1rem",
+          padding: "0 1rem 0.75rem",
           borderBottom: `2px solid ${colors.cardBorder}`,
           flexShrink: 0,
           overflow: "hidden",
@@ -204,14 +207,14 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "1.25rem" }}>⚡</span>
+          <span style={{ fontSize: "1rem" }}>⚡</span>
+
           <h2
             style={{
-              fontSize: ".88rem",
-              fontWeight: "700",
+              fontSize: ".82rem",
+              fontWeight: "600",
               color: colors.textPrimary,
               margin: 0,
-              letterSpacing: "0.5px",
             }}
           >
             Quick Filters
@@ -221,8 +224,8 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
           onClick={() => setIsSidebarOpen(false)}
           title="Hide Quick Filters"
           style={{
-            width: "28px",
-            height: "28px",
+            width: "26px",
+            height: "26px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -231,7 +234,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
             borderRadius: "6px",
             cursor: "pointer",
             color: colors.textTertiary,
-            fontSize: "0.75rem",
+            fontSize: "0.7rem",
             flexShrink: 0,
             transition: "all 0.2s ease",
           }}
@@ -264,7 +267,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
         <div style={{ padding: "0 0.25rem" }}>
           <p
             style={{
-              fontSize: "0.75rem",
+              fontSize: "0.72rem",
               fontWeight: "600",
               color: colors.textTertiary,
               letterSpacing: "0.06em",
@@ -282,7 +285,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
                 top: "50%",
                 transform: "translateY(-50%)",
                 color: colors.textTertiary,
-                fontSize: "0.65rem",
+                fontSize: "0.75rem",
                 pointerEvents: "none",
               }}
             >
@@ -361,7 +364,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
 
         {prescriptions.length > 0 && (
           <SidebarSection
-            title="Prescriptions"
+            title="Classification"
             icon="💊"
             items={prescriptions}
             activeItem={filters.prescription || null}
@@ -376,7 +379,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
 
         {statuses.length > 0 && (
           <SidebarSection
-            title="All Status"
+            title="Status"
             icon="🔖"
             items={statuses}
             activeItem={filters.appStatus || null}

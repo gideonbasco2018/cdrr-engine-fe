@@ -52,13 +52,13 @@ function UploadButton({ onFileSelect, onDownloadTemplate, uploading, colors }) {
         <button
           onClick={() => setConfirmDownload(true)}
           style={{
-            padding: "0.75rem 1.5rem",
+            padding: ".7rem 1rem",
             background: colors.buttonSecondaryBg,
             border: `1px solid ${colors.buttonSecondaryBorder}`,
             borderRadius: "8px",
             color: colors.textPrimary,
-            fontSize: "0.9rem",
-            fontWeight: "600",
+            fontSize: "0.75rem",
+            fontWeight: "500",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
@@ -84,13 +84,13 @@ function UploadButton({ onFileSelect, onDownloadTemplate, uploading, colors }) {
           onClick={handleUploadClick}
           disabled={uploading}
           style={{
-            padding: "0.75rem 1.5rem",
+            padding: "0.7rem 1rem",
             background: uploading ? "#999" : "#4CAF50",
             border: "none",
             borderRadius: "8px",
             color: "#fff",
-            fontSize: "0.9rem",
-            fontWeight: "600",
+            fontSize: "0.75rem",
+            fontWeight: "500",
             cursor: uploading ? "not-allowed" : "pointer",
             display: "flex",
             alignItems: "center",

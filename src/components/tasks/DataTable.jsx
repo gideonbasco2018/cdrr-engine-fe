@@ -1138,7 +1138,7 @@ function DataTable({
             : "linear-gradient(135deg,#ef4444,#dc2626)",
           color: "#fff",
           borderRadius: 8,
-          fontSize: "0.75rem",
+          fontSize: "0.72rem",
           fontWeight: 700,
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -1218,7 +1218,7 @@ function DataTable({
         background: bg,
         color: "#fff",
         borderRadius: 8,
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: 700,
         boxShadow: `0 2px 8px ${shadow}`,
       }}
@@ -1305,7 +1305,7 @@ function DataTable({
           background: c.bg,
           color: "#fff",
           borderRadius: 8,
-          fontSize: "0.75rem",
+          fontSize: "0.72rem",
           fontWeight: 700,
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -1323,12 +1323,12 @@ function DataTable({
 
   const plainCell = (v) =>
     v != null && v !== "" ? (
-      <span style={{ fontSize: "0.85rem", color: colors.tableText }}>{v}</span>
+      <span style={{ fontSize: "0.78rem", color: colors.tableText }}>{v}</span>
     ) : (
       <span
         style={{
           color: colors.textTertiary,
-          fontSize: "0.8rem",
+          fontSize: "0.78rem",
           fontStyle: "italic",
         }}
       >
@@ -1339,7 +1339,7 @@ function DataTable({
     v != null && v !== "" ? (
       <span
         style={{
-          fontSize: "0.82rem",
+          fontSize: "0.78rem",
           color: colors.tableText,
           whiteSpace: "normal",
           wordBreak: "break-word",
@@ -1352,7 +1352,7 @@ function DataTable({
       <span
         style={{
           color: colors.textTertiary,
-          fontSize: "0.8rem",
+          fontSize: "0.75rem",
           fontStyle: "italic",
         }}
       >
@@ -1363,7 +1363,7 @@ function DataTable({
     v != null && v !== "" ? (
       <span
         style={{
-          fontSize: "0.85rem",
+          fontSize: "0.78rem",
           color: colors.tableText,
           fontVariantNumeric: "tabular-nums",
         }}
@@ -1374,7 +1374,7 @@ function DataTable({
       <span
         style={{
           color: colors.textTertiary,
-          fontSize: "0.8rem",
+          fontSize: "0.75rem",
           fontStyle: "italic",
         }}
       >
@@ -2145,7 +2145,7 @@ function DataTable({
                   color: "#fff",
                   border: "none",
                   borderRadius: 8,
-                  fontSize: "0.8rem",
+                  fontSize: "0.75rem",
                   fontWeight: 700,
                   cursor: "pointer",
                   boxShadow: "0 2px 8px rgba(25,118,210,0.35)",
@@ -2537,7 +2537,7 @@ function DataTable({
                     <td
                       style={{
                         padding: "1rem",
-                        fontSize: "0.85rem",
+                        fontSize: "0.78rem",
                         fontWeight: 700,
                         color: colors.textTertiary,
                         borderBottom: `1px solid ${colors.tableBorder}`,
@@ -2559,7 +2559,7 @@ function DataTable({
                         key={col.key}
                         style={{
                           padding: "1rem",
-                          fontSize: "0.85rem",
+                          fontSize: "0.78rem",
                           fontWeight: isUnread ? 700 : 400,
                           color: isUnread
                             ? colors.textPrimary
