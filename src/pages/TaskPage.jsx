@@ -59,15 +59,15 @@ function SubTabBar({
   const tabs = [
     {
       key: "not_yet",
-      label: "Not Yet Received",
+      label: "For Receiving",
       count: notYetCount,
-      color: "#f59e0b",
+      badgeColor: "#f59e0b",
     },
     {
       key: "received",
       label: "Received",
       count: receivedCount,
-      color: "#10b981",
+      badgeColor: "#10b981",
     },
   ];
 
@@ -75,8 +75,11 @@ function SubTabBar({
     <div
       style={{
         display: "flex",
-        gap: "0.1rem",
-        borderBottom: `2px solid ${colors.cardBorder}`,
+        gap: "5px",
+        background: darkMode ? "#181818" : "#f0f0f0",
+        padding: "4px",
+        borderRadius: "8px",
+        width: "fit-content",
         flexShrink: 0,
       }}
     >
@@ -89,19 +92,25 @@ function SubTabBar({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "0.45rem",
-              padding: "0.5rem 1rem",
+              gap: "6px",
+              padding: "5px 14px",
               border: "none",
-              background: "transparent",
-              borderBottom: isActive
-                ? `3px solid ${t.color}`
-                : "3px solid transparent",
-              color: isActive ? colors.textPrimary : colors.textSecondary,
-              fontWeight: isActive ? 600 : 500,
+              borderRadius: "6px",
+              background: isActive
+                ? darkMode
+                  ? "#242424"
+                  : "#ffffff"
+                : "transparent",
+              color: isActive ? colors.textPrimary : colors.textTertiary,
+              fontWeight: isActive ? 600 : 400,
               cursor: "pointer",
-              fontSize: "0.875rem",
-              transition: "color .15s",
-              marginBottom: "-2px",
+              fontSize: "0.78rem",
+              transition: "all .15s ease",
+              boxShadow: isActive
+                ? darkMode
+                  ? "0 1px 3px rgba(0,0,0,0.4)"
+                  : "0 1px 3px rgba(0,0,0,0.12)"
+                : "none",
             }}
           >
             {t.label}
@@ -110,19 +119,19 @@ function SubTabBar({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                minWidth: "1.35rem",
-                height: "1.35rem",
+                minWidth: "1.2rem",
+                height: "1.2rem",
                 padding: "0 0.35rem",
                 borderRadius: "999px",
-                fontSize: "0.7rem",
+                fontSize: "0.65rem",
                 fontWeight: 700,
                 lineHeight: 1,
                 background: isActive
-                  ? t.color
+                  ? t.badgeColor
                   : darkMode
-                    ? "rgba(255,255,255,0.12)"
+                    ? "rgba(255,255,255,0.08)"
                     : "rgba(0,0,0,0.10)",
-                color: isActive ? "#fff" : colors.textSecondary,
+                color: isActive ? "#fff" : colors.textTertiary,
                 transition: "background .15s, color .15s",
               }}
             >
@@ -134,7 +143,6 @@ function SubTabBar({
     </div>
   );
 }
-
 /* ================================================================== */
 /*  TaskPage                                                            */
 /* ================================================================== */
@@ -361,23 +369,29 @@ function TaskPage({ darkMode }) {
           minWidth: 0,
           display: "flex",
           flexDirection: "column",
-          padding: "1rem",
-          gap: "0.75rem",
+          padding: "0.75rem",
+          gap: "0.4rem",
           overflow: "hidden",
         }}
       >
         <div>
           <h1
             style={{
-              fontSize: "1.1rem",
+              fontSize: ".95rem",
               fontWeight: "600",
-              marginBottom: "0.5rem",
+              marginBottom: "0.15rem",
               color: colors.textPrimary,
             }}
           >
             Task
           </h1>
-          <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
+          <p
+            style={{
+              color: colors.textTertiary,
+              fontSize: "0.75rem",
+              margin: 0,
+            }}
+          >
             Track and complete assigned tasks
           </p>
         </div>
@@ -387,7 +401,7 @@ function TaskPage({ darkMode }) {
           <div
             style={{
               display: "flex",
-              gap: "0.25rem",
+              gap: "0.15rem",
               borderBottom: `2px solid ${colors.cardBorder}`,
               flexShrink: 0,
             }}
@@ -404,7 +418,7 @@ function TaskPage({ darkMode }) {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.45rem",
-                    padding: "0.5rem 1rem",
+                    padding: "0.35rem 0.85rem",
                     border: "none",
                     background: "transparent",
                     borderBottom: isActive
@@ -413,7 +427,7 @@ function TaskPage({ darkMode }) {
                     color: isActive ? colors.textPrimary : colors.textSecondary,
                     fontWeight: isActive ? 600 : 500,
                     cursor: "pointer",
-                    fontSize: "0.875rem",
+                    fontSize: "0.78rem",
                     transition: "color .15s",
                     position: "relative",
                     marginBottom: "-2px",
@@ -425,11 +439,11 @@ function TaskPage({ darkMode }) {
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      minWidth: "1.35rem",
-                      height: "1.35rem",
+                      minWidth: "1.2rem",
+                      height: "1.2rem",
                       padding: "0 0.35rem",
                       borderRadius: "999px",
-                      fontSize: "0.7rem",
+                      fontSize: "0.65rem",
                       fontWeight: 700,
                       lineHeight: 1,
                       background: isActive
@@ -580,7 +594,7 @@ function TaskPage({ darkMode }) {
             <span style={{ fontSize: "2.5rem" }}>{emptyIcon}</span>
             <p
               style={{
-                fontSize: "1rem",
+                fontSize: ".75rem",
                 fontWeight: 600,
                 color: colors.textSecondary,
                 margin: 0,

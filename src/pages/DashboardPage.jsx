@@ -1,6 +1,6 @@
 // FILE: src/pages/DashboardPage.jsx
-import { useState, useMemo, useEffect, useCallback } from "react"; // ★ added useCallback
-import { getDashboardSummary } from "../api/dashboard"; // ★ NEW — real API
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { getDashboardSummary } from "../api/dashboard";
 
 const FB = "#1877F2";
 const FB_LIGHT = "#E7F0FD";
@@ -701,324 +701,6 @@ const TARGET_PERIODS = {
   },
 };
 
-const CURRENT_TASKS_DECK = [
-  {
-    id: "T001",
-    code: "20230908133701",
-    name: "Furacef-750 (Cefuroxime Sodium)",
-    type: "Evaluation",
-    status: "Pending",
-  },
-  {
-    id: "T002",
-    code: "20230908133702",
-    name: "Amoxil-500 (Amoxicillin)",
-    type: "Evaluation",
-    status: "Pending",
-  },
-  {
-    id: "T003",
-    code: "20230908133703",
-    name: "Calpol-250 (Paracetamol)",
-    type: "Checking",
-    status: "Pending",
-  },
-  {
-    id: "T004",
-    code: "20230908133704",
-    name: "Cloxacil-250 (Cloxacillin)",
-    type: "Evaluation",
-    status: "Pending",
-  },
-  {
-    id: "T005",
-    code: "20230908133705",
-    name: "Augmentin-625 (Co-Amoxiclav)",
-    type: "Evaluation",
-    status: "Pending",
-  },
-  {
-    id: "T006",
-    code: "20230908133706",
-    name: "Mefenamic-500 (Mefenamic Acid)",
-    type: "Checking",
-    status: "Pending",
-  },
-  {
-    id: "T007",
-    code: "20230908133707",
-    name: "Losartan-50 (Losartan Potassium)",
-    type: "Evaluation",
-    status: "Pending",
-  },
-  {
-    id: "T008",
-    code: "20230908133708",
-    name: "Amlodipine-10 (Amlodipine Besylate)",
-    type: "Checking",
-    status: "Pending",
-  },
-  {
-    id: "T009",
-    code: "20230908133709",
-    name: "Metformin-500 (Metformin HCl)",
-    type: "Evaluation",
-    status: "Pending",
-  },
-  {
-    id: "T010",
-    code: "20230908133710",
-    name: "Atorvastatin-20 (Atorvastatin Calcium)",
-    type: "Checking",
-    status: "Pending",
-  },
-  {
-    id: "T011",
-    code: "20230908133711",
-    name: "Lisinopril-10 (Lisinopril)",
-    type: "Evaluation",
-    status: "Pending",
-  },
-  {
-    id: "T012",
-    code: "20230908133712",
-    name: "Omeprazole-20 (Omeprazole)",
-    type: "Checking",
-    status: "Pending",
-  },
-];
-
-const USER_DATABASE = [
-  {
-    id: "U001",
-    name: "Ana Santos",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "A",
-    avatarColor: "#9333ea",
-  },
-  {
-    id: "U002",
-    name: "Marco Reyes",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "M",
-    avatarColor: "#e02020",
-  },
-  {
-    id: "U003",
-    name: "Liza Cruz",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "L",
-    avatarColor: "#f59e0b",
-  },
-  {
-    id: "U004",
-    name: "Jose Dela Cruz",
-    role: "Checker",
-    department: "QA Section",
-    avatar: "J",
-    avatarColor: "#36a420",
-  },
-  {
-    id: "U005",
-    name: "Maria Lim",
-    role: "Checker",
-    department: "QA Section",
-    avatar: "M",
-    avatarColor: "#1877F2",
-  },
-  {
-    id: "U006",
-    name: "Ricardo Santos",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "R",
-    avatarColor: "#0ea5e9",
-  },
-  {
-    id: "U007",
-    name: "Clara Mendoza",
-    role: "Checker",
-    department: "QA Section",
-    avatar: "C",
-    avatarColor: "#ec4899",
-  },
-  {
-    id: "U008",
-    name: "Eduardo Flores",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "E",
-    avatarColor: "#8b5cf6",
-  },
-  {
-    id: "U009",
-    name: "Patricia Ramos",
-    role: "Checker",
-    department: "QA Section",
-    avatar: "P",
-    avatarColor: "#f97316",
-  },
-  {
-    id: "U010",
-    name: "Benjamin Torres",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "B",
-    avatarColor: "#14b8a6",
-  },
-];
-
-const EVALUATORS_DATA = [
-  {
-    id: 1,
-    userId: "U001",
-    name: "Ana Santos",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "A",
-    avatarColor: "#9333ea",
-    targets: [
-      {
-        id: 1,
-        taskId: "T001",
-        label: "Evaluate Furacef-750 batch",
-        taskCode: "20230908133701",
-        taskName: "Furacef-750 (Cefuroxime Sodium)",
-        status: "In Progress",
-        startDate: "2026-03-08",
-        deadline: "2026-03-13",
-      },
-      {
-        id: 2,
-        taskId: "T002",
-        label: "Review Amoxil-500 applications",
-        taskCode: "20230908133702",
-        taskName: "Amoxil-500 (Amoxicillin)",
-        status: "In Progress",
-        startDate: "2026-03-08",
-        deadline: "2026-03-13",
-      },
-    ],
-  },
-  {
-    id: 2,
-    userId: "U002",
-    name: "Marco Reyes",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "M",
-    avatarColor: "#e02020",
-    targets: [
-      {
-        id: 1,
-        taskId: "T003",
-        label: "Process Calpol-250 CPR docs",
-        taskCode: "20230908133703",
-        taskName: "Calpol-250 (Paracetamol)",
-        status: "Done",
-        startDate: "2026-03-05",
-        deadline: "2026-03-13",
-      },
-      {
-        id: 2,
-        taskId: "T004",
-        label: "Evaluate Cloxacil-250 batch",
-        taskCode: "20230908133704",
-        taskName: "Cloxacil-250 (Cloxacillin)",
-        status: "In Progress",
-        startDate: "2026-03-08",
-        deadline: "2026-03-13",
-      },
-    ],
-  },
-  {
-    id: 3,
-    userId: "U003",
-    name: "Liza Cruz",
-    role: "Evaluator",
-    department: "CPR Division",
-    avatar: "L",
-    avatarColor: "#f59e0b",
-    targets: [
-      {
-        id: 1,
-        taskId: "T005",
-        label: "Review Augmentin-625 applications",
-        taskCode: "20230908133705",
-        taskName: "Augmentin-625 (Co-Amoxiclav)",
-        status: "In Progress",
-        startDate: "2026-03-10",
-        deadline: "2026-03-13",
-      },
-    ],
-  },
-  {
-    id: 4,
-    userId: "U004",
-    name: "Jose Dela Cruz",
-    role: "Checker",
-    department: "QA Section",
-    avatar: "J",
-    avatarColor: "#36a420",
-    targets: [
-      {
-        id: 1,
-        taskId: "T006",
-        label: "Check Mefenamic-500 documents",
-        taskCode: "20230908133706",
-        taskName: "Mefenamic-500 (Mefenamic Acid)",
-        status: "In Progress",
-        startDate: "2026-03-06",
-        deadline: "2026-03-13",
-      },
-      {
-        id: 2,
-        taskId: "T007",
-        label: "Verify Losartan-50 CPR batch",
-        taskCode: "20230908133707",
-        taskName: "Losartan-50 (Losartan Potassium)",
-        status: "In Progress",
-        startDate: "2026-03-08",
-        deadline: "2026-03-13",
-      },
-      {
-        id: 3,
-        taskId: "T008",
-        label: "Audit Amlodipine-10 records",
-        taskCode: "20230908133708",
-        taskName: "Amlodipine-10 (Amlodipine Besylate)",
-        status: "In Progress",
-        startDate: "2026-03-10",
-        deadline: "2026-03-13",
-      },
-    ],
-  },
-  {
-    id: 5,
-    userId: "U005",
-    name: "Maria Lim",
-    role: "Checker",
-    department: "QA Section",
-    avatar: "M",
-    avatarColor: "#1877F2",
-    targets: [
-      {
-        id: 1,
-        taskId: "T009",
-        label: "Check Metformin-500 batch",
-        taskCode: "20230908133709",
-        taskName: "Metformin-500 (Metformin HCl)",
-        status: "In Progress",
-        startDate: "2026-03-09",
-        deadline: "2026-03-13",
-      },
-    ],
-  },
-];
-
 const TODAY = new Date("2026-03-11T00:00:00");
 
 function formatDateShort(dateStr) {
@@ -1062,21 +744,11 @@ function resolveTargetsForRange(start, end) {
   return TARGETS_WEEKLY;
 }
 
-// ★ NEW ── helper: convert breakdown + selYear + selMonth to date_from / date_to
-// Used to pass the matching date range to the API so the KPI tiles reflect
-// the same window as the chart.
 function buildDateParams(breakdown, selYear, selMonth) {
-  if (breakdown === "year" || selYear === "All") {
-    // All-years view → no date filter (return all-time stats)
-    return {};
-  }
+  if (breakdown === "year" || selYear === "All") return {};
   if (breakdown === "month") {
-    return {
-      date_from: `${selYear}-01-01`,
-      date_to: `${selYear}-12-31`,
-    };
+    return { date_from: `${selYear}-01-01`, date_to: `${selYear}-12-31` };
   }
-  // breakdown === "day"
   const monthNum = MONTH_NUM[selMonth];
   const daysInMonth = new Date(
     parseInt(selYear),
@@ -1087,58 +759,6 @@ function buildDateParams(breakdown, selYear, selMonth) {
     date_from: `${selYear}-${monthNum}-01`,
     date_to: `${selYear}-${monthNum}-${String(daysInMonth).padStart(2, "0")}`,
   };
-}
-
-// ─── ★ NEW ── Skeleton shimmer for loading state ───────────────────────────────
-function SkeletonTile({ ui }) {
-  return (
-    <div
-      style={{
-        flex: "1 1 0",
-        padding: "12px 14px",
-        borderRadius: 8,
-        border: `1.5px solid ${ui.metricBorder}`,
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          marginBottom: 8,
-        }}
-      >
-        <div
-          style={{
-            width: 18,
-            height: 18,
-            borderRadius: "50%",
-            background: ui.progressBg,
-            animation: "pulse 1.2s ease-in-out infinite",
-          }}
-        />
-        <div
-          style={{
-            width: 80,
-            height: 10,
-            borderRadius: 4,
-            background: ui.progressBg,
-            animation: "pulse 1.2s ease-in-out infinite",
-          }}
-        />
-      </div>
-      <div
-        style={{
-          width: 60,
-          height: 22,
-          borderRadius: 4,
-          background: ui.progressBg,
-          animation: "pulse 1.2s ease-in-out infinite",
-        }}
-      />
-    </div>
-  );
 }
 
 function TargetModal({ target, onClose, ui }) {
@@ -1539,95 +1159,92 @@ function AreaChart({ data, subtitle, ui }) {
               onMouseEnter={() => setHov(i)}
               onMouseLeave={() => setHov(null)}
             />
-            {hov === i && (
-              <>
-                <line
-                  x1={toX(i)}
-                  y1={PAD.top}
-                  x2={toX(i)}
-                  y2={PAD.top + cH}
-                  stroke={ui.gridLine}
-                  strokeWidth="1"
-                  strokeDasharray="4 3"
-                />
-                {SERIES.map((s) => (
-                  <circle
-                    key={s.key}
-                    cx={toX(i)}
-                    cy={toY(d[s.key] ?? 0)}
-                    r="3.5"
-                    fill={s.color}
-                    stroke={ui.cardBg}
-                    strokeWidth="2"
-                  />
-                ))}
-                {(() => {
-                  const tipW = 132,
-                    tipH = 84;
-                  const tipX =
-                    toX(i) > W * 0.65 ? toX(i) - tipW - 10 : toX(i) + 10;
-                  const tipY = PAD.top + 2;
-                  return (
-                    <g>
-                      <rect
-                        x={tipX}
-                        y={tipY}
-                        width={tipW}
-                        height={tipH}
-                        rx={6}
-                        fill={ui.cardBg}
-                        stroke={ui.cardBorder}
-                        strokeWidth="1"
-                        style={{
-                          filter: "drop-shadow(0 2px 8px rgba(0,0,0,.22))",
-                        }}
+            {hov === i &&
+              (() => {
+                const tipW = 132,
+                  tipH = 84;
+                const tipX =
+                  toX(i) > W * 0.65 ? toX(i) - tipW - 10 : toX(i) + 10;
+                const tipY = PAD.top + 2;
+                return (
+                  <g>
+                    <line
+                      x1={toX(i)}
+                      y1={PAD.top}
+                      x2={toX(i)}
+                      y2={PAD.top + cH}
+                      stroke={ui.gridLine}
+                      strokeWidth="1"
+                      strokeDasharray="4 3"
+                    />
+                    {SERIES.map((s) => (
+                      <circle
+                        key={s.key}
+                        cx={toX(i)}
+                        cy={toY(d[s.key] ?? 0)}
+                        r="3.5"
+                        fill={s.color}
+                        stroke={ui.cardBg}
+                        strokeWidth="2"
                       />
-                      <text
-                        x={tipX + 8}
-                        y={tipY + 13}
-                        fill={ui.textMuted}
-                        fontSize="9"
-                        fontWeight="600"
-                        fontFamily="inherit"
-                      >
-                        {d.label}
-                        {subtitle ? ` · ${subtitle}` : ""}
-                      </text>
-                      {SERIES.map((s, si) => (
-                        <g key={s.key}>
-                          <circle
-                            cx={tipX + 11}
-                            cy={tipY + 24 + si * 16}
-                            r="3"
-                            fill={s.color}
-                          />
-                          <text
-                            x={tipX + 19}
-                            y={tipY + 28 + si * 16}
-                            fill={ui.textSub}
-                            fontSize="9"
-                            fontFamily="inherit"
-                          >
-                            {s.label}:
-                          </text>
-                          <text
-                            x={tipX + tipW - 6}
-                            y={tipY + 28 + si * 16}
-                            textAnchor="end"
-                            fill={s.color}
-                            fontSize="9"
-                            fontWeight="700"
-                            fontFamily="inherit"
-                          >
-                            {d[s.key] ?? 0}
-                          </text>
-                        </g>
-                      ))}
-                    </g>
-                  );
-                })()}
-              </>
-            )}
+                    ))}
+                    <rect
+                      x={tipX}
+                      y={tipY}
+                      width={tipW}
+                      height={tipH}
+                      rx={6}
+                      fill={ui.cardBg}
+                      stroke={ui.cardBorder}
+                      strokeWidth="1"
+                      style={{
+                        filter: "drop-shadow(0 2px 8px rgba(0,0,0,.22))",
+                      }}
+                    />
+                    <text
+                      x={tipX + 8}
+                      y={tipY + 13}
+                      fill={ui.textMuted}
+                      fontSize="9"
+                      fontWeight="600"
+                      fontFamily="inherit"
+                    >
+                      {d.label}
+                      {subtitle ? ` · ${subtitle}` : ""}
+                    </text>
+                    {SERIES.map((s, si) => (
+                      <g key={s.key}>
+                        <circle
+                          cx={tipX + 11}
+                          cy={tipY + 24 + si * 16}
+                          r="3"
+                          fill={s.color}
+                        />
+                        <text
+                          x={tipX + 19}
+                          y={tipY + 28 + si * 16}
+                          fill={ui.textSub}
+                          fontSize="9"
+                          fontFamily="inherit"
+                        >
+                          {s.label}:
+                        </text>
+                        <text
+                          x={tipX + tipW - 6}
+                          y={tipY + 28 + si * 16}
+                          textAnchor="end"
+                          fill={s.color}
+                          fontSize="9"
+                          fontWeight="700"
+                          fontFamily="inherit"
+                        >
+                          {d[s.key] ?? 0}
+                        </text>
+                      </g>
+                    ))}
+                  </g>
+                );
+              })()}
           </g>
         ))}
       </svg>
@@ -1635,7 +1252,6 @@ function AreaChart({ data, subtitle, ui }) {
   );
 }
 
-// ★ UPDATED ── MetricTile now accepts `loading` and `isLive` props
 function MetricTile({
   icon,
   label,
@@ -1663,7 +1279,6 @@ function MetricTile({
         position: "relative",
       }}
     >
-      {/* ★ LIVE badge — shown on the 3 real-API tiles */}
       {isLive && !loading && (
         <span
           style={{
@@ -1790,76 +1405,6 @@ function CardHeader({ title, sub, right, ui }) {
         )}
       </div>
       {right}
-    </div>
-  );
-}
-
-function NavItem({ icon, label, active, hasArrow, onClick, ui, disabled }) {
-  const [hov, setHov] = useState(false);
-  return (
-    <div
-      onClick={disabled ? undefined : onClick}
-      onMouseEnter={() => !disabled && setHov(true)}
-      onMouseLeave={() => setHov(false)}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "5px 4px",
-        borderRadius: 8,
-        margin: "2px 8px",
-        background: active ? ui.activeNavBg : hov ? ui.hoverBg : "transparent",
-        cursor: disabled ? "default" : "pointer",
-        transition: "background 0.12s",
-        opacity: disabled ? 0.5 : 1,
-        position: "relative",
-      }}
-    >
-      <span
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: "50%",
-          background: active ? FB : ui.inputBg,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: ".75rem",
-          flexShrink: 0,
-          transition: "background 0.15s",
-        }}
-      >
-        {icon}
-      </span>
-      <span
-        style={{
-          flex: 1,
-          fontSize: "0.75rem",
-          fontWeight: active ? 700 : 500,
-          color: active ? FB : ui.textPrimary,
-        }}
-      >
-        {label}
-      </span>
-      {disabled ? (
-        <span
-          style={{
-            fontSize: "0.4rem",
-            fontWeight: 700,
-            color: "#fff",
-            background: "#f59e0b",
-            padding: "2px 6px",
-            borderRadius: 99,
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-            flexShrink: 0,
-          }}
-        >
-          Soon
-        </span>
-      ) : hasArrow ? (
-        <span style={{ color: ui.textMuted, fontSize: "0.85rem" }}>›</span>
-      ) : null}
     </div>
   );
 }
@@ -2287,6 +1832,7 @@ function AccomplishmentReport({
         return "Weekly Targets";
       })()
     : null;
+
   return (
     <div
       style={{
@@ -2766,971 +2312,6 @@ function AccomplishmentReport({
   );
 }
 
-function MobileTopHeader({ darkMode, onToggleDark, ui }) {
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 200,
-        background: ui.sidebarBg,
-        borderBottom: `1px solid ${ui.cardBorder}`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 14px",
-        height: 48,
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <div
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg,#f59e0b,#ef4444)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "0.9rem",
-          }}
-        >
-          🏅
-        </div>
-        <div
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: "50%",
-            background: "linear-gradient(135deg,#22c55e,#166534)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "0.85rem",
-          }}
-        >
-          🛡️
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            lineHeight: 1.1,
-            marginLeft: 2,
-          }}
-        >
-          <span
-            style={{
-              fontSize: "0.72rem",
-              fontWeight: 800,
-              color: FB,
-              letterSpacing: "0.04em",
-            }}
-          >
-            PBA
-          </span>
-          <span
-            style={{
-              fontSize: "0.55rem",
-              color: ui.textMuted,
-              letterSpacing: "0.02em",
-            }}
-          >
-            CDRR System
-          </span>
-        </div>
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <button
-          onClick={onToggleDark}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "1.1rem",
-            padding: 4,
-            lineHeight: 1,
-            color: darkMode ? "#f59e0b" : ui.textMuted,
-          }}
-        >
-          🌙
-        </button>
-        <button
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontSize: "1.1rem",
-            padding: 4,
-            lineHeight: 1,
-            color: ui.textMuted,
-            position: "relative",
-          }}
-        >
-          🔔
-          <span
-            style={{
-              position: "absolute",
-              top: 2,
-              right: 2,
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: "#e02020",
-              border: `1.5px solid ${ui.sidebarBg}`,
-            }}
-          />
-        </button>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            cursor: "pointer",
-          }}
-        >
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: "50%",
-              background: FB,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#fff",
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              flexShrink: 0,
-            }}
-          >
-            G
-          </div>
-          <div style={{ lineHeight: 1.2 }}>
-            <p
-              style={{
-                margin: 0,
-                fontSize: "0.72rem",
-                fontWeight: 700,
-                color: ui.textPrimary,
-                whiteSpace: "nowrap",
-              }}
-            >
-              Gideon Basco
-            </p>
-            <p
-              style={{
-                margin: 0,
-                fontSize: "0.6rem",
-                color: ui.textMuted,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-              }}
-            >
-              ADMIN
-            </p>
-          </div>
-          <span style={{ color: ui.textMuted, fontSize: "0.75rem" }}>▼</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EvaluatorsView({ ui }) {
-  const [evaluators, setEvaluators] = useState(EVALUATORS_DATA);
-  const [selectedEval, setSelectedEval] = useState(null);
-  const [showAddTarget, setShowAddTarget] = useState(false);
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [selectedTaskId, setSelectedTaskId] = useState("");
-  const [newDeadline, setNewDeadline] = useState("2026-03-13");
-  const [newStartDate, setNewStartDate] = useState("2026-03-11");
-  const [selectedUserId, setSelectedUserId] = useState("");
-
-  const existingUserIds = evaluators.map((ev) => ev.userId);
-  const availableUsers = USER_DATABASE.filter(
-    (u) => !existingUserIds.includes(u.id),
-  );
-  const assignedTaskIds = selectedEval
-    ? selectedEval.targets.map((t) => t.taskId)
-    : [];
-  const availableTasks = CURRENT_TASKS_DECK.filter(
-    (t) => !assignedTaskIds.includes(t.id),
-  );
-
-  const handleAddTarget = () => {
-    if (!selectedTaskId || !selectedEval) return;
-    const task = CURRENT_TASKS_DECK.find((t) => t.id === selectedTaskId);
-    if (!task) return;
-    setEvaluators((prev) =>
-      prev.map((ev) => {
-        if (ev.id !== selectedEval.id) return ev;
-        const newTarget = {
-          id: ev.targets.length + 1,
-          taskId: task.id,
-          label: `${task.type}: ${task.name}`,
-          taskCode: task.code,
-          taskName: task.name,
-          status: "In Progress",
-          startDate: newStartDate,
-          deadline: newDeadline,
-        };
-        const updated = { ...ev, targets: [...ev.targets, newTarget] };
-        setSelectedEval(updated);
-        return updated;
-      }),
-    );
-    setSelectedTaskId("");
-    setNewDeadline("2026-03-13");
-    setNewStartDate("2026-03-11");
-    setShowAddTarget(false);
-  };
-  const handleToggleStatus = (evalId, targetId) => {
-    setEvaluators((prev) =>
-      prev.map((ev) => {
-        if (ev.id !== evalId) return ev;
-        const updated = {
-          ...ev,
-          targets: ev.targets.map((t) =>
-            t.id !== targetId
-              ? t
-              : { ...t, status: t.status === "Done" ? "In Progress" : "Done" },
-          ),
-        };
-        if (selectedEval?.id === evalId) setSelectedEval(updated);
-        return updated;
-      }),
-    );
-  };
-  const handleAddMember = () => {
-    if (!selectedUserId) return;
-    const user = USER_DATABASE.find((u) => u.id === selectedUserId);
-    if (!user) return;
-    setEvaluators((prev) => [
-      ...prev,
-      {
-        id: prev.length + 1,
-        userId: user.id,
-        name: user.name,
-        role: user.role,
-        department: user.department,
-        avatar: user.avatar,
-        avatarColor: user.avatarColor,
-        targets: [],
-      },
-    ]);
-    setSelectedUserId("");
-    setShowAddMember(false);
-  };
-
-  const inputSt = {
-    width: "100%",
-    padding: "8px 10px",
-    borderRadius: 7,
-    border: `1.5px solid ${ui.metricBorder}`,
-    background: ui.inputBg,
-    color: ui.textPrimary,
-    fontSize: "0.83rem",
-    fontFamily: "inherit",
-    outline: "none",
-    boxSizing: "border-box",
-  };
-  const selectSt = {
-    ...inputSt,
-    cursor: "pointer",
-    appearance: "none",
-    WebkitAppearance: "none",
-    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2365676b' d='M6 8L1 3h10z'/%3E%3C/svg%3E")`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "right 10px center",
-    paddingRight: 28,
-  };
-
-  const getStatusDisplay = (target) => {
-    const status = target.status === "Done" ? "Done" : "In Progress";
-    return { label: status, color: status === "Done" ? "#36a420" : "#f59e0b" };
-  };
-  const getDateDisplay = (target) => {
-    const start = target.startDate ? formatDateShort(target.startDate) : null;
-    const end = target.deadline ? formatDateShort(target.deadline) : null;
-    const left = target.deadline ? daysUntil(target.deadline) : null;
-    return { start, end, left };
-  };
-  const getEvalProgress = (ev) => {
-    const done = ev.targets.filter((t) => t.status === "Done").length;
-    const total = ev.targets.length;
-    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-    return { done, total, pct };
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "1.1rem",
-              fontWeight: 700,
-              color: ui.textPrimary,
-            }}
-          >
-            Evaluators & Checkers
-          </h2>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.8rem",
-              color: ui.textSub,
-              marginTop: 2,
-            }}
-          >
-            Manage targets assigned to your team.
-          </p>
-        </div>
-        <button
-          onClick={() => {
-            setShowAddMember(true);
-            setSelectedEval(null);
-            setShowAddTarget(false);
-          }}
-          style={{
-            padding: "8px 14px",
-            borderRadius: 8,
-            border: "none",
-            background: FB,
-            color: "#fff",
-            fontSize: "0.83rem",
-            fontWeight: 600,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          + Add Member
-        </button>
-      </div>
-      {showAddMember && (
-        <Card ui={ui} style={{ padding: 16 }}>
-          <p
-            style={{
-              margin: "0 0 12px",
-              fontSize: "0.9rem",
-              fontWeight: 700,
-              color: ui.textPrimary,
-            }}
-          >
-            ➕ Add Team Member
-          </p>
-          {availableUsers.length === 0 ? (
-            <p style={{ margin: 0, fontSize: "0.82rem", color: ui.textMuted }}>
-              All users from the database are already on the team.
-            </p>
-          ) : (
-            <>
-              <div style={{ marginBottom: 12 }}>
-                <p
-                  style={{
-                    margin: "0 0 6px",
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    color: ui.textMuted,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.04em",
-                  }}
-                >
-                  Select User from Database
-                </p>
-                <select
-                  style={selectSt}
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                >
-                  <option value="">— Choose a user —</option>
-                  {availableUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.name} · {u.role} · {u.department}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={handleAddMember}
-                  disabled={!selectedUserId}
-                  style={{
-                    padding: "7px 18px",
-                    borderRadius: 7,
-                    border: "none",
-                    background: selectedUserId ? FB : ui.metricBorder,
-                    color: "#fff",
-                    fontSize: "0.82rem",
-                    fontWeight: 600,
-                    cursor: selectedUserId ? "pointer" : "not-allowed",
-                    opacity: selectedUserId ? 1 : 0.5,
-                  }}
-                >
-                  Add to Team
-                </button>
-                <button
-                  onClick={() => {
-                    setShowAddMember(false);
-                    setSelectedUserId("");
-                  }}
-                  style={{
-                    padding: "7px 14px",
-                    borderRadius: 7,
-                    border: `1px solid ${ui.cardBorder}`,
-                    background: "transparent",
-                    color: ui.textSub,
-                    fontSize: "0.82rem",
-                    cursor: "pointer",
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </>
-          )}
-        </Card>
-      )}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        {evaluators.map((ev) => {
-          const { done, total, pct } = getEvalProgress(ev);
-          const isSelected = selectedEval?.id === ev.id;
-          return (
-            <div
-              key={ev.id}
-              onClick={() => {
-                setSelectedEval(isSelected ? null : ev);
-                setShowAddTarget(false);
-                setShowAddMember(false);
-              }}
-              style={{
-                background: ui.cardBg,
-                border: `1.5px solid ${isSelected ? FB : ui.cardBorder}`,
-                borderRadius: 10,
-                padding: "14px 16px",
-                cursor: "pointer",
-                transition: "border 0.15s, box-shadow 0.15s",
-                boxShadow: isSelected ? `0 0 0 3px ${FB}22` : "none",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  marginBottom: 10,
-                }}
-              >
-                <div
-                  style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: "50%",
-                    background: ev.avatarColor,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#fff",
-                    fontWeight: 700,
-                    fontSize: "1rem",
-                    flexShrink: 0,
-                  }}
-                >
-                  {ev.avatar}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.88rem",
-                      fontWeight: 700,
-                      color: ui.textPrimary,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {ev.name}
-                  </p>
-                  <span
-                    style={{
-                      fontSize: "0.7rem",
-                      fontWeight: 600,
-                      color: ev.role === "Checker" ? "#36a420" : FB,
-                      background: ev.role === "Checker" ? "#e9f7e6" : FB_LIGHT,
-                      padding: "1px 8px",
-                      borderRadius: 99,
-                    }}
-                  >
-                    {ev.role}
-                  </span>
-                </div>
-              </div>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: "0.74rem",
-                  color: ui.textMuted,
-                  marginBottom: 5,
-                }}
-              >
-                <span>
-                  {total} target{total !== 1 ? "s" : ""} · {done} done
-                </span>
-                <span
-                  style={{
-                    fontWeight: 700,
-                    color: pct === 100 ? "#36a420" : FB,
-                  }}
-                >
-                  {pct}%
-                </span>
-              </div>
-              <div
-                style={{
-                  height: 4,
-                  borderRadius: 99,
-                  background: ui.progressBg,
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${pct}%`,
-                    borderRadius: 99,
-                    background: pct === 100 ? "#36a420" : FB,
-                    transition: "width 0.3s",
-                  }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {selectedEval && (
-        <Card ui={ui}>
-          <div
-            style={{
-              padding: "14px 16px 10px",
-              borderBottom: `1px solid ${ui.divider}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  background: selectedEval.avatarColor,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: "0.9rem",
-                }}
-              >
-                {selectedEval.avatar}
-              </div>
-              <div>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "0.92rem",
-                    fontWeight: 700,
-                    color: ui.textPrimary,
-                  }}
-                >
-                  {selectedEval.name}
-                </p>
-                <p
-                  style={{ margin: 0, fontSize: "0.76rem", color: ui.textSub }}
-                >
-                  {selectedEval.role} · {selectedEval.targets.length} targets
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setShowAddTarget((v) => !v)}
-              style={{
-                padding: "6px 14px",
-                borderRadius: 7,
-                border: `1.5px solid ${FB}`,
-                background: showAddTarget ? FB : "transparent",
-                color: showAddTarget ? "#fff" : FB,
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.15s",
-              }}
-            >
-              {showAddTarget ? "✕ Cancel" : "+ Add Target"}
-            </button>
-          </div>
-          {showAddTarget && (
-            <div
-              style={{
-                padding: "14px 16px",
-                borderBottom: `1px solid ${ui.divider}`,
-                background: `${FB}08`,
-                display: "flex",
-                flexDirection: "column",
-                gap: 12,
-              }}
-            >
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.82rem",
-                  fontWeight: 700,
-                  color: ui.textPrimary,
-                }}
-              >
-                📋 Assign Task from Deck
-              </p>
-              {availableTasks.length === 0 ? (
-                <p
-                  style={{ margin: 0, fontSize: "0.8rem", color: ui.textMuted }}
-                >
-                  No available tasks in the deck for this member.
-                </p>
-              ) : (
-                <>
-                  <div>
-                    <p
-                      style={{
-                        margin: "0 0 5px",
-                        fontSize: "0.7rem",
-                        fontWeight: 600,
-                        color: ui.textMuted,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      Select Task from Current Deck
-                    </p>
-                    <select
-                      style={selectSt}
-                      value={selectedTaskId}
-                      onChange={(e) => setSelectedTaskId(e.target.value)}
-                    >
-                      <option value="">— Choose a task —</option>
-                      {availableTasks.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.code} · {t.name} ({t.type})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <div style={{ flex: 1 }}>
-                      <p
-                        style={{
-                          margin: "0 0 5px",
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          color: ui.textMuted,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.04em",
-                        }}
-                      >
-                        Start Date
-                      </p>
-                      <input
-                        type="date"
-                        style={inputSt}
-                        value={newStartDate}
-                        onChange={(e) => setNewStartDate(e.target.value)}
-                      />
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <p
-                        style={{
-                          margin: "0 0 5px",
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          color: ui.textMuted,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.04em",
-                        }}
-                      >
-                        Deadline
-                      </p>
-                      <input
-                        type="date"
-                        style={inputSt}
-                        value={newDeadline}
-                        min={newStartDate}
-                        onChange={(e) => setNewDeadline(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <button
-                      onClick={handleAddTarget}
-                      disabled={!selectedTaskId}
-                      style={{
-                        padding: "8px 18px",
-                        borderRadius: 7,
-                        border: "none",
-                        background: selectedTaskId ? FB : ui.metricBorder,
-                        color: "#fff",
-                        fontSize: "0.82rem",
-                        fontWeight: 600,
-                        cursor: selectedTaskId ? "pointer" : "not-allowed",
-                        opacity: selectedTaskId ? 1 : 0.5,
-                      }}
-                    >
-                      Assign Target
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowAddTarget(false);
-                        setSelectedTaskId("");
-                      }}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 7,
-                        border: `1px solid ${ui.cardBorder}`,
-                        background: "transparent",
-                        color: ui.textSub,
-                        fontSize: "0.82rem",
-                        cursor: "pointer",
-                      }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-          {selectedEval.targets.length === 0 ? (
-            <div
-              style={{
-                padding: "24px 16px",
-                textAlign: "center",
-                color: ui.textMuted,
-                fontSize: "0.83rem",
-              }}
-            >
-              No targets yet. Click "+ Add Target" to assign one from the task
-              deck.
-            </div>
-          ) : (
-            selectedEval.targets.map((t, i, arr) => {
-              const { label: statusLabel, color: statusColor } =
-                getStatusDisplay(t);
-              const { start, end, left } = getDateDisplay(t);
-              const isDone = t.status === "Done";
-              return (
-                <div
-                  key={t.id}
-                  style={{
-                    padding: "14px 16px",
-                    borderBottom:
-                      i < arr.length - 1 ? `1px solid ${ui.divider}` : "none",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      justifyContent: "space-between",
-                      marginBottom: 8,
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: "0.86rem",
-                          fontWeight: 600,
-                          color: ui.textPrimary,
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {t.taskName || t.label}
-                      </p>
-                      {t.taskCode && (
-                        <p
-                          style={{
-                            margin: "2px 0 0",
-                            fontSize: "0.72rem",
-                            color: ui.textMuted,
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {t.taskCode}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleToggleStatus(selectedEval.id, t.id)}
-                      style={{
-                        fontSize: "0.72rem",
-                        fontWeight: 700,
-                        color: statusColor,
-                        background: `${statusColor}18`,
-                        padding: "4px 10px",
-                        borderRadius: 99,
-                        border: `1.5px solid ${statusColor}40`,
-                        cursor: "pointer",
-                        flexShrink: 0,
-                        transition: "all 0.15s",
-                        whiteSpace: "nowrap",
-                        fontFamily: "inherit",
-                      }}
-                    >
-                      {isDone ? "✓ Done" : "⏳ In Progress"}
-                    </button>
-                  </div>
-                  <div
-                    style={{
-                      height: 3,
-                      borderRadius: 99,
-                      background: ui.progressBg,
-                      overflow: "hidden",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        height: "100%",
-                        width: isDone ? "100%" : "50%",
-                        borderRadius: 99,
-                        background: statusColor,
-                        transition: "width 0.4s",
-                      }}
-                    />
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {start && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        <span
-                          style={{ fontSize: "0.65rem", color: ui.textMuted }}
-                        >
-                          📅
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.74rem",
-                            color: ui.textSub,
-                            fontWeight: 500,
-                          }}
-                        >
-                          {start}
-                        </span>
-                      </div>
-                    )}
-                    {start && end && (
-                      <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
-                        →
-                      </span>
-                    )}
-                    {end && (
-                      <span
-                        style={{
-                          fontSize: "0.74rem",
-                          color: ui.textSub,
-                          fontWeight: 500,
-                        }}
-                      >
-                        {end}
-                      </span>
-                    )}
-                    {left !== null && !isDone && (
-                      <>
-                        <span
-                          style={{ fontSize: "0.7rem", color: ui.textMuted }}
-                        >
-                          ·
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.7rem",
-                            fontWeight: 700,
-                            color:
-                              left === 0
-                                ? "#e02020"
-                                : left <= 2
-                                  ? "#f59e0b"
-                                  : ui.textMuted,
-                            background:
-                              left === 0
-                                ? "#fde8e8"
-                                : left <= 2
-                                  ? "#fff8e7"
-                                  : "transparent",
-                            padding: left <= 2 ? "1px 6px" : "0",
-                            borderRadius: left <= 2 ? 99 : 0,
-                          }}
-                        >
-                          {left === 0 ? "Due today!" : `${left}d left`}
-                        </span>
-                      </>
-                    )}
-                    {isDone && (
-                      <>
-                        <span
-                          style={{ fontSize: "0.7rem", color: ui.textMuted }}
-                        >
-                          ·
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.7rem",
-                            fontWeight: 600,
-                            color: "#36a420",
-                          }}
-                        >
-                          Completed ✓
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </Card>
-      )}
-    </div>
-  );
-}
-
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage({
   darkMode: darkModeProp,
@@ -3751,12 +2332,10 @@ export default function DashboardPage({
   const [tablePage, setTablePage] = useState(0);
   const TABLE_PAGE_SIZE = 13;
 
-  // ★ NEW ── Live API stats state
-  const [liveStats, setLiveStats] = useState(null); // { received, completed, on_process }
+  const [liveStats, setLiveStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(null);
 
-  // ★ NEW ── Fetch real stats whenever the chart window changes
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
     setStatsError(null);
@@ -3859,8 +2438,6 @@ export default function DashboardPage({
       ? ((totals.completed / totals.received) * 100).toFixed(1)
       : "0.0";
 
-  // ★ UPDATED ── metrics array now reads from liveStats for the 3 real KPIs
-  // Target stays chart-derived (no backend endpoint for it yet).
   const metrics = [
     {
       icon: "👁️",
@@ -3892,7 +2469,7 @@ export default function DashboardPage({
       value: totals.target,
       change: 0,
       key: "target",
-      isLive: false, // still chart-derived
+      isLive: false,
     },
   ];
 
@@ -3964,6 +2541,36 @@ export default function DashboardPage({
     boxSizing: "border-box",
     cursor: "pointer",
   };
+
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
+  useEffect(() => {
+    const id = "cdrr-style";
+    if (!document.getElementById(id)) {
+      const style = document.createElement("style");
+      style.id = id;
+      style.textContent = `
+        .cdrr-scroll::-webkit-scrollbar{width:7px}
+        .cdrr-scroll::-webkit-scrollbar-track{background:transparent}
+        .cdrr-scroll::-webkit-scrollbar-thumb{background:#3a3b3c;border-radius:99px}
+        .cdrr-scroll::-webkit-scrollbar-thumb:hover{background:#555}
+        .cdrr-scroll{scrollbar-width:thin;scrollbar-color:#3a3b3c transparent}
+        @keyframes cdrrPulse{0%,100%{opacity:1}50%{opacity:0.4}}
+      `;
+      document.head.appendChild(style);
+    }
+    return () => {
+      const el = document.getElementById(id);
+      if (el) el.remove();
+    };
+  }, []);
 
   const RightPanel = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -4174,10 +2781,7 @@ export default function DashboardPage({
                 value={reportStart}
                 max={reportEnd || "2099-12-31"}
                 onChange={(e) => handleReportStartChange(e.target.value)}
-                style={{
-                  ...inputSt2,
-                  border: `1.5px solid ${reportDateErr ? ui.metricBorder : ui.metricBorder}`,
-                }}
+                style={inputSt2}
               />
             </div>
             <div style={{ flex: 1 }}>
@@ -4198,10 +2802,7 @@ export default function DashboardPage({
                 value={reportEnd}
                 min={reportStart || "2020-01-01"}
                 onChange={(e) => handleReportEndChange(e.target.value)}
-                style={{
-                  ...inputSt2,
-                  border: `1.5px solid ${reportDateErr ? ui.metricBorder : ui.metricBorder}`,
-                }}
+                style={inputSt2}
               />
             </div>
           </div>
@@ -4373,178 +2974,8 @@ export default function DashboardPage({
     </div>
   );
 
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth < 768 : false,
-  );
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-
-  // ★ NEW ── inject pulse keyframe once
-  useEffect(() => {
-    const id = "cdrr-style";
-    if (!document.getElementById(id)) {
-      const style = document.createElement("style");
-      style.id = id;
-      style.textContent = `
-        .cdrr-scroll::-webkit-scrollbar{width:7px}
-        .cdrr-scroll::-webkit-scrollbar-track{background:transparent}
-        .cdrr-scroll::-webkit-scrollbar-thumb{background:#3a3b3c;border-radius:99px}
-        .cdrr-scroll::-webkit-scrollbar-thumb:hover{background:#555}
-        .cdrr-scroll{scrollbar-width:thin;scrollbar-color:#3a3b3c transparent}
-        @keyframes cdrrPulse{0%,100%{opacity:1}50%{opacity:0.4}}
-      `;
-      document.head.appendChild(style);
-    }
-    return () => {
-      const el = document.getElementById(id);
-      if (el) el.remove();
-    };
-  }, []);
-
-  const [activeNav, setActiveNav] = useState("home");
-  const navItems = [
-    { key: "home", icon: "🏠", label: "Home", disabled: false },
-    {
-      key: "insights",
-      icon: "📊",
-      label: "Insights",
-      hasArrow: true,
-      disabled: true,
-    },
-    { key: "content", icon: "📄", label: "Content", disabled: true },
-    {
-      key: "backlogs",
-      icon: "⏳",
-      label: "Backlogs",
-      hasArrow: true,
-      disabled: true,
-    },
-    { key: "evaluators", icon: "⭐", label: "Evaluators", disabled: false },
-    { key: "settings", icon: "⚙️", label: "Settings", disabled: true },
-  ];
-
-  const InnerSidebar = () => (
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        minHeight: "100%",
-        background: ui.sidebarBg,
-        borderRight: `1px solid ${ui.cardBorder}`,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div style={{ padding: "16px 10px 10px" }}>
-        <p
-          style={{
-            fontSize: "0.68rem",
-            fontWeight: 700,
-            color: ui.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.07em",
-            margin: "0 0 10px 6px",
-          }}
-        >
-          Dashboard
-        </p>
-        {navItems.map((n) => (
-          <NavItem
-            key={n.key}
-            {...n}
-            active={activeNav === n.key}
-            onClick={() => setActiveNav(n.key)}
-            ui={ui}
-          />
-        ))}
-      </div>
-    </div>
-  );
-
-  const MobileInnerTabNav = () => (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-around",
-        background: ui.sidebarBg,
-        borderBottom: `1px solid ${ui.cardBorder}`,
-        padding: "4px 0 6px",
-        width: "100%",
-      }}
-    >
-      {navItems.map((n) => {
-        const isActive = activeNav === n.key;
-        return (
-          <div
-            key={n.key}
-            onClick={n.disabled ? undefined : () => setActiveNav(n.key)}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 3,
-              cursor: n.disabled ? "default" : "pointer",
-              flex: 1,
-              opacity: n.disabled ? 0.45 : 1,
-              position: "relative",
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: "50%",
-                background: isActive ? FB : "transparent",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "1rem",
-                transition: "background 0.15s",
-              }}
-            >
-              {n.icon}
-            </div>
-            <span
-              style={{
-                fontSize: "0.6rem",
-                fontWeight: isActive ? 700 : 400,
-                color: isActive ? FB : ui.textMuted,
-              }}
-            >
-              {n.label}
-            </span>
-            {n.disabled && (
-              <span
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  right: "10%",
-                  fontSize: "0.45rem",
-                  fontWeight: 700,
-                  color: "#fff",
-                  background: "#f59e0b",
-                  padding: "1px 4px",
-                  borderRadius: 99,
-                  letterSpacing: "0.03em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Soon
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-
   return (
     <>
-      {/* ★ NEW ── error toast when API fails */}
       {statsError && (
         <div
           style={{
@@ -4596,7 +3027,6 @@ export default function DashboardPage({
           fontFamily: font,
         }}
       >
-        {isMobile && <MobileInnerTabNav />}
         <div
           className="cdrr-scroll"
           style={{
@@ -4607,1007 +3037,955 @@ export default function DashboardPage({
             overflowX: "hidden",
           }}
         >
-          {!isMobile && (
-            <div
-              style={{
-                flexShrink: 0,
-                width: 180,
-                position: "sticky",
-                top: 0,
-                alignSelf: "stretch",
-                maxHeight: "100vh",
-                overflowY: "auto",
-              }}
-            >
-              <InnerSidebar />
-            </div>
-          )}
           <div
             style={{
               flex: 1,
               minWidth: 0,
               padding: isMobile ? "12px" : "16px",
               paddingBottom: 120,
-              display: activeNav === "evaluators" ? "block" : "grid",
+              display: "grid",
               gridTemplateColumns: isMobile ? "1fr" : "1fr 290px",
               gap: 16,
               alignItems: "start",
               boxSizing: "border-box",
             }}
           >
-            {activeNav === "evaluators" ? (
-              <EvaluatorsView ui={ui} />
-            ) : (
-              <>
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 16 }}
-                >
-                  <Card ui={ui}>
-                    <div style={{ padding: "14px 16px 0" }}>
-                      <div
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <Card ui={ui}>
+                <div style={{ padding: "14px 16px 0" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      justifyContent: "space-between",
+                      marginBottom: 12,
+                      flexWrap: "wrap",
+                      gap: 8,
+                    }}
+                  >
+                    <div>
+                      <h2
                         style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          justifyContent: "space-between",
-                          marginBottom: 12,
-                          flexWrap: "wrap",
-                          gap: 8,
+                          fontSize: "1.1rem",
+                          fontWeight: 700,
+                          color: ui.textPrimary,
+                          margin: 0,
                         }}
                       >
-                        <div>
-                          <h2
-                            style={{
-                              fontSize: "1.1rem",
-                              fontWeight: 700,
-                              color: ui.textPrimary,
-                              margin: 0,
-                            }}
-                          >
-                            Insights
-                          </h2>
-                          <p
-                            style={{
-                              fontSize: "0.8rem",
-                              color: ui.textSub,
-                              margin: 0,
-                              marginTop: 2,
-                            }}
-                          >
-                            Learn how your applications are performing.
-                          </p>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            flexWrap: "wrap",
-                            justifyContent: "flex-end",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 2,
-                              padding: "3px",
-                              borderRadius: 8,
-                              background: ui.inputBg,
-                              border: `1px solid ${ui.cardBorder}`,
-                            }}
-                          >
-                            {[
-                              { key: "day", label: "Daily" },
-                              { key: "month", label: "Monthly" },
-                              { key: "year", label: "Yearly" },
-                            ].map((opt) => (
-                              <button
-                                key={opt.key}
-                                onClick={() => setBreakdown(opt.key)}
-                                style={{
-                                  padding: "4px 11px",
-                                  borderRadius: 6,
-                                  border: "none",
-                                  background:
-                                    breakdown === opt.key ? FB : "transparent",
-                                  color:
-                                    breakdown === opt.key ? "#fff" : ui.textSub,
-                                  fontSize: "0.76rem",
-                                  fontWeight: breakdown === opt.key ? 700 : 500,
-                                  cursor: "pointer",
-                                  transition: "all 0.15s",
-                                  fontFamily: "inherit",
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {opt.label}
-                              </button>
-                            ))}
-                          </div>
-                          {(breakdown === "day" || breakdown === "month") && (
-                            <select
-                              value={selYear}
-                              onChange={(e) => {
-                                setSelYear(e.target.value);
-                                if (
-                                  breakdown === "day" &&
-                                  e.target.value !== "All"
-                                ) {
-                                  const months =
-                                    MONTHS_BY_YEAR[e.target.value] || [];
-                                  if (!months.includes(selMonth))
-                                    setSelMonth(
-                                      months[months.length - 1] || "Jan",
-                                    );
-                                }
-                              }}
-                              style={{
-                                padding: "4px 24px 4px 10px",
-                                borderRadius: 7,
-                                border: `1px solid ${ui.cardBorder}`,
-                                background: ui.inputBg,
-                                color: ui.textPrimary,
-                                fontSize: "0.76rem",
-                                fontFamily: "inherit",
-                                outline: "none",
-                                cursor: "pointer",
-                                appearance: "none",
-                                WebkitAppearance: "none",
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
-                                backgroundRepeat: "no-repeat",
-                                backgroundPosition: "right 8px center",
-                              }}
-                            >
-                              {breakdown === "month" && (
-                                <option value="All">All Years</option>
-                              )}
-                              {AVAILABLE_YEARS.filter((y) => y !== "All").map(
-                                (y) => (
-                                  <option key={y} value={y}>
-                                    {y}
-                                  </option>
-                                ),
-                              )}
-                            </select>
-                          )}
-                          {breakdown === "day" && selYear !== "All" && (
-                            <select
-                              value={selMonth}
-                              onChange={(e) => setSelMonth(e.target.value)}
-                              style={{
-                                padding: "4px 24px 4px 10px",
-                                borderRadius: 7,
-                                border: `1px solid ${ui.cardBorder}`,
-                                background: ui.inputBg,
-                                color: ui.textPrimary,
-                                fontSize: "0.76rem",
-                                fontFamily: "inherit",
-                                outline: "none",
-                                cursor: "pointer",
-                                appearance: "none",
-                                WebkitAppearance: "none",
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
-                                backgroundRepeat: "no-repeat",
-                                backgroundPosition: "right 8px center",
-                              }}
-                            >
-                              {(MONTHS_BY_YEAR[selYear] || []).map((m) => (
-                                <option key={m} value={m}>
-                                  {m}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                          <SeeAll />
-                        </div>
-                      </div>
-
-                      {/* ★ UPDATED metric tiles row */}
-                      <div
+                        Insights
+                      </h2>
+                      <p
                         style={{
-                          display: "flex",
-                          gap: isMobile ? 6 : 10,
-                          marginBottom: 14,
+                          fontSize: "0.8rem",
+                          color: ui.textSub,
+                          margin: 0,
+                          marginTop: 2,
                         }}
                       >
-                        {metrics.map((m, i) => (
-                          <MetricTile
-                            key={i}
-                            icon={m.icon}
-                            label={m.label}
-                            value={m.value}
-                            change={m.change}
-                            active={activeMetric === i}
-                            onClick={() => setActiveMetric(i)}
-                            ui={ui}
-                            loading={m.isLive ? statsLoading : false}
-                            isLive={m.isLive}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    <div style={{ padding: "0 16px 12px" }}>
-                      <AreaChart
-                        data={chartData}
-                        subtitle={chartSubtitle}
-                        ui={ui}
-                      />
-                    </div>
-
-                    {/* DATA TABLE */}
-                    {(() => {
-                      const totalPages = Math.ceil(
-                        chartData.length / TABLE_PAGE_SIZE,
-                      );
-                      const safePage = Math.min(
-                        tablePage,
-                        Math.max(0, totalPages - 1),
-                      );
-                      const pagedRows = chartData.slice(
-                        safePage * TABLE_PAGE_SIZE,
-                        safePage * TABLE_PAGE_SIZE + TABLE_PAGE_SIZE,
-                      );
-                      const unitLabel =
-                        breakdown === "day"
-                          ? "day"
-                          : breakdown === "month"
-                            ? "month"
-                            : "year";
-                      const startRow = safePage * TABLE_PAGE_SIZE + 1,
-                        endRow = Math.min(
-                          startRow + TABLE_PAGE_SIZE - 1,
-                          chartData.length,
-                        );
-                      return (
-                        <div
-                          style={{
-                            borderTop: `1px solid ${ui.divider}`,
-                            padding: "0 16px 16px",
-                          }}
-                        >
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              padding: "10px 0 8px",
-                            }}
-                          >
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: "0.8rem",
-                                fontWeight: 700,
-                                color: ui.textPrimary,
-                              }}
-                            >
-                              Data Table{" "}
-                              <span
-                                style={{
-                                  marginLeft: 8,
-                                  fontSize: "0.72rem",
-                                  fontWeight: 400,
-                                  color: ui.textMuted,
-                                }}
-                              >
-                                📅 {chartSubtitle}
-                              </span>
-                            </p>
-                            <span
-                              style={{
-                                fontSize: "0.72rem",
-                                color: ui.textMuted,
-                              }}
-                            >
-                              {startRow}–{endRow} of {chartData.length}{" "}
-                              {unitLabel}
-                              {chartData.length !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-                          <div
-                            style={{
-                              overflowX: "auto",
-                              borderRadius: 8,
-                              border: `1px solid ${ui.cardBorder}`,
-                            }}
-                          >
-                            <table
-                              style={{
-                                width: "100%",
-                                borderCollapse: "collapse",
-                                fontSize: "0.8rem",
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              <thead>
-                                <tr style={{ background: ui.pageBg }}>
-                                  {[
-                                    {
-                                      label:
-                                        breakdown === "day"
-                                          ? "Day"
-                                          : breakdown === "month"
-                                            ? "Month"
-                                            : "Year",
-                                      align: "left",
-                                    },
-                                    {
-                                      label: "Total Received",
-                                      align: "right",
-                                      color: "#1877F2",
-                                    },
-                                    {
-                                      label: "Completed",
-                                      align: "right",
-                                      color: "#36a420",
-                                    },
-                                    {
-                                      label: "On Process",
-                                      align: "right",
-                                      color: "#f59e0b",
-                                    },
-                                    {
-                                      label: "Target",
-                                      align: "right",
-                                      color: "#9333ea",
-                                    },
-                                    {
-                                      label: "Completed Rate",
-                                      align: "right",
-                                      color: "#9333ea",
-                                    },
-                                  ].map((col, ci) => (
-                                    <th
-                                      key={ci}
-                                      style={{
-                                        padding: "8px 12px",
-                                        textAlign: col.align,
-                                        fontSize: "0.72rem",
-                                        fontWeight: 700,
-                                        color: col.color || ui.textMuted,
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.04em",
-                                        borderBottom: `1px solid ${ui.cardBorder}`,
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      {col.label}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {pagedRows.map((row, ri) => {
-                                  const globalIdx =
-                                    safePage * TABLE_PAGE_SIZE + ri;
-                                  const rate =
-                                    row.received > 0
-                                      ? (
-                                          (row.completed / row.received) *
-                                          100
-                                        ).toFixed(1)
-                                      : "—";
-                                  const rateN =
-                                    row.received > 0 ? parseFloat(rate) : null;
-                                  const isEven = ri % 2 === 0,
-                                    isLast = ri === pagedRows.length - 1;
-                                  const border = !isLast
-                                    ? `1px solid ${ui.divider}`
-                                    : "none";
-                                  return (
-                                    <tr
-                                      key={globalIdx}
-                                      style={{
-                                        background: isEven
-                                          ? "transparent"
-                                          : `${ui.pageBg}88`,
-                                        transition: "background 0.1s",
-                                      }}
-                                      onMouseEnter={(e) =>
-                                        (e.currentTarget.style.background =
-                                          ui.hoverBg)
-                                      }
-                                      onMouseLeave={(e) =>
-                                        (e.currentTarget.style.background =
-                                          isEven
-                                            ? "transparent"
-                                            : `${ui.pageBg}88`)
-                                      }
-                                    >
-                                      <td
-                                        style={{
-                                          padding: "7px 12px",
-                                          color: ui.textPrimary,
-                                          fontWeight: 600,
-                                          borderBottom: border,
-                                          whiteSpace: "nowrap",
-                                        }}
-                                      >
-                                        {row.label}
-                                        {breakdown === "day" && (
-                                          <span
-                                            style={{
-                                              marginLeft: 4,
-                                              fontSize: "0.68rem",
-                                              color: ui.textMuted,
-                                              fontWeight: 400,
-                                            }}
-                                          >
-                                            {chartSubtitle?.split(" ")[0]}
-                                          </span>
-                                        )}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "7px 12px",
-                                          textAlign: "right",
-                                          color: "#1877F2",
-                                          fontWeight: 700,
-                                          borderBottom: border,
-                                        }}
-                                      >
-                                        {row.received.toLocaleString()}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "7px 12px",
-                                          textAlign: "right",
-                                          color: "#36a420",
-                                          fontWeight: 700,
-                                          borderBottom: border,
-                                        }}
-                                      >
-                                        {row.completed.toLocaleString()}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "7px 12px",
-                                          textAlign: "right",
-                                          color: "#f59e0b",
-                                          fontWeight: 700,
-                                          borderBottom: border,
-                                        }}
-                                      >
-                                        {row.onProcess.toLocaleString()}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "7px 12px",
-                                          textAlign: "right",
-                                          color: "#9333ea",
-                                          fontWeight: 700,
-                                          borderBottom: border,
-                                        }}
-                                      >
-                                        {(row.target || 0) > 0
-                                          ? (row.target || 0).toLocaleString()
-                                          : "—"}
-                                      </td>
-                                      <td
-                                        style={{
-                                          padding: "7px 12px",
-                                          textAlign: "right",
-                                          borderBottom: border,
-                                        }}
-                                      >
-                                        {rateN !== null ? (
-                                          <span
-                                            style={{
-                                              display: "inline-flex",
-                                              alignItems: "center",
-                                              gap: 3,
-                                              fontSize: "0.73rem",
-                                              fontWeight: 700,
-                                              color:
-                                                rateN >= 75
-                                                  ? "#36a420"
-                                                  : rateN >= 50
-                                                    ? "#f59e0b"
-                                                    : "#e02020",
-                                              background:
-                                                rateN >= 75
-                                                  ? "#e9f7e6"
-                                                  : rateN >= 50
-                                                    ? "#fff8e7"
-                                                    : "#fde8e8",
-                                              padding: "2px 8px",
-                                              borderRadius: 99,
-                                            }}
-                                          >
-                                            {rateN >= 75
-                                              ? "▲"
-                                              : rateN >= 50
-                                                ? "~"
-                                                : "▼"}{" "}
-                                            {rate}%
-                                          </span>
-                                        ) : (
-                                          <span
-                                            style={{
-                                              color: ui.textMuted,
-                                              fontSize: "0.73rem",
-                                            }}
-                                          >
-                                            —
-                                          </span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                              <tfoot>
-                                <tr
-                                  style={{
-                                    background: ui.pageBg,
-                                    borderTop: `2px solid ${ui.cardBorder}`,
-                                  }}
-                                >
-                                  <td
-                                    style={{
-                                      padding: "8px 12px",
-                                      fontWeight: 700,
-                                      color: ui.textPrimary,
-                                      fontSize: "0.78rem",
-                                    }}
-                                  >
-                                    Total
-                                  </td>
-                                  {[
-                                    { val: totals.received, color: "#1877F2" },
-                                    { val: totals.completed, color: "#36a420" },
-                                    { val: totals.onProcess, color: "#f59e0b" },
-                                    { val: totals.target, color: "#9333ea" },
-                                  ].map((col, ci) => (
-                                    <td
-                                      key={ci}
-                                      style={{
-                                        padding: "8px 12px",
-                                        textAlign: "right",
-                                        fontWeight: 800,
-                                        color: col.color,
-                                        fontSize: "0.82rem",
-                                      }}
-                                    >
-                                      {col.val.toLocaleString()}
-                                    </td>
-                                  ))}
-                                  {(() => {
-                                    const n = parseFloat(completedRate);
-                                    return (
-                                      <td
-                                        style={{
-                                          padding: "8px 12px",
-                                          textAlign: "right",
-                                        }}
-                                      >
-                                        <span
-                                          style={{
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: 3,
-                                            fontSize: "0.75rem",
-                                            fontWeight: 800,
-                                            color:
-                                              n >= 75
-                                                ? "#36a420"
-                                                : n >= 50
-                                                  ? "#f59e0b"
-                                                  : "#e02020",
-                                            background:
-                                              n >= 75
-                                                ? "#e9f7e6"
-                                                : n >= 50
-                                                  ? "#fff8e7"
-                                                  : "#fde8e8",
-                                            padding: "2px 8px",
-                                            borderRadius: 99,
-                                          }}
-                                        >
-                                          {n >= 75 ? "▲" : n >= 50 ? "~" : "▼"}{" "}
-                                          {completedRate}%
-                                        </span>
-                                      </td>
-                                    );
-                                  })()}
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                          {totalPages > 1 && (
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                marginTop: 10,
-                                gap: 8,
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: "0.74rem",
-                                  color: ui.textMuted,
-                                }}
-                              >
-                                Page {safePage + 1} of {totalPages}
-                              </span>
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 4,
-                                }}
-                              >
-                                <button
-                                  onClick={() =>
-                                    setTablePage((p) => Math.max(0, p - 1))
-                                  }
-                                  disabled={safePage === 0}
-                                  style={{
-                                    padding: "4px 10px",
-                                    borderRadius: 6,
-                                    border: `1px solid ${safePage === 0 ? ui.cardBorder : ui.metricBorder}`,
-                                    background: "transparent",
-                                    color:
-                                      safePage === 0
-                                        ? ui.textMuted
-                                        : ui.textPrimary,
-                                    fontSize: "0.76rem",
-                                    fontWeight: 600,
-                                    cursor:
-                                      safePage === 0
-                                        ? "not-allowed"
-                                        : "pointer",
-                                    opacity: safePage === 0 ? 0.4 : 1,
-                                    fontFamily: "inherit",
-                                  }}
-                                >
-                                  ‹ Prev
-                                </button>
-                                {Array.from({ length: totalPages }, (_, pi) => {
-                                  const show =
-                                    pi === 0 ||
-                                    pi === totalPages - 1 ||
-                                    Math.abs(pi - safePage) <= 1;
-                                  const showEllipsisBefore =
-                                      pi === safePage - 2 && pi > 1,
-                                    showEllipsisAfter =
-                                      pi === safePage + 2 &&
-                                      pi < totalPages - 2;
-                                  if (
-                                    !show &&
-                                    !showEllipsisBefore &&
-                                    !showEllipsisAfter
-                                  )
-                                    return null;
-                                  if (showEllipsisBefore || showEllipsisAfter)
-                                    return (
-                                      <span
-                                        key={pi}
-                                        style={{
-                                          fontSize: "0.74rem",
-                                          color: ui.textMuted,
-                                          padding: "0 2px",
-                                        }}
-                                      >
-                                        …
-                                      </span>
-                                    );
-                                  const isActive = pi === safePage;
-                                  return (
-                                    <button
-                                      key={pi}
-                                      onClick={() => setTablePage(pi)}
-                                      style={{
-                                        width: 28,
-                                        height: 28,
-                                        borderRadius: 6,
-                                        border: `1px solid ${isActive ? FB : ui.cardBorder}`,
-                                        background: isActive
-                                          ? FB
-                                          : "transparent",
-                                        color: isActive
-                                          ? "#fff"
-                                          : ui.textPrimary,
-                                        fontSize: "0.76rem",
-                                        fontWeight: isActive ? 700 : 500,
-                                        cursor: "pointer",
-                                        fontFamily: "inherit",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        flexShrink: 0,
-                                      }}
-                                    >
-                                      {pi + 1}
-                                    </button>
-                                  );
-                                })}
-                                <button
-                                  onClick={() =>
-                                    setTablePage((p) =>
-                                      Math.min(totalPages - 1, p + 1),
-                                    )
-                                  }
-                                  disabled={safePage === totalPages - 1}
-                                  style={{
-                                    padding: "4px 10px",
-                                    borderRadius: 6,
-                                    border: `1px solid ${safePage === totalPages - 1 ? ui.cardBorder : ui.metricBorder}`,
-                                    background: "transparent",
-                                    color:
-                                      safePage === totalPages - 1
-                                        ? ui.textMuted
-                                        : ui.textPrimary,
-                                    fontSize: "0.76rem",
-                                    fontWeight: 600,
-                                    cursor:
-                                      safePage === totalPages - 1
-                                        ? "not-allowed"
-                                        : "pointer",
-                                    opacity:
-                                      safePage === totalPages - 1 ? 0.4 : 1,
-                                    fontFamily: "inherit",
-                                  }}
-                                >
-                                  Next ›
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })()}
-                  </Card>
-
-                  <Card ui={ui}>
-                    <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
-                      <CardHeader
-                        title="Recent Applications"
-                        sub="Access and manage your latest applications all in one place."
-                        right={<SeeAll />}
-                        ui={ui}
-                      />
-                    </div>
-                    {[
-                      {
-                        id: "20230908133701",
-                        type: "Furacef-750 (Cefuroxime Sodium)",
-                        status: "Completed",
-                        date: "Mar 10",
-                        icon: "✅",
-                        statusColor: "#36a420",
-                        statusBg: "#e9f7e6",
-                      },
-                      {
-                        id: "20230908133702",
-                        type: "Amoxil-500 (Amoxicillin)",
-                        status: "On Process",
-                        date: "Mar 9",
-                        icon: "⏳",
-                        statusColor: "#f59e0b",
-                        statusBg: "#fff8e7",
-                      },
-                      {
-                        id: "20230908133703",
-                        type: "Calpol-250 (Paracetamol)",
-                        status: "Completed",
-                        date: "Mar 8",
-                        icon: "✅",
-                        statusColor: "#36a420",
-                        statusBg: "#e9f7e6",
-                      },
-                      {
-                        id: "20230908133704",
-                        type: "Cloxacil-250 (Cloxacillin)",
-                        status: "On Process",
-                        date: "Mar 7",
-                        icon: "⏳",
-                        statusColor: "#f59e0b",
-                        statusBg: "#fff8e7",
-                      },
-                      {
-                        id: "20230908133705",
-                        type: "Augmentin-625 (Co-Amoxiclav)",
-                        status: "Backlog",
-                        date: "Mar 6",
-                        icon: "🚩",
-                        statusColor: "#e02020",
-                        statusBg: "#fde8e8",
-                      },
-                    ].map((row, i, arr) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "11px 16px",
-                          borderBottom:
-                            i < arr.length - 1
-                              ? `1px solid ${ui.divider}`
-                              : "none",
-                          transition: "background 0.12s",
-                          cursor: "pointer",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = ui.hoverBg)
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = "transparent")
-                        }
-                      >
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 12,
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: 40,
-                              height: 40,
-                              borderRadius: 8,
-                              flexShrink: 0,
-                              background: row.statusBg,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: "1.1rem",
-                            }}
-                          >
-                            {row.icon}
-                          </div>
-                          <div>
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: "0.86rem",
-                                fontWeight: 600,
-                                color: ui.textPrimary,
-                              }}
-                            >
-                              {row.id}
-                            </p>
-                            <p
-                              style={{
-                                margin: 0,
-                                fontSize: "0.78rem",
-                                color: ui.textSub,
-                              }}
-                            >
-                              {row.type}
-                            </p>
-                          </div>
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: isMobile ? 6 : 12,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.78rem",
-                              fontWeight: 600,
-                              color: row.statusColor,
-                              background: row.statusBg,
-                              padding: "3px 10px",
-                              borderRadius: 99,
-                            }}
-                          >
-                            {row.status}
-                          </span>
-                          <span
-                            style={{
-                              fontSize: "0.78rem",
-                              color: ui.textMuted,
-                              minWidth: 40,
-                              textAlign: "right",
-                            }}
-                          >
-                            {row.date}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </Card>
-
-                  <Card ui={ui}>
-                    <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
-                      <CardHeader
-                        title="Summary"
-                        sub="Grand totals across all years."
-                        right={<SeeAll />}
-                        ui={ui}
-                      />
+                        Learn how your applications are performing.
+                      </p>
                     </div>
                     <div
                       style={{
                         display: "flex",
-                        padding: "16px",
-                        flexWrap: isMobile ? "wrap" : "nowrap",
+                        alignItems: "center",
+                        gap: 8,
+                        flexWrap: "wrap",
+                        justifyContent: "flex-end",
                       }}
                     >
-                      {[
-                        {
-                          label: "Total Received",
-                          value: ALL_TIME_TOTALS.received,
-                          icon: "📥",
-                          color: "#1877F2",
-                        },
-                        {
-                          label: "Completed",
-                          value: ALL_TIME_TOTALS.completed,
-                          icon: "✅",
-                          color: "#36a420",
-                        },
-                        {
-                          label: "On Process",
-                          value: ALL_TIME_TOTALS.onProcess,
-                          icon: "⏳",
-                          color: "#f59e0b",
-                        },
-                        {
-                          label: "Completed Rate",
-                          value: `${ALL_TIME_TOTALS.completedRate}%`,
-                          icon: "📈",
-                          color: "#9333ea",
-                        },
-                      ].map((s, i, arr) => (
-                        <div
-                          key={i}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 2,
+                          padding: "3px",
+                          borderRadius: 8,
+                          background: ui.inputBg,
+                          border: `1px solid ${ui.cardBorder}`,
+                        }}
+                      >
+                        {[
+                          { key: "day", label: "Daily" },
+                          { key: "month", label: "Monthly" },
+                          { key: "year", label: "Yearly" },
+                        ].map((opt) => (
+                          <button
+                            key={opt.key}
+                            onClick={() => setBreakdown(opt.key)}
+                            style={{
+                              padding: "4px 11px",
+                              borderRadius: 6,
+                              border: "none",
+                              background:
+                                breakdown === opt.key ? FB : "transparent",
+                              color:
+                                breakdown === opt.key ? "#fff" : ui.textSub,
+                              fontSize: "0.76rem",
+                              fontWeight: breakdown === opt.key ? 700 : 500,
+                              cursor: "pointer",
+                              transition: "all 0.15s",
+                              fontFamily: "inherit",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                      {(breakdown === "day" || breakdown === "month") && (
+                        <select
+                          value={selYear}
+                          onChange={(e) => {
+                            setSelYear(e.target.value);
+                            if (
+                              breakdown === "day" &&
+                              e.target.value !== "All"
+                            ) {
+                              const months =
+                                MONTHS_BY_YEAR[e.target.value] || [];
+                              if (!months.includes(selMonth))
+                                setSelMonth(months[months.length - 1] || "Jan");
+                            }
+                          }}
                           style={{
-                            flex: isMobile ? "1 1 50%" : 1,
-                            textAlign: "center",
-                            padding: isMobile ? "12px 6px" : "6px 0",
-                            borderRight:
-                              !isMobile && i < arr.length - 1
-                                ? `1px solid ${ui.divider}`
-                                : "none",
-                            borderBottom:
-                              isMobile && i < 2
-                                ? `1px solid ${ui.divider}`
-                                : "none",
+                            padding: "4px 24px 4px 10px",
+                            borderRadius: 7,
+                            border: `1px solid ${ui.cardBorder}`,
+                            background: ui.inputBg,
+                            color: ui.textPrimary,
+                            fontSize: "0.76rem",
+                            fontFamily: "inherit",
+                            outline: "none",
+                            cursor: "pointer",
+                            appearance: "none",
+                            WebkitAppearance: "none",
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "right 8px center",
                           }}
                         >
-                          <div style={{ fontSize: "1.3rem", marginBottom: 4 }}>
-                            {s.icon}
-                          </div>
-                          <div
+                          {breakdown === "month" && (
+                            <option value="All">All Years</option>
+                          )}
+                          {AVAILABLE_YEARS.filter((y) => y !== "All").map(
+                            (y) => (
+                              <option key={y} value={y}>
+                                {y}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      )}
+                      {breakdown === "day" && selYear !== "All" && (
+                        <select
+                          value={selMonth}
+                          onChange={(e) => setSelMonth(e.target.value)}
+                          style={{
+                            padding: "4px 24px 4px 10px",
+                            borderRadius: 7,
+                            border: `1px solid ${ui.cardBorder}`,
+                            background: ui.inputBg,
+                            color: ui.textPrimary,
+                            fontSize: "0.76rem",
+                            fontFamily: "inherit",
+                            outline: "none",
+                            cursor: "pointer",
+                            appearance: "none",
+                            WebkitAppearance: "none",
+                            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "right 8px center",
+                          }}
+                        >
+                          {(MONTHS_BY_YEAR[selYear] || []).map((m) => (
+                            <option key={m} value={m}>
+                              {m}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <SeeAll />
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: isMobile ? 6 : 10,
+                      marginBottom: 14,
+                    }}
+                  >
+                    {metrics.map((m, i) => (
+                      <MetricTile
+                        key={i}
+                        icon={m.icon}
+                        label={m.label}
+                        value={m.value}
+                        change={m.change}
+                        active={activeMetric === i}
+                        onClick={() => setActiveMetric(i)}
+                        ui={ui}
+                        loading={m.isLive ? statsLoading : false}
+                        isLive={m.isLive}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div style={{ padding: "0 16px 12px" }}>
+                  <AreaChart
+                    data={chartData}
+                    subtitle={chartSubtitle}
+                    ui={ui}
+                  />
+                </div>
+
+                {(() => {
+                  const totalPages = Math.ceil(
+                    chartData.length / TABLE_PAGE_SIZE,
+                  );
+                  const safePage = Math.min(
+                    tablePage,
+                    Math.max(0, totalPages - 1),
+                  );
+                  const pagedRows = chartData.slice(
+                    safePage * TABLE_PAGE_SIZE,
+                    safePage * TABLE_PAGE_SIZE + TABLE_PAGE_SIZE,
+                  );
+                  const unitLabel =
+                    breakdown === "day"
+                      ? "day"
+                      : breakdown === "month"
+                        ? "month"
+                        : "year";
+                  const startRow = safePage * TABLE_PAGE_SIZE + 1,
+                    endRow = Math.min(
+                      startRow + TABLE_PAGE_SIZE - 1,
+                      chartData.length,
+                    );
+                  return (
+                    <div
+                      style={{
+                        borderTop: `1px solid ${ui.divider}`,
+                        padding: "0 16px 16px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "10px 0 8px",
+                        }}
+                      >
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.8rem",
+                            fontWeight: 700,
+                            color: ui.textPrimary,
+                          }}
+                        >
+                          Data Table{" "}
+                          <span
                             style={{
-                              fontSize: "1.35rem",
-                              fontWeight: 700,
-                              color: s.color,
-                              lineHeight: 1,
+                              marginLeft: 8,
+                              fontSize: "0.72rem",
+                              fontWeight: 400,
+                              color: ui.textMuted,
                             }}
                           >
-                            {typeof s.value === "number"
-                              ? s.value.toLocaleString()
-                              : s.value}
-                          </div>
+                            📅 {chartSubtitle}
+                          </span>
+                        </p>
+                        <span
+                          style={{ fontSize: "0.72rem", color: ui.textMuted }}
+                        >
+                          {startRow}–{endRow} of {chartData.length} {unitLabel}
+                          {chartData.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          overflowX: "auto",
+                          borderRadius: 8,
+                          border: `1px solid ${ui.cardBorder}`,
+                        }}
+                      >
+                        <table
+                          style={{
+                            width: "100%",
+                            borderCollapse: "collapse",
+                            fontSize: "0.8rem",
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          <thead>
+                            <tr style={{ background: ui.pageBg }}>
+                              {[
+                                {
+                                  label:
+                                    breakdown === "day"
+                                      ? "Day"
+                                      : breakdown === "month"
+                                        ? "Month"
+                                        : "Year",
+                                  align: "left",
+                                },
+                                {
+                                  label: "Total Received",
+                                  align: "right",
+                                  color: "#1877F2",
+                                },
+                                {
+                                  label: "Completed",
+                                  align: "right",
+                                  color: "#36a420",
+                                },
+                                {
+                                  label: "On Process",
+                                  align: "right",
+                                  color: "#f59e0b",
+                                },
+                                {
+                                  label: "Target",
+                                  align: "right",
+                                  color: "#9333ea",
+                                },
+                                {
+                                  label: "Completed Rate",
+                                  align: "right",
+                                  color: "#9333ea",
+                                },
+                              ].map((col, ci) => (
+                                <th
+                                  key={ci}
+                                  style={{
+                                    padding: "8px 12px",
+                                    textAlign: col.align,
+                                    fontSize: "0.72rem",
+                                    fontWeight: 700,
+                                    color: col.color || ui.textMuted,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.04em",
+                                    borderBottom: `1px solid ${ui.cardBorder}`,
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {col.label}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pagedRows.map((row, ri) => {
+                              const rate =
+                                row.received > 0
+                                  ? (
+                                      (row.completed / row.received) *
+                                      100
+                                    ).toFixed(1)
+                                  : "—";
+                              const rateN =
+                                row.received > 0 ? parseFloat(rate) : null;
+                              const isEven = ri % 2 === 0,
+                                isLast = ri === pagedRows.length - 1;
+                              const border = !isLast
+                                ? `1px solid ${ui.divider}`
+                                : "none";
+                              return (
+                                <tr
+                                  key={ri}
+                                  style={{
+                                    background: isEven
+                                      ? "transparent"
+                                      : `${ui.pageBg}88`,
+                                    transition: "background 0.1s",
+                                  }}
+                                  onMouseEnter={(e) =>
+                                    (e.currentTarget.style.background =
+                                      ui.hoverBg)
+                                  }
+                                  onMouseLeave={(e) =>
+                                    (e.currentTarget.style.background = isEven
+                                      ? "transparent"
+                                      : `${ui.pageBg}88`)
+                                  }
+                                >
+                                  <td
+                                    style={{
+                                      padding: "7px 12px",
+                                      color: ui.textPrimary,
+                                      fontWeight: 600,
+                                      borderBottom: border,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {row.label}
+                                    {breakdown === "day" && (
+                                      <span
+                                        style={{
+                                          marginLeft: 4,
+                                          fontSize: "0.68rem",
+                                          color: ui.textMuted,
+                                          fontWeight: 400,
+                                        }}
+                                      >
+                                        {chartSubtitle?.split(" ")[0]}
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "7px 12px",
+                                      textAlign: "right",
+                                      color: "#1877F2",
+                                      fontWeight: 700,
+                                      borderBottom: border,
+                                    }}
+                                  >
+                                    {row.received.toLocaleString()}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "7px 12px",
+                                      textAlign: "right",
+                                      color: "#36a420",
+                                      fontWeight: 700,
+                                      borderBottom: border,
+                                    }}
+                                  >
+                                    {row.completed.toLocaleString()}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "7px 12px",
+                                      textAlign: "right",
+                                      color: "#f59e0b",
+                                      fontWeight: 700,
+                                      borderBottom: border,
+                                    }}
+                                  >
+                                    {row.onProcess.toLocaleString()}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "7px 12px",
+                                      textAlign: "right",
+                                      color: "#9333ea",
+                                      fontWeight: 700,
+                                      borderBottom: border,
+                                    }}
+                                  >
+                                    {(row.target || 0) > 0
+                                      ? (row.target || 0).toLocaleString()
+                                      : "—"}
+                                  </td>
+                                  <td
+                                    style={{
+                                      padding: "7px 12px",
+                                      textAlign: "right",
+                                      borderBottom: border,
+                                    }}
+                                  >
+                                    {rateN !== null ? (
+                                      <span
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: 3,
+                                          fontSize: "0.73rem",
+                                          fontWeight: 700,
+                                          color:
+                                            rateN >= 75
+                                              ? "#36a420"
+                                              : rateN >= 50
+                                                ? "#f59e0b"
+                                                : "#e02020",
+                                          background:
+                                            rateN >= 75
+                                              ? "#e9f7e6"
+                                              : rateN >= 50
+                                                ? "#fff8e7"
+                                                : "#fde8e8",
+                                          padding: "2px 8px",
+                                          borderRadius: 99,
+                                        }}
+                                      >
+                                        {rateN >= 75
+                                          ? "▲"
+                                          : rateN >= 50
+                                            ? "~"
+                                            : "▼"}{" "}
+                                        {rate}%
+                                      </span>
+                                    ) : (
+                                      <span
+                                        style={{
+                                          color: ui.textMuted,
+                                          fontSize: "0.73rem",
+                                        }}
+                                      >
+                                        —
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr
+                              style={{
+                                background: ui.pageBg,
+                                borderTop: `2px solid ${ui.cardBorder}`,
+                              }}
+                            >
+                              <td
+                                style={{
+                                  padding: "8px 12px",
+                                  fontWeight: 700,
+                                  color: ui.textPrimary,
+                                  fontSize: "0.78rem",
+                                }}
+                              >
+                                Total
+                              </td>
+                              {[
+                                { val: totals.received, color: "#1877F2" },
+                                { val: totals.completed, color: "#36a420" },
+                                { val: totals.onProcess, color: "#f59e0b" },
+                                { val: totals.target, color: "#9333ea" },
+                              ].map((col, ci) => (
+                                <td
+                                  key={ci}
+                                  style={{
+                                    padding: "8px 12px",
+                                    textAlign: "right",
+                                    fontWeight: 800,
+                                    color: col.color,
+                                    fontSize: "0.82rem",
+                                  }}
+                                >
+                                  {col.val.toLocaleString()}
+                                </td>
+                              ))}
+                              {(() => {
+                                const n = parseFloat(completedRate);
+                                return (
+                                  <td
+                                    style={{
+                                      padding: "8px 12px",
+                                      textAlign: "right",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                        fontSize: "0.75rem",
+                                        fontWeight: 800,
+                                        color:
+                                          n >= 75
+                                            ? "#36a420"
+                                            : n >= 50
+                                              ? "#f59e0b"
+                                              : "#e02020",
+                                        background:
+                                          n >= 75
+                                            ? "#e9f7e6"
+                                            : n >= 50
+                                              ? "#fff8e7"
+                                              : "#fde8e8",
+                                        padding: "2px 8px",
+                                        borderRadius: 99,
+                                      }}
+                                    >
+                                      {n >= 75 ? "▲" : n >= 50 ? "~" : "▼"}{" "}
+                                      {completedRate}%
+                                    </span>
+                                  </td>
+                                );
+                              })()}
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                      {totalPages > 1 && (
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            marginTop: 10,
+                            gap: 8,
+                          }}
+                        >
+                          <span
+                            style={{ fontSize: "0.74rem", color: ui.textMuted }}
+                          >
+                            Page {safePage + 1} of {totalPages}
+                          </span>
                           <div
                             style={{
-                              fontSize: "0.73rem",
-                              color: ui.textSub,
-                              marginTop: 4,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
                             }}
                           >
-                            {s.label}
+                            <button
+                              onClick={() =>
+                                setTablePage((p) => Math.max(0, p - 1))
+                              }
+                              disabled={safePage === 0}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: 6,
+                                border: `1px solid ${safePage === 0 ? ui.cardBorder : ui.metricBorder}`,
+                                background: "transparent",
+                                color:
+                                  safePage === 0
+                                    ? ui.textMuted
+                                    : ui.textPrimary,
+                                fontSize: "0.76rem",
+                                fontWeight: 600,
+                                cursor:
+                                  safePage === 0 ? "not-allowed" : "pointer",
+                                opacity: safePage === 0 ? 0.4 : 1,
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              ‹ Prev
+                            </button>
+                            {Array.from({ length: totalPages }, (_, pi) => {
+                              const show =
+                                pi === 0 ||
+                                pi === totalPages - 1 ||
+                                Math.abs(pi - safePage) <= 1;
+                              const showEllipsisBefore =
+                                  pi === safePage - 2 && pi > 1,
+                                showEllipsisAfter =
+                                  pi === safePage + 2 && pi < totalPages - 2;
+                              if (
+                                !show &&
+                                !showEllipsisBefore &&
+                                !showEllipsisAfter
+                              )
+                                return null;
+                              if (showEllipsisBefore || showEllipsisAfter)
+                                return (
+                                  <span
+                                    key={pi}
+                                    style={{
+                                      fontSize: "0.74rem",
+                                      color: ui.textMuted,
+                                      padding: "0 2px",
+                                    }}
+                                  >
+                                    …
+                                  </span>
+                                );
+                              const isActive = pi === safePage;
+                              return (
+                                <button
+                                  key={pi}
+                                  onClick={() => setTablePage(pi)}
+                                  style={{
+                                    width: 28,
+                                    height: 28,
+                                    borderRadius: 6,
+                                    border: `1px solid ${isActive ? FB : ui.cardBorder}`,
+                                    background: isActive ? FB : "transparent",
+                                    color: isActive ? "#fff" : ui.textPrimary,
+                                    fontSize: "0.76rem",
+                                    fontWeight: isActive ? 700 : 500,
+                                    cursor: "pointer",
+                                    fontFamily: "inherit",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {pi + 1}
+                                </button>
+                              );
+                            })}
+                            <button
+                              onClick={() =>
+                                setTablePage((p) =>
+                                  Math.min(totalPages - 1, p + 1),
+                                )
+                              }
+                              disabled={safePage === totalPages - 1}
+                              style={{
+                                padding: "4px 10px",
+                                borderRadius: 6,
+                                border: `1px solid ${safePage === totalPages - 1 ? ui.cardBorder : ui.metricBorder}`,
+                                background: "transparent",
+                                color:
+                                  safePage === totalPages - 1
+                                    ? ui.textMuted
+                                    : ui.textPrimary,
+                                fontSize: "0.76rem",
+                                fontWeight: 600,
+                                cursor:
+                                  safePage === totalPages - 1
+                                    ? "not-allowed"
+                                    : "pointer",
+                                opacity: safePage === totalPages - 1 ? 0.4 : 1,
+                                fontFamily: "inherit",
+                              }}
+                            >
+                              Next ›
+                            </button>
                           </div>
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </Card>
+                  );
+                })()}
+              </Card>
 
-                  {isMobile && <RightPanel />}
+              <Card ui={ui}>
+                <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
+                  <CardHeader
+                    title="Recent Applications"
+                    sub="Access and manage your latest applications all in one place."
+                    right={<SeeAll />}
+                    ui={ui}
+                  />
                 </div>
-                {!isMobile && <RightPanel />}
-              </>
-            )}
+                {[
+                  {
+                    id: "20230908133701",
+                    type: "Furacef-750 (Cefuroxime Sodium)",
+                    status: "Completed",
+                    date: "Mar 10",
+                    icon: "✅",
+                    statusColor: "#36a420",
+                    statusBg: "#e9f7e6",
+                  },
+                  {
+                    id: "20230908133702",
+                    type: "Amoxil-500 (Amoxicillin)",
+                    status: "On Process",
+                    date: "Mar 9",
+                    icon: "⏳",
+                    statusColor: "#f59e0b",
+                    statusBg: "#fff8e7",
+                  },
+                  {
+                    id: "20230908133703",
+                    type: "Calpol-250 (Paracetamol)",
+                    status: "Completed",
+                    date: "Mar 8",
+                    icon: "✅",
+                    statusColor: "#36a420",
+                    statusBg: "#e9f7e6",
+                  },
+                  {
+                    id: "20230908133704",
+                    type: "Cloxacil-250 (Cloxacillin)",
+                    status: "On Process",
+                    date: "Mar 7",
+                    icon: "⏳",
+                    statusColor: "#f59e0b",
+                    statusBg: "#fff8e7",
+                  },
+                  {
+                    id: "20230908133705",
+                    type: "Augmentin-625 (Co-Amoxiclav)",
+                    status: "Backlog",
+                    date: "Mar 6",
+                    icon: "🚩",
+                    statusColor: "#e02020",
+                    statusBg: "#fde8e8",
+                  },
+                ].map((row, i, arr) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "11px 16px",
+                      borderBottom:
+                        i < arr.length - 1 ? `1px solid ${ui.divider}` : "none",
+                      transition: "background 0.12s",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = ui.hoverBg)
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 12 }}
+                    >
+                      <div
+                        style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 8,
+                          flexShrink: 0,
+                          background: row.statusBg,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "1.1rem",
+                        }}
+                      >
+                        {row.icon}
+                      </div>
+                      <div>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.86rem",
+                            fontWeight: 600,
+                            color: ui.textPrimary,
+                          }}
+                        >
+                          {row.id}
+                        </p>
+                        <p
+                          style={{
+                            margin: 0,
+                            fontSize: "0.78rem",
+                            color: ui.textSub,
+                          }}
+                        >
+                          {row.type}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: isMobile ? 6 : 12,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.78rem",
+                          fontWeight: 600,
+                          color: row.statusColor,
+                          background: row.statusBg,
+                          padding: "3px 10px",
+                          borderRadius: 99,
+                        }}
+                      >
+                        {row.status}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "0.78rem",
+                          color: ui.textMuted,
+                          minWidth: 40,
+                          textAlign: "right",
+                        }}
+                      >
+                        {row.date}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </Card>
+
+              <Card ui={ui}>
+                <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
+                  <CardHeader
+                    title="Summary"
+                    sub="Grand totals across all years."
+                    right={<SeeAll />}
+                    ui={ui}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    padding: "16px",
+                    flexWrap: isMobile ? "wrap" : "nowrap",
+                  }}
+                >
+                  {[
+                    {
+                      label: "Total Received",
+                      value: ALL_TIME_TOTALS.received,
+                      icon: "📥",
+                      color: "#1877F2",
+                    },
+                    {
+                      label: "Completed",
+                      value: ALL_TIME_TOTALS.completed,
+                      icon: "✅",
+                      color: "#36a420",
+                    },
+                    {
+                      label: "On Process",
+                      value: ALL_TIME_TOTALS.onProcess,
+                      icon: "⏳",
+                      color: "#f59e0b",
+                    },
+                    {
+                      label: "Completed Rate",
+                      value: `${ALL_TIME_TOTALS.completedRate}%`,
+                      icon: "📈",
+                      color: "#9333ea",
+                    },
+                  ].map((s, i, arr) => (
+                    <div
+                      key={i}
+                      style={{
+                        flex: isMobile ? "1 1 50%" : 1,
+                        textAlign: "center",
+                        padding: isMobile ? "12px 6px" : "6px 0",
+                        borderRight:
+                          !isMobile && i < arr.length - 1
+                            ? `1px solid ${ui.divider}`
+                            : "none",
+                        borderBottom:
+                          isMobile && i < 2
+                            ? `1px solid ${ui.divider}`
+                            : "none",
+                      }}
+                    >
+                      <div style={{ fontSize: "1.3rem", marginBottom: 4 }}>
+                        {s.icon}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "1.35rem",
+                          fontWeight: 700,
+                          color: s.color,
+                          lineHeight: 1,
+                        }}
+                      >
+                        {typeof s.value === "number"
+                          ? s.value.toLocaleString()
+                          : s.value}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.73rem",
+                          color: ui.textSub,
+                          marginTop: 4,
+                        }}
+                      >
+                        {s.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              {isMobile && <RightPanel />}
+            </div>
+            {!isMobile && <RightPanel />}
           </div>
         </div>
       </div>

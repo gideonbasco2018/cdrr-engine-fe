@@ -146,7 +146,6 @@ const DRUG_CATALOG = [
   { name: "MMR-II", generic: "MMR Vaccine", rx: "Vaccine" },
 ];
 
-// ── Country Data per Entity Type ──────────────────────────────────────────────
 const MFR_COUNTRIES = [
   "India",
   "China",
@@ -704,7 +703,6 @@ function generateData() {
         timeline: timelineOptions[i % 2],
         status,
         prescription: drug.rx,
-        // ── Country fields per entity type ──
         mfrCountry: MFR_COUNTRIES[(i * 2 + seq) % MFR_COUNTRIES.length],
         traderCountry:
           TRADER_COUNTRIES[(i * 3 + seq) % TRADER_COUNTRIES.length],
@@ -724,7 +722,6 @@ function generateData() {
 const staticData = generateData();
 const uniqueEvaluators = [...new Set(staticData.map((d) => d.evaluator))];
 
-// ── Badge color maps ──────────────────────────────────────────────────────────
 const stepColors = {
   "For Evaluation": { bg: "#dbeafe", color: "#1d4ed8" },
   "For Compliance": { bg: "#fef9c3", color: "#a16207" },
@@ -799,7 +796,6 @@ function getAvatarColor(name, list) {
   return avatarPalette[list.indexOf(name) % avatarPalette.length];
 }
 
-// ── Country Flag Emoji Helper ─────────────────────────────────────────────────
 const COUNTRY_FLAGS = {
   India: "🇮🇳",
   China: "🇨🇳",
@@ -824,7 +820,6 @@ const COUNTRY_FLAGS = {
   Vietnam: "🇻🇳",
 };
 
-// ── Shared Card ───────────────────────────────────────────────────────────────
 function Card({ children, style = {}, ui, onClick }) {
   return (
     <div
@@ -886,32 +881,29 @@ function CardHeader({ icon, title, sub, right, ui }) {
   );
 }
 
-// ── NavItem ───────────────────────────────────────────────────────────────────
-function NavItem({ icon, label, active, hasArrow, onClick, ui, disabled }) {
+function NavItem({ icon, label, active, onClick, ui }) {
   const [hov, setHov] = useState(false);
   return (
     <div
-      onClick={disabled ? undefined : onClick}
-      onMouseEnter={() => !disabled && setHov(true)}
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        padding: "10px 14px",
+        gap: 6,
+        padding: "6px 10px",
         borderRadius: 8,
         margin: "2px 8px",
         background: active ? ui.activeNavBg : hov ? ui.hoverBg : "transparent",
-        cursor: disabled ? "default" : "pointer",
+        cursor: "pointer",
         transition: "background 0.12s",
-        opacity: disabled ? 0.5 : 1,
-        position: "relative",
       }}
     >
       <span
         style={{
-          width: 36,
-          height: 36,
+          width: 20,
+          height: 20,
           borderRadius: "50%",
           background: active ? FB : ui.inputBg,
           display: "flex",
@@ -927,37 +919,17 @@ function NavItem({ icon, label, active, hasArrow, onClick, ui, disabled }) {
       <span
         style={{
           flex: 1,
-          fontSize: "0.92rem",
-          fontWeight: active ? 700 : 500,
+          fontSize: "0.75rem",
+          fontWeight: active ? 500 : 400,
           color: active ? FB : ui.textPrimary,
         }}
       >
         {label}
       </span>
-      {disabled ? (
-        <span
-          style={{
-            fontSize: "0.58rem",
-            fontWeight: 700,
-            color: "#fff",
-            background: "#f59e0b",
-            padding: "2px 6px",
-            borderRadius: 99,
-            letterSpacing: "0.04em",
-            textTransform: "uppercase",
-            flexShrink: 0,
-          }}
-        >
-          Soon
-        </span>
-      ) : hasArrow ? (
-        <span style={{ color: ui.textMuted, fontSize: "0.85rem" }}>›</span>
-      ) : null}
     </div>
   );
 }
 
-// ── smoothPath helper ─────────────────────────────────────────────────────────
 function smoothPath(pts) {
   if (pts.length < 2) return "";
   let d = `M ${pts[0][0]} ${pts[0][1]}`;
@@ -981,8 +953,8 @@ function MonAreaChart({ data, subtitle, ui }) {
   const W = 700,
     H = 220;
   const PAD = { top: 22, right: 20, bottom: 34, left: 48 };
-  const cW = W - PAD.left - PAD.right;
-  const cH = H - PAD.top - PAD.bottom;
+  const cW = W - PAD.left - PAD.right,
+    cH = H - PAD.top - PAD.bottom;
   const allVals = data.flatMap((d) => MON_SERIES.map((s) => d[s.key] ?? 0));
   const maxV = (Math.max(...allVals) || 1) * 1.2;
   const toX = (i) => PAD.left + (i / Math.max(data.length - 1, 1)) * cW;
@@ -1179,11 +1151,11 @@ function MonAreaChart({ data, subtitle, ui }) {
               />
               {hov === i &&
                 (() => {
-                  const cx2 = toX(i);
-                  const tipW = 150,
+                  const cx2 = toX(i),
+                    tipW = 150,
                     tipH = 18 + MON_SERIES.length * 20 + 10;
-                  const tipX = cx2 > W * 0.65 ? cx2 - tipW - 14 : cx2 + 14;
-                  const tipY = PAD.top + 4;
+                  const tipX = cx2 > W * 0.65 ? cx2 - tipW - 14 : cx2 + 14,
+                    tipY = PAD.top + 4;
                   return (
                     <>
                       <line
@@ -1290,7 +1262,6 @@ function MonAreaChart({ data, subtitle, ui }) {
   );
 }
 
-// ── Donut Chart ───────────────────────────────────────────────────────────────
 const DONUT_PALETTE = [
   { color: FB, light: "#5da4f8", glow: `${FB}55` },
   { color: "#f43f5e", light: "#f87191", glow: "rgba(244,63,94,0.35)" },
@@ -1369,8 +1340,8 @@ function DonutChart({ data, ui, darkMode, onSliceClick }) {
           strokeWidth={r - ri + 2}
         />
         {slices.map((s, i) => {
-          const isAct = i === ai;
-          const or = isAct ? r + 8 : r,
+          const isAct = i === ai,
+            or = isAct ? r + 8 : r,
             ir2 = isAct ? ri - 3 : ri;
           return (
             <g
@@ -1547,7 +1518,6 @@ function DonutChart({ data, ui, darkMode, onSliceClick }) {
   );
 }
 
-// ── Chart Detail Modal ────────────────────────────────────────────────────────
 function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
   const [search, setSearch] = useState("");
   const filtered = useMemo(() => {
@@ -1934,7 +1904,6 @@ function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
   );
 }
 
-// ── Action Menu ───────────────────────────────────────────────────────────────
 function ActionMenu({ task, darkMode, onReassign, ui }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -2027,7 +1996,6 @@ function ActionMenu({ task, darkMode, onReassign, ui }) {
   );
 }
 
-// ── Reassign Modal ────────────────────────────────────────────────────────────
 function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
   const [selected, setSelected] = useState("");
   const colHdr = darkMode ? ui.sidebarBg : "#f8f9fd";
@@ -2253,23 +2221,17 @@ function MonitoringPage({ darkMode }) {
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
   const [activeNav, setActiveNav] = useState("overview");
+
+  // ── REMOVED: backlog and settings nav items ──
   const navItems = [
-    { key: "overview", icon: "🏠", label: "Overview", disabled: false },
-    { key: "records", icon: "📋", label: "Records", disabled: false },
-    { key: "analytics", icon: "📊", label: "Analytics", disabled: false },
-    { key: "deadlines", icon: "⏰", label: "Deadlines", disabled: false },
-    { key: "compliance", icon: "🚩", label: "Compliance", disabled: false },
-    { key: "workload", icon: "🔥", label: "Workload", disabled: false },
-    { key: "activity", icon: "📡", label: "Activity Feed", disabled: false },
-    { key: "users", icon: "👥", label: "Users", disabled: false },
-    {
-      key: "backlog",
-      icon: "⏳",
-      label: "Backlogs",
-      disabled: true,
-      hasArrow: true,
-    },
-    { key: "settings", icon: "⚙️", label: "Settings", disabled: true },
+    { key: "overview", icon: "🏠", label: "Overview" },
+    { key: "records", icon: "📋", label: "Records" },
+    { key: "analytics", icon: "📊", label: "Analytics" },
+    { key: "deadlines", icon: "⏰", label: "Deadlines" },
+    { key: "compliance", icon: "🚩", label: "Compliance" },
+    { key: "workload", icon: "🔥", label: "Workload" },
+    { key: "activity", icon: "📡", label: "Activity Feed" },
+    { key: "users", icon: "👥", label: "Users" },
   ];
 
   const [isMobile, setIsMobile] = useState(
@@ -2302,11 +2264,8 @@ function MonitoringPage({ darkMode }) {
   const [chartYear, setChartYear] = useState("All");
   const [chartMonth, setChartMonth] = useState("All");
   const [rxFilter, setRxFilter] = useState("All");
-
-  // ── Top Countries Tab State ──────────────────────────────────────────────
   const [topCountryTab, setTopCountryTab] = useState("mfrCountry");
   const [topCountryLimit, setTopCountryLimit] = useState(10);
-
   const [impersonating, setImpersonating] = useState(null);
   const [userSearch, setUserSearch] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState("All");
@@ -2520,7 +2479,6 @@ function MonitoringPage({ darkMode }) {
     });
   };
 
-  // ── Top Countries Computed Data ──────────────────────────────────────────
   const topCountriesData = useMemo(() => {
     const map = {};
     chartFiltered.forEach((row) => {
@@ -2641,6 +2599,114 @@ function MonitoringPage({ darkMode }) {
   const beyondTimeline = tableData.filter(
     (r) => r.timeline === "Beyond",
   ).length;
+
+  const evalStats = useMemo(
+    () =>
+      currentEvaluators
+        .map((ev) => {
+          const tasks = chartFiltered.filter((r) => r.evaluator === ev);
+          const approved = tasks.filter((r) => r.status === "Approved").length;
+          const disapproved = tasks.filter(
+            (r) => r.status === "Disapproved",
+          ).length;
+          const onProcess = tasks.filter(
+            (r) => r.status === "On Process",
+          ).length;
+          const rate = tasks.length
+            ? ((approved / tasks.length) * 100).toFixed(1)
+            : "0.0";
+          const beyond = tasks.filter((r) => r.timeline === "Beyond").length;
+          return {
+            name: ev,
+            total: tasks.length,
+            approved,
+            disapproved,
+            onProcess,
+            rate: parseFloat(rate),
+            beyond,
+          };
+        })
+        .sort((a, b) => b.total - a.total),
+    [chartFiltered, currentEvaluators],
+  );
+
+  const drugStats = useMemo(() => {
+    const map = {};
+    chartFiltered.forEach((r) => {
+      if (!map[r.drugName])
+        map[r.drugName] = {
+          name: r.drugName,
+          total: 0,
+          approved: 0,
+          disapproved: 0,
+          onProcess: 0,
+          rx: r.prescription,
+        };
+      map[r.drugName].total++;
+      if (r.status === "Approved") map[r.drugName].approved++;
+      else if (r.status === "Disapproved") map[r.drugName].disapproved++;
+      else map[r.drugName].onProcess++;
+    });
+    return Object.values(map)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 8);
+  }, [chartFiltered]);
+
+  const timelineSplit = useMemo(
+    () => ({
+      within: chartFiltered.filter((r) => r.timeline === "Within").length,
+      beyond: chartFiltered.filter((r) => r.timeline === "Beyond").length,
+    }),
+    [chartFiltered],
+  );
+
+  const yearSummary = useMemo(
+    () =>
+      availableYears
+        .filter((y) => y !== "All")
+        .map((y) => {
+          const rows = tableData.filter(
+            (r) => new Date(r.date + "T00:00:00").getFullYear() === Number(y),
+          );
+          const approved = rows.filter((r) => r.status === "Approved").length;
+          const disapproved = rows.filter(
+            (r) => r.status === "Disapproved",
+          ).length;
+          const onProcess = rows.filter(
+            (r) => r.status === "On Process",
+          ).length;
+          const rate = rows.length
+            ? ((approved / rows.length) * 100).toFixed(1)
+            : "0.0";
+          return {
+            year: y,
+            total: rows.length,
+            approved,
+            disapproved,
+            onProcess,
+            rate,
+          };
+        }),
+    [tableData, availableYears],
+  );
+
+  const rxSplit = useMemo(() => {
+    const types = [
+      "Prescription Drug (RX)",
+      "Over-the-Counter (OTC)",
+      "Vaccine",
+    ];
+    return types.map((type) => {
+      const rows = chartFiltered.filter((r) => r.prescription === type);
+      const approved = rows.filter((r) => r.status === "Approved").length;
+      return {
+        type,
+        count: rows.length,
+        approved,
+        rate: rows.length ? ((approved / rows.length) * 100).toFixed(1) : "0.0",
+      };
+    });
+  }, [chartFiltered]);
 
   // ── OVERVIEW VIEW ─────────────────────────────────────────────────────────
   const OverviewView = () => (
@@ -3715,119 +3781,9 @@ function MonitoringPage({ darkMode }) {
     </div>
   );
 
-  // ── Analytics computed extras ─────────────────────────────────────────────
-  const evalStats = useMemo(
-    () =>
-      currentEvaluators
-        .map((ev) => {
-          const tasks = chartFiltered.filter((r) => r.evaluator === ev);
-          const approved = tasks.filter((r) => r.status === "Approved").length;
-          const disapproved = tasks.filter(
-            (r) => r.status === "Disapproved",
-          ).length;
-          const onProcess = tasks.filter(
-            (r) => r.status === "On Process",
-          ).length;
-          const rate = tasks.length
-            ? ((approved / tasks.length) * 100).toFixed(1)
-            : "0.0";
-          const beyond = tasks.filter((r) => r.timeline === "Beyond").length;
-          return {
-            name: ev,
-            total: tasks.length,
-            approved,
-            disapproved,
-            onProcess,
-            rate: parseFloat(rate),
-            beyond,
-          };
-        })
-        .sort((a, b) => b.total - a.total),
-    [chartFiltered, currentEvaluators],
-  );
-
-  const drugStats = useMemo(() => {
-    const map = {};
-    chartFiltered.forEach((r) => {
-      if (!map[r.drugName])
-        map[r.drugName] = {
-          name: r.drugName,
-          total: 0,
-          approved: 0,
-          disapproved: 0,
-          onProcess: 0,
-          rx: r.prescription,
-        };
-      map[r.drugName].total++;
-      if (r.status === "Approved") map[r.drugName].approved++;
-      else if (r.status === "Disapproved") map[r.drugName].disapproved++;
-      else map[r.drugName].onProcess++;
-    });
-    return Object.values(map)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 8);
-  }, [chartFiltered]);
-
-  const timelineSplit = useMemo(
-    () => ({
-      within: chartFiltered.filter((r) => r.timeline === "Within").length,
-      beyond: chartFiltered.filter((r) => r.timeline === "Beyond").length,
-    }),
-    [chartFiltered],
-  );
-
-  const yearSummary = useMemo(
-    () =>
-      availableYears
-        .filter((y) => y !== "All")
-        .map((y) => {
-          const rows = tableData.filter(
-            (r) => new Date(r.date + "T00:00:00").getFullYear() === Number(y),
-          );
-          const approved = rows.filter((r) => r.status === "Approved").length;
-          const disapproved = rows.filter(
-            (r) => r.status === "Disapproved",
-          ).length;
-          const onProcess = rows.filter(
-            (r) => r.status === "On Process",
-          ).length;
-          const rate = rows.length
-            ? ((approved / rows.length) * 100).toFixed(1)
-            : "0.0";
-          return {
-            year: y,
-            total: rows.length,
-            approved,
-            disapproved,
-            onProcess,
-            rate,
-          };
-        }),
-    [tableData, availableYears],
-  );
-
-  const rxSplit = useMemo(() => {
-    const types = [
-      "Prescription Drug (RX)",
-      "Over-the-Counter (OTC)",
-      "Vaccine",
-    ];
-    return types.map((type) => {
-      const rows = chartFiltered.filter((r) => r.prescription === type);
-      const approved = rows.filter((r) => r.status === "Approved").length;
-      return {
-        type,
-        count: rows.length,
-        approved,
-        rate: rows.length ? ((approved / rows.length) * 100).toFixed(1) : "0.0",
-      };
-    });
-  }, [chartFiltered]);
-
   // ── Analytics View ────────────────────────────────────────────────────────
   const AnalyticsView = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      {/* Header + Filters */}
       <div
         style={{
           display: "flex",
@@ -3952,8 +3908,6 @@ function MonitoringPage({ darkMode }) {
           </div>
         </div>
       </div>
-
-      {/* KPI Stat Cards */}
       <div
         style={{
           display: "grid",
@@ -4020,8 +3974,6 @@ function MonitoringPage({ darkMode }) {
           </Card>
         ))}
       </div>
-
-      {/* Row 1: Trend chart + Donut */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14 }}>
         <Card ui={ui}>
           <div style={{ padding: "14px 16px 0" }}>
@@ -4107,8 +4059,6 @@ function MonitoringPage({ darkMode }) {
           )}
         </Card>
       </div>
-
-      {/* Row 2: Timeline Split + Prescription Split + Year-by-Year Table */}
       <div
         style={{
           display: "grid",
@@ -4438,8 +4388,6 @@ function MonitoringPage({ darkMode }) {
           ))}
         </Card>
       </div>
-
-      {/* Row 3: User Performance */}
       <Card ui={ui} style={{ padding: "14px 16px" }}>
         <div
           style={{
@@ -4637,8 +4585,6 @@ function MonitoringPage({ darkMode }) {
           })}
         </div>
       </Card>
-
-      {/* Row 4: Top Drugs + Beyond Timeline per User */}
       <div
         style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 14 }}
       >
@@ -4923,12 +4869,8 @@ function MonitoringPage({ darkMode }) {
           })}
         </Card>
       </div>
-
-      {/* ═══════════════════════════════════════════════════════════════════════
-          Row 5: TOP COUNTRY per Entity Type
-          ═══════════════════════════════════════════════════════════════════════ */}
+      {/* Top Countries */}
       <Card ui={ui} style={{ padding: 0, overflow: "hidden" }}>
-        {/* Card Header */}
         <div
           style={{
             padding: "14px 16px",
@@ -4970,7 +4912,6 @@ function MonitoringPage({ darkMode }) {
               flexWrap: "wrap",
             }}
           >
-            {/* Show Top N selector */}
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <label
                 style={{
@@ -5003,8 +4944,6 @@ function MonitoringPage({ darkMode }) {
             </div>
           </div>
         </div>
-
-        {/* Entity Type Tabs */}
         <div
           style={{
             padding: "10px 16px",
@@ -5017,7 +4956,6 @@ function MonitoringPage({ darkMode }) {
         >
           {ENTITY_TYPES.map((et) => {
             const isAct = topCountryTab === et.key;
-            // Count distinct countries for this entity type
             const countryCount = new Set(
               chartFiltered.map((r) => r[et.key]).filter(Boolean),
             ).size;
@@ -5063,8 +5001,6 @@ function MonitoringPage({ darkMode }) {
             );
           })}
         </div>
-
-        {/* Top Countries Content */}
         <div style={{ padding: "16px" }}>
           {topCountriesData.length === 0 ? (
             <div
@@ -5087,7 +5023,6 @@ function MonitoringPage({ darkMode }) {
                 (s, d) => s + d.count,
                 0,
               );
-
               return (
                 <div
                   style={{
@@ -5096,7 +5031,6 @@ function MonitoringPage({ darkMode }) {
                     gap: 16,
                   }}
                 >
-                  {/* Left: Bar list */}
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 7 }}
                   >
@@ -5197,7 +5131,6 @@ function MonitoringPage({ darkMode }) {
                               marginBottom: 5,
                             }}
                           >
-                            {/* Rank */}
                             <div
                               style={{
                                 width: 20,
@@ -5226,7 +5159,6 @@ function MonitoringPage({ darkMode }) {
                                 #{i + 1}
                               </span>
                             </div>
-                            {/* Flag + Country */}
                             <span
                               style={{ fontSize: "0.95rem", lineHeight: 1 }}
                             >
@@ -5243,7 +5175,6 @@ function MonitoringPage({ darkMode }) {
                                 {d.country}
                               </span>
                             </div>
-                            {/* Count + Pct */}
                             <div style={{ textAlign: "right", flexShrink: 0 }}>
                               <span
                                 style={{
@@ -5265,7 +5196,6 @@ function MonitoringPage({ darkMode }) {
                               </span>
                             </div>
                           </div>
-                          {/* Segmented bar: approved / disapproved / onProcess */}
                           <div
                             style={{
                               height: 6,
@@ -5320,7 +5250,6 @@ function MonitoringPage({ darkMode }) {
                               }}
                             />
                           </div>
-                          {/* Mini status breakdown */}
                           <div
                             style={{ display: "flex", gap: 8, marginTop: 4 }}
                           >
@@ -5344,8 +5273,6 @@ function MonitoringPage({ darkMode }) {
                       );
                     })}
                   </div>
-
-                  {/* Right: Summary cards + top 3 podium */}
                   <div
                     style={{
                       display: "flex",
@@ -5353,7 +5280,6 @@ function MonitoringPage({ darkMode }) {
                       gap: 12,
                     }}
                   >
-                    {/* Summary stats */}
                     <div
                       style={{
                         display: "grid",
@@ -5444,8 +5370,6 @@ function MonitoringPage({ darkMode }) {
                         </div>
                       ))}
                     </div>
-
-                    {/* Top 3 podium */}
                     <div
                       style={{
                         background: darkMode ? ui.inputBg : "#f8f9fd",
@@ -5474,299 +5398,126 @@ function MonitoringPage({ darkMode }) {
                           justifyContent: "center",
                         }}
                       >
-                        {/* 2nd place */}
-                        {topCountriesData[1] &&
-                          (() => {
-                            const d = topCountriesData[1];
-                            const pct =
-                              totalCount > 0
-                                ? ((d.count / totalCount) * 100).toFixed(1)
-                                : "0";
-                            const flag = COUNTRY_FLAGS[d.country] || "🌐";
-                            return (
-                              <div
+                        {[1, 0, 2].map((rank) => {
+                          const d = topCountriesData[rank];
+                          if (!d) return null;
+                          const pct =
+                            totalCount > 0
+                              ? ((d.count / totalCount) * 100).toFixed(1)
+                              : "0";
+                          const flag = COUNTRY_FLAGS[d.country] || "🌐";
+                          const medals = ["🥇", "🥈", "🥉"];
+                          const heights = [80, 60, 48];
+                          const isFirst = rank === 0;
+                          const colors = [
+                            activeEntity?.color,
+                            "#9ca3af",
+                            "#b45309",
+                          ];
+                          const c = colors[rank];
+                          return (
+                            <div
+                              key={rank}
+                              style={{
+                                flex: 1,
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              <span
                                 style={{
-                                  flex: 1,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "center",
-                                  gap: 4,
+                                  fontSize: "0.7rem",
+                                  fontWeight: 700,
+                                  color: c,
                                 }}
                               >
-                                <span
-                                  style={{
-                                    fontSize: "0.7rem",
-                                    fontWeight: 700,
-                                    color: "#9ca3af",
-                                  }}
-                                >
-                                  🥈 #2
-                                </span>
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    background: darkMode
+                                {medals[rank]} #{rank + 1}
+                              </span>
+                              <div
+                                style={{
+                                  width: "100%",
+                                  background: isFirst
+                                    ? darkMode
+                                      ? `${c}25`
+                                      : `${c}12`
+                                    : darkMode
                                       ? "#3a3b3c"
                                       : "#e5e7eb",
-                                    borderRadius: "8px 8px 0 0",
-                                    height: 60,
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 2,
-                                    border: `2px solid #9ca3af40`,
-                                  }}
-                                >
-                                  <span style={{ fontSize: "1.1rem" }}>
-                                    {flag}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: "0.62rem",
-                                      fontWeight: 700,
-                                      color: ui.textSub,
-                                      textAlign: "center",
-                                      lineHeight: 1.2,
-                                      maxWidth: 70,
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    {d.country}
-                                  </span>
-                                </div>
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    background: "#9ca3af20",
-                                    borderRadius: "0 0 6px 6px",
-                                    padding: "4px 0",
-                                    textAlign: "center",
-                                  }}
-                                >
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "0.85rem",
-                                      fontWeight: 800,
-                                      color: "#9ca3af",
-                                    }}
-                                  >
-                                    {d.count}
-                                  </p>
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "0.6rem",
-                                      color: ui.textMuted,
-                                    }}
-                                  >
-                                    {pct}%
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        {/* 1st place */}
-                        {topCountriesData[0] &&
-                          (() => {
-                            const d = topCountriesData[0];
-                            const pct =
-                              totalCount > 0
-                                ? ((d.count / totalCount) * 100).toFixed(1)
-                                : "0";
-                            const flag = COUNTRY_FLAGS[d.country] || "🌐";
-                            return (
-                              <div
-                                style={{
-                                  flex: 1,
+                                  borderRadius: "8px 8px 0 0",
+                                  height: heights[rank],
                                   display: "flex",
                                   flexDirection: "column",
                                   alignItems: "center",
-                                  gap: 4,
+                                  justifyContent: "center",
+                                  gap: 2,
+                                  border: `2px solid ${c}${isFirst ? "50" : "40"}`,
+                                  boxShadow: isFirst
+                                    ? `0 4px 12px ${c}20`
+                                    : "none",
                                 }}
                               >
                                 <span
                                   style={{
-                                    fontSize: "0.7rem",
-                                    fontWeight: 700,
-                                    color: "#f59e0b",
+                                    fontSize: isFirst ? "1.4rem" : "1rem",
                                   }}
                                 >
-                                  🥇 #1
+                                  {flag}
                                 </span>
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    background: darkMode
-                                      ? `${activeEntity?.color}25`
-                                      : `${activeEntity?.color}12`,
-                                    borderRadius: "8px 8px 0 0",
-                                    height: 80,
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 2,
-                                    border: `2px solid ${activeEntity?.color}50`,
-                                    boxShadow: `0 4px 12px ${activeEntity?.color}20`,
-                                  }}
-                                >
-                                  <span style={{ fontSize: "1.4rem" }}>
-                                    {flag}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: "0.68rem",
-                                      fontWeight: 800,
-                                      color: activeEntity?.color,
-                                      textAlign: "center",
-                                      lineHeight: 1.2,
-                                      maxWidth: 75,
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    {d.country}
-                                  </span>
-                                </div>
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    background: `${activeEntity?.color}18`,
-                                    borderRadius: "0 0 6px 6px",
-                                    padding: "4px 0",
-                                    textAlign: "center",
-                                    border: `1px solid ${activeEntity?.color}30`,
-                                    borderTop: "none",
-                                  }}
-                                >
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "1rem",
-                                      fontWeight: 800,
-                                      color: activeEntity?.color,
-                                    }}
-                                  >
-                                    {d.count}
-                                  </p>
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "0.62rem",
-                                      color: activeEntity?.color,
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {pct}%
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })()}
-                        {/* 3rd place */}
-                        {topCountriesData[2] &&
-                          (() => {
-                            const d = topCountriesData[2];
-                            const pct =
-                              totalCount > 0
-                                ? ((d.count / totalCount) * 100).toFixed(1)
-                                : "0";
-                            const flag = COUNTRY_FLAGS[d.country] || "🌐";
-                            return (
-                              <div
-                                style={{
-                                  flex: 1,
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  alignItems: "center",
-                                  gap: 4,
-                                }}
-                              >
                                 <span
                                   style={{
-                                    fontSize: "0.7rem",
-                                    fontWeight: 700,
-                                    color: "#b45309",
-                                  }}
-                                >
-                                  🥉 #3
-                                </span>
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    background: darkMode
-                                      ? "#3a3b3c"
-                                      : "#e5e7eb",
-                                    borderRadius: "8px 8px 0 0",
-                                    height: 48,
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 2,
-                                    border: `2px solid #b4530940`,
-                                  }}
-                                >
-                                  <span style={{ fontSize: "1rem" }}>
-                                    {flag}
-                                  </span>
-                                  <span
-                                    style={{
-                                      fontSize: "0.6rem",
-                                      fontWeight: 700,
-                                      color: ui.textSub,
-                                      textAlign: "center",
-                                      lineHeight: 1.2,
-                                      maxWidth: 70,
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    {d.country}
-                                  </span>
-                                </div>
-                                <div
-                                  style={{
-                                    width: "100%",
-                                    background: "#b4530918",
-                                    borderRadius: "0 0 6px 6px",
-                                    padding: "4px 0",
+                                    fontSize: isFirst ? "0.68rem" : "0.62rem",
+                                    fontWeight: isFirst ? 800 : 700,
+                                    color: isFirst ? c : ui.textSub,
                                     textAlign: "center",
+                                    lineHeight: 1.2,
+                                    maxWidth: 75,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap",
                                   }}
                                 >
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "0.8rem",
-                                      fontWeight: 800,
-                                      color: "#b45309",
-                                    }}
-                                  >
-                                    {d.count}
-                                  </p>
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "0.6rem",
-                                      color: ui.textMuted,
-                                    }}
-                                  >
-                                    {pct}%
-                                  </p>
-                                </div>
+                                  {d.country}
+                                </span>
                               </div>
-                            );
-                          })()}
+                              <div
+                                style={{
+                                  width: "100%",
+                                  background: `${c}18`,
+                                  borderRadius: "0 0 6px 6px",
+                                  padding: "4px 0",
+                                  textAlign: "center",
+                                  border: `1px solid ${c}30`,
+                                  borderTop: "none",
+                                }}
+                              >
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    fontSize: isFirst ? "1rem" : "0.85rem",
+                                    fontWeight: 800,
+                                    color: c,
+                                  }}
+                                >
+                                  {d.count}
+                                </p>
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    fontSize: "0.62rem",
+                                    color: isFirst ? c : ui.textMuted,
+                                    fontWeight: isFirst ? 600 : 400,
+                                  }}
+                                >
+                                  {pct}%
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-
-                    {/* All 5 entity type quick summary */}
                     <div
                       style={{
                         background: darkMode ? ui.inputBg : "#f8f9fd",
@@ -5888,7 +5639,6 @@ function MonitoringPage({ darkMode }) {
           )}
         </div>
       </Card>
-      {/* ── End Top Countries ── */}
     </div>
   );
 
@@ -6179,7 +5929,7 @@ function MonitoringPage({ darkMode }) {
     );
   };
 
-  // ── Compliance Flags View ─────────────────────────────────────────────────
+  // ── Compliance View ───────────────────────────────────────────────────────
   const ComplianceView = () => {
     const filteredFlags =
       complianceFilter === "all"
@@ -6441,11 +6191,11 @@ function MonitoringPage({ darkMode }) {
     );
   };
 
-  // ── Workload Heatmap View ─────────────────────────────────────────────────
+  // ── Workload View ─────────────────────────────────────────────────────────
   const WorkloadView = () => {
-    const weeks = ["Wk1", "Wk2", "Wk3", "Wk4"];
-    const days = ["Mon", "Tue", "Wed", "Thu", "Fri"];
-    const maxVal = 8;
+    const weeks = ["Wk1", "Wk2", "Wk3", "Wk4"],
+      days = ["Mon", "Tue", "Wed", "Thu", "Fri"],
+      maxVal = 8;
     const getColor = (val, dark) => {
       if (val === 0) return dark ? "#242526" : "#e4e6eb";
       const intensity = val / maxVal;
@@ -6865,11 +6615,15 @@ function MonitoringPage({ darkMode }) {
                     {act.target}
                   </p>
                 </div>
-                <div style={{ textAlign: "right", flexShrink: 0 }}>
-                  <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
-                    {act.time}
-                  </span>
-                </div>
+                <span
+                  style={{
+                    fontSize: "0.7rem",
+                    color: ui.textMuted,
+                    flexShrink: 0,
+                  }}
+                >
+                  {act.time}
+                </span>
               </div>
             </Card>
           ))}
@@ -7469,7 +7223,7 @@ function MonitoringPage({ darkMode }) {
             <div
               style={{
                 flexShrink: 0,
-                width: 220,
+                width: 200,
                 position: "sticky",
                 top: 0,
                 alignSelf: "stretch",
@@ -7518,8 +7272,8 @@ function MonitoringPage({ darkMode }) {
             style={{
               flex: 1,
               minWidth: 0,
-              padding: isMobile ? "12px" : "16px",
-              paddingBottom: 80,
+              padding: isMobile ? "10px" : "14px",
+              paddingBottom: 100,
               boxSizing: "border-box",
             }}
           >
@@ -7612,29 +7366,27 @@ function MonitoringPage({ darkMode }) {
                   paddingBottom: 2,
                 }}
               >
-                {navItems
-                  .filter((n) => !n.disabled)
-                  .map((n) => (
-                    <button
-                      key={n.key}
-                      onClick={() => setActiveNav(n.key)}
-                      style={{
-                        padding: "6px 14px",
-                        borderRadius: 99,
-                        border: `1px solid ${activeNav === n.key ? FB : ui.cardBorder}`,
-                        background:
-                          activeNav === n.key ? `${FB}12` : "transparent",
-                        color: activeNav === n.key ? FB : ui.textMuted,
-                        fontSize: "0.78rem",
-                        fontWeight: activeNav === n.key ? 700 : 500,
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                        fontFamily: font,
-                      }}
-                    >
-                      {n.icon} {n.label}
-                    </button>
-                  ))}
+                {navItems.map((n) => (
+                  <button
+                    key={n.key}
+                    onClick={() => setActiveNav(n.key)}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: 99,
+                      border: `1px solid ${activeNav === n.key ? FB : ui.cardBorder}`,
+                      background:
+                        activeNav === n.key ? `${FB}12` : "transparent",
+                      color: activeNav === n.key ? FB : ui.textMuted,
+                      fontSize: "0.78rem",
+                      fontWeight: activeNav === n.key ? 700 : 500,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                      fontFamily: font,
+                    }}
+                  >
+                    {n.icon} {n.label}
+                  </button>
+                ))}
               </div>
             )}
             <MainContent />
@@ -7642,7 +7394,7 @@ function MonitoringPage({ darkMode }) {
         </div>
       </div>
 
-      {/* Evaluator/User Detail Modal */}
+      {/* Evaluator Detail Modal */}
       {modalEval && (
         <div
           onClick={handleModalClose}
@@ -7843,24 +7595,14 @@ function MonitoringPage({ darkMode }) {
                       color: "#e02020",
                     },
                   ].map(({ key, label, color }) => {
-                    const count =
-                      key === "All"
-                        ? allModalTasks.filter((t) => {
-                            const d = new Date(t.date + "T00:00:00");
-                            if (modalDateFrom && d < new Date(modalDateFrom))
-                              return false;
-                            if (modalDateTo && d > new Date(modalDateTo))
-                              return false;
-                            return true;
-                          }).length
-                        : allModalTasks.filter((t) => {
-                            const d = new Date(t.date + "T00:00:00");
-                            if (modalDateFrom && d < new Date(modalDateFrom))
-                              return false;
-                            if (modalDateTo && d > new Date(modalDateTo))
-                              return false;
-                            return t.status === key;
-                          }).length;
+                    const count = allModalTasks.filter((t) => {
+                      const d = new Date(t.date + "T00:00:00");
+                      if (modalDateFrom && d < new Date(modalDateFrom))
+                        return false;
+                      if (modalDateTo && d > new Date(modalDateTo))
+                        return false;
+                      return key === "All" ? true : t.status === key;
+                    }).length;
                     const isAct = modalStatusTab === key;
                     return (
                       <button
@@ -7979,6 +7721,12 @@ function MonitoringPage({ darkMode }) {
                       bg: "#f3f4f6",
                       color: "#374151",
                     };
+                    const spc = (darkMode ? stepColorsDark : stepColors)[
+                      task.appStep
+                    ] || { bg: "#f3f4f6", color: "#374151" };
+                    const sc = (darkMode ? statusColorsDark : statusColors)[
+                      task.status
+                    ] || { bg: "#f3f4f6", color: "#374151" };
                     return (
                       <div
                         key={i}
@@ -8047,29 +7795,19 @@ function MonitoringPage({ darkMode }) {
                             alignItems: "center",
                           }}
                         >
-                          {(() => {
-                            const spc = (darkMode
-                              ? stepColorsDark
-                              : stepColors)[task.appStep] || {
-                              bg: "#f3f4f6",
-                              color: "#374151",
-                            };
-                            return (
-                              <span
-                                style={{
-                                  fontSize: "0.71rem",
-                                  fontWeight: 600,
-                                  padding: "3px 9px",
-                                  borderRadius: 99,
-                                  background: spc.bg,
-                                  color: spc.color,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {task.appStep}
-                              </span>
-                            );
-                          })()}
+                          <span
+                            style={{
+                              fontSize: "0.71rem",
+                              fontWeight: 600,
+                              padding: "3px 9px",
+                              borderRadius: 99,
+                              background: spc.bg,
+                              color: spc.color,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {task.appStep}
+                          </span>
                         </span>
                         <span
                           style={{
@@ -8101,29 +7839,19 @@ function MonitoringPage({ darkMode }) {
                             alignItems: "center",
                           }}
                         >
-                          {(() => {
-                            const sc = (darkMode
-                              ? statusColorsDark
-                              : statusColors)[task.status] || {
-                              bg: "#f3f4f6",
-                              color: "#374151",
-                            };
-                            return (
-                              <span
-                                style={{
-                                  fontSize: "0.71rem",
-                                  fontWeight: 600,
-                                  padding: "3px 9px",
-                                  borderRadius: 99,
-                                  background: sc.bg,
-                                  color: sc.color,
-                                  whiteSpace: "nowrap",
-                                }}
-                              >
-                                {task.status}
-                              </span>
-                            );
-                          })()}
+                          <span
+                            style={{
+                              fontSize: "0.71rem",
+                              fontWeight: 600,
+                              padding: "3px 9px",
+                              borderRadius: 99,
+                              background: sc.bg,
+                              color: sc.color,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {task.status}
+                          </span>
                         </span>
                         <div
                           style={{
@@ -8353,7 +8081,6 @@ function MonitoringPage({ darkMode }) {
         </div>
       )}
 
-      {/* Impersonated User Dashboard Panel */}
       {impersonating &&
         activeNav === "impersonated" &&
         (() => {

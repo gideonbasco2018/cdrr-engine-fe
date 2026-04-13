@@ -1,4 +1,4 @@
-// src/components/UploadReports/DataTable.jsx
+// src/components/reports/DataTable.jsx
 import { useState } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
@@ -9,22 +9,21 @@ import BulkDeckModal from "./actions/BulkDeckModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 
-// ── Keys must match tableColumns.js exactly ──────────────────────────
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
   dtn: "DB_DTN",
   estCat: "DB_EST_CAT",
-  ltoComp: "DB_EST_LTO_COMP", // tableColumns uses "ltoComp"
-  ltoAdd: "DB_EST_LTO_ADD", // tableColumns uses "ltoAdd"
-  eadd: "DB_EST_EADD", // tableColumns uses "eadd"
+  ltoComp: "DB_EST_LTO_COMP",
+  ltoAdd: "DB_EST_LTO_ADD",
+  eadd: "DB_EST_EADD",
   tin: "DB_EST_TIN",
   contactNo: "DB_EST_CONTACT_NO",
   ltoNo: "DB_EST_LTO_NO",
   validity: "DB_EST_VALIDITY",
   prodBrName: "DB_PROD_BR_NAME",
   prodGenName: "DB_PROD_GEN_NAME",
-  prodDosStr: "DB_PROD_DOS_STR", // tableColumns uses "prodDosStr"
-  prodDosForm: "DB_PROD_DOS_FORM", // tableColumns uses "prodDosForm"
+  prodDosStr: "DB_PROD_DOS_STR",
+  prodDosForm: "DB_PROD_DOS_FORM",
   prodClassPrescript: "DB_PROD_CLASS_PRESCRIP",
   prodEssDrugList: "DB_PROD_ESS_DRUG_LIST",
   prodPharmaCat: "DB_PROD_PHARMA_CAT",
@@ -97,8 +96,8 @@ const COLUMN_DB_KEY_MAP = {
   appStatus: "DB_APP_STATUS",
   appRemarks: "DB_APP_REMARKS",
   dbTimelineCitizenCharter: "DB_TIMELINE_CITIZEN_CHARTER",
-  userUploader: "DB_USER_UPLOADER", // tableColumns uses "userUploader"
-  dateExcelUpload: "DB_DATE_EXCEL_UPLOAD", // tableColumns uses "dateExcelUpload"
+  userUploader: "DB_USER_UPLOADER",
+  dateExcelUpload: "DB_DATE_EXCEL_UPLOAD",
 };
 
 export const TAB_ORDER = [
@@ -241,7 +240,7 @@ function DataTable({
     const { status, days } = calculateStatusTimeline(row);
     if (!status)
       return (
-        <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
+        <span style={{ color: colors.textTertiary, fontSize: "0.72rem" }}>
           N/A
         </span>
       );
@@ -249,13 +248,13 @@ function DataTable({
     return (
       <span
         style={{
-          padding: "0.4rem 0.9rem",
+          padding: "0.3rem 0.7rem",
           background: isWithin
             ? "linear-gradient(135deg,#10b981,#059669)"
             : "linear-gradient(135deg,#ef4444,#dc2626)",
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.75rem",
+          fontSize: "0.72rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -276,18 +275,18 @@ function DataTable({
   const renderProcessingTypeBadge = (value) => {
     if (!value || value === "N/A")
       return (
-        <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
+        <span style={{ color: colors.textTertiary, fontSize: "0.72rem" }}>
           N/A
         </span>
       );
     return (
       <span
         style={{
-          padding: "0.3rem 0.7rem",
+          padding: "0.25rem 0.6rem",
           background: "linear-gradient(135deg,#2196F3,#1976D2)",
           color: "#fff",
           borderRadius: "6px",
-          fontSize: "0.75rem",
+          fontSize: "0.72rem",
           fontWeight: "600",
           display: "inline-flex",
           alignItems: "center",
@@ -343,14 +342,14 @@ function DataTable({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        padding: "0.4rem 0.9rem",
+        padding: "0.3rem 0.7rem",
         background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
         letterSpacing: "0.5px",
-        boxShadow: "0 2px 8px rgba(139,92,246,0.3)",
+        boxShadow: "0 2px 8px rgba(8, 8, 8, 0.3)",
         whiteSpace: "nowrap",
       }}
     >
@@ -363,14 +362,13 @@ function DataTable({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.4rem 0.9rem",
+        gap: "0.4rem",
+        padding: "0.3rem 0.7rem",
         background: "linear-gradient(135deg,#06b6d4,#0891b2)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
-        letterSpacing: "0.3px",
         boxShadow: "0 2px 8px rgba(6,182,212,0.3)",
       }}
     >
@@ -384,14 +382,13 @@ function DataTable({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.4rem 0.9rem",
+        gap: "0.4rem",
+        padding: "0.3rem 0.7rem",
         background: "linear-gradient(135deg,#f59e0b,#d97706)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
-        letterSpacing: "0.3px",
         boxShadow: "0 2px 8px rgba(245,158,11,0.3)",
       }}
     >
@@ -407,12 +404,12 @@ function DataTable({
         style={{
           display: "inline-flex",
           alignItems: "center",
-          gap: "0.5rem",
-          padding: "0.4rem 0.9rem",
+          gap: "0.4rem",
+          padding: "0.3rem 0.7rem",
           background: bg,
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.75rem",
+          fontSize: "0.72rem",
           fontWeight: "700",
           boxShadow: `0 2px 8px ${sh}`,
         }}
@@ -440,7 +437,7 @@ function DataTable({
         "🏆",
       );
     return (
-      <span style={{ fontSize: "0.85rem", color: colors.tableText }}>
+      <span style={{ fontSize: "0.78rem", color: colors.tableText }}>
         {typeDoc || "N/A"}
       </span>
     );
@@ -489,11 +486,11 @@ function DataTable({
     return (
       <span
         style={{
-          padding: "0.4rem 0.9rem",
+          padding: "0.3rem 0.7rem",
           background: c.bg,
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.75rem",
+          fontSize: "0.72rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -528,7 +525,11 @@ function DataTable({
       case "typeDocReleased":
         return renderTypeDocReleased(row[col.key]);
       default:
-        return row[col.key];
+        return (
+          <span style={{ fontSize: "0.78rem", color: colors.tableText }}>
+            {row[col.key] ?? ""}
+          </span>
+        );
     }
   };
 
@@ -556,8 +557,8 @@ function DataTable({
   };
 
   const subTabStyle = (isActive) => ({
-    padding: "0.4rem 1rem",
-    fontSize: "0.8rem",
+    padding: "0.3rem 0.75rem",
+    fontSize: "0.72rem",
     background: "transparent",
     border: "none",
     borderBottom: isActive ? "2px solid #2196F3" : "2px solid transparent",
@@ -572,11 +573,11 @@ function DataTable({
   });
 
   const subTabBadgeStyle = (isActive) => ({
-    padding: "0.15rem 0.5rem",
+    padding: "0.1rem 0.4rem",
     background: isActive ? "#2196F3" : darkMode ? "#1f1f1f" : "#e5e5e5",
     color: isActive ? "#fff" : colors.textTertiary,
     borderRadius: "10px",
-    fontSize: "0.7rem",
+    fontSize: "0.65rem",
     fontWeight: "600",
   });
 
@@ -586,7 +587,6 @@ function DataTable({
   /* ── Generate Transmittal PDF ─────────────────────────────────────── */
   const handleGenerateTransmittal = async () => {
     if (!selectedRows.length) return;
-
     const loadScript = (src) =>
       new Promise((res, rej) => {
         if (document.querySelector(`script[src="${src}"]`)) return res();
@@ -596,7 +596,6 @@ function DataTable({
         s.onerror = rej;
         document.head.appendChild(s);
       });
-
     await loadScript(
       "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
     );
@@ -606,14 +605,12 @@ function DataTable({
     await loadScript(
       "https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js",
     );
-
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({
       orientation: "landscape",
       unit: "mm",
       format: "a4",
     });
-
     const selectedData = data.filter((r) => selectedRows.includes(r.id));
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-PH", {
@@ -627,7 +624,6 @@ function DataTable({
     });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-
     const generateBarcodeDataURL = (value) => {
       try {
         const canvas = document.createElement("canvas");
@@ -645,12 +641,9 @@ function DataTable({
         return null;
       }
     };
-
     const barcodeImages = selectedData.map((r) =>
       generateBarcodeDataURL(r.dtn && r.dtn !== "N/A" ? r.dtn : "N/A"),
     );
-
-    // ── Header ──
     doc.setFillColor(25, 118, 210);
     doc.rect(0, 0, pageW, 16, "F");
     doc.setTextColor(255, 255, 255);
@@ -666,8 +659,6 @@ function DataTable({
     doc.text(`Total records: ${selectedData.length}`, pageW - 10, 13, {
       align: "right",
     });
-
-    // ── Columns ──
     const cols = [
       { header: "#", dataKey: "_no" },
       { header: "Barcode", dataKey: "_barcode" },
@@ -680,9 +671,7 @@ function DataTable({
       { header: "App Type", dataKey: "_appTypeFull" },
       { header: "Date Received from FDAC", dataKey: "dateReceivedFdac" },
     ];
-
     const rows = selectedData.map((r, i) => {
-      // Product Information — keys: prodBrName, prodGenName ✓
       const brand =
         r.prodBrName && r.prodBrName !== "N/A" ? `Brand: ${r.prodBrName}` : "";
       const generic =
@@ -690,29 +679,23 @@ function DataTable({
           ? `Generic: ${r.prodGenName}`
           : "";
       const productInfo = [brand, generic].filter(Boolean).join("\n") || "—";
-
-      // Dosage — tableColumns uses "prodDosStr" / "prodDosForm" (not dosageStrength/dosageForm)
       const strength =
         r.prodDosStr && r.prodDosStr !== "N/A" ? r.prodDosStr : "";
       const form =
         r.prodDosForm && r.prodDosForm !== "N/A" ? r.prodDosForm : "";
       const dosage = [strength, form].filter(Boolean).join(" / ") || "—";
-
-      // App Type + ammend1/2/3 if present (tableColumns has ammend1/2/3)
       const amendments = [r.ammend1, r.ammend2, r.ammend3]
         .filter((a) => a && a !== "N/A" && a.trim() !== "")
         .join(" / ");
       const appTypeFull = [r.appType ?? "—", amendments]
         .filter(Boolean)
         .join("\n");
-
-      // LTO Company — tableColumns uses "ltoComp" not "ltoCompany"
       return {
         _no: i + 1,
         _barcode: "",
         dtn: r.dtn ?? "—",
         estCat: r.estCat ?? "—",
-        ltoCompany: r.ltoComp ?? "—", // ← fixed: ltoComp
+        ltoCompany: r.ltoComp ?? "—",
         _productInfo: productInfo,
         _dosage: dosage,
         regNo: r.regNo ?? "—",
@@ -720,11 +703,9 @@ function DataTable({
         dateReceivedFdac: r.dateReceivedFdac ?? "—",
       };
     });
-
-    const BARCODE_ROW_H = 10;
-    const BARCODE_IMG_W = 24;
-    const BARCODE_IMG_H = 5;
-
+    const BARCODE_ROW_H = 10,
+      BARCODE_IMG_W = 24,
+      BARCODE_IMG_H = 5;
     doc.autoTable({
       startY: 18,
       columns: cols,
@@ -776,25 +757,18 @@ function DataTable({
           const imgData = barcodeImages[hookData.row.index];
           if (imgData) {
             const cell = hookData.cell;
-            const imgX = cell.x + (cell.width - BARCODE_IMG_W) / 2;
-            const imgY = cell.y + (cell.height - BARCODE_IMG_H) / 2;
             doc.addImage(
               imgData,
               "PNG",
-              imgX,
-              imgY,
+              cell.x + (cell.width - BARCODE_IMG_W) / 2,
+              cell.y + (cell.height - BARCODE_IMG_H) / 2,
               BARCODE_IMG_W,
               BARCODE_IMG_H,
             );
           }
         }
       },
-      didDrawPage: () => {
-        // Footer written in two-pass below
-      },
     });
-
-    // ── Two-pass footer ──
     const totalPagesCount = doc.internal.getNumberOfPages();
     for (let pg = 1; pg <= totalPagesCount; pg++) {
       doc.setPage(pg);
@@ -811,8 +785,6 @@ function DataTable({
       doc.setTextColor(30, 30, 30);
     }
     doc.setPage(totalPagesCount);
-
-    // ── Signature block ──
     const finalY = doc.lastAutoTable.finalY + 6;
     if (finalY < pageH - 26) {
       let preparedBy = "";
@@ -825,44 +797,32 @@ function DataTable({
         }
       } catch (_) {}
       if (!preparedBy) preparedBy = "___________________";
-
       doc.setDrawColor(160);
       doc.setLineWidth(0.25);
-
-      const col1X = 14;
-      const col2X = pageW / 2 - 28;
-      const col3X = pageW - 70;
-      const baseY = finalY + 4;
-
-      // LEFT — Prepared by / Received by Evaluator
-      // Single line: "Prepared by/Date: Gideon Basco / March 18, 2026"
+      const col1X = 14,
+        col2X = pageW / 2 - 28,
+        col3X = pageW - 70,
+        baseY = finalY + 4;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
       doc.setTextColor(30, 30, 30);
       doc.text("Prepared by/Date: ", col1X, baseY);
-
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 30, 30);
-      const preparedLabel = doc.getTextWidth("Prepared by/Date: ");
-      doc.text(`${preparedBy} / ${dateStr}`, col1X + preparedLabel, baseY);
-
+      doc.text(
+        `${preparedBy} / ${dateStr}`,
+        col1X + doc.getTextWidth("Prepared by/Date: "),
+        baseY,
+      );
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.5);
-      doc.setTextColor(30, 30, 30);
       doc.text("Received by Evaluator/Date:", col1X, baseY + 12);
-
       doc.setDrawColor(120);
       doc.line(col1X, baseY + 17, col1X + 65, baseY + 17);
-
-      // CENTER — Chief signatory
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(30, 30, 30);
       doc.text("MELODY M. ZAMUDIO, RPh, MGM-ESP", col2X, baseY + 5, {
         align: "center",
       });
-
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
       doc.setTextColor(60);
@@ -870,8 +830,6 @@ function DataTable({
       doc.text("Center for Drug Regulation and Research", col2X, baseY + 15, {
         align: "center",
       });
-
-      // RIGHT — Notice
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
       doc.setTextColor(30, 30, 30);
@@ -882,12 +840,34 @@ function DataTable({
         align: "center",
       });
     }
-
-    const filename = `transmittal_reports_${now.toISOString().slice(0, 10)}.pdf`;
-    doc.save(filename);
+    doc.save(`transmittal_reports_${now.toISOString().slice(0, 10)}.pdf`);
   };
 
-  /* ── Render ───────────────────────────────────────────────────────── */
+  const thStyle = {
+    padding: "0.65rem 0.85rem",
+    textAlign: "left",
+    fontSize: "0.6rem",
+    fontWeight: "600",
+    color: colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    borderBottom: `1px solid ${colors.tableBorder}`,
+    whiteSpace: "nowrap",
+    background: colors.tableBg,
+    cursor: "pointer",
+    userSelect: "none",
+    transition: "background 0.15s",
+  };
+
+  const tdStyle = {
+    padding: "0.65rem 0.85rem",
+    fontSize: "0.78rem",
+    color: colors.tableText,
+    borderBottom: `1px solid ${colors.tableBorder}`,
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+  };
+
   return (
     <>
       <div
@@ -899,14 +879,14 @@ function DataTable({
           transition: "all 0.3s ease",
           display: "flex",
           flexDirection: "column",
-          height: "100%",
-          minHeight: 0,
+          height: "85%",
+          minHeight: "150px",
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: "1rem 1.5rem",
+            padding: "0.75rem 1.25rem",
             borderBottom: `1px solid ${colors.tableBorder}`,
             display: "flex",
             alignItems: "center",
@@ -919,19 +899,20 @@ function DataTable({
           >
             <h3
               style={{
-                fontSize: "1rem",
+                fontSize: "0.8rem",
                 fontWeight: "600",
                 color: colors.textPrimary,
+                margin: 0,
               }}
             >
-              Reports Data
+              Data
             </h3>
             <span
               style={{
-                padding: "0.25rem 0.75rem",
+                padding: "0.2rem 0.6rem",
                 background: colors.badgeBg,
                 borderRadius: "12px",
-                fontSize: "0.8rem",
+                fontSize: "0.68rem",
                 color: colors.textTertiary,
                 fontWeight: "600",
               }}
@@ -946,7 +927,7 @@ function DataTable({
             {sortBy && (
               <span
                 style={{
-                  fontSize: "0.73rem",
+                  fontSize: "0.68rem",
                   color: colors.textTertiary,
                   padding: "0.2rem 0.6rem",
                   background: colors.badgeBg,
@@ -968,7 +949,7 @@ function DataTable({
                   display: "flex",
                   alignItems: "center",
                   gap: "0.5rem",
-                  padding: "0.5rem 1rem",
+                  padding: "0.4rem 0.85rem",
                   background: colors.badgeBg,
                   borderRadius: "8px",
                 }}
@@ -976,7 +957,7 @@ function DataTable({
                 <span
                   style={{
                     color: "#4CAF50",
-                    fontSize: "0.85rem",
+                    fontSize: "0.75rem",
                     fontWeight: "600",
                   }}
                 >
@@ -991,12 +972,12 @@ function DataTable({
                       )
                     }
                     style={{
-                      padding: "0.4rem 0.8rem",
+                      padding: "0.35rem 0.7rem",
                       background: "#4CAF50",
                       border: "none",
                       borderRadius: "6px",
                       color: "#fff",
-                      fontSize: "0.8rem",
+                      fontSize: "0.75rem",
                       fontWeight: "600",
                       cursor: "pointer",
                       display: "flex",
@@ -1015,16 +996,15 @@ function DataTable({
                   </button>
                 )}
 
-                {/* ── Generate Transmittal button ── */}
                 <button
                   onClick={handleGenerateTransmittal}
                   style={{
-                    padding: "0.4rem 0.8rem",
+                    padding: "0.35rem 0.7rem",
                     background: "linear-gradient(135deg,#1976d2,#1565c0)",
                     border: "none",
                     borderRadius: "6px",
                     color: "#fff",
-                    fontSize: "0.8rem",
+                    fontSize: "0.75rem",
                     fontWeight: "600",
                     cursor: "pointer",
                     display: "flex",
@@ -1049,12 +1029,12 @@ function DataTable({
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      minWidth: "1.25rem",
-                      height: "1.25rem",
-                      padding: "0 0.3rem",
+                      minWidth: "1.1rem",
+                      height: "1.1rem",
+                      padding: "0 0.25rem",
                       background: "rgba(255,255,255,0.25)",
                       borderRadius: 999,
-                      fontSize: "0.7rem",
+                      fontSize: "0.65rem",
                       fontWeight: 800,
                     }}
                   >
@@ -1070,12 +1050,12 @@ function DataTable({
                       alert("Delete functionality not yet implemented");
                   }}
                   style={{
-                    padding: "0.4rem 0.8rem",
+                    padding: "0.35rem 0.7rem",
                     background: "#ef4444",
                     border: "none",
                     borderRadius: "6px",
                     color: "#fff",
-                    fontSize: "0.8rem",
+                    fontSize: "0.75rem",
                     fontWeight: "600",
                     cursor: "pointer",
                     transition: "background 0.2s",
@@ -1099,11 +1079,10 @@ function DataTable({
           <div
             style={{
               display: "flex",
-              gap: "0",
               borderBottom: `1px solid ${colors.cardBorder}`,
-              paddingLeft: "1rem",
+              paddingLeft: "0.75rem",
               overflowX: "auto",
-              flexShrink: 0,
+              flexShrink: 120,
               background: colors.cardBg,
             }}
           >
@@ -1158,14 +1137,8 @@ function DataTable({
               <tr>
                 <th
                   style={{
-                    padding: "1rem",
-                    textAlign: "left",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    borderBottom: `1px solid ${colors.tableBorder}`,
+                    ...thStyle,
+                    cursor: "default",
                     width: "50px",
                     position: "sticky",
                     left: 0,
@@ -1190,14 +1163,9 @@ function DataTable({
                 </th>
                 <th
                   style={{
-                    padding: "1rem",
+                    ...thStyle,
+                    cursor: "default",
                     textAlign: "center",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    borderBottom: `1px solid ${colors.tableBorder}`,
                     width: "60px",
                     position: "sticky",
                     left: "50px",
@@ -1208,27 +1176,16 @@ function DataTable({
                 >
                   #
                 </th>
-
                 {tableColumns.map((col) => (
                   <th
                     key={col.key}
                     onClick={() => handleSort(col.key)}
                     style={{
-                      padding: "1rem",
-                      textAlign: "left",
-                      fontSize: "0.8rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      borderBottom: `1px solid ${colors.tableBorder}`,
+                      ...thStyle,
                       minWidth: col.width,
-                      whiteSpace: "nowrap",
                       background: col.headerBg || colors.tableBg,
                       cursor:
                         col.key !== "statusTimeline" ? "pointer" : "default",
-                      userSelect: "none",
-                      transition: "background 0.15s",
                       ...getFrozenThStyle(col),
                     }}
                     onMouseEnter={(e) => {
@@ -1250,19 +1207,12 @@ function DataTable({
                     </span>
                   </th>
                 ))}
-
                 <th
                   style={{
-                    padding: "1rem",
+                    ...thStyle,
+                    cursor: "default",
                     textAlign: "center",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    borderBottom: `1px solid ${colors.tableBorder}`,
                     width: "80px",
-                    whiteSpace: "nowrap",
                     position: "sticky",
                     right: 0,
                     background: colors.tableBg,
@@ -1304,7 +1254,7 @@ function DataTable({
                   >
                     <td
                       style={{
-                        padding: "1rem",
+                        padding: "0.65rem 0.85rem",
                         borderBottom: `1px solid ${colors.tableBorder}`,
                         position: "sticky",
                         left: 0,
@@ -1327,8 +1277,8 @@ function DataTable({
                     </td>
                     <td
                       style={{
-                        padding: "1rem",
-                        fontSize: "0.85rem",
+                        padding: "0.65rem 0.85rem",
+                        fontSize: "0.78rem",
                         fontWeight: "700",
                         color: colors.textTertiary,
                         borderBottom: `1px solid ${colors.tableBorder}`,
@@ -1342,17 +1292,11 @@ function DataTable({
                     >
                       {indexOfFirstRow + index}
                     </td>
-
                     {tableColumns.map((col) => (
                       <td
                         key={col.key}
                         style={{
-                          padding: "1rem",
-                          fontSize: "0.85rem",
-                          color: colors.tableText,
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          whiteSpace: "normal",
-                          wordBreak: "break-word",
+                          ...tdStyle,
                           minWidth: col.width,
                           ...getFrozenTdStyle(col, rowBg),
                         }}
@@ -1360,10 +1304,9 @@ function DataTable({
                         {renderCell(col, row)}
                       </td>
                     ))}
-
                     <td
                       style={{
-                        padding: "1rem",
+                        padding: "0.65rem 0.85rem",
                         borderBottom: `1px solid ${colors.tableBorder}`,
                         textAlign: "center",
                         position: "sticky",
@@ -1382,14 +1325,14 @@ function DataTable({
                         <button
                           onClick={(e) => handleMenuToggle(e, row.id)}
                           style={{
-                            padding: "0.5rem",
+                            padding: "0.4rem",
                             background: "transparent",
                             border: `1px solid ${colors.cardBorder}`,
                             borderRadius: "6px",
                             color: colors.textPrimary,
                             cursor: "pointer",
-                            width: "32px",
-                            height: "32px",
+                            width: "28px",
+                            height: "28px",
                             transition: "all 0.2s ease",
                           }}
                         >
@@ -1428,11 +1371,11 @@ function DataTable({
                                   onClick={() => handleOpenDeckModal(row)}
                                   style={{
                                     width: "100%",
-                                    padding: "0.75rem 1rem",
+                                    padding: "0.6rem 0.85rem",
                                     background: "transparent",
                                     border: "none",
                                     color: colors.textPrimary,
-                                    fontSize: "0.85rem",
+                                    fontSize: "0.78rem",
                                     textAlign: "left",
                                     cursor: "pointer",
                                     display: "flex",
@@ -1458,11 +1401,11 @@ function DataTable({
                                   onClick={() => handleOpenAppLogs(row)}
                                   style={{
                                     width: "100%",
-                                    padding: "0.75rem 1rem",
+                                    padding: "0.6rem 0.85rem",
                                     background: "transparent",
                                     border: "none",
                                     color: colors.textPrimary,
-                                    fontSize: "0.85rem",
+                                    fontSize: "0.78rem",
                                     textAlign: "left",
                                     cursor: "pointer",
                                     display: "flex",
@@ -1528,12 +1471,12 @@ function DataTable({
                                   onClick={item.handler}
                                   style={{
                                     width: "100%",
-                                    padding: "0.75rem 1rem",
+                                    padding: "0.6rem 0.85rem",
                                     background: "transparent",
                                     border: "none",
                                     borderTop: `1px solid ${colors.tableBorder}`,
                                     color: item.color,
-                                    fontSize: "0.85rem",
+                                    fontSize: "0.78rem",
                                     textAlign: "left",
                                     cursor: "pointer",
                                     display: "flex",
@@ -1587,7 +1530,6 @@ function DataTable({
         </div>
       </div>
 
-      {/* Modals */}
       {deckModalRecord && (
         <DeckModal
           record={deckModalRecord}

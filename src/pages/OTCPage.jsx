@@ -1,9 +1,5 @@
 // FILE: src/pages/OTCPage.jsx
-// ✅ FIXED: Sidebar respects darkMode via colors object
-// ✅ NEW:   Entire Quick Filters sidebar is collapsible (◀ / ▶ toggle)
-// ✅ FIXED: Filtering now uses DB_IS_IN_PM instead of decking_status
-// ✅ FIXED: Filter counts now PROPERLY respect active tab and other filters (excludes own filter type only)
-// ✅ FIXED: Sort state moved INSIDE OTCPage component (was causing invalid hook call)
+// ✅ UPDATED: Font sizes, padding, and button sizing matched to DeckingPage (compact)
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
@@ -23,14 +19,6 @@ import OTCUpload from "../components/otc/OTCUpload";
 import OTCDataTable from "../components/otc/OTCDataTable";
 import OTCUploadProgress from "../components/otc/OTCUploadProgress";
 import { getOTCColors } from "../components/otc/otcColors";
-
-const scrollbarStyles = (darkMode) => `
-  ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-track { background: ${darkMode ? "#0a0a0a" : "#f1f1f1"}; border-radius: 10px; }
-  ::-webkit-scrollbar-thumb { background: ${darkMode ? "#404040" : "#c1c1c1"}; border-radius: 10px; transition: background 0.2s ease; }
-  ::-webkit-scrollbar-thumb:hover { background: ${darkMode ? "#606060" : "#a0a0a0"}; }
-  * { scrollbar-width: thin; scrollbar-color: ${darkMode ? "#404040 #0a0a0a" : "#c1c1c1 #f1f1f1"}; }
-`;
 
 const mapOTCDataItem = (item) => ({
   id: item.DB_ID,
@@ -83,7 +71,6 @@ function OTCPage({ darkMode }) {
   const [editingRecord, setEditingRecord] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // ✅ Sort state — INSIDE the component where hooks are allowed
   const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
   const [sortOrder, setSortOrder] = useState("desc");
 
@@ -101,7 +88,7 @@ function OTCPage({ darkMode }) {
       }
       styleElementRef.current = el;
     }
-    styleElementRef.current.textContent = scrollbarStyles(darkMode);
+
     return () => {
       if (styleElementRef.current) {
         styleElementRef.current.remove();
@@ -109,11 +96,6 @@ function OTCPage({ darkMode }) {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (styleElementRef.current)
-      styleElementRef.current.textContent = scrollbarStyles(darkMode);
-  }, [darkMode]);
 
   useEffect(() => {
     let username = null;
@@ -160,7 +142,6 @@ function OTCPage({ darkMode }) {
     return "";
   }, []);
 
-  // ✅ FIXED: fetchFilterOptions - proper cross-filter counts with cancel token
   useEffect(() => {
     let cancelled = false;
 
@@ -241,7 +222,6 @@ function OTCPage({ darkMode }) {
       if (prescription !== null && prescription !== "")
         params.prescription = prescription;
 
-      // ✅ Sort params
       if (sort) params.sortBy = sort;
       if (order) params.sortOrder = order;
 
@@ -324,7 +304,6 @@ function OTCPage({ darkMode }) {
     return params;
   };
 
-  // ✅ Sort handler — INSIDE the component
   const handleSort = useCallback((column, order) => {
     setSortBy(column);
     setSortOrder(order);
@@ -467,12 +446,12 @@ function OTCPage({ darkMode }) {
       {/* ========== SIDEBAR ========== */}
       <div
         style={{
-          width: sidebarOpen ? "260px" : "52px",
-          minWidth: sidebarOpen ? "260px" : "52px",
+          width: sidebarOpen ? "200px" : "52px",
+          minWidth: sidebarOpen ? "200px" : "52px",
           background: darkMode ? "#0a0a0a" : "#ffffff",
           borderRight: `1px solid ${colors.cardBorder}`,
-          padding: sidebarOpen ? "1.5rem 0" : "1rem 0",
-          overflowY: sidebarOpen ? "auto" : "hidden",
+          padding: sidebarOpen ? "1rem 0" : "1rem 0",
+          overflowY: "hidden",
           overflowX: "hidden",
           display: "flex",
           flexDirection: "column",
@@ -481,120 +460,144 @@ function OTCPage({ darkMode }) {
           flexShrink: 0,
         }}
       >
-        {/* Header: title + toggle button */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: sidebarOpen ? "space-between" : "center",
-            padding: sidebarOpen ? "0 1.25rem 1rem" : "0 0 1rem",
-            borderBottom: `2px solid ${colors.cardBorder}`,
-            overflow: "hidden",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {sidebarOpen && (
+        {sidebarOpen ? (
+          <>
+            {/* Pinned header */}
             <div
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "0 1rem 0.75rem",
+                borderBottom: `2px solid ${colors.cardBorder}`,
+                flexShrink: 0,
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+              }}
             >
-              <span style={{ fontSize: "1.25rem" }}>⚡</span>
-              <h2
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                <span style={{ fontSize: "1rem" }}>⚡</span>
+                <h2
+                  style={{
+                    fontSize: "0.82rem",
+                    fontWeight: "600",
+                    color: colors.textPrimary,
+                    margin: 0,
+                  }}
+                >
+                  Quick Filters
+                </h2>
+                {activeFilterCount > 0 && (
+                  <span
+                    style={{
+                      background: "#2196F3",
+                      color: "#fff",
+                      borderRadius: "10px",
+                      padding: "2px 8px",
+                      fontSize: "0.68rem",
+                      fontWeight: "700",
+                    }}
+                  >
+                    {activeFilterCount}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                title="Hide Quick Filters"
                 style={{
-                  fontSize: "1.1rem",
-                  fontWeight: "700",
-                  color: colors.textPrimary,
-                  margin: 0,
-                  letterSpacing: "0.5px",
+                  width: "26px",
+                  height: "26px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: "transparent",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  color: colors.textTertiary,
+                  fontSize: "0.7rem",
+                  flexShrink: 0,
+                  transition: "all 0.2s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = darkMode
+                    ? "#1f1f1f"
+                    : "#e5e5e5";
+                  e.currentTarget.style.color = colors.textPrimary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = colors.textTertiary;
                 }}
               >
-                Quick Filters
-              </h2>
+                ◀
+              </button>
             </div>
-          )}
 
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            style={{
-              width: "28px",
-              height: "28px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "6px",
-              cursor: "pointer",
-              color: colors.textTertiary,
-              fontSize: "0.75rem",
-              flexShrink: 0,
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = darkMode
-                ? "#1f1f1f"
-                : "#e5e5e5";
-              e.currentTarget.style.color = colors.textPrimary;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.color = colors.textTertiary;
-            }}
-          >
-            {sidebarOpen ? "◀" : "▶"}
-          </button>
-        </div>
-
-        {/* ── Expanded: full filter sections ── */}
-        {sidebarOpen && (
-          <>
-            {availableAppTypes.length > 0 && (
-              <SidebarSection
-                title="Application Type"
-                icon="📦"
-                items={availableAppTypes}
-                activeItem={subTab}
-                onItemClick={handleSubTabChange}
-                darkMode={darkMode}
-                colors={colors}
-                totalCount={availableAppTypes.reduce((s, a) => s + a.count, 0)}
-              />
-            )}
-            {availablePrescriptionTypes.length > 0 && (
-              <SidebarSection
-                title="Prescriptions"
-                icon="💊"
-                items={availablePrescriptionTypes}
-                activeItem={prescriptionTab}
-                onItemClick={handlePrescriptionTabChange}
-                darkMode={darkMode}
-                colors={colors}
-                totalCount={availablePrescriptionTypes.reduce(
-                  (s, p) => s + p.count,
-                  0,
-                )}
-              />
-            )}
-            {availableAppStatusTypes.length > 0 && (
-              <SidebarSection
-                title="All Status"
-                icon="📈"
-                items={availableAppStatusTypes}
-                activeItem={appStatusTab}
-                onItemClick={handleAppStatusTabChange}
-                darkMode={darkMode}
-                colors={colors}
-                totalCount={availableAppStatusTypes.reduce(
-                  (s, x) => s + x.count,
-                  0,
-                )}
-              />
-            )}
+            {/* Scrollable section list */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
+                padding: "0.75rem 0.75rem 1rem",
+                overflowY: "auto",
+                overflowX: "hidden",
+                flex: 1,
+              }}
+            >
+              {availableAppTypes.length > 0 && (
+                <SidebarSection
+                  title="Application Type"
+                  icon="📦"
+                  items={availableAppTypes}
+                  activeItem={subTab}
+                  onItemClick={handleSubTabChange}
+                  darkMode={darkMode}
+                  colors={colors}
+                  totalCount={availableAppTypes.reduce(
+                    (s, a) => s + a.count,
+                    0,
+                  )}
+                />
+              )}
+              {availablePrescriptionTypes.length > 0 && (
+                <SidebarSection
+                  title="Prescriptions"
+                  icon="💊"
+                  items={availablePrescriptionTypes}
+                  activeItem={prescriptionTab}
+                  onItemClick={handlePrescriptionTabChange}
+                  darkMode={darkMode}
+                  colors={colors}
+                  totalCount={availablePrescriptionTypes.reduce(
+                    (s, p) => s + p.count,
+                    0,
+                  )}
+                />
+              )}
+              {availableAppStatusTypes.length > 0 && (
+                <SidebarSection
+                  title="All Status"
+                  icon="📈"
+                  items={availableAppStatusTypes}
+                  activeItem={appStatusTab}
+                  onItemClick={handleAppStatusTabChange}
+                  darkMode={darkMode}
+                  colors={colors}
+                  totalCount={availableAppStatusTypes.reduce(
+                    (s, x) => s + x.count,
+                    0,
+                  )}
+                />
+              )}
+            </div>
           </>
-        )}
-
-        {/* ── Collapsed: icon strip ── */}
-        {!sidebarOpen && (
+        ) : (
+          /* COLLAPSED icon strip */
           <div
             style={{
               display: "flex",
@@ -604,19 +607,50 @@ function OTCPage({ darkMode }) {
               paddingTop: "0.75rem",
             }}
           >
+            <button
+              onClick={() => setSidebarOpen(true)}
+              title="Show Quick Filters"
+              style={{
+                width: "26px",
+                height: "26px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "transparent",
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "6px",
+                cursor: "pointer",
+                color: colors.textTertiary,
+                fontSize: "0.7rem",
+                flexShrink: 0,
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = darkMode
+                  ? "#1f1f1f"
+                  : "#e5e5e5";
+                e.currentTarget.style.color = colors.textPrimary;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = colors.textTertiary;
+              }}
+            >
+              ▶
+            </button>
             {activeFilterCount > 0 && (
               <div
                 onClick={() => setSidebarOpen(true)}
                 title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""} — click to expand`}
                 style={{
-                  width: "20px",
-                  height: "20px",
+                  width: "18px",
+                  height: "18px",
                   background: "#2196F3",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "0.7rem",
+                  fontSize: "0.65rem",
                   fontWeight: "700",
                   color: "#fff",
                   cursor: "pointer",
@@ -625,39 +659,36 @@ function OTCPage({ darkMode }) {
                 {activeFilterCount}
               </div>
             )}
-            <span
-              title="Application Type (click to expand)"
-              style={{
-                fontSize: "1.2rem",
-                opacity: subTab !== null ? 1 : 0.3,
-                cursor: "pointer",
-              }}
-              onClick={() => setSidebarOpen(true)}
-            >
-              📦
-            </span>
-            <span
-              title="Prescriptions (click to expand)"
-              style={{
-                fontSize: "1.2rem",
-                opacity: prescriptionTab !== null ? 1 : 0.3,
-                cursor: "pointer",
-              }}
-              onClick={() => setSidebarOpen(true)}
-            >
-              💊
-            </span>
-            <span
-              title="All Status (click to expand)"
-              style={{
-                fontSize: "1.2rem",
-                opacity: appStatusTab !== null ? 1 : 0.3,
-                cursor: "pointer",
-              }}
-              onClick={() => setSidebarOpen(true)}
-            >
-              📈
-            </span>
+            {[
+              {
+                icon: "📦",
+                title: "Application Type",
+                active: subTab !== null,
+              },
+              {
+                icon: "💊",
+                title: "Prescriptions",
+                active: prescriptionTab !== null,
+              },
+              {
+                icon: "📈",
+                title: "All Status",
+                active: appStatusTab !== null,
+              },
+            ].map((item) => (
+              <span
+                key={item.icon}
+                title={`${item.title} (click to expand)`}
+                style={{
+                  fontSize: "1rem",
+                  opacity: item.active ? 1 : 0.3,
+                  cursor: "pointer",
+                }}
+                onClick={() => setSidebarOpen(true)}
+              >
+                {item.icon}
+              </span>
+            ))}
           </div>
         )}
       </div>
@@ -675,7 +706,7 @@ function OTCPage({ darkMode }) {
         {/* Header */}
         <div
           style={{
-            padding: "1.5rem 2rem",
+            padding: "0.85rem 1.5rem 0",
             background: colors.pageBg,
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
@@ -684,17 +715,17 @@ function OTCPage({ darkMode }) {
             style={{
               display: "flex",
               justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "1rem",
+              alignItems: "flex-start",
+              marginBottom: "0.6rem",
             }}
           >
             <div>
               <h1
                 style={{
-                  fontSize: "1.5rem",
+                  fontSize: "1.1rem",
                   fontWeight: "600",
-                  marginBottom: "0.25rem",
                   color: colors.textPrimary,
+                  margin: 0,
                 }}
               >
                 For Decking
@@ -702,34 +733,42 @@ function OTCPage({ darkMode }) {
               <p
                 style={{
                   color: colors.textTertiary,
-                  fontSize: "0.813rem",
-                  margin: 0,
+                  fontSize: "0.75rem",
+                  margin: "0.2rem 0 0",
                 }}
               >
                 Upload reports and assign evaluators for decking
               </p>
             </div>
-            <div style={{ display: "flex", gap: "0.75rem" }}>
+            <div
+              style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+            >
               <button
                 onClick={handleExport}
                 disabled={exporting || totalRecords === 0}
                 style={{
-                  padding: "0.625rem 1.25rem",
-                  background:
-                    exporting || totalRecords === 0
-                      ? colors.cardBorder
-                      : "#10B981",
+                  padding: "0.7rem 1rem",
+                  background: exporting ? colors.cardBorder : "#10B981",
                   color: "#fff",
                   border: "none",
                   borderRadius: "8px",
-                  fontSize: "0.875rem",
+                  fontSize: "0.75rem",
                   fontWeight: "500",
                   cursor:
                     exporting || totalRecords === 0 ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.4rem",
+                  transition: "all 0.2s ease",
                   opacity: totalRecords === 0 ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (!exporting && totalRecords > 0)
+                    e.currentTarget.style.background = "#059669";
+                }}
+                onMouseLeave={(e) => {
+                  if (!exporting && totalRecords > 0)
+                    e.currentTarget.style.background = "#10B981";
                 }}
               >
                 <span>{exporting ? "⏳" : "📥"}</span>
@@ -747,38 +786,13 @@ function OTCPage({ darkMode }) {
             </div>
           </div>
 
-          {/* Stats */}
-          <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-            <StatCard
-              icon="📊"
-              label="TOTAL REPORTS"
-              value={statsData.total}
-              color="#2196F3"
-              colors={colors}
-            />
-            <StatCard
-              icon="⏳"
-              label="NOT YET DECKED"
-              value={statsData.notYetDecked}
-              color="#FF9800"
-              colors={colors}
-            />
-            <StatCard
-              icon="✅"
-              label="DECKED"
-              value={statsData.decked}
-              color="#4CAF50"
-              colors={colors}
-            />
-          </div>
-
-          {/* Tabs */}
+          {/* Main Tabs */}
           <div
             style={{
               display: "flex",
-              gap: "0.5rem",
+              gap: "0.25rem",
+              marginTop: "0.5rem",
               borderBottom: `2px solid ${colors.cardBorder}`,
-              paddingBottom: "0",
             }}
           >
             {[
@@ -787,60 +801,58 @@ function OTCPage({ darkMode }) {
                 label: "All Reports",
                 icon: "📋",
                 count: statsData.total,
-                color: "#2196F3",
               },
               {
                 id: "not-yet-decked",
                 label: "Not Yet Decked",
                 icon: "⏳",
                 count: statsData.notYetDecked,
-                color: "#FF9800",
               },
               {
                 id: "decked",
                 label: "Decked",
                 icon: "✅",
                 count: statsData.decked,
-                color: "#4CAF50",
               },
             ].map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => handleTabChange(tab.id)}
                 style={{
-                  padding: "0.5rem 1rem",
-                  fontSize: "0.85rem",
-                  background:
-                    activeTab === tab.id ? `${tab.color}15` : "transparent",
+                  padding: "0.35rem 0.85rem",
+                  fontSize: "0.78rem",
+                  background: "transparent",
                   border: "none",
                   borderBottom:
                     activeTab === tab.id
-                      ? `3px solid ${tab.color}`
+                      ? "3px solid #4CAF50"
                       : "3px solid transparent",
                   color:
-                    activeTab === tab.id ? tab.color : colors.textSecondary,
+                    activeTab === tab.id
+                      ? colors.textPrimary
+                      : colors.textSecondary,
                   fontWeight: activeTab === tab.id ? "600" : "500",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.4rem",
                   position: "relative",
                   top: "2px",
                 }}
               >
-                <span style={{ fontSize: "1.1rem" }}>{tab.icon}</span>
+                <span style={{ fontSize: "0.82rem" }}>{tab.icon}</span>
                 <span>{tab.label}</span>
                 <span
                   style={{
-                    padding: "0.2rem 0.6rem",
+                    padding: "0.1rem 0.45rem",
                     background:
-                      activeTab === tab.id ? tab.color : colors.badgeBg,
+                      activeTab === tab.id ? "#4CAF50" : colors.badgeBg,
                     color: activeTab === tab.id ? "#fff" : colors.textTertiary,
                     borderRadius: "12px",
-                    fontSize: "0.75rem",
+                    fontSize: "0.68rem",
                     fontWeight: "600",
-                    minWidth: "32px",
+                    minWidth: "28px",
                     textAlign: "center",
                   }}
                 >
@@ -856,7 +868,7 @@ function OTCPage({ darkMode }) {
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "2rem",
+            padding: "0.85rem 1.5rem",
             background: colors.pageBg,
           }}
         >
@@ -889,17 +901,19 @@ function OTCPage({ darkMode }) {
                 color: colors.textSecondary,
               }}
             >
-              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⏳</div>
+              <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
+                ⏳
+              </div>
               <div
                 style={{
-                  fontSize: "1.1rem",
+                  fontSize: "0.88rem",
                   fontWeight: "600",
-                  marginBottom: "0.5rem",
+                  marginBottom: "0.35rem",
                 }}
               >
                 Loading OTC records...
               </div>
-              <div style={{ fontSize: "0.9rem" }}>
+              <div style={{ fontSize: "0.75rem" }}>
                 Page {currentPage} of {totalPages}
               </div>
             </div>
@@ -916,17 +930,19 @@ function OTCPage({ darkMode }) {
                 color: colors.textSecondary,
               }}
             >
-              <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>📭</div>
+              <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
+                📭
+              </div>
               <div
                 style={{
-                  fontSize: "1.1rem",
+                  fontSize: "0.88rem",
                   fontWeight: "600",
-                  marginBottom: "0.5rem",
+                  marginBottom: "0.35rem",
                 }}
               >
                 No OTC records found
               </div>
-              <div style={{ fontSize: "0.9rem" }}>
+              <div style={{ fontSize: "0.75rem" }}>
                 No records found for the selected criteria
               </div>
             </div>
@@ -975,62 +991,6 @@ function OTCPage({ darkMode }) {
   );
 }
 
-// ─── StatCard ─────────────────────────────────────────────────────────────────
-function StatCard({ icon, label, value, color, colors }) {
-  return (
-    <div
-      style={{
-        flex: 1,
-        background: colors.cardBg,
-        border: `1px solid ${colors.cardBorder}`,
-        borderRadius: "12px",
-        padding: "1rem",
-        display: "flex",
-        alignItems: "center",
-        gap: "1rem",
-      }}
-    >
-      <div
-        style={{
-          width: "48px",
-          height: "48px",
-          background: `${color}15`,
-          borderRadius: "10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "1.5rem",
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ flex: 1 }}>
-        <div
-          style={{
-            fontSize: "0.75rem",
-            color: colors.textTertiary,
-            fontWeight: "500",
-            marginBottom: "0.25rem",
-            letterSpacing: "0.5px",
-          }}
-        >
-          {label}
-        </div>
-        <div
-          style={{
-            fontSize: "1.75rem",
-            fontWeight: "700",
-            color,
-            lineHeight: 1,
-          }}
-        >
-          {value.toLocaleString()}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── SidebarSection ───────────────────────────────────────────────────────────
 function SidebarSection({
   title,
@@ -1045,20 +1005,20 @@ function SidebarSection({
   const [isOpen, setIsOpen] = useState(true);
 
   return (
-    <div style={{ padding: "0 0.5rem" }}>
+    <div>
       <div
         onClick={() => setIsOpen(!isOpen)}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "12px 16px",
+          padding: "8px 12px",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "10px",
+          borderRadius: "8px",
           cursor: "pointer",
           transition: "all 0.2s ease",
-          marginBottom: "8px",
+          marginBottom: "6px",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#f0f0f0";
@@ -1067,26 +1027,27 @@ function SidebarSection({
           e.currentTarget.style.background = colors.cardBg;
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.875rem" }}>{icon}</span>
-          <span
-            style={{
-              fontSize: "0.813rem",
-              fontWeight: "600",
-              color: colors.textPrimary,
-            }}
-          >
-            {title}
-          </span>
+        <div
+          style={{
+            fontSize: "0.72rem",
+            fontWeight: "600",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            color: colors.textPrimary,
+          }}
+        >
+          <span style={{ fontSize: "0.8rem" }}>{icon}</span>
+          <span>{title}</span>
           <span
             style={{
               background: darkMode ? "#1f1f1f" : "#e5e5e5",
-              padding: "2px 8px",
-              borderRadius: "6px",
-              fontSize: "0.75rem",
+              padding: "2px 7px",
+              borderRadius: "5px",
+              fontSize: "0.68rem",
               fontWeight: "600",
-              color: colors.textTertiary,
               fontFamily: "monospace",
+              color: colors.textTertiary,
             }}
           >
             {totalCount}
@@ -1095,9 +1056,9 @@ function SidebarSection({
         <span
           style={{
             color: colors.textTertiary,
-            fontSize: "0.75rem",
-            transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
             transition: "transform 0.2s",
+            transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
+            fontSize: "0.6rem",
           }}
         >
           ▼
@@ -1107,25 +1068,27 @@ function SidebarSection({
       {isOpen && (
         <div
           style={{
-            paddingLeft: "0.5rem",
+            paddingLeft: "8px",
             display: "flex",
             flexDirection: "column",
             gap: "4px",
           }}
         >
+          {/* "All" Option */}
           <div
             onClick={() => onItemClick(null)}
             style={{
-              padding: "10px 16px",
+              padding: "7px 12px",
               background:
                 activeItem === null ? "rgba(33,150,243,0.1)" : "transparent",
               border: `1px solid ${activeItem === null ? "#2196F3" : "transparent"}`,
-              borderRadius: "8px",
+              borderRadius: "6px",
               cursor: "pointer",
               transition: "all 0.2s ease",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
+              fontSize: "0.72rem",
             }}
             onMouseEnter={(e) => {
               if (activeItem !== null) {
@@ -1140,7 +1103,7 @@ function SidebarSection({
               }
             }}
           >
-            <span style={{ fontSize: "0.813rem", color: colors.textPrimary }}>
+            <span style={{ color: colors.textPrimary, fontWeight: 500 }}>
               All {title}
             </span>
             <span
@@ -1152,9 +1115,9 @@ function SidebarSection({
                       ? "#1f1f1f"
                       : "#e5e5e5",
                 color: activeItem === null ? "#fff" : colors.textTertiary,
-                padding: "3px 8px",
-                borderRadius: "5px",
-                fontSize: "0.75rem",
+                padding: "2px 7px",
+                borderRadius: "4px",
+                fontSize: "0.68rem",
                 fontWeight: "600",
                 fontFamily: "monospace",
               }}
@@ -1163,6 +1126,7 @@ function SidebarSection({
             </span>
           </div>
 
+          {/* Individual Items */}
           {items.map((item) => {
             const displayValue = item.value || `No ${title}`;
             const filterValue = item.value ?? null;
@@ -1172,15 +1136,17 @@ function SidebarSection({
                 key={filterValue ?? `no-${title}`}
                 onClick={() => onItemClick(filterValue)}
                 style={{
-                  padding: "10px 16px",
+                  padding: "7px 12px",
                   background: isActive ? "rgba(33,150,243,0.1)" : "transparent",
                   border: `1px solid ${isActive ? "#2196F3" : "transparent"}`,
-                  borderRadius: "8px",
+                  borderRadius: "6px",
                   cursor: "pointer",
                   transition: "all 0.2s ease",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
+                  gap: "6px",
+                  fontSize: "0.72rem",
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive) {
@@ -1196,7 +1162,14 @@ function SidebarSection({
                 }}
               >
                 <span
-                  style={{ fontSize: "0.813rem", color: colors.textPrimary }}
+                  style={{
+                    color: colors.textPrimary,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    flex: 1,
+                    minWidth: 0,
+                  }}
                 >
                   {displayValue}
                 </span>
@@ -1208,11 +1181,12 @@ function SidebarSection({
                         ? "#1f1f1f"
                         : "#e5e5e5",
                     color: isActive ? "#fff" : colors.textTertiary,
-                    padding: "3px 8px",
-                    borderRadius: "5px",
-                    fontSize: "0.75rem",
+                    padding: "2px 7px",
+                    borderRadius: "4px",
+                    fontSize: "0.68rem",
                     fontWeight: "600",
                     fontFamily: "monospace",
+                    flexShrink: 0,
                   }}
                 >
                   {item.count}

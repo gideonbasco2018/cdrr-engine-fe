@@ -143,34 +143,29 @@ function ReportsDataTable({
   };
 
   const calculateStatusTimeline = (row) => {
-    const dateReceivedCent = row.dateReceivedCent;
-    const dateReleased = row.dateReleased;
-    const timeline = row.dbTimelineCitizenCharter;
-
+    const {
+      dateReceivedCent,
+      dateReleased,
+      dbTimelineCitizenCharter: timeline,
+    } = row;
     if (
       !dateReceivedCent ||
       !timeline ||
       dateReceivedCent === "N/A" ||
       timeline === null
-    ) {
+    )
       return { status: "", days: 0 };
-    }
-
     const receivedDate = new Date(dateReceivedCent);
     const endDate =
       dateReleased && dateReleased !== "N/A"
         ? new Date(dateReleased)
         : new Date();
-
-    if (isNaN(receivedDate.getTime()) || isNaN(endDate.getTime())) {
+    if (isNaN(receivedDate.getTime()) || isNaN(endDate.getTime()))
       return { status: "", days: 0 };
-    }
-
-    const diffTime = Math.abs(endDate - receivedDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    const timelineValue = parseInt(timeline, 10);
-
-    return diffDays <= timelineValue
+    const diffDays = Math.ceil(
+      Math.abs(endDate - receivedDate) / (1000 * 60 * 60 * 24),
+    );
+    return diffDays <= parseInt(timeline, 10)
       ? { status: "WITHIN", days: diffDays }
       : { status: "BEYOND", days: diffDays };
   };
@@ -179,56 +174,36 @@ function ReportsDataTable({
     const { status, days } = calculateStatusTimeline(row);
     if (!status)
       return (
-        <span style={{ color: colors.textTertiary, fontSize: "0.8rem" }}>
+        <span style={{ color: colors.textTertiary, fontSize: "0.72rem" }}>
           N/A
         </span>
       );
-
-    if (status === "WITHIN") {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>✓</span>
-          Within ({days}d)
-        </span>
-      );
-    } else {
-      return (
-        <span
-          style={{
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.5px",
-            textTransform: "uppercase",
-            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-        >
-          <span style={{ fontSize: "0.9rem" }}>⚠</span>
-          Beyond ({days}d)
-        </span>
-      );
-    }
+    const isWithin = status === "WITHIN";
+    return (
+      <span
+        style={{
+          padding: "0.3rem 0.7rem",
+          background: isWithin
+            ? "linear-gradient(135deg,#10b981,#059669)"
+            : "linear-gradient(135deg,#ef4444,#dc2626)",
+          color: "#fff",
+          borderRadius: "8px",
+          fontSize: "0.72rem",
+          fontWeight: "700",
+          letterSpacing: "0.5px",
+          textTransform: "uppercase",
+          boxShadow: isWithin
+            ? "0 2px 8px rgba(16,185,129,0.3)"
+            : "0 2px 8px rgba(239,68,68,0.3)",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.4rem",
+        }}
+      >
+        <span>{isWithin ? "✓" : "⚠"}</span>
+        {isWithin ? `Within (${days}d)` : `Beyond (${days}d)`}
+      </span>
+    );
   };
 
   const renderProcessingTypeBadge = (value) => {
@@ -236,13 +211,13 @@ function ReportsDataTable({
       return (
         <span
           style={{
-            padding: "0.3rem 0.7rem",
+            padding: "0.25rem 0.6rem",
             background: darkMode
               ? "rgba(255,255,255,0.06)"
               : "rgba(0,0,0,0.06)",
             color: colors.textTertiary,
             borderRadius: "6px",
-            fontSize: "0.75rem",
+            fontSize: "0.72rem",
             fontWeight: "500",
             display: "inline-flex",
             alignItems: "center",
@@ -256,11 +231,11 @@ function ReportsDataTable({
     return (
       <span
         style={{
-          padding: "0.3rem 0.7rem",
-          background: "linear-gradient(135deg, #2196F3 0%, #1976D2 100%)",
+          padding: "0.25rem 0.6rem",
+          background: "linear-gradient(135deg,#2196F3,#1976D2)",
           color: "#fff",
           borderRadius: "6px",
-          fontSize: "0.75rem",
+          fontSize: "0.72rem",
           fontWeight: "600",
           display: "inline-flex",
           alignItems: "center",
@@ -273,25 +248,20 @@ function ReportsDataTable({
     );
   };
 
-  const handleMenuToggle = (rowId) => {
+  const handleMenuToggle = (rowId) =>
     setOpenMenuId(openMenuId === rowId ? null : rowId);
-  };
-
   const handleViewDetails = (row) => {
     setOpenMenuId(null);
     setSelectedRowDetails(row);
   };
-
   const handleOpenDoctrackModal = (row) => {
     setOpenMenuId(null);
     setDoctrackModalRecord(row);
   };
-
   const handleOpenAppLogsModal = (row) => {
     setOpenMenuId(null);
     setAppLogsModalRecord(row);
   };
-
   const handleCloseDetailsModal = () => setSelectedRowDetails(null);
   const handleCloseDoctrackModal = () => setDoctrackModalRecord(null);
 
@@ -300,14 +270,14 @@ function ReportsDataTable({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)",
+        padding: "0.3rem 0.7rem",
+        background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
         letterSpacing: "0.5px",
-        boxShadow: "0 2px 8px rgba(139, 92, 246, 0.3)",
+        boxShadow: "0 2px 8px rgba(139,92,246,0.3)",
         whiteSpace: "nowrap",
       }}
     >
@@ -320,18 +290,17 @@ function ReportsDataTable({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)",
+        gap: "0.4rem",
+        padding: "0.3rem 0.7rem",
+        background: "linear-gradient(135deg,#06b6d4,#0891b2)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
-        letterSpacing: "0.3px",
-        boxShadow: "0 2px 8px rgba(6, 182, 212, 0.3)",
+        boxShadow: "0 2px 8px rgba(6,182,212,0.3)",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>💊</span>
+      <span>💊</span>
       <span>{genName || "N/A"}</span>
     </span>
   );
@@ -341,159 +310,126 @@ function ReportsDataTable({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.5rem",
-        padding: "0.4rem 0.9rem",
-        background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+        gap: "0.4rem",
+        padding: "0.3rem 0.7rem",
+        background: "linear-gradient(135deg,#f59e0b,#d97706)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.75rem",
+        fontSize: "0.72rem",
         fontWeight: "700",
-        letterSpacing: "0.3px",
-        boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
+        boxShadow: "0 2px 8px rgba(245,158,11,0.3)",
       }}
     >
-      <span style={{ fontSize: "0.9rem" }}>🏷️</span>
+      <span>🏷️</span>
       <span>{brandName || "N/A"}</span>
     </span>
   );
 
   const renderTypeDocReleased = (typeDoc) => {
-    const typeUpper = typeDoc?.toUpperCase();
-    if (typeUpper?.includes("CPR")) {
-      return (
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.3px",
-            boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)",
-          }}
-        >
-          <span style={{ fontSize: "1rem" }}>📜</span>
-          <span>{typeDoc}</span>
-        </span>
+    const u = typeDoc?.toUpperCase();
+    const pill = (bg, sh, icon) => (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.4rem",
+          padding: "0.3rem 0.7rem",
+          background: bg,
+          color: "#fff",
+          borderRadius: "8px",
+          fontSize: "0.72rem",
+          fontWeight: "700",
+          boxShadow: `0 2px 8px ${sh}`,
+        }}
+      >
+        <span>{icon}</span>
+        <span>{typeDoc}</span>
+      </span>
+    );
+    if (u?.includes("CPR"))
+      return pill(
+        "linear-gradient(135deg,#10b981,#059669)",
+        "rgba(16,185,129,0.3)",
+        "📜",
       );
-    } else if (typeUpper?.includes("LOD")) {
-      return (
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.3px",
-            boxShadow: "0 2px 8px rgba(239, 68, 68, 0.3)",
-          }}
-        >
-          <span style={{ fontSize: "1rem" }}>📋</span>
-          <span>{typeDoc}</span>
-        </span>
+    if (u?.includes("LOD"))
+      return pill(
+        "linear-gradient(135deg,#ef4444,#dc2626)",
+        "rgba(239,68,68,0.3)",
+        "📋",
       );
-    } else if (
-      typeUpper?.includes("CERT") ||
-      typeUpper?.includes("CERTIFICATE")
-    ) {
-      return (
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.4rem 0.9rem",
-            background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-            color: "#fff",
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-            fontWeight: "700",
-            letterSpacing: "0.3px",
-            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.3)",
-          }}
-        >
-          <span style={{ fontSize: "1rem" }}>🏆</span>
-          <span>{typeDoc}</span>
-        </span>
+    if (u?.includes("CERT"))
+      return pill(
+        "linear-gradient(135deg,#3b82f6,#2563eb)",
+        "rgba(59,130,246,0.3)",
+        "🏆",
       );
-    }
     return (
-      <span style={{ fontSize: "0.85rem", color: colors.tableText }}>
+      <span style={{ fontSize: "0.78rem", color: colors.tableText }}>
         {typeDoc || "N/A"}
       </span>
     );
   };
 
   const renderAppStatusBadge = (status) => {
-    const statusUpper = status?.toUpperCase();
-    const badges = {
+    const u = status?.toUpperCase();
+    const map = {
       COMPLETED: {
-        bg: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-        shadow: "rgba(16, 185, 129, 0.3)",
+        bg: "linear-gradient(135deg,#10b981,#059669)",
+        sh: "rgba(16,185,129,0.3)",
         icon: "✓",
         label: "Completed",
       },
       TO_DO: {
-        bg: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-        shadow: "rgba(245, 158, 11, 0.3)",
+        bg: "linear-gradient(135deg,#f59e0b,#d97706)",
+        sh: "rgba(245,158,11,0.3)",
         icon: "⏳",
         label: "To Do",
       },
       APPROVED: {
-        bg: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-        shadow: "rgba(59, 130, 246, 0.3)",
+        bg: "linear-gradient(135deg,#3b82f6,#2563eb)",
+        sh: "rgba(59,130,246,0.3)",
         icon: "✅",
         label: "Approved",
       },
       PENDING: {
-        bg: "linear-gradient(135deg, #eab308 0%, #ca8a04 100%)",
-        shadow: "rgba(234, 179, 8, 0.3)",
+        bg: "linear-gradient(135deg,#eab308,#ca8a04)",
+        sh: "rgba(234,179,8,0.3)",
         icon: "⏸",
         label: "Pending",
       },
       REJECTED: {
-        bg: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-        shadow: "rgba(239, 68, 68, 0.3)",
+        bg: "linear-gradient(135deg,#ef4444,#dc2626)",
+        sh: "rgba(239,68,68,0.3)",
         icon: "✗",
         label: "Rejected",
       },
     };
-
-    const badge = badges[statusUpper] || {
-      bg: "linear-gradient(135deg, #6b7280 0%, #4b5563 100%)",
-      shadow: "rgba(107, 114, 128, 0.3)",
+    const c = map[u] || {
+      bg: "linear-gradient(135deg,#6b7280,#4b5563)",
+      sh: "rgba(107,114,128,0.3)",
       icon: "•",
       label: status || "N/A",
     };
-
     return (
       <span
         style={{
-          padding: "0.4rem 0.9rem",
-          background: badge.bg,
+          padding: "0.3rem 0.7rem",
+          background: c.bg,
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.75rem",
+          fontSize: "0.72rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
-          boxShadow: `0 2px 8px ${badge.shadow}`,
+          boxShadow: `0 2px 8px ${c.sh}`,
           display: "inline-flex",
           alignItems: "center",
           gap: "0.4rem",
         }}
       >
-        <span style={{ fontSize: "0.9rem" }}>{badge.icon}</span>
-        {badge.label}
+        <span>{c.icon}</span>
+        {c.label}
       </span>
     );
   };
@@ -526,11 +462,14 @@ function ReportsDataTable({
       case "processingType":
         return renderProcessingTypeBadge(row[col.key]);
       default:
-        return row[col.key];
+        return (
+          <span style={{ fontSize: "0.78rem", color: colors.tableText }}>
+            {row[col.key] ?? ""}
+          </span>
+        );
     }
   };
 
-  // ✅ Helper: get sticky styles for frozen columns using frozenLeft from tableColumns
   const getFrozenThStyle = (col) => {
     if (!col.frozen) return {};
     return {
@@ -554,8 +493,33 @@ function ReportsDataTable({
     };
   };
 
+  // ── Shared th/td base styles ──────────────────────────────────────
+  const thBase = {
+    padding: "0.65rem 0.85rem",
+    fontSize: "0.6rem",
+    fontWeight: "600",
+    color: colors.textTertiary,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    borderBottom: `1px solid ${colors.tableBorder}`,
+    whiteSpace: "nowrap",
+    background: colors.tableBg,
+    userSelect: "none",
+    transition: "background 0.15s",
+  };
+
+  // tdBase intentionally does NOT include whiteSpace/wordBreak
+  // so we can override per-cell (# column needs nowrap)
+  const tdBase = {
+    padding: "0.65rem 0.85rem",
+    fontSize: "0.78rem",
+    color: colors.tableText,
+    borderBottom: `1px solid ${colors.tableBorder}`,
+  };
+
   return (
     <>
+      {/* ── Outer card — flex column so table fills remaining height ── */}
       <div
         style={{
           background: colors.cardBg,
@@ -563,16 +527,21 @@ function ReportsDataTable({
           borderRadius: "12px",
           overflow: "hidden",
           transition: "all 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          minHeight: 0,
         }}
       >
         {/* Header */}
         <div
           style={{
-            padding: "1rem 1.5rem",
+            padding: "0.75rem 1.25rem",
             borderBottom: `1px solid ${colors.tableBorder}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexShrink: 0,
           }}
         >
           <div
@@ -580,19 +549,20 @@ function ReportsDataTable({
           >
             <h3
               style={{
-                fontSize: "1rem",
+                fontSize: "0.8rem",
                 fontWeight: "600",
                 color: colors.textPrimary,
+                margin: 0,
               }}
             >
               Reports Data
             </h3>
             <span
               style={{
-                padding: "0.25rem 0.75rem",
+                padding: "0.2rem 0.6rem",
                 background: colors.badgeBg,
                 borderRadius: "12px",
-                fontSize: "0.8rem",
+                fontSize: "0.68rem",
                 color: colors.textTertiary,
                 fontWeight: "600",
               }}
@@ -604,7 +574,7 @@ function ReportsDataTable({
           {sortBy && (
             <span
               style={{
-                fontSize: "0.73rem",
+                fontSize: "0.68rem",
                 color: colors.textTertiary,
                 padding: "0.2rem 0.6rem",
                 background: colors.badgeBg,
@@ -621,11 +591,12 @@ function ReportsDataTable({
           )}
         </div>
 
+        {/* ── Scrollable table — flex: 1 fills remaining space ── */}
         <div
           style={{
+            flex: 1,
+            minHeight: 0,
             overflowX: "auto",
-            maxHeight: "calc(55vh - 150px)",
-            minHeight: "300px",
             overflowY: "auto",
           }}
         >
@@ -648,15 +619,11 @@ function ReportsDataTable({
                 {/* # column */}
                 <th
                   style={{
-                    padding: "1rem",
+                    ...thBase,
+                    cursor: "default",
                     textAlign: "center",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    borderBottom: `1px solid ${colors.tableBorder}`,
                     width: "60px",
+                    minWidth: "60px",
                     position: "sticky",
                     left: 0,
                     background: colors.tableBg,
@@ -672,29 +639,19 @@ function ReportsDataTable({
                     key={col.key}
                     onClick={() => handleSort(col.key)}
                     style={{
-                      padding: "1rem",
+                      ...thBase,
                       textAlign: "left",
-                      fontSize: "0.8rem",
-                      fontWeight: "600",
-                      color: colors.textTertiary,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      borderBottom: `1px solid ${colors.tableBorder}`,
                       minWidth: col.width,
-                      whiteSpace: "nowrap",
                       background: col.headerBg || colors.tableBg,
                       cursor:
                         col.key !== "statusTimeline" ? "pointer" : "default",
-                      userSelect: "none",
-                      transition: "background 0.15s",
                       ...getFrozenThStyle(col),
                     }}
                     onMouseEnter={(e) => {
-                      if (col.key !== "statusTimeline") {
+                      if (col.key !== "statusTimeline")
                         e.currentTarget.style.background = darkMode
                           ? "#1e1e1e"
                           : "#ebebeb";
-                      }
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.background =
@@ -713,16 +670,10 @@ function ReportsDataTable({
                 {/* Actions column */}
                 <th
                   style={{
-                    padding: "1rem",
+                    ...thBase,
+                    cursor: "default",
                     textAlign: "center",
-                    fontSize: "0.8rem",
-                    fontWeight: "600",
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    borderBottom: `1px solid ${colors.tableBorder}`,
                     width: "80px",
-                    whiteSpace: "nowrap",
                     position: "sticky",
                     right: 0,
                     background: colors.tableBg,
@@ -739,7 +690,6 @@ function ReportsDataTable({
               {data.map((row, index) => {
                 const rowBg =
                   index % 2 === 0 ? colors.tableRowEven : colors.tableRowOdd;
-
                 return (
                   <tr
                     key={row.id}
@@ -751,15 +701,16 @@ function ReportsDataTable({
                       e.currentTarget.style.background = rowBg;
                     }}
                   >
-                    {/* Row number */}
+                    {/* ── Row number — whiteSpace nowrap prevents digit wrapping ── */}
                     <td
                       style={{
-                        padding: "1rem",
-                        fontSize: "0.85rem",
+                        ...tdBase,
                         fontWeight: "700",
                         color: colors.textTertiary,
-                        borderBottom: `1px solid ${colors.tableBorder}`,
                         textAlign: "center",
+                        whiteSpace: "nowrap", // ← key fix: stops "1\n5" wrapping
+                        width: "60px",
+                        minWidth: "60px",
                         position: "sticky",
                         left: 0,
                         background: rowBg,
@@ -774,10 +725,7 @@ function ReportsDataTable({
                       <td
                         key={col.key}
                         style={{
-                          padding: "1rem",
-                          fontSize: "0.85rem",
-                          color: colors.tableText,
-                          borderBottom: `1px solid ${colors.tableBorder}`,
+                          ...tdBase,
                           whiteSpace: "normal",
                           wordBreak: "break-word",
                           minWidth: col.width,
@@ -791,9 +739,9 @@ function ReportsDataTable({
                     {/* Actions */}
                     <td
                       style={{
-                        padding: "1rem",
-                        borderBottom: `1px solid ${colors.tableBorder}`,
+                        ...tdBase,
                         textAlign: "center",
+                        whiteSpace: "nowrap",
                         position: "sticky",
                         right: 0,
                         background: rowBg,
@@ -810,14 +758,14 @@ function ReportsDataTable({
                         <button
                           onClick={() => handleMenuToggle(row.id)}
                           style={{
-                            padding: "0.5rem",
+                            padding: "0.4rem",
                             background: "transparent",
                             border: `1px solid ${colors.cardBorder}`,
                             borderRadius: "6px",
                             color: colors.textPrimary,
                             cursor: "pointer",
-                            width: "32px",
-                            height: "32px",
+                            width: "28px",
+                            height: "28px",
                             transition: "all 0.2s ease",
                           }}
                         >
@@ -846,7 +794,7 @@ function ReportsDataTable({
                                 border: `1px solid ${colors.cardBorder}`,
                                 borderRadius: "8px",
                                 boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                                minWidth: "180px",
+                                minWidth: "185px",
                                 zIndex: 9999,
                                 overflow: "visible",
                               }}
@@ -873,7 +821,7 @@ function ReportsDataTable({
                                   onClick={item.handler}
                                   style={{
                                     width: "100%",
-                                    padding: "0.75rem 1rem",
+                                    padding: "0.6rem 0.85rem",
                                     background: "transparent",
                                     border: "none",
                                     borderTop:
@@ -881,7 +829,7 @@ function ReportsDataTable({
                                         ? `1px solid ${colors.tableBorder}`
                                         : "none",
                                     color: colors.textPrimary,
-                                    fontSize: "0.85rem",
+                                    fontSize: "0.78rem",
                                     textAlign: "left",
                                     cursor: "pointer",
                                     display: "flex",
@@ -914,17 +862,26 @@ function ReportsDataTable({
           </table>
         </div>
 
-        <TablePagination
-          currentPage={currentPage}
-          rowsPerPage={rowsPerPage}
-          totalRecords={totalRecords}
-          totalPages={totalPages}
-          indexOfFirstRow={indexOfFirstRow}
-          indexOfLastRow={indexOfLastRow}
-          onPageChange={onPageChange}
-          onRowsPerPageChange={onRowsPerPageChange}
-          colors={colors}
-        />
+        {/* ── Pagination — flexShrink: 0 so it never gets squished ── */}
+        <div
+          style={{
+            flexShrink: 0,
+            borderTop: `1px solid ${colors.tableBorder}`,
+            background: colors.cardBg,
+          }}
+        >
+          <TablePagination
+            currentPage={currentPage}
+            rowsPerPage={rowsPerPage}
+            totalRecords={totalRecords}
+            totalPages={totalPages}
+            indexOfFirstRow={indexOfFirstRow}
+            indexOfLastRow={indexOfLastRow}
+            onPageChange={onPageChange}
+            onRowsPerPageChange={onRowsPerPageChange}
+            colors={colors}
+          />
+        </div>
       </div>
 
       {appLogsModalRecord && (
@@ -935,7 +892,6 @@ function ReportsDataTable({
           darkMode={darkMode}
         />
       )}
-
       {doctrackModalRecord && (
         <DoctrackModal
           record={doctrackModalRecord}
@@ -943,7 +899,6 @@ function ReportsDataTable({
           colors={colors}
         />
       )}
-
       {selectedRowDetails && (
         <ViewDetailsModal
           record={selectedRowDetails}

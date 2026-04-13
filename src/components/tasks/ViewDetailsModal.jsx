@@ -391,18 +391,33 @@ const calculateStatusTimeline = (record) => {
 };
 
 /* ================================================================== */
+/*  Compact size tokens                                                 */
+/* ================================================================== */
+const SZ = {
+  labelFs: "0.62rem",
+  valueFs: "0.78rem",
+  sectionTitleFs: "0.8rem",
+  inputPad: "0.35rem 0.6rem",
+  inputMinH: "1.8rem",
+  gridGap: "0.6rem",
+  sectionMb: "1.2rem",
+  badgePad: "0.15rem 0.5rem",
+  badgeFs: "0.6rem",
+};
+
+/* ================================================================== */
 /*  Reusable UI Components                                              */
 /* ================================================================== */
 function VDSection({ title, children, colors }) {
   return (
-    <div style={{ marginBottom: "2rem" }}>
+    <div style={{ marginBottom: SZ.sectionMb }}>
       <h3
         style={{
-          fontSize: "0.95rem",
+          fontSize: SZ.sectionTitleFs,
           fontWeight: "700",
           color: colors.textPrimary,
-          marginBottom: "1rem",
-          paddingBottom: "0.5rem",
+          marginBottom: "0.6rem",
+          paddingBottom: "0.3rem",
           borderBottom: `2px solid ${colors.cardBorder}`,
           letterSpacing: "0.02em",
         }}
@@ -420,7 +435,7 @@ function FieldGrid({ children }) {
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(2, 1fr)",
-        gap: "1rem",
+        gap: SZ.gridGap,
       }}
     >
       {children}
@@ -434,13 +449,13 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
     <div
       style={
         fullWidth
-          ? { gridColumn: "1 / -1", marginBottom: "0.75rem" }
-          : { display: "flex", flexDirection: "column", gap: "0.3rem" }
+          ? { gridColumn: "1 / -1", marginBottom: "0.4rem" }
+          : { display: "flex", flexDirection: "column", gap: "0.2rem" }
       }
     >
       <label
         style={{
-          fontSize: "0.72rem",
+          fontSize: SZ.labelFs,
           fontWeight: "700",
           color: colors.textTertiary,
           letterSpacing: "0.07em",
@@ -451,13 +466,13 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
       </label>
       <div
         style={{
-          padding: "0.55rem 0.8rem",
+          padding: SZ.inputPad,
           background: colors.inputBg,
           border: `1px solid ${colors.inputBorder}`,
-          borderRadius: "6px",
+          borderRadius: "5px",
           color: isNA ? colors.textTertiary : colors.textPrimary,
-          fontSize: "0.85rem",
-          minHeight: fullWidth ? "3.5rem" : "2.2rem",
+          fontSize: SZ.valueFs,
+          minHeight: fullWidth ? "2.5rem" : SZ.inputMinH,
           whiteSpace: fullWidth ? "pre-wrap" : "normal",
           wordBreak: "break-word",
           display: "flex",
@@ -483,35 +498,33 @@ function EditableField({
 }) {
   const isDirty = String(value ?? "") !== String(originalValue ?? "");
   const isEmpty = value === "" || value === null || value === undefined;
-
   const baseStyle = {
     width: "100%",
-    padding: "0.55rem 0.8rem",
+    padding: SZ.inputPad,
     background: colors.inputBg,
     border: `1.5px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
-    borderRadius: "6px",
+    borderRadius: "5px",
     color: isEmpty ? colors.textTertiary : colors.textPrimary,
-    fontSize: "0.85rem",
+    fontSize: SZ.valueFs,
     outline: "none",
     transition: "border-color 0.2s",
     boxSizing: "border-box",
     fontFamily: "inherit",
     resize: multiline ? "vertical" : undefined,
-    minHeight: multiline ? "3.5rem" : "2.2rem",
+    minHeight: multiline ? "2.5rem" : SZ.inputMinH,
   };
-
   return (
     <div
       style={
         fullWidth
-          ? { gridColumn: "1 / -1", marginBottom: "0.75rem" }
-          : { display: "flex", flexDirection: "column", gap: "0.3rem" }
+          ? { gridColumn: "1 / -1", marginBottom: "0.4rem" }
+          : { display: "flex", flexDirection: "column", gap: "0.2rem" }
       }
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
         <label
           style={{
-            fontSize: "0.72rem",
+            fontSize: SZ.labelFs,
             fontWeight: "700",
             color: colors.textTertiary,
             letterSpacing: "0.07em",
@@ -523,13 +536,12 @@ function EditableField({
         {isDirty && (
           <span
             style={{
-              fontSize: "0.62rem",
+              fontSize: "0.55rem",
               fontWeight: "700",
               color: "#f59e0b",
               background: "rgba(245,158,11,0.12)",
-              padding: "0.1rem 0.4rem",
-              borderRadius: "4px",
-              letterSpacing: "0.05em",
+              padding: "0.08rem 0.3rem",
+              borderRadius: "3px",
             }}
           >
             ✎ EDITED
@@ -540,7 +552,7 @@ function EditableField({
         <textarea
           value={value ?? ""}
           onChange={(e) => onChange(fieldKey, e.target.value)}
-          rows={3}
+          rows={2}
           style={baseStyle}
           onFocus={(e) => {
             e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
@@ -570,11 +582,11 @@ function EditableField({
       {isDirty && (
         <div
           style={{
-            fontSize: "0.7rem",
+            fontSize: "0.6rem",
             color: colors.textTertiary,
-            marginTop: "0.15rem",
+            marginTop: "0.1rem",
             display: "flex",
-            gap: "0.3rem",
+            gap: "0.25rem",
             alignItems: "flex-start",
           }}
         >
@@ -769,14 +781,14 @@ function CountrySelect({
     <div
       style={
         fullWidth
-          ? { gridColumn: "1 / -1", marginBottom: "0.75rem" }
-          : { display: "flex", flexDirection: "column", gap: "0.3rem" }
+          ? { gridColumn: "1 / -1", marginBottom: "0.4rem" }
+          : { display: "flex", flexDirection: "column", gap: "0.2rem" }
       }
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
         <label
           style={{
-            fontSize: "0.72rem",
+            fontSize: SZ.labelFs,
             fontWeight: "700",
             color: colors.textTertiary,
             letterSpacing: "0.07em",
@@ -788,13 +800,12 @@ function CountrySelect({
         {isDirty && (
           <span
             style={{
-              fontSize: "0.62rem",
+              fontSize: "0.55rem",
               fontWeight: "700",
               color: "#f59e0b",
               background: "rgba(245,158,11,0.12)",
-              padding: "0.1rem 0.4rem",
-              borderRadius: "4px",
-              letterSpacing: "0.05em",
+              padding: "0.08rem 0.3rem",
+              borderRadius: "3px",
             }}
           >
             ✎ EDITED
@@ -806,17 +817,15 @@ function CountrySelect({
         onChange={(e) => onChange(fieldKey, e.target.value)}
         style={{
           width: "100%",
-          padding: "0.55rem 0.8rem",
+          padding: SZ.inputPad,
           background: colors.inputBg,
           border: `1.5px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
-          borderRadius: "6px",
+          borderRadius: "5px",
           color: value ? colors.textPrimary : colors.textTertiary,
-          fontSize: "0.85rem",
+          fontSize: SZ.valueFs,
           outline: "none",
-          transition: "border-color 0.2s",
-          boxSizing: "border-box",
           cursor: "pointer",
-          minHeight: "2.2rem",
+          minHeight: SZ.inputMinH,
         }}
         onFocus={(e) => {
           e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
@@ -835,11 +844,11 @@ function CountrySelect({
       {isDirty && (
         <div
           style={{
-            fontSize: "0.7rem",
+            fontSize: "0.6rem",
             color: colors.textTertiary,
-            marginTop: "0.15rem",
+            marginTop: "0.1rem",
             display: "flex",
-            gap: "0.3rem",
+            gap: "0.25rem",
           }}
         >
           <span style={{ flexShrink: 0, color: "#ef4444" }}>Original:</span>
@@ -856,10 +865,10 @@ function StatusTimelineField({ label, record, colors }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
       <label
         style={{
-          fontSize: "0.72rem",
+          fontSize: SZ.labelFs,
           fontWeight: "700",
           color: colors.textTertiary,
           letterSpacing: "0.07em",
@@ -870,14 +879,14 @@ function StatusTimelineField({ label, record, colors }) {
       </label>
       <div
         style={{
-          padding: "0.55rem 0.8rem",
+          padding: SZ.inputPad,
           background: colors.inputBg,
           border: `1px solid ${colors.inputBorder}`,
-          borderRadius: "6px",
-          fontSize: "0.85rem",
+          borderRadius: "5px",
+          fontSize: SZ.valueFs,
           display: "flex",
           alignItems: "center",
-          minHeight: "2.2rem",
+          minHeight: SZ.inputMinH,
         }}
       >
         {!status ? (
@@ -887,22 +896,22 @@ function StatusTimelineField({ label, record, colors }) {
         ) : (
           <span
             style={{
-              padding: "0.3rem 0.8rem",
+              padding: "0.2rem 0.55rem",
               background: ok
                 ? "linear-gradient(135deg,#10b981,#059669)"
                 : "linear-gradient(135deg,#ef4444,#dc2626)",
               color: "#fff",
-              borderRadius: "6px",
-              fontSize: "0.75rem",
+              borderRadius: "5px",
+              fontSize: "0.65rem",
               fontWeight: "700",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
               boxShadow: ok
-                ? "0 2px 8px rgba(16,185,129,.3)"
-                : "0 2px 8px rgba(239,68,68,.3)",
+                ? "0 2px 6px rgba(16,185,129,.3)"
+                : "0 2px 6px rgba(239,68,68,.3)",
               display: "inline-flex",
               alignItems: "center",
-              gap: "0.4rem",
+              gap: "0.3rem",
             }}
           >
             {ok ? "✓" : "⚠"} {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
@@ -917,19 +926,19 @@ function SummaryCard({ icon, label, value, accent, colors }) {
   return (
     <div
       style={{
-        padding: "1rem 1.25rem",
+        padding: "0.6rem 0.75rem",
         background: colors.inputBg,
         border: `1px solid ${colors.inputBorder}`,
         borderLeft: `3px solid ${accent}`,
-        borderRadius: "8px",
+        borderRadius: "6px",
         display: "flex",
         flexDirection: "column",
-        gap: "0.35rem",
+        gap: "0.2rem",
       }}
     >
       <span
         style={{
-          fontSize: "0.7rem",
+          fontSize: "0.6rem",
           fontWeight: "700",
           color: colors.textTertiary,
           textTransform: "uppercase",
@@ -940,7 +949,7 @@ function SummaryCard({ icon, label, value, accent, colors }) {
       </span>
       <span
         style={{
-          fontSize: "0.9rem",
+          fontSize: "0.78rem",
           fontWeight: "600",
           color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
           fontStyle: value === "N/A" ? "italic" : "normal",
@@ -960,7 +969,7 @@ function StepIndicator({ currentStep, steps, colors }) {
         display: "flex",
         alignItems: "center",
         gap: 0,
-        padding: "0 0.5rem",
+        padding: "0 0.25rem",
       }}
     >
       {steps.map((step, i) => {
@@ -978,13 +987,13 @@ function StepIndicator({ currentStep, steps, colors }) {
           >
             <div
               style={{
-                width: "32px",
-                height: "32px",
+                width: "26px",
+                height: "26px",
                 borderRadius: "50%",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize: "0.75rem",
+                fontSize: "0.65rem",
                 fontWeight: "700",
                 flexShrink: 0,
                 transition: "all 0.3s ease",
@@ -1000,7 +1009,7 @@ function StepIndicator({ currentStep, steps, colors }) {
                     : `2px solid ${colors.cardBorder}`,
                 color: isCompleted || isActive ? "#fff" : colors.textTertiary,
                 boxShadow: isActive
-                  ? "0 0 0 4px rgba(33,150,243,0.15)"
+                  ? "0 0 0 3px rgba(33,150,243,0.15)"
                   : "none",
               }}
             >
@@ -1009,8 +1018,8 @@ function StepIndicator({ currentStep, steps, colors }) {
             <div
               style={{
                 position: "absolute",
-                marginTop: "2.8rem",
-                fontSize: "0.65rem",
+                marginTop: "2.2rem",
+                fontSize: "0.58rem",
                 fontWeight: isActive ? "700" : "500",
                 color: isActive
                   ? "#2196F3"
@@ -1019,7 +1028,7 @@ function StepIndicator({ currentStep, steps, colors }) {
                     : colors.textTertiary,
                 whiteSpace: "nowrap",
                 transform: "translateX(-50%)",
-                marginLeft: "16px",
+                marginLeft: "13px",
               }}
             >
               {step}
@@ -1030,7 +1039,7 @@ function StepIndicator({ currentStep, steps, colors }) {
                   flex: 1,
                   height: "2px",
                   background: isCompleted ? "#10b981" : colors.cardBorder,
-                  margin: "0 4px",
+                  margin: "0 3px",
                   transition: "background 0.3s ease",
                 }}
               />
@@ -1092,7 +1101,6 @@ function Step1BasicInfo({
     );
   };
 
-  // ── summaryField with fullWidth support ──
   const summaryField = (icon, label, fieldKey, accent, fullWidth = false) => {
     const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
     const currentVal =
@@ -1101,27 +1109,24 @@ function Step1BasicInfo({
         : (record[fieldKey] ?? "");
     const originalVal = record[fieldKey] ?? "";
     const isDirty = String(currentVal ?? "") !== String(originalVal ?? "");
-
-    // ← FIX: containerStyle now drives gridColumn for fullWidth
     const containerStyle = {
       ...(fullWidth ? { gridColumn: "1 / -1" } : {}),
-      padding: "0.75rem 1rem",
+      padding: "0.5rem 0.65rem",
       background: colors.inputBg,
       border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
       borderLeft: `3px solid ${isDirty ? "#f59e0b" : accent}`,
-      borderRadius: "8px",
+      borderRadius: "6px",
       display: "flex",
       flexDirection: "column",
-      gap: "0.35rem",
+      gap: "0.2rem",
     };
-
     if (isEditable) {
       return (
         <div key={fieldKey} style={containerStyle}>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
             <span
               style={{
-                fontSize: "0.7rem",
+                fontSize: "0.6rem",
                 fontWeight: "700",
                 color: colors.textTertiary,
                 textTransform: "uppercase",
@@ -1133,12 +1138,12 @@ function Step1BasicInfo({
             {isDirty && (
               <span
                 style={{
-                  fontSize: "0.6rem",
+                  fontSize: "0.55rem",
                   fontWeight: "700",
                   color: "#f59e0b",
                   background: "rgba(245,158,11,0.12)",
-                  padding: "0.1rem 0.35rem",
-                  borderRadius: "4px",
+                  padding: "0.08rem 0.3rem",
+                  borderRadius: "3px",
                 }}
               >
                 ✎ EDITED
@@ -1151,12 +1156,12 @@ function Step1BasicInfo({
             onChange={(e) => onFieldChange(fieldKey, e.target.value)}
             style={{
               width: "100%",
-              padding: "0.3rem 0.5rem",
+              padding: "0.25rem 0.4rem",
               background: "transparent",
               border: `1px solid ${isDirty ? "#f59e0b" : colors.cardBorder}`,
               borderRadius: "4px",
               color: colors.textPrimary,
-              fontSize: "0.88rem",
+              fontSize: "0.78rem",
               fontWeight: "600",
               outline: "none",
               boxSizing: "border-box",
@@ -1173,10 +1178,10 @@ function Step1BasicInfo({
           {isDirty && (
             <div
               style={{
-                fontSize: "0.68rem",
+                fontSize: "0.6rem",
                 color: colors.textTertiary,
                 display: "flex",
-                gap: "0.3rem",
+                gap: "0.25rem",
               }}
             >
               <span style={{ color: "#ef4444", flexShrink: 0 }}>Original:</span>
@@ -1188,8 +1193,6 @@ function Step1BasicInfo({
         </div>
       );
     }
-
-    // Non-editable: wrap SummaryCard in a div for gridColumn support
     return (
       <div key={fieldKey} style={fullWidth ? { gridColumn: "1 / -1" } : {}}>
         <SummaryCard
@@ -1203,7 +1206,6 @@ function Step1BasicInfo({
     );
   };
 
-  // ── DateSummaryField — for date picker in summary card style ──
   const dateSummaryField = (icon, label, fieldKey, accent) => {
     const isEditable = canEdit && EDITABLE_FIELDS.includes(fieldKey);
     const currentVal =
@@ -1212,8 +1214,6 @@ function Step1BasicInfo({
         : (record[fieldKey] ?? "");
     const originalVal = record[fieldKey] ?? "";
     const isDirty = String(currentVal ?? "") !== String(originalVal ?? "");
-
-    // Convert any date string to YYYY-MM-DD for the input
     const toInputDate = (val) => {
       if (!val || val === "N/A") return "";
       try {
@@ -1224,26 +1224,25 @@ function Step1BasicInfo({
         return "";
       }
     };
-
     if (isEditable) {
       return (
         <div
           key={fieldKey}
           style={{
-            padding: "0.75rem 1rem",
+            padding: "0.5rem 0.65rem",
             background: colors.inputBg,
             border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
             borderLeft: `3px solid ${isDirty ? "#f59e0b" : accent}`,
-            borderRadius: "8px",
+            borderRadius: "6px",
             display: "flex",
             flexDirection: "column",
-            gap: "0.35rem",
+            gap: "0.2rem",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
             <span
               style={{
-                fontSize: "0.7rem",
+                fontSize: "0.6rem",
                 fontWeight: "700",
                 color: colors.textTertiary,
                 textTransform: "uppercase",
@@ -1255,12 +1254,12 @@ function Step1BasicInfo({
             {isDirty && (
               <span
                 style={{
-                  fontSize: "0.6rem",
+                  fontSize: "0.55rem",
                   fontWeight: "700",
                   color: "#f59e0b",
                   background: "rgba(245,158,11,0.12)",
-                  padding: "0.1rem 0.35rem",
-                  borderRadius: "4px",
+                  padding: "0.08rem 0.3rem",
+                  borderRadius: "3px",
                 }}
               >
                 ✎ EDITED
@@ -1273,12 +1272,12 @@ function Step1BasicInfo({
             onChange={(e) => onFieldChange(fieldKey, e.target.value)}
             style={{
               width: "100%",
-              padding: "0.3rem 0.5rem",
+              padding: "0.25rem 0.4rem",
               background: "transparent",
               border: `1px solid ${isDirty ? "#f59e0b" : colors.cardBorder}`,
               borderRadius: "4px",
               color: colors.textPrimary,
-              fontSize: "0.88rem",
+              fontSize: "0.78rem",
               fontWeight: "600",
               outline: "none",
               boxSizing: "border-box",
@@ -1295,10 +1294,10 @@ function Step1BasicInfo({
           {isDirty && (
             <div
               style={{
-                fontSize: "0.68rem",
+                fontSize: "0.6rem",
                 color: colors.textTertiary,
                 display: "flex",
-                gap: "0.3rem",
+                gap: "0.25rem",
               }}
             >
               <span style={{ color: "#ef4444", flexShrink: 0 }}>Original:</span>
@@ -1310,8 +1309,6 @@ function Step1BasicInfo({
         </div>
       );
     }
-
-    // Non-editable
     return (
       <SummaryCard
         key={fieldKey}
@@ -1355,23 +1352,22 @@ function Step1BasicInfo({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      {/* Edit mode banner */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
       {canEdit && (
         <div
           style={{
-            padding: "0.75rem 1rem",
+            padding: "0.5rem 0.75rem",
             background: "rgba(245,158,11,0.08)",
             border: "1px solid rgba(245,158,11,0.3)",
-            borderRadius: "8px",
+            borderRadius: "6px",
             display: "flex",
             alignItems: "center",
-            gap: "0.6rem",
-            fontSize: "0.82rem",
+            gap: "0.5rem",
+            fontSize: "0.75rem",
             color: "#b45309",
           }}
         >
-          <span style={{ fontSize: "1rem" }}>✎</span>
+          <span>✎</span>
           <span>
             <strong>Edit Mode Active</strong> — Orange fields have been
             modified. Changes save on Step 4 submit.
@@ -1382,33 +1378,33 @@ function Step1BasicInfo({
       {/* DTN / Brand / Timeline header banner */}
       <div
         style={{
-          padding: "1.25rem 1.5rem",
+          padding: "0.9rem 1.1rem",
           background:
             "linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))",
           border: "1px solid rgba(33,150,243,0.2)",
-          borderRadius: "10px",
+          borderRadius: "8px",
           display: "flex",
           alignItems: "center",
-          gap: "1.5rem",
+          gap: "1rem",
           flexWrap: "wrap",
         }}
       >
         <div>
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.6rem",
               fontWeight: "700",
               color: "#2196F3",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              marginBottom: "0.2rem",
+              marginBottom: "0.15rem",
             }}
           >
             Document Tracking No.
           </div>
           <div
             style={{
-              fontSize: "1.6rem",
+              fontSize: "1.25rem",
               fontWeight: "800",
               color: colors.textPrimary,
               letterSpacing: "-0.02em",
@@ -1420,19 +1416,19 @@ function Step1BasicInfo({
         <div
           style={{
             width: "1px",
-            height: "40px",
+            height: "32px",
             background: colors.cardBorder,
           }}
         />
-        <div style={{ flex: 1, minWidth: "200px" }}>
+        <div style={{ flex: 1, minWidth: "160px" }}>
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.6rem",
               fontWeight: "700",
               color: colors.textTertiary,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              marginBottom: "0.3rem",
+              marginBottom: "0.2rem",
             }}
           >
             App Status
@@ -1441,7 +1437,7 @@ function Step1BasicInfo({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              padding: "0.35rem 0.9rem",
+              padding: "0.25rem 0.65rem",
               background: (() => {
                 const s = record.appStatus?.toUpperCase();
                 if (s === "COMPLETED" || s === "APPROVED")
@@ -1453,30 +1449,29 @@ function Step1BasicInfo({
                 return "linear-gradient(135deg,#6b7280,#4b5563)";
               })(),
               color: "#fff",
-              borderRadius: "8px",
-              fontSize: "0.85rem",
+              borderRadius: "6px",
+              fontSize: "0.72rem",
               fontWeight: "700",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
             }}
           >
             {cleanValue(record.appStatus)}
           </div>
         </div>
-        {/* Timeline (Days) */}
         {record.dbTimelineCitizenCharter && (
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: "0.15rem",
+              gap: "0.1rem",
             }}
           >
             <div
               style={{
-                fontSize: "0.7rem",
+                fontSize: "0.6rem",
                 fontWeight: "700",
                 color: colors.textTertiary,
                 textTransform: "uppercase",
@@ -1487,7 +1482,7 @@ function Step1BasicInfo({
             </div>
             <div
               style={{
-                fontSize: "1.1rem",
+                fontSize: "0.95rem",
                 fontWeight: "800",
                 color: colors.textPrimary,
               }}
@@ -1495,7 +1490,7 @@ function Step1BasicInfo({
               {cleanValue(record.dbTimelineCitizenCharter)}
               <span
                 style={{
-                  fontSize: "0.7rem",
+                  fontSize: "0.62rem",
                   fontWeight: "500",
                   color: colors.textTertiary,
                   marginLeft: "0.2rem",
@@ -1506,23 +1501,22 @@ function Step1BasicInfo({
             </div>
           </div>
         )}
-
         {status && (
           <span
             style={{
-              padding: "0.4rem 1rem",
+              padding: "0.3rem 0.75rem",
               background: ok
                 ? "linear-gradient(135deg,#10b981,#059669)"
                 : "linear-gradient(135deg,#ef4444,#dc2626)",
               color: "#fff",
-              borderRadius: "8px",
-              fontSize: "0.75rem",
+              borderRadius: "6px",
+              fontSize: "0.65rem",
               fontWeight: "700",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
               boxShadow: ok
-                ? "0 2px 8px rgba(16,185,129,.3)"
-                : "0 2px 8px rgba(239,68,68,.3)",
+                ? "0 2px 6px rgba(16,185,129,.3)"
+                : "0 2px 6px rgba(239,68,68,.3)",
             }}
           >
             {ok ? "✓" : "⚠"} {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
@@ -1535,25 +1529,19 @@ function Step1BasicInfo({
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "0.75rem",
+          gap: "0.5rem",
         }}
       >
         {summaryField("⚙️", "Processing Type", "processingType", "#005cd4")}
         {summaryField("🗂️", "Category", "estCat", "#fbff00")}
         {summaryField("📋", "Application Type", "appType", "#ff1547")}
-        {/* Full width — LTO Company & Address */}
         {summaryField("🏢", "LTO Company", "ltoCompany", "#0fff2f", true)}
         {summaryField("📍", "LTO Address", "ltoAdd", "#ff950a", true)}
-
-        {/* 2-column cards */}
         {summaryField("📧", "Email Address", "eadd", "#fa3a93")}
         {summaryField("🪪", "TIN Number", "tin", "#ca44ff")}
         {summaryField("📞", "Contact Number", "contactNo", "#00f18d", true)}
         {summaryField("🔑", "LTO Number", "ltoNo", "#781192")}
-
-        {/* Validity — after LTO Number */}
         {dateSummaryField("📅", "Validity", "validity", "#607d8b")}
-
         <SummaryCard
           icon="📅"
           label="Date Received Central"
@@ -1579,11 +1567,8 @@ function Step1BasicInfo({
           {field("Dosage Form", "prodDosForm")}
           {field("Classification", "prodClassPrescript")}
           {field("Essential Drug", "prodEssDrugList")}
-
           {field("Shelf Life", "prodDistriShelfLife")}
-
           {field("Pharma Category", "prodPharmaCat")}
-
           {field("Product Category", "prodCat")}
           {field("Pharma Prod. Cat.", "pharmaProdCat")}
           {field("Pharma Prod. Label", "pharmaProdCatLabel")}
@@ -1591,7 +1576,6 @@ function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
-      {/* Manufacturer */}
       <VDSection title="🏭 Manufacturer" colors={colors}>
         <FieldGrid>
           {field("Manufacturer", "prodManu")}
@@ -1605,7 +1589,6 @@ function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
-      {/* Trader */}
       <VDSection title="🤝 Trader" colors={colors}>
         <FieldGrid>
           {field("Trader", "prodTrader")}
@@ -1619,7 +1602,6 @@ function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
-      {/* Importer */}
       <VDSection title="🚢 Importer" colors={colors}>
         <FieldGrid>
           {field("Importer", "prodImporter")}
@@ -1633,7 +1615,6 @@ function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
-      {/* Distributor */}
       <VDSection title="📦 Distributor" colors={colors}>
         <FieldGrid>
           {field("Distributor", "prodDistri")}
@@ -1647,7 +1628,6 @@ function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
-      {/* Repacker */}
       <VDSection title="🔄 Repacker" colors={colors}>
         <FieldGrid>
           {field("Repacker", "prodRepacker")}
@@ -1716,19 +1696,19 @@ function Step2FullDetails({
       {canEdit && (
         <div
           style={{
-            marginBottom: "1.5rem",
-            padding: "0.75rem 1rem",
+            marginBottom: "0.9rem",
+            padding: "0.5rem 0.75rem",
             background: "rgba(245,158,11,0.08)",
             border: "1px solid rgba(245,158,11,0.3)",
-            borderRadius: "8px",
+            borderRadius: "6px",
             display: "flex",
             alignItems: "center",
-            gap: "0.6rem",
-            fontSize: "0.82rem",
+            gap: "0.5rem",
+            fontSize: "0.75rem",
             color: "#b45309",
           }}
         >
-          <span style={{ fontSize: "1rem" }}>✎</span>
+          <span>✎</span>
           <span>
             <strong>Edit Mode Active</strong> — Fields highlighted in orange
             have been modified. Changes will be saved when you complete the task
@@ -1924,7 +1904,6 @@ function Step3AppLogs({ record, colors }) {
     Decking: "#607d8b",
     Evaluation: "#8bc34a",
   };
-
   const STATUS_STYLE = {
     COMPLETED: {
       bg: "rgba(16,185,129,0.1)",
@@ -1945,16 +1924,17 @@ function Step3AppLogs({ record, colors }) {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          padding: "3rem",
-          gap: "0.75rem",
+          padding: "2rem",
+          gap: "0.6rem",
           color: colors.textTertiary,
+          fontSize: "0.8rem",
         }}
       >
         <span
           style={{
             display: "inline-block",
-            width: "18px",
-            height: "18px",
+            width: "14px",
+            height: "14px",
             border: "2px solid #2196F330",
             borderTopColor: "#2196F3",
             borderRadius: "50%",
@@ -1965,32 +1945,30 @@ function Step3AppLogs({ record, colors }) {
       </div>
     );
   }
-
   if (error) {
     return (
       <div
         style={{
-          padding: "1.5rem",
+          padding: "1rem",
           background: "rgba(239,68,68,0.08)",
           border: "1px solid rgba(239,68,68,0.2)",
-          borderRadius: "8px",
+          borderRadius: "6px",
           color: "#ef4444",
-          fontSize: "0.85rem",
+          fontSize: "0.78rem",
         }}
       >
         ❌ {error}
       </div>
     );
   }
-
   if (logs.length === 0) {
     return (
       <div
         style={{
-          padding: "2rem",
+          padding: "1.5rem",
           textAlign: "center",
           color: colors.textTertiary,
-          fontSize: "0.9rem",
+          fontSize: "0.82rem",
           fontStyle: "italic",
         }}
       >
@@ -2000,21 +1978,21 @@ function Step3AppLogs({ record, colors }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
       <div
         style={{
-          padding: "0.85rem 1.25rem",
+          padding: "0.6rem 0.9rem",
           background: "rgba(33,150,243,0.06)",
           border: "1px solid rgba(33,150,243,0.15)",
-          borderRadius: "8px",
+          borderRadius: "6px",
           display: "flex",
           alignItems: "center",
-          gap: "0.5rem",
-          fontSize: "0.82rem",
+          gap: "0.4rem",
+          fontSize: "0.75rem",
           color: colors.textSecondary,
         }}
       >
-        <span style={{ fontSize: "1rem" }}>📋</span>
+        <span>📋</span>
         <span>
           <strong style={{ color: colors.textPrimary }}>{logs.length}</strong>{" "}
           log{logs.length > 1 ? "s" : ""} found for DTN{" "}
@@ -2035,41 +2013,37 @@ function Step3AppLogs({ record, colors }) {
             style={{
               border: `1px solid ${colors.cardBorder}`,
               borderLeft: `4px solid ${stepColor}`,
-              borderRadius: "10px",
+              borderRadius: "8px",
               overflow: "hidden",
               background: colors.cardBg,
             }}
           >
             <div
               style={{
-                padding: "0.85rem 1.25rem",
+                padding: "0.6rem 0.9rem",
                 background: colors.inputBg,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 flexWrap: "wrap",
-                gap: "0.5rem",
+                gap: "0.4rem",
                 borderBottom: `1px solid ${colors.cardBorder}`,
               }}
             >
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.75rem",
-                }}
+                style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}
               >
                 <span
                   style={{
-                    width: "28px",
-                    height: "28px",
+                    width: "22px",
+                    height: "22px",
                     borderRadius: "50%",
                     background: stepColor,
                     color: "#fff",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: "0.72rem",
+                    fontSize: "0.62rem",
                     fontWeight: "700",
                     flexShrink: 0,
                   }}
@@ -2079,7 +2053,7 @@ function Step3AppLogs({ record, colors }) {
                 <div>
                   <div
                     style={{
-                      fontSize: "0.88rem",
+                      fontSize: "0.78rem",
                       fontWeight: "700",
                       color: colors.textPrimary,
                     }}
@@ -2087,22 +2061,22 @@ function Step3AppLogs({ record, colors }) {
                     {log.application_step}
                   </div>
                   <div
-                    style={{ fontSize: "0.72rem", color: colors.textTertiary }}
+                    style={{ fontSize: "0.65rem", color: colors.textTertiary }}
                   >
                     👤 {log.user_name ?? "—"}
                   </div>
                 </div>
               </div>
               <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
               >
                 <span
                   style={{
-                    padding: "0.25rem 0.75rem",
+                    padding: "0.2rem 0.55rem",
                     background: statusStyle.bg,
                     color: statusStyle.color,
                     borderRadius: "20px",
-                    fontSize: "0.72rem",
+                    fontSize: "0.62rem",
                     fontWeight: "700",
                   }}
                 >
@@ -2111,14 +2085,14 @@ function Step3AppLogs({ record, colors }) {
                 {log.del_thread && (
                   <span
                     style={{
-                      padding: "0.25rem 0.6rem",
+                      padding: "0.2rem 0.5rem",
                       background:
                         log.del_thread === "Close"
                           ? "rgba(16,185,129,0.1)"
                           : "rgba(245,158,11,0.1)",
                       color: log.del_thread === "Close" ? "#059669" : "#b45309",
                       borderRadius: "20px",
-                      fontSize: "0.7rem",
+                      fontSize: "0.6rem",
                       fontWeight: "700",
                     }}
                   >
@@ -2129,22 +2103,22 @@ function Step3AppLogs({ record, colors }) {
             </div>
             <div
               style={{
-                padding: "1rem 1.25rem",
+                padding: "0.75rem 0.9rem",
                 display: "grid",
                 gridTemplateColumns: "repeat(2, 1fr)",
-                gap: "0.85rem",
+                gap: "0.6rem",
               }}
             >
               <div
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0.25rem",
+                  gap: "0.2rem",
                 }}
               >
                 <span
                   style={{
-                    fontSize: "0.68rem",
+                    fontSize: "0.6rem",
                     fontWeight: "700",
                     color: colors.textTertiary,
                     textTransform: "uppercase",
@@ -2155,7 +2129,7 @@ function Step3AppLogs({ record, colors }) {
                 </span>
                 <span
                   style={{
-                    padding: "0.35rem 0.75rem",
+                    padding: "0.25rem 0.55rem",
                     background: log.application_decision
                       ? log.application_decision
                           .toLowerCase()
@@ -2184,8 +2158,8 @@ function Step3AppLogs({ record, colors }) {
                           ? "#ef4444"
                           : "#1976D2"
                       : colors.textTertiary,
-                    borderRadius: "6px",
-                    fontSize: "0.82rem",
+                    borderRadius: "5px",
+                    fontSize: "0.72rem",
                     fontWeight: "600",
                     fontStyle: !log.application_decision ? "italic" : "normal",
                     display: "inline-block",
@@ -2199,12 +2173,12 @@ function Step3AppLogs({ record, colors }) {
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0.25rem",
+                  gap: "0.2rem",
                 }}
               >
                 <span
                   style={{
-                    fontSize: "0.68rem",
+                    fontSize: "0.6rem",
                     fontWeight: "700",
                     color: colors.textTertiary,
                     textTransform: "uppercase",
@@ -2215,11 +2189,11 @@ function Step3AppLogs({ record, colors }) {
                 </span>
                 <div
                   style={{
-                    fontSize: "0.78rem",
+                    fontSize: "0.7rem",
                     color: colors.textSecondary,
                     display: "flex",
                     flexDirection: "column",
-                    gap: "0.15rem",
+                    gap: "0.1rem",
                   }}
                 >
                   <span>
@@ -2253,12 +2227,12 @@ function Step3AppLogs({ record, colors }) {
                     gridColumn: "1 / -1",
                     display: "flex",
                     flexDirection: "column",
-                    gap: "0.25rem",
+                    gap: "0.2rem",
                   }}
                 >
                   <span
                     style={{
-                      fontSize: "0.68rem",
+                      fontSize: "0.6rem",
                       fontWeight: "700",
                       color: colors.textTertiary,
                       textTransform: "uppercase",
@@ -2269,13 +2243,13 @@ function Step3AppLogs({ record, colors }) {
                   </span>
                   <div
                     style={{
-                      padding: "0.6rem 0.85rem",
+                      padding: "0.45rem 0.65rem",
                       background: colors.inputBg,
                       border: `1px solid ${colors.inputBorder}`,
-                      borderRadius: "6px",
-                      fontSize: "0.82rem",
+                      borderRadius: "5px",
+                      fontSize: "0.72rem",
                       color: colors.textPrimary,
-                      lineHeight: "1.5",
+                      lineHeight: "1.4",
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-word",
                     }}
@@ -2288,18 +2262,18 @@ function Step3AppLogs({ record, colors }) {
                 style={{
                   gridColumn: "1 / -1",
                   display: "flex",
-                  gap: "0.5rem",
+                  gap: "0.4rem",
                   flexWrap: "wrap",
                 }}
               >
                 {log.del_index !== null && log.del_index !== undefined && (
                   <span
                     style={{
-                      fontSize: "0.68rem",
-                      padding: "0.2rem 0.5rem",
+                      fontSize: "0.6rem",
+                      padding: "0.15rem 0.4rem",
                       background: colors.inputBg,
                       border: `1px solid ${colors.cardBorder}`,
-                      borderRadius: "4px",
+                      borderRadius: "3px",
                       color: colors.textTertiary,
                     }}
                   >
@@ -2310,11 +2284,11 @@ function Step3AppLogs({ record, colors }) {
                   log.del_previous !== undefined && (
                     <span
                       style={{
-                        fontSize: "0.68rem",
-                        padding: "0.2rem 0.5rem",
+                        fontSize: "0.6rem",
+                        padding: "0.15rem 0.4rem",
                         background: colors.inputBg,
                         border: `1px solid ${colors.cardBorder}`,
-                        borderRadius: "4px",
+                        borderRadius: "3px",
                         color: colors.textTertiary,
                       }}
                     >
@@ -2376,28 +2350,28 @@ function DeadlinePicker({
   return (
     <div
       style={{
-        padding: "1.25rem",
+        padding: "0.9rem",
         background: "rgba(156,39,176,0.04)",
         border: "1.5px solid rgba(156,39,176,0.2)",
-        borderRadius: "12px",
+        borderRadius: "10px",
         display: "flex",
         flexDirection: "column",
-        gap: "1rem",
+        gap: "0.75rem",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-        <span style={{ fontSize: "1.1rem" }}>⏰</span>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span style={{ fontSize: "0.95rem" }}>⏰</span>
         <div>
           <div
-            style={{ fontSize: "0.82rem", fontWeight: "700", color: "#7b1fa2" }}
+            style={{ fontSize: "0.75rem", fontWeight: "700", color: "#7b1fa2" }}
           >
             Compliance Deadline
           </div>
           <div
             style={{
-              fontSize: "0.72rem",
+              fontSize: "0.65rem",
               color: colors.textTertiary,
-              marginTop: "0.1rem",
+              marginTop: "0.05rem",
             }}
           >
             Set working days OR pick a date — both auto-sync
@@ -2405,14 +2379,18 @@ function DeadlinePicker({
         </div>
       </div>
       <div
-        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "0.75rem",
+        }}
       >
         <div
-          style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
+          style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}
         >
           <label
             style={{
-              fontSize: "0.72rem",
+              fontSize: SZ.labelFs,
               fontWeight: "700",
               color: colors.textTertiary,
               textTransform: "uppercase",
@@ -2421,17 +2399,17 @@ function DeadlinePicker({
           >
             Working Days
           </label>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
             <button
               onClick={() => onWorkingDaysChange(Math.max(1, workingDays - 1))}
               style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "6px",
+                width: "26px",
+                height: "26px",
+                borderRadius: "5px",
                 border: `1px solid ${colors.cardBorder}`,
                 background: colors.inputBg,
                 color: colors.textPrimary,
-                fontSize: "1.1rem",
+                fontSize: "1rem",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
@@ -2452,12 +2430,12 @@ function DeadlinePicker({
               }}
               style={{
                 flex: 1,
-                padding: "0.5rem 0.4rem",
+                padding: "0.35rem 0.3rem",
                 background: colors.inputBg,
                 border: "1.5px solid rgba(156,39,176,0.3)",
-                borderRadius: "6px",
+                borderRadius: "5px",
                 color: colors.textPrimary,
-                fontSize: "0.95rem",
+                fontSize: "0.85rem",
                 fontWeight: "700",
                 outline: "none",
                 textAlign: "center",
@@ -2473,13 +2451,13 @@ function DeadlinePicker({
             <button
               onClick={() => onWorkingDaysChange(workingDays + 1)}
               style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "6px",
+                width: "26px",
+                height: "26px",
+                borderRadius: "5px",
                 border: `1px solid ${colors.cardBorder}`,
                 background: colors.inputBg,
                 color: colors.textPrimary,
-                fontSize: "1.1rem",
+                fontSize: "1rem",
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
@@ -2493,9 +2471,9 @@ function DeadlinePicker({
           <div
             style={{
               display: "flex",
-              gap: "0.3rem",
+              gap: "0.25rem",
               flexWrap: "wrap",
-              marginTop: "0.1rem",
+              marginTop: "0.05rem",
             }}
           >
             {[7, 15, 20, 30, 60].map((d) => (
@@ -2503,18 +2481,17 @@ function DeadlinePicker({
                 key={d}
                 onClick={() => onWorkingDaysChange(d)}
                 style={{
-                  padding: "0.15rem 0.5rem",
-                  fontSize: "0.65rem",
+                  padding: "0.1rem 0.4rem",
+                  fontSize: "0.6rem",
                   fontWeight: workingDays === d ? "700" : "500",
                   background:
                     workingDays === d
                       ? "rgba(156,39,176,0.15)"
                       : colors.inputBg,
                   border: `1px solid ${workingDays === d ? "#9c27b0" : colors.cardBorder}`,
-                  borderRadius: "4px",
+                  borderRadius: "3px",
                   color: workingDays === d ? "#7b1fa2" : colors.textTertiary,
                   cursor: "pointer",
-                  transition: "all 0.15s",
                 }}
               >
                 {d}d
@@ -2523,11 +2500,11 @@ function DeadlinePicker({
           </div>
         </div>
         <div
-          style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}
+          style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}
         >
           <label
             style={{
-              fontSize: "0.72rem",
+              fontSize: SZ.labelFs,
               fontWeight: "700",
               color: colors.textTertiary,
               textTransform: "uppercase",
@@ -2543,12 +2520,12 @@ function DeadlinePicker({
             onChange={(e) => onDeadlineChange(e.target.value)}
             style={{
               width: "100%",
-              padding: "0.5rem 0.6rem",
+              padding: "0.35rem 0.5rem",
               background: colors.inputBg,
               border: "1.5px solid rgba(156,39,176,0.3)",
-              borderRadius: "6px",
+              borderRadius: "5px",
               color: colors.textPrimary,
-              fontSize: "0.85rem",
+              fontSize: "0.78rem",
               outline: "none",
               boxSizing: "border-box",
             }}
@@ -2560,7 +2537,7 @@ function DeadlinePicker({
             }}
           />
           {deadlineDate && (
-            <div style={{ fontSize: "0.7rem", color: colors.textTertiary }}>
+            <div style={{ fontSize: "0.62rem", color: colors.textTertiary }}>
               📅 {fmtDeadline(deadlineDate)}
             </div>
           )}
@@ -2569,14 +2546,14 @@ function DeadlinePicker({
       {cfg && deadlineDate && (
         <div
           style={{
-            padding: "0.65rem 0.9rem",
+            padding: "0.5rem 0.75rem",
             background: cfg.bg,
             border: `1px solid ${cfg.border}`,
-            borderRadius: "8px",
+            borderRadius: "6px",
             display: "flex",
             alignItems: "center",
-            gap: "0.5rem",
-            fontSize: "0.78rem",
+            gap: "0.4rem",
+            fontSize: "0.72rem",
             color: cfg.color,
             fontWeight: "600",
           }}
@@ -2602,10 +2579,10 @@ function DeadlinePicker({
         style={{
           display: "flex",
           alignItems: "flex-start",
-          gap: "0.5rem",
-          fontSize: "0.72rem",
+          gap: "0.4rem",
+          fontSize: "0.65rem",
           color: colors.textTertiary,
-          paddingTop: "0.35rem",
+          paddingTop: "0.3rem",
           borderTop: `1px dashed ${colors.cardBorder}`,
         }}
       >
@@ -2651,7 +2628,6 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
   const logId = record.id;
   const mainDbId = record.mainDbId;
   const currentStep = record.applicationStep;
-
   const dirtyFields = computeFieldChanges(
     record,
     editedFields,
@@ -2674,8 +2650,8 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
       "Return to Evaluator",
     ],
     "LRD Chief Admin": ["Approved", "Disapproved"],
-    "OD-Receiving": ["Received", "Return to LRD Chief Admin"], // ← renamed
-    "OD-Releasing": ["Approved for Release", "Disapproved"], // ← renamed
+    "OD-Receiving": ["Received", "Return to LRD Chief Admin"],
+    "OD-Releasing": ["Approved for Release", "Disapproved"],
     "Releasing Officer": ["Released"],
   };
 
@@ -2751,14 +2727,12 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
       );
       return;
     }
-
     setLoading(true);
     try {
       const now = new Date();
       const formattedDateTime = new Date(
         now.getTime() + 8 * 60 * 60 * 1000,
       ).toISOString();
-
       if (dirtyFields.length > 0) {
         await createFieldAuditLog({
           main_db_id: mainDbId,
@@ -2774,11 +2748,9 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         if (Object.keys(updatePayload).length > 0)
           await updateUploadReport(mainDbId, updatePayload);
       }
-
       const indexData = await getLastApplicationLogIndex(mainDbId);
       const lastIndex = indexData.last_index;
       const nextIndex = lastIndex + 1;
-
       await updateApplicationLog(logId, {
         application_status: "COMPLETED",
         application_decision: formData.decision,
@@ -2794,7 +2766,6 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
             }
           : {}),
       });
-
       if (nextStep) {
         const assignedUser = isForCompliance
           ? currentUser?.username || formData.currentUserDisplay
@@ -2817,15 +2788,12 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
             : {}),
         });
       }
-
-      // Update DB_APP_STATUS when Releasing → Record
       if (
         currentStep === "Releasing Officer" &&
         formData.decision === "Released"
       ) {
         await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
       }
-
       if (onSuccess) await onSuccess();
       onClose();
       alert("✅ Completed successfully!");
@@ -2838,29 +2806,29 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
 
   const inp = {
     width: "100%",
-    padding: "0.75rem 1rem",
+    padding: "0.55rem 0.75rem",
     background: colors.inputBg,
     border: `1px solid ${colors.inputBorder}`,
-    borderRadius: "8px",
+    borderRadius: "7px",
     color: colors.textPrimary,
-    fontSize: "0.95rem",
+    fontSize: "0.82rem",
     outline: "none",
     transition: "border-color 0.2s",
     boxSizing: "border-box",
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
       {/* Record context banner */}
       <div
         style={{
-          padding: "1rem 1.25rem",
+          padding: "0.75rem 1rem",
           background:
             "linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))",
           border: "1px solid rgba(33,150,243,0.2)",
-          borderRadius: "10px",
+          borderRadius: "8px",
           display: "flex",
-          gap: "1rem",
+          gap: "0.75rem",
           alignItems: "center",
           flexWrap: "wrap",
         }}
@@ -2868,7 +2836,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         <div>
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.6rem",
               fontWeight: "700",
               color: "#2196F3",
               textTransform: "uppercase",
@@ -2879,7 +2847,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           </div>
           <div
             style={{
-              fontSize: "1.1rem",
+              fontSize: "0.95rem",
               fontWeight: "800",
               color: colors.textPrimary,
             }}
@@ -2890,14 +2858,14 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         <div
           style={{
             width: "1px",
-            height: "32px",
+            height: "28px",
             background: colors.cardBorder,
           }}
         />
         <div>
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.6rem",
               fontWeight: "700",
               color: colors.textTertiary,
               textTransform: "uppercase",
@@ -2908,7 +2876,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           </div>
           <div
             style={{
-              fontSize: "0.9rem",
+              fontSize: "0.82rem",
               fontWeight: "600",
               color: colors.textPrimary,
             }}
@@ -2919,14 +2887,14 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         <div
           style={{
             width: "1px",
-            height: "32px",
+            height: "28px",
             background: colors.cardBorder,
           }}
         />
         <div>
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.6rem",
               fontWeight: "700",
               color: colors.textTertiary,
               textTransform: "uppercase",
@@ -2937,7 +2905,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           </div>
           <div
             style={{
-              fontSize: "0.9rem",
+              fontSize: "0.82rem",
               fontWeight: "600",
               color: colors.textPrimary,
             }}
@@ -2947,13 +2915,13 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         </div>
         {nextStep && (
           <>
-            <div style={{ fontSize: "1.2rem", color: colors.textTertiary }}>
+            <div style={{ fontSize: "1rem", color: colors.textTertiary }}>
               →
             </div>
             <div>
               <div
                 style={{
-                  fontSize: "0.7rem",
+                  fontSize: "0.6rem",
                   fontWeight: "700",
                   color: colors.textTertiary,
                   textTransform: "uppercase",
@@ -2964,7 +2932,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
               </div>
               <div
                 style={{
-                  fontSize: "0.9rem",
+                  fontSize: "0.82rem",
                   fontWeight: "600",
                   color: "#2196F3",
                 }}
@@ -2980,33 +2948,33 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
       {dirtyFields.length > 0 && (
         <div
           style={{
-            padding: "0.85rem 1rem",
+            padding: "0.65rem 0.85rem",
             background: "rgba(245,158,11,0.08)",
             border: "1px solid rgba(245,158,11,0.3)",
-            borderRadius: "8px",
+            borderRadius: "7px",
           }}
         >
           <div
             style={{
-              fontSize: "0.78rem",
+              fontSize: "0.72rem",
               fontWeight: "700",
               color: "#b45309",
-              marginBottom: "0.5rem",
+              marginBottom: "0.4rem",
             }}
           >
             ✎ {dirtyFields.length} field{dirtyFields.length > 1 ? "s" : ""}{" "}
             edited — will be saved with this submission
           </div>
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
+            style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
           >
             {dirtyFields.map((c) => (
               <div
                 key={c.field_name}
                 style={{
                   display: "flex",
-                  gap: "0.5rem",
-                  fontSize: "0.75rem",
+                  gap: "0.4rem",
+                  fontSize: "0.68rem",
                   color: colors.textSecondary,
                   alignItems: "flex-start",
                 }}
@@ -3015,7 +2983,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
                   style={{
                     fontWeight: "600",
                     color: colors.textPrimary,
-                    minWidth: "140px",
+                    minWidth: "120px",
                     flexShrink: 0,
                   }}
                 >
@@ -3045,10 +3013,10 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         <label
           style={{
             display: "block",
-            fontSize: "0.82rem",
+            fontSize: "0.72rem",
             fontWeight: "700",
             color: colors.textPrimary,
-            marginBottom: "0.5rem",
+            marginBottom: "0.4rem",
             textTransform: "uppercase",
             letterSpacing: "0.04em",
           }}
@@ -3069,9 +3037,9 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         {currentUser && (
           <p
             style={{
-              fontSize: "0.75rem",
+              fontSize: "0.68rem",
               color: colors.textTertiary,
-              marginTop: "0.4rem",
+              marginTop: "0.3rem",
               marginBottom: 0,
             }}
           >
@@ -3085,10 +3053,10 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         <label
           style={{
             display: "block",
-            fontSize: "0.82rem",
+            fontSize: "0.72rem",
             fontWeight: "700",
             color: colors.textPrimary,
-            marginBottom: "0.5rem",
+            marginBottom: "0.4rem",
             textTransform: "uppercase",
             letterSpacing: "0.04em",
           }}
@@ -3131,10 +3099,10 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         <label
           style={{
             display: "block",
-            fontSize: "0.82rem",
+            fontSize: "0.72rem",
             fontWeight: "700",
             color: colors.textPrimary,
-            marginBottom: "0.5rem",
+            marginBottom: "0.4rem",
             textTransform: "uppercase",
             letterSpacing: "0.04em",
           }}
@@ -3145,7 +3113,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           value={formData.remarks}
           onChange={(e) => handleChange("remarks", e.target.value)}
           placeholder="Enter your remarks and findings..."
-          rows={4}
+          rows={3}
           style={{ ...inp, resize: "vertical", fontFamily: "inherit" }}
           onFocus={(e) => {
             e.target.style.borderColor = "#2196F3";
@@ -3162,10 +3130,10 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           <label
             style={{
               display: "block",
-              fontSize: "0.82rem",
+              fontSize: "0.72rem",
               fontWeight: "700",
               color: colors.textPrimary,
-              marginBottom: "0.5rem",
+              marginBottom: "0.4rem",
               textTransform: "uppercase",
               letterSpacing: "0.04em",
             }}
@@ -3173,7 +3141,7 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
             Assign to {nextStep}{" "}
             <span
               style={{
-                fontSize: "0.72rem",
+                fontSize: "0.65rem",
                 fontWeight: "400",
                 color: colors.textTertiary,
               }}
@@ -3188,15 +3156,15 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
                 ...inp,
                 display: "flex",
                 alignItems: "center",
-                gap: "0.5rem",
+                gap: "0.4rem",
                 color: colors.textTertiary,
               }}
             >
               <span
                 style={{
                   display: "inline-block",
-                  width: "14px",
-                  height: "14px",
+                  width: "12px",
+                  height: "12px",
                   border: "2px solid #2196F330",
                   borderTopColor: "#2196F3",
                   borderRadius: "50%",
@@ -3240,9 +3208,9 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           {!loadingUsers && assigneeOptions.length === 0 && (
             <p
               style={{
-                fontSize: "0.75rem",
+                fontSize: "0.68rem",
                 color: "#ef4444",
-                marginTop: "0.4rem",
+                marginTop: "0.3rem",
                 marginBottom: 0,
               }}
             >
@@ -3255,11 +3223,11 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
       {isForCompliance && (
         <div
           style={{
-            padding: "0.75rem 1rem",
+            padding: "0.6rem 0.85rem",
             background: "rgba(16,185,129,0.08)",
             border: "1px solid rgba(16,185,129,0.25)",
-            borderRadius: "8px",
-            fontSize: "0.82rem",
+            borderRadius: "7px",
+            fontSize: "0.75rem",
             color: colors.textSecondary,
           }}
         >
@@ -3271,19 +3239,19 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
       {/* Info box */}
       <div
         style={{
-          padding: "1rem 1.25rem",
+          padding: "0.75rem 1rem",
           background: "rgba(33,150,243,0.06)",
           border: "1px solid rgba(33,150,243,0.2)",
-          borderRadius: "8px",
+          borderRadius: "7px",
           display: "flex",
-          gap: "0.75rem",
+          gap: "0.6rem",
           alignItems: "flex-start",
         }}
       >
-        <span style={{ fontSize: "1.1rem" }}>ℹ️</span>
+        <span style={{ fontSize: "0.9rem" }}>ℹ️</span>
         <p
           style={{
-            fontSize: "0.82rem",
+            fontSize: "0.75rem",
             color: colors.textSecondary,
             lineHeight: "1.5",
             margin: 0,
@@ -3299,23 +3267,23 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         disabled={isSubmitDisabled}
         style={{
           width: "100%",
-          padding: "0.9rem",
+          padding: "0.7rem",
           background: isSubmitDisabled
             ? "#2196F380"
             : "linear-gradient(135deg, #2196F3, #1976D2)",
           border: "none",
-          borderRadius: "10px",
+          borderRadius: "8px",
           color: "#fff",
-          fontSize: "0.95rem",
+          fontSize: "0.85rem",
           fontWeight: "700",
           cursor: isSubmitDisabled ? "not-allowed" : "pointer",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          gap: "0.5rem",
+          gap: "0.4rem",
           boxShadow: isSubmitDisabled
             ? "none"
-            : "0 4px 12px rgba(33,150,243,0.3)",
+            : "0 3px 10px rgba(33,150,243,0.3)",
           transition: "all 0.2s",
         }}
         onMouseEnter={(e) => {
@@ -3331,8 +3299,8 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
             <span
               style={{
                 display: "inline-block",
-                width: "16px",
-                height: "16px",
+                width: "13px",
+                height: "13px",
                 border: "2px solid #ffffff40",
                 borderTopColor: "#fff",
                 borderRadius: "50%",
@@ -3362,7 +3330,6 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
   const [editedFields, setEditedFields] = useState({});
 
   const canEdit = EDITABLE_STEPS.includes(record?.applicationStep);
-
   const handleFieldChange = (fieldKey, newValue) => {
     setEditedFields((prev) => ({ ...prev, [fieldKey]: newValue }));
   };
@@ -3399,12 +3366,12 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: "min(1100px, 95vw)",
-          maxHeight: "92vh",
+          width: "min(980px, 95vw)",
+          maxHeight: "88vh",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "16px",
-          boxShadow: "0 24px 80px rgba(0,0,0,0.4)",
+          borderRadius: "12px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
           zIndex: 1001,
           display: "flex",
           flexDirection: "column",
@@ -3415,21 +3382,21 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
         {/* Header */}
         <div
           style={{
-            padding: "1.25rem 1.75rem",
+            padding: "0.85rem 1.25rem",
             borderBottom: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             flexShrink: 0,
-            gap: "1rem",
+            gap: "0.75rem",
           }}
         >
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}
+            style={{ display: "flex", flexDirection: "column", gap: "0.1rem" }}
           >
             <h2
               style={{
-                fontSize: "1.25rem",
+                fontSize: "1rem",
                 fontWeight: "700",
                 color: colors.textPrimary,
                 margin: 0,
@@ -3445,7 +3412,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
             </h2>
             <p
               style={{
-                fontSize: "0.78rem",
+                fontSize: "0.7rem",
                 color: colors.textTertiary,
                 margin: 0,
               }}
@@ -3459,12 +3426,12 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
               {canEdit && dirtyCount > 0 && (
                 <span
                   style={{
-                    marginLeft: "0.75rem",
-                    padding: "0.1rem 0.5rem",
+                    marginLeft: "0.6rem",
+                    padding: "0.08rem 0.4rem",
                     background: "rgba(245,158,11,0.15)",
                     color: "#b45309",
-                    borderRadius: "4px",
-                    fontSize: "0.7rem",
+                    borderRadius: "3px",
+                    fontSize: "0.62rem",
                     fontWeight: "700",
                   }}
                 >
@@ -3513,15 +3480,15 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
                 return (
                   <div
                     style={{
-                      marginTop: "0.4rem",
+                      marginTop: "0.3rem",
                       display: "inline-flex",
                       alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.3rem 0.75rem",
+                      gap: "0.4rem",
+                      padding: "0.2rem 0.6rem",
                       background: cfg.bg,
                       border: `1px solid ${cfg.border}`,
                       borderRadius: "20px",
-                      fontSize: "0.72rem",
+                      fontSize: "0.62rem",
                       fontWeight: "700",
                       color: cfg.color,
                       width: "fit-content",
@@ -3532,10 +3499,10 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
                     <span>{fmtDeadline(record.complianceDeadline)}</span>
                     <span
                       style={{
-                        padding: "0.1rem 0.45rem",
+                        padding: "0.08rem 0.35rem",
                         background: cfg.border + "25",
                         borderRadius: "10px",
-                        fontSize: "0.68rem",
+                        fontSize: "0.58rem",
                       }}
                     >
                       {urgency === "overdue" ? "OVERDUE" : cfg.label}
@@ -3547,9 +3514,9 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
           <div
             style={{
               flex: 1,
-              maxWidth: "360px",
+              maxWidth: "320px",
               position: "relative",
-              paddingBottom: "1.2rem",
+              paddingBottom: "1rem",
             }}
           >
             <StepIndicator
@@ -3561,14 +3528,14 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
           <button
             onClick={onClose}
             style={{
-              width: "34px",
-              height: "34px",
-              borderRadius: "8px",
+              width: "28px",
+              height: "28px",
+              borderRadius: "6px",
               border: `1px solid ${colors.cardBorder}`,
               background: "transparent",
               color: colors.textSecondary,
               cursor: "pointer",
-              fontSize: "1.1rem",
+              fontSize: "0.95rem",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -3594,7 +3561,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "1.75rem",
+            padding: "1.1rem 1.25rem",
             minHeight: 0,
           }}
         >
@@ -3633,7 +3600,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
         {/* Footer */}
         <div
           style={{
-            padding: "1rem 1.75rem",
+            padding: "0.65rem 1.25rem",
             borderTop: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
@@ -3644,7 +3611,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
         >
           <span
             style={{
-              fontSize: "0.78rem",
+              fontSize: "0.7rem",
               color: colors.textTertiary,
               fontWeight: "600",
             }}
@@ -3653,7 +3620,7 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
             {canEdit && dirtyCount > 0 && (
               <span
                 style={{
-                  marginLeft: "0.75rem",
+                  marginLeft: "0.6rem",
                   color: "#f59e0b",
                   fontWeight: "700",
                 }}
@@ -3662,22 +3629,22 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
               </span>
             )}
           </span>
-          <div style={{ display: "flex", gap: "0.75rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
             {currentStep > 1 && (
               <button
                 onClick={goPrev}
                 style={{
-                  padding: "0.6rem 1.2rem",
+                  padding: "0.45rem 0.9rem",
                   background: colors.inputBg,
                   border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
+                  borderRadius: "6px",
                   color: colors.textPrimary,
-                  fontSize: "0.875rem",
+                  fontSize: "0.78rem",
                   fontWeight: "600",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.4rem",
+                  gap: "0.3rem",
                 }}
               >
                 ← Previous
@@ -3687,29 +3654,29 @@ function ViewDetailsModal({ record, onClose, onSuccess, colors, darkMode }) {
               <button
                 onClick={goNext}
                 style={{
-                  padding: "0.6rem 1.4rem",
+                  padding: "0.45rem 1rem",
                   background: "linear-gradient(135deg, #2196F3, #1976D2)",
                   border: "none",
-                  borderRadius: "8px",
+                  borderRadius: "6px",
                   color: "#fff",
-                  fontSize: "0.875rem",
+                  fontSize: "0.78rem",
                   fontWeight: "700",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.4rem",
-                  boxShadow: "0 2px 8px rgba(33,150,243,0.3)",
+                  gap: "0.3rem",
+                  boxShadow: "0 2px 6px rgba(33,150,243,0.3)",
                   transition: "all 0.2s",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-1px)";
                   e.currentTarget.style.boxShadow =
-                    "0 4px 12px rgba(33,150,243,0.4)";
+                    "0 4px 10px rgba(33,150,243,0.4)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = "none";
                   e.currentTarget.style.boxShadow =
-                    "0 2px 8px rgba(33,150,243,0.3)";
+                    "0 2px 6px rgba(33,150,243,0.3)";
                 }}
               >
                 Next →
