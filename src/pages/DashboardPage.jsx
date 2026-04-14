@@ -49,7 +49,6 @@ function makeUI(dark) {
       };
 }
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
 const MONTH_NUM = {
   Jan: "01",
   Feb: "02",
@@ -64,66 +63,33 @@ const MONTH_NUM = {
   Nov: "11",
   Dec: "12",
 };
-const MONTHS_BY_YEAR = {
-  2022: [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ],
-  2023: [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ],
-  2024: [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ],
-  2025: [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ],
-  2026: ["Jan", "Feb", "Mar"],
-};
-const AVAILABLE_YEARS = ["2026", "2025", "2024", "2023", "2022"];
+const ALL_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+const CURRENT_YEAR = new Date().getFullYear();
+const CURRENT_MONTH_IDX = new Date().getMonth();
+
+const MONTHS_BY_YEAR = {};
+for (let y = 2022; y <= CURRENT_YEAR; y++) {
+  MONTHS_BY_YEAR[y] =
+    y < CURRENT_YEAR ? ALL_MONTHS : ALL_MONTHS.slice(0, CURRENT_MONTH_IDX + 1);
+}
+
+const AVAILABLE_YEARS = Array.from(
+  { length: CURRENT_YEAR - 2022 + 1 },
+  (_, i) => String(CURRENT_YEAR - i),
+);
 
 /**
  * Converts breakdown + selYear + selMonth → { date_from, date_to } query params.
@@ -1530,8 +1496,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
 
   // ── Controls ───────────────────────────────────────────────────────────────
   const [breakdown, setBreakdown] = useState("day");
-  const [selYear, setSelYear] = useState("2026");
-  const [selMonth, setSelMonth] = useState("Mar");
+  const [selYear, setSelYear] = useState(String(CURRENT_YEAR));
+  const [selMonth, setSelMonth] = useState(ALL_MONTHS[CURRENT_MONTH_IDX]);
   const [activeMetric, setActiveMetric] = useState(0);
   const [activeTarget, setActiveTarget] = useState(null);
   const [showReport, setShowReport] = useState(false);
