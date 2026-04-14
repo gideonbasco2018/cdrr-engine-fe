@@ -430,7 +430,7 @@ function AreaChart({ data, subtitle, ui }) {
   const cW = W - PAD.left - PAD.right,
     cH = H - PAD.top - PAD.bottom;
   const allVals = data.flatMap((d) => SERIES.map((s) => d[s.key] ?? 0));
-  const maxV = (Math.max(...allVals) || 1) * 1.18;
+  const maxV = (Math.max(0, ...allVals) || 1) * 1.18;
   const toX = (i) => PAD.left + (i / Math.max(data.length - 1, 1)) * cW;
   const toY = (v) => PAD.top + cH - (v / maxV) * cH;
   const yticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxV * f));
@@ -3134,6 +3134,21 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                             {row.brand_name}
                             {row.generic_name ? ` (${row.generic_name})` : ""}
                           </p>
+                          {row.app_step && (
+                            <p
+                              style={{
+                                margin: "2px 0 0",
+                                fontSize: "0.72rem",
+                                color: ui.textMuted,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                              }}
+                            >
+                              <span style={{ fontSize: "0.65rem" }}>📌</span>
+                              {row.app_step}
+                            </p>
+                          )}
                         </div>
                       </div>
 

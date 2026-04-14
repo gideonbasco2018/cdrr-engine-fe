@@ -14,15 +14,14 @@ function FDADataTable({
   activeTab,
   darkMode,
   currentUser,
-  canEditDrug, // ✅ NEW: Add canEditDrug prop
+  canEditDrug,
   toggleDropdown,
   handleViewDetails,
   handleEdit,
-  handleCancelClick, // ✅ Changed from handleDeleteClick
+  handleCancelClick,
   isExpired,
   duplicateRegNums,
 }) {
-  // ✨ Helper function to check if a drug has duplicate registration number
   const isDuplicateRecord = (drug) => {
     return (
       activeTab === "duplicates" &&
@@ -35,17 +34,17 @@ function FDADataTable({
     return (
       <div
         style={{
-          padding: "4rem 2rem",
+          padding: "3rem 2rem",
           textAlign: "center",
           color: colors.textTertiary,
         }}
       >
-        <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📋</div>
-        <p style={{ fontSize: "1.1rem", marginBottom: "0.5rem" }}>
+        <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>📋</div>
+        <p style={{ fontSize: "0.95rem", marginBottom: "0.4rem" }}>
           {loading ? "Loading..." : "No data found"}
         </p>
         {!loading && (
-          <p style={{ fontSize: "0.9rem", opacity: 0.7 }}>
+          <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
             Try adjusting your filters or search terms
           </p>
         )}
@@ -58,7 +57,7 @@ function FDADataTable({
       style={{
         overflowX: "auto",
         overflowY: "auto",
-        maxHeight: "calc(90vh - 380px)",
+        maxHeight: "calc(100vh - 330px)",
       }}
     >
       <table
@@ -66,7 +65,7 @@ function FDADataTable({
           width: "100%",
           borderCollapse: "separate",
           borderSpacing: 0,
-          minWidth: "2900px",
+          minWidth: "2400px",
         }}
       >
         <thead
@@ -84,18 +83,19 @@ function FDADataTable({
                 position: "sticky",
                 left: 0,
                 zIndex: 21,
-                padding: "1rem",
+                padding: "0.45rem 0.6rem",
                 textAlign: "center",
-                fontSize: "0.8rem",
+                fontSize: "0.68rem",
                 fontWeight: "600",
                 color: colors.textTertiary,
                 textTransform: "uppercase",
+                letterSpacing: "0.04em",
                 borderBottom: `1px solid ${colors.tableBorder}`,
                 background: colors.tableBg,
-                width: "60px",
+                width: "48px",
                 boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
-                minWidth: "60px",
-                maxWidth: "60px",
+                minWidth: "48px",
+                maxWidth: "48px",
               }}
             >
               #
@@ -105,23 +105,24 @@ function FDADataTable({
             <th
               style={{
                 position: "sticky",
-                left: "60px",
+                left: "48px",
                 zIndex: 21,
-                padding: "1rem",
+                padding: "0.45rem 0.6rem",
                 textAlign: "left",
-                fontSize: "0.8rem",
+                fontSize: "0.68rem",
                 fontWeight: "600",
                 color: colors.textTertiary,
                 textTransform: "uppercase",
+                letterSpacing: "0.04em",
                 borderBottom: `1px solid ${colors.tableBorder}`,
                 background: colors.tableBg,
                 boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
-                width: "180px",
-                minWidth: "180px",
-                maxWidth: "180px",
+                width: "150px",
+                minWidth: "150px",
+                maxWidth: "150px",
               }}
             >
-              Registration Number
+              Registration No.
             </th>
 
             {/* Regular Columns */}
@@ -129,12 +130,13 @@ function FDADataTable({
               <th
                 key={col.key}
                 style={{
-                  padding: "1rem",
+                  padding: "0.45rem 0.6rem",
                   textAlign: "left",
-                  fontSize: "0.8rem",
+                  fontSize: "0.68rem",
                   fontWeight: "600",
                   color: colors.textTertiary,
                   textTransform: "uppercase",
+                  letterSpacing: "0.04em",
                   borderBottom: `1px solid ${colors.tableBorder}`,
                   background: colors.tableBg,
                   minWidth: col.width,
@@ -151,15 +153,16 @@ function FDADataTable({
                 position: "sticky",
                 right: 0,
                 zIndex: 21,
-                padding: "1rem",
+                padding: "0.45rem 0.6rem",
                 textAlign: "center",
-                fontSize: "0.8rem",
+                fontSize: "0.68rem",
                 fontWeight: "600",
                 color: colors.textTertiary,
                 textTransform: "uppercase",
+                letterSpacing: "0.04em",
                 borderBottom: `1px solid ${colors.tableBorder}`,
                 background: colors.tableBg,
-                width: "100px",
+                width: "80px",
                 boxShadow: "-2px 0 5px rgba(0,0,0,0.1)",
               }}
             >
@@ -172,22 +175,17 @@ function FDADataTable({
           {filteredData.map((row, index) => {
             const isDuplicate = isDuplicateRecord(row);
             const isExpiredRow = isExpired(row.expiry_date);
-            const isCanceled = row.is_canceled === "Y"; // ✅ NEW: Check if canceled
+            const isCanceled = row.is_canceled === "Y";
 
-            // Determine background color with priority:
-            // 1. Canceled records (red/gray tint)
-            // 2. Duplicate records (pink/rose highlight)
-            // 3. Expired records (orange/amber tint)
-            // 4. Normal alternating rows
             let rowBg;
             if (isCanceled) {
               rowBg = darkMode
-                ? "rgba(244, 67, 54, 0.15)" // Red tint for dark mode
-                : "rgba(244, 67, 54, 0.08)"; // Light red for light mode
+                ? "rgba(244, 67, 54, 0.15)"
+                : "rgba(244, 67, 54, 0.08)";
             } else if (isDuplicate) {
               rowBg = darkMode
-                ? "rgba(233, 30, 99, 0.15)" // Pink tint for dark mode
-                : "rgba(233, 30, 99, 0.08)"; // Light pink for light mode
+                ? "rgba(233, 30, 99, 0.15)"
+                : "rgba(233, 30, 99, 0.08)";
             } else if (isExpiredRow && activeTab === "expired") {
               rowBg = darkMode
                 ? "rgba(255, 152, 0, 0.1)"
@@ -203,12 +201,11 @@ function FDADataTable({
                 style={{
                   background: rowBg,
                   transition: "background 0.2s",
-                  // ✅ NEW: Add colored left border based on status
                   borderLeft: isCanceled
-                    ? "4px solid #f44336"
+                    ? "3px solid #f44336"
                     : isDuplicate
-                      ? "4px solid #E91E63"
-                      : "4px solid transparent",
+                      ? "3px solid #E91E63"
+                      : "3px solid transparent",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = colors.tableRowHover;
@@ -223,8 +220,8 @@ function FDADataTable({
                     position: "sticky",
                     left: 0,
                     zIndex: 10,
-                    padding: "1rem",
-                    fontSize: "0.85rem",
+                    padding: "0.35rem 0.6rem",
+                    fontSize: "0.75rem",
                     fontWeight: "700",
                     color: colors.textTertiary,
                     borderBottom: `1px solid ${colors.tableBorder}`,
@@ -240,10 +237,10 @@ function FDADataTable({
                 <td
                   style={{
                     position: "sticky",
-                    left: "60px",
+                    left: "48px",
                     zIndex: 10,
-                    padding: "1rem",
-                    fontSize: "0.85rem",
+                    padding: "0.35rem 0.6rem",
+                    fontSize: "0.76rem",
                     fontWeight: isDuplicate || isCanceled ? "700" : "600",
                     color: isCanceled
                       ? "#f44336"
@@ -256,16 +253,15 @@ function FDADataTable({
                   }}
                 >
                   {row.registration_number || "N/A"}
-                  {/* ✅ NEW: Show canceled badge */}
                   {isCanceled && (
                     <span
                       style={{
-                        marginLeft: "0.5rem",
+                        marginLeft: "0.4rem",
                         background: "#f44336",
                         color: "#fff",
-                        padding: "0.15rem 0.5rem",
-                        borderRadius: "4px",
-                        fontSize: "0.7rem",
+                        padding: "0.1rem 0.4rem",
+                        borderRadius: "3px",
+                        fontSize: "0.62rem",
                         fontWeight: "600",
                         textTransform: "uppercase",
                       }}
@@ -273,16 +269,15 @@ function FDADataTable({
                       Canceled
                     </span>
                   )}
-                  {/* Show duplicate badge only if not canceled */}
                   {isDuplicate && !isCanceled && (
                     <span
                       style={{
-                        marginLeft: "0.5rem",
+                        marginLeft: "0.4rem",
                         background: "#E91E63",
                         color: "#fff",
-                        padding: "0.15rem 0.5rem",
-                        borderRadius: "4px",
-                        fontSize: "0.7rem",
+                        padding: "0.1rem 0.4rem",
+                        borderRadius: "3px",
+                        fontSize: "0.62rem",
                         fontWeight: "600",
                         textTransform: "uppercase",
                       }}
@@ -306,7 +301,7 @@ function FDADataTable({
                     position: "sticky",
                     right: 0,
                     zIndex: 10,
-                    padding: "1rem",
+                    padding: "0.35rem 0.6rem",
                     borderBottom: `1px solid ${colors.tableBorder}`,
                     textAlign: "center",
                     background: rowBg,
@@ -314,10 +309,7 @@ function FDADataTable({
                   }}
                 >
                   <div
-                    style={{
-                      position: "relative",
-                      display: "inline-block",
-                    }}
+                    style={{ position: "relative", display: "inline-block" }}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
@@ -327,11 +319,11 @@ function FDADataTable({
                       onClick={() => toggleDropdown(row.id)}
                       disabled={loading}
                       style={{
-                        padding: "0.5rem",
+                        padding: "0.3rem 0.5rem",
                         background: "transparent",
                         border: "none",
                         cursor: loading ? "not-allowed" : "pointer",
-                        fontSize: "1.2rem",
+                        fontSize: "1.1rem",
                         color: colors.textPrimary,
                         opacity: loading ? 0.5 : 1,
                       }}
@@ -345,21 +337,20 @@ function FDADataTable({
                       onViewDetails={() => handleViewDetails(row.id)}
                       onEdit={() => handleEdit(row.id)}
                       onCancel={() =>
-                        // ✅ Changed from onDelete
                         handleCancelClick(
                           row.id,
                           row.brand_name || row.generic_name,
-                          isCanceled, // ✅ NEW: Pass canceled status
+                          isCanceled,
                         )
                       }
                       drugName={row.brand_name || row.generic_name}
-                      isCanceled={isCanceled} // ✅ NEW: Pass canceled status
+                      isCanceled={isCanceled}
                       activeTab={activeTab}
                       darkMode={darkMode}
                       buttonRef={buttonRefs.current[row.id]}
                       currentUser={currentUser}
                       uploadedBy={row.uploaded_by}
-                      canEdit={canEditDrug(row)} // ✅ NEW: Pass canEdit status
+                      canEdit={canEditDrug(row)}
                     />
                   </div>
                 </td>
