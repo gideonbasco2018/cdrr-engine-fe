@@ -176,29 +176,30 @@ function FDAVerificationPortalPage({ darkMode }) {
     return drug.uploaded_by === currentUser.username;
   };
 
+  // ✅ Tighter column widths to maximize table density
   const columns = [
-    { key: "reference_number", label: "Reference Number", width: "180px" },
-    { key: "generic_name", label: "Generic Name", width: "350px" },
-    { key: "brand_name", label: "Brand Name", width: "150px" },
-    { key: "dosage_strength", label: "Dosage Strength", width: "120px" },
-    { key: "dosage_form", label: "Dosage Form", width: "120px" },
-    { key: "classification", label: "Classification", width: "120px" },
-    { key: "packaging", label: "Packaging", width: "200px" },
+    { key: "reference_number", label: "Reference Number", width: "150px" },
+    { key: "generic_name", label: "Generic Name", width: "260px" },
+    { key: "brand_name", label: "Brand Name", width: "200px" },
+    { key: "dosage_strength", label: "Dosage Strength", width: "400px" },
+    { key: "dosage_form", label: "Dosage Form", width: "170px" },
+    { key: "classification", label: "Classification", width: "200px" },
+    { key: "packaging", label: "Packaging", width: "350px" },
     {
       key: "pharmacologic_category",
       label: "Pharmacologic Category",
-      width: "240px",
+      width: "300px",
     },
-    { key: "manufacturer", label: "Manufacturer", width: "200px" },
-    { key: "country_of_origin", label: "Country of Origin", width: "120px" },
-    { key: "trader", label: "Trader", width: "200px" },
-    { key: "importer", label: "Importer", width: "200px" },
-    { key: "distributor", label: "Distributor", width: "200px" },
-    { key: "app_type", label: "Application Type", width: "160px" },
-    { key: "issuance_date", label: "Issuance Date", width: "160px" },
-    { key: "expiry_date", label: "Expiry Date", width: "120px" },
+    { key: "manufacturer", label: "Manufacturer", width: "260px" },
+    { key: "country_of_origin", label: "Country", width: "150px" },
+    { key: "trader", label: "Trader", width: "260px" },
+    { key: "importer", label: "Importer", width: "260px" },
+    { key: "distributor", label: "Distributor", width: "260px" },
+    { key: "app_type", label: "App Type", width: "200px" },
+    { key: "issuance_date", label: "Issuance Date", width: "150px" },
+    { key: "expiry_date", label: "Expiry Date", width: "150px" },
     { key: "uploaded_by", label: "Uploaded By", width: "150px" },
-    { key: "date_uploaded", label: "Date Uploaded", width: "150px" },
+    { key: "date_uploaded", label: "Date Uploaded", width: "250px" },
   ];
 
   const isToday = (dateString) => {
@@ -253,38 +254,21 @@ function FDAVerificationPortalPage({ darkMode }) {
 
   const getFilteredData = () => {
     if (!currentUser) return [];
-    if (activeTab === "duplicates") {
-      let filtered = [...drugsData];
-      const duplicateRegNums = findDuplicateRegistrationNumbers(drugsData);
-      filtered = filtered.filter(
-        (drug) =>
-          duplicateRegNums.includes(drug.registration_number?.trim()) &&
-          drug.is_canceled !== "Y",
-      );
-      filtered.sort((a, b) =>
-        (a.registration_number || "")
-          .trim()
-          .toLowerCase()
-          .localeCompare((b.registration_number || "").trim().toLowerCase()),
-      );
-      return filtered;
-    }
-    let filtered = applyFilters(drugsData, filters, activeTab);
+
+    // ✅ Backend na ang bahala sa filtering ng mga tabs na ito
     if (
-      activeTab !== "all" &&
-      activeTab !== "expired" &&
-      activeTab !== "canceled"
+      activeTab === "duplicates" ||
+      activeTab === "expired" ||
+      activeTab === "canceled" ||
+      activeTab === "today" ||
+      activeTab === "yesterday" ||
+      activeTab === "thismonth"
     ) {
-      filtered = filtered.filter(
-        (drug) => drug.uploaded_by === currentUser.username,
-      );
+      return drugsData; // direkta na ireturn, wag nang i-filter pa
     }
-    if (activeTab === "today")
-      filtered = filtered.filter((drug) => isToday(drug.date_uploaded));
-    else if (activeTab === "yesterday")
-      filtered = filtered.filter((drug) => isYesterday(drug.date_uploaded));
-    else if (activeTab === "thismonth")
-      filtered = filtered.filter((drug) => isThisMonth(drug.date_uploaded));
+
+    // "all" tab lang ang may client-side filter (uploadedBy, date range)
+    let filtered = applyFilters(drugsData, filters, activeTab);
     return filtered;
   };
 
@@ -298,6 +282,12 @@ function FDAVerificationPortalPage({ darkMode }) {
         page_size: pageSize,
         search: searchTerm,
         include_canceled: activeTab === "canceled",
+        expired_only: activeTab === "expired",
+        duplicates_only: activeTab === "duplicates",
+        uploaded_today: activeTab === "today",
+        uploaded_yesterday: activeTab === "yesterday",
+        uploaded_this_month: activeTab === "thismonth",
+        uploaded_by: filters.uploadedBy || null,
       });
       setDrugsData(response.data || []);
       setPagination(response.pagination || {});
@@ -320,8 +310,14 @@ function FDAVerificationPortalPage({ darkMode }) {
       fetchDrugs();
     }, 500);
     return () => clearTimeout(delaySearch);
-  }, [currentPage, pageSize, searchTerm, activeTab, currentUser]);
-
+  }, [
+    currentPage,
+    pageSize,
+    searchTerm,
+    activeTab,
+    currentUser,
+    filters.uploadedBy,
+  ]); // ✅ added filters.uploadedBy
   const handleViewDetails = async (drugId) => {
     try {
       setLoading(true);
@@ -546,10 +542,7 @@ function FDAVerificationPortalPage({ darkMode }) {
     filters.dateUploadTo;
 
   const filteredData = getFilteredData();
-  const duplicateRegNums =
-    activeTab === "duplicates"
-      ? findDuplicateRegistrationNumbers(drugsData)
-      : [];
+  const duplicateRegNums = [];
 
   if (userLoading) {
     return (
@@ -635,8 +628,6 @@ function FDAVerificationPortalPage({ darkMode }) {
     },
   ];
 
-  const SIDEBAR_WIDTH = sidebarCollapsed ? "56px" : "260px";
-
   return (
     <div
       style={{
@@ -699,43 +690,45 @@ function FDAVerificationPortalPage({ darkMode }) {
       ════════════════════════════════════════════ */}
       <div
         style={{
-          width: SIDEBAR_WIDTH,
-          minWidth: SIDEBAR_WIDTH,
-          maxWidth: SIDEBAR_WIDTH,
+          width: sidebarCollapsed ? "52px" : "200px",
+          minWidth: sidebarCollapsed ? "52px" : "200px",
+          maxWidth: sidebarCollapsed ? "52px" : "200px",
           background: colors.cardBg || colors.cardBg,
           borderRight: `1px solid ${colors.sidebarBorder || colors.cardBorder}`,
+          padding: sidebarCollapsed ? "1rem 0" : "1rem 0",
           display: "flex",
           flexDirection: "column",
-          transition:
-            "width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease",
-          overflow: "hidden",
-          zIndex: 10,
+          transition: "width 0.25s ease, min-width 0.25s ease",
+          overflowY: "hidden",
+          overflowX: "hidden",
+          gap: "0.5rem",
+          flexShrink: 0,
         }}
       >
         {/* Sidebar Header */}
         <div
           style={{
-            padding: "1rem",
-            borderBottom: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
-            justifyContent: sidebarCollapsed ? "center" : "space-between",
-            gap: "0.5rem",
+            justifyContent: "space-between",
+            padding: "0 1rem 0.75rem",
+            borderBottom: `2px solid ${colors.cardBorder}`,
             flexShrink: 0,
+            overflow: "hidden",
+            whiteSpace: "nowrap",
           }}
         >
           {!sidebarCollapsed && (
             <div
               style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
             >
-              <span style={{ fontSize: "1.25rem" }}>⚡</span>
+              <span style={{ fontSize: "1rem" }}>⚡</span>
               <h2
                 style={{
-                  fontSize: "1.1rem",
-                  fontWeight: "700",
+                  fontSize: "0.82rem",
+                  fontWeight: "600",
                   color: colors.textPrimary,
                   margin: 0,
-                  letterSpacing: "0.5px",
                 }}
               >
                 Quick Filters
@@ -746,19 +739,19 @@ function FDAVerificationPortalPage({ darkMode }) {
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
             title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "6px",
-              border: `1px solid ${colors.cardBorder}`,
-              background: "transparent",
-              color: colors.textTertiary,
-              cursor: "pointer",
+              width: "26px",
+              height: "26px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "0.75rem",
+              background: "transparent",
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: "6px",
+              cursor: "pointer",
+              color: colors.textTertiary,
+              fontSize: "0.7rem",
               flexShrink: 0,
-              transition: "all 0.2s",
+              transition: "all 0.2s ease",
             }}
           >
             {sidebarCollapsed ? "▶" : "◀"}
@@ -1207,51 +1200,58 @@ function FDAVerificationPortalPage({ darkMode }) {
         }}
       >
         {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "2rem" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 2rem" }}>
           {/* Header */}
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "flex-start",
-              marginBottom: "2rem",
+              marginBottom: "1rem",
             }}
           >
             <div>
               <h1
                 style={{
-                  fontSize: "1.75rem",
+                  fontSize: "1.1rem",
                   fontWeight: "600",
-                  marginBottom: "0.5rem",
+                  marginBottom: "0.2rem",
                   color: colors.textPrimary,
+                  margin: 0,
                 }}
               >
                 FDA Verification Portal
               </h1>
-              <p style={{ color: colors.textTertiary, fontSize: "0.9rem" }}>
+              <p
+                style={{
+                  color: colors.textTertiary,
+                  fontSize: "0.75rem",
+                  margin: "0.2rem 0 0",
+                }}
+              >
                 Verify and manage FDA registered pharmaceutical products
               </p>
             </div>
 
-            <div style={{ display: "flex", gap: "1rem" }}>
+            <div style={{ display: "flex", gap: "0.6rem" }}>
               <button
                 onClick={handleExportToExcel}
                 disabled={loading || filteredData.length === 0}
                 style={{
-                  padding: "0.75rem 1.5rem",
+                  padding: "0.55rem 0.85rem",
                   background: "transparent",
-                  border: `2px solid ${colors.cardBorder}`,
+                  border: `1px solid ${colors.cardBorder}`,
                   borderRadius: "8px",
                   color: colors.textPrimary,
-                  fontSize: "0.9rem",
-                  fontWeight: "600",
+                  fontSize: "0.72rem",
+                  fontWeight: "500",
                   cursor:
                     loading || filteredData.length === 0
                       ? "not-allowed"
                       : "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.35rem",
                   opacity: loading || filteredData.length === 0 ? 0.5 : 1,
                 }}
               >
@@ -1263,17 +1263,17 @@ function FDAVerificationPortalPage({ darkMode }) {
                 onClick={handleDownloadTemplate}
                 disabled={loading}
                 style={{
-                  padding: "0.75rem 1.5rem",
+                  padding: "0.55rem 0.85rem",
                   background: "transparent",
                   border: `2px solid ${colors.cardBorder}`,
                   borderRadius: "8px",
                   color: colors.textPrimary,
-                  fontSize: "0.9rem",
-                  fontWeight: "600",
+                  fontSize: "0.72rem",
+                  fontWeight: "500",
                   cursor: loading ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.35rem",
                   opacity: loading ? 0.5 : 1,
                 }}
               >
@@ -1283,19 +1283,19 @@ function FDAVerificationPortalPage({ darkMode }) {
 
               <label
                 style={{
-                  padding: "0.75rem 1.5rem",
+                  padding: "0.55rem 0.85rem",
                   background: loading
                     ? "#999"
                     : "linear-gradient(135deg, #4CAF50 0%, #45a049 100%)",
                   border: "none",
                   borderRadius: "8px",
                   color: "#fff",
-                  fontSize: "0.9rem",
-                  fontWeight: "600",
+                  fontSize: "0.72rem",
+                  fontWeight: "500",
                   cursor: loading ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.35rem",
                   boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
                 }}
               >
@@ -1318,12 +1318,13 @@ function FDAVerificationPortalPage({ darkMode }) {
               style={{
                 background: "#ff4444",
                 color: "#fff",
-                padding: "1rem",
+                padding: "0.75rem 1rem",
                 borderRadius: "8px",
-                marginBottom: "1rem",
+                marginBottom: "0.75rem",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
+                fontSize: "0.82rem",
               }}
             >
               <span>❌ {error}</span>
@@ -1334,7 +1335,7 @@ function FDAVerificationPortalPage({ darkMode }) {
                   border: "none",
                   color: "#fff",
                   cursor: "pointer",
-                  fontSize: "1.2rem",
+                  fontSize: "1.1rem",
                 }}
               >
                 ×
@@ -1342,13 +1343,13 @@ function FDAVerificationPortalPage({ darkMode }) {
             </div>
           )}
 
-          {/* Stats Cards */}
+          {/* ── Stats Cards — compact ── */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-              gap: "0.5rem",
-              marginBottom: ".5rem",
+              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+              gap: "0.3rem",
+              marginBottom: "0.6rem",
             }}
           >
             {[
@@ -1370,24 +1371,6 @@ function FDAVerificationPortalPage({ darkMode }) {
                 value: stats.expiredProducts,
                 color: "#FF9800",
               },
-              // {
-              //   icon: "📅",
-              //   label: "My Uploads Today",
-              //   value: stats.uploadedToday,
-              //   color: "#2196F3",
-              // },
-              // {
-              //   icon: "📆",
-              //   label: "My Uploads Yesterday",
-              //   value: stats.uploadedYesterday,
-              //   color: "#9C27B0",
-              // },
-              // {
-              //   icon: "📊",
-              //   label: "My Uploads This Month",
-              //   value: stats.uploadedThisMonth,
-              //   color: "#00BCD4",
-              // },
               {
                 icon: "🔄",
                 label: "Duplicate Records",
@@ -1406,24 +1389,25 @@ function FDAVerificationPortalPage({ darkMode }) {
                 style={{
                   background: colors.cardBg,
                   border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
-                  padding: "0.6rem 0.75rem",
+                  borderRadius: "7px",
+                  padding: "0.4rem 0.6rem", // ✅ tighter padding
                 }}
               >
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.5rem",
+                    gap: "0.4rem",
                   }}
                 >
-                  <span style={{ fontSize: "1.25rem" }}>{stat.icon}</span>
+                  <span style={{ fontSize: "1rem" }}>{stat.icon}</span>{" "}
+                  {/* ✅ smaller icon */}
                   <div>
                     <p
                       style={{
-                        fontSize: "0.65rem",
+                        fontSize: "0.6rem", // ✅ smaller label
                         color: colors.textTertiary,
-                        marginBottom: "0.1rem",
+                        marginBottom: "0.05rem",
                         lineHeight: "1.2",
                       }}
                     >
@@ -1431,10 +1415,11 @@ function FDAVerificationPortalPage({ darkMode }) {
                     </p>
                     <p
                       style={{
-                        fontSize: "1.1rem",
+                        fontSize: "0.95rem", // ✅ slightly smaller value
                         fontWeight: "700",
                         color: stat.color,
                         margin: 0,
+                        lineHeight: "1.2",
                       }}
                     >
                       {stat.value}
@@ -1445,14 +1430,14 @@ function FDAVerificationPortalPage({ darkMode }) {
             ))}
           </div>
 
-          {/* Active filter chips — shows what filters are currently active */}
+          {/* Active filter chips */}
           {hasActiveFilters && (
             <div
               style={{
                 display: "flex",
                 flexWrap: "wrap",
-                gap: "0.5rem",
-                marginBottom: "1rem",
+                gap: "0.4rem",
+                marginBottom: "0.6rem",
               }}
             >
               {searchTerm && (
@@ -1461,11 +1446,11 @@ function FDAVerificationPortalPage({ darkMode }) {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.35rem",
-                    padding: "0.3rem 0.65rem",
+                    padding: "0.25rem 0.55rem",
                     background: "rgba(76,175,80,0.12)",
                     border: "1px solid #4CAF5040",
                     borderRadius: "20px",
-                    fontSize: "0.78rem",
+                    fontSize: "0.75rem",
                     color: "#4CAF50",
                     fontWeight: "600",
                   }}
@@ -1480,7 +1465,7 @@ function FDAVerificationPortalPage({ darkMode }) {
                       cursor: "pointer",
                       padding: 0,
                       lineHeight: 1,
-                      fontSize: "0.75rem",
+                      fontSize: "0.72rem",
                     }}
                   >
                     ✕
@@ -1493,11 +1478,11 @@ function FDAVerificationPortalPage({ darkMode }) {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.35rem",
-                    padding: "0.3rem 0.65rem",
+                    padding: "0.25rem 0.55rem",
                     background: "rgba(33,150,243,0.12)",
                     border: "1px solid #2196F340",
                     borderRadius: "20px",
-                    fontSize: "0.78rem",
+                    fontSize: "0.75rem",
                     color: "#2196F3",
                     fontWeight: "600",
                   }}
@@ -1514,7 +1499,7 @@ function FDAVerificationPortalPage({ darkMode }) {
                       cursor: "pointer",
                       padding: 0,
                       lineHeight: 1,
-                      fontSize: "0.75rem",
+                      fontSize: "0.72rem",
                     }}
                   >
                     ✕
@@ -1527,11 +1512,11 @@ function FDAVerificationPortalPage({ darkMode }) {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.35rem",
-                    padding: "0.3rem 0.65rem",
+                    padding: "0.25rem 0.55rem",
                     background: "rgba(156,39,176,0.12)",
                     border: "1px solid #9C27B040",
                     borderRadius: "20px",
-                    fontSize: "0.78rem",
+                    fontSize: "0.75rem",
                     color: "#9C27B0",
                     fontWeight: "600",
                   }}
@@ -1548,7 +1533,7 @@ function FDAVerificationPortalPage({ darkMode }) {
                       cursor: "pointer",
                       padding: 0,
                       lineHeight: 1,
-                      fontSize: "0.75rem",
+                      fontSize: "0.72rem",
                     }}
                   >
                     ✕
@@ -1561,11 +1546,11 @@ function FDAVerificationPortalPage({ darkMode }) {
                     display: "inline-flex",
                     alignItems: "center",
                     gap: "0.35rem",
-                    padding: "0.3rem 0.65rem",
+                    padding: "0.25rem 0.55rem",
                     background: "rgba(156,39,176,0.12)",
                     border: "1px solid #9C27B040",
                     borderRadius: "20px",
-                    fontSize: "0.78rem",
+                    fontSize: "0.75rem",
                     color: "#9C27B0",
                     fontWeight: "600",
                   }}
@@ -1582,7 +1567,7 @@ function FDAVerificationPortalPage({ darkMode }) {
                       cursor: "pointer",
                       padding: 0,
                       lineHeight: 1,
-                      fontSize: "0.75rem",
+                      fontSize: "0.72rem",
                     }}
                   >
                     ✕
@@ -1603,7 +1588,7 @@ function FDAVerificationPortalPage({ darkMode }) {
           >
             <div
               style={{
-                padding: "1rem 1.5rem",
+                padding: "0.65rem 1.25rem",
                 borderBottom: `1px solid ${colors.tableBorder}`,
                 display: "flex",
                 justifyContent: "space-between",
@@ -1614,14 +1599,15 @@ function FDAVerificationPortalPage({ darkMode }) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.75rem",
+                  gap: "0.6rem",
                 }}
               >
                 <h3
                   style={{
-                    fontSize: "1rem",
+                    fontSize: "0.9rem",
                     fontWeight: "600",
                     color: colors.textPrimary,
+                    margin: 0,
                   }}
                 >
                   {activeTab === "all"
@@ -1638,17 +1624,16 @@ function FDAVerificationPortalPage({ darkMode }) {
                               ? "All Expired Products"
                               : "All Canceled Products"}
                 </h3>
-                {/* Active tab badge */}
                 {(() => {
                   const tab = sidebarTabs.find((t) => t.key === activeTab);
                   return tab ? (
                     <span
                       style={{
-                        padding: "0.2rem 0.6rem",
+                        padding: "0.15rem 0.5rem",
                         background: `${tab.color}18`,
                         border: `1px solid ${tab.color}40`,
                         borderRadius: "12px",
-                        fontSize: "0.75rem",
+                        fontSize: "0.7rem",
                         fontWeight: "700",
                         color: tab.color,
                       }}
@@ -1659,7 +1644,7 @@ function FDAVerificationPortalPage({ darkMode }) {
                 })()}
               </div>
               <span
-                style={{ fontSize: "0.85rem", color: colors.textSecondary }}
+                style={{ fontSize: "0.78rem", color: colors.textSecondary }}
               >
                 Showing {filteredData.length} record
                 {filteredData.length !== 1 ? "s" : ""}

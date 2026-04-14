@@ -53,28 +53,35 @@ export const uploadExcelFile = async (file, uploadedBy = null) => {
   }
 };
 
-/**
- * Get all FDA drug registrations with pagination and search
- * @param {Object} options - Query options
- * @param {number} options.page - Page number (default: 1)
- * @param {number} options.page_size - Items per page (default: 10)
- * @param {string} options.search - Search term
- * @param {boolean} options.include_canceled - Include canceled records (changed from include_deleted)
- * @returns {Promise<Object>} Paginated drug list
- */
-export const getAllDrugs = async ({ page = 1, page_size = 10, search = '', include_canceled = false } = {}) => {
+
+export const getAllDrugs = async ({
+  page = 1,
+  page_size = 10,
+  search = '',
+  include_canceled = false,
+  expired_only = false,
+  duplicates_only = false,
+  uploaded_today = false,
+  uploaded_yesterday = false,
+  uploaded_this_month = false,
+  uploaded_by = null,
+} = {}) => {
   console.log('🔍 Fetching FDA drugs...', { page, page_size, search, include_canceled });
 
   try {
     const params = {
       page,
       page_size,
-      include_canceled, // ✅ Changed from include_deleted
+      include_canceled,
+      expired_only,
+      duplicates_only,
+      uploaded_today,
+      uploaded_yesterday,
+      uploaded_this_month,
     };
 
-    if (search) {
-      params.search = search;
-    }
+    if (search) params.search = search;
+    if (uploaded_by) params.uploaded_by = uploaded_by;
 
     const response = await API.get('/fda/drugs', { params });
 
