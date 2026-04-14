@@ -1,6 +1,10 @@
 // FILE: src/pages/DashboardPage.jsx
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { getDashboardSummary } from "../api/dashboard";
+import {
+  getDashboardSummary,
+  getDashboardChart,
+  getDashboardRecentApplications,
+} from "../api/dashboard";
 
 const FB = "#1877F2";
 const FB_LIGHT = "#E7F0FD";
@@ -45,311 +49,21 @@ function makeUI(dark) {
       };
 }
 
-function deriveOnProcess(d) {
-  return { ...d, onProcess: d.received - d.completed };
-}
-
-const DATA_ALL_YEARS_RAW = [
-  { label: "2022", received: 742, completed: 568, target: 120 },
-  { label: "2023", received: 891, completed: 682, target: 144 },
-  { label: "2024", received: 1034, completed: 793, target: 168 },
-  { label: "2025", received: 1187, completed: 912, target: 192 },
-  { label: "2026", received: 237, completed: 183, target: 48 },
-];
-const DATA_ALL_YEARS = DATA_ALL_YEARS_RAW.map(deriveOnProcess);
-
-const ALL_TIME_TOTALS = {
-  received: DATA_ALL_YEARS.reduce((s, r) => s + r.received, 0),
-  completed: DATA_ALL_YEARS.reduce((s, r) => s + r.completed, 0),
-  onProcess: DATA_ALL_YEARS.reduce((s, r) => s + r.onProcess, 0),
-  target: DATA_ALL_YEARS.reduce((s, r) => s + r.target, 0),
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+const MONTH_NUM = {
+  Jan: "01",
+  Feb: "02",
+  Mar: "03",
+  Apr: "04",
+  May: "05",
+  Jun: "06",
+  Jul: "07",
+  Aug: "08",
+  Sep: "09",
+  Oct: "10",
+  Nov: "11",
+  Dec: "12",
 };
-ALL_TIME_TOTALS.completedRate =
-  ALL_TIME_TOTALS.received > 0
-    ? ((ALL_TIME_TOTALS.completed / ALL_TIME_TOTALS.received) * 100).toFixed(1)
-    : "0.0";
-
-const DATA_MONTHLY_BY_YEAR_RAW = {
-  2022: [
-    { label: "Jan", received: 52, completed: 38, target: 10 },
-    { label: "Feb", received: 44, completed: 31, target: 8 },
-    { label: "Mar", received: 67, completed: 51, target: 12 },
-    { label: "Apr", received: 55, completed: 40, target: 10 },
-    { label: "May", received: 73, completed: 56, target: 12 },
-    { label: "Jun", received: 60, completed: 45, target: 10 },
-    { label: "Jul", received: 78, completed: 60, target: 12 },
-    { label: "Aug", received: 65, completed: 49, target: 10 },
-    { label: "Sep", received: 50, completed: 37, target: 8 },
-    { label: "Oct", received: 69, completed: 53, target: 12 },
-    { label: "Nov", received: 57, completed: 43, target: 10 },
-    { label: "Dec", received: 72, completed: 55, target: 12 },
-  ],
-  2023: [
-    { label: "Jan", received: 63, completed: 47, target: 10 },
-    { label: "Feb", received: 75, completed: 57, target: 12 },
-    { label: "Mar", received: 82, completed: 63, target: 12 },
-    { label: "Apr", received: 68, completed: 51, target: 10 },
-    { label: "May", received: 91, completed: 70, target: 14 },
-    { label: "Jun", received: 74, completed: 56, target: 12 },
-    { label: "Jul", received: 98, completed: 75, target: 14 },
-    { label: "Aug", received: 85, completed: 65, target: 12 },
-    { label: "Sep", received: 66, completed: 50, target: 10 },
-    { label: "Oct", received: 79, completed: 61, target: 12 },
-    { label: "Nov", received: 70, completed: 54, target: 10 },
-    { label: "Dec", received: 40, completed: 30, target: 8 },
-  ],
-  2024: [
-    { label: "Jan", received: 81, completed: 62, target: 12 },
-    { label: "Feb", received: 88, completed: 67, target: 14 },
-    { label: "Mar", received: 99, completed: 76, target: 14 },
-    { label: "Apr", received: 85, completed: 65, target: 12 },
-    { label: "May", received: 110, completed: 84, target: 16 },
-    { label: "Jun", received: 93, completed: 71, target: 14 },
-    { label: "Jul", received: 118, completed: 90, target: 16 },
-    { label: "Aug", received: 104, completed: 79, target: 14 },
-    { label: "Sep", received: 79, completed: 60, target: 12 },
-    { label: "Oct", received: 95, completed: 73, target: 14 },
-    { label: "Nov", received: 89, completed: 68, target: 12 },
-    { label: "Dec", received: 93, completed: 71, target: 14 },
-  ],
-  2025: [
-    { label: "Jan", received: 92, completed: 70, target: 14 },
-    { label: "Feb", received: 101, completed: 78, target: 14 },
-    { label: "Mar", received: 115, completed: 88, target: 16 },
-    { label: "Apr", received: 97, completed: 74, target: 14 },
-    { label: "May", received: 124, completed: 95, target: 16 },
-    { label: "Jun", received: 108, completed: 83, target: 16 },
-    { label: "Jul", received: 131, completed: 101, target: 18 },
-    { label: "Aug", received: 116, completed: 89, target: 16 },
-    { label: "Sep", received: 95, completed: 73, target: 14 },
-    { label: "Oct", received: 109, completed: 84, target: 16 },
-    { label: "Nov", received: 102, completed: 78, target: 14 },
-    { label: "Dec", received: 97, completed: 74, target: 14 },
-  ],
-  2026: [
-    { label: "Jan", received: 95, completed: 72, target: 14 },
-    { label: "Feb", received: 108, completed: 83, target: 16 },
-    { label: "Mar", received: 34, completed: 28, target: 3 },
-  ],
-};
-const DATA_MONTHLY_BY_YEAR = {};
-Object.keys(DATA_MONTHLY_BY_YEAR_RAW).forEach((yr) => {
-  DATA_MONTHLY_BY_YEAR[yr] = DATA_MONTHLY_BY_YEAR_RAW[yr].map(deriveOnProcess);
-});
-
-const DATA_DAILY_BY_MONTH_RAW = {
-  "2026-01": [
-    { label: "1", received: 14, completed: 10, target: 3 },
-    { label: "2", received: 18, completed: 13, target: 3 },
-    { label: "3", received: 11, completed: 8, target: 3 },
-    { label: "4", received: 22, completed: 16, target: 3 },
-    { label: "5", received: 16, completed: 12, target: 3 },
-    { label: "6", received: 9, completed: 6, target: 3 },
-    { label: "7", received: 20, completed: 15, target: 3 },
-    { label: "8", received: 17, completed: 13, target: 3 },
-    { label: "9", received: 13, completed: 9, target: 3 },
-    { label: "10", received: 25, completed: 19, target: 3 },
-    { label: "11", received: 19, completed: 14, target: 3 },
-    { label: "12", received: 15, completed: 11, target: 3 },
-    { label: "13", received: 23, completed: 18, target: 3 },
-    { label: "14", received: 10, completed: 7, target: 3 },
-    { label: "15", received: 28, completed: 21, target: 3 },
-    { label: "16", received: 21, completed: 16, target: 3 },
-    { label: "17", received: 17, completed: 12, target: 3 },
-    { label: "18", received: 24, completed: 18, target: 3 },
-    { label: "19", received: 12, completed: 9, target: 3 },
-    { label: "20", received: 26, completed: 20, target: 3 },
-    { label: "21", received: 18, completed: 13, target: 3 },
-    { label: "22", received: 14, completed: 10, target: 3 },
-    { label: "23", received: 22, completed: 17, target: 3 },
-    { label: "24", received: 19, completed: 14, target: 3 },
-    { label: "25", received: 11, completed: 8, target: 3 },
-    { label: "26", received: 27, completed: 21, target: 3 },
-    { label: "27", received: 16, completed: 12, target: 3 },
-    { label: "28", received: 20, completed: 15, target: 3 },
-    { label: "29", received: 13, completed: 9, target: 3 },
-    { label: "30", received: 23, completed: 17, target: 3 },
-    { label: "31", received: 15, completed: 11, target: 3 },
-  ],
-  "2026-02": [
-    { label: "1", received: 20, completed: 15, target: 3 },
-    { label: "2", received: 16, completed: 12, target: 3 },
-    { label: "3", received: 24, completed: 18, target: 3 },
-    { label: "4", received: 13, completed: 9, target: 3 },
-    { label: "5", received: 29, completed: 22, target: 3 },
-    { label: "6", received: 18, completed: 14, target: 3 },
-    { label: "7", received: 22, completed: 17, target: 3 },
-    { label: "8", received: 11, completed: 8, target: 3 },
-    { label: "9", received: 26, completed: 20, target: 3 },
-    { label: "10", received: 19, completed: 14, target: 3 },
-    { label: "11", received: 15, completed: 11, target: 3 },
-    { label: "12", received: 31, completed: 24, target: 3 },
-    { label: "13", received: 17, completed: 13, target: 3 },
-    { label: "14", received: 23, completed: 17, target: 3 },
-    { label: "15", received: 12, completed: 9, target: 3 },
-    { label: "16", received: 28, completed: 21, target: 3 },
-    { label: "17", received: 20, completed: 15, target: 3 },
-    { label: "18", received: 14, completed: 10, target: 3 },
-    { label: "19", received: 25, completed: 19, target: 3 },
-    { label: "20", received: 18, completed: 14, target: 3 },
-    { label: "21", received: 10, completed: 7, target: 3 },
-    { label: "22", received: 27, completed: 21, target: 3 },
-    { label: "23", received: 21, completed: 16, target: 3 },
-    { label: "24", received: 16, completed: 12, target: 3 },
-    { label: "25", received: 30, completed: 23, target: 3 },
-    { label: "26", received: 13, completed: 9, target: 3 },
-    { label: "27", received: 22, completed: 17, target: 3 },
-    { label: "28", received: 17, completed: 13, target: 3 },
-  ],
-  "2026-03": [
-    { label: "1", received: 18, completed: 13, target: 3 },
-    { label: "2", received: 22, completed: 17, target: 3 },
-    { label: "3", received: 15, completed: 11, target: 3 },
-    { label: "4", received: 30, completed: 24, target: 3 },
-    { label: "5", received: 27, completed: 20, target: 3 },
-    { label: "6", received: 12, completed: 9, target: 3 },
-    { label: "7", received: 19, completed: 14, target: 3 },
-    { label: "8", received: 24, completed: 18, target: 3 },
-    { label: "9", received: 21, completed: 16, target: 3 },
-    { label: "10", received: 16, completed: 12, target: 3 },
-  ],
-  "2025-01": [
-    { label: "1", received: 13, completed: 9, target: 3 },
-    { label: "2", received: 17, completed: 13, target: 3 },
-    { label: "3", received: 10, completed: 7, target: 3 },
-    { label: "4", received: 21, completed: 16, target: 3 },
-    { label: "5", received: 15, completed: 11, target: 3 },
-    { label: "6", received: 8, completed: 5, target: 3 },
-    { label: "7", received: 19, completed: 14, target: 3 },
-    { label: "8", received: 16, completed: 12, target: 3 },
-    { label: "9", received: 12, completed: 9, target: 3 },
-    { label: "10", received: 24, completed: 18, target: 3 },
-    { label: "11", received: 18, completed: 13, target: 3 },
-    { label: "12", received: 14, completed: 10, target: 3 },
-    { label: "13", received: 22, completed: 17, target: 3 },
-    { label: "14", received: 9, completed: 6, target: 3 },
-    { label: "15", received: 27, completed: 21, target: 3 },
-    { label: "16", received: 20, completed: 15, target: 3 },
-    { label: "17", received: 16, completed: 12, target: 3 },
-    { label: "18", received: 23, completed: 18, target: 3 },
-    { label: "19", received: 11, completed: 8, target: 3 },
-    { label: "20", received: 25, completed: 19, target: 3 },
-    { label: "21", received: 17, completed: 13, target: 3 },
-    { label: "22", received: 13, completed: 9, target: 3 },
-    { label: "23", received: 21, completed: 16, target: 3 },
-    { label: "24", received: 18, completed: 14, target: 3 },
-    { label: "25", received: 10, completed: 7, target: 3 },
-    { label: "26", received: 26, completed: 20, target: 3 },
-    { label: "27", received: 15, completed: 11, target: 3 },
-    { label: "28", received: 19, completed: 14, target: 3 },
-    { label: "29", received: 12, completed: 9, target: 3 },
-    { label: "30", received: 22, completed: 17, target: 3 },
-    { label: "31", received: 14, completed: 10, target: 3 },
-  ],
-  "2025-06": [
-    { label: "1", received: 16, completed: 12, target: 3 },
-    { label: "2", received: 21, completed: 16, target: 3 },
-    { label: "3", received: 14, completed: 10, target: 3 },
-    { label: "4", received: 28, completed: 22, target: 3 },
-    { label: "5", received: 19, completed: 14, target: 3 },
-    { label: "6", received: 11, completed: 8, target: 3 },
-    { label: "7", received: 24, completed: 18, target: 3 },
-    { label: "8", received: 17, completed: 13, target: 3 },
-    { label: "9", received: 22, completed: 17, target: 3 },
-    { label: "10", received: 13, completed: 9, target: 3 },
-    { label: "11", received: 29, completed: 22, target: 3 },
-    { label: "12", received: 20, completed: 15, target: 3 },
-    { label: "13", received: 15, completed: 11, target: 3 },
-    { label: "14", received: 26, completed: 20, target: 3 },
-    { label: "15", received: 18, completed: 14, target: 3 },
-    { label: "16", received: 12, completed: 9, target: 3 },
-    { label: "17", received: 31, completed: 24, target: 3 },
-    { label: "18", received: 23, completed: 18, target: 3 },
-    { label: "19", received: 16, completed: 12, target: 3 },
-    { label: "20", received: 27, completed: 21, target: 3 },
-    { label: "21", received: 19, completed: 15, target: 3 },
-    { label: "22", received: 14, completed: 10, target: 3 },
-    { label: "23", received: 24, completed: 18, target: 3 },
-    { label: "24", received: 20, completed: 15, target: 3 },
-    { label: "25", received: 10, completed: 7, target: 3 },
-    { label: "26", received: 28, completed: 22, target: 3 },
-    { label: "27", received: 17, completed: 13, target: 3 },
-    { label: "28", received: 21, completed: 16, target: 3 },
-    { label: "29", received: 13, completed: 10, target: 3 },
-    { label: "30", received: 25, completed: 19, target: 3 },
-  ],
-  "2025-12": [
-    { label: "1", received: 15, completed: 11, target: 3 },
-    { label: "2", received: 19, completed: 14, target: 3 },
-    { label: "3", received: 12, completed: 9, target: 3 },
-    { label: "4", received: 24, completed: 18, target: 3 },
-    { label: "5", received: 17, completed: 13, target: 3 },
-    { label: "6", received: 10, completed: 7, target: 3 },
-    { label: "7", received: 22, completed: 17, target: 3 },
-    { label: "8", received: 16, completed: 12, target: 3 },
-    { label: "9", received: 20, completed: 15, target: 3 },
-    { label: "10", received: 14, completed: 10, target: 3 },
-    { label: "11", received: 27, completed: 21, target: 3 },
-    { label: "12", received: 18, completed: 14, target: 3 },
-    { label: "13", received: 13, completed: 9, target: 3 },
-    { label: "14", received: 23, completed: 17, target: 3 },
-    { label: "15", received: 16, completed: 12, target: 3 },
-    { label: "16", received: 11, completed: 8, target: 3 },
-    { label: "17", received: 29, completed: 22, target: 3 },
-    { label: "18", received: 21, completed: 16, target: 3 },
-    { label: "19", received: 15, completed: 11, target: 3 },
-    { label: "20", received: 25, completed: 19, target: 3 },
-    { label: "21", received: 17, completed: 13, target: 3 },
-    { label: "22", received: 12, completed: 9, target: 3 },
-    { label: "23", received: 8, completed: 6, target: 3 },
-    { label: "24", received: 5, completed: 4, target: 3 },
-    { label: "25", received: 4, completed: 3, target: 3 },
-    { label: "26", received: 18, completed: 14, target: 3 },
-    { label: "27", received: 22, completed: 17, target: 3 },
-    { label: "28", received: 19, completed: 14, target: 3 },
-    { label: "29", received: 14, completed: 10, target: 3 },
-    { label: "30", received: 23, completed: 17, target: 3 },
-    { label: "31", received: 16, completed: 12, target: 3 },
-  ],
-};
-const DATA_DAILY_BY_MONTH = {};
-Object.keys(DATA_DAILY_BY_MONTH_RAW).forEach((key) => {
-  DATA_DAILY_BY_MONTH[key] = DATA_DAILY_BY_MONTH_RAW[key].map(deriveOnProcess);
-});
-
-const MONTH_DAYS = {
-  Jan: 31,
-  Feb: 28,
-  Mar: 31,
-  Apr: 30,
-  May: 31,
-  Jun: 30,
-  Jul: 31,
-  Aug: 31,
-  Sep: 30,
-  Oct: 31,
-  Nov: 30,
-  Dec: 31,
-};
-
-function generateDailyData(year, monthIdx, days) {
-  const seed = parseInt(year) * 13 + monthIdx * 7;
-  return Array.from({ length: days }, (_, i) => {
-    const r = 8 + ((seed + i * 11) % 24);
-    const comp = Math.min(
-      r - 1,
-      Math.round(r * (0.65 + ((seed + i * 3) % 10) * 0.025)),
-    );
-    return deriveOnProcess({
-      label: String(i + 1),
-      received: r,
-      completed: comp,
-      target: 3,
-    });
-  });
-}
-
-const AVAILABLE_YEARS = ["All", "2026", "2025", "2024", "2023", "2022"];
 const MONTHS_BY_YEAR = {
   2022: [
     "Jan",
@@ -409,35 +123,48 @@ const MONTHS_BY_YEAR = {
   ],
   2026: ["Jan", "Feb", "Mar"],
 };
-const MONTH_NUM = {
-  Jan: "01",
-  Feb: "02",
-  Mar: "03",
-  Apr: "04",
-  May: "05",
-  Jun: "06",
-  Jul: "07",
-  Aug: "08",
-  Sep: "09",
-  Oct: "10",
-  Nov: "11",
-  Dec: "12",
-};
-const MONTH_IDX = {
-  Jan: 0,
-  Feb: 1,
-  Mar: 2,
-  Apr: 3,
-  May: 4,
-  Jun: 5,
-  Jul: 6,
-  Aug: 7,
-  Sep: 8,
-  Oct: 9,
-  Nov: 10,
-  Dec: 11,
-};
+const AVAILABLE_YEARS = ["2026", "2025", "2024", "2023", "2022"];
 
+/**
+ * Converts breakdown + selYear + selMonth → { date_from, date_to } query params.
+ * Returns {} for yearly (all-time) to let the backend return all records.
+ */
+function buildChartParams(breakdown, selYear, selMonth) {
+  if (breakdown === "year") return { breakdown: "year" };
+  if (breakdown === "month") {
+    return {
+      breakdown: "month",
+      date_from: `${selYear}-01-01`,
+      date_to: `${selYear}-12-31`,
+    };
+  }
+  // breakdown === "day"
+  const mn = MONTH_NUM[selMonth];
+  const lastDay = new Date(parseInt(selYear), parseInt(mn), 0).getDate();
+  return {
+    breakdown: "day",
+    date_from: `${selYear}-${mn}-01`,
+    date_to: `${selYear}-${mn}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
+/**
+ * Maps the API's snake_case data point to the camelCase shape
+ * the AreaChart and data table expect.
+ */
+function mapPoint(pt) {
+  return {
+    label: pt.label,
+    received: pt.received,
+    completed: pt.completed,
+    onProcess: pt.on_process,
+    target: pt.target,
+    completedRate: pt.completed_rate, // null when received = 0
+  };
+}
+
+// ─── Static data kept only for the all-time Summary card ─────────────────────
+// (The chart itself is now 100 % live)
 const SERIES = [
   { key: "received", label: "Total Received", color: "#1877F2" },
   { key: "completed", label: "Completed", color: "#36a420" },
@@ -445,6 +172,7 @@ const SERIES = [
   { key: "target", label: "Target", color: "#9333ea", dashed: true },
 ];
 
+// ─── Targets (unchanged) ─────────────────────────────────────────────────────
 const TARGETS_WEEKLY = [
   {
     id: 1,
@@ -478,198 +206,6 @@ const TARGETS_WEEKLY = [
   },
 ];
 
-const TARGETS_1_15 = [
-  {
-    id: 1,
-    icon: "📥",
-    label: "Receive 50 new applications",
-    goal: 50,
-    done: 34,
-    deadline: "Mar 15, 2026",
-    description: "Receive and log all incoming applications from Mar 1–15.",
-    items: [
-      { name: "Batch Mar 1 – 12 apps received", done: true },
-      { name: "Batch Mar 2–5 – 22 apps received", done: true },
-      { name: "Batch Mar 6–10 – 16 apps pending", done: false },
-      { name: "Batch Mar 11–15 – 0 apps pending", done: false },
-    ],
-  },
-  {
-    id: 2,
-    icon: "✅",
-    label: "Release 40 processed documents",
-    goal: 40,
-    done: 28,
-    deadline: "Mar 15, 2026",
-    description:
-      "Release all documents that have completed evaluation by March 15.",
-    items: [
-      { name: "Mar 1–5 batch – 18 docs released", done: true },
-      { name: "Mar 6–10 batch – 10 docs released", done: true },
-      { name: "Mar 11–15 batch – 12 docs pending", done: false },
-    ],
-  },
-  {
-    id: 3,
-    icon: "🔍",
-    label: "Evaluate 20 backlog items",
-    goal: 20,
-    done: 12,
-    deadline: "Mar 15, 2026",
-    description: "Review and resolve accumulated backlog items from February.",
-    items: [
-      { name: "Feb backlog Set A – 6 items cleared", done: true },
-      { name: "Feb backlog Set B – 6 items cleared", done: true },
-      { name: "Feb backlog Set C – 8 items pending", done: false },
-    ],
-  },
-  {
-    id: 4,
-    icon: "📊",
-    label: "Submit mid-month status report",
-    goal: 1,
-    done: 0,
-    deadline: "Mar 15, 2026",
-    description:
-      "Prepare and submit the mid-month application status report to supervisor.",
-    items: [{ name: "Mid-month report – Mar 1–15", done: false }],
-  },
-];
-
-const TARGETS_16_30 = [
-  {
-    id: 1,
-    icon: "📥",
-    label: "Receive 60 new applications",
-    goal: 60,
-    done: 0,
-    deadline: "Mar 30, 2026",
-    description: "Receive and log all incoming applications from Mar 16–30.",
-    items: [
-      { name: "Batch Mar 16–20 – target 20 apps", done: false },
-      { name: "Batch Mar 21–25 – target 20 apps", done: false },
-      { name: "Batch Mar 26–30 – target 20 apps", done: false },
-    ],
-  },
-  {
-    id: 2,
-    icon: "✅",
-    label: "Release 50 processed documents",
-    goal: 50,
-    done: 0,
-    deadline: "Mar 30, 2026",
-    description: "Release all documents completing evaluation from Mar 16–30.",
-    items: [
-      { name: "Mar 16–20 batch – 17 docs target", done: false },
-      { name: "Mar 21–25 batch – 17 docs target", done: false },
-      { name: "Mar 26–30 batch – 16 docs target", done: false },
-    ],
-  },
-  {
-    id: 3,
-    icon: "📬",
-    label: "Notify 30 applicants of final status",
-    goal: 30,
-    done: 0,
-    deadline: "Mar 30, 2026",
-    description:
-      "Send final status notifications to applicants before month-end.",
-    items: [
-      { name: "Batch 1 – 10 applicants (Mar 16–20)", done: false },
-      { name: "Batch 2 – 10 applicants (Mar 21–25)", done: false },
-      { name: "Batch 3 – 10 applicants (Mar 26–30)", done: false },
-    ],
-  },
-  {
-    id: 4,
-    icon: "🗄️",
-    label: "Complete month-end archiving",
-    goal: 15,
-    done: 0,
-    deadline: "Mar 30, 2026",
-    description:
-      "Archive all processed records for March before month-end closing.",
-    items: [
-      { name: "Archive Set A – Mar 1–10 records", done: false },
-      { name: "Archive Set B – Mar 11–20 records", done: false },
-      { name: "Archive Set C – Mar 21–30 records", done: false },
-    ],
-  },
-];
-
-const TARGETS_MONTHLY = [
-  {
-    id: 1,
-    icon: "📦",
-    label: "Process 120 total applications",
-    goal: 120,
-    done: 34,
-    deadline: "Mar 31, 2026",
-    description:
-      "Total applications to be processed for the entire month of March.",
-    items: [
-      { name: "Mar 1–10: 34 processed ✓", done: true },
-      { name: "Mar 11–20: target 43 apps", done: false },
-      { name: "Mar 21–31: target 43 apps", done: false },
-    ],
-  },
-  {
-    id: 2,
-    icon: "✅",
-    label: "Achieve 90 document releases",
-    goal: 90,
-    done: 28,
-    deadline: "Mar 31, 2026",
-    description: "Total target for completed documents for March 2026.",
-    items: [
-      { name: "Mar 1–10: 28 released ✓", done: true },
-      { name: "Mar 11–20: target 31 releases", done: false },
-      { name: "Mar 21–31: target 31 releases", done: false },
-    ],
-  },
-  {
-    id: 3,
-    icon: "📉",
-    label: "Reduce backlog by 30 items",
-    goal: 30,
-    done: 12,
-    deadline: "Mar 31, 2026",
-    description:
-      "Clear accumulated backlog items to improve processing efficiency.",
-    items: [
-      { name: "Feb carryover backlog – 12 cleared ✓", done: true },
-      { name: "Mar mid-month backlog – target 10", done: false },
-      { name: "Mar end-month backlog – target 8", done: false },
-    ],
-  },
-  {
-    id: 4,
-    icon: "📋",
-    label: "Submit monthly accomplishment report",
-    goal: 1,
-    done: 0,
-    deadline: "Mar 31, 2026",
-    description:
-      "Compile and submit the complete monthly accomplishment report.",
-    items: [{ name: "Monthly report – March 2026", done: false }],
-  },
-  {
-    id: 5,
-    icon: "🎯",
-    label: "Maintain 75% completion rate",
-    goal: 100,
-    done: 74,
-    deadline: "Mar 31, 2026",
-    description:
-      "Keep the completion rate at or above 75% for the entire month.",
-    items: [
-      { name: "Mar 1–10: 74% completion rate achieved ✓", done: true },
-      { name: "Mar 11–20: maintain 75%+ target", done: false },
-      { name: "Mar 21–31: maintain 75%+ target", done: false },
-    ],
-  },
-];
-
 const TARGET_PERIODS = {
   weekly: {
     label: "Weekly",
@@ -678,24 +214,10 @@ const TARGET_PERIODS = {
     daysLeft: 2,
     reportPeriod: "Week of Mar 9–13, 2026",
   },
-  first15: {
-    label: "Mar 1–15",
-    sublabel: "First Half",
-    data: TARGETS_1_15,
-    daysLeft: 5,
-    reportPeriod: "Mar 1–15, 2026 (First Half)",
-  },
-  last15: {
-    label: "Mar 16–30",
-    sublabel: "Second Half",
-    data: TARGETS_16_30,
-    daysLeft: 20,
-    reportPeriod: "Mar 16–30, 2026 (Second Half)",
-  },
   monthly: {
     label: "Monthly",
     sublabel: "March 2026",
-    data: TARGETS_MONTHLY,
+    data: TARGETS_WEEKLY,
     daysLeft: 21,
     reportPeriod: "March 2026 (Full Month)",
   },
@@ -712,55 +234,30 @@ function formatDateShort(dateStr) {
     year: "numeric",
   });
 }
-function formatDateDisplay(dateStr) {
-  return formatDateShort(dateStr);
-}
 function formatDateRange(start, end) {
   if (!start && !end) return "";
-  if (start && !end) return formatDateDisplay(start);
-  if (!start && end) return `Until ${formatDateDisplay(end)}`;
-  return `${formatDateDisplay(start)} – ${formatDateDisplay(end)}`;
+  if (start && !end) return formatDateShort(start);
+  if (!start && end) return `Until ${formatDateShort(end)}`;
+  return `${formatDateShort(start)} – ${formatDateShort(end)}`;
 }
 function daysBetween(start, end) {
   if (!start || !end) return null;
-  const ms = new Date(end + "T00:00:00") - new Date(start + "T00:00:00");
-  return Math.max(0, Math.round(ms / 86400000));
+  return Math.max(
+    0,
+    Math.round(
+      (new Date(end + "T00:00:00") - new Date(start + "T00:00:00")) / 86400000,
+    ),
+  );
 }
 function daysUntil(end) {
   if (!end) return null;
-  const ms = new Date(end + "T00:00:00") - TODAY;
-  return Math.max(0, Math.round(ms / 86400000));
-}
-
-function resolveTargetsForRange(start, end) {
-  if (!start || !end) return TARGETS_WEEKLY;
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  const diffDays = Math.round((e - s) / 86400000);
-  if (diffDays <= 9) return TARGETS_WEEKLY;
-  if (s.getDate() <= 5 && e.getDate() <= 16) return TARGETS_1_15;
-  if (s.getDate() >= 14 && e.getDate() >= 20) return TARGETS_16_30;
-  if (diffDays >= 20) return TARGETS_MONTHLY;
-  return TARGETS_WEEKLY;
-}
-
-function buildDateParams(breakdown, selYear, selMonth) {
-  if (breakdown === "year" || selYear === "All") return {};
-  if (breakdown === "month") {
-    return { date_from: `${selYear}-01-01`, date_to: `${selYear}-12-31` };
-  }
-  const monthNum = MONTH_NUM[selMonth];
-  const daysInMonth = new Date(
-    parseInt(selYear),
-    parseInt(monthNum),
+  return Math.max(
     0,
-  ).getDate();
-  return {
-    date_from: `${selYear}-${monthNum}-01`,
-    date_to: `${selYear}-${monthNum}-${String(daysInMonth).padStart(2, "0")}`,
-  };
+    Math.round((new Date(end + "T00:00:00") - TODAY) / 86400000),
+  );
 }
 
+// ─── TargetModal ──────────────────────────────────────────────────────────────
 function TargetModal({ target, onClose, ui }) {
   if (!target) return null;
   const pct = Math.round((target.done / target.goal) * 100);
@@ -786,7 +283,6 @@ function TargetModal({ target, onClose, ui }) {
           borderRadius: 12,
           width: "100%",
           maxWidth: 480,
-          boxShadow: "0 8px 40px rgba(0,0,0,0.22)",
           overflow: "hidden",
         }}
       >
@@ -812,14 +308,7 @@ function TargetModal({ target, onClose, ui }) {
               >
                 {target.label}
               </h3>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "0.76rem",
-                  color: ui.textSub,
-                  marginTop: 2,
-                }}
-              >
+              <p style={{ margin: 0, fontSize: "0.76rem", color: ui.textSub }}>
                 Deadline: {target.deadline}
               </p>
             </div>
@@ -832,8 +321,6 @@ function TargetModal({ target, onClose, ui }) {
               cursor: "pointer",
               color: ui.textMuted,
               fontSize: "1.2rem",
-              lineHeight: 1,
-              padding: 4,
             }}
           >
             ✕
@@ -883,7 +370,6 @@ function TargetModal({ target, onClose, ui }) {
                   borderRadius: 99,
                   width: `${pct}%`,
                   background: pct === 100 ? "#36a420" : FB,
-                  transition: "width 0.4s",
                 }}
               />
             </div>
@@ -969,6 +455,7 @@ function TargetModal({ target, onClose, ui }) {
   );
 }
 
+// ─── AreaChart ────────────────────────────────────────────────────────────────
 function AreaChart({ data, subtitle, ui }) {
   const [hov, setHov] = useState(null);
   const W = 700,
@@ -1007,16 +494,9 @@ function AreaChart({ data, subtitle, ui }) {
                   height: 8,
                   borderRadius: "50%",
                   background: s.color,
-                  flexShrink: 0,
                 }}
               />
-              <span
-                style={{
-                  fontSize: "0.72rem",
-                  color: ui.textSub,
-                  fontFamily: "inherit",
-                }}
-              >
+              <span style={{ fontSize: "0.72rem", color: ui.textSub }}>
                 {s.label}
               </span>
             </div>
@@ -1028,7 +508,6 @@ function AreaChart({ data, subtitle, ui }) {
               fontSize: "0.72rem",
               color: ui.textMuted,
               fontStyle: "italic",
-              fontFamily: "inherit",
             }}
           >
             📅 {subtitle}
@@ -1075,7 +554,6 @@ function AreaChart({ data, subtitle, ui }) {
               textAnchor="end"
               fill={ui.textMuted}
               fontSize="9.5"
-              fontFamily="inherit"
             >
               {t}
             </text>
@@ -1118,7 +596,6 @@ function AreaChart({ data, subtitle, ui }) {
                 textAnchor="middle"
                 fill={ui.textMuted}
                 fontSize="9"
-                fontFamily="inherit"
               >
                 {d.label}
               </text>
@@ -1140,7 +617,6 @@ function AreaChart({ data, subtitle, ui }) {
                   fill={s.color}
                   fontSize="8.5"
                   fontWeight="700"
-                  fontFamily="inherit"
                   style={{ pointerEvents: "none" }}
                 >
                   {d[s.key]}
@@ -1207,7 +683,6 @@ function AreaChart({ data, subtitle, ui }) {
                       fill={ui.textMuted}
                       fontSize="9"
                       fontWeight="600"
-                      fontFamily="inherit"
                     >
                       {d.label}
                       {subtitle ? ` · ${subtitle}` : ""}
@@ -1225,7 +700,6 @@ function AreaChart({ data, subtitle, ui }) {
                           y={tipY + 28 + si * 16}
                           fill={ui.textSub}
                           fontSize="9"
-                          fontFamily="inherit"
                         >
                           {s.label}:
                         </text>
@@ -1236,7 +710,6 @@ function AreaChart({ data, subtitle, ui }) {
                           fill={s.color}
                           fontSize="9"
                           fontWeight="700"
-                          fontFamily="inherit"
                         >
                           {d[s.key] ?? 0}
                         </text>
@@ -1252,6 +725,7 @@ function AreaChart({ data, subtitle, ui }) {
   );
 }
 
+// ─── MetricTile ───────────────────────────────────────────────────────────────
 function MetricTile({
   icon,
   label,
@@ -1354,6 +828,7 @@ function MetricTile({
   );
 }
 
+// ─── Card helpers ─────────────────────────────────────────────────────────────
 function Card({ children, style = {}, ui }) {
   return (
     <div
@@ -1369,7 +844,6 @@ function Card({ children, style = {}, ui }) {
     </div>
   );
 }
-
 function CardHeader({ title, sub, right, ui }) {
   return (
     <div
@@ -1408,7 +882,6 @@ function CardHeader({ title, sub, right, ui }) {
     </div>
   );
 }
-
 const SeeAll = () => (
   <button
     style={{
@@ -1426,6 +899,7 @@ const SeeAll = () => (
   </button>
 );
 
+// ─── Working week helpers (for TargetsPanel) ──────────────────────────────────
 function fmtLocal(d) {
   const y = d.getFullYear(),
     m = String(d.getMonth() + 1).padStart(2, "0"),
@@ -1435,35 +909,30 @@ function fmtLocal(d) {
 function getWorkingWeek() {
   const today = new Date("2026-03-11T00:00:00"),
     dow = today.getDay();
-  const diffToMon = dow === 0 ? -6 : 1 - dow;
   const mon = new Date(today);
-  mon.setDate(today.getDate() + diffToMon);
+  mon.setDate(today.getDate() + (dow === 0 ? -6 : 1 - dow));
   const fri = new Date(mon);
   fri.setDate(mon.getDate() + 4);
   return { start: fmtLocal(mon), end: fmtLocal(fri) };
 }
 function getWorkingDayLabels() {
   const week = getWorkingWeek(),
-    dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"],
-    result = [];
-  for (let i = 0; i < 5; i++) {
+    dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri"];
+  return dayNames.map((dayLabel, i) => {
     const [yr, mo, da] = week.start.split("-").map(Number);
     const d = new Date(yr, mo - 1, da + i);
-    result.push({
-      dayLabel: dayNames[i],
+    return {
+      dayLabel,
       dateNum: d.getDate(),
       monthLabel: d.toLocaleDateString("en-PH", { month: "short" }),
       dateStr: fmtLocal(d),
-    });
-  }
-  return result;
+    };
+  });
 }
 function workingDaysLeft(endDateStr) {
-  const TODAY_STR = "2026-03-11";
   const [ey, em, ed] = endDateStr.split("-").map(Number),
-    [ty, tm, td] = TODAY_STR.split("-").map(Number);
-  const end = new Date(ey, em - 1, ed),
-    cur = new Date(ty, tm - 1, td);
+    cur = new Date(2026, 2, 11);
+  const end = new Date(ey, em - 1, ed);
   let count = 0;
   while (cur <= end) {
     const dow = cur.getDay();
@@ -1473,6 +942,7 @@ function workingDaysLeft(endDateStr) {
   return count;
 }
 
+// ─── TargetsPanel ─────────────────────────────────────────────────────────────
 function TargetsPanel({ ui, onSelectTarget }) {
   const week = getWorkingWeek(),
     workingDays = getWorkingDayLabels(),
@@ -1541,7 +1011,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
                     fontWeight: 700,
                     color: isToday ? "rgba(255,255,255,0.75)" : ui.textMuted,
                     textTransform: "uppercase",
-                    letterSpacing: "0.04em",
                   }}
                 >
                   {wd.dayLabel}
@@ -1562,7 +1031,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
                     margin: 0,
                     fontSize: "0.56rem",
                     color: isToday ? "rgba(255,255,255,0.7)" : ui.textMuted,
-                    lineHeight: 1,
                   }}
                 >
                   {wd.monthLabel}
@@ -1580,21 +1048,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
                   >
                     ✓
                   </span>
-                )}
-                {isToday && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      bottom: -1,
-                      left: "50%",
-                      transform: "translateX(-50%)",
-                      width: 4,
-                      height: 4,
-                      borderRadius: "50%",
-                      background: "#fff",
-                      opacity: 0.8,
-                    }}
-                  />
                 )}
               </div>
             );
@@ -1648,7 +1101,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
                 fontSize: "0.56rem",
                 color: ui.textMuted,
                 textTransform: "uppercase",
-                letterSpacing: "0.03em",
               }}
             >
               days
@@ -1686,7 +1138,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
                 width: `${pct}%`,
                 borderRadius: 99,
                 background: pct === 100 ? "#36a420" : FB,
-                transition: "width 0.4s",
               }}
             />
           </div>
@@ -1705,7 +1156,6 @@ function TargetsPanel({ ui, onSelectTarget }) {
                 justifyContent: "space-between",
                 padding: "10px 16px",
                 cursor: "pointer",
-                transition: "background 0.12s",
               }}
               onMouseEnter={(e) =>
                 (e.currentTarget.style.background = ui.hoverBg)
@@ -1723,9 +1173,7 @@ function TargetsPanel({ ui, onSelectTarget }) {
                   minWidth: 0,
                 }}
               >
-                <span style={{ fontSize: "1.05rem", flexShrink: 0 }}>
-                  {t.icon}
-                </span>
+                <span style={{ fontSize: "1.05rem" }}>{t.icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p
                     style={{
@@ -1766,13 +1214,7 @@ function TargetsPanel({ ui, onSelectTarget }) {
                         }}
                       />
                     </div>
-                    <span
-                      style={{
-                        fontSize: "0.7rem",
-                        color: ui.textMuted,
-                        flexShrink: 0,
-                      }}
-                    >
+                    <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
                       {t.done}/{t.goal}
                     </span>
                   </div>
@@ -1787,24 +1229,11 @@ function TargetsPanel({ ui, onSelectTarget }) {
   );
 }
 
-function AccomplishmentReport({
-  onClose,
-  totals,
-  ui,
-  reportPeriodKey,
-  customDates,
-}) {
-  const isCustom = reportPeriodKey === "custom";
-  const period = isCustom ? null : TARGET_PERIODS[reportPeriodKey];
-  const targets = isCustom
-    ? resolveTargetsForRange(customDates?.start, customDates?.end)
-    : period.data;
-  const customRangeLabel = isCustom
-    ? formatDateRange(customDates?.start, customDates?.end)
-    : "";
-  const displayPeriod = isCustom ? customRangeLabel : period.reportPeriod;
-  const periodLabel = isCustom ? "Custom Period" : period.label;
-  const daysLeftVal = isCustom ? daysUntil(customDates?.end) : period.daysLeft;
+// ─── AccomplishmentReport ─────────────────────────────────────────────────────
+function AccomplishmentReport({ onClose, totals, ui, customDates }) {
+  const targets = TARGETS_WEEKLY;
+  const displayPeriod = formatDateRange(customDates?.start, customDates?.end);
+  const daysLeftVal = daysUntil(customDates?.end);
   const totalDone = targets.reduce((s, t) => s + t.done, 0),
     totalGoal = targets.reduce((s, t) => s + t.goal, 0);
   const overallPct = Math.round((totalDone / totalGoal) * 100);
@@ -1812,27 +1241,6 @@ function AccomplishmentReport({
     totals.received > 0
       ? ((totals.completed / totals.received) * 100).toFixed(1)
       : "0.0";
-  const handlePrint = () => window.print();
-  const rangeLabel = isCustom
-    ? (() => {
-        const diffDays =
-          customDates?.start && customDates?.end
-            ? Math.round(
-                (new Date(customDates.end + "T00:00:00") -
-                  new Date(customDates.start + "T00:00:00")) /
-                  86400000,
-              )
-            : 0;
-        if (diffDays <= 9) return "Weekly Targets";
-        const s = new Date((customDates?.start || "") + "T00:00:00"),
-          e = new Date((customDates?.end || "") + "T00:00:00");
-        if (s.getDate() <= 5 && e.getDate() <= 16) return "Mar 1–15 Targets";
-        if (s.getDate() >= 14 && e.getDate() >= 20) return "Mar 16–30 Targets";
-        if (diffDays >= 20) return "Monthly Targets";
-        return "Weekly Targets";
-      })()
-    : null;
-
   return (
     <div
       style={{
@@ -1856,8 +1264,6 @@ function AccomplishmentReport({
           borderRadius: 12,
           width: "100%",
           maxWidth: 620,
-          boxShadow: "0 12px 48px rgba(0,0,0,0.25)",
-          overflow: "hidden",
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
@@ -1897,7 +1303,7 @@ function AccomplishmentReport({
           </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={handlePrint}
+              onClick={() => window.print()}
               style={{
                 padding: "6px 14px",
                 borderRadius: 7,
@@ -1919,7 +1325,6 @@ function AccomplishmentReport({
                 cursor: "pointer",
                 color: ui.textMuted,
                 fontSize: "1.2rem",
-                lineHeight: 1,
                 padding: 4,
               }}
             >
@@ -1960,18 +1365,6 @@ function AccomplishmentReport({
               {displayPeriod} &nbsp;|&nbsp; Generated: March 11, 2026
             </p>
           </div>
-          <h4
-            style={{
-              margin: "0 0 10px",
-              fontSize: "0.82rem",
-              fontWeight: 700,
-              color: ui.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-            }}
-          >
-            Application Summary
-          </h4>
           <div
             style={{
               display: "grid",
@@ -2043,192 +1436,12 @@ function AccomplishmentReport({
               </div>
             ))}
           </div>
-          <h4
-            style={{
-              margin: "0 0 10px",
-              fontSize: "0.82rem",
-              fontWeight: 700,
-              color: ui.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-            }}
-          >
-            {isCustom
-              ? `${rangeLabel || "Period"} Progress`
-              : `${periodLabel} Targets Progress`}
-          </h4>
           <div
             style={{
               padding: "12px 14px",
               borderRadius: 8,
               background: ui.pageBg,
               border: `1px solid ${ui.cardBorder}`,
-              marginBottom: 12,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: "0.8rem",
-                marginBottom: 6,
-              }}
-            >
-              <span style={{ fontWeight: 600, color: ui.textPrimary }}>
-                Overall Completion
-              </span>
-              <span
-                style={{
-                  fontWeight: 700,
-                  color: overallPct === 100 ? "#36a420" : FB,
-                }}
-              >
-                {totalDone}/{totalGoal} tasks · {overallPct}%
-              </span>
-            </div>
-            <div
-              style={{
-                height: 8,
-                borderRadius: 99,
-                background: ui.progressBg,
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  height: "100%",
-                  width: `${overallPct}%`,
-                  borderRadius: 99,
-                  background: overallPct === 100 ? "#36a420" : FB,
-                  transition: "width 0.4s",
-                }}
-              />
-            </div>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              marginBottom: 20,
-            }}
-          >
-            {targets.map((t) => {
-              const tp = Math.round((t.done / t.goal) * 100);
-              const statusColor =
-                tp === 100
-                  ? "#36a420"
-                  : tp >= 50
-                    ? "#f59e0b"
-                    : tp > 0
-                      ? "#e02020"
-                      : "#8a8d91";
-              const statusLabel =
-                tp === 100
-                  ? "Completed"
-                  : tp >= 50
-                    ? "In Progress"
-                    : tp > 0
-                      ? "Behind"
-                      : "Not Started";
-              return (
-                <div
-                  key={t.id}
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 8,
-                    border: `1px solid ${ui.cardBorder}`,
-                    background: ui.cardBg,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginBottom: 6,
-                    }}
-                  >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 8 }}
-                    >
-                      <span style={{ fontSize: "1rem" }}>{t.icon}</span>
-                      <span
-                        style={{
-                          fontSize: "0.84rem",
-                          fontWeight: 600,
-                          color: ui.textPrimary,
-                        }}
-                      >
-                        {t.label}
-                      </span>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.72rem",
-                        fontWeight: 700,
-                        color: statusColor,
-                        background: `${statusColor}18`,
-                        padding: "2px 8px",
-                        borderRadius: 99,
-                      }}
-                    >
-                      {statusLabel}
-                    </span>
-                  </div>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <div
-                      style={{
-                        flex: 1,
-                        height: 5,
-                        borderRadius: 99,
-                        background: ui.progressBg,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: "100%",
-                          width: `${tp}%`,
-                          borderRadius: 99,
-                          background: statusColor,
-                        }}
-                      />
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        color: ui.textMuted,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {t.done}/{t.goal} ({tp}%)
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <h4
-            style={{
-              margin: "0 0 8px",
-              fontSize: "0.82rem",
-              fontWeight: 700,
-              color: ui.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-            }}
-          >
-            Remarks
-          </h4>
-          <div
-            style={{
-              padding: "12px 14px",
-              borderRadius: 8,
-              border: `1px solid ${ui.cardBorder}`,
-              background: ui.pageBg,
               fontSize: "0.82rem",
               color: ui.textSub,
               lineHeight: 1.7,
@@ -2244,13 +1457,8 @@ function AccomplishmentReport({
             <strong style={{ color: "#36a420" }}>{totals.completed}</strong>{" "}
             were completed and{" "}
             <strong style={{ color: "#f59e0b" }}>{totals.onProcess}</strong> are
-            currently on process, achieving a completed rate of{" "}
-            <strong style={{ color: "#9333ea" }}>{completedRate}%</strong>.{" "}
-            {isCustom ? `${rangeLabel || "Period"}` : periodLabel} targets are
-            at{" "}
-            <strong style={{ color: overallPct >= 50 ? "#f59e0b" : "#e02020" }}>
-              {overallPct}% completion
-            </strong>
+            currently on process, achieving a completion rate of{" "}
+            <strong style={{ color: "#9333ea" }}>{completedRate}%</strong>
             {daysLeftVal !== null ? (
               <>
                 {" "}
@@ -2292,7 +1500,7 @@ function AccomplishmentReport({
             Cancel
           </button>
           <button
-            onClick={handlePrint}
+            onClick={() => window.print()}
             style={{
               padding: "8px 20px",
               borderRadius: 8,
@@ -2313,36 +1521,86 @@ function AccomplishmentReport({
 }
 
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
-export default function DashboardPage({
-  darkMode: darkModeProp,
-  onToggleDark,
-}) {
+export default function DashboardPage({ darkMode: darkModeProp }) {
   const [internalDark, setInternalDark] = useState(true);
   const darkMode = darkModeProp !== undefined ? darkModeProp : internalDark;
   const ui = useMemo(() => makeUI(darkMode), [darkMode]);
+  const font =
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
+  // ── Controls ───────────────────────────────────────────────────────────────
   const [breakdown, setBreakdown] = useState("day");
   const [selYear, setSelYear] = useState("2026");
   const [selMonth, setSelMonth] = useState("Mar");
   const [activeMetric, setActiveMetric] = useState(0);
   const [activeTarget, setActiveTarget] = useState(null);
   const [showReport, setShowReport] = useState(false);
-  const [reportPeriodKey, setReportPeriodKey] = useState("weekly");
   const [customReportDates, setCustomReportDates] = useState(null);
   const [tablePage, setTablePage] = useState(0);
   const TABLE_PAGE_SIZE = 13;
 
+  // ── KPI tiles state (summary endpoint) ────────────────────────────────────
   const [liveStats, setLiveStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(null);
 
+  // ── Chart / table state (chart endpoint) ──────────────────────────────────
+  const [chartData, setChartData] = useState([]);
+  const [chartTotals, setChartTotals] = useState({
+    received: 0,
+    completed: 0,
+    onProcess: 0,
+    target: 0,
+    completedRate: null,
+  });
+  const [chartLoading, setChartLoading] = useState(true);
+  const [chartError, setChartError] = useState(null);
+  const [chartSubtitle, setChartSubtitle] = useState("");
+
+  // ── Accomplishment report date pickers ────────────────────────────────────
+  const week = getWorkingWeek();
+  const [reportStart, setReportStart] = useState(week.start);
+  const [reportEnd, setReportEnd] = useState(week.end);
+  const [reportDateErr, setReportDateErr] = useState("");
+  const handleReportStartChange = (v) => {
+    setReportStart(v);
+    setReportDateErr(
+      reportEnd && v > reportEnd ? "Start must be before end date." : "",
+    );
+  };
+  const handleReportEndChange = (v) => {
+    setReportEnd(v);
+    setReportDateErr(
+      reportStart && v < reportStart ? "End must be after start date." : "",
+    );
+  };
+  const canGenReport = !reportDateErr && reportStart && reportEnd;
+
+  const inputSt2 = {
+    width: "100%",
+    padding: "7px 10px",
+    borderRadius: 7,
+    border: `1.5px solid ${ui.metricBorder}`,
+    background: ui.inputBg,
+    color: ui.textPrimary,
+    fontSize: "0.8rem",
+    fontFamily: "inherit",
+    outline: "none",
+    boxSizing: "border-box",
+    cursor: "pointer",
+  };
+
+  // ── Fetch: KPI summary ────────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
     setStatsError(null);
     try {
-      const params = buildDateParams(breakdown, selYear, selMonth);
-      const data = await getDashboardSummary(params);
-      setLiveStats(data);
+      // Always pass the same date window as the chart for consistency
+      const p = buildChartParams(breakdown, selYear, selMonth);
+      const params = {};
+      if (p.date_from) params.date_from = p.date_from;
+      if (p.date_to) params.date_to = p.date_to;
+      setLiveStats(await getDashboardSummary(params));
     } catch (err) {
       setStatsError(
         err?.response?.data?.detail || err.message || "Failed to load stats",
@@ -2353,134 +1611,104 @@ export default function DashboardPage({
     }
   }, [breakdown, selYear, selMonth]);
 
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+  // ── Fetch: chart / table ──────────────────────────────────────────────────
+  const fetchChart = useCallback(async () => {
+    setChartLoading(true);
+    setChartError(null);
+    try {
+      const params = buildChartParams(breakdown, selYear, selMonth);
+      const res = await getDashboardChart(params);
 
-  const { chartData, chartSubtitle } = useMemo(() => {
-    if (breakdown === "year")
-      return { chartData: DATA_ALL_YEARS, chartSubtitle: "All Years" };
-    if (breakdown === "month") {
-      if (selYear === "All") {
-        const combined = {};
-        Object.values(DATA_MONTHLY_BY_YEAR).forEach((months) => {
-          months.forEach((m) => {
-            if (!combined[m.label])
-              combined[m.label] = {
-                label: m.label,
-                received: 0,
-                completed: 0,
-                onProcess: 0,
-                target: 0,
-              };
-            combined[m.label].received += m.received;
-            combined[m.label].completed += m.completed;
-            combined[m.label].onProcess += m.onProcess;
-            combined[m.label].target += m.target || 0;
-          });
-        });
-        const order = [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
-        ];
-        return {
-          chartData: order.map(
-            (l) =>
-              combined[l] || {
-                label: l,
-                received: 0,
-                completed: 0,
-                onProcess: 0,
-                target: 0,
-              },
-          ),
-          chartSubtitle: "All Years Combined",
-        };
-      }
-      return {
-        chartData: DATA_MONTHLY_BY_YEAR[selYear] || [],
-        chartSubtitle: selYear,
-      };
+      // Map snake_case → camelCase for the chart component
+      setChartData(res.data.map(mapPoint));
+
+      setChartTotals({
+        received: res.total_received ?? 0,
+        completed: res.total_completed ?? 0,
+        onProcess: res.total_on_process ?? 0,
+        target: res.total_target ?? 0,
+        completedRate: res.overall_completed_rate ?? null,
+      });
+
+      // Build subtitle  e.g. "Mar 2026" | "2026" | "All Years"
+      if (breakdown === "day") setChartSubtitle(`${selMonth} ${selYear}`);
+      if (breakdown === "month") setChartSubtitle(selYear);
+      if (breakdown === "year") setChartSubtitle("All Years");
+
+      setTablePage(0);
+    } catch (err) {
+      setChartError(
+        err?.response?.data?.detail ||
+          err.message ||
+          "Failed to load chart data",
+      );
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
     }
-    const key = `${selYear}-${MONTH_NUM[selMonth]}`;
-    const data =
-      DATA_DAILY_BY_MONTH[key] ||
-      generateDailyData(selYear, MONTH_IDX[selMonth], MONTH_DAYS[selMonth]);
-    return { chartData: data, chartSubtitle: `${selMonth} ${selYear}` };
   }, [breakdown, selYear, selMonth]);
 
   useEffect(() => {
-    setTablePage(0);
-  }, [chartData]);
+    fetchStats();
+  }, [fetchStats]);
+  useEffect(() => {
+    fetchChart();
+  }, [fetchChart]);
 
-  const totals = useMemo(
-    () => ({
-      received: chartData.reduce((s, r) => s + r.received, 0),
-      completed: chartData.reduce((s, r) => s + r.completed, 0),
-      onProcess: chartData.reduce((s, r) => s + r.onProcess, 0),
-      target: chartData.reduce((s, r) => s + (r.target || 0), 0),
-    }),
-    [chartData],
-  );
-
-  const completedRate =
-    totals.received > 0
-      ? ((totals.completed / totals.received) * 100).toFixed(1)
-      : "0.0";
-
+  // ── Metrics array (tiles) ─────────────────────────────────────────────────
   const metrics = [
     {
       icon: "👁️",
       label: "Total Received",
-      value: liveStats ? liveStats.received : totals.received,
+      value: liveStats ? liveStats.received : chartTotals.received,
       change: 8,
-      key: "received",
       isLive: true,
     },
     {
       icon: "✅",
       label: "Completed",
-      value: liveStats ? liveStats.completed : totals.completed,
+      value: liveStats ? liveStats.completed : chartTotals.completed,
       change: -3,
-      key: "completed",
       isLive: true,
     },
     {
       icon: "⏳",
       label: "On Process",
-      value: liveStats ? liveStats.on_process : totals.onProcess,
+      value: liveStats ? liveStats.on_process : chartTotals.onProcess,
       change: 12,
-      key: "onProcess",
       isLive: true,
     },
     {
       icon: "🎯",
       label: "Target",
-      value: totals.target,
+      value: chartTotals.target,
       change: 0,
-      key: "target",
       isLive: false,
     },
   ];
 
-  const font =
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const [recentApps, setRecentApps] = useState([]);
+  const [recentLoading, setRecentLoading] = useState(true);
+  const [recentError, setRecentError] = useState(null);
 
-  const handleShowReport = (periodKey, customDates) => {
-    setReportPeriodKey(periodKey);
-    setCustomReportDates(customDates || null);
-    setShowReport(true);
-  };
+  const fetchRecentApps = useCallback(async () => {
+    setRecentLoading(true);
+    setRecentError(null);
+    try {
+      const res = await getDashboardRecentApplications({ limit: 10 });
+      setRecentApps(res.data);
+    } catch (err) {
+      setRecentError(
+        err?.response?.data?.detail || err.message || "Failed to load",
+      );
+      setRecentApps([]);
+    } finally {
+      setRecentLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    fetchRecentApps();
+  }, [fetchRecentApps]);
 
   const [dbConnections, setDbConnections] = useState([
     {
@@ -2512,68 +1740,33 @@ export default function DashboardPage({
   const allActive = dbConnections.every((c) => c.active),
     someInactive = dbConnections.some((c) => !c.active);
 
-  const [reportStart, setReportStart] = useState(getWorkingWeek().start);
-  const [reportEnd, setReportEnd] = useState(getWorkingWeek().end);
-  const [reportDateErr, setReportDateErr] = useState("");
-  const handleReportStartChange = (v) => {
-    setReportStart(v);
-    setReportDateErr(
-      reportEnd && v > reportEnd ? "Start must be before end date." : "",
-    );
-  };
-  const handleReportEndChange = (v) => {
-    setReportEnd(v);
-    setReportDateErr(
-      reportStart && v < reportStart ? "End must be after start date." : "",
-    );
-  };
-  const canGenReport = !reportDateErr && reportStart && reportEnd;
-  const inputSt2 = {
-    width: "100%",
-    padding: "7px 10px",
-    borderRadius: 7,
-    border: `1.5px solid ${ui.metricBorder}`,
-    background: ui.inputBg,
-    color: ui.textPrimary,
-    fontSize: "0.8rem",
-    fontFamily: "inherit",
-    outline: "none",
-    boxSizing: "border-box",
-    cursor: "pointer",
-  };
-
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
   );
   useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    const h = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", h);
+    return () => window.removeEventListener("resize", h);
   }, []);
 
   useEffect(() => {
     const id = "cdrr-style";
     if (!document.getElementById(id)) {
-      const style = document.createElement("style");
-      style.id = id;
-      style.textContent = `
-        .cdrr-scroll::-webkit-scrollbar{width:7px}
-        .cdrr-scroll::-webkit-scrollbar-track{background:transparent}
-        .cdrr-scroll::-webkit-scrollbar-thumb{background:#3a3b3c;border-radius:99px}
-        .cdrr-scroll::-webkit-scrollbar-thumb:hover{background:#555}
-        .cdrr-scroll{scrollbar-width:thin;scrollbar-color:#3a3b3c transparent}
-        @keyframes cdrrPulse{0%,100%{opacity:1}50%{opacity:0.4}}
-      `;
-      document.head.appendChild(style);
+      const s = document.createElement("style");
+      s.id = id;
+      s.textContent = `.cdrr-scroll::-webkit-scrollbar{width:7px}.cdrr-scroll::-webkit-scrollbar-track{background:transparent}.cdrr-scroll::-webkit-scrollbar-thumb{background:#3a3b3c;border-radius:99px}.cdrr-scroll::-webkit-scrollbar-thumb:hover{background:#555}.cdrr-scroll{scrollbar-width:thin;scrollbar-color:#3a3b3c transparent}@keyframes cdrrPulse{0%,100%{opacity:1}50%{opacity:0.4}}`;
+      document.head.appendChild(s);
     }
     return () => {
-      const el = document.getElementById(id);
+      const el = document.getElementById("cdrr-style");
       if (el) el.remove();
     };
   }, []);
 
+  // ─── RightPanel ────────────────────────────────────────────────────────────
   const RightPanel = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* System Status */}
       <Card ui={ui}>
         <div
           style={{
@@ -2623,8 +1816,6 @@ export default function DashboardPage({
                 : someInactive
                   ? "#f59e0b"
                   : "#e02020",
-              boxShadow: `0 0 0 3px ${allActive ? "#36a42022" : someInactive ? "#f59e0b22" : "#e0202022"}`,
-              flexShrink: 0,
             }}
           />
         </div>
@@ -2647,7 +1838,6 @@ export default function DashboardPage({
                 borderRadius: 8,
                 border: `1px solid ${conn.active ? "#36a42030" : "#e0202030"}`,
                 background: conn.active ? "#36a42008" : "#e0202008",
-                transition: "all 0.2s",
               }}
             >
               <div
@@ -2660,7 +1850,6 @@ export default function DashboardPage({
                   alignItems: "center",
                   justifyContent: "center",
                   fontSize: "1rem",
-                  flexShrink: 0,
                 }}
               >
                 {conn.icon}
@@ -2700,8 +1889,6 @@ export default function DashboardPage({
                   border: `1.5px solid ${conn.active ? "#36a42050" : "#e0202050"}`,
                   background: conn.active ? "#36a42015" : "#e0202015",
                   cursor: "pointer",
-                  flexShrink: 0,
-                  transition: "all 0.15s",
                   fontFamily: "inherit",
                 }}
               >
@@ -2712,8 +1899,6 @@ export default function DashboardPage({
                     borderRadius: "50%",
                     background: conn.active ? "#36a420" : "#e02020",
                     display: "inline-block",
-                    flexShrink: 0,
-                    boxShadow: conn.active ? "0 0 0 2px #36a42030" : "none",
                   }}
                 />
                 <span
@@ -2721,7 +1906,6 @@ export default function DashboardPage({
                     fontSize: "0.7rem",
                     fontWeight: 700,
                     color: conn.active ? "#36a420" : "#e02020",
-                    whiteSpace: "nowrap",
                   }}
                 >
                   {conn.active ? "Active" : "Inactive"}
@@ -2732,6 +1916,7 @@ export default function DashboardPage({
         </div>
       </Card>
 
+      {/* Accomplishment Report */}
       <Card ui={ui}>
         <div style={{ padding: "14px 16px 10px" }}>
           <h3
@@ -2839,7 +2024,6 @@ export default function DashboardPage({
                   marginLeft: "auto",
                   fontSize: "0.69rem",
                   color: ui.textMuted,
-                  flexShrink: 0,
                 }}
               >
                 {daysBetween(reportStart, reportEnd)}d
@@ -2849,7 +2033,8 @@ export default function DashboardPage({
           <button
             onClick={() =>
               canGenReport &&
-              handleShowReport("custom", { start: reportStart, end: reportEnd })
+              (setCustomReportDates({ start: reportStart, end: reportEnd }),
+              setShowReport(true))
             }
             disabled={!canGenReport}
             style={{
@@ -2862,11 +2047,6 @@ export default function DashboardPage({
               fontSize: "0.84rem",
               fontWeight: 700,
               cursor: canGenReport ? "pointer" : "not-allowed",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 6,
-              transition: "all 0.15s",
               opacity: canGenReport ? 1 : 0.5,
               fontFamily: "inherit",
             }}
@@ -2884,6 +2064,7 @@ export default function DashboardPage({
 
       <TargetsPanel ui={ui} onSelectTarget={setActiveTarget} />
 
+      {/* Next Steps */}
       <Card ui={ui}>
         <div
           style={{
@@ -2930,7 +2111,6 @@ export default function DashboardPage({
               borderBottom:
                 i < arr.length - 1 ? `1px solid ${ui.divider}` : "none",
               cursor: "pointer",
-              transition: "background 0.12s",
             }}
             onMouseEnter={(e) =>
               (e.currentTarget.style.background = ui.hoverBg)
@@ -2974,46 +2154,101 @@ export default function DashboardPage({
     </div>
   );
 
+  // ─── Data table (uses chartData from API) ──────────────────────────────────
+  const totalPages = Math.ceil(chartData.length / TABLE_PAGE_SIZE);
+  const safePage = Math.min(tablePage, Math.max(0, totalPages - 1));
+  const pagedRows = chartData.slice(
+    safePage * TABLE_PAGE_SIZE,
+    (safePage + 1) * TABLE_PAGE_SIZE,
+  );
+  const startRow = safePage * TABLE_PAGE_SIZE + 1,
+    endRow = Math.min(startRow + TABLE_PAGE_SIZE - 1, chartData.length);
+  const unitLabel =
+    breakdown === "day" ? "day" : breakdown === "month" ? "month" : "year";
+
   return (
     <>
-      {statsError && (
+      {/* Error toasts */}
+      {(statsError || chartError) && (
         <div
           style={{
             position: "fixed",
             bottom: 20,
             right: 20,
             zIndex: 9999,
-            background: "#e02020",
-            color: "#fff",
-            padding: "10px 16px",
-            borderRadius: 8,
-            fontSize: "0.8rem",
-            fontWeight: 600,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
             display: "flex",
-            alignItems: "center",
-            gap: 10,
-            maxWidth: 320,
+            flexDirection: "column",
+            gap: 8,
           }}
         >
-          <span>⚠️</span>
-          <span>Stats API error: {statsError}</span>
-          <button
-            onClick={fetchStats}
-            style={{
-              background: "rgba(255,255,255,0.2)",
-              border: "none",
-              color: "#fff",
-              padding: "3px 10px",
-              borderRadius: 6,
-              cursor: "pointer",
-              fontSize: "0.76rem",
-              fontWeight: 700,
-              fontFamily: "inherit",
-            }}
-          >
-            Retry
-          </button>
+          {statsError && (
+            <div
+              style={{
+                background: "#e02020",
+                color: "#fff",
+                padding: "10px 16px",
+                borderRadius: 8,
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                maxWidth: 320,
+              }}
+            >
+              <span>⚠️ Stats: {statsError}</span>
+              <button
+                onClick={fetchStats}
+                style={{
+                  background: "rgba(255,255,255,0.2)",
+                  border: "none",
+                  color: "#fff",
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: "0.76rem",
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          {chartError && (
+            <div
+              style={{
+                background: "#e02020",
+                color: "#fff",
+                padding: "10px 16px",
+                borderRadius: 8,
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                maxWidth: 320,
+              }}
+            >
+              <span>⚠️ Chart: {chartError}</span>
+              <button
+                onClick={fetchChart}
+                style={{
+                  background: "rgba(255,255,255,0.2)",
+                  border: "none",
+                  color: "#fff",
+                  padding: "3px 10px",
+                  borderRadius: 6,
+                  cursor: "pointer",
+                  fontSize: "0.76rem",
+                  fontWeight: 700,
+                  fontFamily: "inherit",
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -3050,9 +2285,12 @@ export default function DashboardPage({
               boxSizing: "border-box",
             }}
           >
+            {/* ── Left column ────────────────────────────────────────────── */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* Insights card */}
               <Card ui={ui}>
                 <div style={{ padding: "14px 16px 0" }}>
+                  {/* Header row */}
                   <div
                     style={{
                       display: "flex",
@@ -3078,8 +2316,7 @@ export default function DashboardPage({
                         style={{
                           fontSize: "0.8rem",
                           color: ui.textSub,
-                          margin: 0,
-                          marginTop: 2,
+                          margin: "2px 0 0",
                         }}
                       >
                         Learn how your applications are performing.
@@ -3094,6 +2331,7 @@ export default function DashboardPage({
                         justifyContent: "flex-end",
                       }}
                     >
+                      {/* Breakdown toggle */}
                       <div
                         style={{
                           display: "flex",
@@ -3124,7 +2362,6 @@ export default function DashboardPage({
                               fontSize: "0.76rem",
                               fontWeight: breakdown === opt.key ? 700 : 500,
                               cursor: "pointer",
-                              transition: "all 0.15s",
                               fontFamily: "inherit",
                               whiteSpace: "nowrap",
                             }}
@@ -3133,15 +2370,13 @@ export default function DashboardPage({
                           </button>
                         ))}
                       </div>
+                      {/* Year picker */}
                       {(breakdown === "day" || breakdown === "month") && (
                         <select
                           value={selYear}
                           onChange={(e) => {
                             setSelYear(e.target.value);
-                            if (
-                              breakdown === "day" &&
-                              e.target.value !== "All"
-                            ) {
+                            if (breakdown === "day") {
                               const months =
                                 MONTHS_BY_YEAR[e.target.value] || [];
                               if (!months.includes(selMonth))
@@ -3165,19 +2400,15 @@ export default function DashboardPage({
                             backgroundPosition: "right 8px center",
                           }}
                         >
-                          {breakdown === "month" && (
-                            <option value="All">All Years</option>
-                          )}
-                          {AVAILABLE_YEARS.filter((y) => y !== "All").map(
-                            (y) => (
-                              <option key={y} value={y}>
-                                {y}
-                              </option>
-                            ),
-                          )}
+                          {AVAILABLE_YEARS.map((y) => (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          ))}
                         </select>
                       )}
-                      {breakdown === "day" && selYear !== "All" && (
+                      {/* Month picker */}
+                      {breakdown === "day" && (
                         <select
                           value={selMonth}
                           onChange={(e) => setSelMonth(e.target.value)}
@@ -3208,6 +2439,8 @@ export default function DashboardPage({
                       <SeeAll />
                     </div>
                   </div>
+
+                  {/* KPI tiles */}
                   <div
                     style={{
                       display: "flex",
@@ -3231,7 +2464,29 @@ export default function DashboardPage({
                     ))}
                   </div>
                 </div>
-                <div style={{ padding: "0 16px 12px" }}>
+
+                {/* Chart */}
+                <div style={{ padding: "0 16px 12px", position: "relative" }}>
+                  {chartLoading && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: `${ui.cardBg}cc`,
+                        zIndex: 2,
+                        borderRadius: 8,
+                      }}
+                    >
+                      <span
+                        style={{ fontSize: "0.82rem", color: ui.textMuted }}
+                      >
+                        ⏳ Loading chart…
+                      </span>
+                    </div>
+                  )}
                   <AreaChart
                     data={chartData}
                     subtitle={chartSubtitle}
@@ -3239,345 +2494,326 @@ export default function DashboardPage({
                   />
                 </div>
 
-                {(() => {
-                  const totalPages = Math.ceil(
-                    chartData.length / TABLE_PAGE_SIZE,
-                  );
-                  const safePage = Math.min(
-                    tablePage,
-                    Math.max(0, totalPages - 1),
-                  );
-                  const pagedRows = chartData.slice(
-                    safePage * TABLE_PAGE_SIZE,
-                    safePage * TABLE_PAGE_SIZE + TABLE_PAGE_SIZE,
-                  );
-                  const unitLabel =
-                    breakdown === "day"
-                      ? "day"
-                      : breakdown === "month"
-                        ? "month"
-                        : "year";
-                  const startRow = safePage * TABLE_PAGE_SIZE + 1,
-                    endRow = Math.min(
-                      startRow + TABLE_PAGE_SIZE - 1,
-                      chartData.length,
-                    );
-                  return (
-                    <div
+                {/* Data Table */}
+                <div
+                  style={{
+                    borderTop: `1px solid ${ui.divider}`,
+                    padding: "0 16px 16px",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "10px 0 8px",
+                    }}
+                  >
+                    <p
                       style={{
-                        borderTop: `1px solid ${ui.divider}`,
-                        padding: "0 16px 16px",
+                        margin: 0,
+                        fontSize: "0.8rem",
+                        fontWeight: 700,
+                        color: ui.textPrimary,
                       }}
                     >
-                      <div
+                      Data Table{" "}
+                      <span
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "10px 0 8px",
+                          marginLeft: 8,
+                          fontSize: "0.72rem",
+                          fontWeight: 400,
+                          color: ui.textMuted,
                         }}
                       >
-                        <p
-                          style={{
-                            margin: 0,
-                            fontSize: "0.8rem",
-                            fontWeight: 700,
-                            color: ui.textPrimary,
-                          }}
-                        >
-                          Data Table{" "}
-                          <span
-                            style={{
-                              marginLeft: 8,
-                              fontSize: "0.72rem",
-                              fontWeight: 400,
-                              color: ui.textMuted,
-                            }}
-                          >
-                            📅 {chartSubtitle}
-                          </span>
-                        </p>
-                        <span
-                          style={{ fontSize: "0.72rem", color: ui.textMuted }}
-                        >
-                          {startRow}–{endRow} of {chartData.length} {unitLabel}
-                          {chartData.length !== 1 ? "s" : ""}
-                        </span>
-                      </div>
-                      <div
+                        📅 {chartSubtitle}
+                      </span>
+                    </p>
+                    <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                      {chartData.length > 0
+                        ? `${startRow}–${endRow} of ${chartData.length} ${unitLabel}${chartData.length !== 1 ? "s" : ""}`
+                        : ""}
+                    </span>
+                  </div>
+                  {chartLoading ? (
+                    <div
+                      style={{
+                        padding: "2rem",
+                        textAlign: "center",
+                        color: ui.textMuted,
+                        fontSize: "0.82rem",
+                      }}
+                    >
+                      ⏳ Loading data…
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        overflowX: "auto",
+                        borderRadius: 8,
+                        border: `1px solid ${ui.cardBorder}`,
+                      }}
+                    >
+                      <table
                         style={{
-                          overflowX: "auto",
-                          borderRadius: 8,
-                          border: `1px solid ${ui.cardBorder}`,
+                          width: "100%",
+                          borderCollapse: "collapse",
+                          fontSize: "0.8rem",
+                          fontFamily: "inherit",
                         }}
                       >
-                        <table
-                          style={{
-                            width: "100%",
-                            borderCollapse: "collapse",
-                            fontSize: "0.8rem",
-                            fontFamily: "inherit",
-                          }}
-                        >
-                          <thead>
-                            <tr style={{ background: ui.pageBg }}>
-                              {[
-                                {
-                                  label:
-                                    breakdown === "day"
-                                      ? "Day"
-                                      : breakdown === "month"
-                                        ? "Month"
-                                        : "Year",
-                                  align: "left",
-                                },
-                                {
-                                  label: "Total Received",
-                                  align: "right",
-                                  color: "#1877F2",
-                                },
-                                {
-                                  label: "Completed",
-                                  align: "right",
-                                  color: "#36a420",
-                                },
-                                {
-                                  label: "On Process",
-                                  align: "right",
-                                  color: "#f59e0b",
-                                },
-                                {
-                                  label: "Target",
-                                  align: "right",
-                                  color: "#9333ea",
-                                },
-                                {
-                                  label: "Completed Rate",
-                                  align: "right",
-                                  color: "#9333ea",
-                                },
-                              ].map((col, ci) => (
-                                <th
-                                  key={ci}
+                        <thead>
+                          <tr style={{ background: ui.pageBg }}>
+                            {[
+                              {
+                                label:
+                                  breakdown === "day"
+                                    ? "Day"
+                                    : breakdown === "month"
+                                      ? "Month"
+                                      : "Year",
+                                align: "left",
+                              },
+                              {
+                                label: "Total Received",
+                                align: "right",
+                                color: "#1877F2",
+                              },
+                              {
+                                label: "Completed",
+                                align: "right",
+                                color: "#36a420",
+                              },
+                              {
+                                label: "On Process",
+                                align: "right",
+                                color: "#f59e0b",
+                              },
+                              {
+                                label: "Target",
+                                align: "right",
+                                color: "#9333ea",
+                              },
+                              {
+                                label: "Completed Rate",
+                                align: "right",
+                                color: "#9333ea",
+                              },
+                            ].map((col, ci) => (
+                              <th
+                                key={ci}
+                                style={{
+                                  padding: "8px 12px",
+                                  textAlign: col.align,
+                                  fontSize: "0.72rem",
+                                  fontWeight: 700,
+                                  color: col.color || ui.textMuted,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.04em",
+                                  borderBottom: `1px solid ${ui.cardBorder}`,
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {col.label}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pagedRows.map((row, ri) => {
+                            const rateN = row.completedRate;
+                            const isEven = ri % 2 === 0,
+                              isLast = ri === pagedRows.length - 1;
+                            const border = !isLast
+                              ? `1px solid ${ui.divider}`
+                              : "none";
+                            return (
+                              <tr
+                                key={ri}
+                                style={{
+                                  background: isEven
+                                    ? "transparent"
+                                    : `${ui.pageBg}88`,
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.background =
+                                    ui.hoverBg)
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.background = isEven
+                                    ? "transparent"
+                                    : `${ui.pageBg}88`)
+                                }
+                              >
+                                <td
                                   style={{
-                                    padding: "8px 12px",
-                                    textAlign: col.align,
-                                    fontSize: "0.72rem",
-                                    fontWeight: 700,
-                                    color: col.color || ui.textMuted,
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.04em",
-                                    borderBottom: `1px solid ${ui.cardBorder}`,
+                                    padding: "7px 12px",
+                                    color: ui.textPrimary,
+                                    fontWeight: 600,
+                                    borderBottom: border,
                                     whiteSpace: "nowrap",
                                   }}
                                 >
-                                  {col.label}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pagedRows.map((row, ri) => {
-                              const rate =
-                                row.received > 0
-                                  ? (
-                                      (row.completed / row.received) *
-                                      100
-                                    ).toFixed(1)
-                                  : "—";
-                              const rateN =
-                                row.received > 0 ? parseFloat(rate) : null;
-                              const isEven = ri % 2 === 0,
-                                isLast = ri === pagedRows.length - 1;
-                              const border = !isLast
-                                ? `1px solid ${ui.divider}`
-                                : "none";
-                              return (
-                                <tr
-                                  key={ri}
+                                  {row.label}
+                                  {breakdown === "day" && (
+                                    <span
+                                      style={{
+                                        marginLeft: 4,
+                                        fontSize: "0.68rem",
+                                        color: ui.textMuted,
+                                        fontWeight: 400,
+                                      }}
+                                    >
+                                      {chartSubtitle?.split(" ")[0]}
+                                    </span>
+                                  )}
+                                </td>
+                                <td
                                   style={{
-                                    background: isEven
-                                      ? "transparent"
-                                      : `${ui.pageBg}88`,
-                                    transition: "background 0.1s",
+                                    padding: "7px 12px",
+                                    textAlign: "right",
+                                    color: "#1877F2",
+                                    fontWeight: 700,
+                                    borderBottom: border,
                                   }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background =
-                                      ui.hoverBg)
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background = isEven
-                                      ? "transparent"
-                                      : `${ui.pageBg}88`)
-                                  }
                                 >
-                                  <td
-                                    style={{
-                                      padding: "7px 12px",
-                                      color: ui.textPrimary,
-                                      fontWeight: 600,
-                                      borderBottom: border,
-                                      whiteSpace: "nowrap",
-                                    }}
-                                  >
-                                    {row.label}
-                                    {breakdown === "day" && (
-                                      <span
-                                        style={{
-                                          marginLeft: 4,
-                                          fontSize: "0.68rem",
-                                          color: ui.textMuted,
-                                          fontWeight: 400,
-                                        }}
-                                      >
-                                        {chartSubtitle?.split(" ")[0]}
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "7px 12px",
-                                      textAlign: "right",
-                                      color: "#1877F2",
-                                      fontWeight: 700,
-                                      borderBottom: border,
-                                    }}
-                                  >
-                                    {row.received.toLocaleString()}
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "7px 12px",
-                                      textAlign: "right",
-                                      color: "#36a420",
-                                      fontWeight: 700,
-                                      borderBottom: border,
-                                    }}
-                                  >
-                                    {row.completed.toLocaleString()}
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "7px 12px",
-                                      textAlign: "right",
-                                      color: "#f59e0b",
-                                      fontWeight: 700,
-                                      borderBottom: border,
-                                    }}
-                                  >
-                                    {row.onProcess.toLocaleString()}
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "7px 12px",
-                                      textAlign: "right",
-                                      color: "#9333ea",
-                                      fontWeight: 700,
-                                      borderBottom: border,
-                                    }}
-                                  >
-                                    {(row.target || 0) > 0
-                                      ? (row.target || 0).toLocaleString()
-                                      : "—"}
-                                  </td>
-                                  <td
-                                    style={{
-                                      padding: "7px 12px",
-                                      textAlign: "right",
-                                      borderBottom: border,
-                                    }}
-                                  >
-                                    {rateN !== null ? (
-                                      <span
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: 3,
-                                          fontSize: "0.73rem",
-                                          fontWeight: 700,
-                                          color:
-                                            rateN >= 75
-                                              ? "#36a420"
-                                              : rateN >= 50
-                                                ? "#f59e0b"
-                                                : "#e02020",
-                                          background:
-                                            rateN >= 75
-                                              ? "#e9f7e6"
-                                              : rateN >= 50
-                                                ? "#fff8e7"
-                                                : "#fde8e8",
-                                          padding: "2px 8px",
-                                          borderRadius: 99,
-                                        }}
-                                      >
-                                        {rateN >= 75
-                                          ? "▲"
-                                          : rateN >= 50
-                                            ? "~"
-                                            : "▼"}{" "}
-                                        {rate}%
-                                      </span>
-                                    ) : (
-                                      <span
-                                        style={{
-                                          color: ui.textMuted,
-                                          fontSize: "0.73rem",
-                                        }}
-                                      >
-                                        —
-                                      </span>
-                                    )}
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                          <tfoot>
-                            <tr
+                                  {row.received.toLocaleString()}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "7px 12px",
+                                    textAlign: "right",
+                                    color: "#36a420",
+                                    fontWeight: 700,
+                                    borderBottom: border,
+                                  }}
+                                >
+                                  {row.completed.toLocaleString()}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "7px 12px",
+                                    textAlign: "right",
+                                    color: "#f59e0b",
+                                    fontWeight: 700,
+                                    borderBottom: border,
+                                  }}
+                                >
+                                  {row.onProcess.toLocaleString()}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "7px 12px",
+                                    textAlign: "right",
+                                    color: "#9333ea",
+                                    fontWeight: 700,
+                                    borderBottom: border,
+                                  }}
+                                >
+                                  {row.target > 0
+                                    ? row.target.toLocaleString()
+                                    : "—"}
+                                </td>
+                                <td
+                                  style={{
+                                    padding: "7px 12px",
+                                    textAlign: "right",
+                                    borderBottom: border,
+                                  }}
+                                >
+                                  {rateN !== null ? (
+                                    <span
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 3,
+                                        fontSize: "0.73rem",
+                                        fontWeight: 700,
+                                        color:
+                                          rateN >= 75
+                                            ? "#36a420"
+                                            : rateN >= 50
+                                              ? "#f59e0b"
+                                              : "#e02020",
+                                        background:
+                                          rateN >= 75
+                                            ? "#e9f7e6"
+                                            : rateN >= 50
+                                              ? "#fff8e7"
+                                              : "#fde8e8",
+                                        padding: "2px 8px",
+                                        borderRadius: 99,
+                                      }}
+                                    >
+                                      {rateN >= 75
+                                        ? "▲"
+                                        : rateN >= 50
+                                          ? "~"
+                                          : "▼"}{" "}
+                                      {rateN.toFixed(1)}%
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        color: ui.textMuted,
+                                        fontSize: "0.73rem",
+                                      }}
+                                    >
+                                      —
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        {/* Totals footer */}
+                        <tfoot>
+                          <tr
+                            style={{
+                              background: ui.pageBg,
+                              borderTop: `2px solid ${ui.cardBorder}`,
+                            }}
+                          >
+                            <td
                               style={{
-                                background: ui.pageBg,
-                                borderTop: `2px solid ${ui.cardBorder}`,
+                                padding: "8px 12px",
+                                fontWeight: 700,
+                                color: ui.textPrimary,
+                                fontSize: "0.78rem",
                               }}
                             >
+                              Total
+                            </td>
+                            {[
+                              { val: chartTotals.received, color: "#1877F2" },
+                              { val: chartTotals.completed, color: "#36a420" },
+                              { val: chartTotals.onProcess, color: "#f59e0b" },
+                              { val: chartTotals.target, color: "#9333ea" },
+                            ].map((col, ci) => (
                               <td
+                                key={ci}
                                 style={{
                                   padding: "8px 12px",
-                                  fontWeight: 700,
-                                  color: ui.textPrimary,
-                                  fontSize: "0.78rem",
+                                  textAlign: "right",
+                                  fontWeight: 800,
+                                  color: col.color,
+                                  fontSize: "0.82rem",
                                 }}
                               >
-                                Total
+                                {(col.val ?? 0).toLocaleString()}
                               </td>
-                              {[
-                                { val: totals.received, color: "#1877F2" },
-                                { val: totals.completed, color: "#36a420" },
-                                { val: totals.onProcess, color: "#f59e0b" },
-                                { val: totals.target, color: "#9333ea" },
-                              ].map((col, ci) => (
+                            ))}
+                            {(() => {
+                              const n = chartTotals.completedRate;
+                              return (
                                 <td
-                                  key={ci}
                                   style={{
                                     padding: "8px 12px",
                                     textAlign: "right",
-                                    fontWeight: 800,
-                                    color: col.color,
-                                    fontSize: "0.82rem",
                                   }}
                                 >
-                                  {col.val.toLocaleString()}
-                                </td>
-                              ))}
-                              {(() => {
-                                const n = parseFloat(completedRate);
-                                return (
-                                  <td
-                                    style={{
-                                      padding: "8px 12px",
-                                      textAlign: "right",
-                                    }}
-                                  >
+                                  {n !== null ? (
                                     <span
                                       style={{
                                         display: "inline-flex",
@@ -3602,150 +2838,151 @@ export default function DashboardPage({
                                       }}
                                     >
                                       {n >= 75 ? "▲" : n >= 50 ? "~" : "▼"}{" "}
-                                      {completedRate}%
+                                      {n.toFixed(1)}%
                                     </span>
-                                  </td>
-                                );
-                              })()}
-                            </tr>
-                          </tfoot>
-                        </table>
-                      </div>
-                      {totalPages > 1 && (
-                        <div
+                                  ) : (
+                                    <span style={{ color: ui.textMuted }}>
+                                      —
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })()}
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                  {/* Pagination */}
+                  {totalPages > 1 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        marginTop: 10,
+                        gap: 8,
+                      }}
+                    >
+                      <span
+                        style={{ fontSize: "0.74rem", color: ui.textMuted }}
+                      >
+                        Page {safePage + 1} of {totalPages}
+                      </span>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        <button
+                          onClick={() =>
+                            setTablePage((p) => Math.max(0, p - 1))
+                          }
+                          disabled={safePage === 0}
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            marginTop: 10,
-                            gap: 8,
+                            padding: "4px 10px",
+                            borderRadius: 6,
+                            border: `1px solid ${safePage === 0 ? ui.cardBorder : ui.metricBorder}`,
+                            background: "transparent",
+                            color:
+                              safePage === 0 ? ui.textMuted : ui.textPrimary,
+                            fontSize: "0.76rem",
+                            fontWeight: 600,
+                            cursor: safePage === 0 ? "not-allowed" : "pointer",
+                            opacity: safePage === 0 ? 0.4 : 1,
+                            fontFamily: "inherit",
                           }}
                         >
-                          <span
-                            style={{ fontSize: "0.74rem", color: ui.textMuted }}
-                          >
-                            Page {safePage + 1} of {totalPages}
-                          </span>
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
+                          ‹ Prev
+                        </button>
+                        {Array.from({ length: totalPages }, (_, pi) => {
+                          const show =
+                            pi === 0 ||
+                            pi === totalPages - 1 ||
+                            Math.abs(pi - safePage) <= 1;
+                          const showEllipsisBefore =
+                              pi === safePage - 2 && pi > 1,
+                            showEllipsisAfter =
+                              pi === safePage + 2 && pi < totalPages - 2;
+                          if (
+                            !show &&
+                            !showEllipsisBefore &&
+                            !showEllipsisAfter
+                          )
+                            return null;
+                          if (showEllipsisBefore || showEllipsisAfter)
+                            return (
+                              <span
+                                key={pi}
+                                style={{
+                                  fontSize: "0.74rem",
+                                  color: ui.textMuted,
+                                  padding: "0 2px",
+                                }}
+                              >
+                                …
+                              </span>
+                            );
+                          const isActive = pi === safePage;
+                          return (
                             <button
-                              onClick={() =>
-                                setTablePage((p) => Math.max(0, p - 1))
-                              }
-                              disabled={safePage === 0}
+                              key={pi}
+                              onClick={() => setTablePage(pi)}
                               style={{
-                                padding: "4px 10px",
+                                width: 28,
+                                height: 28,
                                 borderRadius: 6,
-                                border: `1px solid ${safePage === 0 ? ui.cardBorder : ui.metricBorder}`,
-                                background: "transparent",
-                                color:
-                                  safePage === 0
-                                    ? ui.textMuted
-                                    : ui.textPrimary,
+                                border: `1px solid ${isActive ? FB : ui.cardBorder}`,
+                                background: isActive ? FB : "transparent",
+                                color: isActive ? "#fff" : ui.textPrimary,
                                 fontSize: "0.76rem",
-                                fontWeight: 600,
-                                cursor:
-                                  safePage === 0 ? "not-allowed" : "pointer",
-                                opacity: safePage === 0 ? 0.4 : 1,
+                                fontWeight: isActive ? 700 : 500,
+                                cursor: "pointer",
                                 fontFamily: "inherit",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
                               }}
                             >
-                              ‹ Prev
+                              {pi + 1}
                             </button>
-                            {Array.from({ length: totalPages }, (_, pi) => {
-                              const show =
-                                pi === 0 ||
-                                pi === totalPages - 1 ||
-                                Math.abs(pi - safePage) <= 1;
-                              const showEllipsisBefore =
-                                  pi === safePage - 2 && pi > 1,
-                                showEllipsisAfter =
-                                  pi === safePage + 2 && pi < totalPages - 2;
-                              if (
-                                !show &&
-                                !showEllipsisBefore &&
-                                !showEllipsisAfter
-                              )
-                                return null;
-                              if (showEllipsisBefore || showEllipsisAfter)
-                                return (
-                                  <span
-                                    key={pi}
-                                    style={{
-                                      fontSize: "0.74rem",
-                                      color: ui.textMuted,
-                                      padding: "0 2px",
-                                    }}
-                                  >
-                                    …
-                                  </span>
-                                );
-                              const isActive = pi === safePage;
-                              return (
-                                <button
-                                  key={pi}
-                                  onClick={() => setTablePage(pi)}
-                                  style={{
-                                    width: 28,
-                                    height: 28,
-                                    borderRadius: 6,
-                                    border: `1px solid ${isActive ? FB : ui.cardBorder}`,
-                                    background: isActive ? FB : "transparent",
-                                    color: isActive ? "#fff" : ui.textPrimary,
-                                    fontSize: "0.76rem",
-                                    fontWeight: isActive ? 700 : 500,
-                                    cursor: "pointer",
-                                    fontFamily: "inherit",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  {pi + 1}
-                                </button>
-                              );
-                            })}
-                            <button
-                              onClick={() =>
-                                setTablePage((p) =>
-                                  Math.min(totalPages - 1, p + 1),
-                                )
-                              }
-                              disabled={safePage === totalPages - 1}
-                              style={{
-                                padding: "4px 10px",
-                                borderRadius: 6,
-                                border: `1px solid ${safePage === totalPages - 1 ? ui.cardBorder : ui.metricBorder}`,
-                                background: "transparent",
-                                color:
-                                  safePage === totalPages - 1
-                                    ? ui.textMuted
-                                    : ui.textPrimary,
-                                fontSize: "0.76rem",
-                                fontWeight: 600,
-                                cursor:
-                                  safePage === totalPages - 1
-                                    ? "not-allowed"
-                                    : "pointer",
-                                opacity: safePage === totalPages - 1 ? 0.4 : 1,
-                                fontFamily: "inherit",
-                              }}
-                            >
-                              Next ›
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                          );
+                        })}
+                        <button
+                          onClick={() =>
+                            setTablePage((p) => Math.min(totalPages - 1, p + 1))
+                          }
+                          disabled={safePage === totalPages - 1}
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 6,
+                            border: `1px solid ${safePage === totalPages - 1 ? ui.cardBorder : ui.metricBorder}`,
+                            background: "transparent",
+                            color:
+                              safePage === totalPages - 1
+                                ? ui.textMuted
+                                : ui.textPrimary,
+                            fontSize: "0.76rem",
+                            fontWeight: 600,
+                            cursor:
+                              safePage === totalPages - 1
+                                ? "not-allowed"
+                                : "pointer",
+                            opacity: safePage === totalPages - 1 ? 0.4 : 1,
+                            fontFamily: "inherit",
+                          }}
+                        >
+                          Next ›
+                        </button>
+                      </div>
                     </div>
-                  );
-                })()}
+                  )}
+                </div>
               </Card>
+
+              {/* Recent Applications */}
 
               <Card ui={ui}>
                 <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
@@ -3756,74 +2993,20 @@ export default function DashboardPage({
                     ui={ui}
                   />
                 </div>
-                {[
-                  {
-                    id: "20230908133701",
-                    type: "Furacef-750 (Cefuroxime Sodium)",
-                    status: "Completed",
-                    date: "Mar 10",
-                    icon: "✅",
-                    statusColor: "#36a420",
-                    statusBg: "#e9f7e6",
-                  },
-                  {
-                    id: "20230908133702",
-                    type: "Amoxil-500 (Amoxicillin)",
-                    status: "On Process",
-                    date: "Mar 9",
-                    icon: "⏳",
-                    statusColor: "#f59e0b",
-                    statusBg: "#fff8e7",
-                  },
-                  {
-                    id: "20230908133703",
-                    type: "Calpol-250 (Paracetamol)",
-                    status: "Completed",
-                    date: "Mar 8",
-                    icon: "✅",
-                    statusColor: "#36a420",
-                    statusBg: "#e9f7e6",
-                  },
-                  {
-                    id: "20230908133704",
-                    type: "Cloxacil-250 (Cloxacillin)",
-                    status: "On Process",
-                    date: "Mar 7",
-                    icon: "⏳",
-                    statusColor: "#f59e0b",
-                    statusBg: "#fff8e7",
-                  },
-                  {
-                    id: "20230908133705",
-                    type: "Augmentin-625 (Co-Amoxiclav)",
-                    status: "Backlog",
-                    date: "Mar 6",
-                    icon: "🚩",
-                    statusColor: "#e02020",
-                    statusBg: "#fde8e8",
-                  },
-                ].map((row, i, arr) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "11px 16px",
-                      borderBottom:
-                        i < arr.length - 1 ? `1px solid ${ui.divider}` : "none",
-                      transition: "background 0.12s",
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = ui.hoverBg)
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
-                  >
+
+                {/* ── Loading skeleton ── */}
+                {recentLoading &&
+                  Array.from({ length: 5 }).map((_, i) => (
                     <div
-                      style={{ display: "flex", alignItems: "center", gap: 12 }}
+                      key={i}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "11px 16px",
+                        borderBottom:
+                          i < 4 ? `1px solid ${ui.divider}` : "none",
+                      }}
                     >
                       <div
                         style={{
@@ -3831,160 +3014,204 @@ export default function DashboardPage({
                           height: 40,
                           borderRadius: 8,
                           flexShrink: 0,
-                          background: row.statusBg,
+                          background: ui.progressBg,
+                          animation: "cdrrPulse 1.2s ease-in-out infinite",
+                        }}
+                      />
+                      <div
+                        style={{
+                          flex: 1,
                           display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "1.1rem",
+                          flexDirection: "column",
+                          gap: 6,
                         }}
                       >
-                        {row.icon}
-                      </div>
-                      <div>
-                        <p
+                        <div
                           style={{
-                            margin: 0,
-                            fontSize: "0.86rem",
-                            fontWeight: 600,
-                            color: ui.textPrimary,
+                            width: 150,
+                            height: 10,
+                            borderRadius: 4,
+                            background: ui.progressBg,
+                            animation: "cdrrPulse 1.2s ease-in-out infinite",
                           }}
-                        >
-                          {row.id}
-                        </p>
-                        <p
+                        />
+                        <div
                           style={{
-                            margin: 0,
-                            fontSize: "0.78rem",
-                            color: ui.textSub,
+                            width: 100,
+                            height: 8,
+                            borderRadius: 4,
+                            background: ui.progressBg,
+                            animation: "cdrrPulse 1.2s ease-in-out infinite",
                           }}
-                        >
-                          {row.type}
-                        </p>
+                        />
                       </div>
+                      <div
+                        style={{
+                          width: 75,
+                          height: 22,
+                          borderRadius: 99,
+                          background: ui.progressBg,
+                          animation: "cdrrPulse 1.2s ease-in-out infinite",
+                          flexShrink: 0,
+                        }}
+                      />
                     </div>
+                  ))}
+
+                {/* ── Error state ── */}
+                {!recentLoading && recentError && (
+                  <div
+                    style={{
+                      padding: "1.5rem",
+                      textAlign: "center",
+                      color: "#e02020",
+                      fontSize: "0.82rem",
+                    }}
+                  >
+                    ⚠️ {recentError}{" "}
+                    <button
+                      onClick={fetchRecentApps}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        color: FB,
+                        cursor: "pointer",
+                        fontSize: "0.82rem",
+                        fontWeight: 600,
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+
+                {/* ── Empty state ── */}
+                {!recentLoading && !recentError && recentApps.length === 0 && (
+                  <div
+                    style={{
+                      padding: "2rem",
+                      textAlign: "center",
+                      color: ui.textMuted,
+                      fontSize: "0.82rem",
+                    }}
+                  >
+                    No recent applications found.
+                  </div>
+                )}
+
+                {/* ── Data rows ── */}
+                {!recentLoading &&
+                  !recentError &&
+                  recentApps.map((row, i, arr) => (
                     <div
+                      key={row.log_id}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: isMobile ? 6 : 12,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.78rem",
-                          fontWeight: 600,
-                          color: row.statusColor,
-                          background: row.statusBg,
-                          padding: "3px 10px",
-                          borderRadius: 99,
-                        }}
-                      >
-                        {row.status}
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "0.78rem",
-                          color: ui.textMuted,
-                          minWidth: 40,
-                          textAlign: "right",
-                        }}
-                      >
-                        {row.date}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </Card>
-
-              <Card ui={ui}>
-                <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
-                  <CardHeader
-                    title="Summary"
-                    sub="Grand totals across all years."
-                    right={<SeeAll />}
-                    ui={ui}
-                  />
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    padding: "16px",
-                    flexWrap: isMobile ? "wrap" : "nowrap",
-                  }}
-                >
-                  {[
-                    {
-                      label: "Total Received",
-                      value: ALL_TIME_TOTALS.received,
-                      icon: "📥",
-                      color: "#1877F2",
-                    },
-                    {
-                      label: "Completed",
-                      value: ALL_TIME_TOTALS.completed,
-                      icon: "✅",
-                      color: "#36a420",
-                    },
-                    {
-                      label: "On Process",
-                      value: ALL_TIME_TOTALS.onProcess,
-                      icon: "⏳",
-                      color: "#f59e0b",
-                    },
-                    {
-                      label: "Completed Rate",
-                      value: `${ALL_TIME_TOTALS.completedRate}%`,
-                      icon: "📈",
-                      color: "#9333ea",
-                    },
-                  ].map((s, i, arr) => (
-                    <div
-                      key={i}
-                      style={{
-                        flex: isMobile ? "1 1 50%" : 1,
-                        textAlign: "center",
-                        padding: isMobile ? "12px 6px" : "6px 0",
-                        borderRight:
-                          !isMobile && i < arr.length - 1
-                            ? `1px solid ${ui.divider}`
-                            : "none",
+                        justifyContent: "space-between",
+                        padding: "11px 16px",
                         borderBottom:
-                          isMobile && i < 2
+                          i < arr.length - 1
                             ? `1px solid ${ui.divider}`
                             : "none",
+                        cursor: "pointer",
                       }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = ui.hoverBg)
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
                     >
-                      <div style={{ fontSize: "1.3rem", marginBottom: 4 }}>
-                        {s.icon}
-                      </div>
+                      {/* Left: icon + DTN + product name */}
                       <div
                         style={{
-                          fontSize: "1.35rem",
-                          fontWeight: 700,
-                          color: s.color,
-                          lineHeight: 1,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
                         }}
                       >
-                        {typeof s.value === "number"
-                          ? s.value.toLocaleString()
-                          : s.value}
+                        <div
+                          style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: 8,
+                            background: row.status_bg,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "1.1rem",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {row.icon}
+                        </div>
+                        <div>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.86rem",
+                              fontWeight: 600,
+                              color: ui.textPrimary,
+                            }}
+                          >
+                            {row.dtn}
+                          </p>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.78rem",
+                              color: ui.textSub,
+                            }}
+                          >
+                            {row.brand_name}
+                            {row.generic_name ? ` (${row.generic_name})` : ""}
+                          </p>
+                        </div>
                       </div>
+
+                      {/* Right: status badge + date */}
                       <div
                         style={{
-                          fontSize: "0.73rem",
-                          color: ui.textSub,
-                          marginTop: 4,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: isMobile ? 6 : 12,
+                          flexShrink: 0,
                         }}
                       >
-                        {s.label}
+                        <span
+                          style={{
+                            fontSize: "0.78rem",
+                            fontWeight: 600,
+                            color: row.status_color,
+                            background: row.status_bg,
+                            padding: "3px 10px",
+                            borderRadius: 99,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {row.status_label}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "0.78rem",
+                            color: ui.textMuted,
+                            minWidth: 40,
+                            textAlign: "right",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {row.date_display}
+                        </span>
                       </div>
                     </div>
                   ))}
-                </div>
               </Card>
 
               {isMobile && <RightPanel />}
             </div>
+
             {!isMobile && <RightPanel />}
           </div>
         </div>
@@ -3998,17 +3225,12 @@ export default function DashboardPage({
       {showReport && (
         <AccomplishmentReport
           onClose={() => setShowReport(false)}
-          totals={
-            liveStats
-              ? {
-                  received: liveStats.received,
-                  completed: liveStats.completed,
-                  onProcess: liveStats.on_process,
-                }
-              : totals
-          }
+          totals={{
+            received: liveStats?.received ?? chartTotals.received,
+            completed: liveStats?.completed ?? chartTotals.completed,
+            onProcess: liveStats?.on_process ?? chartTotals.onProcess,
+          }}
           ui={ui}
-          reportPeriodKey={reportPeriodKey}
           customDates={customReportDates}
         />
       )}
