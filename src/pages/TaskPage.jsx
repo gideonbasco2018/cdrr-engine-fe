@@ -74,7 +74,7 @@ function SubTabBar({
       count: receivedCount,
       badgeColor: "#10b981",
     },
-  ];
+  ].filter((t) => t.count > 0);
 
   return (
     <div
@@ -244,11 +244,19 @@ function TaskPage({ darkMode }) {
     });
     await markWorkflowTaskAsRead(id);
   }, []);
-
   const handleTabChange = (step) => {
     setActiveTab(step);
-    setActiveSubTab("not_yet");
     setSelectedRows([]);
+
+    const stepRows = data.filter((d) => d.applicationStep === step);
+    const hasNotYet = stepRows.some((d) => d.is_received !== 1);
+    const hasReceived = stepRows.some((d) => d.is_received === 1);
+
+    if (!hasNotYet && hasReceived) {
+      setActiveSubTab("received");
+    } else {
+      setActiveSubTab("not_yet");
+    }
   };
 
   const handleSubTabChange = (sub) => {
@@ -502,7 +510,7 @@ function TaskPage({ darkMode }) {
         )}
 
         {/* ── Sub-tabs ── */}
-        {steps.length > 0 && (
+        {steps.length > 0 && (receivedCount > 0 || notYetReceivedCount > 0) && (
           <SubTabBar
             activeSubTab={activeSubTab}
             setActiveSubTab={handleSubTabChange}

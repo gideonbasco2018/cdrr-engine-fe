@@ -1134,8 +1134,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                             {/* ✅ Compliance Deadline block — shown inline, always visible */}
                             {isCompliance && renderComplianceDeadline(log)}
                           </div>
-
-                          {/* Expandable Remarks Panel */}
                           {isExpanded && (
                             <div
                               className="spl-remarks-panel"
@@ -1143,54 +1141,184 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 borderTop: `1px solid ${remarksBorder}`,
                                 background: remarksBg,
                                 padding: "0.85rem 1rem",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.75rem",
                               }}
                             >
-                              <div
-                                style={{
-                                  fontSize: "0.62rem",
-                                  fontWeight: 700,
-                                  color: shopeeOrange,
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.07em",
-                                  marginBottom: "0.5rem",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.35rem",
-                                }}
-                              >
-                                💬 Remarks
-                              </div>
-                              {hasRemarks ? (
-                                <p
-                                  style={{
-                                    margin: 0,
-                                    fontSize: "0.82rem",
-                                    color: textMain,
-                                    lineHeight: 1.65,
-                                    whiteSpace: "pre-wrap",
-                                    wordBreak: "break-word",
-                                    padding: "0.65rem 0.85rem",
-                                    background: darkMode ? "#111" : "#fff",
-                                    border: `1px solid ${remarksBorder}`,
-                                    borderRadius: 8,
-                                    borderLeft: `3px solid ${shopeeOrange}`,
-                                  }}
-                                >
-                                  {log.application_remarks}
-                                </p>
-                              ) : (
-                                <p
-                                  style={{
-                                    margin: 0,
-                                    fontSize: "0.82rem",
-                                    color: textTert,
-                                    fontStyle: "italic",
-                                    padding: "0.5rem 0.85rem",
-                                  }}
-                                >
-                                  No remarks recorded for this step.
-                                </p>
+                              {/* ── Action Type ── */}
+                              {log.action_type && (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.62rem",
+                                      fontWeight: 700,
+                                      color: "#6366f1",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.07em",
+                                      marginBottom: "0.35rem",
+                                    }}
+                                  >
+                                    ⚡ Action Type
+                                  </div>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      padding: "0.2rem 0.65rem",
+                                      background: darkMode
+                                        ? "rgba(99,102,241,0.15)"
+                                        : "rgba(99,102,241,0.08)",
+                                      border: "1px solid rgba(99,102,241,0.35)",
+                                      borderRadius: 20,
+                                      fontSize: "0.78rem",
+                                      fontWeight: 600,
+                                      color: "#6366f1",
+                                    }}
+                                  >
+                                    {log.action_type}
+                                  </span>
+                                </div>
                               )}
+
+                              {/* ── Decision Result ── */}
+                              {log.decision_result && (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.62rem",
+                                      fontWeight: 700,
+                                      color: "#0891b2",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.07em",
+                                      marginBottom: "0.35rem",
+                                    }}
+                                  >
+                                    📊 Decision Result
+                                  </div>
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      padding: "0.2rem 0.65rem",
+                                      background: darkMode
+                                        ? "rgba(8,145,178,0.15)"
+                                        : "rgba(8,145,178,0.08)",
+                                      border: "1px solid rgba(8,145,178,0.35)",
+                                      borderRadius: 20,
+                                      fontSize: "0.78rem",
+                                      fontWeight: 600,
+                                      color: "#0891b2",
+                                    }}
+                                  >
+                                    {log.decision_result}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* ── Decision Authority Name ── */}
+                              {log.decision_authority_name && (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.62rem",
+                                      fontWeight: 700,
+                                      color: "#b45309",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.07em",
+                                      marginBottom: "0.35rem",
+                                    }}
+                                  >
+                                    🏛️ Decision Authority
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "0.4rem",
+                                      padding: "0.3rem 0.75rem",
+                                      background: darkMode
+                                        ? "rgba(180,83,9,0.15)"
+                                        : "rgba(245,158,11,0.08)",
+                                      border: "1px solid rgba(245,158,11,0.35)",
+                                      borderRadius: 8,
+                                      fontSize: "0.8rem",
+                                      fontWeight: 600,
+                                      color: "#b45309",
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        width: 22,
+                                        height: 22,
+                                        borderRadius: "50%",
+                                        background:
+                                          "linear-gradient(135deg, #f59e0b, #d97706)",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        color: "#fff",
+                                        fontSize: "0.65rem",
+                                        fontWeight: 700,
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {log.decision_authority_name[0].toUpperCase()}
+                                    </div>
+                                    {log.decision_authority_name}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* ── Remarks ── */}
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.62rem",
+                                    fontWeight: 700,
+                                    color: shopeeOrange,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.07em",
+                                    marginBottom: "0.5rem",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "0.35rem",
+                                  }}
+                                >
+                                  💬 Remarks
+                                </div>
+                                {hasRemarks ? (
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.82rem",
+                                      color: textMain,
+                                      lineHeight: 1.65,
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      padding: "0.65rem 0.85rem",
+                                      background: darkMode ? "#111" : "#fff",
+                                      border: `1px solid ${remarksBorder}`,
+                                      borderRadius: 8,
+                                      borderLeft: `3px solid ${shopeeOrange}`,
+                                    }}
+                                  >
+                                    {log.application_remarks}
+                                  </p>
+                                ) : (
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.82rem",
+                                      color: textTert,
+                                      fontStyle: "italic",
+                                      padding: "0.5rem 0.85rem",
+                                    }}
+                                  >
+                                    No remarks recorded for this step.
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
