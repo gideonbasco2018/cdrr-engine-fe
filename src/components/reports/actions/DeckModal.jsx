@@ -31,6 +31,12 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
     "For S&E and Quality Evaluation": { fetchEvaluator: true, fetchSne: true },
   };
 
+  const resolveEvaluatorId = (username) =>
+    nextUsers.find((u) => u.username === username)?.id ?? null;
+
+  const resolveSneId = (username) =>
+    sneUsers.find((u) => u.username === username)?.id ?? null;
+
   useEffect(() => {
     const user = getUser();
     if (user) {
@@ -113,6 +119,8 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
         del_previous: lastIndex,
         del_last_index: closeTask,
         del_thread: "Close",
+        user_id: currentUser?.id ?? null,
+        action_type: "DECKED",
       });
 
       if (formData.deckerDecision === "For S&E and Quality Evaluation") {
@@ -129,6 +137,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
           del_previous: nextIndex,
           del_last_index: openTask,
           del_thread: "Open",
+          user_id: resolveEvaluatorId(formData.evaluator),
         });
         await createApplicationLog({
           main_db_id: record.id,
@@ -143,6 +152,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
           del_previous: nextIndex,
           del_last_index: openTask,
           del_thread: "Open",
+          user_id: resolveSneId(formData.sne),
         });
       } else {
         const stepLabel =
@@ -161,6 +171,9 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
           del_previous: nextIndex,
           del_last_index: openTask,
           del_thread: "Open",
+          user_id: needsEvaluator
+            ? resolveEvaluatorId(assignedUser)
+            : resolveSneId(assignedUser),
         });
       }
 

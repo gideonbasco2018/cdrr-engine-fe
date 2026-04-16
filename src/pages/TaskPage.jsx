@@ -4,7 +4,12 @@ import {
   markWorkflowTaskAsRead,
 } from "../api/workflow-tasks";
 import { getColorScheme } from "../components/tasks/ColorScheme";
-import { mapWorkflowTask, getCurrentUser } from "../components/tasks/taskUtils";
+
+import { mapWorkflowTask } from "../components/tasks/taskUtils";
+// import { getCurrentUser } from "../api/auth";
+// import call api from local storage
+import { getUser } from "../api/auth";
+
 import QuickFilters from "../components/tasks/QuickFilters";
 import DataTable from "../components/tasks/DataTable";
 
@@ -171,12 +176,31 @@ function TaskPage({ darkMode }) {
 
   const colors = getColorScheme(darkMode);
 
+  // useEffect(() => {
+  //   const fetchUser = async () => {
+  //     try {
+  //       const user = await getCurrentUser();
+  //       setCurrentUser(user?.username || "Unknown User");
+  //     } catch {
+  //       setCurrentUser("Unknown User");
+  //     }
+  //   };
+  //   fetchUser();
+  // }, []);
+
+  // call local storage
+  // useEffect(() => {
+  //   const user = getUser();
+  //   setCurrentUser(user?.username || "Unknown User");
+  // }, []);
+
   useEffect(() => {
-    setCurrentUser(getCurrentUser() || "Unknown User");
+    const user = getUser();
+    setCurrentUser(user || null);
   }, []);
 
   const fetchTasks = useCallback(async () => {
-    if (!currentUser || currentUser === "Unknown User") return;
+    if (!currentUser?.id) return;
     setLoading(true);
     try {
       const res = await getWorkflowTasks({
@@ -184,7 +208,7 @@ function TaskPage({ darkMode }) {
         page_size: rowsPerPage,
         sort_by: sortBy,
         sort_order: sortOrder,
-        user_name: currentUser,
+        user_id: currentUser.id,
         only_latest_per_thread: false,
         del_last_index: 1,
       });

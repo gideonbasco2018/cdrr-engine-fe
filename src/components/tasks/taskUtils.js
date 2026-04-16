@@ -121,19 +121,19 @@ export const mapWorkflowTask = (task, index) => {
   };
 };
 
-export const getCurrentUser = () => {
-  const s = localStorage.getItem("user") || sessionStorage.getItem("user");
-  if (s) {
-    try {
-      const o = JSON.parse(s);
-      return o.username || o.email || o.first_name || null;
-    } catch {
-      return s;
-    }
-  }
-  return (
-    localStorage.getItem("username") ||
-    sessionStorage.getItem("username") ||
-    null
-  );
-};
+// export const getCurrentUser = () => {
+//   const s = localStorage.getItem("user") || sessionStorage.getItem("user");
+//   if (s) {
+//     try {
+//       const o = JSON.parse(s);
+//       return o.username || o.email || o.first_name || null;
+//     } catch {
+//       return s;
+//     }
+//   }
+//   return (
+//     localStorage.getItem("username") ||
+//     sessionStorage.getItem("username") ||
+//     null
+//   );
+// };
