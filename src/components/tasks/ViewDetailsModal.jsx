@@ -2635,6 +2635,9 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
     currentStep,
   );
 
+  const resolveAssigneeId = (username) =>
+    assigneeOptions.find((u) => u.username === username)?.id ?? null;
+
   const STEP_DECISIONS = {
     "Quality Evaluation": ["Endorse to Checker", "For Compliance"],
     Compliance: ["Endorse to Checker", "For Compliance"],
@@ -2783,6 +2786,9 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           del_previous: lastIndex,
           del_last_index: 1,
           del_thread: "Open",
+          user_id: isForCompliance
+            ? (currentUser?.id ?? null)
+            : resolveAssigneeId(formData.assignee),
           ...(isForCompliance
             ? { deadline_date: deadlineDate, working_days: workingDays }
             : {}),

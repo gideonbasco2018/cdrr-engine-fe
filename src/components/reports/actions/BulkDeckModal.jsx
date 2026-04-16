@@ -618,13 +618,19 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   // Save records that succeeded for transmittal
   const [succeededRecords, setSucceededRecords] = useState([]);
 
-  const GROUP_IDS = { EVALUATOR: 3, SE: 15 };
+  const GROUP_IDS = { EVALUATOR: 3, SE: 13 };
 
   const DECISION_CONFIG = {
     "For S&E": { fetchEvaluator: false, fetchSne: true },
     "For Quality Evaluation": { fetchEvaluator: true, fetchSne: false },
     "For S&E and Quality Evaluation": { fetchEvaluator: true, fetchSne: true },
   };
+
+  const resolveEvaluatorId = (username) =>
+    nextUsers.find((u) => u.username === username)?.id ?? null;
+
+  const resolveSneId = (username) =>
+    sneUsers.find((u) => u.username === username)?.id ?? null;
 
   useEffect(() => {
     const user = getUser();
@@ -713,6 +719,8 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
             del_previous: lastIndex,
             del_last_index: 0,
             del_thread: "Close",
+            user_id: currentUser?.id ?? null,
+            action_type: "DECKED",
           });
 
           if (formData.deckerDecision === "For S&E and Quality Evaluation") {
@@ -730,6 +738,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               del_previous: nextIndex,
               del_last_index: 1,
               del_thread: "Open",
+              user_id: resolveEvaluatorId(formData.evaluator),
             });
             // S&E log
             await createApplicationLog({
@@ -745,6 +754,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               del_previous: nextIndex,
               del_last_index: 1,
               del_thread: "Open",
+              user_id: resolveSneId(formData.sne),
             });
           } else {
             const stepLabel =
@@ -767,6 +777,9 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               del_previous: nextIndex,
               del_last_index: 1,
               del_thread: "Open",
+              user_id: needsEvaluator
+                ? resolveEvaluatorId(assignedUser)
+                : resolveSneId(assignedUser),
             });
           }
 
