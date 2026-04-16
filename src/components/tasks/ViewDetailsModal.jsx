@@ -11,25 +11,27 @@ import {
   computeFieldChanges,
 } from "../../api/field-audit-logs";
 
-import { updateUploadReport, getApplicationLogs } from "../../api/reports";
+import { updateUploadReport } from "../../api/reports";
+
+import { getApplicationLogs } from "../../api/application-logs";
 /* ================================================================== */
 /*  Workflow Config                                                      */
 /* ================================================================== */
 const WORKFLOW = {
   "Quality Evaluation": {
-    "For Compliance": "Compliance",
     "Endorse to Checker": "Checking",
+    "For Compliance": "Compliance",
+    "Endorse to Supervisor": "Supervisor",
   },
   Compliance: {
     "For Compliance": "Compliance",
     "Endorse to Checker": "Checking",
   },
   Checking: {
-    "Return to Evaluator": "Quality Evaluation",
-    "Endorse to Supervisor": "Supervisor",
+    "Check and return to evaluator": "Quality Evaluation",
   },
   Supervisor: {
-    default: "QA Admin",
+    "Endorse to QA Admin": "QA Admin",
     "Return to Evaluator": "Quality Evaluation",
   },
   "QA Admin": {
@@ -1884,7 +1886,13 @@ function Step3AppLogs({ record, colors }) {
       try {
         setLoading(true);
         const data = await getApplicationLogs(record.mainDbId);
-        setLogs(Array.isArray(data) ? data : []);
+        console.log("App logs data:", JSON.stringify(data, null, 2));
+
+        // ↓ PALITAN YUNG setLogs line ng ganito:
+        const sorted = [...(Array.isArray(data) ? data : [])].sort(
+          (a, b) => (a.del_index ?? 0) - (b.del_index ?? 0),
+        );
+        setLogs(sorted); // ← dati: setLogs(Array.isArray(data) ? data : []);
       } catch (err) {
         setError("Failed to load application logs.");
       } finally {
@@ -2200,10 +2208,13 @@ function Step3AppLogs({ record, colors }) {
                     🟢 Start:{" "}
                     <strong>
                       {log.start_date
-                        ? new Date(log.start_date).toLocaleDateString("en-US", {
+                        ? new Date(log.start_date).toLocaleString("en-US", {
                             year: "numeric",
                             month: "short",
                             day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
                           })
                         : "—"}
                     </strong>
@@ -2212,15 +2223,159 @@ function Step3AppLogs({ record, colors }) {
                     ✅ Done:{" "}
                     <strong>
                       {log.accomplished_date
-                        ? new Date(log.accomplished_date).toLocaleDateString(
+                        ? new Date(log.accomplished_date).toLocaleString(
                             "en-US",
-                            { year: "numeric", month: "short", day: "numeric" },
+                            {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            },
                           )
                         : "—"}
                     </strong>
                   </span>
                 </div>
               </div>
+              {/* ── Action Type ── */}
+              {log.action_type && (
+                <div
+                  style={{
+                    gridColumn: "1 / -1",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.2rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.6rem",
+                      fontWeight: "700",
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                    }}
+                  >
+                    ⚡ Action Type
+                  </span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignSelf: "flex-start",
+                      alignItems: "center",
+                      padding: "0.2rem 0.6rem",
+                      background: "rgba(99,102,241,0.08)",
+                      border: "1px solid rgba(99,102,241,0.3)",
+                      borderRadius: "20px",
+                      fontSize: "0.72rem",
+                      fontWeight: "600",
+                      color: "#6366f1",
+                    }}
+                  >
+                    {log.action_type}
+                  </span>
+                </div>
+              )}
+
+              {/* ── Decision Result ── */}
+              {log.decision_result && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.2rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.6rem",
+                      fontWeight: "700",
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                    }}
+                  >
+                    📊 Decision Result
+                  </span>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignSelf: "flex-start",
+                      alignItems: "center",
+                      padding: "0.2rem 0.6rem",
+                      background: "rgba(8,145,178,0.08)",
+                      border: "1px solid rgba(8,145,178,0.3)",
+                      borderRadius: "20px",
+                      fontSize: "0.72rem",
+                      fontWeight: "600",
+                      color: "#0891b2",
+                    }}
+                  >
+                    {log.decision_result}
+                  </span>
+                </div>
+              )}
+
+              {/* ── Decision Authority Name ── */}
+              {log.decision_authority_name && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.2rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.6rem",
+                      fontWeight: "700",
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                    }}
+                  >
+                    🏛️ Authority
+                  </span>
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      alignSelf: "flex-start",
+                      alignItems: "center",
+                      gap: "0.35rem",
+                      padding: "0.2rem 0.55rem",
+                      background: "rgba(245,158,11,0.08)",
+                      border: "1px solid rgba(245,158,11,0.3)",
+                      borderRadius: "8px",
+                      fontSize: "0.72rem",
+                      fontWeight: "600",
+                      color: "#b45309",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "18px",
+                        height: "18px",
+                        borderRadius: "50%",
+                        background: "linear-gradient(135deg, #f59e0b, #d97706)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#fff",
+                        fontSize: "0.58rem",
+                        fontWeight: "700",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {log.decision_authority_name[0].toUpperCase()}
+                    </div>
+                    {log.decision_authority_name}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Remarks ── */}
               {log.application_remarks && (
                 <div
                   style={{
@@ -2239,7 +2394,7 @@ function Step3AppLogs({ record, colors }) {
                       letterSpacing: "0.07em",
                     }}
                   >
-                    Remarks
+                    💬 Remarks
                   </span>
                   <div
                     style={{
@@ -2604,7 +2759,9 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
     currentUserDisplay: "",
     assignee: "",
     decision: "",
+    action: "", // NEW
     remarks: "",
+    doctrackRemarks: "",
   });
   const [loading, setLoading] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -2639,14 +2796,14 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
     assigneeOptions.find((u) => u.username === username)?.id ?? null;
 
   const STEP_DECISIONS = {
-    "Quality Evaluation": ["Endorse to Checker", "For Compliance"],
-    Compliance: ["Endorse to Checker", "For Compliance"],
-    Checking: ["Endorse to Supervisor", "Return to Evaluator"],
-    Supervisor: [
-      "Recommended for Approval",
-      "Recommended for Disapproval",
-      "Return to Evaluator",
+    "Quality Evaluation": [
+      "Endorse to Checker",
+      "Endorse to Supervisor",
+      "For Compliance",
     ],
+    Compliance: ["Endorse to Checker", "For Compliance"],
+    Checking: ["Check and return to evaluator"],
+    Supervisor: ["Endorse to QA Admin", "Return to Evaluator"],
     "QA Admin": [
       "Recommended for Approval",
       "Recommended for Disapproval",
@@ -2666,6 +2823,21 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
   const nextGroupId = STEP_GROUP_MAP[nextStep] ?? null;
   const isForCompliance = formData.decision === "For Compliance";
   const needsAssignee = nextStep !== null && !isForCompliance;
+
+  const isEndorseToChecker =
+    currentStep === "Quality Evaluation" &&
+    (formData.decision === "Endorse to Checker" ||
+      formData.decision === "Endorse to Supervisor");
+
+  const isCheckAndReturn =
+    currentStep === "Checking" &&
+    formData.decision === "Check and return to evaluator";
+
+  const isEndorseToQAAdmin =
+    currentStep === "Supervisor" && formData.decision === "Endorse to QA Admin";
+
+  const isReturnToEvaluatorFromSupervisor =
+    currentStep === "Supervisor" && formData.decision === "Return to Evaluator";
 
   useEffect(() => {
     const user = getUser();
@@ -2692,18 +2864,44 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
     })();
   }, [nextGroupId, needsAssignee]);
 
+  const DECISION_DOCTRACK = {
+    "Endorse to Checker": "Forwarded to Senior Evaluator for checking",
+    "Endorse to Supervisor":
+      "Forwarded to Supervisor for review and signing of the final recommendation",
+    "Check and return to evaluator":
+      "Return to evaluator for the result of recommendation",
+    "Endorse to QA Admin": "Forwarded to LRD Chief for signing",
+    "Return to Evaluator": "Forwarded to Evaluator for Clarification",
+  };
+
   const handleChange = (f, v) => {
     setFormData((p) => {
       const updated = { ...p, [f]: v };
-      if (f === "decision") updated.assignee = "";
+      if (f === "decision") {
+        updated.assignee = "";
+        updated.action = "";
+        // Auto-update doctrack remarks based on decision
+        if (DECISION_DOCTRACK[v]) {
+          updated.doctrackRemarks = DECISION_DOCTRACK[v];
+        } else {
+          updated.doctrackRemarks = "";
+        }
+      }
       return updated;
     });
   };
 
+  // MODIFIED — also disabled when isEndorseToChecker but no action selected
   const isSubmitDisabled =
     loading ||
     !formData.decision ||
+    !formData.doctrackRemarks.trim() ||
     (isForCompliance && !deadlineDate) ||
+    ((isEndorseToChecker ||
+      isCheckAndReturn ||
+      isEndorseToQAAdmin ||
+      isReturnToEvaluatorFromSupervisor) &&
+      !formData.action) ||
     (needsAssignee &&
       (loadingUsers || assigneeOptions.length === 0 || !formData.assignee));
 
@@ -2718,6 +2916,10 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
   const handleSubmit = async () => {
     if (!formData.currentUserDisplay || !formData.decision) {
       alert("⚠️ Please fill in required fields:\n- Decision");
+      return;
+    }
+    if (isEndorseToChecker && !formData.action) {
+      alert("⚠️ Please select an Action.");
       return;
     }
     if (needsAssignee && !formData.assignee) {
@@ -2758,9 +2960,19 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         application_status: "COMPLETED",
         application_decision: formData.decision,
         application_remarks: formData.remarks || "",
+        action_type:
+          isEndorseToChecker ||
+          isCheckAndReturn ||
+          isEndorseToQAAdmin ||
+          isReturnToEvaluatorFromSupervisor
+            ? formData.action
+            : "",
         accomplished_date: formattedDateTime,
         del_last_index: 0,
         del_thread: "Close",
+        ...(isEndorseToChecker || isCheckAndReturn
+          ? { application_action: formData.action }
+          : {}),
         ...(dirtyFields.length > 0
           ? {
               edited_fields: Object.fromEntries(
@@ -3090,6 +3302,199 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
         </select>
       </div>
 
+      {/* ── NEW: Action dropdown (Quality Evaluation + Endorse to Checker only) ── */}
+      {isEndorseToChecker && (
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: "0.72rem",
+              fontWeight: "700",
+              color: colors.textPrimary,
+              marginBottom: "0.4rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            Action <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <select
+            value={formData.action}
+            onChange={(e) => handleChange("action", e.target.value)}
+            required
+            style={{ ...inp, cursor: "pointer" }}
+            onFocus={(e) => {
+              e.target.style.borderColor = "#2196F3";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = colors.inputBorder;
+            }}
+          >
+            <option value="">Select action...</option>
+            <option value="For ENOD">For ENOD</option>
+            <option value="For Approval">For Approval</option>
+            <option value="For Disapproval">For Disapproval</option>
+          </select>
+          {!formData.action && (
+            <p
+              style={{
+                fontSize: "0.68rem",
+                color: "#ef4444",
+                marginTop: "0.3rem",
+                marginBottom: 0,
+              }}
+            >
+              ⚠️ Action is required when endorsing to{" "}
+              {formData.decision === "Endorse to Supervisor"
+                ? "supervisor"
+                : "checker"}
+              .
+            </p>
+          )}
+        </div>
+      )}
+
+      {isCheckAndReturn && (
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: "0.72rem",
+              fontWeight: "700",
+              color: colors.textPrimary,
+              marginBottom: "0.4rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            Action <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <select
+            value={formData.action}
+            onChange={(e) => handleChange("action", e.target.value)}
+            required
+            style={{ ...inp, cursor: "pointer" }}
+            onFocus={(e) => {
+              e.target.style.borderColor = "#2196F3";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = colors.inputBorder;
+            }}
+          >
+            <option value="">Select action...</option>
+            <option value="Return and Checked">Return and Checked</option>
+            <option value="Recommended for printing">
+              Recommended for printing
+            </option>
+          </select>
+          {!formData.action && (
+            <p
+              style={{
+                fontSize: "0.68rem",
+                color: "#ef4444",
+                marginTop: "0.3rem",
+                marginBottom: 0,
+              }}
+            >
+              ⚠️ Action is required when returning to evaluator.
+            </p>
+          )}
+        </div>
+      )}
+      {isEndorseToQAAdmin && (
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: "0.72rem",
+              fontWeight: "700",
+              color: colors.textPrimary,
+              marginBottom: "0.4rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            Action <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <select
+            value={formData.action}
+            onChange={(e) => handleChange("action", e.target.value)}
+            required
+            style={{ ...inp, cursor: "pointer" }}
+            onFocus={(e) => {
+              e.target.style.borderColor = "#2196F3";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = colors.inputBorder;
+            }}
+          >
+            <option value="">Select action...</option>
+            <option value="Signed and forwarded to QA Admin">
+              Signed and forwarded to QA Admin
+            </option>
+          </select>
+          {!formData.action && (
+            <p
+              style={{
+                fontSize: "0.68rem",
+                color: "#ef4444",
+                marginTop: "0.3rem",
+                marginBottom: 0,
+              }}
+            >
+              ⚠️ Action is required when endorsing to QA Admin.
+            </p>
+          )}
+        </div>
+      )}
+
+      {isReturnToEvaluatorFromSupervisor && (
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: "0.72rem",
+              fontWeight: "700",
+              color: colors.textPrimary,
+              marginBottom: "0.4rem",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            Action <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          <select
+            value={formData.action}
+            onChange={(e) => handleChange("action", e.target.value)}
+            required
+            style={{ ...inp, cursor: "pointer" }}
+            onFocus={(e) => {
+              e.target.style.borderColor = "#2196F3";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = colors.inputBorder;
+            }}
+          >
+            <option value="">Select action...</option>
+            <option value="Return to Evaluator for Clarification">
+              Return to Evaluator for Clarification
+            </option>
+          </select>
+          {!formData.action && (
+            <p
+              style={{
+                fontSize: "0.68rem",
+                color: "#ef4444",
+                marginTop: "0.3rem",
+                marginBottom: 0,
+              }}
+            >
+              ⚠️ Action is required when returning to evaluator.
+            </p>
+          )}
+        </div>
+      )}
+
       {isForCompliance && (
         <DeadlinePicker
           deadlineDate={deadlineDate}
@@ -3120,6 +3525,35 @@ function Step3ActionForm({ record, editedFields, colors, onClose, onSuccess }) {
           onChange={(e) => handleChange("remarks", e.target.value)}
           placeholder="Enter your remarks and findings..."
           rows={3}
+          style={{ ...inp, resize: "vertical", fontFamily: "inherit" }}
+          onFocus={(e) => {
+            e.target.style.borderColor = "#2196F3";
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = colors.inputBorder;
+          }}
+        />
+      </div>
+
+      {/* ── NEW: Doctrack Remarks ── */}
+      <div>
+        <label
+          style={{
+            display: "block",
+            fontSize: "0.72rem",
+            fontWeight: "700",
+            color: colors.textPrimary,
+            marginBottom: "0.4rem",
+            textTransform: "uppercase",
+            letterSpacing: "0.04em",
+          }}
+        >
+          Doctrack Remarks <span style={{ color: "#ef4444" }}>*</span>
+        </label>
+        <textarea
+          value={formData.doctrackRemarks}
+          onChange={(e) => handleChange("doctrackRemarks", e.target.value)}
+          rows={2}
           style={{ ...inp, resize: "vertical", fontFamily: "inherit" }}
           onFocus={(e) => {
             e.target.style.borderColor = "#2196F3";

@@ -120,7 +120,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
         del_last_index: closeTask,
         del_thread: "Close",
         user_id: currentUser?.id ?? null,
-        action_type: "DECKED",
+        action_type: "Decked",
       });
 
       if (formData.deckerDecision === "For S&E and Quality Evaluation") {

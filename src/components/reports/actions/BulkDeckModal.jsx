@@ -720,7 +720,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
             del_last_index: 0,
             del_thread: "Close",
             user_id: currentUser?.id ?? null,
-            action_type: "DECKED",
+            action_type: "Decked",
           });
 
           if (formData.deckerDecision === "For S&E and Quality Evaluation") {
