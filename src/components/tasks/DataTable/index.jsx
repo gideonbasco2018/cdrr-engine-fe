@@ -307,6 +307,7 @@ function DataTable({
                   decision_authority_name: decisionAuthorityName,
                 }
               : {}),
+            doctrack_remarks: doctrackRemarks || "",
           });
           await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
         } else {
@@ -329,6 +330,7 @@ function DataTable({
                   decision_authority_name: decisionAuthorityName,
                 }
               : {}),
+            doctrack_remarks: doctrackRemarks || "",
           });
 
           /*
