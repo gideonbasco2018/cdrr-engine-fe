@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { tableColumns, COLUMN_DB_KEY_MAP } from "./tableColumns";
 import TablePagination from "./TablePagination";
-import ViewDetailsModal from "./ViewDetailsModal";
+// import ViewDetailsModal from "./ViewDetailsModal";
+import ViewDetailsModal from "./viewdetails/ViewDetailsModal";
 import DoctrackModal from "../../components/reports/actions/DoctrackModal";
 import ApplicationLogsModal from "./ApplicationLogsModal";
 import ChangeLogModal from "../tasks/ChangeLogModal";

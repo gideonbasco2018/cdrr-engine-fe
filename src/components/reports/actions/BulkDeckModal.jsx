@@ -601,6 +601,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     sne: "",
     deckerDecision: "",
     deckerRemarks: "",
+    doctackRemarks: "", // ← Auto-filled based on decision; editable by user
   });
 
   const [loading, setLoading] = useState(false);
@@ -626,6 +627,15 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     "For S&E and Quality Evaluation": { fetchEvaluator: true, fetchSne: true },
   };
 
+  // ── Auto-fill doctackRemarks per decision ──────────────────────────────────
+  // Edit the values below to change the default remarks per decision.
+  const DOCTRACK_REMARKS_DEFAULTS = {
+    "For S&E": "Forwarded to S&E",
+    "For Quality Evaluation": "Forwarded to evaluator",
+    "For S&E and Quality Evaluation": "Forwarded to S&E and Evaluator",
+  };
+  // ──────────────────────────────────────────────────────────────────────────
+
   const resolveEvaluatorId = (username) =>
     nextUsers.find((u) => u.username === username)?.id ?? null;
 
@@ -642,9 +652,17 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
 
   useEffect(() => {
     const decision = formData.deckerDecision;
-    setFormData((prev) => ({ ...prev, evaluator: "", sne: "" }));
+
+    // Reset user selections + auto-fill doctackRemarks
+    setFormData((prev) => ({
+      ...prev,
+      evaluator: "",
+      sne: "",
+      doctackRemarks: DOCTRACK_REMARKS_DEFAULTS[decision] ?? "",
+    }));
     setNextUsers([]);
     setSneUsers([]);
+
     if (!decision || !DECISION_CONFIG[decision]) return;
     const cfg = DECISION_CONFIG[decision];
 
@@ -713,6 +731,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
             application_status: "COMPLETED",
             application_decision: formData.deckerDecision,
             application_remarks: formData.deckerRemarks || "",
+            doctrack_remarks: formData.doctackRemarks || "", // ← Doctrack remarks
             start_date: formattedDateTime,
             accomplished_date: formattedDateTime,
             del_index: nextIndex,
@@ -791,12 +810,9 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
       }
 
       // ── Show transmittal prompt instead of alert ──
-      // NOTE: onSuccess is called AFTER transmittal decision to prevent
-      // parent re-render from unmounting this modal before user sees prompt
       setSucceededRecords(succeeded);
       setDeckResult({ errors });
       setShowTransmittalPrompt(true);
-      // onSuccess called in handleTransmittalYes / handleTransmittalNo
     } catch (error) {
       console.error("❌ Bulk deck failed:", error);
       alert(`❌ Bulk deck failed: ${error.message}`);
@@ -823,13 +839,13 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   const handleTransmittalYes = async () => {
     await generateTransmittalPDF(succeededRecords);
     setShowTransmittalPrompt(false);
-    if (onSuccess) await onSuccess(); // refresh parent after download
+    if (onSuccess) await onSuccess();
     onClose();
   };
 
   const handleTransmittalNo = async () => {
     setShowTransmittalPrompt(false);
-    if (onSuccess) await onSuccess(); // refresh parent on skip too
+    if (onSuccess) await onSuccess();
     onClose();
   };
 
@@ -1206,6 +1222,76 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 />
               </div>
 
+              {/* ── Doctrack Remarks ───────────────────────────────────────────
+                   Auto-filled from DOCTRACK_REMARKS_DEFAULTS when decision
+                   changes. User can still manually override the value.
+              ──────────────────────────────────────────────────────────────── */}
+              {formData.deckerDecision && (
+                <div style={{ marginBottom: "1.5rem" }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.875rem",
+                      fontWeight: "600",
+                      color: colors.textPrimary,
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    Doctrack Remarks
+                    <span
+                      style={{
+                        marginLeft: "0.5rem",
+                        fontSize: "0.7rem",
+                        fontWeight: "500",
+                        color: "#2196F3",
+                        background: "#2196F315",
+                        border: "1px solid #2196F330",
+                        padding: "0.1rem 0.45rem",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      auto-filled
+                    </span>
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.doctackRemarks}
+                    onChange={(e) =>
+                      handleChange("doctackRemarks", e.target.value)
+                    }
+                    placeholder="Doctrack remarks..."
+                    style={{
+                      width: "100%",
+                      padding: "0.75rem 1rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: "8px",
+                      color: colors.textPrimary,
+                      fontSize: "0.95rem",
+                      outline: "none",
+                      transition: "all 0.2s",
+                      boxSizing: "border-box",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#2196F3")}
+                    onBlur={(e) =>
+                      (e.target.style.borderColor = colors.inputBorder)
+                    }
+                  />
+                  <p
+                    style={{
+                      fontSize: "0.72rem",
+                      color: colors.textTertiary,
+                      marginTop: "0.35rem",
+                      marginBottom: 0,
+                    }}
+                  >
+                    💡 Default based on selected decision. You may edit if
+                    needed.
+                  </p>
+                </div>
+              )}
+              {/* ── End Doctrack Remarks ─────────────────────────────────── */}
+
               {/* Dual assign banner */}
               {isDualAssign && (
                 <div
@@ -1563,6 +1649,14 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                   ? {
                       label: "Remarks",
                       value: formData.deckerRemarks,
+                      color: colors.textSecondary,
+                    }
+                  : null,
+                // Doctrack Remarks row in confirmation summary
+                formData.doctackRemarks
+                  ? {
+                      label: "Doctrack Remarks",
+                      value: formData.doctackRemarks,
                       color: colors.textSecondary,
                     }
                   : null,
