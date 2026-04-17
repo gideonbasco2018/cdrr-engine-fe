@@ -483,6 +483,7 @@ export function Step4ActionForm({
         application_status: "COMPLETED",
         application_decision: formData.decision,
         application_remarks: formData.remarks || "",
+        doctrack_remarks: formData.doctrackRemarks || "",
         action_type: isLRDChiefAdmin
           ? "Decision Recorded"
           : actionConfig
