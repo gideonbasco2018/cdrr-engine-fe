@@ -7,6 +7,7 @@ export const getUploadReports = async ({
   search = '',
   status = '',
   category = '',
+  dosage_form = '',
   prescription = '',
   prescription_not = '',
   dtn = null,
@@ -16,8 +17,17 @@ export const getUploadReports = async ({
   generic_name = '',
   app_status = '',
   app_type = '',
-  // ✅ NEW
   processing_type = '',
+  // ✅ Supply chain params
+  manufacturer_country = '',
+  trader = '',
+  trader_country = '',
+  importer = '',
+  importer_country = '',
+  distributor = '',
+  distributor_country = '',
+  repacker = '',
+  repacker_country = '',
   sortBy = 'DB_DATE_EXCEL_UPLOAD',
   sortOrder = 'desc'
 }) => {
@@ -29,6 +39,7 @@ export const getUploadReports = async ({
   if (search) params.search = search;
   if (status) params.status = status;
   if (category) params.category = category;
+  if (dosage_form) params.dosage_form = dosage_form;
   if (prescription) params.prescription = prescription;
   if (prescription_not) params.prescription_not = prescription_not;
   if (dtn) params.dtn = dtn;
@@ -38,8 +49,17 @@ export const getUploadReports = async ({
   if (generic_name) params.generic_name = generic_name;
   if (app_status) params.app_status = app_status;
   if (app_type) params.app_type = app_type;
-  // ✅ NEW
   if (processing_type) params.processing_type = processing_type;
+  // ✅ Supply chain
+  if (manufacturer_country) params.manufacturer_country = manufacturer_country;
+  if (trader) params.trader = trader;
+  if (trader_country) params.trader_country = trader_country;
+  if (importer) params.importer = importer;
+  if (importer_country) params.importer_country = importer_country;
+  if (distributor) params.distributor = distributor;
+  if (distributor_country) params.distributor_country = distributor_country;
+  if (repacker) params.repacker = repacker;
+  if (repacker_country) params.repacker_country = repacker_country;
 
   if (sortBy && sortBy.trim() !== '') {
     params.sort_by = sortBy;
@@ -51,7 +71,6 @@ export const getUploadReports = async ({
 };
 
 // ✅ Fetch unique application types with counts
-// ✅ UPDATED: added processingType so sidebar counts filter correctly when a processing tab is active
 export const getAppTypes = async (status = null, processingType = null) => {
   const params = {};
   if (status) params.status = status;
@@ -95,11 +114,10 @@ export const uploadExcelFile = async (file, username = 'system') => {
 };
 
 // ✅ Fetch unique prescription types with counts
-// ✅ UPDATED: added processingType so sidebar counts filter correctly when a processing tab is active
 export const getPrescriptionTypes = async (
   status = null,
   appType = null,
-  processingType = null  // ✅ NEW
+  processingType = null
 ) => {
   const params = {};
   if (status) params.status = status;
@@ -115,12 +133,11 @@ export const getPrescriptionTypes = async (
 };
 
 // ✅ Fetch unique app status types with counts
-// ✅ UPDATED: added processingType so sidebar counts filter correctly when a processing tab is active
 export const getAppStatusTypes = async (
   status = null,
   appType = null,
   prescription = null,
-  processingType = null  // ✅ NEW
+  processingType = null
 ) => {
   const params = {};
   if (status) params.status = status;
@@ -169,11 +186,12 @@ export const downloadTemplate = async () => {
   link.remove();
 };
 
-// ✅ Export filtered records to Excel
+// ✅ Export filtered records to Excel — now includes supply chain params
 export const exportFilteredRecords = async ({
   search = '',
   status = '',
   category = '',
+  dosage_form = '',
   prescription = '',
   prescription_not = '',
   dtn = null,
@@ -183,14 +201,24 @@ export const exportFilteredRecords = async ({
   generic_name = '',
   app_status = '',
   app_type = '',
-  // ✅ NEW
   processing_type = '',
+  // ✅ Supply chain params
+  manufacturer_country = '',
+  trader = '',
+  trader_country = '',
+  importer = '',
+  importer_country = '',
+  distributor = '',
+  distributor_country = '',
+  repacker = '',
+  repacker_country = '',
 }) => {
   const params = {};
 
   if (search) params.search = search;
   if (status) params.status = status;
   if (category) params.category = category;
+  if (dosage_form) params.dosage_form = dosage_form;
   if (prescription) params.prescription = prescription;
   if (prescription_not) params.prescription_not = prescription_not;
   if (dtn) params.dtn = dtn;
@@ -200,8 +228,17 @@ export const exportFilteredRecords = async ({
   if (generic_name) params.generic_name = generic_name;
   if (app_status) params.app_status = app_status;
   if (app_type) params.app_type = app_type;
-  // ✅ NEW
   if (processing_type) params.processing_type = processing_type;
+  // ✅ Supply chain
+  if (manufacturer_country) params.manufacturer_country = manufacturer_country;
+  if (trader) params.trader = trader;
+  if (trader_country) params.trader_country = trader_country;
+  if (importer) params.importer = importer;
+  if (importer_country) params.importer_country = importer_country;
+  if (distributor) params.distributor = distributor;
+  if (distributor_country) params.distributor_country = distributor_country;
+  if (repacker) params.repacker = repacker;
+  if (repacker_country) params.repacker_country = repacker_country;
 
   const response = await API.get('/main-db/export-filtered', {
     params,

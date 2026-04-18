@@ -1,7 +1,7 @@
 // FILE: src/components/reports/actions/ViewDetailsModal.jsx
 
 import { useState } from "react";
-
+import { Step3AppLogs } from "../../tasks/viewdetails/steps/Step3AppLogs";
 /* ================================================================== */
 /*  Helpers                                                             */
 /* ================================================================== */
@@ -56,13 +56,13 @@ const calculateStatusTimeline = (record) => {
 /* ================================================================== */
 function VDSection({ title, children, colors }) {
   return (
-    <div style={{ marginBottom: "2rem" }}>
+    <div style={{ marginBottom: "1.5rem" }}>
       <h3
         style={{
           fontSize: "0.95rem",
           fontWeight: "700",
           color: colors.textPrimary,
-          marginBottom: "1rem",
+          marginBottom: "0.75rem",
           paddingBottom: "0.5rem",
           borderBottom: `2px solid ${colors.cardBorder}`,
           letterSpacing: "0.02em",
@@ -81,7 +81,7 @@ function FieldGrid({ children }) {
       style={{
         display: "grid",
         gridTemplateColumns: "repeat(2, 1fr)",
-        gap: "1rem",
+        gap: "0.75rem",
       }}
     >
       {children}
@@ -95,13 +95,13 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
     <div
       style={
         fullWidth
-          ? { gridColumn: "1 / -1", marginBottom: "0.75rem" }
-          : { display: "flex", flexDirection: "column", gap: "0.3rem" }
+          ? { gridColumn: "1 / -1", marginBottom: "0.5rem" }
+          : { display: "flex", flexDirection: "column", gap: "0.25rem" }
       }
     >
       <label
         style={{
-          fontSize: "0.72rem",
+          fontSize: "0.65rem",
           fontWeight: "700",
           color: colors.textTertiary,
           letterSpacing: "0.07em",
@@ -112,13 +112,13 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
       </label>
       <div
         style={{
-          padding: "0.55rem 0.8rem",
+          padding: "0.45rem 0.7rem",
           background: colors.inputBg,
           border: `1px solid ${colors.inputBorder}`,
           borderRadius: "6px",
           color: isNA ? colors.textTertiary : colors.textPrimary,
-          fontSize: "0.85rem",
-          minHeight: fullWidth ? "3.5rem" : "2.2rem",
+          fontSize: "0.82rem",
+          minHeight: fullWidth ? "3rem" : "2rem",
           whiteSpace: fullWidth ? "pre-wrap" : "normal",
           wordBreak: "break-word",
           display: "flex",
@@ -132,14 +132,62 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
   );
 }
 
+function SummaryCard({
+  icon,
+  label,
+  value,
+  accent,
+  colors,
+  fullWidth = false,
+}) {
+  return (
+    <div
+      style={{
+        ...(fullWidth ? { gridColumn: "1 / -1" } : {}),
+        padding: "0.6rem 0.85rem",
+        background: colors.inputBg,
+        border: `1px solid ${colors.inputBorder}`,
+        borderLeft: `3px solid ${accent}`,
+        borderRadius: "6px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.2rem",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.6rem",
+          fontWeight: "700",
+          color: colors.textTertiary,
+          textTransform: "uppercase",
+          letterSpacing: "0.07em",
+        }}
+      >
+        {icon} {label}
+      </span>
+      <span
+        style={{
+          fontSize: "0.85rem",
+          fontWeight: "600",
+          color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
+          fontStyle: value === "N/A" ? "italic" : "normal",
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 function StatusTimelineField({ label, record, colors }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
       <label
         style={{
-          fontSize: "0.72rem",
+          fontSize: "0.65rem",
           fontWeight: "700",
           color: colors.textTertiary,
           letterSpacing: "0.07em",
@@ -150,14 +198,14 @@ function StatusTimelineField({ label, record, colors }) {
       </label>
       <div
         style={{
-          padding: "0.55rem 0.8rem",
+          padding: "0.45rem 0.7rem",
           background: colors.inputBg,
           border: `1px solid ${colors.inputBorder}`,
           borderRadius: "6px",
-          fontSize: "0.85rem",
+          fontSize: "0.82rem",
           display: "flex",
           alignItems: "center",
-          minHeight: "2.2rem",
+          minHeight: "2rem",
         }}
       >
         {!status ? (
@@ -167,13 +215,13 @@ function StatusTimelineField({ label, record, colors }) {
         ) : (
           <span
             style={{
-              padding: "0.3rem 0.8rem",
+              padding: "0.25rem 0.65rem",
               background: ok
                 ? "linear-gradient(135deg,#10b981,#059669)"
                 : "linear-gradient(135deg,#ef4444,#dc2626)",
               color: "#fff",
               borderRadius: "6px",
-              fontSize: "0.75rem",
+              fontSize: "0.72rem",
               fontWeight: "700",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
@@ -189,46 +237,6 @@ function StatusTimelineField({ label, record, colors }) {
           </span>
         )}
       </div>
-    </div>
-  );
-}
-
-function SummaryCard({ icon, label, value, accent, colors }) {
-  return (
-    <div
-      style={{
-        padding: "1rem 1.25rem",
-        background: colors.inputBg,
-        border: `1px solid ${colors.inputBorder}`,
-        borderLeft: `3px solid ${accent}`,
-        borderRadius: "8px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.35rem",
-      }}
-    >
-      <span
-        style={{
-          fontSize: "0.7rem",
-          fontWeight: "700",
-          color: colors.textTertiary,
-          textTransform: "uppercase",
-          letterSpacing: "0.07em",
-        }}
-      >
-        {icon} {label}
-      </span>
-      <span
-        style={{
-          fontSize: "0.9rem",
-          fontWeight: "600",
-          color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
-          fontStyle: value === "N/A" ? "italic" : "normal",
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
-      </span>
     </div>
   );
 }
@@ -331,37 +339,37 @@ function Step1BasicInfo({ record, colors }) {
   const ok = status === "WITHIN";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-      {/* Hero row */}
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+      {/* DTN Banner */}
       <div
         style={{
-          padding: "1.25rem 1.5rem",
+          padding: "0.9rem 1.1rem",
           background:
             "linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))",
           border: "1px solid rgba(33,150,243,0.2)",
-          borderRadius: "10px",
+          borderRadius: "8px",
           display: "flex",
           alignItems: "center",
-          gap: "1.5rem",
+          gap: "1rem",
           flexWrap: "wrap",
         }}
       >
         <div>
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.6rem",
               fontWeight: "700",
               color: "#2196F3",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              marginBottom: "0.2rem",
+              marginBottom: "0.15rem",
             }}
           >
             Document Tracking No.
           </div>
           <div
             style={{
-              fontSize: "1.6rem",
+              fontSize: "1.25rem",
               fontWeight: "800",
               color: colors.textPrimary,
               letterSpacing: "-0.02em",
@@ -373,14 +381,14 @@ function Step1BasicInfo({ record, colors }) {
         <div
           style={{
             width: "1px",
-            height: "40px",
+            height: "32px",
             background: colors.cardBorder,
           }}
         />
-        <div style={{ flex: 1, minWidth: "200px" }}>
+        <div style={{ flex: 1, minWidth: "160px" }}>
           <div
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.6rem",
               fontWeight: "700",
               color: colors.textTertiary,
               textTransform: "uppercase",
@@ -388,43 +396,92 @@ function Step1BasicInfo({ record, colors }) {
               marginBottom: "0.2rem",
             }}
           >
-            Brand Name
+            App Status
           </div>
           <div
             style={{
-              fontSize: "1.1rem",
+              display: "inline-flex",
+              alignItems: "center",
+              padding: "0.25rem 0.65rem",
+              background: (() => {
+                const s = record.appStatus?.toUpperCase();
+                if (s === "COMPLETED" || s === "APPROVED")
+                  return "linear-gradient(135deg,#10b981,#059669)";
+                if (s === "PENDING")
+                  return "linear-gradient(135deg,#eab308,#ca8a04)";
+                if (s === "REJECTED")
+                  return "linear-gradient(135deg,#ef4444,#dc2626)";
+                return "linear-gradient(135deg,#6b7280,#4b5563)";
+              })(),
+              color: "#fff",
+              borderRadius: "6px",
+              fontSize: "0.72rem",
               fontWeight: "700",
-              color: colors.textPrimary,
+              letterSpacing: "0.5px",
+              textTransform: "uppercase",
+              boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
             }}
           >
-            {cleanValue(record.prodBrName)}
-          </div>
-          <div
-            style={{
-              fontSize: "0.82rem",
-              color: colors.textSecondary,
-              marginTop: "0.15rem",
-            }}
-          >
-            {cleanValue(record.prodGenName)}
+            {cleanValue(record.appStatus)}
           </div>
         </div>
+        {record.dbTimelineCitizenCharter && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.1rem",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.6rem",
+                fontWeight: "700",
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              Timeline
+            </div>
+            <div
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: "800",
+                color: colors.textPrimary,
+              }}
+            >
+              {cleanValue(record.dbTimelineCitizenCharter)}
+              <span
+                style={{
+                  fontSize: "0.62rem",
+                  fontWeight: "500",
+                  color: colors.textTertiary,
+                  marginLeft: "0.2rem",
+                }}
+              >
+                working days
+              </span>
+            </div>
+          </div>
+        )}
         {status && (
           <span
             style={{
-              padding: "0.4rem 1rem",
+              padding: "0.3rem 0.75rem",
               background: ok
                 ? "linear-gradient(135deg,#10b981,#059669)"
                 : "linear-gradient(135deg,#ef4444,#dc2626)",
               color: "#fff",
-              borderRadius: "8px",
-              fontSize: "0.75rem",
+              borderRadius: "6px",
+              fontSize: "0.65rem",
               fontWeight: "700",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
               boxShadow: ok
-                ? "0 2px 8px rgba(16,185,129,.3)"
-                : "0 2px 8px rgba(239,68,68,.3)",
+                ? "0 2px 6px rgba(16,185,129,.3)"
+                : "0 2px 6px rgba(239,68,68,.3)",
             }}
           >
             {ok ? "✓" : "⚠"} {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
@@ -432,54 +489,85 @@ function Step1BasicInfo({ record, colors }) {
         )}
       </div>
 
-      {/* Summary grid */}
+      {/* Summary Cards */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "0.75rem",
+          gap: "0.5rem",
         }}
       >
         <SummaryCard
-          icon="🏢"
-          label="LTO Company"
-          value={cleanValue(record.ltoComp)}
-          accent="#2196F3"
+          icon="⚙️"
+          label="Processing Type"
+          value={cleanValue(record.processingType)}
+          accent="#005cd4"
+          colors={colors}
+        />
+        <SummaryCard
+          icon="🗂️"
+          label="Category"
+          value={cleanValue(record.estCat)}
+          accent="#fbff00"
           colors={colors}
         />
         <SummaryCard
           icon="📋"
           label="Application Type"
           value={cleanValue(record.appType)}
-          accent="#9c27b0"
+          accent="#ff1547"
           colors={colors}
         />
         <SummaryCard
-          icon="💊"
-          label="Dosage Form"
-          value={cleanValue(record.dosageForm)}
-          accent="#ff9800"
+          icon="🏢"
+          label="LTO Company"
+          value={cleanValue(record.ltoComp)}
+          accent="#0fff2f"
+          colors={colors}
+          fullWidth
+        />
+        <SummaryCard
+          icon="📍"
+          label="LTO Address"
+          value={cleanValue(record.ltoAdd)}
+          accent="#ff950a"
+          colors={colors}
+          fullWidth
+        />
+        <SummaryCard
+          icon="📧"
+          label="Email Address"
+          value={cleanValue(record.eadd)}
+          accent="#fa3a93"
           colors={colors}
         />
         <SummaryCard
-          icon="📌"
-          label="Prescription"
-          value={cleanValue(record.prescription)}
-          accent="#f44336"
+          icon="🪪"
+          label="TIN Number"
+          value={cleanValue(record.tin)}
+          accent="#ca44ff"
           colors={colors}
         />
         <SummaryCard
-          icon="🔖"
-          label="App Status"
-          value={cleanValue(record.appStatus)}
-          accent="#4caf50"
+          icon="📞"
+          label="Contact Number"
+          value={cleanValue(record.contactNo)}
+          accent="#00f18d"
+          colors={colors}
+          fullWidth
+        />
+        <SummaryCard
+          icon="🔑"
+          label="LTO Number"
+          value={cleanValue(record.ltoNo)}
+          accent="#781192"
           colors={colors}
         />
         <SummaryCard
-          icon="⚙️"
-          label="Processing Type"
-          value={cleanValue(record.processingType)}
-          accent="#00bcd4"
+          icon="📅"
+          label="LTO Validity"
+          value={formatDate(record.validity)}
+          accent="#607d8b"
           colors={colors}
         />
         <SummaryCard
@@ -491,9 +579,9 @@ function Step1BasicInfo({ record, colors }) {
         />
         <SummaryCard
           icon="📅"
-          label="Date Released"
-          value={formatDate(record.dateReleased)}
-          accent="#607d8b"
+          label="Date Received FDAC"
+          value={formatDate(record.dateReceivedFdac)}
+          accent="#0b5b83"
           colors={colors}
         />
       </div>
@@ -502,293 +590,63 @@ function Step1BasicInfo({ record, colors }) {
       <VDSection title="💊 Product Details" colors={colors}>
         <FieldGrid>
           <DisplayField
-            label="Dosage Strength"
-            value={cleanValue(record.dosageStrength)}
+            label="Brand Name"
+            value={cleanValue(record.prodBrName)}
             colors={colors}
           />
           <DisplayField
-            label="Pharma Category"
-            value={cleanValue(record.pharmaCategory)}
+            label="Generic Name"
+            value={cleanValue(record.prodGenName)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Dosage Strength"
+            value={cleanValue(record.prodDosStr)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Dosage Form"
+            value={cleanValue(record.prodDosForm)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Classification"
+            value={cleanValue(record.prodClassPrescript)}
             colors={colors}
           />
           <DisplayField
             label="Essential Drug"
-            value={cleanValue(record.essentialDrug)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Product Category"
-            value={cleanValue(record.productCategory)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      {/* Establishment */}
-      <VDSection title="🏢 Establishment" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Category"
-            value={cleanValue(record.estCat)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.ltoNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO Address"
-            value={cleanValue(record.ltoAdd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Contact No."
-            value={cleanValue(record.contactNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Email"
-            value={cleanValue(record.eadd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="TIN"
-            value={cleanValue(record.tin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Validity"
-            value={formatDate(record.validity)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-    </div>
-  );
-}
-
-/* ================================================================== */
-/*  Step 2: Full Details                                                */
-/* ================================================================== */
-function Step2FullDetails({ record, colors }) {
-  return (
-    <div>
-      <VDSection title="📋 Application Information" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Registration No."
-            value={cleanValue(record.regNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Application Type"
-            value={cleanValue(record.appType)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Mother App Type"
-            value={cleanValue(record.motherAppType)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Old RSN"
-            value={cleanValue(record.oldRsn)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Certification"
-            value={cleanValue(record.certification)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Class"
-            value={cleanValue(record.class)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Application Status"
-            value={cleanValue(record.appStatus)}
-            colors={colors}
-          />
-          <DisplayField
-            label="MO"
-            value={cleanValue(record.mo)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📝 Amendments" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Amendment 1"
-            value={cleanValue(record.ammend1)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Amendment 2"
-            value={cleanValue(record.ammend2)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Amendment 3"
-            value={cleanValue(record.ammend3)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="🏭 Manufacturer" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Manufacturer"
-            value={cleanValue(record.prodManu)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Country"
-            value={cleanValue(record.prodManuCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Address"
-            value={cleanValue(record.prodManuAdd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="TIN"
-            value={cleanValue(record.prodManuTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.prodManuLtoNo)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="🚢 Trader" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Trader"
-            value={cleanValue(record.prodTrader)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Trader Country"
-            value={cleanValue(record.prodTraderCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Trader Address"
-            value={cleanValue(record.prodTraderAdd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Trader TIN"
-            value={cleanValue(record.prodTraderTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Trader LTO No."
-            value={cleanValue(record.prodTraderLtoNo)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📦 Repacker" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Repacker"
-            value={cleanValue(record.prodRepacker)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Repacker Country"
-            value={cleanValue(record.prodRepackerCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Repacker Address"
-            value={cleanValue(record.prodRepackerAdd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Repacker TIN"
-            value={cleanValue(record.prodRepackerTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Repacker LTO No."
-            value={cleanValue(record.prodRepackerLtoNo)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="✈️ Importer" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Importer"
-            value={cleanValue(record.prodImporter)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Importer Country"
-            value={cleanValue(record.prodImporterCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Importer Address"
-            value={cleanValue(record.prodImporterAdd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Importer TIN"
-            value={cleanValue(record.prodImporterTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Importer LTO No."
-            value={cleanValue(record.prodImporterLtoNo)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="🚚 Distributor" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Distributor"
-            value={cleanValue(record.prodDistri)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Distributor Country"
-            value={cleanValue(record.prodDistriCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Distributor Address"
-            value={cleanValue(record.prodDistriAdd)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Distributor TIN"
-            value={cleanValue(record.prodDistriTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Distributor LTO No."
-            value={cleanValue(record.prodDistriLtoNo)}
+            value={cleanValue(record.prodEssDrugList)}
             colors={colors}
           />
           <DisplayField
             label="Shelf Life"
             value={cleanValue(record.prodDistriShelfLife)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Pharma Category"
+            value={cleanValue(record.prodPharmaCat)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Product Category"
+            value={cleanValue(record.prodCat)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Pharma Prod. Cat."
+            value={cleanValue(record.pharmaProdCat)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Pharma Prod. Label"
+            value={cleanValue(record.pharmaProdCatLabel)}
+            colors={colors}
+          />
+          <DisplayField
+            label="File"
+            value={cleanValue(record.file)}
             colors={colors}
           />
         </FieldGrid>
@@ -854,18 +712,232 @@ function Step2FullDetails({ record, colors }) {
         </FieldGrid>
       </VDSection>
 
-      <VDSection title="📅 Important Dates" colors={colors}>
+      <VDSection title="🏭 Manufacturer" colors={colors}>
         <FieldGrid>
           <DisplayField
-            label="Date Received FDAC"
-            value={formatDate(record.dateReceivedFdac)}
+            label="Manufacturer"
+            value={cleanValue(record.prodManu)}
             colors={colors}
           />
           <DisplayField
-            label="Date Received Central"
-            value={formatDate(record.dateReceivedCent)}
+            label="Country"
+            value={cleanValue(record.prodManuCountry)}
             colors={colors}
           />
+          <DisplayField
+            label="LTO No."
+            value={cleanValue(record.prodManuLtoNo)}
+            colors={colors}
+          />
+          <DisplayField
+            label="TIN"
+            value={cleanValue(record.prodManuTin)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Address"
+            value={cleanValue(record.prodManuAdd)}
+            colors={colors}
+            fullWidth
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="🤝 Trader" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="Trader"
+            value={cleanValue(record.prodTrader)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Country"
+            value={cleanValue(record.prodTraderCountry)}
+            colors={colors}
+          />
+          <DisplayField
+            label="LTO No."
+            value={cleanValue(record.prodTraderLtoNo)}
+            colors={colors}
+          />
+          <DisplayField
+            label="TIN"
+            value={cleanValue(record.prodTraderTin)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Address"
+            value={cleanValue(record.prodTraderAdd)}
+            colors={colors}
+            fullWidth
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="🚢 Importer" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="Importer"
+            value={cleanValue(record.prodImporter)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Country"
+            value={cleanValue(record.prodImporterCountry)}
+            colors={colors}
+          />
+          <DisplayField
+            label="LTO No."
+            value={cleanValue(record.prodImporterLtoNo)}
+            colors={colors}
+          />
+          <DisplayField
+            label="TIN"
+            value={cleanValue(record.prodImporterTin)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Address"
+            value={cleanValue(record.prodImporterAdd)}
+            colors={colors}
+            fullWidth
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="📦 Distributor" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="Distributor"
+            value={cleanValue(record.prodDistri)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Country"
+            value={cleanValue(record.prodDistriCountry)}
+            colors={colors}
+          />
+          <DisplayField
+            label="LTO No."
+            value={cleanValue(record.prodDistriLtoNo)}
+            colors={colors}
+          />
+          <DisplayField
+            label="TIN"
+            value={cleanValue(record.prodDistriTin)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Address"
+            value={cleanValue(record.prodDistriAdd)}
+            colors={colors}
+            fullWidth
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="🔄 Repacker" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="Repacker"
+            value={cleanValue(record.prodRepacker)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Country"
+            value={cleanValue(record.prodRepackerCountry)}
+            colors={colors}
+          />
+          <DisplayField
+            label="LTO No."
+            value={cleanValue(record.prodRepackerLtoNo)}
+            colors={colors}
+          />
+          <DisplayField
+            label="TIN"
+            value={cleanValue(record.prodRepackerTin)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Address"
+            value={cleanValue(record.prodRepackerAdd)}
+            colors={colors}
+            fullWidth
+          />
+        </FieldGrid>
+      </VDSection>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Step 2: Full Details                                                */
+/* ================================================================== */
+function Step2FullDetails({ record, colors }) {
+  return (
+    <div>
+      <VDSection title="📋 Application Information" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="Registration No."
+            value={cleanValue(record.regNo)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Mother App Type"
+            value={cleanValue(record.motherAppType)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Old RSN"
+            value={cleanValue(record.oldRsn)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Certification"
+            value={cleanValue(record.certification)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Class"
+            value={cleanValue(record.class)}
+            colors={colors}
+          />
+          <DisplayField
+            label="MO"
+            value={cleanValue(record.mo)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Application Status"
+            value={cleanValue(record.appStatus)}
+            colors={colors}
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="📝 Amendments" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="Amendment 1"
+            value={cleanValue(record.ammend1)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Amendment 2"
+            value={cleanValue(record.ammend2)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Amendment 3"
+            value={cleanValue(record.ammend3)}
+            colors={colors}
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="📅 Important Dates" colors={colors}>
+        <FieldGrid>
           <DisplayField
             label="Date Deck"
             value={formatDate(record.dateDeck)}
@@ -894,7 +966,7 @@ function Step2FullDetails({ record, colors }) {
         </FieldGrid>
       </VDSection>
 
-      <VDSection title="📁 Office/File Information" colors={colors}>
+      <VDSection title="📁 Office / File Information" colors={colors}>
         <FieldGrid>
           <DisplayField
             label="File"
@@ -934,7 +1006,7 @@ function Step2FullDetails({ record, colors }) {
         </FieldGrid>
       </VDSection>
 
-      <VDSection title="📤 Release" colors={colors}>
+      <VDSection title="📤 Released Information" colors={colors}>
         <FieldGrid>
           <DisplayField
             label="Type Doc Released"
@@ -944,6 +1016,11 @@ function Step2FullDetails({ record, colors }) {
           <DisplayField
             label="Atta Released"
             value={cleanValue(record.attaReleased)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Date Released"
+            value={formatDate(record.dateReleased)}
             colors={colors}
           />
         </FieldGrid>
@@ -1020,7 +1097,7 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
   const [currentStep, setCurrentStep] = useState(1);
   if (!record) return null;
 
-  const STEPS = ["Basic Info", "Full Details"];
+  const STEPS = ["Basic Info", "Full Details", "App Logs"];
   const totalSteps = STEPS.length;
 
   const goNext = () => setCurrentStep((s) => Math.min(s + 1, totalSteps));
@@ -1072,7 +1149,6 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
             gap: "1rem",
           }}
         >
-          {/* Left: title + subtitle */}
           <div
             style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}
           >
@@ -1102,7 +1178,6 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
             </p>
           </div>
 
-          {/* Center: Step indicator */}
           <div
             style={{
               flex: 1,
@@ -1118,7 +1193,6 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
             />
           </div>
 
-          {/* Right: close button */}
           <button
             onClick={onClose}
             style={{
@@ -1166,6 +1240,12 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
           {currentStep === 2 && (
             <Step2FullDetails record={record} colors={colors} />
           )}
+          {currentStep === 3 && (
+            <Step3AppLogs
+              record={{ ...record, mainDbId: record.mainDbId ?? record.id }}
+              colors={colors}
+            />
+          )}
         </div>
 
         {/* ── Footer ── */}
@@ -1189,9 +1269,8 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
           >
             Step {currentStep} of {totalSteps}
           </span>
-
           <div style={{ display: "flex", gap: "0.75rem" }}>
-            <button
+            {/* <button
               onClick={onClose}
               style={{
                 padding: "0.6rem 1.2rem",
@@ -1205,8 +1284,7 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
               }}
             >
               Close
-            </button>
-
+            </button> */}
             {currentStep > 1 && (
               <button
                 onClick={goPrev}
@@ -1227,7 +1305,6 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
                 ← Previous
               </button>
             )}
-
             {currentStep < totalSteps && (
               <button
                 onClick={goNext}

@@ -8,6 +8,7 @@ import ViewDetailsModal from "./actions/ViewDetailsModal";
 import BulkDeckModal from "./actions/BulkDeckModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
+import ChangeLogModal from "../tasks/ChangeLogModal";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -139,10 +140,19 @@ function DataTable({
   const [bulkDeckModalRecords, setBulkDeckModalRecords] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
   const [appLogsRecord, setAppLogsRecord] = useState(null);
+  const [changeLogRecord, setChangeLogRecord] = useState(null);
 
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
 
+  const handleOpenChangeLog = (row) => {
+    setOpenMenuId(null);
+    // i-map ang id → mainDbId kung wala pang mainDbId
+    setChangeLogRecord({
+      ...row,
+      mainDbId: row.mainDbId ?? row.id,
+    });
+  };
   const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
 
   const handleSort = (colKey) => {
@@ -1423,48 +1433,56 @@ function DataTable({
                                   }
                                 >
                                   <span>📦</span>
-                                  <span>Application Logs</span>
+                                  <span>Application Log</span>
                                 </button>
                               )}
                               {[
                                 {
-                                  label: "View Doctrack Details",
-                                  icon: "📋",
-                                  handler: () => handleOpenDoctrackModal(row),
+                                  label: "Change Log",
+                                  icon: "🕓",
+                                  handler: () => handleOpenChangeLog(row),
                                   color: colors.textPrimary,
                                   hoverBg: colors.tableRowHover,
                                 },
                                 {
-                                  label: "View Details",
+                                  label: "Application Information",
                                   icon: "👁️",
                                   handler: () => handleViewDetails(row),
                                   color: colors.textPrimary,
                                   hoverBg: colors.tableRowHover,
                                 },
                                 {
-                                  label: "Edit",
+                                  label: "Doctrack Details",
+                                  icon: "📋",
+                                  handler: () => handleOpenDoctrackModal(row),
+                                  color: colors.textPrimary,
+                                  hoverBg: colors.tableRowHover,
+                                },
+
+                                {
+                                  label: "Update Application Info",
                                   icon: "✏️",
                                   handler: () => handleEditClick(row),
                                   color: "#2196F3",
                                   hoverBg: "rgba(33,150,243,0.1)",
                                 },
-                                {
-                                  label: "Delete",
-                                  icon: "🗑️",
-                                  handler: () => {
-                                    setOpenMenuId(null);
-                                    if (
-                                      confirm(
-                                        `Delete record for DTN: ${row.dtn}?`,
-                                      )
-                                    )
-                                      alert(
-                                        "Delete functionality not yet implemented",
-                                      );
-                                  },
-                                  color: "#ef4444",
-                                  hoverBg: "#ef444410",
-                                },
+                                // {
+                                //   label: "Delete",
+                                //   icon: "🗑️",
+                                //   handler: () => {
+                                //     setOpenMenuId(null);
+                                //     if (
+                                //       confirm(
+                                //         `Delete record for DTN: ${row.dtn}?`,
+                                //       )
+                                //     )
+                                //       alert(
+                                //         "Delete functionality not yet implemented",
+                                //       );
+                                //   },
+                                //   color: "#ef4444",
+                                //   hoverBg: "#ef444410",
+                                // },
                               ].map((item) => (
                                 <button
                                   key={item.label}
@@ -1565,6 +1583,15 @@ function DataTable({
         <ApplicationLogsModal
           record={appLogsRecord}
           onClose={() => setAppLogsRecord(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {changeLogRecord && (
+        <ChangeLogModal
+          record={changeLogRecord}
+          onClose={() => setChangeLogRecord(null)}
           colors={colors}
           darkMode={darkMode}
         />

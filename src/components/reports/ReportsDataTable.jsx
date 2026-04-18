@@ -5,6 +5,7 @@ import TablePagination from "./TablePagination";
 import ViewDetailsModal from "./actions/ViewDetailsModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
+import ChangeLogModal from "../tasks/ChangeLogModal";
 
 const COLUMN_DB_KEY_MAP = {
   dtn: "DB_DTN",
@@ -85,6 +86,8 @@ function ReportsDataTable({
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
   const [appLogsModalRecord, setAppLogsModalRecord] = useState(null);
+  // ✅ DAGDAG
+  const [changeLogRecord, setChangeLogRecord] = useState(null);
 
   const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
 
@@ -262,6 +265,12 @@ function ReportsDataTable({
     setOpenMenuId(null);
     setAppLogsModalRecord(row);
   };
+  // ✅ DAGDAG
+  const handleOpenChangeLog = (row) => {
+    setOpenMenuId(null);
+    setChangeLogRecord({ ...row, mainDbId: row.mainDbId ?? row.id });
+  };
+
   const handleCloseDetailsModal = () => setSelectedRowDetails(null);
   const handleCloseDoctrackModal = () => setDoctrackModalRecord(null);
 
@@ -493,7 +502,6 @@ function ReportsDataTable({
     };
   };
 
-  // ── Shared th/td base styles ──────────────────────────────────────
   const thBase = {
     padding: "0.65rem 0.85rem",
     fontSize: "0.6rem",
@@ -508,8 +516,6 @@ function ReportsDataTable({
     transition: "background 0.15s",
   };
 
-  // tdBase intentionally does NOT include whiteSpace/wordBreak
-  // so we can override per-cell (# column needs nowrap)
   const tdBase = {
     padding: "0.65rem 0.85rem",
     fontSize: "0.78rem",
@@ -519,7 +525,6 @@ function ReportsDataTable({
 
   return (
     <>
-      {/* ── Outer card — flex column so table fills remaining height ── */}
       <div
         style={{
           background: colors.cardBg,
@@ -591,7 +596,7 @@ function ReportsDataTable({
           )}
         </div>
 
-        {/* ── Scrollable table — flex: 1 fills remaining space ── */}
+        {/* Scrollable Table */}
         <div
           style={{
             flex: 1,
@@ -616,7 +621,6 @@ function ReportsDataTable({
               }}
             >
               <tr>
-                {/* # column */}
                 <th
                   style={{
                     ...thBase,
@@ -633,7 +637,6 @@ function ReportsDataTable({
                 >
                   #
                 </th>
-
                 {tableColumns.map((col) => (
                   <th
                     key={col.key}
@@ -666,8 +669,6 @@ function ReportsDataTable({
                     </span>
                   </th>
                 ))}
-
-                {/* Actions column */}
                 <th
                   style={{
                     ...thBase,
@@ -694,21 +695,20 @@ function ReportsDataTable({
                   <tr
                     key={row.id}
                     style={{ background: rowBg, transition: "background 0.2s" }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = colors.tableRowHover;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = rowBg;
-                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = colors.tableRowHover)
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = rowBg)
+                    }
                   >
-                    {/* ── Row number — whiteSpace nowrap prevents digit wrapping ── */}
                     <td
                       style={{
                         ...tdBase,
                         fontWeight: "700",
                         color: colors.textTertiary,
                         textAlign: "center",
-                        whiteSpace: "nowrap", // ← key fix: stops "1\n5" wrapping
+                        whiteSpace: "nowrap",
                         width: "60px",
                         minWidth: "60px",
                         position: "sticky",
@@ -736,7 +736,6 @@ function ReportsDataTable({
                       </td>
                     ))}
 
-                    {/* Actions */}
                     <td
                       style={{
                         ...tdBase,
@@ -794,7 +793,7 @@ function ReportsDataTable({
                                 border: `1px solid ${colors.cardBorder}`,
                                 borderRadius: "8px",
                                 boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                                minWidth: "185px",
+                                minWidth: "190px",
                                 zIndex: 9999,
                                 overflow: "visible",
                               }}
@@ -806,14 +805,19 @@ function ReportsDataTable({
                                   handler: () => handleOpenAppLogsModal(row),
                                 },
                                 {
+                                  label: "Application Information",
+                                  icon: "👁️",
+                                  handler: () => handleViewDetails(row),
+                                },
+                                {
+                                  label: "Change Log", // ✅ DAGDAG
+                                  icon: "🕓",
+                                  handler: () => handleOpenChangeLog(row),
+                                },
+                                {
                                   label: "View Doctrack Details",
                                   icon: "📋",
                                   handler: () => handleOpenDoctrackModal(row),
-                                },
-                                {
-                                  label: "View Details",
-                                  icon: "👁️",
-                                  handler: () => handleViewDetails(row),
                                 },
                               ].map((item, i) => (
                                 <button
@@ -862,7 +866,7 @@ function ReportsDataTable({
           </table>
         </div>
 
-        {/* ── Pagination — flexShrink: 0 so it never gets squished ── */}
+        {/* Pagination */}
         <div
           style={{
             flexShrink: 0,
@@ -884,6 +888,7 @@ function ReportsDataTable({
         </div>
       </div>
 
+      {/* Modals */}
       {appLogsModalRecord && (
         <ApplicationLogsModal
           record={appLogsModalRecord}
@@ -904,6 +909,15 @@ function ReportsDataTable({
           record={selectedRowDetails}
           onClose={handleCloseDetailsModal}
           colors={colors}
+        />
+      )}
+      {/* ✅ DAGDAG */}
+      {changeLogRecord && (
+        <ChangeLogModal
+          record={changeLogRecord}
+          onClose={() => setChangeLogRecord(null)}
+          colors={colors}
+          darkMode={darkMode}
         />
       )}
     </>

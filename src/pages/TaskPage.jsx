@@ -244,6 +244,7 @@ function TaskPage({ darkMode }) {
     });
     await markWorkflowTaskAsRead(id);
   }, []);
+
   const handleTabChange = (step) => {
     setActiveTab(step);
     setSelectedRows([]);
