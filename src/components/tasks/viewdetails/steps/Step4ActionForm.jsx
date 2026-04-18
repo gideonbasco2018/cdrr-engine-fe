@@ -442,13 +442,30 @@ export function Step4ActionForm({
         now.getTime() + 8 * 60 * 60 * 1000,
       ).toISOString();
 
+      // Compute approval field changes
+      const approvalDirtyFields = isQEForApproval
+        ? QE_APPROVAL_FIELD_KEYS.filter((k) => {
+            const oldVal = (record[k] ?? "").toString();
+            const newVal = (approvalFields[k] ?? "").toString();
+            return oldVal !== newVal;
+          }).map((k) => ({
+            field_name: k,
+            field_label: QE_APPROVAL_FIELD_LABELS[k] ?? k,
+            old_value: (record[k] ?? "").toString(),
+            new_value: (approvalFields[k] ?? "").toString(),
+            step_context: currentStep,
+          }))
+        : [];
+
+      const allDirtyFields = [...dirtyFields, ...approvalDirtyFields];
+
       // Save field edits
-      if (dirtyFields.length > 0) {
+      if (allDirtyFields.length > 0) {
         await createFieldAuditLog({
           main_db_id: record.mainDbId,
           log_id: record.id,
           session_id: crypto.randomUUID(),
-          changes: dirtyFields,
+          changes: allDirtyFields,
         });
         const updatePayload = {};
         dirtyFields.forEach((c) => {
@@ -499,10 +516,10 @@ export function Step4ActionForm({
               decision_authority_name: formData.decisionAuthorityName,
             }
           : {}),
-        ...(dirtyFields.length > 0
+        ...(allDirtyFields.length > 0
           ? {
               edited_fields: Object.fromEntries(
-                dirtyFields.map((c) => [c.field_name, c.new_value]),
+                allDirtyFields.map((c) => [c.field_name, c.new_value]),
               ),
             }
           : {}),

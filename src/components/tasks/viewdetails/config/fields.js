@@ -100,7 +100,10 @@ export const FIELD_LABEL_MAP = {
   typeDocReleased: "Type of Document Released",
   secpaExpDate: "SECPA Expiry Date",
   secpaIssuedOn: "SECPA Issued On",
-
+  prodBrName: "Brand Name",
+  prodGenName: "Generic Name",
+  expiryDate: "Expiry Date", 
+  cprValidity: "CPR Validity",    
 };
 
 export const FIELD_KEY_TO_DB = {

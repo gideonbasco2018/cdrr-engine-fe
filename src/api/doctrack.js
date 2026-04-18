@@ -210,3 +210,43 @@ export const getUploadHistoryById = async (historyId) => {
     throw new Error(errorMessage);
   }
 };
+
+
+// ADD at the bottom:
+
+/**
+ * Insert a single doctrack log by RSN (for ViewDetails modal)
+ * @param {string} rsn - 14-digit doctrack number
+ * @param {string} remarks - doctrack remarks
+ * @param {number} userID - logged-in user's ID
+ */
+export const createDoctrackLogByRsn = async (rsn, remarks, userID) => {
+  try {
+    const response = await API.post("/doctrack/log/by-rsn", {
+      rsn,
+      remarks,
+      userID,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error creating doctrack log by RSN:", error);
+    // Non-fatal — don't throw, just log
+    return null;
+  }
+};
+
+/**
+ * Bulk insert doctrack logs by RSN (for BulkDeck modal)
+ * @param {Array<{rsn: string, remarks: string, userID: number}>} entries
+ */
+export const createBulkDoctrackLogsByRsn = async (entries) => {
+  try {
+    const response = await API.post("/doctrack/log/bulk-by-rsn-with-user", {
+      entries,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error creating bulk doctrack logs by RSN:", error);
+    return null;
+  }
+};
