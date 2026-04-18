@@ -19,6 +19,30 @@ import DataTable from "../components/reports/DataTable";
 import EditRecordModal from "../components/reports/actions/EditRecordModal";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
 
+// ─── helper: build API params from filters state ──────────────────────────────
+function buildFilterParams(filters) {
+  const p = {};
+  if (filters.category) p.category = filters.category;
+  if (filters.dosageForm) p.dosage_form = filters.dosageForm;
+  if (filters.manufacturer) p.manufacturer = filters.manufacturer;
+  if (filters.ltoCompany) p.lto_company = filters.ltoCompany;
+  if (filters.brandName) p.brand_name = filters.brandName;
+  if (filters.genericName) p.generic_name = filters.genericName;
+  if (filters.dtn) p.dtn = parseInt(filters.dtn, 10);
+  if (filters.manufacturerCountry)
+    p.manufacturer_country = filters.manufacturerCountry;
+  if (filters.trader) p.trader = filters.trader;
+  if (filters.traderCountry) p.trader_country = filters.traderCountry;
+  if (filters.importer) p.importer = filters.importer;
+  if (filters.importerCountry) p.importer_country = filters.importerCountry;
+  if (filters.distributor) p.distributor = filters.distributor;
+  if (filters.distributorCountry)
+    p.distributor_country = filters.distributorCountry;
+  if (filters.repacker) p.repacker = filters.repacker;
+  if (filters.repackerCountry) p.repacker_country = filters.repackerCountry;
+  return p;
+}
+
 /* ================================================================== */
 /*  SidebarSection                                                      */
 /* ================================================================== */
@@ -531,16 +555,15 @@ function DeckingPage({ darkMode }) {
   };
 
   const getExportParams = () => {
-    const params = { search: searchTerm, sortBy, sortOrder };
+    const params = {
+      search: searchTerm,
+      sortBy,
+      sortOrder,
+      // ✅ spread all filter params (general + supply chain)
+      ...buildFilterParams(filters),
+    };
     const statusFilter = getStatusFilter();
     if (statusFilter) params.status = statusFilter;
-    if (filters.category) params.category = filters.category;
-    if (filters.manufacturer) params.manufacturer = filters.manufacturer;
-    if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
-    if (filters.brandName) params.brand_name = filters.brandName;
-    if (filters.genericName) params.generic_name = filters.genericName;
-    if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
-    if (filters.dosageForm) params.dosage_form = filters.dosageForm;
     if (subTab !== null) params.app_type = subTab === "" ? "__EMPTY__" : subTab;
     if (prescriptionTab !== null)
       params.prescription =
@@ -564,14 +587,9 @@ function DeckingPage({ darkMode }) {
           status: getStatusFilter(),
           sortBy,
           sortOrder,
+          // ✅ spread all filter params (general + supply chain)
+          ...buildFilterParams(filters),
         };
-        if (filters.category) params.category = filters.category;
-        if (filters.manufacturer) params.manufacturer = filters.manufacturer;
-        if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
-        if (filters.brandName) params.brand_name = filters.brandName;
-        if (filters.genericName) params.generic_name = filters.genericName;
-        if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
-        if (filters.dosageForm) params.dosage_form = filters.dosageForm;
         if (subTab !== null)
           params.app_type = subTab === "" ? "__EMPTY__" : subTab;
         if (prescriptionTab !== null)
@@ -673,9 +691,9 @@ function DeckingPage({ darkMode }) {
         pageSize: rowsPerPage,
         search: searchTerm,
         status: getStatusFilter(),
-        category: filters.category || "",
         sortBy,
         sortOrder,
+        ...buildFilterParams(filters),
       };
       if (subTab !== null)
         params.app_type = subTab === "" ? "__EMPTY__" : subTab;

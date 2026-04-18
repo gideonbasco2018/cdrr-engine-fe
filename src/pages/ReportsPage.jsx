@@ -15,6 +15,32 @@ import FilterBar from "../components/reports/FilterBar";
 import ReportsDataTable from "../components/reports/ReportsDataTable";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
 
+// ─── helper: build API params from filters state ──────────────────────────────
+function buildFilterParams(filters) {
+  const p = {};
+  // General filters
+  if (filters.category) p.category = filters.category;
+  if (filters.dosageForm) p.dosage_form = filters.dosageForm;
+  if (filters.manufacturer) p.manufacturer = filters.manufacturer;
+  if (filters.ltoCompany) p.lto_company = filters.ltoCompany;
+  if (filters.brandName) p.brand_name = filters.brandName;
+  if (filters.genericName) p.generic_name = filters.genericName;
+  if (filters.dtn) p.dtn = parseInt(filters.dtn, 10);
+  // ✅ Supply chain filters
+  if (filters.manufacturerCountry)
+    p.manufacturer_country = filters.manufacturerCountry;
+  if (filters.trader) p.trader = filters.trader;
+  if (filters.traderCountry) p.trader_country = filters.traderCountry;
+  if (filters.importer) p.importer = filters.importer;
+  if (filters.importerCountry) p.importer_country = filters.importerCountry;
+  if (filters.distributor) p.distributor = filters.distributor;
+  if (filters.distributorCountry)
+    p.distributor_country = filters.distributorCountry;
+  if (filters.repacker) p.repacker = filters.repacker;
+  if (filters.repackerCountry) p.repacker_country = filters.repackerCountry;
+  return p;
+}
+
 // ─── SidebarSection ───────────────────────────────────────────────────────────
 function SidebarSection({
   title,
@@ -283,7 +309,6 @@ function ReportsPage({ darkMode }) {
       el.id = id;
       document.head.appendChild(el);
     }
-
     return () => {
       const e = document.getElementById(id);
       if (e) e.remove();
@@ -357,6 +382,7 @@ function ReportsPage({ darkMode }) {
       .catch(() => setAvailableAppStatusTypes([]));
   }, [subTab, prescriptionTab, processingTypeTab]);
 
+  // ✅ fetchData — now includes all supply chain filter params
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -367,13 +393,9 @@ function ReportsPage({ darkMode }) {
           search: searchTerm,
           sortBy,
           sortOrder,
+          // spread all filter params (general + supply chain)
+          ...buildFilterParams(filters),
         };
-        if (filters.category) params.category = filters.category;
-        if (filters.manufacturer) params.manufacturer = filters.manufacturer;
-        if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
-        if (filters.brandName) params.brand_name = filters.brandName;
-        if (filters.genericName) params.generic_name = filters.genericName;
-        if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
         if (subTab !== null)
           params.app_type = subTab === "" ? "__EMPTY__" : subTab;
         if (prescriptionTab !== null)
@@ -410,6 +432,7 @@ function ReportsPage({ darkMode }) {
     sortOrder,
   ]);
 
+  // ✅ handleExport — same supply chain params
   const handleExport = async () => {
     if (totalRecords === 0) {
       alert("❌ No records to export");
@@ -417,13 +440,10 @@ function ReportsPage({ darkMode }) {
     }
     try {
       setExporting(true);
-      const params = { search: searchTerm };
-      if (filters.category) params.category = filters.category;
-      if (filters.manufacturer) params.manufacturer = filters.manufacturer;
-      if (filters.ltoCompany) params.lto_company = filters.ltoCompany;
-      if (filters.brandName) params.brand_name = filters.brandName;
-      if (filters.genericName) params.generic_name = filters.genericName;
-      if (filters.dtn) params.dtn = parseInt(filters.dtn, 10);
+      const params = {
+        search: searchTerm,
+        ...buildFilterParams(filters),
+      };
       if (subTab !== null)
         params.app_type = subTab === "" ? "__EMPTY__" : subTab;
       if (prescriptionTab !== null)
@@ -514,7 +534,6 @@ function ReportsPage({ darkMode }) {
   const regularItem = availableProcessingTypes.find((p) => !p.value);
   const namedProcessingTypes = availableProcessingTypes.filter((p) => p.value);
 
-  // Tab styles — matched to DeckingPage compact sizing
   const tabButtonStyle = (isActive) => ({
     padding: "0.35rem 0.85rem",
     fontSize: "0.78rem",
@@ -566,7 +585,6 @@ function ReportsPage({ darkMode }) {
       >
         {isSidebarOpen ? (
           <>
-            {/* Pinned header */}
             <div
               style={{
                 display: "flex",
@@ -641,7 +659,6 @@ function ReportsPage({ darkMode }) {
               </button>
             </div>
 
-            {/* Scrollable section list */}
             <div
               style={{
                 display: "flex",
@@ -701,7 +718,6 @@ function ReportsPage({ darkMode }) {
             </div>
           </>
         ) : (
-          /* COLLAPSED icon strip */
           <div
             style={{
               display: "flex",
@@ -808,9 +824,10 @@ function ReportsPage({ darkMode }) {
         }}
       >
         {/* Header */}
+        {/* Header */}
         <div
           style={{
-            padding: "0.85rem 1.5rem 0",
+            padding: "0.85rem 1.5rem 0.85rem",
             background: colors.pageBg,
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
@@ -818,12 +835,12 @@ function ReportsPage({ darkMode }) {
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "0.6rem",
+              alignItems: "center",
+              gap: "0.75rem",
             }}
           >
-            <div>
+            {/* Title */}
+            <div style={{ flexShrink: 0 }}>
               <h1
                 style={{
                   fontSize: "1.1rem",
@@ -844,6 +861,76 @@ function ReportsPage({ darkMode }) {
                 View and manage all CDRR reports
               </p>
             </div>
+
+            {/* Stats */}
+            <div style={{ display: "flex", gap: "0.5rem", marginLeft: "auto" }}>
+              {[
+                {
+                  icon: "📊",
+                  label: "Total Reports",
+                  value: statsLoading
+                    ? "..."
+                    : statsData.total.toLocaleString(),
+                  color: colors.textPrimary,
+                },
+                {
+                  icon: "⏳",
+                  label: "In Progress / Pending",
+                  value: statsLoading
+                    ? "..."
+                    : statsData.inProgress.toLocaleString(),
+                  color: "#FF9800",
+                },
+                {
+                  icon: "✅",
+                  label: "Completed",
+                  value: statsLoading
+                    ? "..."
+                    : statsData.completed.toLocaleString(),
+                  color: "#4CAF50",
+                },
+              ].map((stat, i) => (
+                <div
+                  key={i}
+                  style={{
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: "8px",
+                    padding: "0.4rem 1rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    height: "100%",
+                  }}
+                >
+                  <span style={{ fontSize: "0.85rem" }}>{stat.icon}</span>
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "0.6rem",
+                        color: colors.textTertiary,
+                        margin: 0,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {stat.label}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: "700",
+                        color: stat.color,
+                        margin: 0,
+                      }}
+                    >
+                      {stat.value}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Export button */}
             <button
               onClick={handleExport}
               disabled={exporting || totalRecords === 0}
@@ -862,6 +949,7 @@ function ReportsPage({ darkMode }) {
                 gap: "0.4rem",
                 transition: "all 0.2s ease",
                 opacity: totalRecords === 0 ? 0.5 : 1,
+                flexShrink: 0,
               }}
               onMouseEnter={(e) => {
                 if (!exporting && totalRecords > 0)
@@ -879,82 +967,6 @@ function ReportsPage({ darkMode }) {
                   : `Export (${totalRecords.toLocaleString()})`}
               </span>
             </button>
-          </div>
-
-          {/* Stats */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: "0.5rem",
-              marginBottom: "0.6rem",
-            }}
-          >
-            {[
-              {
-                icon: "📊",
-                label: "Total Reports",
-                value: statsLoading ? "..." : statsData.total.toLocaleString(),
-                color: colors.textPrimary,
-              },
-              {
-                icon: "⏳",
-                label: "In Progress / Pending",
-                value: statsLoading
-                  ? "..."
-                  : statsData.inProgress.toLocaleString(),
-                color: "#FF9800",
-              },
-              {
-                icon: "✅",
-                label: "Completed",
-                value: statsLoading
-                  ? "..."
-                  : statsData.completed.toLocaleString(),
-                color: "#4CAF50",
-              },
-            ].map((stat, i) => (
-              <div
-                key={i}
-                style={{
-                  background: colors.cardBg,
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
-                  padding: "0.5rem 0.75rem",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                  }}
-                >
-                  <span style={{ fontSize: "1rem" }}>{stat.icon}</span>
-                  <div>
-                    <p
-                      style={{
-                        fontSize: "0.68rem",
-                        color: colors.textTertiary,
-                        margin: 0,
-                      }}
-                    >
-                      {stat.label}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.95rem",
-                        fontWeight: "600",
-                        color: stat.color,
-                        margin: 0,
-                      }}
-                    >
-                      {stat.value}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
 
           {/* Processing Type Tabs */}
@@ -1020,9 +1032,15 @@ function ReportsPage({ darkMode }) {
         >
           <FilterBar
             searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
+            onSearchChange={(val) => {
+              setSearchTerm(val);
+              setCurrentPage(1);
+            }}
             filters={filters}
-            onFilterChange={setFilters}
+            onFilterChange={(newFilters) => {
+              setFilters(newFilters);
+              setCurrentPage(1);
+            }}
             colors={colors}
             activeTab="all"
             subTab={subTab}

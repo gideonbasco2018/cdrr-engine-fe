@@ -1093,7 +1093,7 @@ function DataTable({
                                     borderBottom: `1px solid ${colors.tableBorder}`,
                                   },
                                   [
-                                    <span key="i">📋</span>,
+                                    <span key="i">🕓</span>,
                                     <span key="t">Change Log</span>,
                                   ],
                                 )}
