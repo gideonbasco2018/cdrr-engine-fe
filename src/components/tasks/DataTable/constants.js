@@ -6,7 +6,9 @@ export const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 
 export const DECISION_RESULT_OPTIONS = {
   "LRD Chief Admin": ["Signed"],
-  "OD-Releasing": ["For issuance of CPR", "For issuance of LOD"],
+  "OD-Releasing": ["For issuance of CPR", "For issuance of LOD", "For issuance of Certificate",
+  "For issuance of Letter","For issuance of COPP", "For issuance of CFS",
+  "For issuance of GLE","For issuance of Letter for non acceptance","For issuance of Product classification",],
 };
 export const todayStr = () => new Date().toISOString().split("T")[0];
 
