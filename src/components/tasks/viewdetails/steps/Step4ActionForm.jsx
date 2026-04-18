@@ -941,6 +941,23 @@ export function Step4ActionForm({
               <>
                 <option value="For issuance of CPR">For issuance of CPR</option>
                 <option value="For issuance of LOD">For issuance of LOD</option>
+                <option value="For issuance of Certificate">
+                  For issuance of Certificate
+                </option>
+                <option value="For issuance of Letter">
+                  For issuance of Letter
+                </option>
+                <option value="For issuance of COPP">
+                  For issuance of COPP
+                </option>
+                <option value="For issuance of CFS">For issuance of CFS</option>
+                <option value="For issuance of GLE">For issuance of GLE</option>
+                <option value="For issuance of Letter for non acceptance">
+                  For issuance of Letter for non acceptance
+                </option>
+                <option value="For issuance of Product classification">
+                  For issuance of Product classification
+                </option>
               </>
             )}
           </select>
