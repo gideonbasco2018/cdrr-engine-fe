@@ -1,26 +1,23 @@
 // FILE: src/components/reports/actions/EditRecordModal.jsx
-// ✅ COMPLETE FIX: All 90+ fields properly mapped and editable
 
 import { useState, useEffect } from "react";
+import {
+  createFieldAuditLog,
+  computeFieldChanges,
+} from "../../../api/field-audit-logs";
+import { getUser } from "../../../api/auth";
 
 // ✅ Helper functions for data cleaning
 const cleanValue = (value) => {
-  if (value === null || value === undefined || value === "N/A") {
-    return "";
-  }
+  if (value === null || value === undefined || value === "N/A") return "";
   return String(value);
 };
 
 const cleanDateValue = (value) => {
-  if (!value || value === "N/A" || value === null) {
-    return "";
-  }
-  // Convert to YYYY-MM-DD format
+  if (!value || value === "N/A" || value === null) return "";
   try {
     const date = new Date(value);
-    if (isNaN(date.getTime())) {
-      return "";
-    }
+    if (isNaN(date.getTime())) return "";
     return date.toISOString().split("T")[0];
   } catch {
     return "";
@@ -28,15 +25,96 @@ const cleanDateValue = (value) => {
 };
 
 const cleanNumberValue = (value) => {
-  if (
-    value === null ||
-    value === undefined ||
-    value === "N/A" ||
-    value === ""
-  ) {
+  if (value === null || value === undefined || value === "N/A" || value === "")
     return "";
-  }
   return String(value);
+};
+
+const FIELD_LABEL_MAP = {
+  DB_EST_CAT: "Category",
+  DB_EST_LTO_COMP: "LTO Company",
+  DB_EST_LTO_ADD: "LTO Address",
+  DB_EST_EADD: "Email",
+  DB_EST_TIN: "TIN",
+  DB_EST_CONTACT_NO: "Contact No.",
+  DB_EST_LTO_NO: "LTO No.",
+  DB_EST_VALIDITY: "Validity",
+  DB_PROD_BR_NAME: "Brand Name",
+  DB_PROD_GEN_NAME: "Generic Name",
+  DB_PROD_DOS_STR: "Dosage Strength",
+  DB_PROD_DOS_FORM: "Dosage Form",
+  DB_PROD_CLASS_PRESCRIP: "Prescription",
+  DB_PROD_ESS_DRUG_LIST: "Essential Drug",
+  DB_PROD_PHARMA_CAT: "Pharma Category",
+  DB_PROD_CAT: "Product Category",
+  DB_PROD_MANU: "Manufacturer",
+  DB_PROD_MANU_ADD: "Manufacturer Address",
+  DB_PROD_MANU_TIN: "Manufacturer TIN",
+  DB_PROD_MANU_LTO_NO: "Manufacturer LTO No.",
+  DB_PROD_MANU_COUNTRY: "Manufacturer Country",
+  DB_PROD_TRADER: "Trader",
+  DB_PROD_TRADER_ADD: "Trader Address",
+  DB_PROD_TRADER_TIN: "Trader TIN",
+  DB_PROD_TRADER_LTO_NO: "Trader LTO No.",
+  DB_PROD_TRADER_COUNTRY: "Trader Country",
+  DB_PROD_REPACKER: "Repacker",
+  DB_PROD_REPACKER_ADD: "Repacker Address",
+  DB_PROD_REPACKER_TIN: "Repacker TIN",
+  DB_PROD_REPACKER_LTO_NO: "Repacker LTO No.",
+  DB_PROD_REPACKER_COUNTRY: "Repacker Country",
+  DB_PROD_IMPORTER: "Importer",
+  DB_PROD_IMPORTER_ADD: "Importer Address",
+  DB_PROD_IMPORTER_TIN: "Importer TIN",
+  DB_PROD_IMPORTER_LTO_NO: "Importer LTO No.",
+  DB_PROD_IMPORTER_COUNTRY: "Importer Country",
+  DB_PROD_DISTRI: "Distributor",
+  DB_PROD_DISTRI_ADD: "Distributor Address",
+  DB_PROD_DISTRI_TIN: "Distributor TIN",
+  DB_PROD_DISTRI_LTO_NO: "Distributor LTO No.",
+  DB_PROD_DISTRI_COUNTRY: "Distributor Country",
+  DB_PROD_DISTRI_SHELF_LIFE: "Shelf Life",
+  DB_STORAGE_COND: "Storage Condition",
+  DB_PACKAGING: "Packaging",
+  DB_SUGG_RP: "Suggested RP",
+  DB_NO_SAMPLE: "No. of Samples",
+  DB_DTN: "DTN",
+  DB_REG_NO: "Registration No.",
+  DB_APP_TYPE: "Application Type",
+  DB_MOTHER_APP_TYPE: "Mother App Type",
+  DB_OLD_RSN: "Old RSN",
+  DB_CERTIFICATION: "Certification",
+  DB_CLASS: "Class",
+  DB_APP_STATUS: "Application Status",
+  DB_AMMEND_1: "Amendment 1",
+  DB_AMMEND_2: "Amendment 2",
+  DB_AMMEND_3: "Amendment 3",
+  DB_FEE: "Fee",
+  DB_LRF: "LRF",
+  DB_SURC: "SURC",
+  DB_TOTAL: "Total",
+  DB_OR_NO: "OR No.",
+  DB_DATE_ISSUED: "Date Issued",
+  DB_DATE_RECEIVED_FDAC: "Date Received FDAC",
+  DB_DATE_RECEIVED_CENT: "Date Received Central",
+  DB_DATE_DECK: "Date Deck",
+  DB_DATE_RELEASED: "Date Released",
+  DB_EXPIRY_DATE: "Expiry Date",
+  DB_CPR_VALIDITY: "CPR Validity",
+  DB_DATE_REMARKS: "Date Remarks",
+  DB_MO: "MO",
+  DB_FILE: "File",
+  DB_SECPA: "SECPA",
+  DB_SECPA_EXP_DATE: "SECPA Expiry Date",
+  DB_SECPA_ISSUED_ON: "SECPA Issued On",
+  DB_DECKING_SCHED: "Decking Schedule",
+  DB_EVAL: "Evaluator",
+  DB_TYPE_DOC_RELEASED: "Type Doc Released",
+  DB_ATTA_RELEASED: "Atta Released",
+  DB_CPR_COND: "CPR Condition",
+  DB_CPR_COND_REMARKS: "CPR Condition Remarks",
+  DB_CPR_COND_ADD_REMARKS: "CPR Condition Additional Remarks",
+  DB_APP_REMARKS: "Application Remarks",
+  DB_REMARKS_1: "General Remarks",
 };
 
 function EditRecordModal({
@@ -48,9 +126,7 @@ function EditRecordModal({
   updateUploadReport,
 }) {
   const [formData, setFormData] = useState({
-    // ============================================
-    // ESTABLISHMENT INFORMATION (8 fields)
-    // ============================================
+    // ESTABLISHMENT
     DB_EST_CAT: "",
     DB_EST_LTO_COMP: "",
     DB_EST_LTO_ADD: "",
@@ -59,10 +135,7 @@ function EditRecordModal({
     DB_EST_CONTACT_NO: "",
     DB_EST_LTO_NO: "",
     DB_EST_VALIDITY: "",
-
-    // ============================================
-    // PRODUCT INFORMATION (7 fields)
-    // ============================================
+    // PRODUCT
     DB_PROD_BR_NAME: "",
     DB_PROD_GEN_NAME: "",
     DB_PROD_DOS_STR: "",
@@ -70,64 +143,43 @@ function EditRecordModal({
     DB_PROD_CLASS_PRESCRIP: "",
     DB_PROD_ESS_DRUG_LIST: "",
     DB_PROD_PHARMA_CAT: "",
-
-    // ============================================
-    // MANUFACTURER INFORMATION (5 fields)
-    // ============================================
+    // MANUFACTURER
     DB_PROD_MANU: "",
     DB_PROD_MANU_ADD: "",
     DB_PROD_MANU_TIN: "",
     DB_PROD_MANU_LTO_NO: "",
     DB_PROD_MANU_COUNTRY: "",
-
-    // ============================================
-    // TRADER INFORMATION (5 fields)
-    // ============================================
+    // TRADER
     DB_PROD_TRADER: "",
     DB_PROD_TRADER_ADD: "",
     DB_PROD_TRADER_TIN: "",
     DB_PROD_TRADER_LTO_NO: "",
     DB_PROD_TRADER_COUNTRY: "",
-
-    // ============================================
-    // REPACKER INFORMATION (5 fields)
-    // ============================================
+    // REPACKER
     DB_PROD_REPACKER: "",
     DB_PROD_REPACKER_ADD: "",
     DB_PROD_REPACKER_TIN: "",
     DB_PROD_REPACKER_LTO_NO: "",
     DB_PROD_REPACKER_COUNTRY: "",
-
-    // ============================================
-    // IMPORTER INFORMATION (5 fields)
-    // ============================================
+    // IMPORTER
     DB_PROD_IMPORTER: "",
     DB_PROD_IMPORTER_ADD: "",
     DB_PROD_IMPORTER_TIN: "",
     DB_PROD_IMPORTER_LTO_NO: "",
     DB_PROD_IMPORTER_COUNTRY: "",
-
-    // ============================================
-    // DISTRIBUTOR INFORMATION (6 fields)
-    // ============================================
+    // DISTRIBUTOR
     DB_PROD_DISTRI: "",
     DB_PROD_DISTRI_ADD: "",
     DB_PROD_DISTRI_TIN: "",
     DB_PROD_DISTRI_LTO_NO: "",
     DB_PROD_DISTRI_COUNTRY: "",
     DB_PROD_DISTRI_SHELF_LIFE: "",
-
-    // ============================================
-    // STORAGE & PACKAGING (4 fields)
-    // ============================================
+    // STORAGE & PACKAGING
     DB_STORAGE_COND: "",
     DB_PACKAGING: "",
     DB_SUGG_RP: "",
     DB_NO_SAMPLE: "",
-
-    // ============================================
-    // APPLICATION INFORMATION (8 fields)
-    // ============================================
+    // APPLICATION
     DB_DTN: "",
     DB_REG_NO: "",
     DB_APP_TYPE: "",
@@ -136,26 +188,17 @@ function EditRecordModal({
     DB_PROD_CAT: "",
     DB_CERTIFICATION: "",
     DB_CLASS: "",
-
-    // ============================================
-    // AMENDMENT FIELDS (3 fields)
-    // ============================================
+    // AMENDMENTS
     DB_AMMEND_1: "",
     DB_AMMEND_2: "",
     DB_AMMEND_3: "",
-
-    // ============================================
-    // FEES (5 fields)
-    // ============================================
+    // FEES
     DB_FEE: "",
     DB_LRF: "",
     DB_SURC: "",
     DB_TOTAL: "",
     DB_OR_NO: "",
-
-    // ============================================
-    // IMPORTANT DATES (7 fields)
-    // ============================================
+    // DATES
     DB_DATE_ISSUED: "",
     DB_DATE_RECEIVED_FDAC: "",
     DB_DATE_RECEIVED_CENT: "",
@@ -163,69 +206,51 @@ function EditRecordModal({
     DB_DATE_RELEASED: "",
     DB_EXPIRY_DATE: "",
     DB_CPR_VALIDITY: "",
-
-    // ============================================
-    // OFFICE/FILE INFORMATION (2 fields)
-    // ============================================
+    // OFFICE/FILE
     DB_MO: "",
     DB_FILE: "",
-
-    // ============================================
-    // SECPA INFORMATION (3 fields)
-    // ============================================
+    // SECPA
     DB_SECPA: "",
     DB_SECPA_EXP_DATE: "",
     DB_SECPA_ISSUED_ON: "",
-
-    // ============================================
-    // DECKING INFORMATION (2 fields)
-    // ============================================
+    // DECKING
     DB_DECKING_SCHED: "",
     DB_EVAL: "",
-
-    // ============================================
-    // RELEASE INFORMATION (3 fields)
-    // ============================================
+    // RELEASE
     DB_TYPE_DOC_RELEASED: "",
     DB_ATTA_RELEASED: "",
     DB_DATE_REMARKS: "",
-
-    // ============================================
-    // CPR CONDITION (3 fields)
-    // ============================================
+    // CPR CONDITION
     DB_CPR_COND: "",
     DB_CPR_COND_REMARKS: "",
     DB_CPR_COND_ADD_REMARKS: "",
-
-    // ============================================
-    // STATUS & REMARKS (3 fields)
-    // ============================================
+    // STATUS & REMARKS
     DB_APP_STATUS: "",
     DB_APP_REMARKS: "",
     DB_REMARKS_1: "",
-
-    // ============================================
-    // TIMELINE FIELDS (2 fields - READ ONLY)
-    // ============================================
+    // READ ONLY
     DB_TIMELINE_CITIZEN_CHARTER: "",
     DB_STATUS_TIMELINE: "",
-
-    // ============================================
-    // UPLOAD METADATA (2 fields - READ ONLY)
-    // ============================================
     DB_USER_UPLOADER: "",
     DB_DATE_EXCEL_UPLOAD: "",
   });
 
+  const [originalData, setOriginalData] = useState({});
+  const [currentUser, setCurrentUser] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // ✅ Complete field mapping from record to formData
+  // Load current user
+  useEffect(() => {
+    const user = getUser();
+    if (user) setCurrentUser(user);
+  }, []);
+
+  // Load record data
   useEffect(() => {
     if (record) {
       console.log("📋 Record data received:", record);
-
-      setFormData({
+      const initialData = {
         // ESTABLISHMENT
         DB_EST_CAT: cleanValue(
           record.estCat || record.category || record.DB_EST_CAT,
@@ -247,7 +272,6 @@ function EditRecordModal({
         DB_EST_VALIDITY: cleanDateValue(
           record.validity || record.DB_EST_VALIDITY,
         ),
-
         // PRODUCT
         DB_PROD_BR_NAME: cleanValue(
           record.prodBrName || record.brandName || record.DB_PROD_BR_NAME,
@@ -276,7 +300,6 @@ function EditRecordModal({
             record.pharmaCategory ||
             record.DB_PROD_PHARMA_CAT,
         ),
-
         // MANUFACTURER
         DB_PROD_MANU: cleanValue(
           record.prodManu || record.manufacturer || record.DB_PROD_MANU,
@@ -301,7 +324,6 @@ function EditRecordModal({
             record.manufacturerCountry ||
             record.DB_PROD_MANU_COUNTRY,
         ),
-
         // TRADER
         DB_PROD_TRADER: cleanValue(record.prodTrader || record.DB_PROD_TRADER),
         DB_PROD_TRADER_ADD: cleanValue(
@@ -316,7 +338,6 @@ function EditRecordModal({
         DB_PROD_TRADER_COUNTRY: cleanValue(
           record.prodTraderCountry || record.DB_PROD_TRADER_COUNTRY,
         ),
-
         // REPACKER
         DB_PROD_REPACKER: cleanValue(
           record.prodRepacker || record.DB_PROD_REPACKER,
@@ -333,7 +354,6 @@ function EditRecordModal({
         DB_PROD_REPACKER_COUNTRY: cleanValue(
           record.prodRepackerCountry || record.DB_PROD_REPACKER_COUNTRY,
         ),
-
         // IMPORTER
         DB_PROD_IMPORTER: cleanValue(
           record.prodImporter || record.DB_PROD_IMPORTER,
@@ -350,7 +370,6 @@ function EditRecordModal({
         DB_PROD_IMPORTER_COUNTRY: cleanValue(
           record.prodImporterCountry || record.DB_PROD_IMPORTER_COUNTRY,
         ),
-
         // DISTRIBUTOR
         DB_PROD_DISTRI: cleanValue(record.prodDistri || record.DB_PROD_DISTRI),
         DB_PROD_DISTRI_ADD: cleanValue(
@@ -368,7 +387,6 @@ function EditRecordModal({
         DB_PROD_DISTRI_SHELF_LIFE: cleanValue(
           record.prodDistriShelfLife || record.DB_PROD_DISTRI_SHELF_LIFE,
         ),
-
         // STORAGE & PACKAGING
         DB_STORAGE_COND: cleanValue(
           record.storageCond || record.DB_STORAGE_COND,
@@ -376,7 +394,6 @@ function EditRecordModal({
         DB_PACKAGING: cleanValue(record.packaging || record.DB_PACKAGING),
         DB_SUGG_RP: cleanValue(record.suggRp || record.DB_SUGG_RP),
         DB_NO_SAMPLE: cleanValue(record.noSample || record.DB_NO_SAMPLE),
-
         // APPLICATION
         DB_DTN: cleanNumberValue(record.dtn || record.DB_DTN),
         DB_REG_NO: cleanValue(
@@ -392,19 +409,16 @@ function EditRecordModal({
           record.certification || record.DB_CERTIFICATION,
         ),
         DB_CLASS: cleanValue(record.class || record.dbClass || record.DB_CLASS),
-
         // AMENDMENTS
         DB_AMMEND_1: cleanValue(record.ammend1 || record.DB_AMMEND_1),
         DB_AMMEND_2: cleanValue(record.ammend2 || record.DB_AMMEND_2),
         DB_AMMEND_3: cleanValue(record.ammend3 || record.DB_AMMEND_3),
-
         // FEES
         DB_FEE: cleanNumberValue(record.fee || record.DB_FEE),
         DB_LRF: cleanNumberValue(record.lrf || record.DB_LRF),
         DB_SURC: cleanNumberValue(record.surc || record.DB_SURC),
         DB_TOTAL: cleanNumberValue(record.total || record.DB_TOTAL),
         DB_OR_NO: cleanValue(record.orNo || record.DB_OR_NO),
-
         // DATES
         DB_DATE_ISSUED: cleanDateValue(
           record.dateIssued || record.DB_DATE_ISSUED,
@@ -425,11 +439,9 @@ function EditRecordModal({
         DB_CPR_VALIDITY: cleanDateValue(
           record.cprValidity || record.DB_CPR_VALIDITY,
         ),
-
         // OFFICE/FILE
         DB_MO: cleanValue(record.mo || record.DB_MO),
         DB_FILE: cleanValue(record.file || record.DB_FILE),
-
         // SECPA
         DB_SECPA: cleanValue(record.secpa || record.DB_SECPA),
         DB_SECPA_EXP_DATE: cleanDateValue(
@@ -438,13 +450,11 @@ function EditRecordModal({
         DB_SECPA_ISSUED_ON: cleanDateValue(
           record.secpaIssuedOn || record.DB_SECPA_ISSUED_ON,
         ),
-
         // DECKING
         DB_DECKING_SCHED: cleanDateValue(
           record.deckingSched || record.DB_DECKING_SCHED,
         ),
         DB_EVAL: cleanValue(record.eval || record.evaluator || record.DB_EVAL),
-
         // RELEASE
         DB_TYPE_DOC_RELEASED: cleanValue(
           record.typeDocReleased || record.DB_TYPE_DOC_RELEASED,
@@ -455,7 +465,6 @@ function EditRecordModal({
         DB_DATE_REMARKS: cleanDateValue(
           record.dateRemarks || record.DB_DATE_REMARKS,
         ),
-
         // CPR CONDITION
         DB_CPR_COND: cleanValue(record.cprCond || record.DB_CPR_COND),
         DB_CPR_COND_REMARKS: cleanValue(
@@ -464,29 +473,27 @@ function EditRecordModal({
         DB_CPR_COND_ADD_REMARKS: cleanValue(
           record.cprCondAddRemarks || record.DB_CPR_COND_ADD_REMARKS,
         ),
-
         // STATUS & REMARKS
         DB_APP_STATUS: cleanValue(record.appStatus || record.DB_APP_STATUS),
         DB_APP_REMARKS: cleanValue(record.appRemarks || record.DB_APP_REMARKS),
         DB_REMARKS_1: cleanValue(record.remarks1 || record.DB_REMARKS_1),
-
-        // TIMELINE (READ ONLY)
+        // READ ONLY
         DB_TIMELINE_CITIZEN_CHARTER: cleanNumberValue(
           record.dbTimelineCitizenCharter || record.DB_TIMELINE_CITIZEN_CHARTER,
         ),
         DB_STATUS_TIMELINE: cleanValue(
           record.statusTimeline || record.DB_STATUS_TIMELINE,
         ),
-
-        // UPLOAD METADATA (READ ONLY)
         DB_USER_UPLOADER: cleanValue(
           record.userUploader || record.DB_USER_UPLOADER,
         ),
         DB_DATE_EXCEL_UPLOAD: cleanDateValue(
           record.dateExcelUpload || record.DB_DATE_EXCEL_UPLOAD,
         ),
-      });
+      };
 
+      setFormData(initialData);
+      setOriginalData(initialData);
       console.log("✅ Form data initialized with all fields");
     }
   }, [record]);
@@ -495,6 +502,11 @@ function EditRecordModal({
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Compute how many fields changed (for footer badge)
+  const changedCount = Object.entries(formData).filter(
+    ([k, v]) => String(v ?? "") !== String(originalData[k] ?? ""),
+  ).length;
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -502,7 +514,29 @@ function EditRecordModal({
 
     try {
       console.log("📤 Submitting update for record ID:", record.id);
-      console.log("📦 Update data:", formData);
+
+      // Compute changes vs original snapshot
+      const changes = computeFieldChanges(
+        originalData,
+        formData,
+        FIELD_LABEL_MAP,
+        "Edit Record",
+      );
+
+      // Save audit log (non-fatal)
+      if (changes.length > 0) {
+        try {
+          await createFieldAuditLog({
+            main_db_id: record.id,
+            log_id: null,
+            session_id: crypto.randomUUID(),
+            changes,
+          });
+          console.log(`✅ Audit log saved: ${changes.length} field(s) changed`);
+        } catch (auditErr) {
+          console.warn("⚠️ Audit log failed (non-fatal):", auditErr.message);
+        }
+      }
 
       await updateUploadReport(record.id, formData);
       onSuccess();
@@ -525,7 +559,7 @@ function EditRecordModal({
         left: 0,
         right: 0,
         bottom: 0,
-        background: "rgba(0, 0, 0, 0.6)",
+        background: "rgba(0,0,0,0.6)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -545,7 +579,7 @@ function EditRecordModal({
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.3)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -580,6 +614,31 @@ function EditRecordModal({
             >
               ID: {record.id} • DTN: {formData.DB_DTN || "N/A"} • Brand:{" "}
               {formData.DB_PROD_BR_NAME || "N/A"}
+              {currentUser && (
+                <span
+                  style={{ marginLeft: "0.75rem", color: colors.textTertiary }}
+                >
+                  • Editing as:{" "}
+                  <strong style={{ color: "#2196F3" }}>
+                    {currentUser.username}
+                  </strong>
+                </span>
+              )}
+              {changedCount > 0 && (
+                <span
+                  style={{
+                    marginLeft: "0.75rem",
+                    padding: "0.1rem 0.5rem",
+                    background: "rgba(245,158,11,0.15)",
+                    color: "#b45309",
+                    borderRadius: "4px",
+                    fontSize: "0.75rem",
+                    fontWeight: "700",
+                  }}
+                >
+                  ✎ {changedCount} unsaved change{changedCount > 1 ? "s" : ""}
+                </span>
+              )}
             </p>
           </div>
           <button
@@ -610,17 +669,13 @@ function EditRecordModal({
         {/* Form */}
         <form
           onSubmit={handleSubmit}
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "2rem",
-          }}
+          style={{ flex: 1, overflowY: "auto", padding: "2rem" }}
         >
           {error && (
             <div
               style={{
-                background: "rgba(239, 68, 68, 0.1)",
-                border: "1px solid rgba(239, 68, 68, 0.3)",
+                background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.3)",
                 borderRadius: "8px",
                 padding: "1rem",
                 marginBottom: "1.5rem",
@@ -638,28 +693,28 @@ function EditRecordModal({
               <FormField
                 label="Category"
                 value={formData.DB_EST_CAT}
-                onChange={(val) => handleChange("DB_EST_CAT", val)}
+                onChange={(v) => handleChange("DB_EST_CAT", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="LTO Company"
                 value={formData.DB_EST_LTO_COMP}
-                onChange={(val) => handleChange("DB_EST_LTO_COMP", val)}
+                onChange={(v) => handleChange("DB_EST_LTO_COMP", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="LTO Address"
                 value={formData.DB_EST_LTO_ADD}
-                onChange={(val) => handleChange("DB_EST_LTO_ADD", val)}
+                onChange={(v) => handleChange("DB_EST_LTO_ADD", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Email"
                 value={formData.DB_EST_EADD}
-                onChange={(val) => handleChange("DB_EST_EADD", val)}
+                onChange={(v) => handleChange("DB_EST_EADD", v)}
                 type="email"
                 colors={colors}
                 darkMode={darkMode}
@@ -667,28 +722,28 @@ function EditRecordModal({
               <FormField
                 label="TIN"
                 value={formData.DB_EST_TIN}
-                onChange={(val) => handleChange("DB_EST_TIN", val)}
+                onChange={(v) => handleChange("DB_EST_TIN", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Contact No."
                 value={formData.DB_EST_CONTACT_NO}
-                onChange={(val) => handleChange("DB_EST_CONTACT_NO", val)}
+                onChange={(v) => handleChange("DB_EST_CONTACT_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="LTO No."
                 value={formData.DB_EST_LTO_NO}
-                onChange={(val) => handleChange("DB_EST_LTO_NO", val)}
+                onChange={(v) => handleChange("DB_EST_LTO_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Validity"
                 value={formData.DB_EST_VALIDITY}
-                onChange={(val) => handleChange("DB_EST_VALIDITY", val)}
+                onChange={(v) => handleChange("DB_EST_VALIDITY", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -702,56 +757,56 @@ function EditRecordModal({
               <FormField
                 label="Brand Name"
                 value={formData.DB_PROD_BR_NAME}
-                onChange={(val) => handleChange("DB_PROD_BR_NAME", val)}
+                onChange={(v) => handleChange("DB_PROD_BR_NAME", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Generic Name"
                 value={formData.DB_PROD_GEN_NAME}
-                onChange={(val) => handleChange("DB_PROD_GEN_NAME", val)}
+                onChange={(v) => handleChange("DB_PROD_GEN_NAME", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Dosage Strength"
                 value={formData.DB_PROD_DOS_STR}
-                onChange={(val) => handleChange("DB_PROD_DOS_STR", val)}
+                onChange={(v) => handleChange("DB_PROD_DOS_STR", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Dosage Form"
                 value={formData.DB_PROD_DOS_FORM}
-                onChange={(val) => handleChange("DB_PROD_DOS_FORM", val)}
+                onChange={(v) => handleChange("DB_PROD_DOS_FORM", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Prescription"
                 value={formData.DB_PROD_CLASS_PRESCRIP}
-                onChange={(val) => handleChange("DB_PROD_CLASS_PRESCRIP", val)}
+                onChange={(v) => handleChange("DB_PROD_CLASS_PRESCRIP", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Essential Drug"
                 value={formData.DB_PROD_ESS_DRUG_LIST}
-                onChange={(val) => handleChange("DB_PROD_ESS_DRUG_LIST", val)}
+                onChange={(v) => handleChange("DB_PROD_ESS_DRUG_LIST", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Pharma Category"
                 value={formData.DB_PROD_PHARMA_CAT}
-                onChange={(val) => handleChange("DB_PROD_PHARMA_CAT", val)}
+                onChange={(v) => handleChange("DB_PROD_PHARMA_CAT", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Product Category"
                 value={formData.DB_PROD_CAT}
-                onChange={(val) => handleChange("DB_PROD_CAT", val)}
+                onChange={(v) => handleChange("DB_PROD_CAT", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -764,35 +819,35 @@ function EditRecordModal({
               <FormField
                 label="Manufacturer"
                 value={formData.DB_PROD_MANU}
-                onChange={(val) => handleChange("DB_PROD_MANU", val)}
+                onChange={(v) => handleChange("DB_PROD_MANU", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Manufacturer Address"
                 value={formData.DB_PROD_MANU_ADD}
-                onChange={(val) => handleChange("DB_PROD_MANU_ADD", val)}
+                onChange={(v) => handleChange("DB_PROD_MANU_ADD", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Manufacturer TIN"
                 value={formData.DB_PROD_MANU_TIN}
-                onChange={(val) => handleChange("DB_PROD_MANU_TIN", val)}
+                onChange={(v) => handleChange("DB_PROD_MANU_TIN", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Manufacturer LTO No."
                 value={formData.DB_PROD_MANU_LTO_NO}
-                onChange={(val) => handleChange("DB_PROD_MANU_LTO_NO", val)}
+                onChange={(v) => handleChange("DB_PROD_MANU_LTO_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Manufacturer Country"
                 value={formData.DB_PROD_MANU_COUNTRY}
-                onChange={(val) => handleChange("DB_PROD_MANU_COUNTRY", val)}
+                onChange={(v) => handleChange("DB_PROD_MANU_COUNTRY", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -805,35 +860,35 @@ function EditRecordModal({
               <FormField
                 label="Trader"
                 value={formData.DB_PROD_TRADER}
-                onChange={(val) => handleChange("DB_PROD_TRADER", val)}
+                onChange={(v) => handleChange("DB_PROD_TRADER", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Trader Address"
                 value={formData.DB_PROD_TRADER_ADD}
-                onChange={(val) => handleChange("DB_PROD_TRADER_ADD", val)}
+                onChange={(v) => handleChange("DB_PROD_TRADER_ADD", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Trader TIN"
                 value={formData.DB_PROD_TRADER_TIN}
-                onChange={(val) => handleChange("DB_PROD_TRADER_TIN", val)}
+                onChange={(v) => handleChange("DB_PROD_TRADER_TIN", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Trader LTO No."
                 value={formData.DB_PROD_TRADER_LTO_NO}
-                onChange={(val) => handleChange("DB_PROD_TRADER_LTO_NO", val)}
+                onChange={(v) => handleChange("DB_PROD_TRADER_LTO_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Trader Country"
                 value={formData.DB_PROD_TRADER_COUNTRY}
-                onChange={(val) => handleChange("DB_PROD_TRADER_COUNTRY", val)}
+                onChange={(v) => handleChange("DB_PROD_TRADER_COUNTRY", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -846,37 +901,35 @@ function EditRecordModal({
               <FormField
                 label="Repacker"
                 value={formData.DB_PROD_REPACKER}
-                onChange={(val) => handleChange("DB_PROD_REPACKER", val)}
+                onChange={(v) => handleChange("DB_PROD_REPACKER", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Repacker Address"
                 value={formData.DB_PROD_REPACKER_ADD}
-                onChange={(val) => handleChange("DB_PROD_REPACKER_ADD", val)}
+                onChange={(v) => handleChange("DB_PROD_REPACKER_ADD", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Repacker TIN"
                 value={formData.DB_PROD_REPACKER_TIN}
-                onChange={(val) => handleChange("DB_PROD_REPACKER_TIN", val)}
+                onChange={(v) => handleChange("DB_PROD_REPACKER_TIN", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Repacker LTO No."
                 value={formData.DB_PROD_REPACKER_LTO_NO}
-                onChange={(val) => handleChange("DB_PROD_REPACKER_LTO_NO", val)}
+                onChange={(v) => handleChange("DB_PROD_REPACKER_LTO_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Repacker Country"
                 value={formData.DB_PROD_REPACKER_COUNTRY}
-                onChange={(val) =>
-                  handleChange("DB_PROD_REPACKER_COUNTRY", val)
-                }
+                onChange={(v) => handleChange("DB_PROD_REPACKER_COUNTRY", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -889,37 +942,35 @@ function EditRecordModal({
               <FormField
                 label="Importer"
                 value={formData.DB_PROD_IMPORTER}
-                onChange={(val) => handleChange("DB_PROD_IMPORTER", val)}
+                onChange={(v) => handleChange("DB_PROD_IMPORTER", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Importer Address"
                 value={formData.DB_PROD_IMPORTER_ADD}
-                onChange={(val) => handleChange("DB_PROD_IMPORTER_ADD", val)}
+                onChange={(v) => handleChange("DB_PROD_IMPORTER_ADD", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Importer TIN"
                 value={formData.DB_PROD_IMPORTER_TIN}
-                onChange={(val) => handleChange("DB_PROD_IMPORTER_TIN", val)}
+                onChange={(v) => handleChange("DB_PROD_IMPORTER_TIN", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Importer LTO No."
                 value={formData.DB_PROD_IMPORTER_LTO_NO}
-                onChange={(val) => handleChange("DB_PROD_IMPORTER_LTO_NO", val)}
+                onChange={(v) => handleChange("DB_PROD_IMPORTER_LTO_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Importer Country"
                 value={formData.DB_PROD_IMPORTER_COUNTRY}
-                onChange={(val) =>
-                  handleChange("DB_PROD_IMPORTER_COUNTRY", val)
-                }
+                onChange={(v) => handleChange("DB_PROD_IMPORTER_COUNTRY", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -932,35 +983,35 @@ function EditRecordModal({
               <FormField
                 label="Distributor"
                 value={formData.DB_PROD_DISTRI}
-                onChange={(val) => handleChange("DB_PROD_DISTRI", val)}
+                onChange={(v) => handleChange("DB_PROD_DISTRI", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Distributor Address"
                 value={formData.DB_PROD_DISTRI_ADD}
-                onChange={(val) => handleChange("DB_PROD_DISTRI_ADD", val)}
+                onChange={(v) => handleChange("DB_PROD_DISTRI_ADD", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Distributor TIN"
                 value={formData.DB_PROD_DISTRI_TIN}
-                onChange={(val) => handleChange("DB_PROD_DISTRI_TIN", val)}
+                onChange={(v) => handleChange("DB_PROD_DISTRI_TIN", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Distributor LTO No."
                 value={formData.DB_PROD_DISTRI_LTO_NO}
-                onChange={(val) => handleChange("DB_PROD_DISTRI_LTO_NO", val)}
+                onChange={(v) => handleChange("DB_PROD_DISTRI_LTO_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Distributor Country"
                 value={formData.DB_PROD_DISTRI_COUNTRY}
-                onChange={(val) => handleChange("DB_PROD_DISTRI_COUNTRY", val)}
+                onChange={(v) => handleChange("DB_PROD_DISTRI_COUNTRY", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -973,30 +1024,28 @@ function EditRecordModal({
               <FormField
                 label="Shelf Life"
                 value={formData.DB_PROD_DISTRI_SHELF_LIFE}
-                onChange={(val) =>
-                  handleChange("DB_PROD_DISTRI_SHELF_LIFE", val)
-                }
+                onChange={(v) => handleChange("DB_PROD_DISTRI_SHELF_LIFE", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Storage Condition"
                 value={formData.DB_STORAGE_COND}
-                onChange={(val) => handleChange("DB_STORAGE_COND", val)}
+                onChange={(v) => handleChange("DB_STORAGE_COND", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Packaging"
                 value={formData.DB_PACKAGING}
-                onChange={(val) => handleChange("DB_PACKAGING", val)}
+                onChange={(v) => handleChange("DB_PACKAGING", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Suggested RP"
                 value={formData.DB_SUGG_RP}
-                onChange={(val) => handleChange("DB_SUGG_RP", val)}
+                onChange={(v) => handleChange("DB_SUGG_RP", v)}
                 type="number"
                 colors={colors}
                 darkMode={darkMode}
@@ -1004,7 +1053,7 @@ function EditRecordModal({
               <FormField
                 label="No. of Samples"
                 value={formData.DB_NO_SAMPLE}
-                onChange={(val) => handleChange("DB_NO_SAMPLE", val)}
+                onChange={(v) => handleChange("DB_NO_SAMPLE", v)}
                 type="number"
                 colors={colors}
                 darkMode={darkMode}
@@ -1018,7 +1067,7 @@ function EditRecordModal({
               <FormField
                 label="DTN"
                 value={formData.DB_DTN}
-                onChange={(val) => handleChange("DB_DTN", val)}
+                onChange={(v) => handleChange("DB_DTN", v)}
                 type="number"
                 colors={colors}
                 darkMode={darkMode}
@@ -1026,76 +1075,76 @@ function EditRecordModal({
               <FormField
                 label="Registration No."
                 value={formData.DB_REG_NO}
-                onChange={(val) => handleChange("DB_REG_NO", val)}
+                onChange={(v) => handleChange("DB_REG_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Application Type"
                 value={formData.DB_APP_TYPE}
-                onChange={(val) => handleChange("DB_APP_TYPE", val)}
+                onChange={(v) => handleChange("DB_APP_TYPE", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Mother App Type"
                 value={formData.DB_MOTHER_APP_TYPE}
-                onChange={(val) => handleChange("DB_MOTHER_APP_TYPE", val)}
+                onChange={(v) => handleChange("DB_MOTHER_APP_TYPE", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Old RSN"
                 value={formData.DB_OLD_RSN}
-                onChange={(val) => handleChange("DB_OLD_RSN", val)}
+                onChange={(v) => handleChange("DB_OLD_RSN", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Certification"
                 value={formData.DB_CERTIFICATION}
-                onChange={(val) => handleChange("DB_CERTIFICATION", val)}
+                onChange={(v) => handleChange("DB_CERTIFICATION", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Class"
                 value={formData.DB_CLASS}
-                onChange={(val) => handleChange("DB_CLASS", val)}
+                onChange={(v) => handleChange("DB_CLASS", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Application Status"
                 value={formData.DB_APP_STATUS}
-                onChange={(val) => handleChange("DB_APP_STATUS", val)}
+                onChange={(v) => handleChange("DB_APP_STATUS", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
             </FieldGrid>
           </Section>
 
-          {/* Amendment Fields */}
+          {/* Amendments */}
           <Section title="📝 Amendments" colors={colors}>
             <FieldGrid>
               <FormField
                 label="Amendment 1"
                 value={formData.DB_AMMEND_1}
-                onChange={(val) => handleChange("DB_AMMEND_1", val)}
+                onChange={(v) => handleChange("DB_AMMEND_1", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Amendment 2"
                 value={formData.DB_AMMEND_2}
-                onChange={(val) => handleChange("DB_AMMEND_2", val)}
+                onChange={(v) => handleChange("DB_AMMEND_2", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Amendment 3"
                 value={formData.DB_AMMEND_3}
-                onChange={(val) => handleChange("DB_AMMEND_3", val)}
+                onChange={(v) => handleChange("DB_AMMEND_3", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -1108,7 +1157,7 @@ function EditRecordModal({
               <FormField
                 label="Fee"
                 value={formData.DB_FEE}
-                onChange={(val) => handleChange("DB_FEE", val)}
+                onChange={(v) => handleChange("DB_FEE", v)}
                 type="number"
                 colors={colors}
                 darkMode={darkMode}
@@ -1116,7 +1165,7 @@ function EditRecordModal({
               <FormField
                 label="LRF"
                 value={formData.DB_LRF}
-                onChange={(val) => handleChange("DB_LRF", val)}
+                onChange={(v) => handleChange("DB_LRF", v)}
                 type="number"
                 colors={colors}
                 darkMode={darkMode}
@@ -1124,7 +1173,7 @@ function EditRecordModal({
               <FormField
                 label="SURC"
                 value={formData.DB_SURC}
-                onChange={(val) => handleChange("DB_SURC", val)}
+                onChange={(v) => handleChange("DB_SURC", v)}
                 type="number"
                 colors={colors}
                 darkMode={darkMode}
@@ -1132,7 +1181,7 @@ function EditRecordModal({
               <FormField
                 label="Total"
                 value={formData.DB_TOTAL}
-                onChange={(val) => handleChange("DB_TOTAL", val)}
+                onChange={(v) => handleChange("DB_TOTAL", v)}
                 type="number"
                 colors={colors}
                 darkMode={darkMode}
@@ -1140,7 +1189,7 @@ function EditRecordModal({
               <FormField
                 label="OR No."
                 value={formData.DB_OR_NO}
-                onChange={(val) => handleChange("DB_OR_NO", val)}
+                onChange={(v) => handleChange("DB_OR_NO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -1153,7 +1202,7 @@ function EditRecordModal({
               <FormField
                 label="Date Issued"
                 value={formData.DB_DATE_ISSUED}
-                onChange={(val) => handleChange("DB_DATE_ISSUED", val)}
+                onChange={(v) => handleChange("DB_DATE_ISSUED", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1161,7 +1210,7 @@ function EditRecordModal({
               <FormField
                 label="Date Received FDAC"
                 value={formData.DB_DATE_RECEIVED_FDAC}
-                onChange={(val) => handleChange("DB_DATE_RECEIVED_FDAC", val)}
+                onChange={(v) => handleChange("DB_DATE_RECEIVED_FDAC", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1169,7 +1218,7 @@ function EditRecordModal({
               <FormField
                 label="Date Received Central"
                 value={formData.DB_DATE_RECEIVED_CENT}
-                onChange={(val) => handleChange("DB_DATE_RECEIVED_CENT", val)}
+                onChange={(v) => handleChange("DB_DATE_RECEIVED_CENT", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1177,7 +1226,7 @@ function EditRecordModal({
               <FormField
                 label="Date Deck"
                 value={formData.DB_DATE_DECK}
-                onChange={(val) => handleChange("DB_DATE_DECK", val)}
+                onChange={(v) => handleChange("DB_DATE_DECK", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1185,7 +1234,7 @@ function EditRecordModal({
               <FormField
                 label="Date Released"
                 value={formData.DB_DATE_RELEASED}
-                onChange={(val) => handleChange("DB_DATE_RELEASED", val)}
+                onChange={(v) => handleChange("DB_DATE_RELEASED", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1193,7 +1242,7 @@ function EditRecordModal({
               <FormField
                 label="Expiry Date"
                 value={formData.DB_EXPIRY_DATE}
-                onChange={(val) => handleChange("DB_EXPIRY_DATE", val)}
+                onChange={(v) => handleChange("DB_EXPIRY_DATE", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1201,7 +1250,7 @@ function EditRecordModal({
               <FormField
                 label="CPR Validity"
                 value={formData.DB_CPR_VALIDITY}
-                onChange={(val) => handleChange("DB_CPR_VALIDITY", val)}
+                onChange={(v) => handleChange("DB_CPR_VALIDITY", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1209,7 +1258,7 @@ function EditRecordModal({
               <FormField
                 label="Date Remarks"
                 value={formData.DB_DATE_REMARKS}
-                onChange={(val) => handleChange("DB_DATE_REMARKS", val)}
+                onChange={(v) => handleChange("DB_DATE_REMARKS", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1223,14 +1272,14 @@ function EditRecordModal({
               <FormField
                 label="MO"
                 value={formData.DB_MO}
-                onChange={(val) => handleChange("DB_MO", val)}
+                onChange={(v) => handleChange("DB_MO", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="File"
                 value={formData.DB_FILE}
-                onChange={(val) => handleChange("DB_FILE", val)}
+                onChange={(v) => handleChange("DB_FILE", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -1243,14 +1292,14 @@ function EditRecordModal({
               <FormField
                 label="SECPA"
                 value={formData.DB_SECPA}
-                onChange={(val) => handleChange("DB_SECPA", val)}
+                onChange={(v) => handleChange("DB_SECPA", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="SECPA Expiry Date"
                 value={formData.DB_SECPA_EXP_DATE}
-                onChange={(val) => handleChange("DB_SECPA_EXP_DATE", val)}
+                onChange={(v) => handleChange("DB_SECPA_EXP_DATE", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1258,7 +1307,7 @@ function EditRecordModal({
               <FormField
                 label="SECPA Issued On"
                 value={formData.DB_SECPA_ISSUED_ON}
-                onChange={(val) => handleChange("DB_SECPA_ISSUED_ON", val)}
+                onChange={(v) => handleChange("DB_SECPA_ISSUED_ON", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1272,7 +1321,7 @@ function EditRecordModal({
               <FormField
                 label="Decking Schedule"
                 value={formData.DB_DECKING_SCHED}
-                onChange={(val) => handleChange("DB_DECKING_SCHED", val)}
+                onChange={(v) => handleChange("DB_DECKING_SCHED", v)}
                 type="date"
                 colors={colors}
                 darkMode={darkMode}
@@ -1280,7 +1329,7 @@ function EditRecordModal({
               <FormField
                 label="Evaluator"
                 value={formData.DB_EVAL}
-                onChange={(val) => handleChange("DB_EVAL", val)}
+                onChange={(v) => handleChange("DB_EVAL", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -1293,14 +1342,14 @@ function EditRecordModal({
               <FormField
                 label="Type Doc Released"
                 value={formData.DB_TYPE_DOC_RELEASED}
-                onChange={(val) => handleChange("DB_TYPE_DOC_RELEASED", val)}
+                onChange={(v) => handleChange("DB_TYPE_DOC_RELEASED", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
               <FormField
                 label="Atta Released"
                 value={formData.DB_ATTA_RELEASED}
-                onChange={(val) => handleChange("DB_ATTA_RELEASED", val)}
+                onChange={(v) => handleChange("DB_ATTA_RELEASED", v)}
                 colors={colors}
                 darkMode={darkMode}
               />
@@ -1312,7 +1361,7 @@ function EditRecordModal({
             <FormField
               label="CPR Condition"
               value={formData.DB_CPR_COND}
-              onChange={(val) => handleChange("DB_CPR_COND", val)}
+              onChange={(v) => handleChange("DB_CPR_COND", v)}
               type="textarea"
               colors={colors}
               darkMode={darkMode}
@@ -1320,7 +1369,7 @@ function EditRecordModal({
             <FormField
               label="CPR Condition Remarks"
               value={formData.DB_CPR_COND_REMARKS}
-              onChange={(val) => handleChange("DB_CPR_COND_REMARKS", val)}
+              onChange={(v) => handleChange("DB_CPR_COND_REMARKS", v)}
               type="textarea"
               colors={colors}
               darkMode={darkMode}
@@ -1328,7 +1377,7 @@ function EditRecordModal({
             <FormField
               label="CPR Condition Additional Remarks"
               value={formData.DB_CPR_COND_ADD_REMARKS}
-              onChange={(val) => handleChange("DB_CPR_COND_ADD_REMARKS", val)}
+              onChange={(v) => handleChange("DB_CPR_COND_ADD_REMARKS", v)}
               type="textarea"
               colors={colors}
               darkMode={darkMode}
@@ -1340,7 +1389,7 @@ function EditRecordModal({
             <FormField
               label="Application Remarks"
               value={formData.DB_APP_REMARKS}
-              onChange={(val) => handleChange("DB_APP_REMARKS", val)}
+              onChange={(v) => handleChange("DB_APP_REMARKS", v)}
               type="textarea"
               colors={colors}
               darkMode={darkMode}
@@ -1348,7 +1397,7 @@ function EditRecordModal({
             <FormField
               label="General Remarks"
               value={formData.DB_REMARKS_1}
-              onChange={(val) => handleChange("DB_REMARKS_1", val)}
+              onChange={(v) => handleChange("DB_REMARKS_1", v)}
               type="textarea"
               colors={colors}
               darkMode={darkMode}
@@ -1402,49 +1451,66 @@ function EditRecordModal({
             borderTop: `1px solid ${colors.cardBorder}`,
             display: "flex",
             gap: "1rem",
-            justifyContent: "flex-end",
+            justifyContent: "space-between",
+            alignItems: "center",
             background: colors.cardBg,
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            style={{
-              padding: "0.75rem 1.5rem",
-              background: "transparent",
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "8px",
-              color: colors.textSecondary,
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              cursor: saving ? "not-allowed" : "pointer",
-              transition: "all 0.2s ease",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving}
-            style={{
-              padding: "0.75rem 1.5rem",
-              background: saving ? colors.cardBorder : "#2196F3",
-              border: "none",
-              borderRadius: "8px",
-              color: "#fff",
-              fontSize: "0.875rem",
-              fontWeight: "500",
-              cursor: saving ? "not-allowed" : "pointer",
-              transition: "all 0.2s ease",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
-            {saving ? "💾 Saving..." : "💾 Save All Changes"}
-          </button>
+          <span style={{ fontSize: "0.78rem", color: colors.textTertiary }}>
+            {changedCount > 0 ? (
+              <span style={{ color: "#f59e0b", fontWeight: 700 }}>
+                ✎ {changedCount} field{changedCount > 1 ? "s" : ""} modified —
+                will be logged on save
+              </span>
+            ) : (
+              <span>No changes yet</span>
+            )}
+          </span>
+          <div style={{ display: "flex", gap: "1rem" }}>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              style={{
+                padding: "0.75rem 1.5rem",
+                background: "transparent",
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "8px",
+                color: colors.textSecondary,
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                cursor: saving ? "not-allowed" : "pointer",
+                transition: "all 0.2s ease",
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={saving || changedCount === 0}
+              style={{
+                padding: "0.75rem 1.5rem",
+                background:
+                  saving || changedCount === 0 ? colors.cardBorder : "#2196F3",
+                border: "none",
+                borderRadius: "8px",
+                color: "#fff",
+                fontSize: "0.875rem",
+                fontWeight: "500",
+                cursor:
+                  saving || changedCount === 0 ? "not-allowed" : "pointer",
+                transition: "all 0.2s ease",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}
+            >
+              {saving
+                ? "💾 Saving..."
+                : `💾 Save ${changedCount > 0 ? `(${changedCount}) ` : ""}Changes`}
+            </button>
+          </div>
         </div>
       </div>
     </div>
