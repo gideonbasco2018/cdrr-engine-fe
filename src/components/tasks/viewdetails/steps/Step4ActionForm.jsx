@@ -497,9 +497,13 @@ export function Step4ActionForm({
       const nextIndex = (indexData.last_index ?? 0) + 1;
       //added for doctrack remarks
       try {
+        const remarksWithAlias = currentUser?.alias
+          ? `${formData.doctrackRemarks || ""} Remarks By: ${currentUser.alias}`
+          : formData.doctrackRemarks || "";
+
         await createDoctrackLogByRsn(
           String(record.dtn),
-          formData.doctrackRemarks || "",
+          remarksWithAlias,
           currentUser?.id ?? null,
         );
       } catch (doctrackErr) {
