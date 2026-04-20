@@ -29,7 +29,6 @@ export const generateExcel = async (selectedData, activeTab) => {
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-PH", { year:"numeric", month:"long", day:"numeric" });
   const timeStr = now.toLocaleTimeString("en-PH", { hour:"2-digit", minute:"2-digit" });
-  const preparedBy = getPreparedBy();
 
   const wsData = [
     ["TRANSMITTAL SLIP — FDA Center for Drug Regulation and Research (CDRR)"],
@@ -49,15 +48,6 @@ export const generateExcel = async (selectedData, activeTab) => {
       r.dateReceivedFdac ?? "—",
     ]);
   });
-
-  wsData.push([], [],
-    [`Prepared by/Date: ${preparedBy} / ${dateStr}`],
-    ["Received by Name/Date:"], [],
-    ["MELODY M. ZAMUDIO, RPh, MGM-ESP"],
-    ["FDRO V/Chief, LRD"],
-    ["Center for Drug Regulation and Research"], [],
-    ["NON-ACCEPTANCE AND SWITCHING REQUIRES PRIOR APPROVAL BY CHIEF LRD"],
-  );
 
   const ws = window.XLSX.utils.aoa_to_sheet(wsData);
   ws["!cols"] = [4,22,12,36,30,30,18,18,18,22,18,18,18,18].map((wch) => ({ wch }));
@@ -141,16 +131,16 @@ export const generatePDF = async (selectedData, activeTab) => {
     alternateRowStyles: { fillColor:[240,247,255] },
     margin: { left:6, right:6 },
     columnStyles: {
-      _no:           { halign:"center", cellWidth:7,  valign:"middle" },
-      _barcode:      { cellWidth:28, halign:"center", valign:"middle" },
-      dtn:           { cellWidth:28, halign:"center", valign:"middle", fontStyle:"bold" },
-      estCat:        { cellWidth:14, valign:"middle" },
-      ltoCompany:    { cellWidth:42, valign:"middle" },
-      _productInfo:  { cellWidth:48, valign:"middle" },
-      _dosage:       { cellWidth:30, valign:"middle" },
-      regNo:         { cellWidth:22, halign:"center", valign:"middle" },
-      _appTypeFull:  { cellWidth:34, valign:"middle" },
-      dateReceivedFdac: { cellWidth:22, halign:"center", valign:"middle" },
+      _no:             { halign:"center", cellWidth:7,  valign:"middle" },
+      _barcode:        { cellWidth:28, halign:"center", valign:"middle" },
+      dtn:             { cellWidth:28, halign:"center", valign:"middle", fontStyle:"bold" },
+      estCat:          { cellWidth:14, valign:"middle" },
+      ltoCompany:      { cellWidth:42, valign:"middle" },
+      _productInfo:    { cellWidth:48, valign:"middle" },
+      _dosage:         { cellWidth:30, valign:"middle" },
+      regNo:           { cellWidth:22, halign:"center", valign:"middle" },
+      _appTypeFull:    { cellWidth:34, valign:"middle" },
+      dateReceivedFdac:{ cellWidth:22, halign:"center", valign:"middle" },
     },
     didDrawCell: (h) => {
       if (h.section === "body" && h.column.dataKey === "_barcode") {
@@ -163,6 +153,7 @@ export const generatePDF = async (selectedData, activeTab) => {
     },
   });
 
+  // Page numbers
   const totalPgs = doc.internal.getNumberOfPages();
   for (let pg = 1; pg <= totalPgs; pg++) {
     doc.setPage(pg);
@@ -174,26 +165,23 @@ export const generatePDF = async (selectedData, activeTab) => {
     doc.setTextColor(30, 30, 30);
   }
 
+  // Footer — Prepared by and Received by only
   doc.setPage(totalPgs);
   const finalY = doc.lastAutoTable.finalY + 6;
   if (finalY < pageH - 26) {
-    const col1X = 14, col2X = pageW / 2 - 28, col3X = pageW - 70, baseY = finalY + 4;
+    const col1X = 14, baseY = finalY + 4;
+
+    // Prepared by/Date
     doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(30, 30, 30);
     doc.text("Prepared by/Date:", col1X, baseY);
     doc.setFont("helvetica", "normal");
     doc.text(` ${preparedBy} / ${dateStr}`, col1X + doc.getTextWidth("Prepared by/Date: "), baseY);
+
+    // Received by Name/Date with underline
     doc.setFont("helvetica", "bold");
     doc.text("Received by Name/Date:", col1X, baseY + 12);
     doc.setDrawColor(120); doc.setLineWidth(0.25);
     doc.line(col1X, baseY + 17, col1X + 65, baseY + 17);
-    doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(30, 30, 30);
-    doc.text("MELODY M. ZAMUDIO, RPh, MGM-ESP", col2X, baseY + 5, { align:"center" });
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(60);
-    doc.text("FDRO V/Chief, LRD", col2X, baseY + 10, { align:"center" });
-    doc.text("Center for Drug Regulation and Research", col2X, baseY + 15, { align:"center" });
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(30, 30, 30);
-    doc.text("NON-ACCEPTANCE AND SWITCHING", col3X, baseY + 10, { align:"center" });
-    doc.text("REQUIRES PRIOR APPROVAL BY CHIEF LRD", col3X, baseY + 15, { align:"center" });
   }
 
   doc.save(`transmittal_${activeTab ?? "task"}_${now.toISOString().slice(0, 10)}.pdf`);
