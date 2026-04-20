@@ -2,7 +2,7 @@
 /*  DataTable — BulkDeckModal.jsx                                      */
 /* ================================================================== */
 import { useState, useRef, useEffect } from "react";
-import { getUsersByGroup } from "../../../api/auth";
+import { getUsersByGroup, getUser } from "../../../api/auth";
 import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
 import {
   LRD_AUTHORITY_GROUP_ID,
