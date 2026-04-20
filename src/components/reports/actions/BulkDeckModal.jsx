@@ -726,7 +726,10 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
 
       let doctrackResult = null;
       try {
-        doctrackResult = await createBulkDoctrackLogsByRsn(doctrackEntries);
+        doctrackResult = await createBulkDoctrackLogsByRsn(
+          doctrackEntries,
+          currentUser?.alias || "", // ← DAGDAG
+        );
         // TEMP DEBUG — alisin pagkatapos
         console.log("doctrackEntries sent:", doctrackEntries);
         console.log("doctrackResult received:", doctrackResult);

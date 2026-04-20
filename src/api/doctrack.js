@@ -239,18 +239,18 @@ export const createDoctrackLogByRsn = async (rsn, remarks, userID) => {
  * Bulk insert doctrack logs by RSN (for BulkDeck modal)
  * @param {Array<{rsn: string, remarks: string, userID: number}>} entries
  */
-export const createBulkDoctrackLogsByRsn = async (entries) => {
+export const createBulkDoctrackLogsByRsn = async (entries, alias = "") => {
   try {
     const response = await API.post("/doctrack/log/bulk-by-rsn-with-user", {
       entries,
+      alias,  // ← DAGDAG
     });
     return response.data;
   } catch (error) {
-      // TEMP: more verbose logging
-  console.error("Doctrack API error:", error);
-  console.error("Status:", error.response?.status);
-  console.error("Detail:", error.response?.data);
-  console.error("Request payload sent:", { entries });
-  return null;
+    console.error("Doctrack API error:", error);
+    console.error("Status:", error.response?.status);
+    console.error("Detail:", error.response?.data);
+    console.error("Request payload sent:", { entries });
+    return null;
   }
 };
