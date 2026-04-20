@@ -726,6 +726,9 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
       let doctrackResult = null;
       try {
         doctrackResult = await createBulkDoctrackLogsByRsn(doctrackEntries);
+        // TEMP DEBUG — alisin pagkatapos
+        console.log("doctrackEntries sent:", doctrackEntries);
+        console.log("doctrackResult received:", doctrackResult);
       } catch (doctrackError) {
         // Non-null error thrown means the call itself hard-failed
         console.error("❌ Doctrack bulk insert failed:", doctrackError);

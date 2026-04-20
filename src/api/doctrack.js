@@ -246,7 +246,11 @@ export const createBulkDoctrackLogsByRsn = async (entries) => {
     });
     return response.data;
   } catch (error) {
-    console.error("Error creating bulk doctrack logs by RSN:", error);
-    return null;
+      // TEMP: more verbose logging
+  console.error("Doctrack API error:", error);
+  console.error("Status:", error.response?.status);
+  console.error("Detail:", error.response?.data);
+  console.error("Request payload sent:", { entries });
+  return null;
   }
 };
