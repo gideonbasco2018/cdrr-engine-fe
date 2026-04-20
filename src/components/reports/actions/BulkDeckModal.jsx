@@ -1,5 +1,6 @@
 // src/components/UploadReports/actions/BulkDeckModal.jsx
 
+import { useState, useEffect } from "react"; // ← DAGDAG ITO
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import {
   createApplicationLog,
