@@ -1,11 +1,11 @@
 // src/components/UploadReports/actions/BulkDeckModal.jsx
 
-import { useState, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import {
   createApplicationLog,
   getLastApplicationLogIndex,
 } from "../../../api/application-logs";
+import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
 
 // ── Transmittal PDF Generator ─────────────────────────────────────────────────
 const loadScript = (src) =>
@@ -698,6 +698,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
   // ── Core deck logic ──
+  // ── Core deck logic ──
   const handleSubmit = async () => {
     const cfg = DECISION_CONFIG[formData.deckerDecision];
     const needsEvaluator = cfg?.fetchEvaluator;
@@ -714,6 +715,36 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     const succeeded = [];
 
     try {
+      // ── STEP 1: Insert doctrack logs first (external DB) ──────────────────
+      // Build entries for all records in one bulk call
+      const doctrackEntries = records.map((record) => ({
+        rsn: record.dtn, // 14-digit doctrack number
+        remarks: formData.doctackRemarks || "", // auto-filled or user-edited
+        userID: currentUser?.id ?? null,
+      }));
+
+      let doctrackResult = null;
+      try {
+        doctrackResult = await createBulkDoctrackLogsByRsn(doctrackEntries);
+      } catch (doctrackError) {
+        // Non-null error thrown means the call itself hard-failed
+        console.error("❌ Doctrack bulk insert failed:", doctrackError);
+        alert(
+          `❌ Failed to insert Doctrack logs.\n\nReason: ${doctrackError.message}\n\nNo application logs were created.`,
+        );
+        return; // bail out — do NOT touch main DB
+      }
+
+      // createBulkDoctrackLogsByRsn returns null on caught errors (see api file)
+      if (doctrackResult === null) {
+        alert(
+          "❌ Failed to insert Doctrack logs (no response from server).\n\nNo application logs were created.",
+        );
+        return;
+      }
+      // ── STEP 1 complete ───────────────────────────────────────────────────
+
+      // ── STEP 2: Insert application logs (main DB) ─────────────────────────
       for (let i = 0; i < records.length; i++) {
         const record = records[i];
         setProgress({ current: i + 1, total: records.length });
@@ -731,7 +762,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
             application_status: "COMPLETED",
             application_decision: formData.deckerDecision,
             application_remarks: formData.deckerRemarks || "",
-            doctrack_remarks: formData.doctackRemarks || "", // ← Doctrack remarks
+            doctrack_remarks: formData.doctackRemarks || "",
             start_date: formattedDateTime,
             accomplished_date: formattedDateTime,
             del_index: nextIndex,
@@ -808,6 +839,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
           errors.push(record.dtn);
         }
       }
+      // ── STEP 2 complete ───────────────────────────────────────────────────
 
       // ── Show transmittal prompt instead of alert ──
       setSucceededRecords(succeeded);
