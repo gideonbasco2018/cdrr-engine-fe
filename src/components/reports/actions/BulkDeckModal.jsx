@@ -725,6 +725,8 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
       }));
 
       let doctrackResult = null;
+      console.log("currentUser:", currentUser);
+      console.log("alias value:", currentUser?.alias);
       try {
         doctrackResult = await createBulkDoctrackLogsByRsn(
           doctrackEntries,

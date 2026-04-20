@@ -3,6 +3,7 @@
 /* ================================================================== */
 import { useState, useRef, useEffect } from "react";
 import { getUsersByGroup } from "../../../api/auth";
+import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
 import {
   LRD_AUTHORITY_GROUP_ID,
   OD_RELEASING_AUTHORITY_GROUP_ID,
@@ -135,6 +136,12 @@ export function BulkDeckModal({
   const [downloading, setDownloading] = useState(false);
   const submittingRef = useRef(false);
 
+  const [currentUser, setCurrentUser] = useState(null);
+  useEffect(() => {
+    const user = getUser();
+    if (user) setCurrentUser(user);
+  }, []);
+
   /* ── Decision / Action / Remarks ── */
   const availableDecisions = config.availableDecisions ?? [];
 
@@ -258,6 +265,23 @@ export function BulkDeckModal({
     submittingRef.current = true;
     setSubmitting(true);
     try {
+      try {
+        const doctrackEntries = selectedDtns.map((dtn) => ({
+          rsn: String(dtn),
+          remarks: doctrackRemarks || "",
+          userID: currentUser?.id ?? null,
+        }));
+        await createBulkDoctrackLogsByRsn(
+          doctrackEntries,
+          currentUser?.alias || "",
+        );
+      } catch (doctrackErr) {
+        console.warn(
+          "⚠️ Doctrack log failed (non-fatal):",
+          doctrackErr.message,
+        );
+      }
+
       const res = await onConfirm(isReturnDecision ? null : assignee, {
         decision,
         action,
