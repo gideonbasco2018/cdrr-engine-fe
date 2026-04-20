@@ -32,6 +32,7 @@ import {
   AssigneeSearchDropdown,
 } from "../components/FormControls";
 
+import { createDoctrackLogByRsn } from "../../../../api/doctrack";
 /* ─── helpers ─────────────────────────────────────────────────── */
 const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
   decision === "Return to Evaluator" ||
@@ -494,7 +495,19 @@ export function Step4ActionForm({
 
       const indexData = await getLastApplicationLogIndex(record.mainDbId);
       const nextIndex = (indexData.last_index ?? 0) + 1;
-
+      //added for doctrack remarks
+      try {
+        await createDoctrackLogByRsn(
+          String(record.dtn),
+          formData.doctrackRemarks || "",
+          currentUser?.id ?? null,
+        );
+      } catch (doctrackErr) {
+        console.warn(
+          "⚠️ Doctrack log failed (non-fatal):",
+          doctrackErr.message,
+        );
+      }
       // Complete current log
       await updateApplicationLog(record.id, {
         application_status: "COMPLETED",
