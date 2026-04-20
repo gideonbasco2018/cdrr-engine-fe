@@ -497,18 +497,17 @@ export function Step4ActionForm({
       const indexData = await getLastApplicationLogIndex(record.mainDbId);
       const nextIndex = (indexData.last_index ?? 0) + 1;
       //added for doctrack remarks
-      try {
-        await createDoctrackLogByRsn(
-          String(record.dtn),
-          formData.doctrackRemarks || "",
-          currentUser?.id ?? null,
-          currentUser?.alias || "", // ← backend na ang mag-a-append
-        );
-      } catch (doctrackErr) {
-        console.warn(
-          "⚠️ Doctrack log failed (non-fatal):",
-          doctrackErr.message,
-        );
+      const doctrackResult = await createDoctrackLogByRsn(
+        String(record.dtn),
+        formData.doctrackRemarks || "",
+        currentUser?.id ?? null,
+        currentUser?.alias || "",
+      );
+
+      if (!doctrackResult) {
+        alert("❌ Failed to insert Doctrack log.\n\nSubmission cancelled.");
+        setLoading(false);
+        return;
       }
       // Complete current log
       await updateApplicationLog(record.id, {
