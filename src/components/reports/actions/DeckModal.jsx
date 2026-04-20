@@ -4,6 +4,7 @@ import {
   createApplicationLog,
   getLastApplicationLogIndex,
 } from "../../../api/application-logs";
+import { createDoctrackLogByRsn } from "../../../api/doctrack";
 
 function DeckModal({ record, onClose, onSuccess, colors }) {
   const [formData, setFormData] = useState({
@@ -123,6 +124,19 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
       const nextIndex = lastIndex + 1;
       const closeTask = 0;
       const openTask = 1;
+
+      const doctrackResult = await createDoctrackLogByRsn(
+        String(record.dtn),
+        formData.doctackRemarks || "",
+        currentUser?.id ?? null,
+        currentUser?.alias || "",
+      );
+
+      if (!doctrackResult) {
+        alert("❌ Failed to insert Doctrack log.\n\nDecking cancelled.");
+        setLoading(false);
+        return;
+      }
 
       await createApplicationLog({
         main_db_id: record.id,
