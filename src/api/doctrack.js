@@ -220,17 +220,17 @@ export const getUploadHistoryById = async (historyId) => {
  * @param {string} remarks - doctrack remarks
  * @param {number} userID - logged-in user's ID
  */
-export const createDoctrackLogByRsn = async (rsn, remarks, userID) => {
+export const createDoctrackLogByRsn = async (rsn, remarks, userID, alias = "") => {
   try {
     const response = await API.post("/doctrack/log/by-rsn", {
       rsn,
       remarks,
       userID,
+      alias,  // ← DAGDAG
     });
     return response.data;
   } catch (error) {
     console.error("Error creating doctrack log by RSN:", error);
-    // Non-fatal — don't throw, just log
     return null;
   }
 };
