@@ -37,7 +37,7 @@ import { createDoctrackLogByRsn } from "../../../../api/doctrack";
 /* ─── helpers ─────────────────────────────────────────────────── */
 const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
   decision === "Return to Evaluator" ||
-  decision === "Check and return to evaluator";
+  decision === "Checked and return to evaluator";
 
 /* Group ID for Decision Authority options (QA) */
 const LRD_AUTHORITY_GROUP_ID = 6;
@@ -56,7 +56,7 @@ const ACTION_CONFIG = {
     warning: "Action is required when endorsing to supervisor.",
   },
   "Checking_Check and return to evaluator": {
-    options: ["Return and Checked", "Recommended for printing"],
+    options: ["Checked and Return", "Recommended for printing"],
     warning: "Action is required when returning to evaluator.",
   },
   "Supervisor_Endorse to QA Admin": {
@@ -172,6 +172,10 @@ export function Step4ActionForm({
   );
   const [authorityOptions, setAuthorityOptions] = useState([]);
   const [loadingAuthority, setLoadingAuthority] = useState(false);
+
+  // changes start
+  const [doctrackEnabled, setDoctrackEnabled] = useState(true);
+  // changes end
 
   // ── Signed date for OD-Releasing doctrack remarks (optional, default: today) ──
   const [signedDate, setSignedDate] = useState(todayStr());
@@ -496,19 +500,22 @@ export function Step4ActionForm({
 
       const indexData = await getLastApplicationLogIndex(record.mainDbId);
       const nextIndex = (indexData.last_index ?? 0) + 1;
-      //added for doctrack remarks
-      const doctrackResult = await createDoctrackLogByRsn(
-        String(record.dtn),
-        formData.doctrackRemarks || "",
-        currentUser?.id ?? null,
-        currentUser?.alias || "",
-      );
 
-      if (!doctrackResult) {
-        alert("❌ Failed to insert Doctrack log.\n\nSubmission cancelled.");
-        setLoading(false);
-        return;
+      if (doctrackEnabled) {
+        const doctrackResult = await createDoctrackLogByRsn(
+          String(record.dtn),
+          formData.doctrackRemarks || "",
+          currentUser?.id ?? null,
+          currentUser?.alias || "",
+        );
+
+        if (!doctrackResult) {
+          alert("❌ Failed to insert Doctrack log.\n\nSubmission cancelled.");
+          setLoading(false);
+          return;
+        }
       }
+
       // Complete current log
       await updateApplicationLog(record.id, {
         application_status: "COMPLETED",
@@ -1143,11 +1150,78 @@ export function Step4ActionForm({
         </div>
       )}
 
+      {/* start changes */}
       {/* Doctrack Remarks */}
       <div>
+        <label
+          style={{
+            ...labelStyle,
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.4rem",
+          }}
+        >
+          <span>
+            Doctrack Remarks <span style={{ color: "#ef4444" }}>*</span>
+          </span>
+          {/* ── Doctrack Toggle ── */}
+          <span
+            onClick={() => setDoctrackEnabled((prev) => !prev)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.35rem",
+              fontSize: "0.65rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              padding: "0.1rem 0.5rem 0.1rem 0.35rem",
+              borderRadius: "20px",
+              border: `1px solid ${doctrackEnabled ? "#4CAF5050" : "#ef444450"}`,
+              background: doctrackEnabled ? "#4CAF5015" : "#ef444415",
+              color: doctrackEnabled ? "#4CAF50" : "#ef4444",
+              userSelect: "none",
+              transition: "all 0.2s",
+              textTransform: "none",
+              letterSpacing: "normal",
+            }}
+          >
+            <span
+              style={{
+                width: 22,
+                height: 11,
+                borderRadius: 11,
+                background: doctrackEnabled ? "#4CAF50" : "#ef4444",
+                display: "inline-block",
+                position: "relative",
+                transition: "background 0.2s",
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: 2,
+                  left: doctrackEnabled ? 13 : 2,
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left 0.2s",
+                }}
+              />
+            </span>
+            {doctrackEnabled ? "ON" : "OFF"}
+          </span>
+        </label>
+
+        {/* Doctrack Remarks */}
+        {/* <div>
         <label style={labelStyle}>
           Doctrack Remarks <span style={{ color: "#ef4444" }}>*</span>
-        </label>
+        </label> */}
+
+        {/* end changes */}
         <textarea
           value={formData.doctrackRemarks}
           onChange={(e) => handleChange("doctrackRemarks", e.target.value)}

@@ -24,7 +24,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
   const [currentUser, setCurrentUser] = useState(null);
   // ── Confirmation step ──
   const [confirmSubmit, setConfirmSubmit] = useState(false);
-
+  const [alertModal, setAlertModal] = useState(null);
   const GROUP_IDS = { EVALUATOR: 3, SE: 13 };
 
   const DECISION_CONFIG = {
@@ -133,7 +133,11 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
       );
 
       if (!doctrackResult) {
-        alert("❌ Failed to insert Doctrack log.\n\nDecking cancelled.");
+        setAlertModal({
+          title: "Doctrack log",
+          message: "Failed to insert Doctrack log.",
+          detail: "Decking cancelled. No application logs were created.",
+        });
         setLoading(false);
         return;
       }
@@ -211,11 +215,13 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
       }
 
       onClose();
-      alert("✅ Application decked successfully!");
       if (onSuccess) await onSuccess();
     } catch (error) {
       console.error("❌ Failed to deck record:", error);
-      alert(`❌ Failed to deck record: ${error.message}`);
+      setAlertModal({
+        title: "Deck application",
+        message: `Failed to deck record: ${error.message}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -225,13 +231,24 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
   const handleFormSubmit = (e) => {
     e.preventDefault();
     const config = DECISION_CONFIG[formData.deckerDecision];
-    if (!formData.deckerDecision)
-      return alert("⚠️ Please select a Decker Decision.");
-    if (config?.fetchEvaluator && !formData.evaluator)
-      return alert("⚠️ Please assign an Evaluator.");
-    if (config?.fetchSne && !formData.sne)
-      return alert("⚠️ Please assign an S&E.");
-    // All valid — show confirmation
+    if (!formData.deckerDecision) {
+      setAlertModal({
+        title: "Validation",
+        message: "Please select a Decker Decision.",
+      });
+      return;
+    }
+    if (config?.fetchEvaluator && !formData.evaluator) {
+      setAlertModal({
+        title: "Validation",
+        message: "Please assign an Evaluator.",
+      });
+      return;
+    }
+    if (config?.fetchSne && !formData.sne) {
+      setAlertModal({ title: "Validation", message: "Please assign an S&E." });
+      return;
+    }
     setConfirmSubmit(true);
   };
 
@@ -1084,6 +1101,14 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
         </div>
       )}
 
+      {alertModal && (
+        <AlertModal
+          {...alertModal}
+          colors={colors}
+          onClose={() => setAlertModal(null)}
+        />
+      )}
+
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideInScale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
@@ -1178,6 +1203,180 @@ function EmptyWarning({ label }) {
     >
       ⚠️ No users found in the {label} group.
     </p>
+  );
+}
+function AlertModal({ title, message, detail, onClose, colors }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10002,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backdropFilter: "blur(3px)",
+        animation: "fadeIn 0.2s ease",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: 16,
+          width: 420,
+          maxWidth: "90%",
+          overflow: "hidden",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
+          animation: "slideInScale 0.25s ease",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "1.1rem 1.4rem",
+            borderBottom: `1px solid ${colors.cardBorder}`,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: "rgba(239,68,68,0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <circle
+                cx="10"
+                cy="10"
+                r="9"
+                stroke="#ef4444"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M10 6v5M10 13.5v.5"
+                stroke="#ef4444"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
+              {title}
+            </p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: colors.textPrimary,
+              }}
+            >
+              Operation failed
+            </p>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div
+          style={{
+            padding: "1.25rem 1.4rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.85rem",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.85rem 1rem",
+              background: "rgba(239,68,68,0.07)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: 10,
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.82rem",
+                color: "#ef4444",
+                lineHeight: 1.6,
+              }}
+            >
+              {message}
+            </p>
+          </div>
+
+          {detail && (
+            <div
+              style={{
+                padding: "0.7rem 0.9rem",
+                background: colors.badgeBg,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "0.5rem",
+              }}
+            >
+              <span style={{ fontSize: "0.8rem", flexShrink: 0, marginTop: 1 }}>
+                💡
+              </span>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.77rem",
+                  color: colors.textSecondary,
+                  lineHeight: 1.6,
+                }}
+              >
+                {detail}
+              </p>
+            </div>
+          )}
+
+          <button
+            onClick={onClose}
+            style={{
+              width: "100%",
+              padding: "0.65rem",
+              borderRadius: 8,
+              border: "none",
+              background: "#ef4444",
+              color: "#fff",
+              fontSize: "0.88rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "opacity 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

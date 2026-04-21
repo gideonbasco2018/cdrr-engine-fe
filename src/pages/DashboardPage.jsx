@@ -4,7 +4,12 @@ import {
   getDashboardSummary,
   getDashboardChart,
   getDashboardRecentApplications,
+  getDashboardDetail,
+  getDashboardRecordByDtn,
+  getDashboardAllRecentApplications,
 } from "../api/dashboard";
+
+import ViewDetailsModal from "../components/reports/actions/ViewDetailsModal";
 
 const FB = "#1877F2";
 const FB_LIGHT = "#E7F0FD";
@@ -91,10 +96,6 @@ const AVAILABLE_YEARS = Array.from(
   (_, i) => String(CURRENT_YEAR - i),
 );
 
-/**
- * Converts breakdown + selYear + selMonth → { date_from, date_to } query params.
- * Returns {} for yearly (all-time) to let the backend return all records.
- */
 function buildChartParams(breakdown, selYear, selMonth) {
   if (breakdown === "year") return { breakdown: "year" };
   if (breakdown === "month") {
@@ -104,7 +105,6 @@ function buildChartParams(breakdown, selYear, selMonth) {
       date_to: `${selYear}-12-31`,
     };
   }
-  // breakdown === "day"
   const mn = MONTH_NUM[selMonth];
   const lastDay = new Date(parseInt(selYear), parseInt(mn), 0).getDate();
   return {
@@ -114,10 +114,6 @@ function buildChartParams(breakdown, selYear, selMonth) {
   };
 }
 
-/**
- * Maps the API's snake_case data point to the camelCase shape
- * the AreaChart and data table expect.
- */
 function mapPoint(pt) {
   return {
     label: pt.label,
@@ -125,12 +121,10 @@ function mapPoint(pt) {
     completed: pt.completed,
     onProcess: pt.on_process,
     target: pt.target,
-    completedRate: pt.completed_rate, // null when received = 0
+    completedRate: pt.completed_rate,
   };
 }
 
-// ─── Static data kept only for the all-time Summary card ─────────────────────
-// (The chart itself is now 100 % live)
 const SERIES = [
   { key: "received", label: "Total Received", color: "#1877F2" },
   { key: "completed", label: "Completed", color: "#36a420" },
@@ -138,7 +132,6 @@ const SERIES = [
   { key: "target", label: "Target", color: "#9333ea", dashed: true },
 ];
 
-// ─── Targets (unchanged) ─────────────────────────────────────────────────────
 const TARGETS_WEEKLY = [
   {
     id: 1,
@@ -172,23 +165,6 @@ const TARGETS_WEEKLY = [
   },
 ];
 
-const TARGET_PERIODS = {
-  weekly: {
-    label: "Weekly",
-    sublabel: "Mar 9–13, 2026",
-    data: TARGETS_WEEKLY,
-    daysLeft: 2,
-    reportPeriod: "Week of Mar 9–13, 2026",
-  },
-  monthly: {
-    label: "Monthly",
-    sublabel: "March 2026",
-    data: TARGETS_WEEKLY,
-    daysLeft: 21,
-    reportPeriod: "March 2026 (Full Month)",
-  },
-};
-
 const TODAY = new Date("2026-03-11T00:00:00");
 
 function formatDateShort(dateStr) {
@@ -220,6 +196,1089 @@ function daysUntil(end) {
   return Math.max(
     0,
     Math.round((new Date(end + "T00:00:00") - TODAY) / 86400000),
+  );
+}
+
+// ─── Status helpers ───────────────────────────────────────────────────────────
+function statusBadge(status, ui) {
+  const s = (status || "").toUpperCase();
+  if (s === "COMPLETED")
+    return { color: "#36a420", bg: "#e9f7e6", label: "Completed" };
+  if (s === "IN PROGRESS")
+    return { color: "#f59e0b", bg: "#fff8e7", label: "In Progress" };
+  return { color: ui.textMuted, bg: ui.pageBg, label: status || "—" };
+}
+
+function fmtDate(dateStr) {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  return d.toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function fmtDateTime(dateStr) {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr);
+  return d.toLocaleString("en-PH", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+function RecentApplicationsModal({ onClose, onRowClick, ui }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 15;
+
+  const fetchPage = useCallback(async (p) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getDashboardAllRecentApplications({
+        page: p,
+        page_size: PAGE_SIZE,
+      });
+      setData(res.data);
+      setTotal(res.total);
+      setTotalPages(res.total_pages);
+      setPage(res.page ?? p);
+    } catch (err) {
+      setError(err?.response?.data?.detail || err.message || "Failed to load");
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPage(1);
+  }, [fetchPage]);
+
+  const startRow = (page - 1) * PAGE_SIZE + 1;
+  const endRow = Math.min(startRow + PAGE_SIZE - 1, total);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(0,0,0,0.52)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: ui.cardBg,
+          border: `1px solid ${ui.cardBorder}`,
+          borderRadius: 14,
+          width: "100%",
+          maxWidth: 1100,
+          maxHeight: "92vh",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          boxShadow: "0 8px 40px rgba(0,0,0,0.28)",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: `1px solid ${ui.divider}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: `${FB}18`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.2rem",
+              }}
+            >
+              📋
+            </div>
+            <div>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  color: ui.textPrimary,
+                }}
+              >
+                Recent Applications
+              </h3>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: ui.textSub }}>
+                {loading
+                  ? "Loading…"
+                  : `${total.toLocaleString()} total record${total !== 1 ? "s" : ""}`}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: ui.inputBg,
+              border: `1px solid ${ui.cardBorder}`,
+              borderRadius: 8,
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: ui.textMuted,
+              fontSize: "1rem",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Table body */}
+        <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
+          {loading && (
+            <div
+              style={{
+                padding: 16,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    height: 48,
+                    borderRadius: 8,
+                    background: ui.progressBg,
+                    animation: "cdrrPulse 1.2s ease-in-out infinite",
+                    animationDelay: `${i * 0.07}s`,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {!loading && error && (
+            <div
+              style={{
+                padding: "2rem",
+                textAlign: "center",
+                color: "#e02020",
+                fontSize: "0.84rem",
+              }}
+            >
+              ⚠️ {error}&nbsp;
+              <button
+                onClick={() => fetchPage(page)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: FB,
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
+                  fontFamily: "inherit",
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && data.length === 0 && (
+            <div
+              style={{
+                padding: "3rem",
+                textAlign: "center",
+                color: ui.textMuted,
+                fontSize: "0.84rem",
+              }}
+            >
+              No records found.
+            </div>
+          )}
+
+          {!loading && !error && data.length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: "0.8rem",
+                  fontFamily: "inherit",
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      background: ui.pageBg,
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 1,
+                    }}
+                  >
+                    {[
+                      { label: "#", align: "center", width: 40 },
+                      { label: "DTN", align: "left" },
+                      { label: "Company", align: "left" },
+                      { label: "Brand Name", align: "left" },
+                      { label: "Generic Name", align: "left" },
+                      { label: "Step", align: "left" },
+                      { label: "Status", align: "center" },
+                      { label: "Date", align: "right" },
+                    ].map((col, ci) => (
+                      <th
+                        key={ci}
+                        style={{
+                          padding: "9px 12px",
+                          textAlign: col.align,
+                          fontSize: "0.69rem",
+                          fontWeight: 700,
+                          color: ui.textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          borderBottom: `1px solid ${ui.cardBorder}`,
+                          whiteSpace: "nowrap",
+                          width: col.width || "auto",
+                        }}
+                      >
+                        {col.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((row, ri) => {
+                    const isEven = ri % 2 === 0;
+                    const isLast = ri === data.length - 1;
+                    const border = !isLast ? `1px solid ${ui.divider}` : "none";
+                    const rowNum = startRow + ri;
+
+                    return (
+                      <tr
+                        key={row.log_id}
+                        onClick={() => onRowClick && onRowClick(row)}
+                        style={{
+                          background: isEven ? "transparent" : `${ui.pageBg}88`,
+                          cursor: onRowClick ? "pointer" : "default",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = ui.hoverBg)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = isEven
+                            ? "transparent"
+                            : `${ui.pageBg}88`)
+                        }
+                      >
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "center",
+                            color: ui.textMuted,
+                            fontSize: "0.73rem",
+                            borderBottom: border,
+                          }}
+                        >
+                          {rowNum}
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: FB,
+                              fontSize: "0.82rem",
+                            }}
+                          >
+                            {row.dtn || "—"}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textSub,
+                            borderBottom: border,
+                            minWidth: 180,
+                            maxWidth: 280,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: "0.76rem",
+                              lineHeight: 1.4,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {row.lto_company || "—"}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textPrimary,
+                            fontWeight: 500,
+                            borderBottom: border,
+                            maxWidth: 180,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {row.brand_name || "—"}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textSub,
+                            borderBottom: border,
+                            maxWidth: 160,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {row.generic_name || "—"}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textSub,
+                            borderBottom: border,
+                            maxWidth: 140,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              fontSize: "0.76rem",
+                            }}
+                          >
+                            {row.app_step || "—"}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "center",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "3px 10px",
+                              borderRadius: 99,
+                              fontSize: "0.73rem",
+                              fontWeight: 700,
+                              color: row.status_color,
+                              background: row.status_bg,
+                            }}
+                          >
+                            {row.status_label}
+                          </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "right",
+                            color: ui.textMuted,
+                            fontSize: "0.76rem",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {row.date_display}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Footer pagination */}
+        <div
+          style={{
+            padding: "12px 20px",
+            borderTop: `1px solid ${ui.divider}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: "0.74rem", color: ui.textMuted }}>
+            {total > 0
+              ? `${startRow}–${endRow} of ${total.toLocaleString()} records`
+              : ""}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button
+              onClick={() => fetchPage(page - 1)}
+              disabled={page <= 1 || loading}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 7,
+                border: `1px solid ${page <= 1 ? ui.cardBorder : ui.metricBorder}`,
+                background: "transparent",
+                color: page <= 1 ? ui.textMuted : ui.textPrimary,
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                cursor: page <= 1 ? "not-allowed" : "pointer",
+                opacity: page <= 1 ? 0.4 : 1,
+                fontFamily: "inherit",
+              }}
+            >
+              ‹ Prev
+            </button>
+            <span
+              style={{
+                fontSize: "0.78rem",
+                color: ui.textSub,
+                padding: "0 8px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => fetchPage(page + 1)}
+              disabled={page >= totalPages || loading}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 7,
+                border: `1px solid ${page >= totalPages ? ui.cardBorder : ui.metricBorder}`,
+                background: "transparent",
+                color: page >= totalPages ? ui.textMuted : ui.textPrimary,
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                cursor: page >= totalPages ? "not-allowed" : "pointer",
+                opacity: page >= totalPages ? 0.4 : 1,
+                fontFamily: "inherit",
+              }}
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MetricDetailModal ────────────────────────────────────────────────────────
+function MetricDetailModal({
+  metricKey,
+  metricLabel,
+  dateParams,
+  onClose,
+  onRowClick,
+  ui,
+}) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 10;
+
+  const fetchPage = useCallback(
+    async (p) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await getDashboardDetail({
+          metric: metricKey,
+          page: p,
+          page_size: PAGE_SIZE,
+          ...dateParams,
+        });
+        setData(res.data);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+        setPage(res.page);
+      } catch (err) {
+        setError(
+          err?.response?.data?.detail || err.message || "Failed to load",
+        );
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [metricKey, dateParams],
+  );
+
+  useEffect(() => {
+    fetchPage(1);
+  }, [fetchPage]);
+
+  // Metric accent colour
+  const accentColor =
+    metricKey === "received"
+      ? "#1877F2"
+      : metricKey === "completed"
+        ? "#36a420"
+        : metricKey === "on_process"
+          ? "#f59e0b"
+          : FB;
+
+  const metricIcon =
+    metricKey === "received"
+      ? "👁️"
+      : metricKey === "completed"
+        ? "✅"
+        : metricKey === "on_process"
+          ? "⏳"
+          : "🎯";
+
+  const startRow = (page - 1) * PAGE_SIZE + 1;
+  const endRow = Math.min(startRow + PAGE_SIZE - 1, total);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1000,
+        background: "rgba(0,0,0,0.52)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: ui.cardBg,
+          border: `1px solid ${ui.cardBorder}`,
+          borderRadius: 14,
+          width: "100%",
+          maxWidth: 1100, // ← 780 → 1100
+          maxHeight: "92vh", // ← 88vh → 92vh
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          boxShadow: "0 8px 40px rgba(0,0,0,0.28)",
+        }}
+      >
+        {/* ── Header ── */}
+        <div
+          style={{
+            padding: "16px 20px",
+            borderBottom: `1px solid ${ui.divider}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 10,
+                background: `${accentColor}18`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.2rem",
+              }}
+            >
+              {metricIcon}
+            </div>
+            <div>
+              <h3
+                style={{
+                  margin: 0,
+                  fontSize: "1rem",
+                  fontWeight: 700,
+                  color: ui.textPrimary,
+                }}
+              >
+                {metricLabel}
+              </h3>
+              <p style={{ margin: 0, fontSize: "0.75rem", color: ui.textSub }}>
+                {loading
+                  ? "Loading…"
+                  : `${total.toLocaleString()} application${total !== 1 ? "s" : ""}`}
+                {dateParams?.date_from && dateParams?.date_to
+                  ? ` · ${formatDateRange(dateParams.date_from, dateParams.date_to)}`
+                  : ""}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: ui.inputBg,
+              border: `1px solid ${ui.cardBorder}`,
+              borderRadius: 8,
+              width: 32,
+              height: 32,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: ui.textMuted,
+              fontSize: "1rem",
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* ── Table body ── */}
+        <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
+          {/* Loading skeleton */}
+          {loading && (
+            <div
+              style={{
+                padding: 16,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    height: 44,
+                    borderRadius: 8,
+                    background: ui.progressBg,
+                    animation: "cdrrPulse 1.2s ease-in-out infinite",
+                    animationDelay: `${i * 0.07}s`,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Error */}
+          {!loading && error && (
+            <div
+              style={{
+                padding: "2rem",
+                textAlign: "center",
+                color: "#e02020",
+                fontSize: "0.84rem",
+              }}
+            >
+              ⚠️ {error}&nbsp;
+              <button
+                onClick={() => fetchPage(page)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: FB,
+                  cursor: "pointer",
+                  fontWeight: 700,
+                  fontSize: "0.84rem",
+                  fontFamily: "inherit",
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Empty */}
+          {!loading && !error && data.length === 0 && (
+            <div
+              style={{
+                padding: "3rem",
+                textAlign: "center",
+                color: ui.textMuted,
+                fontSize: "0.84rem",
+              }}
+            >
+              No records found.
+            </div>
+          )}
+
+          {/* Data table */}
+          {!loading && !error && data.length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: "0.8rem",
+                  fontFamily: "inherit",
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      background: ui.pageBg,
+                      position: "sticky",
+                      top: 0,
+                      zIndex: 1,
+                    }}
+                  >
+                    {[
+                      { label: "#", align: "center", width: 40 },
+                      { label: "DTN", align: "left" },
+                      { label: "Company", align: "left" },
+                      { label: "Brand Name", align: "left" },
+                      { label: "Generic Name", align: "left" },
+                      { label: "Step", align: "left" },
+                      { label: "Status", align: "center" },
+                      { label: "Start Date", align: "right" },
+                      { label: "Accomplished Date", align: "right" },
+                    ].map((col, ci) => (
+                      <th
+                        key={ci}
+                        style={{
+                          padding: "9px 12px",
+                          textAlign: col.align,
+                          fontSize: "0.69rem",
+                          fontWeight: 700,
+                          color: ui.textMuted,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          borderBottom: `1px solid ${ui.cardBorder}`,
+                          whiteSpace: "nowrap",
+                          width: col.width || "auto",
+                        }}
+                      >
+                        {col.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((row, ri) => {
+                    const badge = statusBadge(row.application_status, ui);
+                    const isEven = ri % 2 === 0;
+                    const isLast = ri === data.length - 1;
+                    const border = !isLast ? `1px solid ${ui.divider}` : "none";
+                    const rowNum = startRow + ri;
+
+                    return (
+                      <tr
+                        key={row.log_id}
+                        onClick={() => onRowClick && onRowClick(row)}
+                        style={{
+                          background: isEven ? "transparent" : `${ui.pageBg}88`,
+                          cursor: onRowClick ? "pointer" : "default", // ← DAGDAG
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = ui.hoverBg)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = isEven
+                            ? "transparent"
+                            : `${ui.pageBg}88`)
+                        }
+                      >
+                        {/* Row # */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "center",
+                            color: ui.textMuted,
+                            fontSize: "0.73rem",
+                            borderBottom: border,
+                          }}
+                        >
+                          {rowNum}
+                        </td>
+                        {/* DTN */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 700,
+                              color: accentColor,
+                              fontSize: "0.82rem",
+                            }}
+                          >
+                            {row.dtn || "—"}
+                          </span>
+                        </td>
+                        {/* Company */}
+
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textSub,
+                            borderBottom: border,
+                            minWidth: 180, // ← minimum width para hindi masyadong liit
+                            maxWidth: 280, // ← max lang para hindi sobrang laki
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              fontSize: "0.76rem",
+                              lineHeight: 1.4,
+                              wordBreak: "break-word", // ← mag-wrap na kung mahaba
+                            }}
+                          >
+                            {row.lto_company || "—"}
+                          </span>
+                        </td>
+                        {/* Brand name */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textPrimary,
+                            fontWeight: 500,
+                            borderBottom: border,
+                            maxWidth: 180,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {row.brand_name || "—"}
+                          </span>
+                        </td>
+                        {/* Generic name */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textSub,
+                            borderBottom: border,
+                            maxWidth: 160,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {row.generic_name || "—"}
+                          </span>
+                        </td>
+                        {/* App step */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            color: ui.textSub,
+                            borderBottom: border,
+                            maxWidth: 140,
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              fontSize: "0.76rem",
+                            }}
+                          >
+                            {row.app_step || "—"}
+                          </span>
+                        </td>
+                        {/* Status badge */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "center",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "3px 10px",
+                              borderRadius: 99,
+                              fontSize: "0.73rem",
+                              fontWeight: 700,
+                              color: badge.color,
+                              background: badge.bg,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {badge.label}
+                          </span>
+                        </td>
+                        {/* Start date */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "right",
+                            color: ui.textMuted,
+                            fontSize: "0.76rem",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {fmtDateTime(row.start_date)}
+                        </td>
+                        {/* Accomplished date */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "right",
+                            fontSize: "0.76rem",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                            color: row.end_date ? "#36a420" : ui.textMuted,
+                          }}
+                        >
+                          {row.end_date ? fmtDateTime(row.end_date) : "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* ── Footer: pagination ── */}
+        <div
+          style={{
+            padding: "12px 20px",
+            borderTop: `1px solid ${ui.divider}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexShrink: 0,
+            gap: 8,
+          }}
+        >
+          <span style={{ fontSize: "0.74rem", color: ui.textMuted }}>
+            {total > 0
+              ? `${startRow}–${endRow} of ${total.toLocaleString()} records`
+              : ""}
+          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button
+              onClick={() => fetchPage(page - 1)}
+              disabled={page <= 1 || loading}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 7,
+                border: `1px solid ${page <= 1 ? ui.cardBorder : ui.metricBorder}`,
+                background: "transparent",
+                color: page <= 1 ? ui.textMuted : ui.textPrimary,
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                cursor: page <= 1 ? "not-allowed" : "pointer",
+                opacity: page <= 1 ? 0.4 : 1,
+                fontFamily: "inherit",
+              }}
+            >
+              ‹ Prev
+            </button>
+
+            <span
+              style={{
+                fontSize: "0.78rem",
+                color: ui.textSub,
+                padding: "0 8px",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Page {page} of {totalPages}
+            </span>
+
+            <button
+              onClick={() => fetchPage(page + 1)}
+              disabled={page >= totalPages || loading}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 7,
+                border: `1px solid ${page >= totalPages ? ui.cardBorder : ui.metricBorder}`,
+                background: "transparent",
+                color: page >= totalPages ? ui.textMuted : ui.textPrimary,
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                cursor: page >= totalPages ? "not-allowed" : "pointer",
+                opacity: page >= totalPages ? 0.4 : 1,
+                fontFamily: "inherit",
+              }}
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -692,6 +1751,7 @@ function AreaChart({ data, subtitle, ui }) {
 }
 
 // ─── MetricTile ───────────────────────────────────────────────────────────────
+// CHANGED: Added `onDetailClick` prop + cursor/hover styles to indicate clickable
 function MetricTile({
   icon,
   label,
@@ -699,20 +1759,29 @@ function MetricTile({
   change,
   active,
   onClick,
+  onDetailClick,
   ui,
   loading = false,
   isLive = false,
 }) {
   const up = change >= 0;
+  const [hovered, setHovered] = useState(false);
+
   return (
     <div
       onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         flex: "1 1 0",
         padding: "12px 14px",
         borderRadius: 8,
-        border: `1.5px solid ${active ? FB : ui.metricBorder}`,
-        background: active ? ui.metricActiveBg : "transparent",
+        border: `1.5px solid ${active ? FB : hovered ? `${FB}80` : ui.metricBorder}`,
+        background: active
+          ? ui.metricActiveBg
+          : hovered
+            ? `${ui.hoverBg}`
+            : "transparent",
         cursor: "pointer",
         transition: "all 0.15s",
         minWidth: 0,
@@ -773,6 +1842,7 @@ function MetricTile({
               fontWeight: 700,
               color: ui.textPrimary,
               lineHeight: 1,
+              // Value is clickable — underline on hover handled via the tile hover
             }}
           >
             {typeof value === "number" ? value.toLocaleString() : value}
@@ -788,6 +1858,19 @@ function MetricTile({
               {up ? "↑" : "↓"} {Math.abs(change)}%
             </span>
           )}
+        </div>
+      )}
+      {/* Click hint */}
+      {!loading && hovered && (
+        <div
+          style={{
+            marginTop: 4,
+            fontSize: "0.65rem",
+            color: FB,
+            fontWeight: 600,
+          }}
+        >
+          View details →
         </div>
       )}
     </div>
@@ -865,7 +1948,7 @@ const SeeAll = () => (
   </button>
 );
 
-// ─── Working week helpers (for TargetsPanel) ──────────────────────────────────
+// ─── Working week helpers ─────────────────────────────────────────────────────
 function fmtLocal(d) {
   const y = d.getFullYear(),
     m = String(d.getMonth() + 1).padStart(2, "0"),
@@ -1202,7 +2285,6 @@ function AccomplishmentReport({ onClose, totals, ui, customDates }) {
   const daysLeftVal = daysUntil(customDates?.end);
   const totalDone = targets.reduce((s, t) => s + t.done, 0),
     totalGoal = targets.reduce((s, t) => s + t.goal, 0);
-  const overallPct = Math.round((totalDone / totalGoal) * 100);
   const completedRate =
     totals.received > 0
       ? ((totals.completed / totals.received) * 100).toFixed(1)
@@ -1504,13 +2586,19 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
   const [customReportDates, setCustomReportDates] = useState(null);
   const [tablePage, setTablePage] = useState(0);
   const TABLE_PAGE_SIZE = 13;
+  const [showRecentModal, setShowRecentModal] = useState(false);
+  const [selectedDtnRecord, setSelectedDtnRecord] = useState(null);
 
-  // ── KPI tiles state (summary endpoint) ────────────────────────────────────
+  // ── NEW: Detail modal state ────────────────────────────────────────────────
+  const [detailModal, setDetailModal] = useState(null);
+  // detailModal = { metricKey: "received"|"completed"|"on_process", metricLabel: string, dateParams: {} }
+
+  // ── KPI tiles state ────────────────────────────────────────────────────────
   const [liveStats, setLiveStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState(null);
 
-  // ── Chart / table state (chart endpoint) ──────────────────────────────────
+  // ── Chart / table state ────────────────────────────────────────────────────
   const [chartData, setChartData] = useState([]);
   const [chartTotals, setChartTotals] = useState({
     received: 0,
@@ -1561,7 +2649,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     setStatsLoading(true);
     setStatsError(null);
     try {
-      // Always pass the same date window as the chart for consistency
       const p = buildChartParams(breakdown, selYear, selMonth);
       const params = {};
       if (p.date_from) params.date_from = p.date_from;
@@ -1584,10 +2671,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     try {
       const params = buildChartParams(breakdown, selYear, selMonth);
       const res = await getDashboardChart(params);
-
-      // Map snake_case → camelCase for the chart component
       setChartData(res.data.map(mapPoint));
-
       setChartTotals({
         received: res.total_received ?? 0,
         completed: res.total_completed ?? 0,
@@ -1595,12 +2679,9 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
         target: res.total_target ?? 0,
         completedRate: res.overall_completed_rate ?? null,
       });
-
-      // Build subtitle  e.g. "Mar 2026" | "2026" | "All Years"
       if (breakdown === "day") setChartSubtitle(`${selMonth} ${selYear}`);
       if (breakdown === "month") setChartSubtitle(selYear);
       if (breakdown === "year") setChartSubtitle("All Years");
-
       setTablePage(0);
     } catch (err) {
       setChartError(
@@ -1621,11 +2702,13 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     fetchChart();
   }, [fetchChart]);
 
-  // ── Metrics array (tiles) ─────────────────────────────────────────────────
+  // ── Metrics array ─────────────────────────────────────────────────────────
+  // CHANGED: added `metricKey` to each entry for the detail modal
   const metrics = [
     {
       icon: "👁️",
       label: "Total Received",
+      metricKey: "received",
       value: liveStats ? liveStats.received : chartTotals.received,
       change: 8,
       isLive: true,
@@ -1633,6 +2716,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     {
       icon: "✅",
       label: "Completed",
+      metricKey: "completed",
       value: liveStats ? liveStats.completed : chartTotals.completed,
       change: -3,
       isLive: true,
@@ -1640,6 +2724,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     {
       icon: "⏳",
       label: "On Process",
+      metricKey: "on_process",
       value: liveStats ? liveStats.on_process : chartTotals.onProcess,
       change: 12,
       isLive: true,
@@ -1647,11 +2732,34 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     {
       icon: "🎯",
       label: "Target",
+      metricKey: null,
       value: chartTotals.target,
       change: 0,
       isLive: false,
     },
   ];
+
+  // ── Date params to pass into detail modal (match current chart window) ────
+  const currentDateParams = useMemo(() => {
+    const p = buildChartParams(breakdown, selYear, selMonth);
+    const out = {};
+    if (p.date_from) out.date_from = p.date_from;
+    if (p.date_to) out.date_to = p.date_to;
+    return out;
+  }, [breakdown, selYear, selMonth]);
+
+  // ── Open detail modal ─────────────────────────────────────────────────────
+  const openDetail = useCallback(
+    (m) => {
+      if (!m.metricKey) return; // Target tile has no detail
+      setDetailModal({
+        metricKey: m.metricKey,
+        metricLabel: m.label,
+        dateParams: currentDateParams,
+      });
+    },
+    [currentDateParams],
+  );
 
   const [recentApps, setRecentApps] = useState([]);
   const [recentLoading, setRecentLoading] = useState(true);
@@ -2120,7 +3228,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     </div>
   );
 
-  // ─── Data table (uses chartData from API) ──────────────────────────────────
+  // ─── Data table ────────────────────────────────────────────────────────────
   const totalPages = Math.ceil(chartData.length / TABLE_PAGE_SIZE);
   const safePage = Math.min(tablePage, Math.max(0, totalPages - 1));
   const pagedRows = chartData.slice(
@@ -2131,6 +3239,16 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     endRow = Math.min(startRow + TABLE_PAGE_SIZE - 1, chartData.length);
   const unitLabel =
     breakdown === "day" ? "day" : breakdown === "month" ? "month" : "year";
+
+  const handleDetailRowClick = useCallback(async (row) => {
+    if (!row?.dtn) return;
+    try {
+      const fullRecord = await getDashboardRecordByDtn(row.dtn);
+      setSelectedDtnRecord(fullRecord);
+    } catch (err) {
+      console.error("Failed to fetch full record:", err);
+    }
+  }, []);
 
   return (
     <>
@@ -2217,7 +3335,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
           )}
         </div>
       )}
-
       <div
         style={{
           display: "flex",
@@ -2251,7 +3368,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
               boxSizing: "border-box",
             }}
           >
-            {/* ── Left column ────────────────────────────────────────────── */}
+            {/* ── Left column ─────────────────────────────────────────────── */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {/* Insights card */}
               <Card ui={ui}>
@@ -2406,7 +3523,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                     </div>
                   </div>
 
-                  {/* KPI tiles */}
+                  {/* ── KPI tiles — CLICKABLE ── */}
                   <div
                     style={{
                       display: "flex",
@@ -2422,7 +3539,10 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                         value={m.value}
                         change={m.change}
                         active={activeMetric === i}
-                        onClick={() => setActiveMetric(i)}
+                        onClick={() => {
+                          setActiveMetric(i);
+                          openDetail(m); // ← opens detail modal
+                        }}
                         ui={ui}
                         loading={m.isLive ? statsLoading : false}
                         isLive={m.isLive}
@@ -2733,7 +3853,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                             );
                           })}
                         </tbody>
-                        {/* Totals footer */}
                         <tfoot>
                           <tr
                             style={{
@@ -2949,18 +4068,31 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
               </Card>
 
               {/* Recent Applications */}
-
               <Card ui={ui}>
                 <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
                   <CardHeader
                     title="Recent Applications"
                     sub="Access and manage your latest applications all in one place."
-                    right={<SeeAll />}
+                    right={
+                      <button
+                        onClick={() => setShowRecentModal(true)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: FB,
+                          fontSize: "0.84rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          padding: 0,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        See all
+                      </button>
+                    }
                     ui={ui}
                   />
                 </div>
-
-                {/* ── Loading skeleton ── */}
                 {recentLoading &&
                   Array.from({ length: 5 }).map((_, i) => (
                     <div
@@ -3023,8 +4155,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                       />
                     </div>
                   ))}
-
-                {/* ── Error state ── */}
                 {!recentLoading && recentError && (
                   <div
                     style={{
@@ -3051,8 +4181,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                     </button>
                   </div>
                 )}
-
-                {/* ── Empty state ── */}
                 {!recentLoading && !recentError && recentApps.length === 0 && (
                   <div
                     style={{
@@ -3065,8 +4193,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                     No recent applications found.
                   </div>
                 )}
-
-                {/* ── Data rows ── */}
                 {!recentLoading &&
                   !recentError &&
                   recentApps.map((row, i, arr) => (
@@ -3090,7 +4216,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                         (e.currentTarget.style.background = "transparent")
                       }
                     >
-                      {/* Left: icon + DTN + product name */}
                       <div
                         style={{
                           display: "flex",
@@ -3151,8 +4276,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                           )}
                         </div>
                       </div>
-
-                      {/* Right: status badge + date */}
                       <div
                         style={{
                           display: "flex",
@@ -3197,12 +4320,33 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
           </div>
         </div>
       </div>
-
+      {/* ── Modals ── */}
       <TargetModal
         target={activeTarget}
         onClose={() => setActiveTarget(null)}
         ui={ui}
       />
+      {/* ── NEW: Metric Detail Modal ── */}
+
+      {detailModal && (
+        <MetricDetailModal
+          metricKey={detailModal.metricKey}
+          metricLabel={detailModal.metricLabel}
+          dateParams={detailModal.dateParams}
+          onClose={() => setDetailModal(null)}
+          onRowClick={handleDetailRowClick} // ← DAGDAG
+          ui={ui}
+        />
+      )}
+      {/* ── View Details Modal (opens when row is clicked) ── */}
+      {selectedDtnRecord && (
+        <ViewDetailsModal
+          record={selectedDtnRecord}
+          onClose={() => setSelectedDtnRecord(null)}
+          colors={ui} // ← ui ang variable ng DashboardPage
+          darkMode={darkMode}
+        />
+      )}
       {showReport && (
         <AccomplishmentReport
           onClose={() => setShowReport(false)}
@@ -3213,6 +4357,14 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
           }}
           ui={ui}
           customDates={customReportDates}
+        />
+      )}
+      {/* ── Recent Applications Modal ── */}
+      {showRecentModal && (
+        <RecentApplicationsModal
+          onClose={() => setShowRecentModal(false)}
+          onRowClick={handleDetailRowClick}
+          ui={ui}
         />
       )}
     </>
