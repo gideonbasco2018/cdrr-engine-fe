@@ -1,6 +1,6 @@
 // src/components/UploadReports/actions/BulkDeckModal.jsx
 
-import { useState, useEffect } from "react"; // ← DAGDAG ITO
+import { useState, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import {
   createApplicationLog,
@@ -699,7 +699,6 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
   // ── Core deck logic ──
-  // ── Core deck logic ──
   const handleSubmit = async () => {
     const cfg = DECISION_CONFIG[formData.deckerDecision];
     const needsEvaluator = cfg?.fetchEvaluator;
@@ -725,16 +724,11 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
       }));
 
       let doctrackResult = null;
-      console.log("currentUser:", currentUser);
-      console.log("alias value:", currentUser?.alias);
       try {
         doctrackResult = await createBulkDoctrackLogsByRsn(
           doctrackEntries,
           currentUser?.alias || "", // ← DAGDAG
         );
-        // TEMP DEBUG — alisin pagkatapos
-        console.log("doctrackEntries sent:", doctrackEntries);
-        console.log("doctrackResult received:", doctrackResult);
       } catch (doctrackError) {
         // Non-null error thrown means the call itself hard-failed
         console.error("❌ Doctrack bulk insert failed:", doctrackError);
