@@ -9,6 +9,8 @@ import BulkDeckModal from "./actions/BulkDeckModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 import ChangeLogModal from "../tasks/ChangeLogModal";
+import ReassignmentModal from "./actions/ReassignmentModal";
+import RerouteModal from "./actions/RerouteModal";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -141,6 +143,8 @@ function DataTable({
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
   const [appLogsRecord, setAppLogsRecord] = useState(null);
   const [changeLogRecord, setChangeLogRecord] = useState(null);
+  const [reassignmentRecord, setReassignmentRecord] = useState(null);
+  const [rerouteRecord, setRerouteRecord] = useState(null);
 
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
@@ -1466,6 +1470,32 @@ function DataTable({
                                   color: "#2196F3",
                                   hoverBg: "rgba(33,150,243,0.1)",
                                 },
+
+                                ...(row.appStatus?.toUpperCase() !== "COMPLETED"
+                                  ? [
+                                      {
+                                        label: "Application Re-assignment",
+                                        icon: "🔄",
+                                        handler: () => {
+                                          setOpenMenuId(null);
+                                          setReassignmentRecord(row);
+                                        },
+                                        color: "#7c3aed",
+                                        hoverBg: "rgba(124,58,237,0.1)",
+                                      },
+                                      {
+                                        label: "Application Re-route",
+                                        icon: "🔀",
+                                        handler: () => {
+                                          setOpenMenuId(null);
+                                          setRerouteRecord(row);
+                                        },
+                                        color: "#0891b2",
+                                        hoverBg: "rgba(8,145,178,0.1)",
+                                      },
+                                    ]
+                                  : []),
+
                                 // {
                                 //   label: "Delete",
                                 //   icon: "🗑️",
@@ -1606,6 +1636,23 @@ function DataTable({
             if (onRefresh) await onRefresh();
           }}
           colors={colors}
+        />
+      )}
+
+      {reassignmentRecord && (
+        <ReassignmentModal
+          record={reassignmentRecord}
+          onClose={() => setReassignmentRecord(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+      {rerouteRecord && (
+        <RerouteModal
+          record={rerouteRecord}
+          onClose={() => setRerouteRecord(null)}
+          colors={colors}
+          darkMode={darkMode}
         />
       )}
     </>

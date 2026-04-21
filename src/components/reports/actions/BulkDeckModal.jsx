@@ -620,6 +620,13 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   // Save records that succeeded for transmittal
   const [succeededRecords, setSucceededRecords] = useState([]);
 
+  //start changes
+  // const [alertModal, setAlertModal] = useState(null);
+
+  const [alertModal, setAlertModal] = useState(null);
+  const [doctrackEnabled, setDoctrackEnabled] = useState(true);
+  // end
+
   const GROUP_IDS = { EVALUATOR: 3, SE: 13 };
 
   const DECISION_CONFIG = {
@@ -716,35 +723,78 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
 
     try {
       // ── STEP 1: Insert doctrack logs first (external DB) ──────────────────
+
       // Build entries for all records in one bulk call
-      const doctrackEntries = records.map((record) => ({
-        rsn: record.dtn, // 14-digit doctrack number
-        remarks: formData.doctackRemarks || "", // auto-filled or user-edited
-        userID: currentUser?.id ?? null,
-      }));
 
-      let doctrackResult = null;
-      try {
-        doctrackResult = await createBulkDoctrackLogsByRsn(
-          doctrackEntries,
-          currentUser?.alias || "", // ← DAGDAG
-        );
-      } catch (doctrackError) {
-        // Non-null error thrown means the call itself hard-failed
-        console.error("❌ Doctrack bulk insert failed:", doctrackError);
-        alert(
-          `❌ Failed to insert Doctrack logs.\n\nReason: ${doctrackError.message}\n\nNo application logs were created.`,
-        );
-        return; // bail out — do NOT touch main DB
-      }
+      // change start
 
-      // createBulkDoctrackLogsByRsn returns null on caught errors (see api file)
-      if (doctrackResult === null) {
-        alert(
-          "❌ Failed to insert Doctrack logs (no response from server).\n\nNo application logs were created.",
-        );
-        return;
+      // const doctrackEntries = records.map((record) => ({
+      //   rsn: record.dtn, // 14-digit doctrack number
+      //   remarks: formData.doctackRemarks || "", // auto-filled or user-edited
+      //   userID: currentUser?.id ?? null,
+      // }));
+
+      // let doctrackResult = null;
+      // try {
+      //   doctrackResult = await createBulkDoctrackLogsByRsn(
+      //     doctrackEntries,
+      //     currentUser?.alias || "", // ← DAGDAG
+      //   );
+      // } catch (doctrackError) {
+      //   console.error("❌ Doctrack bulk insert failed:", doctrackError);
+      //   setAlertModal({
+      //     title: "Doctrack logs",
+      //     message: `Failed to insert Doctrack logs. Reason: ${doctrackError.message}`,
+      //     detail: "No application logs were created.",
+      //   });
+      //   return;
+      // }
+
+      // if (doctrackResult === null) {
+      //   setAlertModal({
+      //     title: "Doctrack logs",
+      //     message: "No response from server.",
+      //     detail: "No application logs were created.",
+      //   });
+      //   return;
+      // }
+
+      // changes end
+      // change start
+      // ── STEP 1: Insert doctrack logs first (external DB) ──────────────────
+      if (doctrackEnabled) {
+        const doctrackEntries = records.map((record) => ({
+          rsn: record.dtn,
+          remarks: formData.doctackRemarks || "",
+          userID: currentUser?.id ?? null,
+        }));
+
+        let doctrackResult = null;
+        try {
+          doctrackResult = await createBulkDoctrackLogsByRsn(
+            doctrackEntries,
+            currentUser?.alias || "",
+          );
+        } catch (doctrackError) {
+          console.error("❌ Doctrack bulk insert failed:", doctrackError);
+          setAlertModal({
+            title: "Doctrack logs",
+            message: `Failed to insert Doctrack logs. Reason: ${doctrackError.message}`,
+            detail: "No application logs were created.",
+          });
+          return;
+        }
+
+        if (doctrackResult === null) {
+          setAlertModal({
+            title: "Doctrack logs",
+            message: "No response from server.",
+            detail: "No application logs were created.",
+          });
+          return;
+        }
       }
+      // change end
       // ── STEP 1 complete ───────────────────────────────────────────────────
 
       // ── STEP 2: Insert application logs (main DB) ─────────────────────────
@@ -850,7 +900,10 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
       setShowTransmittalPrompt(true);
     } catch (error) {
       console.error("❌ Bulk deck failed:", error);
-      alert(`❌ Bulk deck failed: ${error.message}`);
+      setAlertModal({
+        title: "Bulk deck",
+        message: `An unexpected error occurred: ${error.message}`,
+      });
     } finally {
       setLoading(false);
       setProgress({ current: 0, total: 0 });
@@ -861,12 +914,26 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   const handleFormSubmit = (e) => {
     e.preventDefault();
     const cfg = DECISION_CONFIG[formData.deckerDecision];
-    if (!formData.deckerDecision)
-      return alert("⚠️ Please select a Decker Decision.");
-    if (cfg?.fetchEvaluator && !formData.evaluator)
-      return alert("⚠️ Please assign an Evaluator.");
-    if (cfg?.fetchSne && !formData.sne)
-      return alert("⚠️ Please assign an S&E.");
+
+    if (!formData.deckerDecision) {
+      setAlertModal({
+        title: "Validation",
+        message: "Please select a Decker Decision.",
+      });
+      return;
+    }
+    if (cfg?.fetchEvaluator && !formData.evaluator) {
+      setAlertModal({
+        title: "Validation",
+        message: "Please assign an Evaluator.",
+      });
+      return;
+    }
+    if (cfg?.fetchSne && !formData.sne) {
+      setAlertModal({ title: "Validation", message: "Please assign an S&E." });
+      return;
+    }
+
     setConfirmSubmit(true);
   };
 
@@ -1263,7 +1330,8 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               ──────────────────────────────────────────────────────────────── */}
               {formData.deckerDecision && (
                 <div style={{ marginBottom: "1.5rem" }}>
-                  <label
+                  {/* start changes */}
+                  {/* <label
                     style={{
                       display: "block",
                       fontSize: "0.875rem",
@@ -1287,7 +1355,84 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                     >
                       auto-filled
                     </span>
+                  </label> */}
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.875rem",
+                      fontWeight: "600",
+                      color: colors.textPrimary,
+                      marginBottom: "0.5rem",
+                      display: "flex",
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                      gap: "0.4rem",
+                    }}
+                  >
+                    Doctrack Remarks
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        fontWeight: "500",
+                        color: "#2196F3",
+                        background: "#2196F315",
+                        border: "1px solid #2196F330",
+                        padding: "0.1rem 0.45rem",
+                        borderRadius: "4px",
+                      }}
+                    >
+                      auto-filled
+                    </span>
+                    {/* ── Doctrack Toggle ── */}
+                    <span
+                      onClick={() => setDoctrackEnabled((prev) => !prev)}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                        fontSize: "0.7rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        padding: "0.1rem 0.5rem 0.1rem 0.35rem",
+                        borderRadius: "20px",
+                        border: `1px solid ${doctrackEnabled ? "#4CAF5050" : "#ef444450"}`,
+                        background: doctrackEnabled ? "#4CAF5015" : "#ef444415",
+                        color: doctrackEnabled ? "#4CAF50" : "#ef4444",
+                        userSelect: "none",
+                        transition: "all 0.2s",
+                        marginLeft: "0.25rem",
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 22,
+                          height: 11,
+                          borderRadius: 11,
+                          background: doctrackEnabled ? "#4CAF50" : "#ef4444",
+                          display: "inline-block",
+                          position: "relative",
+                          transition: "background 0.2s",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 2,
+                            left: doctrackEnabled ? 13 : 2,
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            transition: "left 0.2s",
+                          }}
+                        />
+                      </span>
+                      {doctrackEnabled ? "ON" : "OFF"}
+                    </span>
                   </label>
+
+                  {/* end changes */}
                   <input
                     type="text"
                     value={formData.doctackRemarks}
@@ -1811,6 +1956,14 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
         />
       )}
 
+      {alertModal && (
+        <AlertModal
+          {...alertModal}
+          colors={colors}
+          onClose={() => setAlertModal(null)}
+        />
+      )}
+
       <style>{`
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideInScale { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
@@ -1903,6 +2056,181 @@ function EmptyWarning({ label }) {
     >
       ⚠️ No users found in the {label} group.
     </p>
+  );
+}
+
+function AlertModal({ title, message, detail, onClose, colors }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 10002,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backdropFilter: "blur(3px)",
+        animation: "fadeIn 0.2s ease",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: 16,
+          width: 420,
+          maxWidth: "90%",
+          overflow: "hidden",
+          boxShadow: "0 16px 48px rgba(0,0,0,0.35)",
+          animation: "slideInScale 0.25s ease",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            padding: "1.1rem 1.4rem",
+            borderBottom: `1px solid ${colors.cardBorder}`,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: "rgba(239,68,68,0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <circle
+                cx="10"
+                cy="10"
+                r="9"
+                stroke="#ef4444"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M10 6v5M10 13.5v.5"
+                stroke="#ef4444"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+          <div>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.72rem",
+                fontWeight: 600,
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
+              {title}
+            </p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: colors.textPrimary,
+              }}
+            >
+              Operation failed
+            </p>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div
+          style={{
+            padding: "1.25rem 1.4rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.85rem",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.85rem 1rem",
+              background: "rgba(239,68,68,0.07)",
+              border: "1px solid rgba(239,68,68,0.2)",
+              borderRadius: 10,
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.82rem",
+                color: "#ef4444",
+                lineHeight: 1.6,
+              }}
+            >
+              {message}
+            </p>
+          </div>
+
+          {detail && (
+            <div
+              style={{
+                padding: "0.7rem 0.9rem",
+                background: colors.badgeBg,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: "0.5rem",
+              }}
+            >
+              <span style={{ fontSize: "0.8rem", flexShrink: 0, marginTop: 1 }}>
+                💡
+              </span>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.77rem",
+                  color: colors.textSecondary,
+                  lineHeight: 1.6,
+                }}
+              >
+                {detail}
+              </p>
+            </div>
+          )}
+
+          <button
+            onClick={onClose}
+            style={{
+              width: "100%",
+              padding: "0.65rem",
+              borderRadius: 8,
+              border: "none",
+              background: "#ef4444",
+              color: "#fff",
+              fontSize: "0.88rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "opacity 0.15s",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

@@ -12,7 +12,7 @@ export const WORKFLOW = {
     "Endorse to Checker": "Checking",
   },
   Checking: {
-    "Check and return to evaluator": "Quality Evaluation",
+    "Checked and return to evaluator": "Quality Evaluation",
   },
   Supervisor: {
     "Endorse to QA Admin": "QA Admin",
