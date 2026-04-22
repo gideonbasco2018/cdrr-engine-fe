@@ -18,6 +18,7 @@ import UploadProgress from "../components/reports/UploadProgress";
 import DataTable from "../components/reports/DataTable";
 import EditRecordModal from "../components/reports/actions/EditRecordModal";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
+import UploadErrorModal from "../components/reports/UploadErrorModal";
 
 // ─── helper: build API params from filters state ──────────────────────────────
 function buildFilterParams(filters) {
@@ -408,7 +409,8 @@ function DeckingPage({ darkMode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
   const [sortOrder, setSortOrder] = useState("desc");
-
+  const [failedRecords, setFailedRecords] = useState([]);
+  const [showErrorModal, setShowErrorModal] = useState(false);
   const colors = getColorScheme(darkMode);
 
   const activeFilterCount =
@@ -776,11 +778,20 @@ function DeckingPage({ darkMode }) {
       setUploading(false);
       const { success, errors, duplicates_skipped, total_processed } =
         result.stats;
-      let message = `✅ Upload Complete!\n\n👤 Uploaded by: ${username}\n📊 Processed: ${total_processed} rows\n✓ Inserted: ${success} new records\n`;
+      const failed = result.failed_records || [];
+
+      if (failed.length > 0) {
+        setFailedRecords(failed);
+        setShowErrorModal(true);
+      }
+
+      let alertMessage = `✅ Upload Complete!\n\n👤 Uploaded by: ${username}\n📊 Processed: ${total_processed} rows\n✓ Inserted: ${success} new records\n`;
       if (duplicates_skipped > 0)
-        message += `⊘ Skipped: ${duplicates_skipped} duplicates\n`;
-      if (errors > 0) message += `✗ Errors: ${errors} failed\n`;
-      alert(message);
+        alertMessage += `⊘ Skipped: ${duplicates_skipped} duplicates\n`;
+      if (errors > 0)
+        alertMessage += `✗ Errors: ${errors} failed — see error log\n`;
+      alert(alertMessage);
+
       setCurrentPage(1);
       await refreshData();
     } catch (error) {
@@ -1498,6 +1509,18 @@ function DeckingPage({ darkMode }) {
           colors={colors}
           darkMode={darkMode}
           updateUploadReport={updateUploadReport}
+        />
+      )}
+
+      {showErrorModal && (
+        <UploadErrorModal
+          failedRecords={failedRecords}
+          onClose={() => {
+            setShowErrorModal(false);
+            setFailedRecords([]);
+          }}
+          colors={colors}
+          darkMode={darkMode}
         />
       )}
     </div>
