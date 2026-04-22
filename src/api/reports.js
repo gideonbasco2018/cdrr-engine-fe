@@ -96,7 +96,7 @@ export const getProcessingTypes = async (
   return response.data.processing_types;
 };
 
-export const uploadExcelFile = async (file, username = 'system') => {
+export const uploadExcelFile = async (file, username = 'system', onProgress = null) => {
   const formData = new FormData();
   formData.append('file', file);
 
@@ -106,6 +106,12 @@ export const uploadExcelFile = async (file, username = 'system') => {
     {
       headers: {
         'Content-Type': 'multipart/form-data',
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percent);
+        }
       },
     }
   );
