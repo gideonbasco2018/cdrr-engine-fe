@@ -1,6 +1,10 @@
+// FILE: src/components/reports/actions/RerouteModal.jsx
 import { useState, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
-import { getApplicationLogsByDtn } from "../../../api/application-logs";
+import {
+  getApplicationLogsByDtn,
+  rerouteApplication,
+} from "../../../api/application-logs";
 
 const WORKFLOW_STEPS = [
   { key: "Decking", label: "Decking", icon: "🎯", groupId: 2 },
@@ -220,10 +224,36 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
   const handleSubmit = async () => {
     if (!isFormComplete) return;
     setIsSubmitting(true);
-    // TODO: replace with real API call
-    await new Promise((r) => setTimeout(r, 1200));
-    setIsSubmitting(false);
-    setSubmitted(true);
+
+    try {
+      const assignedUserObj = availableUsers.find(
+        (u) => u.username === assignedUser,
+      );
+
+      await rerouteApplication({
+        main_db_id: record?.id, // DB_ID ng record
+        action_type: "REROUTE",
+        application_step: currentStep,
+        // ── Re-route fields ──
+        reroute_from_step: currentStep,
+        reroute_target_step: targetStep,
+        reroute_reason: selectedReason,
+        reroute_remarks: remarks || null,
+        rerouted_by_user_id: currentUser?.id ?? null,
+        rerouted_by_user_name: currentUser?.username ?? null,
+        rerouted_at: new Date().toISOString(),
+        // ── Assigned user sa target step ──
+        user_name: assignedUser || null,
+        user_id: assignedUserObj?.id ?? null,
+      });
+
+      setSubmitted(true);
+    } catch (err) {
+      console.error("Re-route failed:", err);
+      alert(`Re-route failed: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // ── Styles ─────────────────────────────────────────────────────────────────

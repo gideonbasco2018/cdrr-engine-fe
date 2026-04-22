@@ -1,6 +1,10 @@
+// FILE: src/components/reports/actions/ReassignmentModal.jsx
 import { useState, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
-import { getApplicationLogsByDtn } from "../../../api/application-logs";
+import {
+  getApplicationLogsByDtn,
+  reassignApplication,
+} from "../../../api/application-logs";
 
 const STEP_GROUP_MAP = {
   Decking: 2,
@@ -181,13 +185,40 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
     !!selectedReason &&
     (stepHasGroup ? !!selectedUser : true);
 
+  // i-replace ang handleSubmit function
   const handleSubmit = async () => {
     if (!isFormComplete) return;
     setIsSubmitting(true);
-    // TODO: replace with real API call
-    await new Promise((r) => setTimeout(r, 1200));
-    setIsSubmitting(false);
-    setSubmitted(true);
+
+    try {
+      // Hanapin ang selected user object para makuha ang ID
+      const selectedUserObj = availableUsers.find(
+        (u) => u.username === selectedUser,
+      );
+
+      await reassignApplication({
+        main_db_id: record?.id, // DB_ID ng record
+        action_type: "REASSIGNMENT",
+        application_step: currentStep,
+        // ── Re-assignment fields ──
+        reassigned_from_user_id: null, // optional kung wala sa API
+        reassigned_from_user_name: currentAssignee,
+        reassigned_to_user_id: selectedUserObj?.id ?? null,
+        reassigned_to_user_name: selectedUser,
+        reassignment_reason: selectedReason,
+        reassignment_remarks: remarks || null,
+        reassigned_by_user_id: currentUser?.id ?? null,
+        reassigned_by_user_name: currentUser?.username ?? null,
+        reassigned_at: new Date().toISOString(),
+      });
+
+      setSubmitted(true);
+    } catch (err) {
+      console.error("Re-assignment failed:", err);
+      alert(`Re-assignment failed: ${err.message}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // ── Styles ──────────────────────────────────────────────────────────────────

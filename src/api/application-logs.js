@@ -195,3 +195,39 @@ export const getLastApplicationLogIndex = async (mainDbId) => {
     throw new Error(errorMessage);
   }
 };
+
+/**
+ * Log an Application Re-assignment
+ * POST /api/application-logs/re-assign
+ */
+export const reassignApplication = async (logData) => {
+  try {
+    const response = await API.post("/application-logs/re-assign", logData);
+    return response.data;
+  } catch (error) {
+    console.error("Error logging re-assignment:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to log re-assignment";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Log an Application Re-route
+ * POST /api/application-logs/re-route
+ */
+export const rerouteApplication = async (logData) => {
+  try {
+    const response = await API.post("/application-logs/re-route", logData);
+    return response.data;
+  } catch (error) {
+    console.error("Error logging re-route:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to log re-route";
+    throw new Error(errorMessage);
+  }
+};
