@@ -739,9 +739,40 @@ function DeckingPage({ darkMode }) {
     }
     try {
       setUploading(true);
-      setUploadProgress(`Uploading as: ${username}...`);
-      const result = await uploadExcelFile(file, username);
+
+      setUploadProgress({
+        message: `Uploading as: ${username}...`,
+        percent: 0,
+      });
+
+      // Phase 1: actual file transfer (0 → 90%)
+      let currentPercent = 0;
+      const result = await uploadExcelFile(file, username, (percent) => {
+        // Cap sa 90% lang — tapos server processing pa
+        currentPercent = Math.min(Math.round(percent * 0.9), 90);
+        setUploadProgress({
+          message: `Uploading as: ${username}...`,
+          percent: currentPercent,
+        });
+      });
+
+      // Phase 2: server is processing — slow increment 90% → 99%
+      const processingInterval = setInterval(() => {
+        currentPercent = currentPercent < 99 ? currentPercent + 1 : 99;
+        setUploadProgress({
+          message: `Processing rows, please wait...`,
+          percent: currentPercent,
+        });
+      }, 300); // bawat 300ms, +1%
+
+      // Wait for server response (result is already resolved above)
+      clearInterval(processingInterval);
+      setUploadProgress({ message: `Finalizing...`, percent: 100 });
+
+      // Short pause para makita ng user na 100% bago mag-disappear
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setUploadProgress(null);
+
       setUploading(false);
       const { success, errors, duplicates_skipped, total_processed } =
         result.stats;
