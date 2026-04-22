@@ -710,7 +710,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                     const startDt = fmt(log.start_date);
                     const doneDt = fmt(log.accomplished_date);
                     const cardId = log.id ?? idx;
-                    const isExpanded = expandedIds.has(cardId);
                     const hasRemarks = !!log.application_remarks?.trim();
 
                     return (
@@ -772,15 +771,8 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                             overflow: "hidden",
                           }}
                         >
-                          {/* Clickable header */}
-                          <div
-                            className="spl-card-inner"
-                            onClick={() => toggleExpand(cardId)}
-                            style={{
-                              padding: "0.9rem 1rem",
-                              userSelect: "none",
-                            }}
-                          >
+                          {/* ── Card Header ── */}
+                          <div style={{ padding: "0.9rem 1rem" }}>
                             {/* Top row: step + status */}
                             <div
                               style={{
@@ -841,7 +833,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                     Latest
                                   </span>
                                 )}
-                                {/* ✅ Compliance badge */}
                                 {isCompliance && log.deadline_date && (
                                   <span
                                     style={{
@@ -860,62 +851,34 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </span>
                                 )}
                               </div>
-
-                              <div
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: "0.5rem",
-                                }}
-                              >
-                                {log.application_status && (
+                              {log.application_status && (
+                                <span
+                                  style={{
+                                    background: sc.bg,
+                                    color: sc.text,
+                                    border: `1px solid ${sc.border}`,
+                                    fontSize: "0.68rem",
+                                    fontWeight: 700,
+                                    padding: "0.2rem 0.65rem",
+                                    borderRadius: 20,
+                                    whiteSpace: "nowrap",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.3rem",
+                                  }}
+                                >
                                   <span
                                     style={{
-                                      background: sc.bg,
-                                      color: sc.text,
-                                      border: `1px solid ${sc.border}`,
-                                      fontSize: "0.68rem",
-                                      fontWeight: 700,
-                                      padding: "0.2rem 0.65rem",
-                                      borderRadius: 20,
-                                      whiteSpace: "nowrap",
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "0.3rem",
+                                      width: 6,
+                                      height: 6,
+                                      borderRadius: "50%",
+                                      background: sc.dot,
+                                      flexShrink: 0,
                                     }}
-                                  >
-                                    <span
-                                      style={{
-                                        width: 6,
-                                        height: 6,
-                                        borderRadius: "50%",
-                                        background: sc.dot,
-                                        flexShrink: 0,
-                                      }}
-                                    />
-                                    {log.application_status}
-                                  </span>
-                                )}
-                                <span
-                                  className="spl-expand-hint"
-                                  style={{
-                                    fontSize: "0.72rem",
-                                    color: hasRemarks ? shopeeOrange : textTert,
-                                    opacity: isExpanded ? 1 : 0.5,
-                                    transition: "transform 0.2s, opacity 0.15s",
-                                    transform: isExpanded
-                                      ? "rotate(180deg)"
-                                      : "rotate(0deg)",
-                                    display: "inline-block",
-                                    lineHeight: 1,
-                                  }}
-                                  title={
-                                    hasRemarks ? "View remarks" : "No remarks"
-                                  }
-                                >
-                                  ▾
+                                  />
+                                  {log.application_status}
                                 </span>
-                              </div>
+                              )}
                             </div>
 
                             {/* User + decision row */}
@@ -961,7 +924,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   {log.user_name || "—"}
                                 </span>
                               </div>
-
                               {log.application_decision && (
                                 <>
                                   <span style={{ color: divider }}>·</span>
@@ -983,29 +945,9 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </span>
                                 </>
                               )}
-
-                              {hasRemarks && !isExpanded && (
-                                <span
-                                  style={{
-                                    marginLeft: "auto",
-                                    fontSize: "0.65rem",
-                                    color: shopeeOrange,
-                                    background: darkMode
-                                      ? "rgba(238,77,45,0.12)"
-                                      : "rgba(238,77,45,0.07)",
-                                    border: `1px solid ${shopeeBorder}`,
-                                    padding: "0.1rem 0.5rem",
-                                    borderRadius: 20,
-                                    fontWeight: 600,
-                                    whiteSpace: "nowrap",
-                                  }}
-                                >
-                                  💬 Has remarks
-                                </span>
-                              )}
                             </div>
 
-                            {/* Dates row */}
+                            {/* ── Dates row + Action Type badge ── */}
                             <div
                               style={{
                                 display: "flex",
@@ -1014,22 +956,24 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 paddingTop: "0.65rem",
                                 borderTop: `1px dashed ${divider}`,
                                 flexWrap: "wrap",
+                                alignItems: "flex-end",
                               }}
                             >
-                              {startDt ? (
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.6rem",
-                                      color: textTert,
-                                      fontWeight: 700,
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.05em",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Started
-                                  </div>
+                              {/* Started */}
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.6rem",
+                                    color: textTert,
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.05em",
+                                    marginBottom: "0.15rem",
+                                  }}
+                                >
+                                  Started
+                                </div>
+                                {startDt ? (
                                   <div
                                     style={{
                                       fontSize: "0.78rem",
@@ -1053,21 +997,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                       {startDt.time}
                                     </span>
                                   </div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.6rem",
-                                      color: textTert,
-                                      fontWeight: 700,
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.05em",
-                                      marginBottom: "0.15rem",
-                                    }}
-                                  >
-                                    Started
-                                  </div>
+                                ) : (
                                   <span
                                     style={{
                                       fontSize: "0.78rem",
@@ -1076,9 +1006,10 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   >
                                     —
                                   </span>
-                                </div>
-                              )}
+                                )}
+                              </div>
 
+                              {/* Accomplished */}
                               <div>
                                 <div
                                   style={{
@@ -1129,34 +1060,18 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </span>
                                 )}
                               </div>
-                            </div>
 
-                            {/* ✅ Compliance Deadline block — shown inline, always visible */}
-                            {isCompliance && renderComplianceDeadline(log)}
-                          </div>
-                          {isExpanded && (
-                            <div
-                              className="spl-remarks-panel"
-                              style={{
-                                borderTop: `1px solid ${remarksBorder}`,
-                                background: remarksBg,
-                                padding: "0.85rem 1rem",
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: "0.75rem",
-                              }}
-                            >
-                              {/* ── Action Type ── */}
+                              {/* ── Action Type badge — sa tabi ng accomplished ── */}
                               {log.action_type && (
                                 <div>
                                   <div
                                     style={{
-                                      fontSize: "0.62rem",
-                                      fontWeight: 700,
+                                      fontSize: "0.6rem",
                                       color: "#6366f1",
+                                      fontWeight: 700,
                                       textTransform: "uppercase",
-                                      letterSpacing: "0.07em",
-                                      marginBottom: "0.35rem",
+                                      letterSpacing: "0.05em",
+                                      marginBottom: "0.15rem",
                                     }}
                                   >
                                     ⚡ Action Type
@@ -1171,7 +1086,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                         : "rgba(99,102,241,0.08)",
                                       border: "1px solid rgba(99,102,241,0.35)",
                                       borderRadius: 20,
-                                      fontSize: "0.78rem",
+                                      fontSize: "0.75rem",
                                       fontWeight: 600,
                                       color: "#6366f1",
                                     }}
@@ -1180,147 +1095,671 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </span>
                                 </div>
                               )}
+                            </div>
 
-                              {/* ── Decision Result ── */}
-                              {log.decision_result && (
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.62rem",
-                                      fontWeight: 700,
-                                      color: "#0891b2",
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.07em",
-                                      marginBottom: "0.35rem",
-                                    }}
-                                  >
-                                    📊 Decision Result
-                                  </div>
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      padding: "0.2rem 0.65rem",
-                                      background: darkMode
-                                        ? "rgba(8,145,178,0.15)"
-                                        : "rgba(8,145,178,0.08)",
-                                      border: "1px solid rgba(8,145,178,0.35)",
-                                      borderRadius: 20,
-                                      fontSize: "0.78rem",
-                                      fontWeight: 600,
-                                      color: "#0891b2",
-                                    }}
-                                  >
-                                    {log.decision_result}
-                                  </span>
+                            {/* Compliance Deadline */}
+                            {isCompliance && renderComplianceDeadline(log)}
+                          </div>
+
+                          {/* ── Always-visible details panel ── */}
+                          <div
+                            style={{
+                              borderTop: `1px solid ${remarksBorder}`,
+                              background: remarksBg,
+                              padding: "0.85rem 1rem",
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: "0.75rem",
+                            }}
+                          >
+                            {/* REASSIGNMENT details */}
+                            {log.action_type === "REASSIGNMENT" && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "0.65rem",
+                                  padding: "0.75rem",
+                                  background: darkMode
+                                    ? "rgba(124,58,237,0.08)"
+                                    : "rgba(124,58,237,0.05)",
+                                  border: "1px solid rgba(124,58,237,0.2)",
+                                  borderRadius: 8,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: "0.65rem",
+                                    fontWeight: 700,
+                                    color: "#7c3aed",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.07em",
+                                  }}
+                                >
+                                  🔄 Re-assignment Details
                                 </div>
-                              )}
-
-                              {/* ── Decision Authority Name ── */}
-                              {log.decision_authority_name && (
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.62rem",
-                                      fontWeight: 700,
-                                      color: "#b45309",
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.07em",
-                                      marginBottom: "0.35rem",
-                                    }}
-                                  >
-                                    🏛️ Decision Authority
-                                  </div>
-                                  <div
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      gap: "0.4rem",
-                                      padding: "0.3rem 0.75rem",
-                                      background: darkMode
-                                        ? "rgba(180,83,9,0.15)"
-                                        : "rgba(245,158,11,0.08)",
-                                      border: "1px solid rgba(245,158,11,0.35)",
-                                      borderRadius: 8,
-                                      fontSize: "0.8rem",
-                                      fontWeight: 600,
-                                      color: "#b45309",
-                                    }}
-                                  >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "1rem",
+                                    flexWrap: "wrap",
+                                    alignItems: "flex-end",
+                                  }}
+                                >
+                                  {log.reassigned_from_user_name && (
+                                    <div style={{ flex: 1, minWidth: 120 }}>
+                                      <div
+                                        style={{
+                                          fontSize: "0.6rem",
+                                          fontWeight: 700,
+                                          color: "#9ca3af",
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.05em",
+                                          marginBottom: "0.25rem",
+                                        }}
+                                      >
+                                        From
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "0.35rem",
+                                          padding: "0.25rem 0.6rem",
+                                          background: darkMode
+                                            ? "rgba(239,68,68,0.1)"
+                                            : "rgba(239,68,68,0.07)",
+                                          border:
+                                            "1px solid rgba(239,68,68,0.25)",
+                                          borderRadius: 6,
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          color: "#ef4444",
+                                        }}
+                                      >
+                                        👤 {log.reassigned_from_user_name}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {log.reassigned_from_user_name &&
+                                    log.reassigned_to_user_name && (
+                                      <div
+                                        style={{
+                                          color: "#7c3aed",
+                                          fontSize: "1rem",
+                                          paddingBottom: "0.25rem",
+                                        }}
+                                      >
+                                        →
+                                      </div>
+                                    )}
+                                  {log.reassigned_to_user_name && (
+                                    <div style={{ flex: 1, minWidth: 120 }}>
+                                      <div
+                                        style={{
+                                          fontSize: "0.6rem",
+                                          fontWeight: 700,
+                                          color: "#9ca3af",
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.05em",
+                                          marginBottom: "0.25rem",
+                                        }}
+                                      >
+                                        To
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "0.35rem",
+                                          padding: "0.25rem 0.6rem",
+                                          background: darkMode
+                                            ? "rgba(16,185,129,0.1)"
+                                            : "rgba(16,185,129,0.07)",
+                                          border:
+                                            "1px solid rgba(16,185,129,0.25)",
+                                          borderRadius: 6,
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          color: "#10b981",
+                                        }}
+                                      >
+                                        👤 {log.reassigned_to_user_name}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "1rem",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  {log.reassigned_by_user_name && (
+                                    <div>
+                                      <div
+                                        style={{
+                                          fontSize: "0.6rem",
+                                          fontWeight: 700,
+                                          color: "#9ca3af",
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.05em",
+                                          marginBottom: "0.25rem",
+                                        }}
+                                      >
+                                        Reassigned By
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "0.35rem",
+                                          padding: "0.25rem 0.6rem",
+                                          background: darkMode
+                                            ? "rgba(124,58,237,0.12)"
+                                            : "rgba(124,58,237,0.07)",
+                                          border:
+                                            "1px solid rgba(124,58,237,0.25)",
+                                          borderRadius: 6,
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          color: "#7c3aed",
+                                        }}
+                                      >
+                                        🔑 {log.reassigned_by_user_name}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {log.reassigned_at && (
+                                    <div>
+                                      <div
+                                        style={{
+                                          fontSize: "0.6rem",
+                                          fontWeight: 700,
+                                          color: "#9ca3af",
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.05em",
+                                          marginBottom: "0.25rem",
+                                        }}
+                                      >
+                                        Reassigned At
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          color: textMain,
+                                        }}
+                                      >
+                                        {fmt(log.reassigned_at)?.date}{" "}
+                                        <span style={{ color: textSub }}>
+                                          {fmt(log.reassigned_at)?.time}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {log.reassignment_reason && (
+                                  <div>
                                     <div
                                       style={{
-                                        width: 22,
-                                        height: 22,
-                                        borderRadius: "50%",
-                                        background:
-                                          "linear-gradient(135deg, #f59e0b, #d97706)",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        color: "#fff",
-                                        fontSize: "0.65rem",
+                                        fontSize: "0.6rem",
                                         fontWeight: 700,
-                                        flexShrink: 0,
+                                        color: "#9ca3af",
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.05em",
+                                        marginBottom: "0.25rem",
                                       }}
                                     >
-                                      {log.decision_authority_name[0].toUpperCase()}
+                                      Reason
                                     </div>
-                                    {log.decision_authority_name}
+                                    <span
+                                      style={{
+                                        fontSize: "0.78rem",
+                                        fontWeight: 600,
+                                        color: textMain,
+                                        padding: "0.2rem 0.6rem",
+                                        background: darkMode
+                                          ? "rgba(124,58,237,0.1)"
+                                          : "rgba(124,58,237,0.06)",
+                                        border:
+                                          "1px solid rgba(124,58,237,0.2)",
+                                        borderRadius: 6,
+                                        display: "inline-block",
+                                      }}
+                                    >
+                                      {log.reassignment_reason}
+                                    </span>
                                   </div>
-                                </div>
-                              )}
+                                )}
+                                {log.reassignment_remarks && (
+                                  <div>
+                                    <div
+                                      style={{
+                                        fontSize: "0.6rem",
+                                        fontWeight: 700,
+                                        color: "#9ca3af",
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.05em",
+                                        marginBottom: "0.25rem",
+                                      }}
+                                    >
+                                      Remarks
+                                    </div>
+                                    <p
+                                      style={{
+                                        margin: 0,
+                                        fontSize: "0.82rem",
+                                        color: textMain,
+                                        lineHeight: 1.65,
+                                        whiteSpace: "pre-wrap",
+                                        wordBreak: "break-word",
+                                        padding: "0.65rem 0.85rem",
+                                        background: darkMode ? "#111" : "#fff",
+                                        border:
+                                          "1px solid rgba(124,58,237,0.2)",
+                                        borderRadius: 8,
+                                        borderLeft: "3px solid #7c3aed",
+                                      }}
+                                    >
+                                      {log.reassignment_remarks}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
-                              {/* ── Remarks ── */}
+                            {/* REROUTE details */}
+                            {log.action_type === "REROUTE" && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  gap: "0.65rem",
+                                  padding: "0.75rem",
+                                  background: darkMode
+                                    ? "rgba(8,145,178,0.08)"
+                                    : "rgba(8,145,178,0.05)",
+                                  border: "1px solid rgba(8,145,178,0.2)",
+                                  borderRadius: 8,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: "0.65rem",
+                                    fontWeight: 700,
+                                    color: "#0891b2",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.07em",
+                                  }}
+                                >
+                                  🔀 Re-route Details
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "1rem",
+                                    flexWrap: "wrap",
+                                    alignItems: "flex-end",
+                                  }}
+                                >
+                                  {log.reroute_from_step && (
+                                    <div style={{ flex: 1, minWidth: 120 }}>
+                                      <div
+                                        style={{
+                                          fontSize: "0.6rem",
+                                          fontWeight: 700,
+                                          color: "#9ca3af",
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.05em",
+                                          marginBottom: "0.25rem",
+                                        }}
+                                      >
+                                        From Step
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          padding: "0.25rem 0.6rem",
+                                          background: darkMode
+                                            ? "rgba(239,68,68,0.1)"
+                                            : "rgba(239,68,68,0.07)",
+                                          border:
+                                            "1px solid rgba(239,68,68,0.25)",
+                                          borderRadius: 6,
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          color: "#ef4444",
+                                        }}
+                                      >
+                                        {log.reroute_from_step}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {log.reroute_from_step &&
+                                    log.reroute_target_step && (
+                                      <div
+                                        style={{
+                                          color: "#0891b2",
+                                          fontSize: "1rem",
+                                          paddingBottom: "0.25rem",
+                                        }}
+                                      >
+                                        →
+                                      </div>
+                                    )}
+                                  {log.reroute_target_step && (
+                                    <div style={{ flex: 1, minWidth: 120 }}>
+                                      <div
+                                        style={{
+                                          fontSize: "0.6rem",
+                                          fontWeight: 700,
+                                          color: "#9ca3af",
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.05em",
+                                          marginBottom: "0.25rem",
+                                        }}
+                                      >
+                                        Target Step
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          padding: "0.25rem 0.6rem",
+                                          background: darkMode
+                                            ? "rgba(16,185,129,0.1)"
+                                            : "rgba(16,185,129,0.07)",
+                                          border:
+                                            "1px solid rgba(16,185,129,0.25)",
+                                          borderRadius: 6,
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          color: "#10b981",
+                                        }}
+                                      >
+                                        {log.reroute_target_step}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    gap: "1rem",
+                                    flexWrap: "wrap",
+                                  }}
+                                >
+                                  {log.rerouted_by_user_name && (
+                                    <div>
+                                      <div
+                                        style={{
+                                          fontSize: "0.6rem",
+                                          fontWeight: 700,
+                                          color: "#9ca3af",
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.05em",
+                                          marginBottom: "0.25rem",
+                                        }}
+                                      >
+                                        Rerouted By
+                                      </div>
+                                      <div
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "0.35rem",
+                                          padding: "0.25rem 0.6rem",
+                                          background: darkMode
+                                            ? "rgba(8,145,178,0.12)"
+                                            : "rgba(8,145,178,0.07)",
+                                          border:
+                                            "1px solid rgba(8,145,178,0.25)",
+                                          borderRadius: 6,
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          color: "#0891b2",
+                                        }}
+                                      >
+                                        🔑 {log.rerouted_by_user_name}
+                                      </div>
+                                    </div>
+                                  )}
+                                  {log.rerouted_at && (
+                                    <div>
+                                      <div
+                                        style={{
+                                          fontSize: "0.6rem",
+                                          fontWeight: 700,
+                                          color: "#9ca3af",
+                                          textTransform: "uppercase",
+                                          letterSpacing: "0.05em",
+                                          marginBottom: "0.25rem",
+                                        }}
+                                      >
+                                        Rerouted At
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: "0.78rem",
+                                          fontWeight: 600,
+                                          color: textMain,
+                                        }}
+                                      >
+                                        {fmt(log.rerouted_at)?.date}{" "}
+                                        <span style={{ color: textSub }}>
+                                          {fmt(log.rerouted_at)?.time}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                {log.reroute_reason && (
+                                  <div>
+                                    <div
+                                      style={{
+                                        fontSize: "0.6rem",
+                                        fontWeight: 700,
+                                        color: "#9ca3af",
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.05em",
+                                        marginBottom: "0.25rem",
+                                      }}
+                                    >
+                                      Reason
+                                    </div>
+                                    <span
+                                      style={{
+                                        fontSize: "0.78rem",
+                                        fontWeight: 600,
+                                        color: textMain,
+                                        padding: "0.2rem 0.6rem",
+                                        background: darkMode
+                                          ? "rgba(8,145,178,0.1)"
+                                          : "rgba(8,145,178,0.06)",
+                                        border: "1px solid rgba(8,145,178,0.2)",
+                                        borderRadius: 6,
+                                        display: "inline-block",
+                                      }}
+                                    >
+                                      {log.reroute_reason}
+                                    </span>
+                                  </div>
+                                )}
+                                {log.reroute_remarks && (
+                                  <div>
+                                    <div
+                                      style={{
+                                        fontSize: "0.6rem",
+                                        fontWeight: 700,
+                                        color: "#9ca3af",
+                                        textTransform: "uppercase",
+                                        letterSpacing: "0.05em",
+                                        marginBottom: "0.25rem",
+                                      }}
+                                    >
+                                      Remarks
+                                    </div>
+                                    <p
+                                      style={{
+                                        margin: 0,
+                                        fontSize: "0.82rem",
+                                        color: textMain,
+                                        lineHeight: 1.65,
+                                        whiteSpace: "pre-wrap",
+                                        wordBreak: "break-word",
+                                        padding: "0.65rem 0.85rem",
+                                        background: darkMode ? "#111" : "#fff",
+                                        border: "1px solid rgba(8,145,178,0.2)",
+                                        borderRadius: 8,
+                                        borderLeft: "3px solid #0891b2",
+                                      }}
+                                    >
+                                      {log.reroute_remarks}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Decision Result */}
+                            {log.decision_result && (
                               <div>
                                 <div
                                   style={{
                                     fontSize: "0.62rem",
                                     fontWeight: 700,
-                                    color: shopeeOrange,
+                                    color: "#0891b2",
                                     textTransform: "uppercase",
                                     letterSpacing: "0.07em",
-                                    marginBottom: "0.5rem",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.35rem",
+                                    marginBottom: "0.35rem",
                                   }}
                                 >
-                                  💬 Remarks
+                                  📊 Decision Result
                                 </div>
-                                {hasRemarks ? (
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "0.82rem",
-                                      color: textMain,
-                                      lineHeight: 1.65,
-                                      whiteSpace: "pre-wrap",
-                                      wordBreak: "break-word",
-                                      padding: "0.65rem 0.85rem",
-                                      background: darkMode ? "#111" : "#fff",
-                                      border: `1px solid ${remarksBorder}`,
-                                      borderRadius: 8,
-                                      borderLeft: `3px solid ${shopeeOrange}`,
-                                    }}
-                                  >
-                                    {log.application_remarks}
-                                  </p>
-                                ) : (
-                                  <p
-                                    style={{
-                                      margin: 0,
-                                      fontSize: "0.82rem",
-                                      color: textTert,
-                                      fontStyle: "italic",
-                                      padding: "0.5rem 0.85rem",
-                                    }}
-                                  >
-                                    No remarks recorded for this step.
-                                  </p>
-                                )}
+                                <span
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    padding: "0.2rem 0.65rem",
+                                    background: darkMode
+                                      ? "rgba(8,145,178,0.15)"
+                                      : "rgba(8,145,178,0.08)",
+                                    border: "1px solid rgba(8,145,178,0.35)",
+                                    borderRadius: 20,
+                                    fontSize: "0.78rem",
+                                    fontWeight: 600,
+                                    color: "#0891b2",
+                                  }}
+                                >
+                                  {log.decision_result}
+                                </span>
                               </div>
+                            )}
+
+                            {/* Decision Authority */}
+                            {log.decision_authority_name && (
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: "0.62rem",
+                                    fontWeight: 700,
+                                    color: "#b45309",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.07em",
+                                    marginBottom: "0.35rem",
+                                  }}
+                                >
+                                  🏛️ Decision Authority
+                                </div>
+                                <div
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "0.4rem",
+                                    padding: "0.3rem 0.75rem",
+                                    background: darkMode
+                                      ? "rgba(180,83,9,0.15)"
+                                      : "rgba(245,158,11,0.08)",
+                                    border: "1px solid rgba(245,158,11,0.35)",
+                                    borderRadius: 8,
+                                    fontSize: "0.8rem",
+                                    fontWeight: 600,
+                                    color: "#b45309",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: 22,
+                                      height: 22,
+                                      borderRadius: "50%",
+                                      background:
+                                        "linear-gradient(135deg, #f59e0b, #d97706)",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      color: "#fff",
+                                      fontSize: "0.65rem",
+                                      fontWeight: 700,
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    {log.decision_authority_name[0].toUpperCase()}
+                                  </div>
+                                  {log.decision_authority_name}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Remarks */}
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: "0.62rem",
+                                  fontWeight: 700,
+                                  color: shopeeOrange,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.07em",
+                                  marginBottom: "0.5rem",
+                                }}
+                              >
+                                💬 Remarks
+                              </div>
+                              {hasRemarks ? (
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    fontSize: "0.82rem",
+                                    color: textMain,
+                                    lineHeight: 1.65,
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                    padding: "0.65rem 0.85rem",
+                                    background: darkMode ? "#111" : "#fff",
+                                    border: `1px solid ${remarksBorder}`,
+                                    borderRadius: 8,
+                                    borderLeft: `3px solid ${shopeeOrange}`,
+                                  }}
+                                >
+                                  {log.application_remarks}
+                                </p>
+                              ) : (
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    fontSize: "0.82rem",
+                                    color: textTert,
+                                    fontStyle: "italic",
+                                    padding: "0.5rem 0.85rem",
+                                  }}
+                                >
+                                  No remarks recorded for this step.
+                                </p>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
                     );
