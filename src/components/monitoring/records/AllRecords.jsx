@@ -296,6 +296,7 @@ export default function AllRecords({
   const [dtnSearch, setDtnSearch] = useState("");
   const [dtnInput, setDtnInput] = useState(""); // debounce buffer
   const [stepFilter, setStepFilter] = useState("");
+  const [localStatusFilter, setLocalStatusFilter] = useState("");
   // ──────────────────────────────────────────────────────────────
 
   const [modalLoading, setModalLoading] = useState(false);
@@ -396,10 +397,9 @@ export default function AllRecords({
       if (dtnSearch) params.dtn = dtnSearch; // ← NEW
       if (stepFilter) params.app_step = stepFilter; // ← NEW
 
-      const statusMap = { completed: "COMPLETED", in_progress: "IN PROGRESS" };
-      if (statusFilter && statusFilter !== "all")
-        params.application_status = statusMap[statusFilter];
-
+      if (localStatusFilter) {
+        params.application_status = localStatusFilter;
+      }
       const data = await getAllRecords(params);
       setRecords(data.data || []);
       setTotal(data.total || 0);
@@ -416,9 +416,9 @@ export default function AllRecords({
     filterUserId,
     dateFrom,
     dateTo,
-    statusFilter,
     dtnSearch,
     stepFilter,
+    localStatusFilter,
   ]); // ← added deps
 
   useEffect(() => {
@@ -468,6 +468,7 @@ export default function AllRecords({
     setDtnInput("");
     setDtnSearch(""); // ← NEW
     setStepFilter(""); // ← NEW
+    setLocalStatusFilter("");
     setSortCol("date");
     setSortDir("desc");
     setPage(1);
@@ -554,6 +555,20 @@ export default function AllRecords({
                     {s}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* Status Filter */}
+            <div>
+              <label style={labelSt}>Status</label>
+              <select
+                value={localStatusFilter}
+                onChange={(e) => setLocalStatusFilter(e.target.value)}
+                style={{ ...inputSt, paddingRight: 24, cursor: "pointer" }}
+              >
+                <option value="">All Status</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="IN PROGRESS">In Progress</option>
               </select>
             </div>
 
