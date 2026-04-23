@@ -1,8 +1,9 @@
 // src/components/monitoring/records/TasksPerUser.jsx
-import { useState, useEffect } from "react";
-import { getUsersTaskSummary } from "../../../api/monitoring";
+import { useState, useEffect, useMemo } from "react";
+import { getUsersTaskSummary, getGroups } from "../../../api/monitoring";
 
 const FB = "#1877F2";
+const PAGE_SIZE = 8;
 
 const avatarPalette = [
   { bg: "#dbeafe", color: "#1d4ed8" },
@@ -28,23 +29,45 @@ function getAvatarColor(index) {
   return avatarPalette[index % avatarPalette.length];
 }
 
-export default function TasksPerUser({ ui, darkMode, onUserClick }) {
-  const [users, setUsers] = useState([]);
+export default function TasksPerUser({
+  ui,
+  darkMode,
+  onUserClick,
+  selectedUserId,
+  selectedStatus = "all",
+}) {
+  const [allUsers, setAllUsers] = useState([]);
+  const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [groupFilter, setGroupFilter] = useState(""); // "" = all groups
 
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const colHdr = darkMode ? ui.sidebarBg : "#f8f9fd";
 
+  // Fetch groups once for the dropdown
+  useEffect(() => {
+    getGroups()
+      .then(setGroups)
+      .catch(() => setGroups([]));
+  }, []);
+
+  // Fetch users — re-fetch whenever groupFilter changes (server-side filtering)
   useEffect(() => {
     let cancelled = false;
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await getUsersTaskSummary();
-        if (!cancelled) setUsers(data.data || []);
+        const params = groupFilter ? { group_id: groupFilter } : {};
+        const data = await getUsersTaskSummary(params);
+        if (!cancelled) {
+          setAllUsers(data.data || []);
+          setPage(1);
+        }
       } catch (err) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -55,10 +78,64 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [groupFilter]);
 
-  const maxTasks = Math.max(...users.map((u) => u.tasks?.total || 0), 1);
-  const totalTasks = users.reduce((s, u) => s + (u.tasks?.total || 0), 0);
+  // Client-side search only (group filtering is server-side)
+  const filtered = useMemo(() => {
+    return allUsers.filter((u) => {
+      const name = (u.full_name || u.username || "").toLowerCase();
+      return search.trim() === "" || name.includes(search.trim().toLowerCase());
+    });
+  }, [allUsers, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  const maxTasks = Math.max(...allUsers.map((u) => u.tasks?.total || 0), 1);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pagedUsers = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const btnStyle = (disabled) => ({
+    background: "transparent",
+    border: `1px solid ${ui.cardBorder}`,
+    borderRadius: 5,
+    color: disabled ? ui.textMuted : ui.textPrimary,
+    cursor: disabled ? "not-allowed" : "pointer",
+    padding: "2px 8px",
+    fontSize: "0.78rem",
+    fontFamily: font,
+  });
+
+  const inputSt = {
+    background: ui.inputBg,
+    border: `1px solid ${ui.cardBorder}`,
+    borderRadius: 6,
+    padding: "5px 8px",
+    fontSize: "0.76rem",
+    color: ui.textPrimary,
+    outline: "none",
+    fontFamily: font,
+    width: "100%",
+    boxSizing: "border-box",
+    colorScheme: darkMode ? "dark" : "light",
+  };
+
+  const countCols = [
+    { key: "all", label: "ALL", color: FB, getValue: (t) => t.total || 0 },
+    {
+      key: "completed",
+      label: "✅",
+      color: "#36a420",
+      getValue: (t) => t.completed || 0,
+    },
+    {
+      key: "in_progress",
+      label: "⏳",
+      color: "#f59e0b",
+      getValue: (t) => t.in_progress || 0,
+    },
+  ];
 
   return (
     <div
@@ -67,6 +144,8 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
         minWidth: 260,
         display: "flex",
         flexDirection: "column",
+        height: "calc(100vh - 160px)",
+        maxHeight: "calc(100vh - 160px)",
       }}
     >
       <p
@@ -76,6 +155,7 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
           color: ui.textPrimary,
           margin: "0 0 8px",
           fontFamily: font,
+          flexShrink: 0,
         }}
       >
         Tasks per User
@@ -91,8 +171,42 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
           flex: 1,
           display: "flex",
           flexDirection: "column",
+          minHeight: 0,
         }}
       >
+        {/* Filter Bar */}
+        <div
+          style={{
+            padding: "8px 10px",
+            borderBottom: `1px solid ${ui.divider}`,
+            background: colHdr,
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            flexShrink: 0,
+          }}
+        >
+          <input
+            type="text"
+            placeholder="Search user…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={inputSt}
+          />
+          <select
+            value={groupFilter}
+            onChange={(e) => setGroupFilter(e.target.value)}
+            style={{ ...inputSt, cursor: "pointer" }}
+          >
+            <option value="">All Groups</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Column Header */}
         <div
           style={{
@@ -100,26 +214,35 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
             gridTemplateColumns: "1fr 44px 44px 44px",
             background: colHdr,
             borderBottom: `1px solid ${ui.divider}`,
-            padding: "7px 12px",
+            padding: "6px 12px",
             gap: 4,
+            flexShrink: 0,
           }}
         >
-          {[
-            { label: "User", align: "left" },
-            { label: "All", align: "center" },
-            { label: "✅", align: "center" },
-            { label: "⏳", align: "center" },
-          ].map(({ label, align }) => (
+          <span
+            style={{
+              fontSize: "0.63rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+              color: ui.textMuted,
+              fontFamily: font,
+            }}
+          >
+            User
+          </span>
+          {countCols.map(({ key, label, color }) => (
             <span
-              key={label}
+              key={key}
               style={{
                 fontSize: "0.63rem",
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.07em",
-                color: ui.textMuted,
-                textAlign: align,
+                color: selectedStatus === key ? color : ui.textMuted,
+                textAlign: "center",
                 fontFamily: font,
+                transition: "color 0.15s",
               }}
             >
               {label}
@@ -127,8 +250,8 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
           ))}
         </div>
 
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        {/* Body — scrollable */}
+        <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
           {loading ? (
             <div
               style={{
@@ -153,7 +276,7 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
             >
               {error}
             </div>
-          ) : users.length === 0 ? (
+          ) : filtered.length === 0 ? (
             <div
               style={{
                 padding: "24px",
@@ -166,47 +289,60 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
               No users found
             </div>
           ) : (
-            users.map((user, i) => {
-              const av = getAvatarColor(i);
-              const total = user.tasks?.total || 0;
-              const completed = user.tasks?.completed || 0;
-              const inProgress = user.tasks?.in_progress || 0;
+            pagedUsers.map((user, i) => {
+              const globalIndex = allUsers.indexOf(user);
+              const av = getAvatarColor(globalIndex >= 0 ? globalIndex : i);
+              const tasks = user.tasks || {};
               const displayName = user.full_name || user.username || "—";
-              const displayRole = user.position || user.role || "User";
+              const displayGroup = user.group_name || "—"; // ← group_name from backend
+              const total = tasks.total || 0;
               const barPct = maxTasks > 0 ? (total / maxTasks) * 100 : 0;
+              const isSelected =
+                selectedUserId && selectedUserId === user.user_id;
 
               return (
                 <div
                   key={user.user_id}
-                  onClick={() => onUserClick && onUserClick(user)}
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 44px 44px 44px",
                     padding: "9px 12px",
                     gap: 4,
                     borderBottom:
-                      i < users.length - 1 ? `1px solid ${ui.divider}` : "none",
-                    cursor: "pointer",
-                    transition: "background 0.12s",
+                      i < pagedUsers.length - 1
+                        ? `1px solid ${ui.divider}`
+                        : "none",
                     alignItems: "center",
+                    background: isSelected
+                      ? darkMode
+                        ? "#1a2744"
+                        : "#e7f0fd"
+                      : "transparent",
+                    transition: "background 0.12s",
                   }}
                   onMouseEnter={(e) =>
+                    !isSelected &&
                     (e.currentTarget.style.background = ui.hoverBg)
                   }
                   onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = "transparent")
+                    (e.currentTarget.style.background = isSelected
+                      ? darkMode
+                        ? "#1a2744"
+                        : "#e7f0fd"
+                      : "transparent")
                   }
                 >
-                  {/* User info — no truncation, wrap instead */}
+                  {/* User info */}
                   <div
+                    onClick={() => onUserClick && onUserClick(user, "all")}
                     style={{
                       display: "flex",
                       alignItems: "flex-start",
                       gap: 8,
                       minWidth: 0,
+                      cursor: "pointer",
                     }}
                   >
-                    {/* Avatar */}
                     <div
                       style={{
                         width: 32,
@@ -227,8 +363,6 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
                     >
                       {getInitials(displayName)}
                     </div>
-
-                    {/* Name + role + progress */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p
                         style={{
@@ -243,6 +377,7 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
                       >
                         {displayName}
                       </p>
+                      {/* ← group_name instead of position */}
                       <p
                         style={{
                           margin: "1px 0 4px",
@@ -253,9 +388,8 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
                           fontFamily: font,
                         }}
                       >
-                        {displayRole}
+                        {displayGroup}
                       </p>
-                      {/* Progress bar */}
                       <div
                         style={{
                           height: 3,
@@ -276,51 +410,48 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
                     </div>
                   </div>
 
-                  {/* Total */}
-                  <span
-                    style={{
-                      fontSize: "0.88rem",
-                      fontWeight: 800,
-                      color: FB,
-                      textAlign: "center",
-                      fontFamily: font,
-                    }}
-                  >
-                    {total}
-                  </span>
-
-                  {/* Completed */}
-                  <span
-                    style={{
-                      fontSize: "0.82rem",
-                      fontWeight: 700,
-                      color: "#36a420",
-                      textAlign: "center",
-                      fontFamily: font,
-                    }}
-                  >
-                    {completed}
-                  </span>
-
-                  {/* In Progress */}
-                  <span
-                    style={{
-                      fontSize: "0.82rem",
-                      fontWeight: 700,
-                      color: "#f59e0b",
-                      textAlign: "center",
-                      fontFamily: font,
-                    }}
-                  >
-                    {inProgress}
-                  </span>
+                  {/* Clickable count cells */}
+                  {countCols.map(({ key, color, getValue }) => {
+                    const val = getValue(tasks);
+                    const isActiveCol = isSelected && selectedStatus === key;
+                    return (
+                      <span
+                        key={key}
+                        onClick={() => onUserClick && onUserClick(user, key)}
+                        title={`Show ${key === "all" ? "all" : key === "completed" ? "completed" : "in-progress"} records`}
+                        style={{
+                          fontSize: "0.88rem",
+                          fontWeight: 800,
+                          color: isActiveCol ? "#fff" : color,
+                          textAlign: "center",
+                          fontFamily: font,
+                          cursor: "pointer",
+                          borderRadius: 6,
+                          padding: "2px 4px",
+                          background: isActiveCol ? color : "transparent",
+                          transition: "all 0.15s",
+                          userSelect: "none",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActiveCol)
+                            e.currentTarget.style.background = `${color}22`;
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActiveCol)
+                            e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        {val}
+                      </span>
+                    );
+                  })}
                 </div>
               );
             })
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer with Pagination */}
         <div
           style={{
             padding: "7px 12px",
@@ -329,6 +460,7 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexShrink: 0,
           }}
         >
           <span
@@ -338,17 +470,35 @@ export default function TasksPerUser({ ui, darkMode, onUserClick }) {
               fontFamily: font,
             }}
           >
-            {users.length} user{users.length !== 1 ? "s" : ""}
+            {filtered.length} / {allUsers.length} users
           </span>
-          <span
-            style={{
-              fontSize: "0.7rem",
-              color: ui.textMuted,
-              fontFamily: font,
-            }}
-          >
-            {totalTasks} total logs
-          </span>
+          {totalPages > 1 && (
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                style={btnStyle(page === 1)}
+              >
+                ‹
+              </button>
+              <span
+                style={{
+                  fontSize: "0.73rem",
+                  color: ui.textMuted,
+                  fontFamily: font,
+                }}
+              >
+                {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                style={btnStyle(page >= totalPages)}
+              >
+                ›
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

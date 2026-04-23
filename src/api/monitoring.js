@@ -8,17 +8,25 @@ import API from "./axios";
  *
  * @returns {Promise<{ total_users: number, data: Array }>}
  */
-export const getUsersTaskSummary = async () => {
+
+export const getGroups = async () => {
   try {
-    const response = await API.get("/monitoring/users-tasks");
+    const response = await API.get("/monitoring/groups");
     return response.data;
   } catch (error) {
-    console.error("Error fetching users task summary:", error);
-    const errorMessage =
-      error.response?.data?.detail ||
-      error.message ||
-      "Failed to fetch users task summary";
-    throw new Error(errorMessage);
+    throw new Error(error.response?.data?.detail || "Failed to fetch groups");
+  }
+};
+
+export const getUsersTaskSummary = async (params = {}) => {
+  try {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== "")
+    );
+    const response = await API.get("/monitoring/users-tasks", { params: cleanParams });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || "Failed to fetch users task summary");
   }
 };
 
