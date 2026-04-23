@@ -1093,7 +1093,14 @@ function Step2FullDetails({ record, colors }) {
 /* ================================================================== */
 /*  Main Modal                                                          */
 /* ================================================================== */
-function ViewDetailsModal({ record, onClose, colors, darkMode }) {
+function ViewDetailsModal({
+  record,
+  onClose,
+  colors,
+  darkMode,
+  loading = false,
+}) {
+  // function ViewDetailsModal({ record, onClose, colors, darkMode }) {
   const [currentStep, setCurrentStep] = useState(1);
   if (!record) return null;
 
@@ -1226,6 +1233,7 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
         </div>
 
         {/* ── Scrollable Content ── */}
+        {/* ── Scrollable Content ── */}
         <div
           style={{
             flex: 1,
@@ -1234,20 +1242,43 @@ function ViewDetailsModal({ record, onClose, colors, darkMode }) {
             minHeight: 0,
           }}
         >
-          {currentStep === 1 && (
-            <Step1BasicInfo record={record} colors={colors} />
-          )}
-          {currentStep === 2 && (
-            <Step2FullDetails record={record} colors={colors} />
-          )}
-          {currentStep === 3 && (
-            <Step3AppLogs
-              record={{ ...record, mainDbId: record.mainDbId ?? record.id }}
-              colors={colors}
-            />
+          {loading ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "300px",
+                gap: "1rem",
+                color: colors.textTertiary,
+              }}
+            >
+              <div style={{ fontSize: "2.5rem" }}>⏳</div>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>
+                Loading full details...
+              </span>
+              <span style={{ fontSize: "0.75rem", opacity: 0.6 }}>
+                Fetching record for DTN: {record?.dtn}
+              </span>
+            </div>
+          ) : (
+            <>
+              {currentStep === 1 && (
+                <Step1BasicInfo record={record} colors={colors} />
+              )}
+              {currentStep === 2 && (
+                <Step2FullDetails record={record} colors={colors} />
+              )}
+              {currentStep === 3 && (
+                <Step3AppLogs
+                  record={{ ...record, mainDbId: record.mainDbId ?? record.id }}
+                  colors={colors}
+                />
+              )}
+            </>
           )}
         </div>
-
         {/* ── Footer ── */}
         <div
           style={{
