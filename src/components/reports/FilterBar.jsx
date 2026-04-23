@@ -29,17 +29,13 @@ const labelStyle = (colors) => ({
 
 // ── General filters ──────────────────────────────────────────────────────────
 const GENERAL_FIELDS = [
+  {
+    key: "dtn",
+    label: "🔢 DTN Number",
+    placeholder: "Enter DTN number",
+    inputType: "number",
+  },
   { key: "category", label: "📍 Est. Category", type: "select" },
-  {
-    key: "dosageForm",
-    label: "💊 Dosage Form",
-    placeholder: "e.g., Tablet, Capsule",
-  },
-  {
-    key: "manufacturer",
-    label: "🏭 Manufacturer",
-    placeholder: "Search manufacturer",
-  },
   {
     key: "ltoCompany",
     label: "🏢 LTO Company",
@@ -56,10 +52,9 @@ const GENERAL_FIELDS = [
     placeholder: "Search generic name",
   },
   {
-    key: "dtn",
-    label: "🔢 DTN Number",
-    placeholder: "Enter DTN number",
-    inputType: "number",
+    key: "dosageForm",
+    label: "💊 Dosage Form",
+    placeholder: "e.g., Tablet, Capsule",
   },
 ];
 
