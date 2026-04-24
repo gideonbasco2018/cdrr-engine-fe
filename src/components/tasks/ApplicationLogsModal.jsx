@@ -1,3 +1,4 @@
+// src/components/tasks/viewdetails/ApplicationLogsModal.jsx
 import { useEffect, useState } from "react";
 import { getApplicationLogsByDtn } from "../../api/application-logs";
 
