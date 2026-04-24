@@ -167,6 +167,8 @@ export function BulkDeckModal({
   };
 
   const [signedDate, setSignedDate] = useState(todayStr());
+
+  const [doctrackEnabled, setDoctrackEnabled] = useState(true);
   const [doctrackRemarks, setDoctrackRemarks] = useState(() =>
     config.requiresSignedDate
       ? buildODReleasingDoctrack(todayStr())
@@ -254,34 +256,36 @@ export function BulkDeckModal({
     setSubmitting(true);
     try {
       // ── STEP 1: Doctrack — bail out if failed ──
-      // ── STEP 1: Doctrack — bail out if failed ──
-      try {
-        const doctrackEntries = selectedDtns.map((dtn) => ({
-          rsn: String(dtn),
-          remarks: doctrackRemarks || "",
-          userID: currentUser?.id ?? null,
-        }));
-        const doctrackResult = await createBulkDoctrackLogsByRsn(
-          doctrackEntries,
-          currentUser?.alias || "",
-        );
+      if (doctrackEnabled) {
+        try {
+          const doctrackEntries = selectedDtns.map((dtn) => ({
+            rsn: String(dtn),
+            remarks: doctrackRemarks || "",
+            userID: currentUser?.id ?? null,
+          }));
+          const doctrackResult = await createBulkDoctrackLogsByRsn(
+            doctrackEntries,
+            currentUser?.alias || "",
+          );
 
-        if (!doctrackResult) {
+          if (!doctrackResult) {
+            setAlertModal({
+              title: "Doctrack logs",
+              message:
+                "Failed to insert Doctrack logs. No response from server.",
+              detail: "No application logs were created.",
+            });
+            return;
+          }
+        } catch (doctrackErr) {
+          console.error("❌ Doctrack log failed:", doctrackErr.message);
           setAlertModal({
             title: "Doctrack logs",
-            message: "Failed to insert Doctrack logs. No response from server.",
+            message: `Failed to insert Doctrack logs. Reason: ${doctrackErr.message}`,
             detail: "No application logs were created.",
           });
           return;
         }
-      } catch (doctrackErr) {
-        console.error("❌ Doctrack log failed:", doctrackErr.message);
-        setAlertModal({
-          title: "Doctrack logs",
-          message: `Failed to insert Doctrack logs. Reason: ${doctrackErr.message}`,
-          detail: "No application logs were created.",
-        });
-        return;
       }
 
       // ── STEP 2: Main DB — only runs if doctrack succeeded ──
@@ -293,6 +297,7 @@ export function BulkDeckModal({
         decisionResult,
         decisionAuthorityId,
         decisionAuthorityName,
+        signedDate,
       });
       setResult(res);
       setScreen("transmittal_prompt");
@@ -1251,7 +1256,64 @@ export function BulkDeckModal({
 
             {/* ── Doctrack Remarks ── */}
             <div>
-              <label style={labelStyle(colors)}>Doctrack Remarks</label>
+              <label
+                style={{
+                  ...labelStyle(colors),
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "0.4rem",
+                }}
+              >
+                <span>Doctrack Remarks</span>
+                <span
+                  onClick={() => setDoctrackEnabled((prev) => !prev)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    fontSize: "0.65rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: "0.1rem 0.5rem 0.1rem 0.35rem",
+                    borderRadius: "20px",
+                    border: `1px solid ${doctrackEnabled ? "#4CAF5050" : "#ef444450"}`,
+                    background: doctrackEnabled ? "#4CAF5015" : "#ef444415",
+                    color: doctrackEnabled ? "#4CAF50" : "#ef4444",
+                    userSelect: "none",
+                    transition: "all 0.2s",
+                    textTransform: "none",
+                    letterSpacing: "normal",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 22,
+                      height: 11,
+                      borderRadius: 11,
+                      background: doctrackEnabled ? "#4CAF50" : "#ef4444",
+                      display: "inline-block",
+                      position: "relative",
+                      transition: "background 0.2s",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 2,
+                        left: doctrackEnabled ? 13 : 2,
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: "#fff",
+                        transition: "left 0.2s",
+                      }}
+                    />
+                  </span>
+                  {doctrackEnabled ? "ON" : "OFF"}
+                </span>
+              </label>
               <textarea
                 value={doctrackRemarks}
                 onChange={(e) => setDoctrackRemarks(e.target.value)}

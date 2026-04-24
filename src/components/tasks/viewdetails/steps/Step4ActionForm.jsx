@@ -546,6 +546,21 @@ export function Step4ActionForm({
           : {}),
       });
 
+      if (isODReleasing) {
+        try {
+          await updateUploadReport(record.mainDbId, {
+            DB_DECISION_RESULT: formData.decisionResult || "",
+            DB_DECISION_AUTHORITY: formData.decisionAuthorityName || "",
+            DB_DECISION_SIGNED_DATE: signedDate || null,
+          });
+        } catch (err) {
+          console.warn(
+            "⚠️ OD-Releasing report update failed (non-fatal):",
+            err.message,
+          );
+        }
+      }
+
       // Create next log
       if (nextStep) {
         let assignedUser, assignedUserId;

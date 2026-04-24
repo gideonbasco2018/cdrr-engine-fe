@@ -191,6 +191,7 @@ function DataTable({
       decisionResult = "",
       decisionAuthorityId = null,
       decisionAuthorityName = "",
+      signedDate = null,
     } = {},
   ) => {
     if (!bulkDeckConfig) return { success: 0, failed: 0 };
@@ -332,6 +333,15 @@ function DataTable({
               : {}),
             doctrack_remarks: doctrackRemarks || "",
           });
+
+          // ── Save Decision fields to main_db (OD-Releasing only) ──
+          if (isODReleasing) {
+            await updateUploadReport(mainDbId, {
+              DB_DECISION_RESULT: decisionResult || "",
+              DB_DECISION_AUTHORITY: decisionAuthorityName || "",
+              DB_DECISION_SIGNED_DATE: signedDate || null,
+            });
+          }
 
           /*
            * FIX: include user_id in createApplicationLog payload.
