@@ -51,7 +51,7 @@ export const DECISION_DOCTRACK_MAP = {
   // Checking
   "Endorse to Supervisor":
     "Forwarded to Supervisor for review and signing of the final recommendation",
-  "Check and return to evaluator": "Returned to evaluator for correction/clarification",
+  "Checked and return to evaluator": "Returned to evaluator for correction/clarification",
 
   // Supervisor
   "Endorse to QA Admin": "Forwarded to LRD Chief for signing",
@@ -81,11 +81,11 @@ export const BULK_DECK_CONFIG = {
     nextGroupId: 5,
     fromLabel: "Checking",
     buttonLabel: "Endorse Selected Applications",
-    modalTitle: "Endorse Selected Applications to Supervisor",
-    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorse to Supervisor"],
+    modalTitle: "Checking — Select Action",   // ← generic, kasi may 2 decisions
+    defaultDoctrack: "",                       // ← blank muna, mag-uupdate base sa decision
     availableDecisions: [
       "Endorse to Supervisor",
-      "Check and return to evaluator",
+      "Checked and return to evaluator",       // ← fixed key
     ],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
