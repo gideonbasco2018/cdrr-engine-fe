@@ -159,7 +159,7 @@ function TaskPage({ darkMode }) {
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(99999);
+  const [rowsPerPage, setRowsPerPage] = useState(10000);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [sortBy, setSortBy] = useState("created_at");
@@ -205,7 +205,7 @@ function TaskPage({ darkMode }) {
     try {
       const res = await getWorkflowTasks({
         page: currentPage,
-        page_size: 99999,
+        page_size: 10000,
         sort_by: sortBy,
         sort_order: sortOrder,
         user_id: currentUser.id,
