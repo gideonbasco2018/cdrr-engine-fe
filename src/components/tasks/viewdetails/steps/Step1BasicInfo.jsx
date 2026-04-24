@@ -546,8 +546,9 @@ export function Step1BasicInfo({
         <FieldGrid>
           {field("Storage Condition", "storageCond")}
           {field("Packaging", "packaging")}
-          {field("Suggested RP", "suggRp")}
+          {field("Suggested Retail Price", "suggRp")}
           {field("No. of Samples", "noSample")}
+          {field("Expiry Date", "expiryDate")}
         </FieldGrid>
       </VDSection>
 

@@ -121,32 +121,11 @@ export function Step2FullDetails({
         </FieldGrid>
       </VDSection>
 
-      <VDSection title="📝 Amendments" colors={colors}>
-        <FieldGrid>
-          {field("Amendment 1", "ammend1")}
-          {field("Amendment 2", "ammend2")}
-          {field("Amendment 3", "ammend3")}
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📅 Important Dates" colors={colors}>
+      <VDSection title="" colors={colors}>
         <FieldGrid>
           <DisplayField
             label="Date Deck"
             value={formatDate(record.dateDeck)}
-            colors={colors}
-          />
-          {/* Date Released hidden for QE — moved to Step 4 For Approval */}
-          {!isQE && (
-            <DisplayField
-              label="Date Released"
-              value={formatDate(record.dateReleased)}
-              colors={colors}
-            />
-          )}
-          <DisplayField
-            label="Expiry Date"
-            value={formatDate(record.expiryDate)}
             colors={colors}
           />
 
@@ -160,16 +139,16 @@ export function Step2FullDetails({
 
       {/* 🔐 SECPA — hidden for QE, moved to Step 4 For Approval */}
       {!isQE && (
-        <VDSection title="🔐 SECPA" colors={colors}>
+        <VDSection title="" colors={colors}>
           <FieldGrid>
             {field("SECPA", "secpa")}
             <DisplayField
-              label="SECPA Expiry Date"
+              label="Expiry Date"
               value={formatDate(record.secpaExpDate)}
               colors={colors}
             />
             <DisplayField
-              label="SECPA Issued On"
+              label="Issued On/ Issuence Date"
               value={formatDate(record.secpaIssuedOn)}
               colors={colors}
             />
@@ -217,6 +196,14 @@ export function Step2FullDetails({
           })}
         </VDSection>
       )}
+
+      <VDSection title="📝 Amendments" colors={colors}>
+        <FieldGrid>
+          {field("Amendment 1", "ammend1")}
+          {field("Amendment 2", "ammend2")}
+          {field("Amendment 3", "ammend3")}
+        </FieldGrid>
+      </VDSection>
 
       <VDSection title="📝 Remarks & Notes" colors={colors}>
         {field("Application Remarks", "appRemarks", {
