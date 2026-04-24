@@ -325,3 +325,18 @@ export const getDashboardStats = async (uploadedBy) => {
     throw error;
   }
 };
+
+
+/**
+ * Bulk insert FDA drug registrations from DTN list (End Task / Releasing Officer flow)
+ * @param {number[]} dtnList - Array of DB_DTN values
+ * @param {string} uploadedBy - Username of the user who triggered the action
+ * @returns {Promise<Object>} Result with successful, failed, skipped counts
+ */
+export const bulkCreateFromDtns = async (dtnList, uploadedBy = null) => {
+  const response = await API.post("/fda/drugs/from-dtns", {
+    dtn_list: dtnList,
+    uploaded_by: uploadedBy,
+  });
+  return response.data;
+};

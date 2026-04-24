@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
 import { getUploadReport } from "../../../api/reports";
+import { bulkCreateFromDtns } from "../../../api/fdaverifportal";
 import {
   LRD_AUTHORITY_GROUP_ID,
   OD_RELEASING_AUTHORITY_GROUP_ID,
@@ -339,11 +340,14 @@ export function BulkDeckModal({
         console.log("✅ CPR records found:", cprRecords.length);
         if (cprRecords.length > 0) {
           try {
-            console.log(
-              "🚀 CPR API will run for:",
-              cprRecords.map((r) => r.mainDbId),
+            const dtnList = cprRecords.map((r) => r.dtn);
+            console.log("🚀 CPR API running for DTNs:", dtnList);
+
+            const cprResult = await bulkCreateFromDtns(
+              dtnList,
+              currentUser?.username ?? null,
             );
-            // await yourCprApi(cprRecords) ← ilalagay dito mamaya
+            console.log("✅ CPR insert result:", cprResult);
           } catch (cprErr) {
             console.warn("⚠️ CPR API failed (non-fatal):", cprErr.message);
           }
