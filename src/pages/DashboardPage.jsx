@@ -2577,7 +2577,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
   // ── Controls ───────────────────────────────────────────────────────────────
-  const [breakdown, setBreakdown] = useState("day");
+  const [breakdown, setBreakdown] = useState("year");
   const [selYear, setSelYear] = useState(String(CURRENT_YEAR));
   const [selMonth, setSelMonth] = useState(ALL_MONTHS[CURRENT_MONTH_IDX]);
   const [activeMetric, setActiveMetric] = useState(0);
