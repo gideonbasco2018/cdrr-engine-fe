@@ -631,6 +631,12 @@ export function Step4ActionForm({
         });
       }
 
+      console.log(
+        "🔍 currentStep:",
+        currentStep,
+        "| decision:",
+        formData.decision,
+      );
       if (
         currentStep === "Releasing Officer" &&
         formData.decision === "Released"
@@ -640,6 +646,7 @@ export function Step4ActionForm({
         });
 
         // ── CPR API — fetch fresh record para makuha ang DB_DECISION_RESULT ──
+        console.log("✅ Entered CPR block, fetching fresh record...");
         try {
           const fresh = await getUploadReport(record.mainDbId);
           console.log(
