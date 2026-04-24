@@ -159,7 +159,7 @@ function TaskPage({ darkMode }) {
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [rowsPerPage, setRowsPerPage] = useState(500);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [sortBy, setSortBy] = useState("created_at");
@@ -357,7 +357,8 @@ function TaskPage({ darkMode }) {
 
   const indexOfFirstRow = (currentPage - 1) * rowsPerPage;
   const displayedTotal = filteredData.length;
-  const displayedPages = Math.ceil(displayedTotal / rowsPerPage) || 1;
+  const displayedPages =
+    totalPages || Math.ceil(displayedTotal / rowsPerPage) || 1;
 
   const hasActiveFilters =
     filters.search ||
