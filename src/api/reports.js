@@ -288,3 +288,9 @@ export const updateUploadReport = async (id, data) => {
     throw new Error(errorMessage);
   }
 };
+
+// IDAGDAG sa pinaka-dulo ng reports.js:
+export const getUploadReport = async (id) => {
+  const response = await API.get(`/main-db/${id}`);
+  return response.data;
+};

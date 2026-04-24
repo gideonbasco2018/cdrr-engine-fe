@@ -4,6 +4,7 @@
 import { useState, useRef, useEffect } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
+import { getUploadReport } from "../../../api/reports";
 import {
   LRD_AUTHORITY_GROUP_ID,
   OD_RELEASING_AUTHORITY_GROUP_ID,
@@ -118,6 +119,7 @@ const labelStyle = (colors) => ({
 export function BulkDeckModal({
   selectedCount,
   selectedDtns,
+  selectedRecords,
   config,
   colors,
   darkMode,
@@ -255,7 +257,7 @@ export function BulkDeckModal({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      // ── STEP 1: Doctrack — bail out if failed ──
+      // ── STEP 1: Doctrack ──
       if (doctrackEnabled) {
         try {
           const doctrackEntries = selectedDtns.map((dtn) => ({
@@ -267,7 +269,6 @@ export function BulkDeckModal({
             doctrackEntries,
             currentUser?.alias || "",
           );
-
           if (!doctrackResult) {
             setAlertModal({
               title: "Doctrack logs",
@@ -288,17 +289,67 @@ export function BulkDeckModal({
         }
       }
 
-      // ── STEP 2: Main DB — only runs if doctrack succeeded ──
-      const res = await onConfirm(isReturnDecision ? null : assignee, {
-        decision,
-        action,
-        remarks,
-        doctrackRemarks,
-        decisionResult,
-        decisionAuthorityId,
-        decisionAuthorityName,
-        signedDate,
-      });
+      // ── STEP 2: Main DB ──
+      let res;
+      try {
+        res = await onConfirm(isReturnDecision ? null : assignee, {
+          decision,
+          action,
+          remarks,
+          doctrackRemarks,
+          decisionResult,
+          decisionAuthorityId,
+          decisionAuthorityName,
+          signedDate,
+        });
+      } catch (confirmErr) {
+        console.error("❌ onConfirm failed:", confirmErr.message);
+        alert(`❌ Failed to process records: ${confirmErr.message}`);
+        return;
+      }
+
+      // ── STEP 3: CPR API — Releasing Officer only ──
+      if (
+        config.currentStep === "Releasing Officer" &&
+        decision === "Released"
+      ) {
+        const cprRecords = [];
+        for (const r of selectedRecords ?? []) {
+          try {
+            const fresh = await getUploadReport(r.mainDbId);
+            console.log(
+              "🔍 Fresh DB_DECISION_RESULT:",
+              fresh?.DB_DECISION_RESULT,
+            );
+            if (fresh?.DB_DECISION_RESULT === "For issuance of CPR") {
+              cprRecords.push({
+                ...r,
+                decisionResult: fresh.DB_DECISION_RESULT,
+              });
+            }
+          } catch (e) {
+            console.warn(
+              "⚠️ Could not fetch fresh record:",
+              r.mainDbId,
+              e.message,
+            );
+          }
+        }
+
+        console.log("✅ CPR records found:", cprRecords.length);
+        if (cprRecords.length > 0) {
+          try {
+            console.log(
+              "🚀 CPR API will run for:",
+              cprRecords.map((r) => r.mainDbId),
+            );
+            // await yourCprApi(cprRecords) ← ilalagay dito mamaya
+          } catch (cprErr) {
+            console.warn("⚠️ CPR API failed (non-fatal):", cprErr.message);
+          }
+        }
+      }
+
       setResult(res);
       setScreen("transmittal_prompt");
     } finally {
