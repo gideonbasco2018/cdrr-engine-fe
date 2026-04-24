@@ -8,7 +8,7 @@ import {
   getDashboardRecordByDtn,
   getDashboardAllRecentApplications,
 } from "../api/dashboard";
-
+import ApplicationLogsModal from "../components/tasks/ApplicationLogsModal";
 import ViewDetailsModal from "../components/reports/actions/ViewDetailsModal";
 
 const FB = "#1877F2";
@@ -731,6 +731,7 @@ function MetricDetailModal({
   dateParams,
   onClose,
   onRowClick,
+  onViewLogs,
   ui,
 }) {
   const [data, setData] = useState([]);
@@ -740,7 +741,7 @@ function MetricDetailModal({
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const PAGE_SIZE = 10;
-
+  const [openMenuRow, setOpenMenuRow] = useState(null);
   const fetchPage = useCallback(
     async (p) => {
       setLoading(true);
@@ -768,6 +769,11 @@ function MetricDetailModal({
     [metricKey, dateParams],
   );
 
+  useEffect(() => {
+    const handler = () => setOpenMenuRow(null);
+    document.addEventListener("click", handler);
+    return () => document.removeEventListener("click", handler);
+  }, []);
   useEffect(() => {
     fetchPage(1);
   }, [fetchPage]);
@@ -989,6 +995,7 @@ function MetricDetailModal({
                       { label: "Status", align: "center" },
                       { label: "Start Date", align: "right" },
                       { label: "Accomplished Date", align: "right" },
+                      { label: "Action", align: "center", width: 60 },
                     ].map((col, ci) => (
                       <th
                         key={ci}
@@ -1198,6 +1205,86 @@ function MetricDetailModal({
                           }}
                         >
                           {row.end_date ? fmtDateTime(row.end_date) : "—"}
+                        </td>
+                        {/* 3-dot action */}
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "center",
+                            borderBottom: border,
+                            position: "relative",
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() =>
+                              setOpenMenuRow(
+                                openMenuRow === row.log_id ? null : row.log_id,
+                              )
+                            }
+                            style={{
+                              background: "none",
+                              border: `1px solid ${ui.cardBorder}`,
+                              borderRadius: 6,
+                              width: 28,
+                              height: 28,
+                              cursor: "pointer",
+                              color: ui.textMuted,
+                              fontSize: "1rem",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontFamily: "inherit",
+                            }}
+                          >
+                            ⋯
+                          </button>
+                          {openMenuRow === row.log_id && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                right: 8,
+                                top: 36,
+                                zIndex: 50,
+                                background: ui.cardBg,
+                                border: `1px solid ${ui.cardBorder}`,
+                                borderRadius: 8,
+                                boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+                                minWidth: 140,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <button
+                                onClick={() => {
+                                  setOpenMenuRow(null);
+                                  onViewLogs && onViewLogs(row);
+                                }}
+                                style={{
+                                  width: "100%",
+                                  padding: "9px 14px",
+                                  background: "none",
+                                  border: "none",
+                                  textAlign: "left",
+                                  cursor: "pointer",
+                                  fontSize: "0.82rem",
+                                  color: ui.textPrimary,
+                                  fontFamily: "inherit",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.background =
+                                    ui.hoverBg)
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.background = "none")
+                                }
+                              >
+                                📋 View Logs
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -2589,6 +2676,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
   const [showRecentModal, setShowRecentModal] = useState(false);
   const [selectedDtnRecord, setSelectedDtnRecord] = useState(null);
 
+  const [logsModal, setLogsModal] = useState(null);
   // ── NEW: Detail modal state ────────────────────────────────────────────────
   const [detailModal, setDetailModal] = useState(null);
   // detailModal = { metricKey: "received"|"completed"|"on_process", metricLabel: string, dateParams: {} }
@@ -3021,7 +3109,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
             gap: 8,
           }}
         >
-          <div style={{ display: "flex", gap: 8 }}>
+          {/* <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
               <p
                 style={{
@@ -3069,8 +3157,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
             <p style={{ margin: 0, fontSize: "0.73rem", color: "#e02020" }}>
               ⚠ {reportDateErr}
             </p>
-          )}
-          {reportStart && reportEnd && !reportDateErr && (
+          )} */}
+          {/* {reportStart && reportEnd && !reportDateErr && (
             <div
               style={{
                 display: "flex",
@@ -3103,7 +3191,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                 {daysBetween(reportStart, reportEnd)}d
               </span>
             </div>
-          )}
+          )} */}
           <button
             onClick={() =>
               canGenReport &&
@@ -3136,10 +3224,10 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
         </div>
       </Card>
 
-      <TargetsPanel ui={ui} onSelectTarget={setActiveTarget} />
+      {/* <TargetsPanel ui={ui} onSelectTarget={setActiveTarget} /> */}
 
       {/* Next Steps */}
-      <Card ui={ui}>
+      {/* <Card ui={ui}>
         <div
           style={{
             display: "flex",
@@ -3224,7 +3312,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
             </p>
           </div>
         ))}
-      </Card>
+      </Card> */}
     </div>
   );
 
@@ -4334,7 +4422,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
           metricLabel={detailModal.metricLabel}
           dateParams={detailModal.dateParams}
           onClose={() => setDetailModal(null)}
-          onRowClick={handleDetailRowClick} // ← DAGDAG
+          onRowClick={handleDetailRowClick}
+          onViewLogs={(row) => setLogsModal({ dtn: row.dtn })} // ← dagdag
           ui={ui}
         />
       )}
@@ -4365,6 +4454,14 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
           onClose={() => setShowRecentModal(false)}
           onRowClick={handleDetailRowClick}
           ui={ui}
+        />
+      )}
+      {logsModal && (
+        <ApplicationLogsModal
+          record={{ dtn: logsModal.dtn }}
+          onClose={() => setLogsModal(null)}
+          darkMode={darkMode}
+          colors={ui}
         />
       )}
     </>
