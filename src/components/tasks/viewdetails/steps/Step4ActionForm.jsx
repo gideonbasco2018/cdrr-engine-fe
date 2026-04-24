@@ -33,6 +33,7 @@ import {
 } from "../components/FormControls";
 
 import { createDoctrackLogByRsn } from "../../../../api/doctrack";
+import { bulkCreateFromDtns } from "../../../../api/fdaverifportal";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
@@ -115,7 +116,7 @@ const QE_APPROVAL_FIELD_LABELS = {
   typeDocReleased: "Type Document Released",
   attaReleased: "Attachment/s released with authorization",
 
-  cprCond: "CPR Condition",
+  cprCond: "CPR Condition/s Ticked at the back of CPR",
   cprCondRemarks: "CPR Condition Remarks",
   cprCondAddRemarks: "CPR Condition Additional Remarks",
 };
@@ -637,6 +638,19 @@ export function Step4ActionForm({
         await updateUploadReport(record.mainDbId, {
           DB_APP_STATUS: "COMPLETED",
         });
+
+        // ── CPR API — insert to FDA external DB if CPR ──
+        if (record.decisionResult === "For issuance of CPR") {
+          try {
+            const cprResult = await bulkCreateFromDtns(
+              [record.dtn],
+              currentUser?.username ?? null,
+            );
+            console.log("✅ CPR insert result:", cprResult);
+          } catch (cprErr) {
+            console.warn("⚠️ CPR API failed (non-fatal):", cprErr.message);
+          }
+        }
       }
 
       if (onSuccess) await onSuccess();

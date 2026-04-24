@@ -674,6 +674,11 @@ function Step1BasicInfo({ record, colors }) {
             value={cleanValue(record.noSample)}
             colors={colors}
           />
+          <DisplayField
+            label="Expiry Date"
+            value={formatDate(record.expiryDate)}
+            colors={colors}
+          />
         </FieldGrid>
       </VDSection>
 
@@ -908,12 +913,109 @@ function Step2FullDetails({ record, colors }) {
             value={cleanValue(record.mo)}
             colors={colors}
           />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="" colors={colors}>
+        <FieldGrid>
           <DisplayField
-            label="Application Status"
-            value={cleanValue(record.appStatus)}
+            label="Date Deck"
+            value={formatDate(record.dateDeck)}
+            colors={colors}
+          />
+
+          <DisplayField
+            label="CPR Validity"
+            value={formatDate(record.cprValidity)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Date Remarks"
+            value={formatDate(record.dateRemarks)}
             colors={colors}
           />
         </FieldGrid>
+      </VDSection>
+
+      <VDSection title="" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="File"
+            value={cleanValue(record.file)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Decking Schedule"
+            value={formatDate(record.deckingSched)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Evaluator"
+            value={cleanValue(record.eval)}
+            colors={colors}
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="SECPA"
+            value={cleanValue(record.secpa)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Expiry Date"
+            value={formatDate(record.secpaExpDate)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Issued On / Issuance Date"
+            value={formatDate(record.secpaIssuedOn)}
+            colors={colors}
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="📤 Released Information" colors={colors}>
+        <FieldGrid>
+          <DisplayField
+            label="Type of Document Released"
+            value={cleanValue(record.typeDocReleased)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Attachment/s released with authorization"
+            value={cleanValue(record.attaReleased)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Date Released by CDRR"
+            value={formatDate(record.dateReleased)}
+            colors={colors}
+          />
+        </FieldGrid>
+      </VDSection>
+
+      <VDSection title="📜 CPR Conditions" colors={colors}>
+        <DisplayField
+          label="CPR Condition/s Ticked at the back of CPR"
+          value={cleanValue(record.cprCond)}
+          colors={colors}
+          fullWidth
+        />
+        <DisplayField
+          label="CPR Condition Remarks"
+          value={cleanValue(record.cprCondRemarks)}
+          colors={colors}
+          fullWidth
+        />
+        <DisplayField
+          label="CPR Condition Additional Remarks"
+          value={cleanValue(record.cprCondAddRemarks)}
+          colors={colors}
+          fullWidth
+        />
       </VDSection>
 
       <VDSection title="📝 Amendments" colors={colors}>
@@ -934,117 +1036,6 @@ function Step2FullDetails({ record, colors }) {
             colors={colors}
           />
         </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📅 Important Dates" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Date Deck"
-            value={formatDate(record.dateDeck)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Date Released"
-            value={formatDate(record.dateReleased)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Expiry Date"
-            value={formatDate(record.expiryDate)}
-            colors={colors}
-          />
-          <DisplayField
-            label="CPR Validity"
-            value={formatDate(record.cprValidity)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Date Remarks"
-            value={formatDate(record.dateRemarks)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📁 Office / File Information" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="File"
-            value={cleanValue(record.file)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Decking Schedule"
-            value={formatDate(record.deckingSched)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Evaluator"
-            value={cleanValue(record.eval)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="🔐 SECPA" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="SECPA"
-            value={cleanValue(record.secpa)}
-            colors={colors}
-          />
-          <DisplayField
-            label="SECPA Expiry Date"
-            value={formatDate(record.secpaExpDate)}
-            colors={colors}
-          />
-          <DisplayField
-            label="SECPA Issued On"
-            value={formatDate(record.secpaIssuedOn)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📤 Released Information" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Type Doc Released"
-            value={cleanValue(record.typeDocReleased)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Atta Released"
-            value={cleanValue(record.attaReleased)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Date Released"
-            value={formatDate(record.dateReleased)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📜 CPR Conditions" colors={colors}>
-        <DisplayField
-          label="CPR Condition"
-          value={cleanValue(record.cprCond)}
-          colors={colors}
-          fullWidth
-        />
-        <DisplayField
-          label="CPR Condition Remarks"
-          value={cleanValue(record.cprCondRemarks)}
-          colors={colors}
-          fullWidth
-        />
-        <DisplayField
-          label="CPR Condition Additional Remarks"
-          value={cleanValue(record.cprCondAddRemarks)}
-          colors={colors}
-          fullWidth
-        />
       </VDSection>
 
       <VDSection title="📝 Remarks & Notes" colors={colors}>

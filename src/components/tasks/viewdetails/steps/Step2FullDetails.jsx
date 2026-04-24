@@ -171,7 +171,7 @@ export function Step2FullDetails({
               colors={colors}
             />
             <DisplayField
-              label="Date Released"
+              label="Date Released by CDRR"
               value={formatDate(record.dateReleased)}
               colors={colors}
             />
