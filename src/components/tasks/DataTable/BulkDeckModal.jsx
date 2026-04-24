@@ -21,7 +21,7 @@ const ACTION_CONFIG = {
     options: ["For ENOD", "For Approval", "For Disapproval"],
     warning: "Action is required when endorsing to supervisor.",
   },
-  "Checking_Check and return to evaluator": {
+  "Checking_Checked and return to evaluator": {
     options: ["Checked and Return", "Recommended for printing"],
     warning: "Action is required when returning to evaluator.",
   },
