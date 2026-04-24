@@ -1299,6 +1299,7 @@ function DataTable({
           selectedDtns={data
             .filter((r) => selectedRows.includes(r.id))
             .map((r) => r.dtn || r.id)}
+          selectedRecords={data.filter((r) => selectedRows.includes(r.id))} // ← derive directly
           config={bulkDeckConfig}
           colors={colors}
           darkMode={darkMode}

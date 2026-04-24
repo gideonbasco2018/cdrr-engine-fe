@@ -99,6 +99,7 @@ export const mapWorkflowTask = (task, index) => {
     isInPm: m.DB_IS_IN_PM ?? "N/A",
     dbTimelineCitizenCharter: m.DB_TIMELINE_CITIZEN_CHARTER ?? null,
     processingType: m.DB_PROCESSING_TYPE || "Regular",
+    decisionResult: m.DB_DECISION_RESULT ?? null, 
 
     // ── From ApplicationLog (task itself) ──────────────────────────
     applicationStep: task.application_step ?? "N/A",
