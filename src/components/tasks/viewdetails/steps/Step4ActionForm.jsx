@@ -10,7 +10,7 @@ import {
   createFieldAuditLog,
   computeFieldChanges,
 } from "../../../../api/field-audit-logs";
-import { updateUploadReport } from "../../../../api/reports";
+import { updateUploadReport, getUploadReport } from "../../../../api/reports";
 
 import {
   STEP_GROUP_MAP,
@@ -639,17 +639,22 @@ export function Step4ActionForm({
           DB_APP_STATUS: "COMPLETED",
         });
 
-        // ── CPR API — insert to FDA external DB if CPR ──
-        if (record.decisionResult === "For issuance of CPR") {
-          try {
+        // ── CPR API — fetch fresh record para makuha ang DB_DECISION_RESULT ──
+        try {
+          const fresh = await getUploadReport(record.mainDbId);
+          console.log(
+            "🔍 Fresh DB_DECISION_RESULT:",
+            fresh?.DB_DECISION_RESULT,
+          );
+          if (fresh?.DB_DECISION_RESULT === "For issuance of CPR") {
             const cprResult = await bulkCreateFromDtns(
               [record.dtn],
               currentUser?.username ?? null,
             );
             console.log("✅ CPR insert result:", cprResult);
-          } catch (cprErr) {
-            console.warn("⚠️ CPR API failed (non-fatal):", cprErr.message);
           }
+        } catch (cprErr) {
+          console.warn("⚠️ CPR API failed (non-fatal):", cprErr.message);
         }
       }
 
