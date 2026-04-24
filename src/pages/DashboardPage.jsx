@@ -3021,7 +3021,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
             gap: 8,
           }}
         >
-          <div style={{ display: "flex", gap: 8 }}>
+          {/* <div style={{ display: "flex", gap: 8 }}>
             <div style={{ flex: 1 }}>
               <p
                 style={{
@@ -3069,8 +3069,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
             <p style={{ margin: 0, fontSize: "0.73rem", color: "#e02020" }}>
               ⚠ {reportDateErr}
             </p>
-          )}
-          {reportStart && reportEnd && !reportDateErr && (
+          )} */}
+          {/* {reportStart && reportEnd && !reportDateErr && (
             <div
               style={{
                 display: "flex",
@@ -3103,7 +3103,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                 {daysBetween(reportStart, reportEnd)}d
               </span>
             </div>
-          )}
+          )} */}
           <button
             onClick={() =>
               canGenReport &&
@@ -3136,10 +3136,10 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
         </div>
       </Card>
 
-      <TargetsPanel ui={ui} onSelectTarget={setActiveTarget} />
+      {/* <TargetsPanel ui={ui} onSelectTarget={setActiveTarget} /> */}
 
       {/* Next Steps */}
-      <Card ui={ui}>
+      {/* <Card ui={ui}>
         <div
           style={{
             display: "flex",
@@ -3224,7 +3224,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
             </p>
           </div>
         ))}
-      </Card>
+      </Card> */}
     </div>
   );
 
