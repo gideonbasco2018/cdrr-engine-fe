@@ -209,7 +209,7 @@ function DataTable({
 
     const isReturnDecision =
       decision === "Return to Evaluator" ||
-      decision === "Check and return to evaluator";
+      decision === "Checked and return to evaluator";
 
     const resolvedNextStep = isReturnDecision
       ? "Quality Evaluation"
