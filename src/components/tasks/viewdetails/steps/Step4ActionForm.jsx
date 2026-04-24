@@ -96,9 +96,9 @@ const QE_APPROVAL_FIELD_KEYS = [
   "secpaExpDate",
   "secpaIssuedOn",
   "cprValidity",
+  "dateReleased",
   "typeDocReleased",
   "attaReleased",
-  "dateReleased",
   // "cprCond",
   // "cprCondRemarks",
   // "cprCondAddRemarks",
@@ -107,12 +107,14 @@ const QE_APPROVAL_FIELD_KEYS = [
 const QE_APPROVAL_FIELD_LABELS = {
   regNo: "Registration No.",
   secpa: "SECPA",
-  secpaExpDate: "SECPA Expiry Date",
-  secpaIssuedOn: "SECPA Issued On",
+  secpaExpDate: "Expiry Date",
+  secpaIssuedOn: "Issued On / Issuance Date",
   cprValidity: "CPR Validity",
-  typeDocReleased: "Type Doc Released",
-  attaReleased: "Atta Released",
-  dateReleased: "Date Released",
+
+  dateReleased: "Date Released by CDRR",
+  typeDocReleased: "Type Document Released",
+  attaReleased: "Attachment/s released with authorization",
+
   cprCond: "CPR Condition",
   cprCondRemarks: "CPR Condition Remarks",
   cprCondAddRemarks: "CPR Condition Additional Remarks",
@@ -138,9 +140,23 @@ const QE_APPROVAL_REQUIRED_FIELDS = new Set([
   "secpaIssuedOn",
   "cprValidity",
   "typeDocReleased",
+  "dateReleased",
   // "attaReleased" — not required
   // "dateReleased" — not required
 ]);
+
+const TYPE_DOC_OPTIONS = [
+  "CPR",
+  "Certificate",
+  "Letter",
+  "LOD",
+  "COPP",
+  "CFS",
+  "GLE",
+  "Letter for non acceptance",
+  "Product classification",
+  "Others",
+];
 
 /* ─── Component ───────────────────────────────────────────────── */
 export function Step4ActionForm({
@@ -187,6 +203,24 @@ export function Step4ActionForm({
       init[k] = record[k] ?? "";
     });
     return init;
+  });
+
+  const [typeDocIsOthers, setTypeDocIsOthers] = useState(() => {
+    const val = record["typeDocReleased"] ?? "";
+    return (
+      val !== "" &&
+      ![
+        "CPR",
+        "Certificate",
+        "Letter",
+        "LOD",
+        "COPP",
+        "CFS",
+        "GLE",
+        "Letter for non acceptance",
+        "Product classification",
+      ].includes(val)
+    );
   });
 
   const handleApprovalField = (key, val) =>
@@ -895,6 +929,84 @@ export function Step4ActionForm({
             {QE_APPROVAL_FIELD_KEYS.map((key) => {
               const isDate = QE_APPROVAL_DATE_FIELDS.has(key);
               const isMultiline = QE_APPROVAL_MULTILINE_FIELDS.has(key);
+
+              // IPALIT:
+              if (key === "typeDocReleased") {
+                const selectVal = typeDocIsOthers
+                  ? "Others"
+                  : approvalFields[key];
+
+                return (
+                  <div key={key}>
+                    <label style={labelStyle}>
+                      {QE_APPROVAL_FIELD_LABELS[key]}
+                      {QE_APPROVAL_REQUIRED_FIELDS.has(key) && (
+                        <span style={{ color: "#ef4444" }}> *</span>
+                      )}
+                    </label>
+                    {isQEApprovalRequired &&
+                      QE_APPROVAL_REQUIRED_FIELDS.has(key) &&
+                      !approvalFields[key]?.toString().trim() && (
+                        <p
+                          style={{
+                            fontSize: "0.65rem",
+                            color: "#ef4444",
+                            margin: "0.2rem 0 0",
+                          }}
+                        >
+                          ⚠️ Required
+                        </p>
+                      )}
+                    <select
+                      value={selectVal}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "Others") {
+                          setTypeDocIsOthers(true);
+                          handleApprovalField(key, ""); // clear para makapag-type
+                        } else {
+                          setTypeDocIsOthers(false);
+                          handleApprovalField(key, val);
+                        }
+                      }}
+                      style={{ ...inp, cursor: "pointer" }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = "#2196F3";
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = colors.inputBorder;
+                      }}
+                    >
+                      <option value="">Select type...</option>
+                      {TYPE_DOC_OPTIONS.map((o) => (
+                        <option key={o} value={o}>
+                          {o}
+                        </option>
+                      ))}
+                    </select>
+
+                    {typeDocIsOthers && (
+                      <input
+                        type="text"
+                        value={approvalFields[key]}
+                        onChange={(e) =>
+                          handleApprovalField(key, e.target.value)
+                        }
+                        placeholder="Please specify..."
+                        style={{ ...inp, marginTop: "0.4rem" }}
+                        autoFocus
+                        onFocus={(e) => {
+                          e.target.style.borderColor = "#2196F3";
+                        }}
+                        onBlur={(e) => {
+                          e.target.style.borderColor = colors.inputBorder;
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <div key={key}>
                   <label style={labelStyle}>
