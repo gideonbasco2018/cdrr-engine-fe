@@ -28,6 +28,7 @@ import {
   todayStr,
   countWorkingDays,
 } from "./constants";
+import { BulkCompleteModal } from "./BulkCompleteModal";
 
 /* ================================================================== */
 function DataTable({
@@ -64,6 +65,7 @@ function DataTable({
   const [confirmReceive, setConfirmReceive] = useState(false);
   const [hoveredRowId, setHoveredRowId] = useState(null);
   const [showBulkDeck, setShowBulkDeck] = useState(false);
+  const [showBulkComplete, setShowBulkComplete] = useState(false);
 
   const isComplianceTab = activeTab === "Compliance";
   const isRecordTab = activeTab === "Record";
@@ -372,6 +374,47 @@ function DataTable({
     return { success, failed };
   };
 
+  const handleBulkComplete = async ({ remarks, reason }) => {
+    const seen = new Set();
+    const selectedData = data
+      .filter((r) => selectedRows.includes(r.id))
+      .filter((r) => {
+        if (seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+      });
+
+    let success = 0,
+      failed = 0;
+    const now = new Date();
+    const formattedDateTime = new Date(
+      now.getTime() + 8 * 60 * 60 * 1000,
+    ).toISOString();
+
+    for (const row of selectedData) {
+      try {
+        const { id: logId, mainDbId } = row;
+
+        await updateApplicationLog(logId, {
+          application_status: "COMPLETED",
+          application_decision: reason,
+          application_remarks: remarks || "",
+          action_type: "Mark as Completed",
+          accomplished_date: formattedDateTime,
+          del_last_index: 0,
+          del_thread: "Close",
+        });
+
+        await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
+        success++;
+      } catch (e) {
+        console.error(`Bulk complete failed for row id ${row.id}:`, e);
+        failed++;
+      }
+    }
+    return { success, failed };
+  };
+
   /* ── Transmittal ── */
   const handleGenerateTransmittal = async () => {
     if (!selectedRows.length) return;
@@ -542,6 +585,45 @@ function DataTable({
                 }}
               >
                 <span>📄</span>Generate Transmittal
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: "1.25rem",
+                    height: "1.25rem",
+                    padding: "0 0.3rem",
+                    background: "rgba(255,255,255,0.25)",
+                    borderRadius: 999,
+                    fontSize: "0.7rem",
+                    fontWeight: 800,
+                  }}
+                >
+                  {selectedRows.length}
+                </span>
+              </button>
+            )}
+
+            {/* Mark as Completed — lahat ng tab, may selected rows */}
+            {selectedRows.length > 0 && (
+              <button
+                onClick={() => setShowBulkComplete(true)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  padding: "0.4rem 1rem",
+                  background: "linear-gradient(135deg,#10b981,#059669)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
+                }}
+              >
+                <span>✅</span>Mark as Completed
                 <span
                   style={{
                     display: "inline-flex",
@@ -1310,6 +1392,25 @@ function DataTable({
             if (onClearSelections) onClearSelections();
             if (onRefresh) await onRefresh();
             setShowBulkDeck(false);
+          }}
+        />
+      )}
+
+      {/* Bulk Complete Modal */}
+      {showBulkComplete && (
+        <BulkCompleteModal
+          selectedCount={selectedRows.length}
+          selectedDtns={data
+            .filter((r) => selectedRows.includes(r.id))
+            .map((r) => r.dtn || r.id)}
+          colors={colors}
+          darkMode={darkMode}
+          onClose={() => setShowBulkComplete(false)}
+          onConfirm={handleBulkComplete}
+          onDone={async () => {
+            if (onClearSelections) onClearSelections();
+            if (onRefresh) await onRefresh();
+            setShowBulkComplete(false);
           }}
         />
       )}
