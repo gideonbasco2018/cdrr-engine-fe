@@ -123,6 +123,42 @@ const FIELD_LABEL_MAP = {
   DB_REMARKS_1: "General Remarks",
 };
 
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+const formatDateDisplay = (isoValue) => {
+  if (!isoValue) return "";
+  const [year, month, day] = isoValue.split("-");
+  if (!year || !month || !day) return isoValue;
+  const monthName = MONTHS[parseInt(month, 10) - 1];
+  return `${day} ${monthName} ${year}`; // → "02 Jun 2005"
+};
+function DateInput({ value, onChange, disabled, style, onFocus, onBlur }) {
+  return (
+    <input
+      type="date"
+      lang="en-GB"
+      value={value || ""}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      style={style}
+      onFocus={onFocus}
+      onBlur={onBlur}
+    />
+  );
+}
 /* ================================================================== */
 /*  Shared Sub-components                                               */
 /* ================================================================== */
@@ -171,6 +207,28 @@ function FormField({
   readOnly = false,
   fullWidth = false,
 }) {
+  const sharedInputStyle = {
+    padding: "0.45rem 0.7rem",
+    background: readOnly ? (darkMode ? "#0a0a0a" : "#f5f5f5") : colors.inputBg,
+    border: `1px solid ${colors.inputBorder}`,
+    borderRadius: "6px",
+    color: readOnly ? colors.textTertiary : colors.textPrimary,
+    fontSize: "0.82rem",
+    outline: "none",
+    minHeight: "2rem",
+    transition: "border-color 0.2s ease",
+    cursor: readOnly ? "not-allowed" : "text",
+    width: "100%",
+    boxSizing: "border-box",
+  };
+
+  const handleFocus = (e) => {
+    if (!readOnly) e.currentTarget.style.borderColor = "#2196F3";
+  };
+  const handleBlur = (e) => {
+    if (!readOnly) e.currentTarget.style.borderColor = colors.inputBorder;
+  };
+
   return (
     <div
       style={{
@@ -202,37 +260,31 @@ function FormField({
           </span>
         )}
       </label>
-      {type === "textarea" ? (
+
+      {/* ← BAGO: date fields */}
+      {type === "date" ? (
+        <DateInput
+          value={value}
+          onChange={onChange}
+          disabled={readOnly}
+          style={sharedInputStyle}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+        />
+      ) : type === "textarea" ? (
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={readOnly}
           rows={3}
           style={{
-            padding: "0.45rem 0.7rem",
-            background: readOnly
-              ? darkMode
-                ? "#0a0a0a"
-                : "#f5f5f5"
-              : colors.inputBg,
-            border: `1px solid ${colors.inputBorder}`,
-            borderRadius: "6px",
-            color: readOnly ? colors.textTertiary : colors.textPrimary,
-            fontSize: "0.82rem",
-            outline: "none",
+            ...sharedInputStyle,
             resize: "vertical",
             fontFamily: "inherit",
-            transition: "border-color 0.2s ease",
-            cursor: readOnly ? "not-allowed" : "text",
             minHeight: "3rem",
           }}
-          onFocus={(e) => {
-            if (!readOnly) e.currentTarget.style.borderColor = "#2196F3";
-          }}
-          onBlur={(e) => {
-            if (!readOnly)
-              e.currentTarget.style.borderColor = colors.inputBorder;
-          }}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
         />
       ) : (
         <input
@@ -240,29 +292,9 @@ function FormField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled={readOnly}
-          style={{
-            padding: "0.45rem 0.7rem",
-            background: readOnly
-              ? darkMode
-                ? "#0a0a0a"
-                : "#f5f5f5"
-              : colors.inputBg,
-            border: `1px solid ${colors.inputBorder}`,
-            borderRadius: "6px",
-            color: readOnly ? colors.textTertiary : colors.textPrimary,
-            fontSize: "0.82rem",
-            outline: "none",
-            minHeight: "2rem",
-            transition: "border-color 0.2s ease",
-            cursor: readOnly ? "not-allowed" : "text",
-          }}
-          onFocus={(e) => {
-            if (!readOnly) e.currentTarget.style.borderColor = "#2196F3";
-          }}
-          onBlur={(e) => {
-            if (!readOnly)
-              e.currentTarget.style.borderColor = colors.inputBorder;
-          }}
+          style={sharedInputStyle}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
         />
       )}
     </div>
@@ -320,6 +352,19 @@ function EditCard({
   fullWidth = false,
   type = "text",
 }) {
+  const cardInputStyle = {
+    fontSize: "0.85rem",
+    fontWeight: "600",
+    color: colors.textPrimary,
+    background: "transparent",
+    border: "none",
+    borderBottom: `1px dashed ${colors.cardBorder}`,
+    outline: "none",
+    padding: "0.1rem 0",
+    width: "100%",
+    transition: "border-color 0.2s",
+  };
+
   return (
     <div
       style={{
@@ -345,27 +390,30 @@ function EditCard({
       >
         {icon} {label}
       </span>
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(field, e.target.value)}
-        style={{
-          fontSize: "0.85rem",
-          fontWeight: "600",
-          color: colors.textPrimary,
-          background: "transparent",
-          border: "none",
-          borderBottom: `1px dashed ${colors.cardBorder}`,
-          outline: "none",
-          padding: "0.1rem 0",
-          width: "100%",
-          transition: "border-color 0.2s",
-        }}
-        onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#2196F3")}
-        onBlur={(e) =>
-          (e.currentTarget.style.borderBottomColor = colors.cardBorder)
-        }
-      />
+
+      {/* ← BAGO: date fields */}
+      {type === "date" ? (
+        <DateInput
+          value={value}
+          onChange={(v) => onChange(field, v)}
+          style={cardInputStyle}
+          onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#2196F3")}
+          onBlur={(e) =>
+            (e.currentTarget.style.borderBottomColor = colors.cardBorder)
+          }
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(field, e.target.value)}
+          style={cardInputStyle}
+          onFocus={(e) => (e.currentTarget.style.borderBottomColor = "#2196F3")}
+          onBlur={(e) =>
+            (e.currentTarget.style.borderBottomColor = colors.cardBorder)
+          }
+        />
+      )}
     </div>
   );
 }
