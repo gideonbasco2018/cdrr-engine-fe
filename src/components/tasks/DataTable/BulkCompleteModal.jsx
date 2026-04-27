@@ -317,6 +317,7 @@ export function BulkCompleteModal({
                       "The task will be marked as COMPLETED and can no longer be modified.",
                       "The record will be removed from your active task list.",
                       "The action will be recorded in the audit log for transparency.",
+                      "No further action needed — this is the final step. The task will be permanently closed.",
                     ].map((note, i) => (
                       <li
                         key={i}

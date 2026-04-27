@@ -38,7 +38,7 @@ import { bulkCreateFromDtns } from "../../../../api/fdaverifportal";
 /* ─── helpers ─────────────────────────────────────────────────── */
 const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
   decision === "Return to Evaluator" ||
-  decision === "Checked and return to evaluator";
+  decision === "Checked and returned to evaluator";
 
 /* Group ID for Decision Authority options (QA) */
 const LRD_AUTHORITY_GROUP_ID = 6;
@@ -56,8 +56,8 @@ const ACTION_CONFIG = {
     options: ["For ENOD", "For Approval", "For Disapproval"],
     warning: "Action is required when endorsing to supervisor.",
   },
-  "Checking_Checked and return to evaluator": {
-    options: ["Checked and Return", "Recommended for printing"],
+  "Checking_Checked and returned to evaluator": {
+    options: ["Checked and Returned", "Recommended for printing"],
     warning: "Action is required when returning to evaluator.",
   },
   "Supervisor_Endorse to QA Admin": {

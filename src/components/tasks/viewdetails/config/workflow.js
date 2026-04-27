@@ -13,7 +13,7 @@ export const WORKFLOW = {
     "Endorse to Checker": "Checking",
   },
   Checking: {
-    "Checked and return to evaluator": "Quality Evaluation",
+    "Checked and returned to evaluator": "Quality Evaluation",
   },
   Supervisor: {
     "Endorse to QA Admin": "QA Admin",
@@ -56,7 +56,7 @@ export const STEP_DECISIONS = {
     "Draft Recommendation",
   ],
   Compliance: ["Endorse to Checker", "For Compliance"],
-  Checking: ["Checked and return to evaluator"],
+  Checking: ["Checked and returned to evaluator"],
   Supervisor: ["Endorse to QA Admin", "Return to Evaluator"],
   "QA Admin": [
     "Endorse to LRD Chief Admin",
@@ -72,7 +72,7 @@ export const DECISION_DOCTRACK = {
   "Endorse to Checker": "Forwarded to Senior Evaluator for checking",
   "Endorse to Supervisor":
     "Forwarded to Supervisor for review and signing of the final recommendation",
-  "Checked and return to evaluator": "Return to evaluator for the result of recommendation",
+  "Checked and returned to evaluator": "Return to evaluator for the result of recommendation",
   "Endorse to QA Admin": "Forwarded to LRD Chief for signing",
   "Endorse to LRD Chief Admin": "Checked and Forwarded to LRD Admin",
   "Return to Evaluator": "Return to Evaluator for Clarification",
