@@ -1,11 +1,9 @@
 import axios from "axios";
 
-// Create axios instance with base configuration
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   headers: {
     'Accept': 'application/json',
-    // Don't set Content-Type here - let each request set its own
   },
 });
 
@@ -18,33 +16,38 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Set default Content-Type to JSON if not already set
     if (!config.headers['Content-Type']) {
       config.headers['Content-Type'] = 'application/json';
     }
     
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor - Handle errors globally
+// Response interceptor - Handle token refresh + errors
 api.interceptors.response.use(
   (response) => {
+    // ✅ BAGO: Kunin ang bagong token kung may nakapasok sa header
+    const newToken = response.headers['x-new-token'];
+    if (newToken) {
+      // I-save sa kung saan nakalagay ang lumang token
+      if (localStorage.getItem('access_token')) {
+        localStorage.setItem('access_token', newToken);
+      } else {
+        sessionStorage.setItem('access_token', newToken);
+      }
+    }
+
     return response;
   },
   (error) => {
-    // Handle 401 Unauthorized errors
     if (error.response?.status === 401) {
-      // Clear tokens and redirect to login
       localStorage.removeItem('access_token');
       sessionStorage.removeItem('access_token');
       localStorage.removeItem('user');
       sessionStorage.removeItem('user');
       
-      // Redirect to login page if not already there
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }
