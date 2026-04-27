@@ -6,6 +6,7 @@ export const WORKFLOW = {
     "Endorse to Checker": "Checking",
     "For Compliance": "Compliance",
     "Endorse to Supervisor": "Supervisor",
+    "Draft Recommendation": "Checking",
   },
   Compliance: {
     "For Compliance": "Compliance",
@@ -52,6 +53,7 @@ export const STEP_DECISIONS = {
     "Endorse to Checker",
     "Endorse to Supervisor",
     "For Compliance",
+    "Draft Recommendation",
   ],
   Compliance: ["Endorse to Checker", "For Compliance"],
   Checking: ["Checked and return to evaluator"],
@@ -79,6 +81,7 @@ export const DECISION_DOCTRACK = {
   "Endorse to OD-Releasing": "Received by CDRR-OD",
   "Scanned and Endorse to Releasing Officer": "", // dynamic — date injected at runtime
   "Released": "Scanned and stamp, Forwarded to AFO Records",
+  "Draft Recommendation": "Forwarded draft recommendation to checker for cross-evaluation",  
 };
 
 export const EDITABLE_STEPS = [
