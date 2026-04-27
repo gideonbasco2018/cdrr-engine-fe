@@ -338,12 +338,21 @@ function TaskPage({ darkMode }) {
     [subTabData, filters],
   );
 
-  const handleSelectAll = () =>
-    setSelectedRows(
-      selectedRows.length === filteredData.length
-        ? []
-        : filteredData.map((r) => r.id),
+  // persistent, hindi nire-reset ang ibang selections
+  const handleSelectAll = () => {
+    const filteredIds = filteredData.map((r) => r.id);
+    const allFilteredSelected = filteredIds.every((id) =>
+      selectedRows.includes(id),
     );
+
+    if (allFilteredSelected) {
+      // I-deselect lang ang nasa current filtered view
+      setSelectedRows((prev) => prev.filter((id) => !filteredIds.includes(id)));
+    } else {
+      // I-add ang lahat ng nasa current filtered view, keep ang dati
+      setSelectedRows((prev) => [...new Set([...prev, ...filteredIds])]);
+    }
+  };
 
   const handleSelectRow = (id) =>
     setSelectedRows((prev) =>
@@ -390,7 +399,6 @@ function TaskPage({ darkMode }) {
         filters={filters}
         onFiltersChange={(f) => {
           setFilters(f);
-          setSelectedRows([]);
         }}
         colors={colors}
         darkMode={darkMode}
@@ -592,6 +600,51 @@ function TaskPage({ darkMode }) {
               }}
             >
               Clear all
+            </button>
+          </div>
+        )}
+
+        {/* ── Persistent selection indicator ── */}
+        {selectedRows.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.5rem 0.85rem",
+              background: darkMode
+                ? "rgba(33,150,243,0.1)"
+                : "rgba(33,150,243,0.06)",
+              border: "1px solid rgba(33,150,243,0.25)",
+              borderRadius: 8,
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{ fontSize: "0.78rem", color: "#2196F3", fontWeight: 700 }}
+            >
+              ✔ {selectedRows.length} record{selectedRows.length > 1 ? "s" : ""}{" "}
+              selected
+              {selectedRows.length !== filteredData.length && (
+                <span style={{ fontWeight: 400, color: colors.textTertiary }}>
+                  {" "}
+                  (across all filters)
+                </span>
+              )}
+            </span>
+            <button
+              onClick={() => setSelectedRows([])}
+              style={{
+                fontSize: "0.72rem",
+                color: "#ef4444",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "0.15rem 0.4rem",
+                fontWeight: 600,
+              }}
+            >
+              ✕ Clear selection
             </button>
           </div>
         )}
