@@ -378,6 +378,7 @@ function DeckingPage({ darkMode }) {
   const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({});
+  // ✅ selectedRows persists across search/page changes — cleared only on tab switch
   const [selectedRows, setSelectedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -561,7 +562,6 @@ function DeckingPage({ darkMode }) {
       search: searchTerm,
       sortBy,
       sortOrder,
-      // ✅ spread all filter params (general + supply chain)
       ...buildFilterParams(filters),
     };
     const statusFilter = getStatusFilter();
@@ -589,7 +589,6 @@ function DeckingPage({ darkMode }) {
           status: getStatusFilter(),
           sortBy,
           sortOrder,
-          // ✅ spread all filter params (general + supply chain)
           ...buildFilterParams(filters),
         };
         if (subTab !== null)
@@ -747,10 +746,8 @@ function DeckingPage({ darkMode }) {
         percent: 0,
       });
 
-      // Phase 1: actual file transfer (0 → 90%)
       let currentPercent = 0;
       const result = await uploadExcelFile(file, username, (percent) => {
-        // Cap sa 90% lang — tapos server processing pa
         currentPercent = Math.min(Math.round(percent * 0.9), 90);
         setUploadProgress({
           message: `Uploading as: ${username}...`,
@@ -758,20 +755,17 @@ function DeckingPage({ darkMode }) {
         });
       });
 
-      // Phase 2: server is processing — slow increment 90% → 99%
       const processingInterval = setInterval(() => {
         currentPercent = currentPercent < 99 ? currentPercent + 1 : 99;
         setUploadProgress({
           message: `Processing rows, please wait...`,
           percent: currentPercent,
         });
-      }, 300); // bawat 300ms, +1%
+      }, 300);
 
-      // Wait for server response (result is already resolved above)
       clearInterval(processingInterval);
       setUploadProgress({ message: `Finalizing...`, percent: 100 });
 
-      // Short pause para makita ng user na 100% bago mag-disappear
       await new Promise((resolve) => setTimeout(resolve, 500));
       setUploadProgress(null);
 
@@ -814,32 +808,49 @@ function DeckingPage({ darkMode }) {
     }
   };
 
-  const handleSelectAll = () =>
-    selectedRows.length === filteredData.length
-      ? setSelectedRows([])
-      : setSelectedRows(filteredData.map((row) => row.id));
+  // ✅ Select all / deselect all for CURRENT PAGE only — cross-page selections are preserved
+  const handleSelectAll = () => {
+    const currentPageIds = filteredData.map((row) => row.id);
+    const allCurrentPageSelected = currentPageIds.every((id) =>
+      selectedRows.includes(id),
+    );
+    if (allCurrentPageSelected) {
+      // Deselect only current page rows
+      setSelectedRows(
+        selectedRows.filter((id) => !currentPageIds.includes(id)),
+      );
+    } else {
+      // Add current page rows to existing selection (no duplicates)
+      const merged = [...new Set([...selectedRows, ...currentPageIds])];
+      setSelectedRows(merged);
+    }
+  };
+
   const handleSelectRow = (id) =>
     selectedRows.includes(id)
       ? setSelectedRows(selectedRows.filter((r) => r !== id))
       : setSelectedRows([...selectedRows, id]);
+
   const clearSelections = () => setSelectedRows([]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
-      setSelectedRows([]);
+      // ✅ Do NOT clear selectedRows — preserve cross-page/search selections
     }
   };
+
   const handleRowsPerPageChange = (e) => {
     const n = Math.min(Number(e.target.value), 100);
     setRowsPerPage(n);
     setCurrentPage(1);
-    setSelectedRows([]);
+    // ✅ Do NOT clear selectedRows — preserve cross-page/search selections
   };
+
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
-    setSelectedRows([]);
+    setSelectedRows([]); // ✅ Clear only on tab switch (genuinely different dataset)
     setSubTab(null);
     setPrescriptionTab(null);
     setAppStatusTab(null);
@@ -848,25 +859,22 @@ function DeckingPage({ darkMode }) {
   const handleSubTabChange = (value) => {
     setSubTab(value);
     setCurrentPage(1);
-    setSelectedRows([]);
     setPrescriptionTab(null);
     setAppStatusTab(null);
+    // ✅ No selectedRows clear — user may have selections they want to keep
   };
   const handlePrescriptionTabChange = (value) => {
     setPrescriptionTab(value);
     setCurrentPage(1);
-    setSelectedRows([]);
     setAppStatusTab(null);
   };
   const handleAppStatusTabChange = (value) => {
     setAppStatusTab(value);
     setCurrentPage(1);
-    setSelectedRows([]);
   };
   const handleProcessingTypeTabChange = (value) => {
     setProcessingTypeTab(value);
     setCurrentPage(1);
-    setSelectedRows([]);
   };
   const handleSort = (dbKey, order) => {
     setSortBy(dbKey);
@@ -879,7 +887,6 @@ function DeckingPage({ darkMode }) {
     setAppStatusTab(null);
     setProcessingTypeTab(null);
     setCurrentPage(1);
-    setSelectedRows([]);
   };
   const handleRemoveFilter = (key) => {
     if (key === "subTab") {
@@ -894,7 +901,6 @@ function DeckingPage({ darkMode }) {
     if (key === "appStatusTab") setAppStatusTab(null);
     if (key === "processingTypeTab") setProcessingTypeTab(null);
     setCurrentPage(1);
-    setSelectedRows([]);
   };
 
   const handleExport = async () => {
@@ -1265,6 +1271,43 @@ function DeckingPage({ darkMode }) {
             <div
               style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
             >
+              {/* ✅ Selection badge — shows total selected across all pages/searches */}
+              {selectedRows.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.4rem 0.75rem",
+                    background: "rgba(33,150,243,0.1)",
+                    border: "1px solid rgba(33,150,243,0.35)",
+                    borderRadius: "8px",
+                    fontSize: "0.75rem",
+                    color: "#2196F3",
+                    fontWeight: "600",
+                  }}
+                >
+                  <span>✓ {selectedRows.length} selected</span>
+                  <button
+                    onClick={clearSelections}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#2196F3",
+                      fontSize: "0.7rem",
+                      padding: 0,
+                      opacity: 0.7,
+                      lineHeight: 1,
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
+                    onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.7)}
+                    title="Clear all selections"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
               <button
                 onClick={handleExport}
                 disabled={exporting || totalRecords === 0}
