@@ -88,6 +88,10 @@ const ACTION_CONFIG = {
     options: ["Release to record"],
     warning: "Action is required when releasing.",
   },
+  "Quality Evaluation_Draft Recommendation": {
+    options: ["For cross-evaluation"],
+    warning: "Action is required for draft recommendation.",
+  },
 };
 
 /* Fields shown in Step 4  "For Approval" action */
