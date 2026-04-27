@@ -537,8 +537,8 @@ export function Step1BasicInfo({
           {field("Shelf Life", "prodDistriShelfLife")}
           {field("Pharma Category", "prodPharmaCat")}
           {field("Product Category", "prodCat")}
-          {field("Pharma Prod. Cat.", "pharmaProdCat")}
-          {field("Pharma Prod. Label", "pharmaProdCatLabel")}
+          {/* {field("Pharma Prod. Cat.", "pharmaProdCat")} */}
+          {/* {field("Pharma Prod. Label", "pharmaProdCatLabel")} */}
           {field("File", "file")}
         </FieldGrid>
       </VDSection>
@@ -548,7 +548,7 @@ export function Step1BasicInfo({
           {field("Packaging", "packaging")}
           {field("Suggested Retail Price", "suggRp")}
           {field("No. of Samples", "noSample")}
-          {field("Expiry Date", "expiryDate")}
+          {/* {field("Expiry Date", "expiryDate")} */}
         </FieldGrid>
       </VDSection>
 
