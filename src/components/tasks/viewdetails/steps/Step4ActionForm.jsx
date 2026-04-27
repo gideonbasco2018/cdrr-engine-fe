@@ -96,8 +96,8 @@ const QE_APPROVAL_FIELD_KEYS = [
   "secpa",
   "secpaExpDate",
   "secpaIssuedOn",
-  "cprValidity",
-  "dateReleased",
+  // "cprValidity",
+  // "dateReleased",
   "typeDocReleased",
   "attaReleased",
   // "cprCond",
@@ -110,9 +110,9 @@ const QE_APPROVAL_FIELD_LABELS = {
   secpa: "SECPA",
   secpaExpDate: "Expiry Date",
   secpaIssuedOn: "Issued On / Issuance Date",
-  cprValidity: "CPR Validity",
+  // cprValidity: "CPR Validity",
 
-  dateReleased: "Date Released by CDRR",
+  // dateReleased: "Date Released by CDRR",
   typeDocReleased: "Type Document Released",
   attaReleased: "Attachment/s released with authorization",
 
@@ -124,8 +124,8 @@ const QE_APPROVAL_FIELD_LABELS = {
 const QE_APPROVAL_DATE_FIELDS = new Set([
   "secpaExpDate",
   "secpaIssuedOn",
-  "cprValidity",
-  "dateReleased",
+  // "cprValidity",
+  // "dateReleased",
 ]);
 
 const QE_APPROVAL_MULTILINE_FIELDS = new Set([
@@ -139,9 +139,9 @@ const QE_APPROVAL_REQUIRED_FIELDS = new Set([
   "secpa",
   "secpaExpDate",
   "secpaIssuedOn",
-  "cprValidity",
+  // "cprValidity",
   "typeDocReleased",
-  "dateReleased",
+  // "dateReleased",
   // "attaReleased" — not required
   // "dateReleased" — not required
 ]);
