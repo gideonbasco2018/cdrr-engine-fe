@@ -967,7 +967,7 @@ export function Step4ActionForm({
                     <label style={labelStyle}>
                       {QE_APPROVAL_FIELD_LABELS[key]}
                       {QE_APPROVAL_REQUIRED_FIELDS.has(key) && (
-                        <span style={{ color: "#ef4444" }}> *</span>
+                        <span style={{ color: "#ef4444" }}></span>
                       )}
                     </label>
                     {isQEApprovalRequired &&
@@ -1038,7 +1038,7 @@ export function Step4ActionForm({
                   <label style={labelStyle}>
                     {QE_APPROVAL_FIELD_LABELS[key]}
                     {QE_APPROVAL_REQUIRED_FIELDS.has(key) && (
-                      <span style={{ color: "#ef4444" }}> *</span>
+                      <span style={{ color: "#ef4444" }}></span>
                     )}
                   </label>
                   {isQEApprovalRequired &&
