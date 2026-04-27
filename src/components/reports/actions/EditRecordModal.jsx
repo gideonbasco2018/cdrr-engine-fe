@@ -1137,6 +1137,15 @@ function Step1BasicInfo({ formData, handleChange, colors, darkMode }) {
             colors={colors}
             darkMode={darkMode}
           />
+
+          <FormField
+            label="Expiry Date"
+            value={formData.DB_EXPIRY_DATE}
+            onChange={(v) => handleChange("DB_EXPIRY_DATE", v)}
+            type="date"
+            colors={colors}
+            darkMode={darkMode}
+          />
         </FieldGrid>
       </ERSection>
 
@@ -1456,43 +1465,10 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
             colors={colors}
             darkMode={darkMode}
           />
-          <FormField
-            label="Application Status"
-            value={formData.DB_APP_STATUS}
-            onChange={(v) => handleChange("DB_APP_STATUS", v)}
-            colors={colors}
-            darkMode={darkMode}
-          />
         </FieldGrid>
       </ERSection>
 
-      <ERSection title="📝 Amendments" colors={colors}>
-        <FieldGrid>
-          <FormField
-            label="Amendment 1"
-            value={formData.DB_AMMEND_1}
-            onChange={(v) => handleChange("DB_AMMEND_1", v)}
-            colors={colors}
-            darkMode={darkMode}
-          />
-          <FormField
-            label="Amendment 2"
-            value={formData.DB_AMMEND_2}
-            onChange={(v) => handleChange("DB_AMMEND_2", v)}
-            colors={colors}
-            darkMode={darkMode}
-          />
-          <FormField
-            label="Amendment 3"
-            value={formData.DB_AMMEND_3}
-            onChange={(v) => handleChange("DB_AMMEND_3", v)}
-            colors={colors}
-            darkMode={darkMode}
-          />
-        </FieldGrid>
-      </ERSection>
-
-      <ERSection title="📅 Important Dates" colors={colors}>
+      <ERSection title="" colors={colors}>
         <FieldGrid>
           <FormField
             label="Date Deck"
@@ -1502,22 +1478,7 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
             colors={colors}
             darkMode={darkMode}
           />
-          <FormField
-            label="Date Released"
-            value={formData.DB_DATE_RELEASED}
-            onChange={(v) => handleChange("DB_DATE_RELEASED", v)}
-            type="date"
-            colors={colors}
-            darkMode={darkMode}
-          />
-          <FormField
-            label="Expiry Date"
-            value={formData.DB_EXPIRY_DATE}
-            onChange={(v) => handleChange("DB_EXPIRY_DATE", v)}
-            type="date"
-            colors={colors}
-            darkMode={darkMode}
-          />
+
           <FormField
             label="CPR Validity"
             value={formData.DB_CPR_VALIDITY}
@@ -1526,6 +1487,7 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
             colors={colors}
             darkMode={darkMode}
           />
+
           <FormField
             label="Date Remarks"
             value={formData.DB_DATE_REMARKS}
@@ -1537,7 +1499,7 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
         </FieldGrid>
       </ERSection>
 
-      <ERSection title="📁 Office / File Information" colors={colors}>
+      <ERSection title="" colors={colors}>
         <FieldGrid>
           <FormField
             label="File"
@@ -1564,7 +1526,7 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
         </FieldGrid>
       </ERSection>
 
-      <ERSection title="🔐 SECPA" colors={colors}>
+      <ERSection title="" colors={colors}>
         <FieldGrid>
           <FormField
             label="SECPA"
@@ -1574,7 +1536,7 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
             darkMode={darkMode}
           />
           <FormField
-            label="SECPA Expiry Date"
+            label="Expiry Date"
             value={formData.DB_SECPA_EXP_DATE}
             onChange={(v) => handleChange("DB_SECPA_EXP_DATE", v)}
             type="date"
@@ -1582,7 +1544,7 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
             darkMode={darkMode}
           />
           <FormField
-            label="SECPA Issued On"
+            label="Issued On / Issuance Date"
             value={formData.DB_SECPA_ISSUED_ON}
             onChange={(v) => handleChange("DB_SECPA_ISSUED_ON", v)}
             type="date"
@@ -1653,6 +1615,31 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
         </div>
       </ERSection>
 
+      <ERSection title="📝 Amendments" colors={colors}>
+        <FieldGrid>
+          <FormField
+            label="Amendment 1"
+            value={formData.DB_AMMEND_1}
+            onChange={(v) => handleChange("DB_AMMEND_1", v)}
+            colors={colors}
+            darkMode={darkMode}
+          />
+          <FormField
+            label="Amendment 2"
+            value={formData.DB_AMMEND_2}
+            onChange={(v) => handleChange("DB_AMMEND_2", v)}
+            colors={colors}
+            darkMode={darkMode}
+          />
+          <FormField
+            label="Amendment 3"
+            value={formData.DB_AMMEND_3}
+            onChange={(v) => handleChange("DB_AMMEND_3", v)}
+            colors={colors}
+            darkMode={darkMode}
+          />
+        </FieldGrid>
+      </ERSection>
       <ERSection title="📝 Remarks & Notes" colors={colors}>
         <div
           style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
