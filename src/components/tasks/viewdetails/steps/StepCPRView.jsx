@@ -583,6 +583,16 @@ export function StepCPRView({
 }) {
   const dark = colors?.dark ?? false;
 
+  const fmtDate = (val) => {
+    if (!val) return null;
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return val;
+    return d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
   // Merge record + editedFields for display/editing
   const get = (field) =>
     field in editedFields ? editedFields[field] : (record[field] ?? "");
@@ -703,6 +713,7 @@ export function StepCPRView({
         />
       </div>
     );
+
     return (
       <>
         <FieldRow label={label} dark={dark}>
@@ -965,7 +976,7 @@ export function StepCPRView({
         >
           The marketing authorization shall be valid until{" "}
           <strong style={{ color: dark ? "#60a5fa" : "#1d4ed8" }}>
-            {get("secpaExpDate") || "__________"}
+            {fmtDate(get("secpaExpDate")) || "__________"}
           </strong>{" "}
           subject to the conditions listed on the reverse side. No change in the
           formulation, labeling and commercial presentation of this product
@@ -1017,7 +1028,7 @@ export function StepCPRView({
       >
         Witness My Hand and Seal of this Office, this&nbsp;
         <strong style={{ color: dark ? "#90caf9" : "#1565c0" }}>
-          {get("secpaIssuedOn")}
+          {fmtDate(get("secpaIssuedOn")) || "__________"}
         </strong>
         .
       </div>

@@ -31,13 +31,16 @@ const avatarPalette = [
 
 // Known steps for dropdown — adjust to match your actual data
 const STEP_OPTIONS = [
-  "Decking",
-  "Checking",
   "Quality Evaluation",
-  "Releasing",
-  "Encoding",
+  "Compliance",
+  "Checking",
+  "Supervisor",
+  "QA Admin",
+  "LRD Chief Admin",
+  "OD-Receiving",
+  "OD-Releasing",
+  "Releasing Officer",
 ];
-
 function nameToAvatarColor(name = "") {
   let hash = 0;
   for (let i = 0; i < name.length; i++)
@@ -445,6 +448,14 @@ export default function AllRecords({
       setSortDir("asc");
     }
   };
+
+  useEffect(() => {
+    if (statusFilter === "completed") setLocalStatusFilter("COMPLETED");
+    else if (statusFilter === "in_progress")
+      setLocalStatusFilter("IN PROGRESS");
+    else setLocalStatusFilter("");
+    setPage(1);
+  }, [statusFilter, filterUserId]);
 
   const SortArrow = ({ col }) => {
     const active = sortCol === col;

@@ -321,7 +321,7 @@ export default function ViewDetailsModal({
           <div
             style={{
               flex: 1,
-              maxWidth: "340px",
+              maxWidth: "460px",
               position: "relative",
               paddingBottom: isCPR ? 0 : "1rem",
               display: "flex",

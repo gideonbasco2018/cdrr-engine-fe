@@ -83,8 +83,14 @@ export function DisplayField({ label, value, colors, fullWidth = false }) {
 
 /* ── EditableField ─────────────────────────────────────────────── */
 export function EditableField({
-  label, fieldKey, value, originalValue, onChange,
-  colors, fullWidth = false, multiline = false,
+  label,
+  fieldKey,
+  value,
+  originalValue,
+  onChange,
+  colors,
+  fullWidth = false,
+  multiline = false,
 }) {
   const isDirty = String(value ?? "") !== String(originalValue ?? "");
   const isEmpty = value === "" || value === null || value === undefined;
@@ -114,8 +120,10 @@ export function EditableField({
       <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
         <label
           style={{
-            fontSize: SZ.labelFs, fontWeight: "700",
-            color: colors.textTertiary, letterSpacing: "0.07em",
+            fontSize: SZ.labelFs,
+            fontWeight: "700",
+            color: colors.textTertiary,
+            letterSpacing: "0.07em",
             textTransform: "uppercase",
           }}
         >
@@ -124,9 +132,12 @@ export function EditableField({
         {isDirty && (
           <span
             style={{
-              fontSize: "0.55rem", fontWeight: "700", color: "#f59e0b",
+              fontSize: "0.55rem",
+              fontWeight: "700",
+              color: "#f59e0b",
               background: "rgba(245,158,11,0.12)",
-              padding: "0.08rem 0.3rem", borderRadius: "3px",
+              padding: "0.08rem 0.3rem",
+              borderRadius: "3px",
             }}
           >
             ✎ EDITED
@@ -139,8 +150,14 @@ export function EditableField({
           onChange={(e) => onChange(fieldKey, e.target.value)}
           rows={2}
           style={baseStyle}
-          onFocus={(e) => { e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3"; }}
-          onBlur={(e) => { e.target.style.borderColor = isDirty ? "#f59e0b" : colors.inputBorder; }}
+          onFocus={(e) => {
+            e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = isDirty
+              ? "#f59e0b"
+              : colors.inputBorder;
+          }}
         />
       ) : (
         <input
@@ -148,15 +165,25 @@ export function EditableField({
           value={value ?? ""}
           onChange={(e) => onChange(fieldKey, e.target.value)}
           style={baseStyle}
-          onFocus={(e) => { e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3"; }}
-          onBlur={(e) => { e.target.style.borderColor = isDirty ? "#f59e0b" : colors.inputBorder; }}
+          onFocus={(e) => {
+            e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = isDirty
+              ? "#f59e0b"
+              : colors.inputBorder;
+          }}
         />
       )}
       {isDirty && (
         <div
           style={{
-            fontSize: "0.6rem", color: colors.textTertiary, marginTop: "0.1rem",
-            display: "flex", gap: "0.25rem", alignItems: "flex-start",
+            fontSize: "0.6rem",
+            color: colors.textTertiary,
+            marginTop: "0.1rem",
+            display: "flex",
+            gap: "0.25rem",
+            alignItems: "flex-start",
           }}
         >
           <span style={{ flexShrink: 0, color: "#ef4444" }}>Original:</span>
@@ -171,8 +198,13 @@ export function EditableField({
 
 /* ── CountrySelect ─────────────────────────────────────────────── */
 export function CountrySelect({
-  label, fieldKey, value, originalValue, onChange,
-  colors, fullWidth = false,
+  label,
+  fieldKey,
+  value,
+  originalValue,
+  onChange,
+  colors,
+  fullWidth = false,
 }) {
   const isDirty = String(value ?? "") !== String(originalValue ?? "");
   return (
@@ -186,8 +218,10 @@ export function CountrySelect({
       <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
         <label
           style={{
-            fontSize: SZ.labelFs, fontWeight: "700",
-            color: colors.textTertiary, letterSpacing: "0.07em",
+            fontSize: SZ.labelFs,
+            fontWeight: "700",
+            color: colors.textTertiary,
+            letterSpacing: "0.07em",
             textTransform: "uppercase",
           }}
         >
@@ -196,9 +230,12 @@ export function CountrySelect({
         {isDirty && (
           <span
             style={{
-              fontSize: "0.55rem", fontWeight: "700", color: "#f59e0b",
+              fontSize: "0.55rem",
+              fontWeight: "700",
+              color: "#f59e0b",
               background: "rgba(245,158,11,0.12)",
-              padding: "0.08rem 0.3rem", borderRadius: "3px",
+              padding: "0.08rem 0.3rem",
+              borderRadius: "3px",
             }}
           >
             ✎ EDITED
@@ -209,26 +246,39 @@ export function CountrySelect({
         value={value ?? ""}
         onChange={(e) => onChange(fieldKey, e.target.value)}
         style={{
-          width: "100%", padding: SZ.inputPad, background: colors.inputBg,
+          width: "100%",
+          padding: SZ.inputPad,
+          background: colors.inputBg,
           border: `1.5px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
           borderRadius: "5px",
           color: value ? colors.textPrimary : colors.textTertiary,
-          fontSize: SZ.valueFs, outline: "none", cursor: "pointer",
+          fontSize: SZ.valueFs,
+          outline: "none",
+          cursor: "pointer",
           minHeight: SZ.inputMinH,
         }}
-        onFocus={(e) => { e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3"; }}
-        onBlur={(e) => { e.target.style.borderColor = isDirty ? "#f59e0b" : colors.inputBorder; }}
+        onFocus={(e) => {
+          e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = isDirty ? "#f59e0b" : colors.inputBorder;
+        }}
       >
         <option value="">— Select Country —</option>
         {COUNTRIES.map((c) => (
-          <option key={c} value={c}>{c}</option>
+          <option key={c} value={c}>
+            {c}
+          </option>
         ))}
       </select>
       {isDirty && (
         <div
           style={{
-            fontSize: "0.6rem", color: colors.textTertiary,
-            marginTop: "0.1rem", display: "flex", gap: "0.25rem",
+            fontSize: "0.6rem",
+            color: colors.textTertiary,
+            marginTop: "0.1rem",
+            display: "flex",
+            gap: "0.25rem",
           }}
         >
           <span style={{ flexShrink: 0, color: "#ef4444" }}>Original:</span>
@@ -246,25 +296,34 @@ export function SummaryCard({ icon, label, value, accent, colors }) {
   return (
     <div
       style={{
-        padding: "0.6rem 0.75rem", background: colors.inputBg,
+        padding: "0.6rem 0.75rem",
+        background: colors.inputBg,
         border: `1px solid ${colors.inputBorder}`,
         borderLeft: `3px solid ${accent}`,
-        borderRadius: "6px", display: "flex", flexDirection: "column", gap: "0.2rem",
+        borderRadius: "6px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.2rem",
       }}
     >
       <span
         style={{
-          fontSize: "0.6rem", fontWeight: "700", color: colors.textTertiary,
-          textTransform: "uppercase", letterSpacing: "0.07em",
+          fontSize: "0.6rem",
+          fontWeight: "700",
+          color: colors.textTertiary,
+          textTransform: "uppercase",
+          letterSpacing: "0.07em",
         }}
       >
         {icon} {label}
       </span>
       <span
         style={{
-          fontSize: "0.78rem", fontWeight: "600",
+          fontSize: "0.78rem",
+          fontWeight: "600",
           color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
-          fontStyle: value === "N/A" ? "italic" : "normal", wordBreak: "break-word",
+          fontStyle: value === "N/A" ? "italic" : "normal",
+          wordBreak: "break-word",
         }}
       >
         {value}
@@ -272,53 +331,97 @@ export function SummaryCard({ icon, label, value, accent, colors }) {
     </div>
   );
 }
-
-/* ── StepIndicator ─────────────────────────────────────────────── */
 export function StepIndicator({ currentStep, steps, colors }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 0, padding: "0 0.25rem" }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 0,
+        padding: "0 0.5rem",
+        width: "100%",
+      }}
+    >
       {steps.map((step, i) => {
         const stepNum = i + 1;
         const isCompleted = stepNum < currentStep;
         const isActive = stepNum === currentStep;
+        const isLast = i === steps.length - 1;
         return (
           <div
             key={i}
-            style={{ display: "flex", alignItems: "center", flex: i < steps.length - 1 ? 1 : "none" }}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              flex: isLast ? "none" : 1,
+              minWidth: 0,
+            }}
           >
+            {/* Circle + connector row */}
             <div
-              style={{
-                width: "26px", height: "26px", borderRadius: "50%",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "0.65rem", fontWeight: "700", flexShrink: 0,
-                transition: "all 0.3s ease",
-                background: isCompleted ? "#10b981" : isActive ? "#2196F3" : colors.inputBg,
-                border: isCompleted ? "2px solid #10b981" : isActive ? "2px solid #2196F3" : `2px solid ${colors.cardBorder}`,
-                color: isCompleted || isActive ? "#fff" : colors.textTertiary,
-                boxShadow: isActive ? "0 0 0 3px rgba(33,150,243,0.15)" : "none",
-              }}
+              style={{ display: "flex", alignItems: "center", width: "100%" }}
             >
-              {isCompleted ? "✓" : stepNum}
+              <div
+                style={{
+                  width: "26px",
+                  height: "26px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.65rem",
+                  fontWeight: "700",
+                  flexShrink: 0,
+                  transition: "all 0.3s ease",
+                  background: isCompleted
+                    ? "#10b981"
+                    : isActive
+                      ? "#2196F3"
+                      : colors.inputBg,
+                  border: isCompleted
+                    ? "2px solid #10b981"
+                    : isActive
+                      ? "2px solid #2196F3"
+                      : `2px solid ${colors.cardBorder}`,
+                  color: isCompleted || isActive ? "#fff" : colors.textTertiary,
+                  boxShadow: isActive
+                    ? "0 0 0 3px rgba(33,150,243,0.15)"
+                    : "none",
+                }}
+              >
+                {isCompleted ? "✓" : stepNum}
+              </div>
+              {!isLast && (
+                <div
+                  style={{
+                    flex: 1,
+                    height: "2px",
+                    background: isCompleted ? "#10b981" : colors.cardBorder,
+                    margin: "0 4px",
+                    transition: "background 0.3s ease",
+                  }}
+                />
+              )}
             </div>
+
+            {/* Label below circle */}
             <div
               style={{
-                position: "absolute", marginTop: "2.2rem", fontSize: "0.58rem",
+                marginTop: "0.28rem",
+                fontSize: "0.58rem",
                 fontWeight: isActive ? "700" : "500",
-                color: isActive ? "#2196F3" : isCompleted ? "#10b981" : colors.textTertiary,
-                whiteSpace: "nowrap", transform: "translateX(-50%)", marginLeft: "13px",
+                color: isActive
+                  ? "#2196F3"
+                  : isCompleted
+                    ? "#10b981"
+                    : colors.textTertiary,
+                whiteSpace: "nowrap",
+                textAlign: "center",
               }}
             >
               {step}
             </div>
-            {i < steps.length - 1 && (
-              <div
-                style={{
-                  flex: 1, height: "2px",
-                  background: isCompleted ? "#10b981" : colors.cardBorder,
-                  margin: "0 3px", transition: "background 0.3s ease",
-                }}
-              />
-            )}
           </div>
         );
       })}
