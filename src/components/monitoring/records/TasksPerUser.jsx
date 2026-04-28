@@ -296,7 +296,7 @@ export default function TasksPerUser({
               const displayName = user.full_name || user.username || "—";
               const displayGroup = user.group_name || "—"; // ← group_name from backend
               const total = tasks.total || 0;
-              const barPct = maxTasks > 0 ? (total / maxTasks) * 100 : 0;
+
               const isSelected =
                 selectedUserId && selectedUserId === user.user_id;
 
@@ -390,20 +390,34 @@ export default function TasksPerUser({
                       >
                         {displayGroup}
                       </p>
+
                       <div
                         style={{
                           height: 3,
                           borderRadius: 99,
                           background: ui.progressBg,
+                          overflow: "hidden",
+                          display: "flex",
                         }}
                       >
+                        {/* Completed — green */}
                         <div
                           style={{
                             height: 3,
-                            borderRadius: 99,
-                            background: av.color,
-                            width: `${barPct}%`,
+                            background: "#36a420",
+                            width: `${total > 0 ? ((tasks.completed || 0) / total) * 100 : 0}%`,
                             transition: "width 0.4s",
+                            flexShrink: 0,
+                          }}
+                        />
+                        {/* In Progress — yellow */}
+                        <div
+                          style={{
+                            height: 3,
+                            background: "#f59e0b",
+                            width: `${total > 0 ? ((tasks.in_progress || 0) / total) * 100 : 0}%`,
+                            transition: "width 0.4s",
+                            flexShrink: 0,
                           }}
                         />
                       </div>

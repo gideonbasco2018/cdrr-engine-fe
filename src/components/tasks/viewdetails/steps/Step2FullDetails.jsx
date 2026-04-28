@@ -202,21 +202,9 @@ export function Step2FullDetails({
       {!isQE && (
         <VDSection title="📤 Released Information" colors={colors}>
           <FieldGrid>
-            <DisplayField
-              label="Type Doc Released"
-              value={cleanValue(record.typeDocReleased)}
-              colors={colors}
-            />
-            <DisplayField
-              label="Atta Released"
-              value={cleanValue(record.attaReleased)}
-              colors={colors}
-            />
-            <DisplayField
-              label="Date Released by CDRR"
-              value={formatDate(record.dateReleased)}
-              colors={colors}
-            />
+            {field("Type Doc Released", "typeDocReleased")}
+            {field("Atta Released", "attaReleased")}
+            {field("Date Released by CDRR", "dateReleased", { date: true })}
           </FieldGrid>
         </VDSection>
       )}

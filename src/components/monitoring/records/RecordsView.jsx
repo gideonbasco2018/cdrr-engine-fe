@@ -125,7 +125,7 @@ export default function RecordsView({ ui, darkMode }) {
           ui={ui}
           darkMode={darkMode}
           filterUserId={selectedUser?.user_id ?? null}
-          statusFilter={selectedUser ? statusFilter : "all"}
+          statusFilter={statusFilter}
         />
       </div>
     </div>

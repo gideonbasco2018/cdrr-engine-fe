@@ -21,6 +21,7 @@ export const EDITABLE_FIELDS = [
   "secpaExpDate",
   "secpaIssuedOn",
   "dateIssued",
+  
 ];
 
 export const FIELD_LABEL_MAP = {
