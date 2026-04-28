@@ -105,7 +105,7 @@ const FIELD_LABEL_MAP = {
   DB_DATE_DECK: "Date Deck",
   DB_DATE_RELEASED: "Date Released",
   DB_EXPIRY_DATE: "Expiry Date",
-  DB_CPR_VALIDITY: "CPR Validity",
+  // DB_CPR_VALIDITY: "CPR Validity",
   DB_DATE_REMARKS: "Date Remarks",
   DB_MO: "MO",
   DB_FILE: "File",
@@ -1204,7 +1204,6 @@ function Step1BasicInfo({ formData, handleChange, colors, darkMode }) {
             label="Fee"
             value={formData.DB_FEE}
             onChange={(v) => handleChange("DB_FEE", v)}
-            type="number"
             colors={colors}
             darkMode={darkMode}
           />
@@ -1212,7 +1211,6 @@ function Step1BasicInfo({ formData, handleChange, colors, darkMode }) {
             label="LRF"
             value={formData.DB_LRF}
             onChange={(v) => handleChange("DB_LRF", v)}
-            type="number"
             colors={colors}
             darkMode={darkMode}
           />
@@ -1220,7 +1218,6 @@ function Step1BasicInfo({ formData, handleChange, colors, darkMode }) {
             label="SURC"
             value={formData.DB_SURC}
             onChange={(v) => handleChange("DB_SURC", v)}
-            type="number"
             colors={colors}
             darkMode={darkMode}
           />
@@ -1228,7 +1225,6 @@ function Step1BasicInfo({ formData, handleChange, colors, darkMode }) {
             label="Total"
             value={formData.DB_TOTAL}
             onChange={(v) => handleChange("DB_TOTAL", v)}
-            type="number"
             colors={colors}
             darkMode={darkMode}
           />
@@ -1527,14 +1523,14 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
             darkMode={darkMode}
           />
 
-          <FormField
+          {/* <FormField
             label="CPR Validity"
             value={formData.DB_CPR_VALIDITY}
             onChange={(v) => handleChange("DB_CPR_VALIDITY", v)}
             type="date"
             colors={colors}
             darkMode={darkMode}
-          />
+          /> */}
 
           <FormField
             label="Date Remarks"
@@ -1634,7 +1630,7 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
           style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
         >
           <FormField
-            label="CPR Condition"
+            label="CPR Condition/s Ticked at the back of CPR"
             value={formData.DB_CPR_COND}
             onChange={(v) => handleChange("DB_CPR_COND", v)}
             type="textarea"
@@ -1837,7 +1833,7 @@ function EditRecordModal({
     DB_DATE_DECK: "",
     DB_DATE_RELEASED: "",
     DB_EXPIRY_DATE: "",
-    DB_CPR_VALIDITY: "",
+    // DB_CPR_VALIDITY: "",
     DB_DATE_REMARKS: "",
     DB_MO: "",
     DB_FILE: "",
@@ -2060,9 +2056,9 @@ function EditRecordModal({
         DB_EXPIRY_DATE: cleanDateValue(
           record.expiryDate || record.DB_EXPIRY_DATE,
         ),
-        DB_CPR_VALIDITY: cleanDateValue(
-          record.cprValidity || record.DB_CPR_VALIDITY,
-        ),
+        // DB_CPR_VALIDITY: cleanDateValue(
+        //   record.cprValidity || record.DB_CPR_VALIDITY,
+        // ),
         DB_DATE_REMARKS: cleanDateValue(
           record.dateRemarks || record.DB_DATE_REMARKS,
         ),

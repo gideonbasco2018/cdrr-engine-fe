@@ -88,6 +88,7 @@ export const EDITABLE_STEPS = [
   "Quality Evaluation",
   "Checking",
   "Supervisor",
+  "LRD Chief Admin",
   "Releasing Officer",
   "QA Admin",
 ];
