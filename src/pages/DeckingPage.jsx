@@ -1539,6 +1539,7 @@ function DeckingPage({ darkMode }) {
               onSort={handleSort}
               sortBy={sortBy}
               sortOrder={sortOrder}
+              updateUploadReport={updateUploadReport}
             />
           )}
         </div>

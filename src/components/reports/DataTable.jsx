@@ -11,6 +11,7 @@ import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 import ChangeLogModal from "../tasks/ChangeLogModal";
 import ReassignmentModal from "./actions/ReassignmentModal";
 import RerouteModal from "./actions/RerouteModal";
+import UpdateCPRModal from "./actions/UpdateCPRModal";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -134,6 +135,7 @@ function DataTable({
   processingTypeTab,
   onProcessingTypeTabChange,
   availableProcessingTypes = [],
+  updateUploadReport,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
@@ -145,6 +147,7 @@ function DataTable({
   const [changeLogRecord, setChangeLogRecord] = useState(null);
   const [reassignmentRecord, setReassignmentRecord] = useState(null);
   const [rerouteRecord, setRerouteRecord] = useState(null);
+  const [cprUpdateRecord, setCprUpdateRecord] = useState(null);
 
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
@@ -1470,6 +1473,16 @@ function DataTable({
                                   color: "#2196F3",
                                   hoverBg: "rgba(33,150,243,0.1)",
                                 },
+                                {
+                                  label: "Update based on CPR",
+                                  icon: "📜",
+                                  handler: () => {
+                                    setOpenMenuId(null);
+                                    setCprUpdateRecord(row);
+                                  },
+                                  color: "#1976d2",
+                                  hoverBg: "rgba(25,118,210,0.1)",
+                                },
 
                                 ...(row.appStatus?.toUpperCase() !== "COMPLETED"
                                   ? [
@@ -1653,6 +1666,20 @@ function DataTable({
           onClose={() => setRerouteRecord(null)}
           colors={colors}
           darkMode={darkMode}
+        />
+      )}
+
+      {cprUpdateRecord && (
+        <UpdateCPRModal
+          record={cprUpdateRecord}
+          onClose={() => setCprUpdateRecord(null)}
+          onSuccess={async () => {
+            setCprUpdateRecord(null);
+            if (onRefresh) await onRefresh();
+          }}
+          colors={colors}
+          darkMode={darkMode}
+          updateUploadReport={updateUploadReport}
         />
       )}
     </>
