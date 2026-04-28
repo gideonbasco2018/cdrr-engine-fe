@@ -6,7 +6,6 @@ import {
 } from "../../../api/field-audit-logs";
 import { CountryDropdown } from "../FilterBar";
 
-/* ─── FixedCountryPicker — popup rendered at fixed position, escapes scroll ─── */
 const COUNTRY_LIST = [
   "Afghanistan",
   "Albania",
@@ -369,8 +368,6 @@ function FixedCountryPicker({ value, onChange, dark }) {
   );
 }
 
-/* ─── helpers defined OUTSIDE the component so React never remounts them ─── */
-
 function FieldRow({ label, multiline, dark, children }) {
   return (
     <div
@@ -522,7 +519,14 @@ function onBlur(dark) {
   };
 }
 
-/* ─── Field label map for diff preview ─── */
+/* ─── Date input helper — converts any stored value to YYYY-MM-DD for the picker ─── */
+function toInputDate(val) {
+  if (!val) return "";
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return val; // keep raw string if unparseable
+  return d.toISOString().split("T")[0];
+}
+
 const CPR_FIELD_LABEL_MAP = {
   regNo: "Registration Number",
   prodGenName: "Generic Name",
@@ -571,7 +575,6 @@ const CPR_FIELD_LABEL_MAP = {
   dtn: "DTN",
 };
 
-/* ─── Step Indicator ─── */
 function StepIndicator({ currentStep, steps, dark }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
@@ -664,7 +667,6 @@ function StepIndicator({ currentStep, steps, dark }) {
   );
 }
 
-/* ─── Diff Preview (Step 2) ─── */
 function DiffPreview({ form, original, dark }) {
   const changedFields = Object.keys(CPR_FIELD_LABEL_MAP).filter(
     (k) => String(form[k] ?? "") !== String(original[k] ?? ""),
@@ -710,7 +712,6 @@ function DiffPreview({ form, original, dark }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.85rem" }}>
-      {/* Banner */}
       <div
         style={{
           padding: "0.75rem 1rem",
@@ -750,7 +751,6 @@ function DiffPreview({ form, original, dark }) {
         </div>
       </div>
 
-      {/* Legend */}
       <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
         {[
           {
@@ -790,7 +790,6 @@ function DiffPreview({ form, original, dark }) {
         ))}
       </div>
 
-      {/* Diff rows */}
       <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
         {changedFields.map((fieldKey, idx) => {
           const label = CPR_FIELD_LABEL_MAP[fieldKey] || fieldKey;
@@ -805,7 +804,6 @@ function DiffPreview({ form, original, dark }) {
                 overflow: "hidden",
               }}
             >
-              {/* Field header */}
               <div
                 style={{
                   padding: "0.35rem 0.8rem",
@@ -842,7 +840,6 @@ function DiffPreview({ form, original, dark }) {
                   {label}
                 </span>
               </div>
-              {/* Old → New */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
                 <div
                   style={{
@@ -917,7 +914,6 @@ function DiffPreview({ form, original, dark }) {
         })}
       </div>
 
-      {/* Footer note */}
       <div
         style={{
           padding: "0.6rem 0.9rem",
@@ -936,7 +932,6 @@ function DiffPreview({ form, original, dark }) {
   );
 }
 
-/* ─── Confirmation Dialog ─── */
 function ConfirmDialog({ changedCount, onConfirm, onCancel, dark, saving }) {
   return (
     <div
@@ -964,7 +959,6 @@ function ConfirmDialog({ changedCount, onConfirm, onCancel, dark, saving }) {
           gap: "1.1rem",
         }}
       >
-        {/* Icon + title */}
         <div
           style={{
             display: "flex",
@@ -1018,14 +1012,10 @@ function ConfirmDialog({ changedCount, onConfirm, onCancel, dark, saving }) {
             be undone without manual correction.
           </p>
         </div>
-
-        {/* Warning */}
         <div
           style={{
             padding: "0.6rem 0.85rem",
-            background: dark
-              ? "rgba(245,158,11,0.08)"
-              : "rgba(245,158,11,0.08)",
+            background: "rgba(245,158,11,0.08)",
             border: "1px solid rgba(245,158,11,0.28)",
             borderRadius: "7px",
             fontSize: "0.72rem",
@@ -1042,8 +1032,6 @@ function ConfirmDialog({ changedCount, onConfirm, onCancel, dark, saving }) {
             be reflected immediately.
           </span>
         </div>
-
-        {/* Buttons */}
         <div
           style={{
             display: "flex",
@@ -1117,8 +1105,6 @@ function ConfirmDialog({ changedCount, onConfirm, onCancel, dark, saving }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────────────────── */
-
 function UpdateCPRModal({
   record = {},
   onClose,
@@ -1141,16 +1127,12 @@ function UpdateCPRModal({
       record.prodDistriShelfLife ?? record.DB_PROD_DISTRI_SHELF_LIFE ?? "",
     storageCond: record.storageCond ?? record.DB_STORAGE_COND ?? "",
     packaging: record.packaging ?? record.DB_PACKAGING ?? "",
-
-    /* Manufacturer */
     prodManu: record.prodManu ?? record.DB_PROD_MANU ?? "",
     prodManuAdd: record.prodManuAdd ?? record.DB_PROD_MANU_ADD ?? "",
     prodManuTin: record.prodManuTin ?? record.DB_PROD_MANU_TIN ?? "",
     prodManuLtoNo: record.prodManuLtoNo ?? record.DB_PROD_MANU_LTO_NO ?? "",
     prodManuCountry:
       record.prodManuCountry ?? record.DB_PROD_MANU_COUNTRY ?? "",
-
-    /* Trader */
     prodTrader: record.prodTrader ?? record.DB_PROD_TRADER ?? "",
     prodTraderAdd: record.prodTraderAdd ?? record.DB_PROD_TRADER_ADD ?? "",
     prodTraderTin: record.prodTraderTin ?? record.DB_PROD_TRADER_TIN ?? "",
@@ -1158,8 +1140,6 @@ function UpdateCPRModal({
       record.prodTraderLtoNo ?? record.DB_PROD_TRADER_LTO_NO ?? "",
     prodTraderCountry:
       record.prodTraderCountry ?? record.DB_PROD_TRADER_COUNTRY ?? "",
-
-    /* Importer */
     prodImporter: record.prodImporter ?? record.DB_PROD_IMPORTER ?? "",
     prodImporterAdd:
       record.prodImporterAdd ?? record.DB_PROD_IMPORTER_ADD ?? "",
@@ -1169,8 +1149,6 @@ function UpdateCPRModal({
       record.prodImporterLtoNo ?? record.DB_PROD_IMPORTER_LTO_NO ?? "",
     prodImporterCountry:
       record.prodImporterCountry ?? record.DB_PROD_IMPORTER_COUNTRY ?? "",
-
-    /* Distributor */
     prodDistri: record.prodDistri ?? record.DB_PROD_DISTRI ?? "",
     prodDistriAdd: record.prodDistriAdd ?? record.DB_PROD_DISTRI_ADD ?? "",
     prodDistriTin: record.prodDistriTin ?? record.DB_PROD_DISTRI_TIN ?? "",
@@ -1178,8 +1156,6 @@ function UpdateCPRModal({
       record.prodDistriLtoNo ?? record.DB_PROD_DISTRI_LTO_NO ?? "",
     prodDistriCountry:
       record.prodDistriCountry ?? record.DB_PROD_DISTRI_COUNTRY ?? "",
-
-    /* Repacker */
     prodRepacker: record.prodRepacker ?? record.DB_PROD_REPACKER ?? "",
     prodRepackerAdd:
       record.prodRepackerAdd ?? record.DB_PROD_REPACKER_ADD ?? "",
@@ -1189,29 +1165,21 @@ function UpdateCPRModal({
       record.prodRepackerLtoNo ?? record.DB_PROD_REPACKER_LTO_NO ?? "",
     prodRepackerCountry:
       record.prodRepackerCountry ?? record.DB_PROD_REPACKER_COUNTRY ?? "",
-
-    /* CPR fields */
     secpaExpDate: record.secpaExpDate ?? record.DB_SECPA_EXP_DATE ?? "",
     secpaIssuedOn: record.secpaIssuedOn ?? record.DB_SECPA_ISSUED_ON ?? "",
     cprCond: record.cprCond ?? record.DB_CPR_COND ?? "",
     cprCondRemarks: record.cprCondRemarks ?? record.DB_CPR_COND_REMARKS ?? "",
-
-    /* Registration Details bottom strip */
     appType: record.appType ?? record.DB_APP_TYPE ?? "",
     fee: record.fee ?? record.DB_FEE ?? "",
     orNo: record.orNo ?? record.DB_OR_NO ?? "",
     dateExcelUpload:
       record.dateExcelUpload ?? record.DB_DATE_EXCEL_UPLOAD ?? "",
-
-    /* SECPA */
     secpa: record.secpa ?? record.DB_SECPA ?? "",
-
-    /* DTN */
     dtn: String(record.dtn ?? record.DB_DTN ?? ""),
   };
 
   const [form, setForm] = useState(initialForm);
-  const [originalForm] = useState(initialForm); // snapshot for diff
+  const [originalForm] = useState(initialForm);
   const [currentStep, setCurrentStep] = useState(1);
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -1227,11 +1195,17 @@ function UpdateCPRModal({
     setError(null);
   };
 
+  /* Direct setter used by date pickers (value comes from e.target.value already) */
+  const updDate = (field) => (e) => {
+    setForm((p) => ({ ...p, [field]: e.target.value }));
+    setSaved(false);
+    setError(null);
+  };
+
   const changedCount = Object.keys(CPR_FIELD_LABEL_MAP).filter(
     (k) => String(form[k] ?? "") !== String(originalForm[k] ?? ""),
   ).length;
 
-  /* ── Map CPR form fields → DB column names ── */
   const buildPayload = (f) => ({
     DB_REG_NO: f.regNo,
     DB_PROD_GEN_NAME: f.prodGenName,
@@ -1243,42 +1217,35 @@ function UpdateCPRModal({
     DB_PROD_DISTRI_SHELF_LIFE: f.prodDistriShelfLife,
     DB_STORAGE_COND: f.storageCond,
     DB_PACKAGING: f.packaging,
-    // Manufacturer
     DB_PROD_MANU: f.prodManu,
     DB_PROD_MANU_ADD: f.prodManuAdd,
     DB_PROD_MANU_TIN: f.prodManuTin,
     DB_PROD_MANU_LTO_NO: f.prodManuLtoNo,
     DB_PROD_MANU_COUNTRY: f.prodManuCountry,
-    // Trader
     DB_PROD_TRADER: f.prodTrader,
     DB_PROD_TRADER_ADD: f.prodTraderAdd,
     DB_PROD_TRADER_TIN: f.prodTraderTin,
     DB_PROD_TRADER_LTO_NO: f.prodTraderLtoNo,
     DB_PROD_TRADER_COUNTRY: f.prodTraderCountry,
-    // Importer
     DB_PROD_IMPORTER: f.prodImporter,
     DB_PROD_IMPORTER_ADD: f.prodImporterAdd,
     DB_PROD_IMPORTER_TIN: f.prodImporterTin,
     DB_PROD_IMPORTER_LTO_NO: f.prodImporterLtoNo,
     DB_PROD_IMPORTER_COUNTRY: f.prodImporterCountry,
-    // Distributor
     DB_PROD_DISTRI: f.prodDistri,
     DB_PROD_DISTRI_ADD: f.prodDistriAdd,
     DB_PROD_DISTRI_TIN: f.prodDistriTin,
     DB_PROD_DISTRI_LTO_NO: f.prodDistriLtoNo,
     DB_PROD_DISTRI_COUNTRY: f.prodDistriCountry,
-    // Repacker
     DB_PROD_REPACKER: f.prodRepacker,
     DB_PROD_REPACKER_ADD: f.prodRepackerAdd,
     DB_PROD_REPACKER_TIN: f.prodRepackerTin,
     DB_PROD_REPACKER_LTO_NO: f.prodRepackerLtoNo,
     DB_PROD_REPACKER_COUNTRY: f.prodRepackerCountry,
-
     DB_SECPA_EXP_DATE: f.secpaExpDate,
     DB_SECPA_ISSUED_ON: f.secpaIssuedOn,
-    DB_CPR_COND: f.cprCond, // ← mapped to DB_CPR_COND
+    DB_CPR_COND: f.cprCond,
     DB_CPR_COND_REMARKS: f.cprCondRemarks,
-    // Bottom strip
     DB_APP_TYPE: f.appType,
     DB_FEE: f.fee,
     DB_OR_NO: f.orNo,
@@ -1287,7 +1254,6 @@ function UpdateCPRModal({
     DB_DTN: f.dtn,
   });
 
-  /* ── DB-keyed label map for audit log (computeFieldChanges expects DB keys) ── */
   const CPR_DB_LABEL_MAP = {
     DB_REG_NO: "Registration Number",
     DB_PROD_GEN_NAME: "Generic Name",
@@ -1341,18 +1307,13 @@ function UpdateCPRModal({
     setSaving(true);
     try {
       const payload = buildPayload(form);
-
-      /* ── Build original payload (DB-keyed) for audit diff ── */
       const originalPayload = buildPayload(originalForm);
-
-      /* ── Compute field-level changes and write audit log ── */
       const changes = computeFieldChanges(
         originalPayload,
         payload,
         CPR_DB_LABEL_MAP,
         "Update Based on CPR",
       );
-
       if (changes.length > 0) {
         try {
           await createFieldAuditLog({
@@ -1368,7 +1329,6 @@ function UpdateCPRModal({
           );
         }
       }
-
       await updateUploadReport(record.id, payload);
       setSaved(true);
       setShowConfirm(false);
@@ -1406,6 +1366,22 @@ function UpdateCPRModal({
     />
   );
 
+  /* ── Date picker input — styled consistently with the rest of the form ── */
+  const DateI = (field) => (
+    <input
+      type="date"
+      value={toInputDate(form[field])}
+      onChange={updDate(field)}
+      onFocus={onFocus}
+      onBlur={ob}
+      style={{
+        ...IS,
+        cursor: "pointer",
+        colorScheme: D ? "dark" : "light",
+      }}
+    />
+  );
+
   const entityBlock = (prefix, label) => {
     const subRow = (lbl, fld, ph) => (
       <div
@@ -1437,7 +1413,6 @@ function UpdateCPRModal({
         />
       </div>
     );
-
     const countryField = (fld) => (
       <div
         style={{
@@ -1476,7 +1451,6 @@ function UpdateCPRModal({
         />
       </div>
     );
-
     return (
       <>
         <FieldRow label={label} dark={D}>
@@ -1515,7 +1489,6 @@ function UpdateCPRModal({
 
   return (
     <>
-      {/* Confirmation dialog */}
       {showConfirm && (
         <ConfirmDialog
           changedCount={changedCount}
@@ -1609,12 +1582,9 @@ function UpdateCPRModal({
                 </p>
               </div>
             </div>
-
-            {/* Step indicator in header */}
             <div style={{ flex: 1, maxWidth: "240px" }}>
               <StepIndicator currentStep={currentStep} steps={STEPS} dark={D} />
             </div>
-
             <button
               onClick={onClose}
               style={{
@@ -1645,7 +1615,6 @@ function UpdateCPRModal({
               isolation: "isolate",
             }}
           >
-            {/* Error banner */}
             {error && (
               <div
                 style={{
@@ -1663,7 +1632,6 @@ function UpdateCPRModal({
               </div>
             )}
 
-            {/* ── Step 1: CPR Form ── */}
             {currentStep === 1 && (
               <div
                 style={{
@@ -1758,7 +1726,6 @@ function UpdateCPRModal({
                   <div style={{ width: "42px" }} />
                 </div>
 
-                {/* Title */}
                 <div
                   style={{
                     textAlign: "center",
@@ -1773,7 +1740,6 @@ function UpdateCPRModal({
                   Certificate of Product Registration
                 </div>
 
-                {/* Preamble */}
                 <p
                   style={{
                     fontSize: "0.69rem",
@@ -1794,7 +1760,6 @@ function UpdateCPRModal({
                   products per existing regulations in force as of date hereof.
                 </p>
 
-                {/* Fields */}
                 <FieldRow label="Registration Number" dark={D}>
                   {I("regNo")}
                 </FieldRow>
@@ -1857,7 +1822,7 @@ function UpdateCPRModal({
                 <SectionHead label="Repacker (if applicable)" dark={D} />
                 {entityBlock("prodRepacker", "Repacker")}
 
-                {/* Paragraphs */}
+                {/* Validity paragraph — live preview of selected expiry date */}
                 <div
                   style={{
                     margin: "0.85rem 0 0.45rem",
@@ -1902,13 +1867,14 @@ function UpdateCPRModal({
                   </p>
                 </div>
 
+                {/* ── Date pickers for Expiry Date & Issuance Date ── */}
                 <FieldRow label="Expiry date" dark={D}>
-                  {I("secpaExpDate")}
+                  {DateI("secpaExpDate")}
                 </FieldRow>
                 <FieldRow label="Issued On / Issuance Date" dark={D}>
-                  {I("secpaIssuedOn")}
+                  {DateI("secpaIssuedOn")}
                 </FieldRow>
-                {/* Label reflects DB_CPR_COND mapping */}
+
                 <FieldRow
                   label="CPR Condition/s Ticked at the back of CPR"
                   multiline
@@ -2171,7 +2137,6 @@ function UpdateCPRModal({
               </div>
             )}
 
-            {/* ── Step 2: Diff Preview ── */}
             {currentStep === 2 && (
               <DiffPreview form={form} original={originalForm} dark={D} />
             )}
@@ -2190,7 +2155,6 @@ function UpdateCPRModal({
               background: D ? "#0e0e0e" : "#f4f6fa",
             }}
           >
-            {/* Left: status */}
             <span
               style={{
                 fontSize: "0.73rem",
@@ -2208,8 +2172,6 @@ function UpdateCPRModal({
                 </span>
               )}
             </span>
-
-            {/* Right: navigation buttons */}
             <div
               style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
             >
@@ -2225,7 +2187,6 @@ function UpdateCPRModal({
                   ✓ Record updated successfully
                 </span>
               )}
-
               <button
                 onClick={onClose}
                 style={{
@@ -2242,8 +2203,6 @@ function UpdateCPRModal({
               >
                 Cancel
               </button>
-
-              {/* Previous — only on step 2 */}
               {currentStep === 2 && (
                 <button
                   onClick={() => setCurrentStep(1)}
@@ -2256,17 +2215,15 @@ function UpdateCPRModal({
                     fontSize: "0.77rem",
                     fontWeight: "600",
                     cursor: "pointer",
-                    fontFamily: "sans-serif",
                     display: "flex",
                     alignItems: "center",
                     gap: "0.3rem",
+                    fontFamily: "sans-serif",
                   }}
                 >
                   ← Back
                 </button>
               )}
-
-              {/* Next — step 1 */}
               {currentStep === 1 && (
                 <button
                   onClick={() => setCurrentStep(2)}
@@ -2289,8 +2246,6 @@ function UpdateCPRModal({
                   Preview Changes →
                 </button>
               )}
-
-              {/* Save — step 2 */}
               {currentStep === 2 && (
                 <button
                   onClick={() => changedCount > 0 && setShowConfirm(true)}
@@ -2330,8 +2285,6 @@ function UpdateCPRModal({
       </div>
       <style>{`
         @keyframes cprSpin { to { transform: rotate(360deg) } }
-
-        /* ── CountryDropdown popup: force solid background, proper z-index ── */
         .cpr-modal-root [class*="country"] > div > div:last-child,
         .cpr-modal-root [class*="dropdown"],
         .cpr-modal-root select + div,
