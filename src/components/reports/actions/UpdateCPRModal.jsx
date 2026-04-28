@@ -1965,16 +1965,6 @@ function UpdateCPRModal({
                 >
                   <div
                     style={{
-                      fontFamily: "cursive,serif",
-                      fontSize: "1.25rem",
-                      color: D ? "#5c8fd6" : "#1565c0",
-                      lineHeight: 1.2,
-                    }}
-                  >
-                    Dr. Charmaine Ann M. Habago
-                  </div>
-                  <div
-                    style={{
                       fontFamily: "sans-serif",
                       fontSize: "0.71rem",
                       fontWeight: "700",
@@ -1982,7 +1972,7 @@ function UpdateCPRModal({
                       marginTop: "0.18rem",
                     }}
                   >
-                    DR. CHARMAINE ANN M. HABAGO
+                    DR. CHARMAINE ANN M. RABAGO
                   </div>
                   <div
                     style={{
