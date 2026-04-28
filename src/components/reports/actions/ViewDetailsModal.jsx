@@ -924,11 +924,11 @@ function Step2FullDetails({ record, colors }) {
             colors={colors}
           />
 
-          <DisplayField
+          {/* <DisplayField
             label="CPR Validity"
             value={formatDate(record.cprValidity)}
             colors={colors}
-          />
+          /> */}
           <DisplayField
             label="Date Remarks"
             value={formatDate(record.dateRemarks)}

@@ -559,10 +559,10 @@ const CPR_FIELD_LABEL_MAP = {
   prodRepackerTin: "Repacker TIN",
   prodRepackerLtoNo: "Repacker LTO No.",
   prodRepackerCountry: "Repacker Country",
-  cprValidity: "CPR Validity",
-  dateIssued: "Date Issued",
-  cprCondRemarks: "CPR Condition / Remarks", // → DB_CPR_COND
-  cprCondAddRemarks: "Additional Remarks", // → DB_CPR_COND_ADD_REMARKS
+  secpaExpDate: "CPR Validity",
+  secpaIssuedOn: "Issuance Date",
+  cprCond: "CPR Condition/s Ticked at the back of CPR",
+  cprCondRemarks: "CPR Condition Remarks",
   appType: "Registration Status",
   fee: "Amount",
   orNo: "OR Number",
@@ -1191,12 +1191,10 @@ function UpdateCPRModal({
       record.prodRepackerCountry ?? record.DB_PROD_REPACKER_COUNTRY ?? "",
 
     /* CPR fields */
-    cprValidity: record.cprValidity ?? record.DB_SECPA_EXP_DATE ?? "",
-    dateIssued: record.dateIssued ?? record.DB_SECPA_ISSUED_ON ?? "",
-    /* cprCondRemarks → DB_CPR_COND (NOT DB_CPR_COND_REMARKS) */
-    cprCondRemarks: record.cprCondRemarks ?? record.DB_CPR_COND ?? "",
-    cprCondAddRemarks:
-      record.cprCondAddRemarks ?? record.DB_CPR_COND_ADD_REMARKS ?? "",
+    secpaExpDate: record.secpaExpDate ?? record.DB_SECPA_EXP_DATE ?? "",
+    secpaIssuedOn: record.secpaIssuedOn ?? record.DB_SECPA_ISSUED_ON ?? "",
+    cprCond: record.cprCond ?? record.DB_CPR_COND ?? "",
+    cprCondRemarks: record.cprCondRemarks ?? record.DB_CPR_COND_REMARKS ?? "",
 
     /* Registration Details bottom strip */
     appType: record.appType ?? record.DB_APP_TYPE ?? "",
@@ -1275,11 +1273,11 @@ function UpdateCPRModal({
     DB_PROD_REPACKER_TIN: f.prodRepackerTin,
     DB_PROD_REPACKER_LTO_NO: f.prodRepackerLtoNo,
     DB_PROD_REPACKER_COUNTRY: f.prodRepackerCountry,
-    // CPR — NOTE: cprCondRemarks → DB_CPR_COND (not DB_CPR_COND_REMARKS)
-    DB_CPR_VALIDITY: f.cprValidity,
-    DB_DATE_ISSUED: f.dateIssued,
-    DB_CPR_COND: f.cprCondRemarks, // ← mapped to DB_CPR_COND
-    DB_CPR_COND_ADD_REMARKS: f.cprCondAddRemarks,
+
+    DB_SECPA_EXP_DATE: f.secpaExpDate,
+    DB_SECPA_ISSUED_ON: f.secpaIssuedOn,
+    DB_CPR_COND: f.cprCond, // ← mapped to DB_CPR_COND
+    DB_CPR_COND_REMARKS: f.cprCondRemarks,
     // Bottom strip
     DB_APP_TYPE: f.appType,
     DB_FEE: f.fee,
@@ -1326,10 +1324,10 @@ function UpdateCPRModal({
     DB_PROD_REPACKER_TIN: "Repacker TIN",
     DB_PROD_REPACKER_LTO_NO: "Repacker LTO No.",
     DB_PROD_REPACKER_COUNTRY: "Repacker Country",
-    DB_CPR_VALIDITY: "CPR Validity",
+    DB_SECPA_EXP_DATE: "Expiry Date",
     DB_DATE_ISSUED: "Date Issued",
     DB_CPR_COND: "CPR Condition",
-    DB_CPR_COND_ADD_REMARKS: "Additional Remarks",
+    DB_CPR_COND_REMARKS: "Additional Remarks",
     DB_APP_TYPE: "Registration Status",
     DB_FEE: "Amount",
     DB_OR_NO: "OR Number",
@@ -1880,7 +1878,7 @@ function UpdateCPRModal({
                   >
                     The marketing authorization shall be valid until{" "}
                     <strong style={{ color: D ? "#60a5fa" : "#1d4ed8" }}>
-                      {form.cprValidity || "__________"}
+                      {form.secpaExpDate || "__________"}
                     </strong>{" "}
                     subject to the conditions listed on the reverse side. No
                     change in the formulation, labeling and commercial
@@ -1904,22 +1902,22 @@ function UpdateCPRModal({
                   </p>
                 </div>
 
-                <FieldRow label="Valid Until (CPR Validity)" dark={D}>
-                  {I("cprValidity")}
+                <FieldRow label="Expiry date" dark={D}>
+                  {I("secpaExpDate")}
                 </FieldRow>
-                <FieldRow label="Date Issued" dark={D}>
-                  {I("dateIssued")}
+                <FieldRow label="Issued On / Issuance Date" dark={D}>
+                  {I("secpaIssuedOn")}
                 </FieldRow>
                 {/* Label reflects DB_CPR_COND mapping */}
                 <FieldRow
-                  label="CPR Condition (DB_CPR_COND)"
+                  label="CPR Condition/s Ticked at the back of CPR"
                   multiline
                   dark={D}
                 >
-                  {T("cprCondRemarks")}
+                  {T("cprCond")}
                 </FieldRow>
                 <FieldRow label="Additional Remarks" multiline dark={D}>
-                  {T("cprCondAddRemarks")}
+                  {T("cprCondRemarks")}
                 </FieldRow>
 
                 {/* Witness */}
@@ -1934,7 +1932,7 @@ function UpdateCPRModal({
                 >
                   Witness My Hand and Seal of this Office, this&nbsp;
                   <strong style={{ color: D ? "#90caf9" : "#1565c0" }}>
-                    {form.dateIssued}
+                    {form.secpaIssuedOn}
                   </strong>
                   .
                 </div>
