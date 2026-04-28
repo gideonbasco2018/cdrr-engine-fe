@@ -1191,8 +1191,8 @@ function UpdateCPRModal({
       record.prodRepackerCountry ?? record.DB_PROD_REPACKER_COUNTRY ?? "",
 
     /* CPR fields */
-    cprValidity: record.cprValidity ?? record.DB_CPR_VALIDITY ?? "",
-    dateIssued: record.dateIssued ?? record.DB_DATE_ISSUED ?? "",
+    cprValidity: record.cprValidity ?? record.DB_SECPA_EXP_DATE ?? "",
+    dateIssued: record.dateIssued ?? record.DB_SECPA_ISSUED_ON ?? "",
     /* cprCondRemarks → DB_CPR_COND (NOT DB_CPR_COND_REMARKS) */
     cprCondRemarks: record.cprCondRemarks ?? record.DB_CPR_COND ?? "",
     cprCondAddRemarks:
