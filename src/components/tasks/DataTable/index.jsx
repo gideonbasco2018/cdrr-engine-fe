@@ -168,7 +168,6 @@ function DataTable({
   /* ── Mark as Received ── */
   const handleMarkAsReceived = async (overrideRow = null) => {
     const idsToMark = overrideRow ? [overrideRow.id] : selectedRows;
-
     if (!idsToMark.length || markingReceived) return;
     setMarkingReceived(true);
     try {
@@ -183,12 +182,7 @@ function DataTable({
     }
   };
 
-  /* ─────────────────────────────────────────────────────────────── */
-  /*  Bulk Deck handler                                               */
-  /*  FIX: resolve user_id from the users list and pass it into      */
-  /*       createApplicationLog so the assigned user is stored        */
-  /*       correctly (previously only username was sent).            */
-  /* ─────────────────────────────────────────────────────────────── */
+  /* ── Bulk Deck handler ── */
   const handleBulkDeck = async (
     assigneeUsername,
     {
@@ -223,15 +217,9 @@ function DataTable({
     const resolvedNextStep = isReturnDecision
       ? "Quality Evaluation"
       : (bulkDeckConfig.nextStep ?? null);
-
     const isEndTask = bulkDeckConfig.isEndTask || resolvedNextStep === null;
     const finalDecision = decision || "";
 
-    /*
-     * FIX: Pre-fetch users for the next group so we can resolve user_id.
-     * We only need this when NOT an end-task and NOT a return decision,
-     * i.e., when we actually assign to a specific user.
-     */
     let usersForNextGroup = [];
     if (!isEndTask && !isReturnDecision && bulkDeckConfig.nextGroupId) {
       try {
@@ -255,8 +243,6 @@ function DataTable({
     for (const row of selectedData) {
       try {
         const { id: logId, mainDbId } = row;
-
-        /* ── Per-record: resolve previous evaluator for return decisions ── */
         let resolvedAssignee = assigneeUsername;
         let resolvedAssigneeId = resolveUserId(assigneeUsername);
 
@@ -268,25 +254,17 @@ function DataTable({
                   (a, b) => (a.del_index ?? 0) - (b.del_index ?? 0),
                 )
               : [];
-
-            // Find current open log index for this step
             const currentLogIdx = sorted.findIndex(
               (l) =>
                 l.application_step === bulkDeckConfig.currentStep &&
                 l.del_thread === "Open",
             );
-
-            // Walk backwards to find nearest Quality Evaluation log
-            let prevEval = null;
-            let prevEvalId = null;
+            let prevEval = null,
+              prevEvalId = null;
             if (currentLogIdx > 0) {
               for (let i = currentLogIdx - 1; i >= 0; i--) {
                 if (sorted[i].application_step === "Quality Evaluation") {
                   prevEval = sorted[i].user_name ?? null;
-                  /*
-                   * FIX: also capture user_id from the historical log so the
-                   * returned record is assigned with the correct user_id.
-                   */
                   prevEvalId = sorted[i].user_id ?? null;
                   break;
                 }
@@ -342,7 +320,6 @@ function DataTable({
             doctrack_remarks: doctrackRemarks || "",
           });
 
-          // ── Save Decision fields to main_db (OD-Releasing only) ──
           if (isODReleasing) {
             await updateUploadReport(mainDbId, {
               DB_DECISION_RESULT: decisionResult || "",
@@ -351,16 +328,11 @@ function DataTable({
             });
           }
 
-          /*
-           * FIX: include user_id in createApplicationLog payload.
-           * Previously this was missing — only user_name (username string)
-           * was sent, leaving user_id null in the database.
-           */
           await createApplicationLog({
             main_db_id: mainDbId,
             application_step: resolvedNextStep,
             user_name: resolvedAssignee,
-            user_id: resolvedAssigneeId, // ← FIX: was missing
+            user_id: resolvedAssigneeId,
             application_status: "IN PROGRESS",
             application_decision: "",
             start_date: formattedDateTime,
@@ -400,7 +372,6 @@ function DataTable({
     for (const row of selectedData) {
       try {
         const { id: logId, mainDbId } = row;
-
         await updateApplicationLog(logId, {
           application_status: "COMPLETED",
           application_decision: reason,
@@ -410,7 +381,6 @@ function DataTable({
           del_last_index: 0,
           del_thread: "Close",
         });
-
         await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
         success++;
       } catch (e) {
@@ -497,6 +467,7 @@ function DataTable({
             >
               Task Data
             </h3>
+
             <button
               onClick={openGuide}
               style={{
@@ -531,6 +502,7 @@ function DataTable({
               </span>
               How to use
             </button>
+
             <span
               style={{
                 padding: "0.25rem 0.75rem",
@@ -647,7 +619,8 @@ function DataTable({
               </button>
             )}
 
-            {/* Mark as Completed — lahat ng tab, may selected rows */}
+            {/* ── CLOSE TASK (FINAL) — was "Mark as Completed" ── */}
+
             {selectedRows.length > 0 && (
               <button
                 onClick={() => setShowBulkComplete(true)}
@@ -656,17 +629,27 @@ function DataTable({
                   alignItems: "center",
                   gap: "0.4rem",
                   padding: "0.4rem 1rem",
-                  background: "linear-gradient(135deg,#10b981,#059669)",
+                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
                   color: "#fff",
-                  border: "none",
+                  border: "1px solid #991b1b",
                   borderRadius: 8,
                   fontSize: "0.75rem",
                   fontWeight: 700,
                   cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
+                  boxShadow: "0 2px 8px rgba(220,38,38,0.40)",
+                  letterSpacing: "0.01em",
                 }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 4px 14px rgba(220,38,38,0.55)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(220,38,38,0.40)")
+                }
               >
-                <span>✅</span>Mark as Completed
+                <span>🔒</span>
+                Close Task (Final)
                 <span
                   style={{
                     display: "inline-flex",
@@ -675,7 +658,7 @@ function DataTable({
                     minWidth: "1.25rem",
                     height: "1.25rem",
                     padding: "0 0.3rem",
-                    background: "rgba(255,255,255,0.25)",
+                    background: "rgba(255,255,255,0.20)",
                     borderRadius: 999,
                     fontSize: "0.7rem",
                     fontWeight: 800,
@@ -1035,7 +1018,7 @@ function DataTable({
                     onMouseLeave={() => setHoveredRowId(null)}
                     onDoubleClick={() => {
                       if (activeSubTab === "not_yet") {
-                        setConfirmReceiveRow(row); // ← itong specific row
+                        setConfirmReceiveRow(row);
                         setConfirmReceive(true);
                       } else if (activeSubTab === "received" && !isRecordTab) {
                         openDetails(row);
@@ -1386,7 +1369,6 @@ function DataTable({
                   : "records"}
               </strong>{" "}
               as received.
-              {/* ── DTN display ── */}
               {confirmReceiveRow?.dtn && (
                 <span
                   style={{
@@ -1405,7 +1387,6 @@ function DataTable({
                   📋 {confirmReceiveRow.dtn}
                 </span>
               )}
-              {/* ── Multiple selected — list DTNs ── */}
               {!confirmReceiveRow && selectedRows.length > 0 && (
                 <span
                   style={{
@@ -1503,14 +1484,13 @@ function DataTable({
         />
       )}
 
-      {/* ── Bulk Deck Modal ── */}
       {showBulkDeck && bulkDeckConfig && (
         <BulkDeckModal
           selectedCount={selectedRows.length}
           selectedDtns={data
             .filter((r) => selectedRows.includes(r.id))
             .map((r) => r.dtn || r.id)}
-          selectedRecords={data.filter((r) => selectedRows.includes(r.id))} // ← derive directly
+          selectedRecords={data.filter((r) => selectedRows.includes(r.id))}
           config={bulkDeckConfig}
           colors={colors}
           darkMode={darkMode}
@@ -1525,7 +1505,6 @@ function DataTable({
         />
       )}
 
-      {/* Bulk Complete Modal */}
       {showBulkComplete && (
         <BulkCompleteModal
           selectedCount={selectedRows.length}
