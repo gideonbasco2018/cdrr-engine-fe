@@ -64,6 +64,7 @@ function DataTable({
   const [changeLogRecord, setChangeLogRecord] = useState(null);
   const [markingReceived, setMarkingReceived] = useState(false);
   const [confirmReceive, setConfirmReceive] = useState(false);
+  const [confirmReceiveRow, setConfirmReceiveRow] = useState(null);
   const [hoveredRowId, setHoveredRowId] = useState(null);
   const [showBulkDeck, setShowBulkDeck] = useState(false);
   const [showBulkComplete, setShowBulkComplete] = useState(false);
@@ -165,17 +166,20 @@ function DataTable({
   };
 
   /* ── Mark as Received ── */
-  const handleMarkAsReceived = async () => {
-    if (!selectedRows.length || markingReceived) return;
+  const handleMarkAsReceived = async (overrideRow = null) => {
+    const idsToMark = overrideRow ? [overrideRow.id] : selectedRows;
+
+    if (!idsToMark.length || markingReceived) return;
     setMarkingReceived(true);
     try {
-      await markWorkflowTasksAsReceived(selectedRows);
+      await markWorkflowTasksAsReceived(idsToMark);
       if (onClearSelections) onClearSelections();
       if (onRefresh) await onRefresh();
     } catch (e) {
       console.error("Mark as Received error:", e);
     } finally {
       setMarkingReceived(false);
+      setConfirmReceiveRow(null);
     }
   };
 
@@ -543,7 +547,10 @@ function DataTable({
             {/* Mark as Received */}
             {selectedRows.length > 0 && showMarkAsReceived && (
               <button
-                onClick={() => setConfirmReceive(true)}
+                onClick={() => {
+                  setConfirmReceiveRow(null);
+                  setConfirmReceive(true);
+                }}
                 disabled={markingReceived}
                 style={{
                   display: "inline-flex",
@@ -1027,8 +1034,12 @@ function DataTable({
                     onMouseEnter={() => setHoveredRowId(row.id)}
                     onMouseLeave={() => setHoveredRowId(null)}
                     onDoubleClick={() => {
-                      if (activeSubTab === "received" && !isRecordTab)
+                      if (activeSubTab === "not_yet") {
+                        setConfirmReceiveRow(row); // ← itong specific row
+                        setConfirmReceive(true);
+                      } else if (activeSubTab === "received" && !isRecordTab) {
                         openDetails(row);
+                      }
                     }}
                   >
                     <td
@@ -1369,10 +1380,71 @@ function DataTable({
             >
               You are about to mark{" "}
               <strong style={{ color: "#10b981" }}>
-                {selectedRows.length}{" "}
-                {selectedRows.length === 1 ? "record" : "records"}
+                {confirmReceiveRow ? 1 : selectedRows.length}{" "}
+                {(confirmReceiveRow ? 1 : selectedRows.length) === 1
+                  ? "record"
+                  : "records"}
               </strong>{" "}
-              as received. This action cannot be undone.
+              as received.
+              {/* ── DTN display ── */}
+              {confirmReceiveRow?.dtn && (
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: "0.6rem",
+                    padding: "0.4rem 0.85rem",
+                    background: "rgba(8,145,178,0.08)",
+                    border: "1px solid rgba(8,145,178,0.2)",
+                    borderRadius: "8px",
+                    fontSize: "0.82rem",
+                    fontWeight: 700,
+                    color: "#0891b2",
+                    letterSpacing: "0.03em",
+                  }}
+                >
+                  📋 {confirmReceiveRow.dtn}
+                </span>
+              )}
+              {/* ── Multiple selected — list DTNs ── */}
+              {!confirmReceiveRow && selectedRows.length > 0 && (
+                <span
+                  style={{
+                    display: "block",
+                    marginTop: "0.6rem",
+                    padding: "0.4rem 0.85rem",
+                    background: "rgba(8,145,178,0.08)",
+                    border: "1px solid rgba(8,145,178,0.2)",
+                    borderRadius: "8px",
+                    fontSize: "0.75rem",
+                    color: "#0891b2",
+                    textAlign: "left",
+                    maxHeight: "120px",
+                    overflowY: "auto",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  {data
+                    .filter((r) => selectedRows.includes(r.id))
+                    .map((r) => (
+                      <span
+                        key={r.id}
+                        style={{ display: "block", fontWeight: 600 }}
+                      >
+                        📋 {r.dtn}
+                      </span>
+                    ))}
+                </span>
+              )}
+              <span
+                style={{
+                  display: "block",
+                  marginTop: "0.6rem",
+                  fontSize: "0.75rem",
+                  color: colors.textTertiary,
+                }}
+              >
+                This action cannot be undone.
+              </span>
             </p>
             <div
               style={{
@@ -1399,7 +1471,7 @@ function DataTable({
               <button
                 onClick={() => {
                   setConfirmReceive(false);
-                  handleMarkAsReceived();
+                  handleMarkAsReceived(confirmReceiveRow);
                 }}
                 style={{
                   padding: "0.55rem 1.5rem",
