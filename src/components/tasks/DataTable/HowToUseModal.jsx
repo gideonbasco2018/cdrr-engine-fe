@@ -23,10 +23,6 @@ function Kbd({ children }) {
   );
 }
 
-/* ══════════════════════════════════════════════
-   ANIMATED MINI TABLE DEMO
-   Each step highlights a different interaction
-══════════════════════════════════════════════ */
 const DEMO_ROWS = [
   {
     id: 1,
@@ -56,8 +52,12 @@ function AnimatedTableDemo({ stepIndex }) {
   const [sortAsc, setSortAsc] = useState(true);
   const [menuOpen, setMenuOpen] = useState(null);
   const [pulse, setPulse] = useState(false);
+  const [showBulkBar, setShowBulkBar] = useState(false);
+  const [activeBulkBtn, setActiveBulkBtn] = useState(null);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showDetailsPanel, setShowDetailsPanel] = useState(false);
+  const [showEndorseModal, setShowEndorseModal] = useState(false);
 
-  /* Reset + animate on step change */
   useEffect(() => {
     setCheckedRows([]);
     setAllChecked(false);
@@ -65,63 +65,129 @@ function AnimatedTableDemo({ stepIndex }) {
     setClickedDtn(null);
     setMenuOpen(null);
     setPulse(false);
+    setShowBulkBar(false);
+    setActiveBulkBtn(null);
+    setShowCloseModal(false);
+    setShowDetailsPanel(false);
+    setShowEndorseModal(false);
 
-    const timers = [];
+    const t = [];
 
     if (stepIndex === 0) {
-      // Double-click demo: highlight row 1, show "opening" flash
-      timers.push(setTimeout(() => setHoveredRow(1), 400));
-      timers.push(setTimeout(() => setPulse(true), 900));
-      timers.push(setTimeout(() => setPulse(false), 1500));
-      timers.push(setTimeout(() => setHoveredRow(null), 1800));
-      timers.push(setTimeout(() => setHoveredRow(1), 2400));
-      timers.push(setTimeout(() => setPulse(true), 2900));
-      timers.push(setTimeout(() => setPulse(false), 3500));
+      t.push(setTimeout(() => setHoveredRow(1), 400));
+      t.push(setTimeout(() => setPulse(true), 900));
+      t.push(setTimeout(() => setPulse(false), 1500));
+      t.push(setTimeout(() => setHoveredRow(null), 1800));
+      t.push(setTimeout(() => setHoveredRow(1), 2400));
+      t.push(setTimeout(() => setPulse(true), 2900));
+      t.push(setTimeout(() => setPulse(false), 3500));
     }
 
     if (stepIndex === 1) {
-      // DTN click demo
-      timers.push(setTimeout(() => setClickedDtn(1), 500));
-      timers.push(setTimeout(() => setClickedDtn(null), 1200));
-      timers.push(setTimeout(() => setClickedDtn(2), 2000));
-      timers.push(setTimeout(() => setClickedDtn(null), 2700));
+      t.push(setTimeout(() => setClickedDtn(1), 500));
+      t.push(setTimeout(() => setClickedDtn(null), 1200));
+      t.push(setTimeout(() => setClickedDtn(2), 2000));
+      t.push(setTimeout(() => setClickedDtn(null), 2700));
     }
 
     if (stepIndex === 2) {
-      // Checkbox demo: check rows one by one then all
-      timers.push(setTimeout(() => setCheckedRows([1]), 400));
-      timers.push(setTimeout(() => setCheckedRows([1, 2]), 900));
-      timers.push(setTimeout(() => setCheckedRows([1, 2, 3]), 1400));
-      timers.push(
+      t.push(setTimeout(() => setCheckedRows([1]), 400));
+      t.push(setTimeout(() => setCheckedRows([1, 2]), 900));
+      t.push(
+        setTimeout(() => {
+          setCheckedRows([1, 2, 3]);
+          setShowBulkBar(true);
+        }, 1400),
+      );
+      t.push(
         setTimeout(() => {
           setCheckedRows([]);
           setAllChecked(false);
-        }, 2400),
+          setShowBulkBar(false);
+        }, 2600),
       );
-      timers.push(setTimeout(() => setAllChecked(true), 3000));
-      timers.push(setTimeout(() => setAllChecked(false), 3800));
+      t.push(
+        setTimeout(() => {
+          setAllChecked(true);
+          setShowBulkBar(true);
+        }, 3200),
+      );
+      t.push(
+        setTimeout(() => {
+          setAllChecked(false);
+          setShowBulkBar(false);
+        }, 4000),
+      );
     }
 
     if (stepIndex === 3) {
-      // Menu demo
-      timers.push(setTimeout(() => setHoveredRow(2), 400));
-      timers.push(setTimeout(() => setMenuOpen(2), 900));
-      timers.push(setTimeout(() => setMenuOpen(null), 2400));
-      timers.push(setTimeout(() => setHoveredRow(null), 2600));
-      timers.push(setTimeout(() => setHoveredRow(3), 3100));
-      timers.push(setTimeout(() => setMenuOpen(3), 3600));
-      timers.push(setTimeout(() => setMenuOpen(null), 5000));
+      // Close Task demo — select rows, highlight red button, show mini modal
+      t.push(
+        setTimeout(() => {
+          setCheckedRows([1, 2]);
+          setShowBulkBar(true);
+        }, 400),
+      );
+      t.push(setTimeout(() => setActiveBulkBtn("close"), 1000));
+      t.push(setTimeout(() => setShowCloseModal(true), 1600));
+      t.push(setTimeout(() => setShowCloseModal(false), 3800));
+      t.push(setTimeout(() => setActiveBulkBtn(null), 4000));
+      t.push(
+        setTimeout(() => {
+          setCheckedRows([]);
+          setShowBulkBar(false);
+        }, 4200),
+      );
     }
 
     if (stepIndex === 4) {
-      // Sort demo
-      timers.push(setTimeout(() => setSortAsc(false), 600));
-      timers.push(setTimeout(() => setSortAsc(true), 1500));
-      timers.push(setTimeout(() => setSortAsc(false), 2400));
-      timers.push(setTimeout(() => setSortAsc(true), 3300));
+      // Endorse Selected Applications demo
+      t.push(
+        setTimeout(() => {
+          setCheckedRows([1]);
+          setShowBulkBar(true);
+        }, 400),
+      );
+      t.push(setTimeout(() => setActiveBulkBtn("endorse"), 1000));
+      t.push(setTimeout(() => setShowEndorseModal(true), 1600));
+      t.push(setTimeout(() => setShowEndorseModal(false), 3800));
+      t.push(setTimeout(() => setActiveBulkBtn(null), 4000));
+      t.push(
+        setTimeout(() => {
+          setCheckedRows([]);
+          setShowBulkBar(false);
+        }, 4200),
+      );
     }
 
-    return () => timers.forEach(clearTimeout);
+    if (stepIndex === 5) {
+      // View Details via menu
+      t.push(setTimeout(() => setHoveredRow(2), 400));
+      t.push(setTimeout(() => setMenuOpen(2), 900));
+      t.push(setTimeout(() => setShowDetailsPanel(true), 1600));
+      t.push(setTimeout(() => setShowDetailsPanel(false), 3600));
+      t.push(setTimeout(() => setMenuOpen(null), 3800));
+      t.push(setTimeout(() => setHoveredRow(null), 4000));
+    }
+
+    if (stepIndex === 6) {
+      t.push(setTimeout(() => setHoveredRow(2), 400));
+      t.push(setTimeout(() => setMenuOpen(2), 900));
+      t.push(setTimeout(() => setMenuOpen(null), 2400));
+      t.push(setTimeout(() => setHoveredRow(null), 2600));
+      t.push(setTimeout(() => setHoveredRow(3), 3100));
+      t.push(setTimeout(() => setMenuOpen(3), 3600));
+      t.push(setTimeout(() => setMenuOpen(null), 5000));
+    }
+
+    if (stepIndex === 7) {
+      t.push(setTimeout(() => setSortAsc(false), 600));
+      t.push(setTimeout(() => setSortAsc(true), 1500));
+      t.push(setTimeout(() => setSortAsc(false), 2400));
+      t.push(setTimeout(() => setSortAsc(true), 3300));
+    }
+
+    return () => t.forEach(clearTimeout);
   }, [stepIndex]);
 
   const isChecked = (id) => allChecked || checkedRows.includes(id);
@@ -138,45 +204,53 @@ function AnimatedTableDemo({ stepIndex }) {
         position: "relative",
       }}
     >
-      {/* Bulk action bar — shown on step 2 */}
+      {/* Bulk action bar */}
       <div
         style={{
-          height: checkedRows.length > 0 || allChecked ? 32 : 0,
+          height: showBulkBar ? 36 : 0,
           overflow: "hidden",
           transition: "height 0.3s ease",
           background: "linear-gradient(90deg,#7c3aed15,#6d28d910)",
           borderBottom: "1px solid rgba(124,58,237,0.15)",
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          gap: 6,
           padding: "0 10px",
         }}
       >
         <span style={{ fontSize: 10, color: "#7c3aed", fontWeight: 700 }}>
           ✔ {allChecked ? 3 : checkedRows.length} selected
         </span>
-        {["Mark as Received", "Generate Transmittal", "Mark as Completed"].map(
-          (label) => (
-            <span
-              key={label}
-              style={{
-                background:
-                  label === "Mark as Received"
-                    ? "#10b981"
-                    : label === "Generate Transmittal"
-                      ? "#1976d2"
-                      : "#10b981",
-                color: "#fff",
-                borderRadius: 5,
-                padding: "2px 7px",
-                fontSize: 9,
-                fontWeight: 700,
-              }}
-            >
-              {label}
-            </span>
-          ),
-        )}
+        {[
+          { key: "transmittal", label: "Generate Transmittal", bg: "#1976d2" },
+          {
+            key: "endorse",
+            label: "Endorse Selected Applications",
+            bg: activeBulkBtn === "endorse" ? "#6d28d9" : "#7c3aed",
+          },
+          {
+            key: "close",
+            label: "🔒 Close Task (Final)",
+            bg: activeBulkBtn === "close" ? "#b91c1c" : "#dc2626",
+          },
+        ].map(({ key, label, bg }) => (
+          <span
+            key={key}
+            style={{
+              background: bg,
+              color: "#fff",
+              borderRadius: 5,
+              padding: "2px 7px",
+              fontSize: 9,
+              fontWeight: 700,
+              transform: activeBulkBtn === key ? "scale(1.07)" : "scale(1)",
+              boxShadow: activeBulkBtn === key ? `0 0 0 2px ${bg}60` : "none",
+              transition: "all 0.2s",
+            }}
+          >
+            {label}
+          </span>
+        ))}
       </div>
 
       {/* Table head */}
@@ -207,9 +281,8 @@ function AnimatedTableDemo({ stepIndex }) {
         ].map(({ label, key }) => (
           <span
             key={label}
-            onClick={() => key && setSortAsc((p) => !p)}
             style={{
-              color: stepIndex === 4 && label === "DTN" ? "#7c3aed" : "#6b7280",
+              color: stepIndex === 7 && label === "DTN" ? "#7c3aed" : "#6b7280",
               fontWeight: 700,
               fontSize: 9,
               textTransform: "uppercase",
@@ -218,7 +291,6 @@ function AnimatedTableDemo({ stepIndex }) {
               display: "flex",
               alignItems: "center",
               gap: 3,
-              transition: "color 0.2s",
             }}
           >
             {label}
@@ -229,7 +301,7 @@ function AnimatedTableDemo({ stepIndex }) {
                 <span
                   style={{
                     fontSize: 7,
-                    color: stepIndex === 4 && !sortAsc ? "#7c3aed" : "#d1d5db",
+                    color: stepIndex === 7 && !sortAsc ? "#7c3aed" : "#d1d5db",
                   }}
                 >
                   ▲
@@ -237,7 +309,7 @@ function AnimatedTableDemo({ stepIndex }) {
                 <span
                   style={{
                     fontSize: 7,
-                    color: stepIndex === 4 && sortAsc ? "#7c3aed" : "#d1d5db",
+                    color: stepIndex === 7 && sortAsc ? "#7c3aed" : "#d1d5db",
                   }}
                 >
                   ▼
@@ -248,7 +320,7 @@ function AnimatedTableDemo({ stepIndex }) {
         ))}
       </div>
 
-      {/* Table rows */}
+      {/* Rows */}
       {DEMO_ROWS.map((row, idx) => {
         const checked = isChecked(row.id);
         const hovered = hoveredRow === row.id;
@@ -293,8 +365,6 @@ function AnimatedTableDemo({ stepIndex }) {
             <span style={{ color: "#9ca3af", fontWeight: 700, fontSize: 10 }}>
               {idx + 1}
             </span>
-
-            {/* DTN badge */}
             <span
               style={{
                 display: "inline-block",
@@ -306,7 +376,6 @@ function AnimatedTableDemo({ stepIndex }) {
                 padding: "3px 7px",
                 fontSize: 9,
                 fontWeight: 700,
-                letterSpacing: "0.03em",
                 transform: dtnClicked ? "scale(0.94)" : "scale(1)",
                 transition: "all 0.15s",
                 boxShadow: dtnClicked
@@ -320,7 +389,6 @@ function AnimatedTableDemo({ stepIndex }) {
             >
               {row.dtn}
             </span>
-
             <span style={{ color: "#374151", fontSize: 10 }}>
               {row.category}
             </span>
@@ -335,8 +403,6 @@ function AnimatedTableDemo({ stepIndex }) {
             >
               {row.company}
             </span>
-
-            {/* Actions */}
             <div style={{ position: "relative", textAlign: "center" }}>
               <span
                 style={{
@@ -359,7 +425,7 @@ function AnimatedTableDemo({ stepIndex }) {
                   fontWeight: 700,
                 }}
               >
-                ⋮{/* unread dot */}
+                ⋮
                 {row.id === 2 && (
                   <span
                     style={{
@@ -375,8 +441,6 @@ function AnimatedTableDemo({ stepIndex }) {
                   />
                 )}
               </span>
-
-              {/* Dropdown */}
               {isMenuOpen && (
                 <div
                   style={{
@@ -394,24 +458,31 @@ function AnimatedTableDemo({ stepIndex }) {
                   }}
                 >
                   {[
-                    { icon: "👁️", label: "View Details" },
-                    { icon: "🗂️", label: "Application Logs" },
-                    { icon: "🕓", label: "Change Log" },
-                    { icon: "📋", label: "Doctrack Details" },
+                    {
+                      icon: "👁️",
+                      label: "View Details",
+                      highlight: stepIndex === 5,
+                    },
+                    { icon: "🗂️", label: "Application Logs", highlight: false },
+                    { icon: "🕓", label: "Change Log", highlight: false },
+                    { icon: "📋", label: "Doctrack Details", highlight: false },
                   ].map((item, i) => (
                     <div
                       key={item.label}
                       style={{
                         padding: "10px 14px",
                         fontSize: 12,
-                        color: "#374151",
+                        color: item.highlight ? "#7c3aed" : "#374151",
                         borderBottom:
                           i < 3 ? "1px solid rgba(0,0,0,0.06)" : "none",
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
-                        fontWeight: 500,
+                        fontWeight: item.highlight ? 700 : 500,
+                        background: item.highlight
+                          ? "rgba(124,58,237,0.06)"
+                          : "transparent",
                       }}
                     >
                       <span style={{ fontSize: 14 }}>{item.icon}</span>
@@ -424,6 +495,351 @@ function AnimatedTableDemo({ stepIndex }) {
           </div>
         );
       })}
+
+      {/* Close Task mini modal overlay */}
+      {showCloseModal && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            animation: "dropIn 0.2s ease",
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              border: "2px solid #dc2626",
+              borderRadius: 10,
+              overflow: "hidden",
+              width: 220,
+              boxShadow: "0 8px 32px rgba(220,38,38,0.3)",
+            }}
+          >
+            <div
+              style={{
+                background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span style={{ fontSize: 14 }}>🔒</span>
+              <span style={{ color: "#fff", fontWeight: 700, fontSize: 11 }}>
+                Close Task (Final)
+              </span>
+            </div>
+            <div style={{ padding: "10px 12px" }}>
+              <div
+                style={{
+                  background: "rgba(220,38,38,0.08)",
+                  border: "1px solid rgba(220,38,38,0.3)",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                  marginBottom: 8,
+                }}
+              >
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 9,
+                    fontWeight: 700,
+                    color: "#dc2626",
+                  }}
+                >
+                  ⚠️ READ BEFORE PROCEEDING
+                </p>
+                <p style={{ margin: "3px 0 0", fontSize: 9, color: "#6b7280" }}>
+                  This permanently closes the task. Cannot be undone.
+                </p>
+              </div>
+              <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 6 }}>
+                Reason for closing <span style={{ color: "#ef4444" }}>*</span>
+              </div>
+              <div
+                style={{
+                  background: "#f3f4f6",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 5,
+                  padding: "4px 8px",
+                  fontSize: 9,
+                  color: "#374151",
+                  marginBottom: 8,
+                }}
+              >
+                Task fulfilled
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "5px 7px",
+                  background: "rgba(220,38,38,0.06)",
+                  border: "1px solid rgba(220,38,38,0.2)",
+                  borderRadius: 6,
+                  marginBottom: 8,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  readOnly
+                  checked
+                  style={{ accentColor: "#dc2626", width: 10, height: 10 }}
+                />
+                <span style={{ fontSize: 9, color: "#374151" }}>
+                  I understand this is permanent
+                </span>
+              </div>
+              <div
+                style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}
+              >
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 5,
+                    fontSize: 9,
+                    cursor: "pointer",
+                    color: "#6b7280",
+                  }}
+                >
+                  Cancel
+                </span>
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                    borderRadius: 5,
+                    fontSize: 9,
+                    color: "#fff",
+                    fontWeight: 700,
+                  }}
+                >
+                  🔒 Yes, Close
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Endorse mini modal overlay */}
+      {showEndorseModal && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            animation: "dropIn 0.2s ease",
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              border: "1.5px solid #7c3aed",
+              borderRadius: 10,
+              overflow: "hidden",
+              width: 210,
+              boxShadow: "0 8px 32px rgba(124,58,237,0.25)",
+            }}
+          >
+            <div
+              style={{
+                background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span style={{ fontSize: 14 }}>📋</span>
+              <span style={{ color: "#fff", fontWeight: 700, fontSize: 11 }}>
+                Endorse Selected Applications
+              </span>
+            </div>
+            <div style={{ padding: "10px 12px" }}>
+              <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>
+                Decision
+              </div>
+              <div
+                style={{
+                  background: "#f3f4f6",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 5,
+                  padding: "4px 8px",
+                  fontSize: 9,
+                  color: "#374151",
+                  marginBottom: 8,
+                }}
+              >
+                Endorse to Checker
+              </div>
+              <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 4 }}>
+                Assign to
+              </div>
+              <div
+                style={{
+                  background: "#f3f4f6",
+                  border: "1px solid #e5e7eb",
+                  borderRadius: 5,
+                  padding: "4px 8px",
+                  fontSize: 9,
+                  color: "#374151",
+                  marginBottom: 8,
+                }}
+              >
+                jonna.pepito
+              </div>
+              <div
+                style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}
+              >
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 5,
+                    fontSize: 9,
+                    color: "#6b7280",
+                  }}
+                >
+                  Cancel
+                </span>
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                    borderRadius: 5,
+                    fontSize: 9,
+                    color: "#fff",
+                    fontWeight: 700,
+                  }}
+                >
+                  ✓ Confirm
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Details panel */}
+      {showDetailsPanel && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            animation: "dropIn 0.2s ease",
+            borderRadius: 10,
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              border: "1.5px solid #7c3aed",
+              borderRadius: 10,
+              overflow: "hidden",
+              width: 220,
+              boxShadow: "0 8px 32px rgba(124,58,237,0.2)",
+            }}
+          >
+            <div
+              style={{
+                background: "linear-gradient(135deg,#7c3aed20,#6d28d910)",
+                borderBottom: "1px solid rgba(124,58,237,0.15)",
+                padding: "8px 12px",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span style={{ fontSize: 14 }}>👁️</span>
+              <span style={{ fontWeight: 700, fontSize: 11, color: "#111" }}>
+                View Details
+              </span>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
+                {["Basic Info", "Full Details", "App Logs", "Action"].map(
+                  (tab, i) => (
+                    <span
+                      key={tab}
+                      style={{
+                        fontSize: 8,
+                        padding: "2px 5px",
+                        borderRadius: 4,
+                        background: i === 3 ? "#7c3aed" : "transparent",
+                        color: i === 3 ? "#fff" : "#9ca3af",
+                        fontWeight: i === 3 ? 700 : 400,
+                      }}
+                    >
+                      {tab}
+                    </span>
+                  ),
+                )}
+              </div>
+            </div>
+            <div style={{ padding: "10px 12px" }}>
+              <div style={{ fontSize: 9, color: "#6b7280", marginBottom: 6 }}>
+                DTN:{" "}
+                <strong style={{ color: "#7c3aed" }}>20260123135945</strong>
+              </div>
+              <div
+                style={{
+                  background: "#f3f4f6",
+                  borderRadius: 6,
+                  padding: "6px 8px",
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ fontSize: 9, color: "#374151", fontWeight: 600 }}>
+                  Decision
+                </div>
+                <div
+                  style={{
+                    background: "#fff",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 4,
+                    padding: "3px 7px",
+                    marginTop: 3,
+                    fontSize: 9,
+                    color: "#6b7280",
+                  }}
+                >
+                  Select decision...
+                </div>
+              </div>
+              <div
+                style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}
+              >
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    background: "linear-gradient(135deg,#2196F3,#1976D2)",
+                    borderRadius: 5,
+                    fontSize: 9,
+                    color: "#fff",
+                    fontWeight: 700,
+                  }}
+                >
+                  ✓ Complete
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -464,8 +880,63 @@ const STEPS = [
     desc: (
       <>
         Check one or more rows to reveal bulk action buttons:{" "}
-        <Kbd>Mark as Received</Kbd> <Kbd>Generate Transmittal</Kbd>{" "}
-        <Kbd>Mark as Completed</Kbd>
+        <Kbd>Generate Transmittal</Kbd> <Kbd>Endorse Selected Applications</Kbd>{" "}
+        <Kbd>Close Task (Final)</Kbd>
+      </>
+    ),
+  },
+  {
+    icon: "🔒",
+    color: "#dc2626",
+    colorBg: "#FEE2E2",
+    label: "Close Task (Final)",
+    sublabel: "Permanently close a task",
+    desc: (
+      <>
+        Use the{" "}
+        <strong style={{ color: "#dc2626" }}>🔒 Close Task (Final)</strong>{" "}
+        button <strong>only</strong> when the task is fully done and no further
+        action is needed. This{" "}
+        <strong style={{ color: "#dc2626" }}>permanently closes</strong> the
+        selected task(s) and cannot be undone. You will need to select a reason
+        and confirm before proceeding. If you just want to transfer or endorse
+        the task to the next user, use <Kbd>Endorse Selected Applications</Kbd>{" "}
+        instead.
+      </>
+    ),
+  },
+  {
+    icon: "📋",
+    color: "#7c3aed",
+    colorBg: "#EEEDFE",
+    label: "Endorse Selected Applications",
+    sublabel: "Forward task to next user",
+    desc: (
+      <>
+        Use the{" "}
+        <strong style={{ color: "#7c3aed" }}>
+          📋 Endorse Selected Applications
+        </strong>{" "}
+        purple button to forward or transfer the selected task(s) to the next
+        assigned user. Select the decision and the assignee, then confirm. The
+        current log will be completed and a new log will be created for the next
+        user — the task stays active.
+      </>
+    ),
+  },
+  {
+    icon: "👁️",
+    color: "#2196F3",
+    colorBg: "#E3F2FD",
+    label: "View Details",
+    sublabel: "Process task from Action tab",
+    desc: (
+      <>
+        Click the <Kbd>⋮</Kbd> Actions button on any row, then select{" "}
+        <strong>View Details</strong> to open the full record. Navigate to the{" "}
+        <strong style={{ color: "#2196F3" }}>Action tab</strong> to process the
+        task — select a decision, fill in remarks, assign the next user, and
+        submit to complete your step in the workflow.
       </>
     ),
   },
@@ -479,7 +950,8 @@ const STEPS = [
       <>
         Click the <Kbd>⋮</Kbd> button at the end of each row to access:
         Application Logs, Change Log, and Doctrack Details. A{" "}
-        <strong style={{ color: "#2196F3" }}>blue dot</strong> means unread.
+        <strong style={{ color: "#2196F3" }}>blue dot</strong> means the record
+        is unread.
       </>
     ),
   },
@@ -489,7 +961,7 @@ const STEPS = [
     colorBg: "#EAF3DE",
     label: "Click column headers",
     sublabel: "Sort data",
-    desc: "Click any column header to sort the data. Click again to reverse the order. The current sort is shown in the header bar.",
+    desc: "Click any column header to sort the data. Click again to reverse the order. The current sort indicator is shown in the header bar.",
   },
 ];
 
@@ -512,26 +984,18 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
     return () => clearTimeout(t);
   }, []);
 
-  /* ── Auto-advance every AUTO_ADVANCE_MS ms ── */
   useEffect(() => {
     setProgress(0);
     if (paused) return;
-
-    // Smooth progress bar tick every 50ms
     const tick = AUTO_ADVANCE_MS / 50;
     let current = 0;
     progressRef.current = setInterval(() => {
       current += 1;
       setProgress((current / tick) * 100);
     }, 50);
-
     intervalRef.current = setTimeout(() => {
-      setActiveStep((p) => {
-        if (p < STEPS.length - 1) return p + 1;
-        return p; // stop at last step
-      });
+      setActiveStep((p) => (p < STEPS.length - 1 ? p + 1 : p));
     }, AUTO_ADVANCE_MS);
-
     return () => {
       clearTimeout(intervalRef.current);
       clearInterval(progressRef.current);
@@ -544,7 +1008,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
   };
 
   const goToStep = (i) => {
-    setPaused(true); // pause auto-advance once user manually clicks
+    setPaused(true);
     setActiveStep(i);
   };
 
@@ -553,23 +1017,11 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
   return (
     <>
       <style>{`
-        @keyframes modalIn {
-          from { opacity: 0; transform: translateY(16px) scale(0.97); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        @keyframes dropIn {
-          from { opacity: 0; transform: translateY(-6px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeSlideIn {
-          from { opacity: 0; transform: translateX(10px); }
-          to   { opacity: 1; transform: translateX(0); }
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .guide-step-pill:hover {
-          opacity: 1 !important;
-          transform: translateY(-1px);
-        }
+        @keyframes modalIn { from { opacity:0; transform:translateY(16px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+        @keyframes dropIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeSlideIn { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .guide-step-pill:hover { opacity:1 !important; transform:translateY(-1px); }
       `}</style>
 
       <div
@@ -593,7 +1045,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
             border: `1px solid ${darkMode ? "rgba(124,58,237,0.25)" : "rgba(124,58,237,0.15)"}`,
             borderRadius: 16,
             width: "100%",
-            maxWidth: 920,
+            maxWidth: 960,
             maxHeight: "95vh",
             display: "flex",
             flexDirection: "column",
@@ -603,7 +1055,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
             opacity: visible ? 1 : 0,
           }}
         >
-          {/* ── Header ── */}
+          {/* Header */}
           <div
             style={{
               padding: "1rem 1.4rem",
@@ -675,7 +1127,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
             </button>
           </div>
 
-          {/* ── Body ── */}
+          {/* Body */}
           <div
             style={{
               display: "flex",
@@ -684,16 +1136,16 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
               overflow: "hidden",
             }}
           >
-            {/* Left: step pills */}
+            {/* Left sidebar */}
             <div
               style={{
-                width: 240,
+                width: 220,
                 flexShrink: 0,
                 borderRight: `1px solid ${darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
-                padding: "1rem 0.75rem",
+                padding: "0.75rem 0.6rem",
                 display: "flex",
                 flexDirection: "column",
-                gap: 4,
+                gap: 3,
                 overflowY: "auto",
                 background: darkMode ? "#1c1917" : "#faf9ff",
               }}
@@ -708,8 +1160,8 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 10,
-                      padding: "8px 10px",
+                      gap: 8,
+                      padding: "7px 9px",
                       borderRadius: 10,
                       border: active
                         ? `1.5px solid ${s.color}40`
@@ -728,9 +1180,9 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                   >
                     <div
                       style={{
-                        width: 30,
-                        height: 30,
-                        borderRadius: 8,
+                        width: 26,
+                        height: 26,
+                        borderRadius: 7,
                         background: active
                           ? s.color
                           : darkMode
@@ -739,7 +1191,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: 14,
+                        fontSize: 13,
                         flexShrink: 0,
                         transition: "all 0.18s",
                         boxShadow: active ? `0 4px 10px ${s.color}40` : "none",
@@ -750,7 +1202,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                     <div>
                       <div
                         style={{
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: 700,
                           color: active
                             ? darkMode
@@ -766,7 +1218,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                       </div>
                       <div
                         style={{
-                          fontSize: 9.5,
+                          fontSize: 9,
                           color: active
                             ? s.color
                             : darkMode
@@ -797,11 +1249,11 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                 );
               })}
 
-              {/* Step counter */}
+              {/* Step counter + progress */}
               <div
                 style={{
                   marginTop: "auto",
-                  padding: "8px 4px 0",
+                  padding: "10px 4px 0",
                   fontSize: 10,
                   color: darkMode ? "#52525b" : "#9ca3af",
                   textAlign: "center",
@@ -837,7 +1289,6 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                     }}
                   />
                 </div>
-                {/* Pause / Play toggle */}
                 <button
                   onClick={() => setPaused((p) => !p)}
                   style={{
@@ -855,7 +1306,6 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 4,
-                    transition: "all 0.15s",
                   }}
                 >
                   {paused ? "▶ Resume auto-play" : "⏸ Pause"}
@@ -872,7 +1322,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                 overflow: "hidden",
               }}
             >
-              {/* Animated demo area */}
+              {/* Demo area */}
               <div
                 style={{
                   padding: "1rem 1.2rem 0.75rem",
@@ -880,7 +1330,6 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                   background: darkMode ? "#0f0f11" : "#f8f7ff",
                 }}
               >
-                {/* Demo label */}
                 <div
                   style={{
                     display: "flex",
@@ -924,11 +1373,10 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                     {step.label}
                   </span>
                 </div>
-
                 <AnimatedTableDemo stepIndex={activeStep} key={activeStep} />
               </div>
 
-              {/* Description panel */}
+              {/* Description */}
               <div
                 key={activeStep}
                 style={{
@@ -939,11 +1387,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
                 }}
               >
                 <div
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 12,
-                  }}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 12 }}
                 >
                   <div
                     style={{
@@ -1042,7 +1486,7 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
             </div>
           </div>
 
-          {/* ── Footer ── */}
+          {/* Footer */}
           <div
             style={{
               padding: "0.75rem 1.4rem",
@@ -1094,9 +1538,6 @@ export default function HowToUseModal({ colors, darkMode, onClose }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────
-   Hook — call this in DataTable to control auto-show logic
-   ───────────────────────────────────────────────────────── */
 export function useHowToUseGuide() {
   const [showGuide, setShowGuide] = useState(false);
 

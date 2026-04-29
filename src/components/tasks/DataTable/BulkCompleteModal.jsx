@@ -13,8 +13,10 @@ export function BulkCompleteModal({
 }) {
   const [remarks, setRemarks] = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null); // { success, failed }
+  const [result, setResult] = useState(null);
   const [reason, setReason] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+
   const REASONS = [
     "Task fulfilled",
     "Document verified and approved",
@@ -23,10 +25,10 @@ export function BulkCompleteModal({
   ];
 
   const handleConfirm = async () => {
-    if (!reason) return;
+    if (!reason || !confirmed) return;
     setLoading(true);
     try {
-      const res = await onConfirm({ remarks, reason }); // ← dagdag ang reason
+      const res = await onConfirm({ remarks, reason });
       setResult(res);
     } catch (e) {
       console.error("Bulk complete error:", e);
@@ -35,6 +37,7 @@ export function BulkCompleteModal({
       setLoading(false);
     }
   };
+
   const handleDone = async () => {
     if (onDone) await onDone();
     onClose();
@@ -49,7 +52,7 @@ export function BulkCompleteModal({
           position: "fixed",
           inset: 0,
           zIndex: 9999,
-          background: "rgba(0,0,0,0.55)",
+          background: "rgba(0,0,0,0.65)",
           backdropFilter: "blur(4px)",
         }}
       />
@@ -63,47 +66,53 @@ export function BulkCompleteModal({
           transform: "translate(-50%, -50%)",
           zIndex: 10000,
           background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
+          border: `2px solid #dc2626`,
           borderRadius: 16,
-          boxShadow: "0 24px 80px rgba(0,0,0,0.4)",
-          width: "min(520px, 92vw)",
+          boxShadow:
+            "0 24px 80px rgba(220,38,38,0.25), 0 8px 32px rgba(0,0,0,0.4)",
+          width: "min(560px, 92vw)",
           overflow: "hidden",
+          maxHeight: "92vh",
+          display: "flex",
+          flexDirection: "column",
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* ── Header ── */}
         <div
           style={{
-            padding: "1.25rem 1.5rem",
-            borderBottom: `1px solid ${colors.cardBorder}`,
+            padding: "1.1rem 1.5rem",
+            background: "linear-gradient(135deg, #dc2626, #b91c1c)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexShrink: 0,
           }}
         >
           <div
             style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
           >
-            <span style={{ fontSize: "1.5rem" }}>✅</span>
+            <span style={{ fontSize: "1.5rem" }}>🔒</span>
             <div>
               <h3
                 style={{
                   margin: 0,
                   fontSize: "1rem",
                   fontWeight: 700,
-                  color: colors.textPrimary,
+                  color: "#fff",
                 }}
               >
-                Mark as Completed
+                Close Task (Final)
               </h3>
               <p
                 style={{
                   margin: 0,
-                  fontSize: "0.75rem",
-                  color: colors.textTertiary,
+                  fontSize: "0.72rem",
+                  color: "rgba(255,255,255,0.75)",
                 }}
               >
-                {selectedCount} record{selectedCount > 1 ? "s" : ""} selected
+                {selectedCount} record{selectedCount > 1 ? "s" : ""} selected —
+                this cannot be undone
               </p>
             </div>
           </div>
@@ -111,198 +120,314 @@ export function BulkCompleteModal({
             <button
               onClick={onClose}
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                border: `1px solid ${colors.cardBorder}`,
-                background: "transparent",
-                color: colors.textSecondary,
+                width: 30,
+                height: 30,
+                borderRadius: 6,
+                border: "1px solid rgba(255,255,255,0.3)",
+                background: "rgba(255,255,255,0.1)",
+                color: "#fff",
                 cursor: "pointer",
-                fontSize: "1rem",
+                fontSize: "0.9rem",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#ef444415";
-                e.currentTarget.style.borderColor = "#ef4444";
-                e.currentTarget.style.color = "#ef4444";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.borderColor = colors.cardBorder;
-                e.currentTarget.style.color = colors.textSecondary;
-              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "rgba(255,255,255,0.2)")
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "rgba(255,255,255,0.1)")
+              }
             >
               ✕
             </button>
           )}
         </div>
 
-        {/* Content */}
-        <div style={{ padding: "1.5rem" }}>
-          {/* Result view */}
-          {result ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "1rem",
-                padding: "1rem 0",
-              }}
-            >
-              <div style={{ fontSize: "3rem" }}>
-                {result.failed === 0 ? "🎉" : "⚠️"}
-              </div>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "1rem",
-                  fontWeight: 700,
-                  color: colors.textPrimary,
-                }}
-              >
-                {result.failed === 0
-                  ? "All records completed!"
-                  : "Completed with some errors"}
-              </p>
-              <div style={{ display: "flex", gap: "1rem" }}>
-                {result.success > 0 && (
-                  <span
-                    style={{
-                      padding: "0.4rem 1rem",
-                      background: "rgba(16,185,129,0.1)",
-                      border: "1px solid rgba(16,185,129,0.3)",
-                      borderRadius: 8,
-                      fontSize: "0.82rem",
-                      color: "#10b981",
-                      fontWeight: 700,
-                    }}
-                  >
-                    ✅ {result.success} succeeded
-                  </span>
-                )}
-                {result.failed > 0 && (
-                  <span
-                    style={{
-                      padding: "0.4rem 1rem",
-                      background: "rgba(239,68,68,0.1)",
-                      border: "1px solid rgba(239,68,68,0.3)",
-                      borderRadius: 8,
-                      fontSize: "0.82rem",
-                      color: "#ef4444",
-                      fontWeight: 700,
-                    }}
-                  >
-                    ❌ {result.failed} failed
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={handleDone}
-                style={{
-                  marginTop: "0.5rem",
-                  padding: "0.65rem 2rem",
-                  background: "linear-gradient(135deg,#10b981,#059669)",
-                  border: "none",
-                  borderRadius: 8,
-                  color: "#fff",
-                  fontSize: "0.875rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(16,185,129,0.3)",
-                }}
-              >
-                Done
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* DTN list */}
+        {/* ── Scrollable body ── */}
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          <div style={{ padding: "1.5rem" }}>
+            {/* ── Result view ── */}
+            {result ? (
               <div
                 style={{
-                  padding: "0.85rem 1rem",
-                  background: darkMode
-                    ? "rgba(16,185,129,0.08)"
-                    : "rgba(16,185,129,0.05)",
-                  border: "1px solid rgba(16,185,129,0.2)",
-                  borderRadius: 10,
-                  marginBottom: "1.25rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "1rem",
+                  padding: "1rem 0",
                 }}
               >
+                <div style={{ fontSize: "3rem" }}>
+                  {result.failed === 0 ? "🎉" : "⚠️"}
+                </div>
                 <p
                   style={{
-                    margin: "0 0 0.5rem",
-                    fontSize: "0.72rem",
+                    margin: 0,
+                    fontSize: "1rem",
                     fontWeight: 700,
-                    color: "#10b981",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
+                    color: colors.textPrimary,
                   }}
                 >
-                  📋 Records to Complete
+                  {result.failed === 0
+                    ? "All tasks closed successfully!"
+                    : "Completed with some errors"}
                 </p>
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "0.4rem",
-                    maxHeight: 120,
-                    overflowY: "auto",
-                  }}
-                >
-                  {selectedDtns.map((dtn, i) => (
+                <div style={{ display: "flex", gap: "1rem" }}>
+                  {result.success > 0 && (
                     <span
-                      key={i}
                       style={{
-                        padding: "0.2rem 0.6rem",
-                        background: darkMode ? "rgba(16,185,129,0.15)" : "#fff",
+                        padding: "0.4rem 1rem",
+                        background: "rgba(16,185,129,0.1)",
                         border: "1px solid rgba(16,185,129,0.3)",
-                        borderRadius: 6,
-                        fontSize: "0.72rem",
+                        borderRadius: 8,
+                        fontSize: "0.82rem",
+                        color: "#10b981",
                         fontWeight: 700,
-                        color: colors.textPrimary,
                       }}
                     >
-                      {dtn}
+                      ✅ {result.success} succeeded
                     </span>
-                  ))}
+                  )}
+                  {result.failed > 0 && (
+                    <span
+                      style={{
+                        padding: "0.4rem 1rem",
+                        background: "rgba(239,68,68,0.1)",
+                        border: "1px solid rgba(239,68,68,0.3)",
+                        borderRadius: 8,
+                        fontSize: "0.82rem",
+                        color: "#ef4444",
+                        fontWeight: 700,
+                      }}
+                    >
+                      ❌ {result.failed} failed
+                    </span>
+                  )}
                 </div>
+                <button
+                  onClick={handleDone}
+                  style={{
+                    marginTop: "0.5rem",
+                    padding: "0.65rem 2rem",
+                    background: "linear-gradient(135deg,#10b981,#059669)",
+                    border: "none",
+                    borderRadius: 8,
+                    color: "#fff",
+                    fontSize: "0.875rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(16,185,129,0.3)",
+                  }}
+                >
+                  Done
+                </button>
               </div>
-
-              {/* Info note */}
-              <div
-                style={{
-                  padding: "0.85rem 1rem",
-                  background: darkMode
-                    ? "rgba(33,150,243,0.08)"
-                    : "rgba(33,150,243,0.05)",
-                  border: "1px solid rgba(33,150,243,0.2)",
-                  borderRadius: 10,
-                  marginBottom: "1.25rem",
-                  display: "flex",
-                  gap: "0.75rem",
-                  alignItems: "flex-start",
-                }}
-              >
-                <span style={{ fontSize: "1.2rem", flexShrink: 0 }}>ℹ️</span>
+            ) : (
+              <>
+                {/* ══════════════════════════════════════════════════
+                    NOT SURE? USE THESE INSTEAD — guide section
+                ══════════════════════════════════════════════════ */}
                 <div
                   style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.3rem",
+                    padding: "1rem 1.1rem",
+                    background: darkMode
+                      ? "rgba(124,58,237,0.1)"
+                      : "rgba(124,58,237,0.05)",
+                    border: "1.5px solid rgba(124,58,237,0.3)",
+                    borderRadius: 12,
+                    marginBottom: "1.1rem",
                   }}
                 >
                   <p
                     style={{
-                      margin: 0,
-                      fontSize: "0.78rem",
-                      fontWeight: 700,
-                      color: colors.textPrimary,
+                      margin: "0 0 0.65rem",
+                      fontSize: "0.8rem",
+                      fontWeight: 800,
+                      color: "#7c3aed",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
                     }}
                   >
-                    What happens when you mark as completed?
+                    💡 Not sure if you should close this task?
+                  </p>
+                  <p
+                    style={{
+                      margin: "0 0 0.75rem",
+                      fontSize: "0.75rem",
+                      color: colors.textSecondary,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    If you just want to <strong>transfer or endorse</strong> the
+                    task to the next user —{" "}
+                    <strong style={{ color: "#7c3aed" }}>
+                      do NOT close it here.
+                    </strong>{" "}
+                    Use one of these instead:
+                  </p>
+
+                  {/* Option 1 — Endorse Selected Applications */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "0.75rem",
+                      padding: "0.7rem 0.9rem",
+                      background: darkMode ? "rgba(124,58,237,0.1)" : "#fff",
+                      border: "1px solid rgba(124,58,237,0.2)",
+                      borderRadius: 9,
+                      marginBottom: "0.5rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                        padding: "0.3rem 0.75rem",
+                        background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                        borderRadius: 6,
+                        fontSize: "0.7rem",
+                        fontWeight: 700,
+                        color: "#fff",
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      📋 Endorse Selected Applications
+                    </div>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "0.73rem",
+                        color: colors.textSecondary,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      Use the{" "}
+                      <strong style={{ color: "#7c3aed" }}>
+                        purple button
+                      </strong>{" "}
+                      in the table header to endorse or forward the selected
+                      task(s) to the next assigned user.
+                    </p>
+                  </div>
+
+                  {/* Option 2 — View Details > Action tab */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "0.75rem",
+                      padding: "0.7rem 0.9rem",
+                      background: darkMode ? "rgba(33,150,243,0.08)" : "#fff",
+                      border: "1px solid rgba(33,150,243,0.2)",
+                      borderRadius: 9,
+                    }}
+                  >
+                    <div
+                      style={{
+                        flexShrink: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.3rem",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.3rem",
+                          padding: "0.25rem 0.65rem",
+                          background: colors.badgeBg,
+                          border: `1px solid ${colors.cardBorder}`,
+                          borderRadius: 6,
+                          fontSize: "0.68rem",
+                          fontWeight: 700,
+                          color: colors.textPrimary,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        ⋮ Actions
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.62rem",
+                          color: colors.textTertiary,
+                          textAlign: "center",
+                          width: "100%",
+                        }}
+                      >
+                        then
+                      </div>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.3rem",
+                          padding: "0.25rem 0.65rem",
+                          background: colors.badgeBg,
+                          border: `1px solid ${colors.cardBorder}`,
+                          borderRadius: 6,
+                          fontSize: "0.68rem",
+                          fontWeight: 700,
+                          color: colors.textPrimary,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        👁️ View Details
+                      </div>
+                    </div>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "0.73rem",
+                        color: colors.textSecondary,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      Click the{" "}
+                      <strong style={{ color: colors.textPrimary }}>
+                        ⋮ Actions
+                      </strong>{" "}
+                      button on the row, then select{" "}
+                      <strong style={{ color: colors.textPrimary }}>
+                        View Details
+                      </strong>{" "}
+                      to open the task and process it from the{" "}
+                      <strong>Action tab</strong>.
+                    </p>
+                  </div>
+                </div>
+                {/* ══════════════════════════════════════════════════ */}
+
+                {/* ── BIG WARNING BANNER ── */}
+                <div
+                  style={{
+                    padding: "1rem 1.1rem",
+                    background: darkMode
+                      ? "rgba(220,38,38,0.12)"
+                      : "rgba(220,38,38,0.06)",
+                    border: "2px solid rgba(220,38,38,0.4)",
+                    borderRadius: 12,
+                    marginBottom: "1.1rem",
+                  }}
+                >
+                  <p
+                    style={{
+                      margin: "0 0 0.6rem",
+                      fontSize: "0.85rem",
+                      fontWeight: 800,
+                      color: "#dc2626",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                    }}
+                  >
+                    ⚠️ READ BEFORE PROCEEDING
                   </p>
                   <ul
                     style={{
@@ -310,221 +435,331 @@ export function BulkCompleteModal({
                       paddingLeft: "1.1rem",
                       display: "flex",
                       flexDirection: "column",
-                      gap: "0.25rem",
+                      gap: "0.35rem",
                     }}
                   >
                     {[
-                      "The task will be marked as COMPLETED and can no longer be modified.",
-                      "The record will be removed from your active task list.",
-                      "The action will be recorded in the audit log for transparency.",
-                      "No further action needed — this is the final step. The task will be permanently closed.",
-                    ].map((note, i) => (
+                      {
+                        text: "This will PERMANENTLY close the selected task(s). There is NO way to reopen them.",
+                        bold: true,
+                      },
+                      {
+                        text: "Use this ONLY when the task is fully done and no further action is needed.",
+                        bold: false,
+                      },
+                      {
+                        text: "The task will be removed from your active task list.",
+                        bold: false,
+                      },
+                      {
+                        text: "This action will be recorded in the audit log.",
+                        bold: false,
+                      },
+                    ].map((item, i) => (
                       <li
                         key={i}
                         style={{
-                          fontSize: "0.75rem",
-                          color: colors.textTertiary,
-                          lineHeight: 1.5,
+                          fontSize: "0.78rem",
+                          color: item.bold ? "#dc2626" : colors.textSecondary,
+                          fontWeight: item.bold ? 700 : 400,
+                          lineHeight: 1.55,
                         }}
                       >
-                        {note}
+                        {item.text}
                       </li>
                     ))}
                   </ul>
                 </div>
-              </div>
 
-              {/* Reason */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.4rem",
-                  marginBottom: "1rem",
-                }}
-              >
-                <label
+                {/* DTN list */}
+                <div
                   style={{
-                    fontSize: "0.65rem",
-                    fontWeight: 700,
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
+                    padding: "0.85rem 1rem",
+                    background: darkMode
+                      ? "rgba(220,38,38,0.07)"
+                      : "rgba(220,38,38,0.04)",
+                    border: "1px solid rgba(220,38,38,0.2)",
+                    borderRadius: 10,
+                    marginBottom: "1.1rem",
                   }}
                 >
-                  Reason <span style={{ color: "#ef4444" }}>*</span>
-                </label>
-                <select
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  <p
+                    style={{
+                      margin: "0 0 0.5rem",
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      color: "#dc2626",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                    }}
+                  >
+                    🔒 Tasks to be Closed ({selectedCount})
+                  </p>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: "0.4rem",
+                      maxHeight: 90,
+                      overflowY: "auto",
+                    }}
+                  >
+                    {selectedDtns.map((dtn, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          padding: "0.2rem 0.6rem",
+                          background: darkMode
+                            ? "rgba(220,38,38,0.15)"
+                            : "#fff",
+                          border: "1px solid rgba(220,38,38,0.25)",
+                          borderRadius: 6,
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        {dtn}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Reason */}
+                <div
                   style={{
-                    padding: "0.6rem 0.8rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${reason ? "#10b981" : colors.inputBorder}`,
-                    borderRadius: 8,
-                    color: reason ? colors.textPrimary : colors.textTertiary,
-                    fontSize: "0.82rem",
-                    outline: "none",
-                    cursor: "pointer",
-                    transition: "border-color 0.2s",
-                    appearance: "none",
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
-                    backgroundRepeat: "no-repeat",
-                    backgroundPosition: "right 0.75rem center",
-                    paddingRight: "2rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.4rem",
+                    marginBottom: "1rem",
                   }}
                 >
-                  <option value="" disabled>
-                    Select a reason...
-                  </option>
-                  {REASONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r}
+                  <label
+                    style={{
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                    }}
+                  >
+                    Reason for closing{" "}
+                    <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <select
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    style={{
+                      padding: "0.6rem 0.8rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${reason ? "#dc2626" : colors.inputBorder}`,
+                      borderRadius: 8,
+                      color: reason ? colors.textPrimary : colors.textTertiary,
+                      fontSize: "0.82rem",
+                      outline: "none",
+                      cursor: "pointer",
+                      transition: "border-color 0.2s",
+                      appearance: "none",
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 0.75rem center",
+                      paddingRight: "2rem",
+                    }}
+                  >
+                    <option value="" disabled>
+                      Select a reason...
                     </option>
-                  ))}
-                </select>
-              </div>
+                    {REASONS.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Remarks */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.4rem",
-                  marginBottom: "1.5rem",
-                }}
-              >
-                <label
+                {/* Remarks */}
+                <div
                   style={{
-                    fontSize: "0.65rem",
-                    fontWeight: 700,
-                    color: colors.textTertiary,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.4rem",
+                    marginBottom: "1.1rem",
                   }}
                 >
-                  Remarks{" "}
-                  <span style={{ fontWeight: 400, textTransform: "none" }}>
-                    (optional)
+                  <label
+                    style={{
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                    }}
+                  >
+                    Remarks{" "}
+                    <span style={{ fontWeight: 400, textTransform: "none" }}>
+                      (optional)
+                    </span>
+                  </label>
+                  <textarea
+                    value={remarks}
+                    onChange={(e) => setRemarks(e.target.value)}
+                    rows={3}
+                    placeholder="Add closing remarks..."
+                    style={{
+                      padding: "0.6rem 0.8rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: 8,
+                      color: colors.textPrimary,
+                      fontSize: "0.82rem",
+                      outline: "none",
+                      resize: "vertical",
+                      fontFamily: "inherit",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={(e) =>
+                      (e.currentTarget.style.borderColor = "#dc2626")
+                    }
+                    onBlur={(e) =>
+                      (e.currentTarget.style.borderColor = colors.inputBorder)
+                    }
+                  />
+                </div>
+
+                {/* Confirmation checkbox */}
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: "0.6rem",
+                    padding: "0.85rem 1rem",
+                    background: confirmed
+                      ? darkMode
+                        ? "rgba(220,38,38,0.1)"
+                        : "rgba(220,38,38,0.05)"
+                      : colors.badgeBg,
+                    border: `1px solid ${confirmed ? "rgba(220,38,38,0.4)" : colors.cardBorder}`,
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    marginBottom: "1.1rem",
+                    transition: "all 0.2s",
+                    userSelect: "none",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={confirmed}
+                    onChange={(e) => setConfirmed(e.target.checked)}
+                    style={{
+                      marginTop: 2,
+                      accentColor: "#dc2626",
+                      cursor: "pointer",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.78rem",
+                      color: colors.textSecondary,
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    I understand that this will{" "}
+                    <strong style={{ color: "#dc2626" }}>
+                      permanently close
+                    </strong>{" "}
+                    the selected task(s) and this action{" "}
+                    <strong style={{ color: "#dc2626" }}>
+                      cannot be undone
+                    </strong>
+                    .
                   </span>
                 </label>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  rows={3}
-                  placeholder="Add completion remarks..."
-                  style={{
-                    padding: "0.6rem 0.8rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: 8,
-                    color: colors.textPrimary,
-                    fontSize: "0.82rem",
-                    outline: "none",
-                    resize: "vertical",
-                    fontFamily: "inherit",
-                    transition: "border-color 0.2s",
-                  }}
-                  onFocus={(e) =>
-                    (e.currentTarget.style.borderColor = "#10b981")
-                  }
-                  onBlur={(e) =>
-                    (e.currentTarget.style.borderColor = colors.inputBorder)
-                  }
-                />
-              </div>
 
-              {/* Warning */}
-              <div
-                style={{
-                  padding: "0.65rem 0.9rem",
-                  background: darkMode
-                    ? "rgba(245,158,11,0.08)"
-                    : "rgba(245,158,11,0.05)",
-                  border: "1px solid rgba(245,158,11,0.25)",
-                  borderRadius: 8,
-                  fontSize: "0.75rem",
-                  color: colors.textTertiary,
-                  marginBottom: "1.5rem",
-                }}
-              >
-                ⚠️ This will mark{" "}
-                <strong style={{ color: "#f59e0b" }}>
-                  {selectedCount} record{selectedCount > 1 ? "s" : ""}
-                </strong>{" "}
-                as <strong style={{ color: "#10b981" }}>COMPLETED</strong>. This
-                action cannot be undone.
-              </div>
-
-              {/* Buttons */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: "0.75rem",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <button
-                  onClick={onClose}
+                {/* Buttons */}
+                <div
                   style={{
-                    padding: "0.6rem 1.25rem",
-                    background: "transparent",
-                    border: `1px solid ${colors.cardBorder}`,
-                    borderRadius: 8,
-                    color: colors.textSecondary,
-                    fontSize: "0.875rem",
-                    cursor: "pointer",
-                    fontWeight: 500,
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirm}
-                  disabled={loading || !reason}
-                  style={{
-                    padding: "0.6rem 1.5rem",
-                    background:
-                      loading || !reason
-                        ? "rgba(16,185,129,0.4)"
-                        : "linear-gradient(135deg,#10b981,#059669)",
-                    cursor: loading || !reason ? "not-allowed" : "pointer",
-                    border: "none",
-                    borderRadius: 8,
-                    color: "#fff",
-                    fontSize: "0.875rem",
-                    fontWeight: 700,
-
-                    boxShadow: loading
-                      ? "none"
-                      : "0 2px 8px rgba(16,185,129,0.3)",
                     display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
+                    gap: "0.75rem",
+                    justifyContent: "flex-end",
                   }}
                 >
-                  {loading ? (
-                    <>
-                      <span
-                        style={{
-                          width: 14,
-                          height: 14,
-                          border: "2px solid rgba(255,255,255,0.4)",
-                          borderTopColor: "#fff",
-                          borderRadius: "50%",
-                          animation: "spin 0.7s linear infinite",
-                          display: "inline-block",
-                        }}
-                      />
-                      Processing...
-                    </>
-                  ) : (
-                    <>✅ Mark as Completed</>
-                  )}
-                </button>
-              </div>
-            </>
-          )}
+                  <button
+                    onClick={onClose}
+                    style={{
+                      padding: "0.6rem 1.25rem",
+                      background: "transparent",
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: 8,
+                      color: colors.textSecondary,
+                      fontSize: "0.875rem",
+                      cursor: "pointer",
+                      fontWeight: 500,
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirm}
+                    disabled={loading || !reason || !confirmed}
+                    style={{
+                      padding: "0.6rem 1.5rem",
+                      background:
+                        loading || !reason || !confirmed
+                          ? "rgba(220,38,38,0.35)"
+                          : "linear-gradient(135deg,#dc2626,#b91c1c)",
+                      cursor:
+                        loading || !reason || !confirmed
+                          ? "not-allowed"
+                          : "pointer",
+                      border: "none",
+                      borderRadius: 8,
+                      color: "#fff",
+                      fontSize: "0.875rem",
+                      fontWeight: 700,
+                      boxShadow:
+                        loading || !reason || !confirmed
+                          ? "none"
+                          : "0 2px 10px rgba(220,38,38,0.4)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!loading && reason && confirmed)
+                        e.currentTarget.style.boxShadow =
+                          "0 4px 14px rgba(220,38,38,0.55)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!loading && reason && confirmed)
+                        e.currentTarget.style.boxShadow =
+                          "0 2px 10px rgba(220,38,38,0.4)";
+                    }}
+                  >
+                    {loading ? (
+                      <>
+                        <span
+                          style={{
+                            width: 14,
+                            height: 14,
+                            border: "2px solid rgba(255,255,255,0.4)",
+                            borderTopColor: "#fff",
+                            borderRadius: "50%",
+                            animation: "spin 0.7s linear infinite",
+                            display: "inline-block",
+                          }}
+                        />
+                        Closing Tasks...
+                      </>
+                    ) : (
+                      <>🔒 Yes, Close Task (Final)</>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </>
