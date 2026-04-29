@@ -91,21 +91,15 @@ export const calculateStatusTimeline = (record) => {
  * Quality Evaluation user who routed TO the given currentStep.
  * Used for "Return to Evaluator" auto-assignment.
  */
-export const findPreviousEvaluator = (logs, currentStep) => {
+export const findPreviousEvaluator = (logs, currentStep, targetStep = "Quality Evaluation") => {
   if (!Array.isArray(logs) || logs.length === 0) return null;
-
-  // Sort ascending by del_index so we can walk the chain
   const sorted = [...logs].sort((a, b) => (a.del_index ?? 0) - (b.del_index ?? 0));
-
-  // Find the current open log for currentStep
   const currentLogIdx = sorted.findIndex(
     (l) => l.application_step === currentStep && l.del_thread === "Open",
   );
   if (currentLogIdx <= 0) return null;
-
-  // Walk backwards from the current log to find the nearest Quality Evaluation log
   for (let i = currentLogIdx - 1; i >= 0; i--) {
-    if (sorted[i].application_step === "Quality Evaluation") {
+    if (sorted[i].application_step === targetStep) {  // ← CHANGE: was hardcoded "Quality Evaluation"
       return sorted[i].user_name ?? null;
     }
   }

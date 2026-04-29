@@ -579,9 +579,33 @@ export function Step3AppLogs({ record, colors }) {
       try {
         setLoading(true);
         const data = await getApplicationLogs(record.mainDbId);
-        const sorted = [...(Array.isArray(data) ? data : [])].sort(
-          (a, b) => (a.del_index ?? 0) - (b.del_index ?? 0),
-        );
+        const sorted = [...(Array.isArray(data) ? data : [])].sort((a, b) => {
+          // Checking logs — laging nasa UNAHAN
+          const aChecking = a.application_step === "Decking";
+          const bChecking = b.application_step === "Decking";
+          if (aChecking && !bChecking) return -1;
+          if (!aChecking && bChecking) return 1;
+
+          // IN PROGRESS logs — laging nasa DULO
+          const aActive = a.application_status === "IN PROGRESS";
+          const bActive = b.application_status === "IN PROGRESS";
+          if (aActive && !bActive) return 1;
+          if (!aActive && bActive) return -1;
+
+          // COMPLETED logs — sorted by accomplished_date ascending
+          const aDate = a.accomplished_date
+            ? new Date(a.accomplished_date)
+            : null;
+          const bDate = b.accomplished_date
+            ? new Date(b.accomplished_date)
+            : null;
+          if (aDate && bDate) return aDate - bDate;
+          if (aDate) return -1;
+          if (bDate) return 1;
+
+          // fallback — del_index
+          return (a.del_index ?? 0) - (b.del_index ?? 0);
+        });
         setLogs(sorted);
       } catch {
         setError("Failed to load application logs.");

@@ -17,7 +17,6 @@ const fmt = (v) => {
   };
 };
 
-/* ── deadline date formatter (date-only string like "2026-03-10") ── */
 const fmtDate = (v) => {
   if (!v) return null;
   const d = new Date(v + "T00:00:00");
@@ -59,43 +58,42 @@ const getDeadlineUrgency = (dl) => {
 
 const URGENCY_CFG = {
   overdue: {
-    bg: "rgba(239,68,68,0.15)",
-    color: "#fca5a5",
-    border: "#ef4444",
+    bg: "rgba(239,68,68,0.1)",
+    color: "#dc2626",
+    border: "#fca5a5",
     icon: "🚨",
     label: "OVERDUE",
   },
   today: {
-    bg: "rgba(249,115,22,0.15)",
-    color: "#fdba74",
-    border: "#f97316",
+    bg: "rgba(249,115,22,0.1)",
+    color: "#ea580c",
+    border: "#fdba74",
     icon: "🔴",
     label: "DUE TODAY",
   },
   critical: {
-    bg: "rgba(245,158,11,0.15)",
-    color: "#fcd34d",
-    border: "#f59e0b",
+    bg: "rgba(245,158,11,0.1)",
+    color: "#d97706",
+    border: "#fcd34d",
     icon: "🟠",
     label: "CRITICAL",
   },
   warning: {
-    bg: "rgba(234,179,8,0.12)",
-    color: "#fde68a",
-    border: "#eab308",
+    bg: "rgba(234,179,8,0.1)",
+    color: "#ca8a04",
+    border: "#fde68a",
     icon: "🟡",
     label: "WARNING",
   },
   ok: {
-    bg: "rgba(16,185,129,0.12)",
-    color: "#6ee7b7",
-    border: "#10b981",
+    bg: "rgba(16,185,129,0.1)",
+    color: "#059669",
+    border: "#6ee7b7",
     icon: "🟢",
     label: "ON TRACK",
   },
 };
 
-/* ── step icon map ── */
 const stepMeta = (step) => {
   const s = step?.toLowerCase() || "";
   if (s.includes("compliance")) return { icon: "📋", color: "#f59e0b" };
@@ -105,19 +103,18 @@ const stepMeta = (step) => {
   if (s.includes("superv")) return { icon: "👔", color: "#3b82f6" };
   if (s.includes("qa")) return { icon: "🛡️", color: "#10b981" };
   if (s.includes("director")) return { icon: "⭐", color: "#f59e0b" };
-  if (s.includes("releas")) return { icon: "📦", color: "#ee4d2d" };
+  if (s.includes("releas")) return { icon: "📦", color: "#2196F3" };
   return { icon: "📋", color: "#6b7280" };
 };
 
-/* ── status badge config ── */
 const statusCfg = (s) => {
   const u = s?.toUpperCase();
   if (u?.includes("COMPLET"))
     return {
-      bg: "#fff7ed",
-      text: "#c2410c",
-      border: "#fed7aa",
-      dot: "#f97316",
+      bg: "#f0fdf4",
+      text: "#15803d",
+      border: "#bbf7d0",
+      dot: "#22c55e",
     };
   if (u?.includes("APPROV"))
     return {
@@ -147,19 +144,50 @@ const statusCfg = (s) => {
       border: "#bfdbfe",
       dot: "#3b82f6",
     };
+  if (u?.includes("CLOSED"))
+    return {
+      bg: "#f9fafb",
+      text: "#374151",
+      border: "#e5e7eb",
+      dot: "#9ca3af",
+    };
   return { bg: "#f9fafb", text: "#374151", border: "#e5e7eb", dot: "#9ca3af" };
+};
+
+const actionCfg = (a) => {
+  const u = a?.toUpperCase();
+  if (u?.includes("REASSIGN"))
+    return { bg: "#ede9fe", color: "#7c3aed", border: "#c4b5fd" };
+  if (u?.includes("REROUTE"))
+    return { bg: "#e0f2fe", color: "#0369a1", border: "#7dd3fc" };
+  return { bg: "#f0f9ff", color: "#0284c7", border: "#bae6fd" };
 };
 
 function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  // ── theme vars ──────────────────────────────────────────────
+  const accent = "#2196F3";
+  const accentLight = darkMode ? "rgba(33,150,243,0.12)" : "#e8f4fd";
+  const accentBorder = darkMode ? "#1e3a5c" : "#90caf9";
+  const panelBg = darkMode ? "#1c1c1c" : "#ffffff";
+  const headerBg = darkMode ? "#111827" : "#f8f9fb";
+  const bodyBg = darkMode ? "#141414" : "#f4f6f8";
+  const cardBg = darkMode ? "#1e1e1e" : "#ffffff";
+  const cardBorder = darkMode ? "#2a2a2a" : "#e2e8f0";
+  const textPrimary = darkMode ? "#f1f5f9" : "#1e293b";
+  const textSub = darkMode ? "#94a3b8" : "#64748b";
+  const textMuted = darkMode ? "#4b5563" : "#94a3b8";
+  const dividerColor = darkMode ? "#2a2a2a" : "#e2e8f0";
+  const timelineLine = darkMode ? "#334155" : "#cbd5e1";
+  // ────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!record?.dtn) {
       setLoading(false);
-      setError("No DTN found for this record.");
+      setError("No DTN found.");
       return;
     }
     const run = async () => {
@@ -177,173 +205,132 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
     run();
   }, [record?.dtn]);
 
-  const toggleExpand = (id) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
   const onBackdrop = (e) => e.target === e.currentTarget && onClose();
+  const ascendingLogs = [...logs].sort((a, b) => {
+    // Checking logs — laging nasa UNAHAN
+    const aChecking = a.application_step === "Decking";
+    const bChecking = b.application_step === "Decking";
+    if (aChecking && !bChecking) return -1;
+    if (!aChecking && bChecking) return 1;
 
-  const shopeeOrange = "#ee4d2d";
-  const shopeeLight = "#fff2ee";
-  const shopeeBorder = "#ffd5c8";
-  const panelBg = darkMode ? "#1a1a1a" : "#ffffff";
-  const headerBg = darkMode ? "#1e0e0a" : shopeeLight;
-  const cardBg = darkMode ? "#242424" : "#ffffff";
-  const cardBorder = darkMode ? "#2e2e2e" : "#f0f0f0";
-  const textMain = darkMode ? "#f5f5f5" : "#222222";
-  const textSub = darkMode ? "#a3a3a3" : "#757575";
-  const textTert = darkMode ? "#666666" : "#b0b0b0";
-  const divider = darkMode ? "#2e2e2e" : "#f0f0f0";
-  const remarksBg = darkMode ? "#1a1a1a" : "#fffaf9";
-  const remarksBorder = darkMode ? "#3a1a10" : "#ffd5c8";
+    // IN PROGRESS logs — laging nasa DULO
+    const aActive = a.application_status === "IN PROGRESS";
+    const bActive = b.application_status === "IN PROGRESS";
+    if (aActive && !bActive) return 1;
+    if (!aActive && bActive) return -1;
 
-  const ascendingLogs = [...logs].reverse();
+    // COMPLETED logs — sorted by accomplished_date ascending
+    const aDate = a.accomplished_date ? new Date(a.accomplished_date) : null;
+    const bDate = b.accomplished_date ? new Date(b.accomplished_date) : null;
+    if (aDate && bDate) return aDate - bDate;
+    if (aDate) return -1;
+    if (bDate) return 1;
 
-  /* ── Compliance Deadline Card ── */
-  const renderComplianceDeadline = (log) => {
-    const dl = log.deadline_date;
-    const wdays = log.working_days;
-    if (!dl) return null;
+    // fallback — del_index
+    return (a.del_index ?? 0) - (b.del_index ?? 0);
+  });
+  const completedCount = logs.filter((l) => l.accomplished_date).length;
+  const inProgressCount = logs.filter((l) => !l.accomplished_date).length;
 
-    const urgency = getDeadlineUrgency(dl);
+  const renderDeadline = (log) => {
+    if (!log.deadline_date) return null;
+    const urgency = getDeadlineUrgency(log.deadline_date);
     const cfg = URGENCY_CFG[urgency] || URGENCY_CFG.ok;
-    const remaining = countWorkingDays(todayStr(), dl);
-    const dateLabel = fmtDate(dl);
-
+    const remaining = countWorkingDays(todayStr(), log.deadline_date);
     return (
       <div
         style={{
-          marginTop: "0.75rem",
-          padding: "0.75rem 1rem",
+          marginTop: "0.65rem",
+          padding: "0.6rem 0.85rem",
           background: cfg.bg,
           border: `1px solid ${cfg.border}`,
-          borderRadius: 8,
-          borderLeft: `3px solid ${cfg.border}`,
+          borderLeft: `3px solid ${cfg.color}`,
+          borderRadius: 6,
+          display: "flex",
+          gap: "1.5rem",
+          flexWrap: "wrap",
+          alignItems: "center",
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: "0.5rem",
-          }}
-        >
-          <span
+        <div>
+          <div
             style={{
-              fontSize: "0.65rem",
+              fontSize: "0.6rem",
               fontWeight: 700,
               color: cfg.color,
               textTransform: "uppercase",
-              letterSpacing: "0.07em",
+              letterSpacing: "0.05em",
+              marginBottom: 2,
             }}
           >
             ⏰ Compliance Deadline
-          </span>
+          </div>
           <span
-            style={{
-              fontSize: "0.65rem",
-              fontWeight: 700,
-              color: cfg.color,
-              background: darkMode ? "rgba(0,0,0,0.3)" : "rgba(0,0,0,0.08)",
-              padding: "0.1rem 0.45rem",
-              borderRadius: 20,
-            }}
+            style={{ fontSize: "0.82rem", fontWeight: 700, color: cfg.color }}
           >
-            {cfg.icon} {cfg.label}
+            {fmtDate(log.deadline_date)}
           </span>
         </div>
-
-        {/* Date + days info */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "1rem",
-            flexWrap: "wrap",
-          }}
-        >
+        {log.working_days != null && (
           <div>
             <div
               style={{
                 fontSize: "0.6rem",
-                color: cfg.color,
                 fontWeight: 700,
+                color: cfg.color,
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
-                marginBottom: "0.1rem",
+                marginBottom: 2,
               }}
             >
-              Due Date
+              Allotted
             </div>
             <span
-              style={{ fontSize: "0.88rem", fontWeight: 700, color: cfg.color }}
+              style={{ fontSize: "0.82rem", fontWeight: 700, color: cfg.color }}
             >
-              {dateLabel}
+              {log.working_days}d
             </span>
           </div>
-
-          {wdays != null && (
-            <div>
-              <div
-                style={{
-                  fontSize: "0.6rem",
-                  color: cfg.color,
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  marginBottom: "0.1rem",
-                }}
-              >
-                Allotted
-              </div>
-              <span
-                style={{
-                  fontSize: "0.88rem",
-                  fontWeight: 700,
-                  color: cfg.color,
-                }}
-              >
-                {wdays} working day{wdays !== 1 ? "s" : ""}
-              </span>
+        )}
+        {remaining !== null && (
+          <div>
+            <div
+              style={{
+                fontSize: "0.6rem",
+                fontWeight: 700,
+                color: cfg.color,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                marginBottom: 2,
+              }}
+            >
+              Remaining
             </div>
-          )}
-
-          {remaining !== null && (
-            <div>
-              <div
-                style={{
-                  fontSize: "0.6rem",
-                  color: cfg.color,
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  marginBottom: "0.1rem",
-                }}
-              >
-                Remaining
-              </div>
-              <span
-                style={{
-                  fontSize: "0.88rem",
-                  fontWeight: 700,
-                  color: cfg.color,
-                }}
-              >
-                {urgency === "overdue"
-                  ? "OVERDUE"
-                  : urgency === "today"
-                    ? "Due today!"
-                    : `${remaining} working day${remaining !== 1 ? "s" : ""} left`}
-              </span>
-            </div>
-          )}
-        </div>
+            <span
+              style={{ fontSize: "0.82rem", fontWeight: 700, color: cfg.color }}
+            >
+              {urgency === "overdue"
+                ? "OVERDUE"
+                : urgency === "today"
+                  ? "Due today!"
+                  : `${remaining}d left`}
+            </span>
+          </div>
+        )}
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: "0.68rem",
+            fontWeight: 700,
+            padding: "0.15rem 0.5rem",
+            borderRadius: 20,
+            background: cfg.bg,
+            border: `1px solid ${cfg.color}`,
+            color: cfg.color,
+          }}
+        >
+          {cfg.icon} {cfg.label}
+        </span>
       </div>
     );
   };
@@ -351,293 +338,204 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
-        .spl-modal * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
-        .spl-card { animation: spl-fadeup 0.25s ease forwards; transition: transform 0.15s, box-shadow 0.15s; }
-        .spl-card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(238,77,45,0.10) !important; }
-        .spl-card-inner { cursor: pointer; }
-        .spl-card-inner:hover .spl-expand-hint { opacity: 1 !important; }
-        .spl-close-btn:hover { background: ${shopeeLight} !important; color: ${shopeeOrange} !important; border-color: ${shopeeBorder} !important; }
-        .spl-footer-btn:hover { background: ${shopeeOrange} !important; color: #fff !important; }
-        @keyframes spl-spin { to { transform: rotate(360deg); } }
-        @keyframes spl-fadeup { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes spl-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-        @keyframes spl-slidedown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 600px; } }
-        .spl-inprogress { animation: spl-pulse 1.5s ease-in-out infinite; }
-        .spl-remarks-panel { animation: spl-slidedown 0.22s ease forwards; overflow: hidden; }
+        @keyframes alm-spin { to { transform: rotate(360deg); } }
+        @keyframes alm-fadeup { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes alm-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+        .alm-card { animation: alm-fadeup 0.2s ease forwards; }
+        .alm-inprogress { animation: alm-pulse 1.6s ease-in-out infinite; }
+        .alm-close:hover { background: ${accentLight} !important; color: ${accent} !important; border-color: ${accentBorder} !important; }
+        .alm-close-btn:hover { background: ${accentLight} !important; color: ${accent} !important; border-color: ${accentBorder} !important; }
       `}</style>
 
       <div
-        className="spl-modal"
         onClick={onBackdrop}
         style={{
           position: "fixed",
           inset: 0,
-          background: "rgba(0,0,0,0.6)",
+          background: "rgba(0,0,0,0.55)",
           zIndex: 99999,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           padding: "1rem",
-          backdropFilter: "blur(4px)",
+          backdropFilter: "blur(3px)",
         }}
       >
         <div
           style={{
             background: panelBg,
-            borderRadius: 16,
-            width: "min(820px, 100%)",
+            borderRadius: 12,
+            width: "min(860px, 100%)",
             maxHeight: "90vh",
             display: "flex",
             flexDirection: "column",
             boxShadow:
-              "0 32px 80px rgba(0,0,0,0.35), 0 0 0 1px rgba(238,77,45,0.12)",
+              "0 20px 60px rgba(0,0,0,0.25), 0 0 0 1px rgba(33,150,243,0.1)",
             overflow: "hidden",
+            border: `1px solid ${cardBorder}`,
           }}
         >
-          {/* ══ HEADER ══ */}
+          {/* ── HEADER ── */}
           <div
             style={{
               background: headerBg,
-              borderBottom: `2px solid ${shopeeBorder}`,
-              padding: "1.1rem 1.5rem 1rem",
+              borderBottom: `1px solid ${dividerColor}`,
+              padding: "1rem 1.25rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               flexShrink: 0,
             }}
           >
             <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
+              style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
             >
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.85rem",
-                }}
-              >
-                <div
-                  style={{
-                    background: `linear-gradient(135deg, ${shopeeOrange}, #ff7043)`,
-                    borderRadius: 10,
-                    width: 44,
-                    height: 44,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.3rem",
-                    boxShadow: "0 4px 14px rgba(238,77,45,0.4)",
-                    flexShrink: 0,
-                  }}
-                >
-                  📦
-                </div>
-                <div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                    }}
-                  >
-                    <h2
-                      style={{
-                        margin: 0,
-                        fontSize: "1rem",
-                        fontWeight: 700,
-                        color: shopeeOrange,
-                      }}
-                    >
-                      Application Logs
-                    </h2>
-                    {!loading && !error && (
-                      <span
-                        style={{
-                          background: shopeeOrange,
-                          color: "#fff",
-                          fontSize: "0.65rem",
-                          fontWeight: 700,
-                          padding: "0.1rem 0.55rem",
-                          borderRadius: 20,
-                        }}
-                      >
-                        {logs.length}
-                      </span>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      marginTop: "0.25rem",
-                    }}
-                  >
-                    <span style={{ fontSize: "0.72rem", color: textSub }}>
-                      Tracking No.
-                    </span>
-                    <span
-                      style={{
-                        fontWeight: 700,
-                        color: shopeeOrange,
-                        fontSize: "0.78rem",
-                        fontFamily: "monospace",
-                        letterSpacing: "0.05em",
-                        background: darkMode
-                          ? "rgba(238,77,45,0.12)"
-                          : "rgba(238,77,45,0.07)",
-                        padding: "0.1rem 0.55rem",
-                        borderRadius: 5,
-                        border: `1px solid ${shopeeBorder}`,
-                      }}
-                    >
-                      {record?.dtn || "N/A"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                className="spl-close-btn"
-                onClick={onClose}
-                style={{
-                  background: "transparent",
-                  border: `1px solid ${divider}`,
+                  width: 38,
+                  height: 38,
                   borderRadius: 8,
-                  color: textSub,
-                  cursor: "pointer",
-                  width: 34,
-                  height: 34,
+                  background: accentLight,
+                  border: `1px solid ${accentBorder}`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "0.9rem",
-                  transition: "all 0.15s",
+                  fontSize: "1.1rem",
+                  flexShrink: 0,
                 }}
               >
-                ✕
-              </button>
-            </div>
-
-            {/* Mini step progress strip */}
-            {!loading && !error && ascendingLogs.length > 0 && (
-              <div
-                style={{
-                  marginTop: "1rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 0,
-                  overflowX: "auto",
-                  paddingBottom: "0.25rem",
-                }}
-              >
-                {ascendingLogs.map((log, i) => {
-                  const isActive = i === ascendingLogs.length - 1;
-                  const meta = stepMeta(log.application_step);
-                  return (
-                    <div
-                      key={i}
+                📋
+              </div>
+              <div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
+                  }}
+                >
+                  <h2
+                    style={{
+                      margin: 0,
+                      fontSize: "0.95rem",
+                      fontWeight: 700,
+                      color: textPrimary,
+                    }}
+                  >
+                    Application Logs
+                  </h2>
+                  {!loading && !error && (
+                    <span
                       style={{
-                        flex: 1,
-                        minWidth: 60,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        position: "relative",
+                        background: accent,
+                        color: "#fff",
+                        fontSize: "0.62rem",
+                        fontWeight: 700,
+                        padding: "0.1rem 0.5rem",
+                        borderRadius: 20,
                       }}
                     >
-                      {i !== ascendingLogs.length - 1 && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: 11,
-                            left: "50%",
-                            width: "100%",
-                            height: 2,
-                            background: shopeeOrange,
-                            opacity: 0.3,
-                            zIndex: 0,
-                          }}
-                        />
+                      {logs.length}
+                    </span>
+                  )}
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    marginTop: "0.15rem",
+                  }}
+                >
+                  <span style={{ fontSize: "0.7rem", color: textSub }}>
+                    DTN:
+                  </span>
+                  <span
+                    style={{
+                      fontWeight: 700,
+                      color: accent,
+                      fontSize: "0.75rem",
+                      fontFamily: "monospace",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    {record?.dtn || "N/A"}
+                  </span>
+                  {!loading && !error && logs.length > 0 && (
+                    <span
+                      style={{
+                        fontSize: "0.68rem",
+                        color: textSub,
+                        marginLeft: "0.35rem",
+                      }}
+                    >
+                      ·{" "}
+                      {completedCount > 0 && (
+                        <span style={{ color: "#059669", fontWeight: 600 }}>
+                          {completedCount} completed
+                        </span>
                       )}
-                      <div
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: "50%",
-                          background: isActive
-                            ? shopeeOrange
-                            : darkMode
-                              ? "#333"
-                              : "#f5f5f5",
-                          border: `2px solid ${isActive ? shopeeOrange : meta.color}`,
-                          zIndex: 1,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          boxShadow: isActive
-                            ? `0 0 0 4px rgba(238,77,45,0.18)`
-                            : "none",
-                          fontSize: "0.55rem",
-                        }}
-                      >
-                        {isActive ? (
-                          <span style={{ color: "#fff", fontWeight: 900 }}>
-                            ✓
-                          </span>
-                        ) : (
-                          <span>{meta.icon}</span>
-                        )}
-                      </div>
-                      <span
-                        style={{
-                          fontSize: "0.58rem",
-                          color: isActive ? shopeeOrange : textTert,
-                          fontWeight: isActive ? 700 : 400,
-                          marginTop: "0.25rem",
-                          textAlign: "center",
-                          maxWidth: 72,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {log.application_step || "—"}
-                      </span>
-                    </div>
-                  );
-                })}
+                      {completedCount > 0 && inProgressCount > 0 && (
+                        <span> · </span>
+                      )}
+                      {inProgressCount > 0 && (
+                        <span style={{ color: "#d97706", fontWeight: 600 }}>
+                          {inProgressCount} in progress
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
+
+            <button
+              className="alm-close-btn"
+              onClick={onClose}
+              style={{
+                background: "transparent",
+                border: `1px solid ${dividerColor}`,
+                borderRadius: 6,
+                color: textSub,
+                cursor: "pointer",
+                width: 32,
+                height: 32,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.85rem",
+                transition: "all 0.15s",
+              }}
+            >
+              ✕
+            </button>
           </div>
 
-          {/* ══ BODY ══ */}
+          {/* ── BODY ── */}
           <div
             style={{
               flex: 1,
               minHeight: 0,
               overflowY: "auto",
-              padding: "1.25rem 1.5rem",
-              background: darkMode ? "#141414" : "#f8f8f8",
+              padding: "1rem 1.25rem",
+              background: bodyBg,
             }}
           >
             {loading && (
               <div style={{ padding: "3rem", textAlign: "center" }}>
                 <div
                   style={{
-                    width: 44,
-                    height: 44,
+                    width: 36,
+                    height: 36,
                     borderRadius: "50%",
-                    border: `3px solid ${shopeeBorder}`,
-                    borderTopColor: shopeeOrange,
-                    animation: "spl-spin 0.7s linear infinite",
-                    margin: "0 auto 1rem",
+                    border: `3px solid ${dividerColor}`,
+                    borderTopColor: accent,
+                    animation: "alm-spin 0.7s linear infinite",
+                    margin: "0 auto 0.75rem",
                   }}
                 />
-                <p style={{ color: textSub, fontSize: "0.88rem", margin: 0 }}>
-                  Fetching order activity…
+                <p style={{ color: textSub, fontSize: "0.85rem", margin: 0 }}>
+                  Loading activity logs…
                 </p>
               </div>
             )}
@@ -645,20 +543,20 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
             {!loading && error && (
               <div
                 style={{
-                  padding: "2.5rem",
+                  padding: "2rem",
                   textAlign: "center",
-                  background: "#fff5f5",
-                  borderRadius: 12,
+                  background: "#fef2f2",
+                  borderRadius: 8,
                   border: "1px solid #fecaca",
                 }}
               >
-                <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>
-                  😔
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>
+                  ⚠️
                 </div>
                 <p
                   style={{
                     color: "#dc2626",
-                    fontSize: "0.88rem",
+                    fontSize: "0.85rem",
                     margin: 0,
                     fontWeight: 600,
                   }}
@@ -670,10 +568,10 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
 
             {!loading && !error && logs.length === 0 && (
               <div style={{ padding: "3rem", textAlign: "center" }}>
-                <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>
+                <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>
                   📭
                 </div>
-                <p style={{ color: textSub, fontSize: "0.88rem", margin: 0 }}>
+                <p style={{ color: textSub, fontSize: "0.85rem", margin: 0 }}>
                   No activity found for this application.
                 </p>
               </div>
@@ -681,14 +579,15 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
 
             {!loading && !error && logs.length > 0 && (
               <div style={{ position: "relative" }}>
+                {/* Timeline line */}
                 <div
                   style={{
                     position: "absolute",
-                    left: 19,
+                    left: 15,
                     top: 20,
                     bottom: 20,
                     width: 2,
-                    background: `linear-gradient(to bottom, ${shopeeOrange}66, ${divider})`,
+                    background: timelineLine,
                     borderRadius: 2,
                     zIndex: 0,
                   }}
@@ -698,12 +597,13 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                   style={{
                     display: "flex",
                     flexDirection: "column",
-                    gap: "0.75rem",
+                    gap: "0.65rem",
                   }}
                 >
                   {ascendingLogs.map((log, idx) => {
                     const meta = stepMeta(log.application_step);
                     const sc = statusCfg(log.application_status);
+                    const ac = actionCfg(log.action_type);
                     const isLatest = idx === ascendingLogs.length - 1;
                     const isCompliance = log.application_step
                       ?.toLowerCase()
@@ -716,45 +616,42 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                     return (
                       <div
                         key={cardId}
-                        className="spl-card"
+                        className="alm-card"
                         style={{
-                          animationDelay: `${idx * 0.05}s`,
+                          animationDelay: `${idx * 0.04}s`,
                           display: "flex",
-                          gap: "0.85rem",
+                          gap: "0.75rem",
                           alignItems: "flex-start",
                           position: "relative",
                           zIndex: 1,
                         }}
                       >
                         {/* Timeline dot */}
-                        <div style={{ flexShrink: 0 }}>
+                        <div style={{ flexShrink: 0, paddingTop: "0.85rem" }}>
                           <div
                             style={{
-                              width: 40,
-                              height: 40,
+                              width: 30,
+                              height: 30,
                               borderRadius: "50%",
-                              background: isLatest
-                                ? `linear-gradient(135deg, ${shopeeOrange}, #ff7043)`
-                                : darkMode
-                                  ? "#2e2e2e"
-                                  : "#ffffff",
-                              border: `2px solid ${isLatest ? shopeeOrange : meta.color}`,
+                              background: doneDt
+                                ? "#059669"
+                                : isLatest
+                                  ? accent
+                                  : darkMode
+                                    ? "#2a2a2a"
+                                    : "#fff",
+                              border: `2px solid ${doneDt ? "#059669" : isLatest ? accent : meta.color}`,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              fontSize: "1.05rem",
+                              fontSize: doneDt ? "0.75rem" : "0.85rem",
                               boxShadow: isLatest
-                                ? `0 0 0 4px rgba(238,77,45,0.15)`
-                                : "0 1px 4px rgba(0,0,0,0.08)",
+                                ? `0 0 0 3px ${accentLight}`
+                                : "none",
+                              color: doneDt || isLatest ? "#fff" : "inherit",
                             }}
                           >
-                            {isLatest ? (
-                              <span style={{ filter: "brightness(10)" }}>
-                                {meta.icon}
-                              </span>
-                            ) : (
-                              meta.icon
-                            )}
+                            {doneDt ? "✓" : meta.icon}
                           </div>
                         </div>
 
@@ -763,18 +660,18 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                           style={{
                             flex: 1,
                             background: cardBg,
-                            border: `1px solid ${isLatest ? shopeeBorder : cardBorder}`,
-                            borderLeft: `3px solid ${isLatest ? shopeeOrange : meta.color}`,
-                            borderRadius: 10,
-                            boxShadow: isLatest
-                              ? "0 2px 12px rgba(238,77,45,0.10)"
-                              : "0 1px 4px rgba(0,0,0,0.04)",
+                            border: `1px solid ${isLatest ? accentBorder : cardBorder}`,
+                            borderLeft: `3px solid ${isLatest ? accent : meta.color}`,
+                            borderRadius: 8,
                             overflow: "hidden",
+                            boxShadow: isLatest
+                              ? `0 2px 8px rgba(33,150,243,0.1)`
+                              : "0 1px 3px rgba(0,0,0,0.04)",
                           }}
                         >
-                          {/* ── Card Header ── */}
-                          <div style={{ padding: "0.9rem 1rem" }}>
-                            {/* Top row: step + status */}
+                          {/* Card top */}
+                          <div style={{ padding: "0.75rem 1rem" }}>
+                            {/* Step name row */}
                             <div
                               style={{
                                 display: "flex",
@@ -788,32 +685,15 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
-                                  gap: "0.45rem",
+                                  gap: "0.4rem",
                                   flexWrap: "wrap",
                                 }}
                               >
-                                {log.del_index != null && (
-                                  <span
-                                    style={{
-                                      background: darkMode
-                                        ? "#2e2e2e"
-                                        : "#f0f0f0",
-                                      color: textSub,
-                                      fontSize: "0.63rem",
-                                      fontWeight: 700,
-                                      padding: "0.1rem 0.4rem",
-                                      borderRadius: 4,
-                                      border: `1px solid ${divider}`,
-                                    }}
-                                  >
-                                    #{log.del_index}
-                                  </span>
-                                )}
                                 <span
                                   style={{
-                                    fontSize: "0.9rem",
+                                    fontSize: "0.88rem",
                                     fontWeight: 700,
-                                    color: isLatest ? shopeeOrange : textMain,
+                                    color: isLatest ? accent : textPrimary,
                                   }}
                                 >
                                   {log.application_step || "—"}
@@ -821,11 +701,12 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 {isLatest && (
                                   <span
                                     style={{
-                                      background: shopeeOrange,
-                                      color: "#fff",
-                                      fontSize: "0.6rem",
+                                      background: accentLight,
+                                      color: accent,
+                                      border: `1px solid ${accentBorder}`,
+                                      fontSize: "0.58rem",
                                       fontWeight: 700,
-                                      padding: "0.1rem 0.45rem",
+                                      padding: "0.1rem 0.4rem",
                                       borderRadius: 20,
                                       textTransform: "uppercase",
                                       letterSpacing: "0.05em",
@@ -837,14 +718,12 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 {isCompliance && log.deadline_date && (
                                   <span
                                     style={{
-                                      background: darkMode
-                                        ? "rgba(245,158,11,0.15)"
-                                        : "rgba(245,158,11,0.1)",
-                                      color: "#f59e0b",
-                                      border: "1px solid #f59e0b",
-                                      fontSize: "0.6rem",
+                                      background: "rgba(245,158,11,0.1)",
+                                      color: "#d97706",
+                                      border: "1px solid #fcd34d",
+                                      fontSize: "0.58rem",
                                       fontWeight: 700,
-                                      padding: "0.1rem 0.45rem",
+                                      padding: "0.1rem 0.4rem",
                                       borderRadius: 20,
                                     }}
                                   >
@@ -852,64 +731,82 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </span>
                                 )}
                               </div>
-                              {log.application_status && (
-                                <span
-                                  style={{
-                                    background: sc.bg,
-                                    color: sc.text,
-                                    border: `1px solid ${sc.border}`,
-                                    fontSize: "0.68rem",
-                                    fontWeight: 700,
-                                    padding: "0.2rem 0.65rem",
-                                    borderRadius: 20,
-                                    whiteSpace: "nowrap",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "0.3rem",
-                                  }}
-                                >
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "0.35rem",
+                                  flexWrap: "wrap",
+                                  alignItems: "center",
+                                }}
+                              >
+                                {log.application_status && (
                                   <span
                                     style={{
-                                      width: 6,
-                                      height: 6,
-                                      borderRadius: "50%",
-                                      background: sc.dot,
-                                      flexShrink: 0,
+                                      background: sc.bg,
+                                      color: sc.text,
+                                      border: `1px solid ${sc.border}`,
+                                      fontSize: "0.65rem",
+                                      fontWeight: 700,
+                                      padding: "0.18rem 0.55rem",
+                                      borderRadius: 20,
+                                      whiteSpace: "nowrap",
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: "0.28rem",
                                     }}
-                                  />
-                                  {log.application_status}
-                                </span>
-                              )}
+                                  >
+                                    <span
+                                      style={{
+                                        width: 5,
+                                        height: 5,
+                                        borderRadius: "50%",
+                                        background: sc.dot,
+                                        flexShrink: 0,
+                                      }}
+                                    />
+                                    {log.application_status}
+                                  </span>
+                                )}
+                                {log.application_step
+                                  ?.toLowerCase()
+                                  .includes("closed") ||
+                                log.application_status
+                                  ?.toLowerCase()
+                                  .includes("closed")
+                                  ? null
+                                  : null}
+                              </div>
                             </div>
 
-                            {/* User + decision row */}
+                            {/* User + decision */}
                             <div
                               style={{
                                 display: "flex",
-                                alignItems: "center",
-                                gap: "0.75rem",
-                                marginTop: "0.5rem",
+                                gap: "0.6rem",
+                                marginTop: "0.4rem",
                                 flexWrap: "wrap",
+                                alignItems: "center",
                               }}
                             >
                               <div
                                 style={{
                                   display: "flex",
                                   alignItems: "center",
-                                  gap: "0.35rem",
+                                  gap: "0.3rem",
                                 }}
                               >
                                 <div
                                   style={{
-                                    width: 20,
-                                    height: 20,
+                                    width: 22,
+                                    height: 22,
                                     borderRadius: "50%",
-                                    background: `linear-gradient(135deg, ${meta.color}, ${meta.color}99)`,
+                                    background: meta.color + "22",
+                                    border: `1.5px solid ${meta.color}`,
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    color: "#fff",
-                                    fontSize: "0.6rem",
+                                    color: meta.color,
+                                    fontSize: "0.62rem",
                                     fontWeight: 700,
                                   }}
                                 >
@@ -917,7 +814,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 </div>
                                 <span
                                   style={{
-                                    fontSize: "0.78rem",
+                                    fontSize: "0.75rem",
                                     color: textSub,
                                     fontWeight: 500,
                                   }}
@@ -927,72 +824,70 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                               </div>
                               {log.application_decision && (
                                 <>
-                                  <span style={{ color: divider }}>·</span>
                                   <span
                                     style={{
-                                      fontSize: "0.76rem",
+                                      color: dividerColor,
+                                      fontSize: "0.8rem",
+                                    }}
+                                  >
+                                    ·
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "0.72rem",
                                       color: textSub,
                                     }}
                                   >
                                     Decision:{" "}
-                                    <span
-                                      style={{
-                                        fontWeight: 600,
-                                        color: textMain,
-                                      }}
-                                    >
+                                    <strong style={{ color: textPrimary }}>
                                       {log.application_decision}
-                                    </span>
+                                    </strong>
                                   </span>
                                 </>
                               )}
                             </div>
 
-                            {/* ── Dates row + Action Type badge ── */}
+                            {/* Dates + action type grid */}
                             <div
                               style={{
-                                display: "flex",
-                                gap: "1.5rem",
-                                marginTop: "0.65rem",
-                                paddingTop: "0.65rem",
-                                borderTop: `1px dashed ${divider}`,
-                                flexWrap: "wrap",
-                                alignItems: "flex-end",
+                                display: "grid",
+                                gridTemplateColumns:
+                                  "repeat(auto-fit, minmax(120px, 1fr))",
+                                gap: "0.5rem 1.5rem",
+                                marginTop: "0.6rem",
+                                paddingTop: "0.6rem",
+                                borderTop: `1px dashed ${dividerColor}`,
                               }}
                             >
-                              {/* Started */}
+                              {/* Start date */}
                               <div>
                                 <div
                                   style={{
-                                    fontSize: "0.6rem",
-                                    color: textTert,
+                                    fontSize: "0.58rem",
                                     fontWeight: 700,
+                                    color: textMuted,
                                     textTransform: "uppercase",
                                     letterSpacing: "0.05em",
-                                    marginBottom: "0.15rem",
+                                    marginBottom: 2,
                                   }}
                                 >
-                                  Started
+                                  Start Date
                                 </div>
                                 {startDt ? (
-                                  <div
-                                    style={{
-                                      fontSize: "0.78rem",
-                                      lineHeight: 1.4,
-                                    }}
-                                  >
+                                  <div style={{ fontSize: "0.75rem" }}>
                                     <span
                                       style={{
                                         fontWeight: 600,
-                                        color: textMain,
+                                        color: textPrimary,
                                       }}
                                     >
-                                      {startDt.date}
+                                      ● {startDt.date}
                                     </span>
                                     <span
                                       style={{
-                                        color: textTert,
-                                        marginLeft: "0.35rem",
+                                        color: textSub,
+                                        marginLeft: "0.3rem",
+                                        fontSize: "0.7rem",
                                       }}
                                     >
                                       {startDt.time}
@@ -1001,8 +896,8 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 ) : (
                                   <span
                                     style={{
-                                      fontSize: "0.78rem",
-                                      color: textTert,
+                                      fontSize: "0.75rem",
+                                      color: textMuted,
                                     }}
                                   >
                                     —
@@ -1014,35 +909,31 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                               <div>
                                 <div
                                   style={{
-                                    fontSize: "0.6rem",
-                                    color: doneDt ? "#059669" : textTert,
+                                    fontSize: "0.58rem",
                                     fontWeight: 700,
+                                    color: doneDt ? "#059669" : textMuted,
                                     textTransform: "uppercase",
                                     letterSpacing: "0.05em",
-                                    marginBottom: "0.15rem",
+                                    marginBottom: 2,
                                   }}
                                 >
-                                  {doneDt ? "✓ Accomplished" : "Accomplished"}
+                                  Accomplished Date
                                 </div>
                                 {doneDt ? (
-                                  <div
-                                    style={{
-                                      fontSize: "0.78rem",
-                                      lineHeight: 1.4,
-                                    }}
-                                  >
+                                  <div style={{ fontSize: "0.75rem" }}>
                                     <span
                                       style={{
                                         fontWeight: 600,
                                         color: "#059669",
                                       }}
                                     >
-                                      {doneDt.date}
+                                      ● {doneDt.date}
                                     </span>
                                     <span
                                       style={{
-                                        color: textTert,
-                                        marginLeft: "0.35rem",
+                                        color: textSub,
+                                        marginLeft: "0.3rem",
+                                        fontSize: "0.7rem",
                                       }}
                                     >
                                       {doneDt.time}
@@ -1050,10 +941,10 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </div>
                                 ) : (
                                   <span
-                                    className="spl-inprogress"
+                                    className="alm-inprogress"
                                     style={{
-                                      fontSize: "0.78rem",
-                                      color: shopeeOrange,
+                                      fontSize: "0.75rem",
+                                      color: "#d97706",
                                       fontWeight: 600,
                                     }}
                                   >
@@ -1062,705 +953,446 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 )}
                               </div>
 
-                              {/* ── Action Type badge — sa tabi ng accomplished ── */}
+                              {/* Action */}
                               {log.action_type && (
                                 <div>
                                   <div
                                     style={{
-                                      fontSize: "0.6rem",
-                                      color: "#6366f1",
+                                      fontSize: "0.58rem",
                                       fontWeight: 700,
+                                      color: textMuted,
                                       textTransform: "uppercase",
                                       letterSpacing: "0.05em",
-                                      marginBottom: "0.15rem",
+                                      marginBottom: 2,
                                     }}
                                   >
-                                    ⚡ Action Type
+                                    Action
                                   </div>
                                   <span
                                     style={{
                                       display: "inline-flex",
                                       alignItems: "center",
-                                      padding: "0.2rem 0.65rem",
-                                      background: darkMode
-                                        ? "rgba(99,102,241,0.15)"
-                                        : "rgba(99,102,241,0.08)",
-                                      border: "1px solid rgba(99,102,241,0.35)",
+                                      padding: "0.18rem 0.55rem",
+                                      background: ac.bg,
+                                      color: ac.color,
+                                      border: `1px solid ${ac.border}`,
                                       borderRadius: 20,
-                                      fontSize: "0.75rem",
+                                      fontSize: "0.7rem",
                                       fontWeight: 600,
-                                      color: "#6366f1",
                                     }}
                                   >
                                     {log.action_type}
                                   </span>
                                 </div>
                               )}
+
+                              {/* Meta */}
+                              {(log.del_index != null ||
+                                log.prev_del_index != null) && (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.58rem",
+                                      fontWeight: 700,
+                                      color: textMuted,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.05em",
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    Meta
+                                  </div>
+                                  <span
+                                    style={{
+                                      fontSize: "0.72rem",
+                                      color: textSub,
+                                    }}
+                                  >
+                                    {log.del_index != null &&
+                                      `Index: ${log.del_index}`}
+                                    {log.prev_del_index != null &&
+                                      `  Prev: ${log.prev_del_index}`}
+                                  </span>
+                                </div>
+                              )}
                             </div>
 
-                            {/* Compliance Deadline */}
-                            {isCompliance && renderComplianceDeadline(log)}
+                            {/* Compliance deadline */}
+                            {isCompliance && renderDeadline(log)}
                           </div>
 
-                          {/* ── Always-visible details panel ── */}
-                          <div
-                            style={{
-                              borderTop: `1px solid ${remarksBorder}`,
-                              background: remarksBg,
-                              padding: "0.85rem 1rem",
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: "0.75rem",
-                            }}
-                          >
-                            {/* REASSIGNMENT details */}
-                            {log.action_type === "REASSIGNMENT" && (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: "0.65rem",
-                                  padding: "0.75rem",
-                                  background: darkMode
-                                    ? "rgba(124,58,237,0.08)"
-                                    : "rgba(124,58,237,0.05)",
-                                  border: "1px solid rgba(124,58,237,0.2)",
-                                  borderRadius: 8,
-                                }}
-                              >
+                          {/* Details panel */}
+                          {(hasRemarks ||
+                            log.action_type === "REASSIGNMENT" ||
+                            log.action_type === "REROUTE" ||
+                            log.decision_result ||
+                            log.decision_authority_name) && (
+                            <div
+                              style={{
+                                borderTop: `1px solid ${dividerColor}`,
+                                background: darkMode ? "#181818" : "#f8fafc",
+                                padding: "0.7rem 1rem",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "0.6rem",
+                              }}
+                            >
+                              {/* REASSIGNMENT */}
+                              {log.action_type === "REASSIGNMENT" && (
                                 <div
                                   style={{
-                                    fontSize: "0.65rem",
-                                    fontWeight: 700,
-                                    color: "#7c3aed",
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.07em",
-                                  }}
-                                >
-                                  🔄 Re-assignment Details
-                                </div>
-                                <div
-                                  style={{
+                                    padding: "0.6rem 0.75rem",
+                                    background: darkMode
+                                      ? "rgba(124,58,237,0.08)"
+                                      : "rgba(124,58,237,0.04)",
+                                    border: "1px solid rgba(124,58,237,0.2)",
+                                    borderRadius: 6,
                                     display: "flex",
-                                    gap: "1rem",
-                                    flexWrap: "wrap",
-                                    alignItems: "flex-end",
+                                    flexDirection: "column",
+                                    gap: "0.5rem",
                                   }}
                                 >
-                                  {log.reassigned_from_user_name && (
-                                    <div style={{ flex: 1, minWidth: 120 }}>
-                                      <div
+                                  <div
+                                    style={{
+                                      fontSize: "0.62rem",
+                                      fontWeight: 700,
+                                      color: "#7c3aed",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.07em",
+                                    }}
+                                  >
+                                    🔄 Re-assignment Details
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: "0.75rem",
+                                      flexWrap: "wrap",
+                                      alignItems: "center",
+                                    }}
+                                  >
+                                    {log.reassigned_from_user_name && (
+                                      <span
                                         style={{
-                                          fontSize: "0.6rem",
-                                          fontWeight: 700,
-                                          color: "#9ca3af",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.05em",
-                                          marginBottom: "0.25rem",
-                                        }}
-                                      >
-                                        From
-                                      </div>
-                                      <div
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: "0.35rem",
-                                          padding: "0.25rem 0.6rem",
-                                          background: darkMode
-                                            ? "rgba(239,68,68,0.1)"
-                                            : "rgba(239,68,68,0.07)",
-                                          border:
-                                            "1px solid rgba(239,68,68,0.25)",
-                                          borderRadius: 6,
-                                          fontSize: "0.78rem",
+                                          fontSize: "0.75rem",
                                           fontWeight: 600,
                                           color: "#ef4444",
+                                          padding: "0.2rem 0.55rem",
+                                          background: "rgba(239,68,68,0.07)",
+                                          border:
+                                            "1px solid rgba(239,68,68,0.2)",
+                                          borderRadius: 5,
                                         }}
                                       >
                                         👤 {log.reassigned_from_user_name}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {log.reassigned_from_user_name &&
-                                    log.reassigned_to_user_name && (
-                                      <div
-                                        style={{
-                                          color: "#7c3aed",
-                                          fontSize: "1rem",
-                                          paddingBottom: "0.25rem",
-                                        }}
-                                      >
-                                        →
-                                      </div>
+                                      </span>
                                     )}
-                                  {log.reassigned_to_user_name && (
-                                    <div style={{ flex: 1, minWidth: 120 }}>
-                                      <div
+                                    {log.reassigned_from_user_name &&
+                                      log.reassigned_to_user_name && (
+                                        <span style={{ color: "#7c3aed" }}>
+                                          →
+                                        </span>
+                                      )}
+                                    {log.reassigned_to_user_name && (
+                                      <span
                                         style={{
-                                          fontSize: "0.6rem",
-                                          fontWeight: 700,
-                                          color: "#9ca3af",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.05em",
-                                          marginBottom: "0.25rem",
-                                        }}
-                                      >
-                                        To
-                                      </div>
-                                      <div
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: "0.35rem",
-                                          padding: "0.25rem 0.6rem",
-                                          background: darkMode
-                                            ? "rgba(16,185,129,0.1)"
-                                            : "rgba(16,185,129,0.07)",
-                                          border:
-                                            "1px solid rgba(16,185,129,0.25)",
-                                          borderRadius: 6,
-                                          fontSize: "0.78rem",
+                                          fontSize: "0.75rem",
                                           fontWeight: 600,
                                           color: "#10b981",
+                                          padding: "0.2rem 0.55rem",
+                                          background: "rgba(16,185,129,0.07)",
+                                          border:
+                                            "1px solid rgba(16,185,129,0.2)",
+                                          borderRadius: 5,
                                         }}
                                       >
                                         👤 {log.reassigned_to_user_name}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: "1rem",
-                                    flexWrap: "wrap",
-                                  }}
-                                >
+                                      </span>
+                                    )}
+                                  </div>
                                   {log.reassigned_by_user_name && (
-                                    <div>
-                                      <div
-                                        style={{
-                                          fontSize: "0.6rem",
-                                          fontWeight: 700,
-                                          color: "#9ca3af",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.05em",
-                                          marginBottom: "0.25rem",
-                                        }}
-                                      >
-                                        Reassigned By
-                                      </div>
-                                      <div
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: "0.35rem",
-                                          padding: "0.25rem 0.6rem",
-                                          background: darkMode
-                                            ? "rgba(124,58,237,0.12)"
-                                            : "rgba(124,58,237,0.07)",
-                                          border:
-                                            "1px solid rgba(124,58,237,0.25)",
-                                          borderRadius: 6,
-                                          fontSize: "0.78rem",
-                                          fontWeight: 600,
-                                          color: "#7c3aed",
-                                        }}
-                                      >
-                                        🔑 {log.reassigned_by_user_name}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {log.reassigned_at && (
-                                    <div>
-                                      <div
-                                        style={{
-                                          fontSize: "0.6rem",
-                                          fontWeight: 700,
-                                          color: "#9ca3af",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.05em",
-                                          marginBottom: "0.25rem",
-                                        }}
-                                      >
-                                        Reassigned At
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontSize: "0.78rem",
-                                          fontWeight: 600,
-                                          color: textMain,
-                                        }}
-                                      >
-                                        {fmt(log.reassigned_at)?.date}{" "}
-                                        <span style={{ color: textSub }}>
+                                    <div
+                                      style={{
+                                        fontSize: "0.72rem",
+                                        color: textSub,
+                                      }}
+                                    >
+                                      By:{" "}
+                                      <strong style={{ color: "#7c3aed" }}>
+                                        {log.reassigned_by_user_name}
+                                      </strong>
+                                      {log.reassigned_at && (
+                                        <span style={{ marginLeft: "0.5rem" }}>
+                                          {fmt(log.reassigned_at)?.date}{" "}
                                           {fmt(log.reassigned_at)?.time}
                                         </span>
-                                      </div>
+                                      )}
                                     </div>
                                   )}
-                                </div>
-                                {log.reassignment_reason && (
-                                  <div>
+                                  {log.reassignment_reason && (
                                     <div
                                       style={{
-                                        fontSize: "0.6rem",
-                                        fontWeight: 700,
-                                        color: "#9ca3af",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.05em",
-                                        marginBottom: "0.25rem",
+                                        fontSize: "0.72rem",
+                                        color: textSub,
                                       }}
                                     >
-                                      Reason
+                                      Reason:{" "}
+                                      <strong style={{ color: textPrimary }}>
+                                        {log.reassignment_reason}
+                                      </strong>
                                     </div>
-                                    <span
-                                      style={{
-                                        fontSize: "0.78rem",
-                                        fontWeight: 600,
-                                        color: textMain,
-                                        padding: "0.2rem 0.6rem",
-                                        background: darkMode
-                                          ? "rgba(124,58,237,0.1)"
-                                          : "rgba(124,58,237,0.06)",
-                                        border:
-                                          "1px solid rgba(124,58,237,0.2)",
-                                        borderRadius: 6,
-                                        display: "inline-block",
-                                      }}
-                                    >
-                                      {log.reassignment_reason}
-                                    </span>
-                                  </div>
-                                )}
-                                {log.reassignment_remarks && (
-                                  <div>
-                                    <div
-                                      style={{
-                                        fontSize: "0.6rem",
-                                        fontWeight: 700,
-                                        color: "#9ca3af",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.05em",
-                                        marginBottom: "0.25rem",
-                                      }}
-                                    >
-                                      Remarks
-                                    </div>
+                                  )}
+                                  {log.reassignment_remarks && (
                                     <p
                                       style={{
                                         margin: 0,
-                                        fontSize: "0.82rem",
-                                        color: textMain,
-                                        lineHeight: 1.65,
+                                        fontSize: "0.78rem",
+                                        color: textPrimary,
+                                        lineHeight: 1.55,
                                         whiteSpace: "pre-wrap",
                                         wordBreak: "break-word",
-                                        padding: "0.65rem 0.85rem",
+                                        padding: "0.5rem 0.7rem",
                                         background: darkMode ? "#111" : "#fff",
                                         border:
                                           "1px solid rgba(124,58,237,0.2)",
-                                        borderRadius: 8,
+                                        borderRadius: 6,
                                         borderLeft: "3px solid #7c3aed",
                                       }}
                                     >
                                       {log.reassignment_remarks}
                                     </p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* REROUTE details */}
-                            {log.action_type === "REROUTE" && (
-                              <div
-                                style={{
-                                  display: "flex",
-                                  flexDirection: "column",
-                                  gap: "0.65rem",
-                                  padding: "0.75rem",
-                                  background: darkMode
-                                    ? "rgba(8,145,178,0.08)"
-                                    : "rgba(8,145,178,0.05)",
-                                  border: "1px solid rgba(8,145,178,0.2)",
-                                  borderRadius: 8,
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    fontSize: "0.65rem",
-                                    fontWeight: 700,
-                                    color: "#0891b2",
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.07em",
-                                  }}
-                                >
-                                  🔀 Re-route Details
+                                  )}
                                 </div>
+                              )}
+
+                              {/* REROUTE */}
+                              {log.action_type === "REROUTE" && (
                                 <div
                                   style={{
+                                    padding: "0.6rem 0.75rem",
+                                    background: darkMode
+                                      ? "rgba(8,145,178,0.08)"
+                                      : "rgba(8,145,178,0.04)",
+                                    border: "1px solid rgba(8,145,178,0.2)",
+                                    borderRadius: 6,
                                     display: "flex",
-                                    gap: "1rem",
-                                    flexWrap: "wrap",
-                                    alignItems: "flex-end",
+                                    flexDirection: "column",
+                                    gap: "0.5rem",
                                   }}
                                 >
-                                  {log.reroute_from_step && (
-                                    <div style={{ flex: 1, minWidth: 120 }}>
-                                      <div
+                                  <div
+                                    style={{
+                                      fontSize: "0.62rem",
+                                      fontWeight: 700,
+                                      color: "#0891b2",
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.07em",
+                                    }}
+                                  >
+                                    🔀 Re-route Details
+                                  </div>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: "0.75rem",
+                                      flexWrap: "wrap",
+                                      alignItems: "center",
+                                    }}
+                                  >
+                                    {log.reroute_from_step && (
+                                      <span
                                         style={{
-                                          fontSize: "0.6rem",
-                                          fontWeight: 700,
-                                          color: "#9ca3af",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.05em",
-                                          marginBottom: "0.25rem",
-                                        }}
-                                      >
-                                        From Step
-                                      </div>
-                                      <div
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          padding: "0.25rem 0.6rem",
-                                          background: darkMode
-                                            ? "rgba(239,68,68,0.1)"
-                                            : "rgba(239,68,68,0.07)",
-                                          border:
-                                            "1px solid rgba(239,68,68,0.25)",
-                                          borderRadius: 6,
-                                          fontSize: "0.78rem",
+                                          fontSize: "0.75rem",
                                           fontWeight: 600,
                                           color: "#ef4444",
+                                          padding: "0.2rem 0.55rem",
+                                          background: "rgba(239,68,68,0.07)",
+                                          border:
+                                            "1px solid rgba(239,68,68,0.2)",
+                                          borderRadius: 5,
                                         }}
                                       >
                                         {log.reroute_from_step}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {log.reroute_from_step &&
-                                    log.reroute_target_step && (
-                                      <div
-                                        style={{
-                                          color: "#0891b2",
-                                          fontSize: "1rem",
-                                          paddingBottom: "0.25rem",
-                                        }}
-                                      >
-                                        →
-                                      </div>
+                                      </span>
                                     )}
-                                  {log.reroute_target_step && (
-                                    <div style={{ flex: 1, minWidth: 120 }}>
-                                      <div
+                                    {log.reroute_from_step &&
+                                      log.reroute_target_step && (
+                                        <span style={{ color: "#0891b2" }}>
+                                          →
+                                        </span>
+                                      )}
+                                    {log.reroute_target_step && (
+                                      <span
                                         style={{
-                                          fontSize: "0.6rem",
-                                          fontWeight: 700,
-                                          color: "#9ca3af",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.05em",
-                                          marginBottom: "0.25rem",
-                                        }}
-                                      >
-                                        Target Step
-                                      </div>
-                                      <div
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          padding: "0.25rem 0.6rem",
-                                          background: darkMode
-                                            ? "rgba(16,185,129,0.1)"
-                                            : "rgba(16,185,129,0.07)",
-                                          border:
-                                            "1px solid rgba(16,185,129,0.25)",
-                                          borderRadius: 6,
-                                          fontSize: "0.78rem",
+                                          fontSize: "0.75rem",
                                           fontWeight: 600,
                                           color: "#10b981",
+                                          padding: "0.2rem 0.55rem",
+                                          background: "rgba(16,185,129,0.07)",
+                                          border:
+                                            "1px solid rgba(16,185,129,0.2)",
+                                          borderRadius: 5,
                                         }}
                                       >
                                         {log.reroute_target_step}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    gap: "1rem",
-                                    flexWrap: "wrap",
-                                  }}
-                                >
+                                      </span>
+                                    )}
+                                  </div>
                                   {log.rerouted_by_user_name && (
-                                    <div>
-                                      <div
-                                        style={{
-                                          fontSize: "0.6rem",
-                                          fontWeight: 700,
-                                          color: "#9ca3af",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.05em",
-                                          marginBottom: "0.25rem",
-                                        }}
-                                      >
-                                        Rerouted By
-                                      </div>
-                                      <div
-                                        style={{
-                                          display: "inline-flex",
-                                          alignItems: "center",
-                                          gap: "0.35rem",
-                                          padding: "0.25rem 0.6rem",
-                                          background: darkMode
-                                            ? "rgba(8,145,178,0.12)"
-                                            : "rgba(8,145,178,0.07)",
-                                          border:
-                                            "1px solid rgba(8,145,178,0.25)",
-                                          borderRadius: 6,
-                                          fontSize: "0.78rem",
-                                          fontWeight: 600,
-                                          color: "#0891b2",
-                                        }}
-                                      >
-                                        🔑 {log.rerouted_by_user_name}
-                                      </div>
-                                    </div>
-                                  )}
-                                  {log.rerouted_at && (
-                                    <div>
-                                      <div
-                                        style={{
-                                          fontSize: "0.6rem",
-                                          fontWeight: 700,
-                                          color: "#9ca3af",
-                                          textTransform: "uppercase",
-                                          letterSpacing: "0.05em",
-                                          marginBottom: "0.25rem",
-                                        }}
-                                      >
-                                        Rerouted At
-                                      </div>
-                                      <div
-                                        style={{
-                                          fontSize: "0.78rem",
-                                          fontWeight: 600,
-                                          color: textMain,
-                                        }}
-                                      >
-                                        {fmt(log.rerouted_at)?.date}{" "}
-                                        <span style={{ color: textSub }}>
+                                    <div
+                                      style={{
+                                        fontSize: "0.72rem",
+                                        color: textSub,
+                                      }}
+                                    >
+                                      By:{" "}
+                                      <strong style={{ color: "#0891b2" }}>
+                                        {log.rerouted_by_user_name}
+                                      </strong>
+                                      {log.rerouted_at && (
+                                        <span style={{ marginLeft: "0.5rem" }}>
+                                          {fmt(log.rerouted_at)?.date}{" "}
                                           {fmt(log.rerouted_at)?.time}
                                         </span>
-                                      </div>
+                                      )}
                                     </div>
                                   )}
-                                </div>
-                                {log.reroute_reason && (
-                                  <div>
+                                  {log.reroute_reason && (
                                     <div
                                       style={{
-                                        fontSize: "0.6rem",
-                                        fontWeight: 700,
-                                        color: "#9ca3af",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.05em",
-                                        marginBottom: "0.25rem",
+                                        fontSize: "0.72rem",
+                                        color: textSub,
                                       }}
                                     >
-                                      Reason
+                                      Reason:{" "}
+                                      <strong style={{ color: textPrimary }}>
+                                        {log.reroute_reason}
+                                      </strong>
                                     </div>
-                                    <span
-                                      style={{
-                                        fontSize: "0.78rem",
-                                        fontWeight: 600,
-                                        color: textMain,
-                                        padding: "0.2rem 0.6rem",
-                                        background: darkMode
-                                          ? "rgba(8,145,178,0.1)"
-                                          : "rgba(8,145,178,0.06)",
-                                        border: "1px solid rgba(8,145,178,0.2)",
-                                        borderRadius: 6,
-                                        display: "inline-block",
-                                      }}
-                                    >
-                                      {log.reroute_reason}
-                                    </span>
-                                  </div>
-                                )}
-                                {log.reroute_remarks && (
-                                  <div>
-                                    <div
-                                      style={{
-                                        fontSize: "0.6rem",
-                                        fontWeight: 700,
-                                        color: "#9ca3af",
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.05em",
-                                        marginBottom: "0.25rem",
-                                      }}
-                                    >
-                                      Remarks
-                                    </div>
+                                  )}
+                                  {log.reroute_remarks && (
                                     <p
                                       style={{
                                         margin: 0,
-                                        fontSize: "0.82rem",
-                                        color: textMain,
-                                        lineHeight: 1.65,
+                                        fontSize: "0.78rem",
+                                        color: textPrimary,
+                                        lineHeight: 1.55,
                                         whiteSpace: "pre-wrap",
                                         wordBreak: "break-word",
-                                        padding: "0.65rem 0.85rem",
+                                        padding: "0.5rem 0.7rem",
                                         background: darkMode ? "#111" : "#fff",
                                         border: "1px solid rgba(8,145,178,0.2)",
-                                        borderRadius: 8,
+                                        borderRadius: 6,
                                         borderLeft: "3px solid #0891b2",
                                       }}
                                     >
                                       {log.reroute_remarks}
                                     </p>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Decision Result */}
-                            {log.decision_result && (
-                              <div>
-                                <div
-                                  style={{
-                                    fontSize: "0.62rem",
-                                    fontWeight: 700,
-                                    color: "#0891b2",
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.07em",
-                                    marginBottom: "0.35rem",
-                                  }}
-                                >
-                                  📊 Decision Result
+                                  )}
                                 </div>
-                                <span
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    padding: "0.2rem 0.65rem",
-                                    background: darkMode
-                                      ? "rgba(8,145,178,0.15)"
-                                      : "rgba(8,145,178,0.08)",
-                                    border: "1px solid rgba(8,145,178,0.35)",
-                                    borderRadius: 20,
-                                    fontSize: "0.78rem",
-                                    fontWeight: 600,
-                                    color: "#0891b2",
-                                  }}
-                                >
-                                  {log.decision_result}
-                                </span>
-                              </div>
-                            )}
+                              )}
 
-                            {/* Decision Authority */}
-                            {log.decision_authority_name && (
-                              <div>
-                                <div
-                                  style={{
-                                    fontSize: "0.62rem",
-                                    fontWeight: 700,
-                                    color: "#b45309",
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.07em",
-                                    marginBottom: "0.35rem",
-                                  }}
-                                >
-                                  🏛️ Decision Authority
-                                </div>
-                                <div
-                                  style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "0.4rem",
-                                    padding: "0.3rem 0.75rem",
-                                    background: darkMode
-                                      ? "rgba(180,83,9,0.15)"
-                                      : "rgba(245,158,11,0.08)",
-                                    border: "1px solid rgba(245,158,11,0.35)",
-                                    borderRadius: 8,
-                                    fontSize: "0.8rem",
-                                    fontWeight: 600,
-                                    color: "#b45309",
-                                  }}
-                                >
+                              {/* Decision Result */}
+                              {log.decision_result && (
+                                <div>
                                   <div
                                     style={{
-                                      width: 22,
-                                      height: 22,
-                                      borderRadius: "50%",
-                                      background:
-                                        "linear-gradient(135deg, #f59e0b, #d97706)",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      color: "#fff",
-                                      fontSize: "0.65rem",
+                                      fontSize: "0.6rem",
                                       fontWeight: 700,
-                                      flexShrink: 0,
+                                      color: textMuted,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.06em",
+                                      marginBottom: 3,
                                     }}
                                   >
-                                    {log.decision_authority_name[0].toUpperCase()}
+                                    📊 Decision Result
                                   </div>
-                                  {log.decision_authority_name}
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      padding: "0.18rem 0.55rem",
+                                      background: accentLight,
+                                      border: `1px solid ${accentBorder}`,
+                                      borderRadius: 20,
+                                      fontSize: "0.75rem",
+                                      fontWeight: 600,
+                                      color: accent,
+                                    }}
+                                  >
+                                    {log.decision_result}
+                                  </span>
                                 </div>
-                              </div>
-                            )}
+                              )}
 
-                            {/* Remarks */}
-                            <div>
-                              <div
-                                style={{
-                                  fontSize: "0.62rem",
-                                  fontWeight: 700,
-                                  color: shopeeOrange,
-                                  textTransform: "uppercase",
-                                  letterSpacing: "0.07em",
-                                  marginBottom: "0.5rem",
-                                }}
-                              >
-                                💬 Remarks
-                              </div>
-                              {hasRemarks ? (
-                                <p
-                                  style={{
-                                    margin: 0,
-                                    fontSize: "0.82rem",
-                                    color: textMain,
-                                    lineHeight: 1.65,
-                                    whiteSpace: "pre-wrap",
-                                    wordBreak: "break-word",
-                                    padding: "0.65rem 0.85rem",
-                                    background: darkMode ? "#111" : "#fff",
-                                    border: `1px solid ${remarksBorder}`,
-                                    borderRadius: 8,
-                                    borderLeft: `3px solid ${shopeeOrange}`,
-                                  }}
-                                >
-                                  {log.application_remarks}
-                                </p>
-                              ) : (
-                                <p
-                                  style={{
-                                    margin: 0,
-                                    fontSize: "0.82rem",
-                                    color: textTert,
-                                    fontStyle: "italic",
-                                    padding: "0.5rem 0.85rem",
-                                  }}
-                                >
-                                  No remarks recorded for this step.
-                                </p>
+                              {/* Decision Authority */}
+                              {log.decision_authority_name && (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.6rem",
+                                      fontWeight: 700,
+                                      color: textMuted,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.06em",
+                                      marginBottom: 3,
+                                    }}
+                                  >
+                                    🏛️ Decision Authority
+                                  </div>
+                                  <span
+                                    style={{
+                                      fontSize: "0.78rem",
+                                      fontWeight: 600,
+                                      color: "#b45309",
+                                      padding: "0.2rem 0.6rem",
+                                      background: "rgba(245,158,11,0.08)",
+                                      border: "1px solid rgba(245,158,11,0.3)",
+                                      borderRadius: 6,
+                                      display: "inline-block",
+                                    }}
+                                  >
+                                    {log.decision_authority_name}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Remarks */}
+                              {hasRemarks && (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.6rem",
+                                      fontWeight: 700,
+                                      color: textMuted,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.06em",
+                                      marginBottom: 3,
+                                    }}
+                                  >
+                                    💬 Remarks
+                                  </div>
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.78rem",
+                                      color: textPrimary,
+                                      lineHeight: 1.6,
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      padding: "0.55rem 0.75rem",
+                                      background: darkMode ? "#111" : "#fff",
+                                      border: `1px solid ${dividerColor}`,
+                                      borderRadius: 6,
+                                      borderLeft: `3px solid ${accent}`,
+                                    }}
+                                  >
+                                    {log.application_remarks}
+                                  </p>
+                                </div>
                               )}
                             </div>
-                          </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -1770,37 +1402,37 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
             )}
           </div>
 
-          {/* ══ FOOTER ══ */}
+          {/* ── FOOTER ── */}
           <div
             style={{
-              borderTop: `1px solid ${divider}`,
-              padding: "0.85rem 1.5rem",
+              borderTop: `1px solid ${dividerColor}`,
+              padding: "0.75rem 1.25rem",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              background: darkMode ? "#111" : "#fafafa",
+              background: headerBg,
               flexShrink: 0,
             }}
           >
-            <span style={{ fontSize: "0.75rem", color: textTert }}>
+            <span style={{ fontSize: "0.72rem", color: textMuted }}>
               {loading
-                ? "Fetching activity…"
+                ? "Loading…"
                 : error
                   ? "Failed to load"
-                  : `${logs.length} step${logs.length !== 1 ? "s" : ""} recorded · click any card to view remarks`}
+                  : `${logs.length} step${logs.length !== 1 ? "s" : ""} recorded`}
             </span>
             <button
-              className="spl-footer-btn"
+              className="alm-close-btn"
               onClick={onClose}
               style={{
-                padding: "0.5rem 1.5rem",
+                padding: "0.45rem 1.25rem",
                 background: "transparent",
-                border: `1.5px solid ${shopeeOrange}`,
-                borderRadius: 8,
-                color: shopeeOrange,
+                border: `1.5px solid ${accentBorder}`,
+                borderRadius: 6,
+                color: accent,
                 cursor: "pointer",
-                fontSize: "0.82rem",
-                fontWeight: 700,
+                fontSize: "0.8rem",
+                fontWeight: 600,
                 transition: "all 0.15s",
               }}
             >
