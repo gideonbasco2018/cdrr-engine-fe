@@ -16,6 +16,7 @@ import {
   STEP_GROUP_MAP,
   STEP_DECISIONS,
   DECISION_DOCTRACK,
+  STEP_DECISION_DOCTRACK,
   getNextStep,
 } from "../config/workflow";
 import { FIELD_LABEL_MAP, FIELD_KEY_TO_DB } from "../config/fields";
@@ -37,8 +38,11 @@ import { bulkCreateFromDtns } from "../../../../api/fdaverifportal";
 
 /* ─── helpers ─────────────────────────────────────────────────── */
 const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
-  decision === "Return to Evaluator" ||
-  decision === "Checked and returned to evaluator";
+  decision === "Returned to Evaluator" ||
+  decision === "Checked and returned to evaluator" ||
+  decision === "Returned to S&E Evaluator" ||
+  decision === "Checked and Returned to S&E Evaluator" ||
+  decision === "Signed and Returned to S&E Evaluator";
 
 /* Group ID for Decision Authority options (QA) */
 const LRD_AUTHORITY_GROUP_ID = 6;
@@ -48,11 +52,11 @@ const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 
 /* decisions that need an extra "Action" dropdown */
 const ACTION_CONFIG = {
-  "Quality Evaluation_Endorse to Checker": {
+  "Quality Evaluation_Endorsed to Checker": {
     options: ["For ENOD", "For Approval", "For Disapproval"],
     warning: "Action is required when endorsing to checker.",
   },
-  "Quality Evaluation_Endorse to Supervisor": {
+  "Quality Evaluation_Endorsed to Supervisor": {
     options: ["For ENOD", "For Approval", "For Disapproval"],
     warning: "Action is required when endorsing to supervisor.",
   },
@@ -60,27 +64,27 @@ const ACTION_CONFIG = {
     options: ["Checked and Returned", "Recommended for printing"],
     warning: "Action is required when returning to evaluator.",
   },
-  "Supervisor_Endorse to QA Admin": {
+  "Supervisor_Endorsed to QA Admin": {
     options: ["Signed and forwarded to QA Admin"],
     warning: "Action is required when endorsing to QA Admin.",
   },
-  "Supervisor_Return to Evaluator": {
+  "Supervisor_Returned to Evaluator": {
     options: ["Return to Evaluator for Clarification"],
     warning: "Action is required when returning to evaluator.",
   },
-  "QA Admin_Endorse to LRD Chief Admin": {
+  "QA Admin_Endorsed to LRD Chief Admin": {
     options: ["Checked and Forwarded to LRD Admin"],
     warning: "Action is required when endorsing to LRD Chief Admin.",
   },
-  "QA Admin_Return to Evaluator": {
+  "QA Admin_Returned to Evaluator": {
     options: ["Return to Evaluator for Clarification"],
     warning: "Action is required when returning to evaluator.",
   },
-  "OD-Receiving_Endorse to OD-Releasing": {
+  "OD-Receiving_Endorsed to OD-Releasing": {
     options: ["For signature"],
     warning: "Action is required when endorsing to OD-Releasing.",
   },
-  "OD-Releasing_Scanned and Endorse to Releasing Officer": {
+  "OD-Releasing_Scanned and Endorsed to Releasing Officer": {
     options: ["Signed"],
     warning: "Action is required when endorsing to Releasing Officer.",
   },
@@ -91,6 +95,18 @@ const ACTION_CONFIG = {
   "Quality Evaluation_Draft Recommendation": {
     options: ["For cross-evaluation"],
     warning: "Action is required for draft recommendation.",
+  },
+  "Quality Evaluation_Returned to S&E Evaluator": {
+    options: ["Return to S&E Evaluator for Clarification"],
+    warning: "Action is required when returning to S&E Evaluator.",
+  },
+  "S&E_Endorsed to S&E Supervisor": {
+    options: ["Endorsed to S&E Supervisor for review"],
+    warning: "Action is required when endorsing to S&E Supervisor.",
+  },
+  "S&E_Endorsed to S&E Checker": {
+    options: ["Endorsed to S&E Checker for review"],
+    warning: "Action is required when endorsing to S&E Checker.",
   },
 };
 
@@ -200,6 +216,9 @@ export function Step4ActionForm({
 
   // ── Signed date for OD-Releasing doctrack remarks (optional, default: today) ──
   const [signedDate, setSignedDate] = useState(todayStr());
+  const [canReturnToSE, setCanReturnToSE] = useState(false);
+  const [loadingSeCheck, setLoadingSeCheck] = useState(false);
+  const [nextStepActive, setNextStepActive] = useState(false);
 
   // ── QA "For Approval" approval fields ──
   const [approvalFields, setApprovalFields] = useState(() => {
@@ -240,12 +259,13 @@ export function Step4ActionForm({
     currentStep,
     formData.decision,
   );
-  const needsAssignee = nextStep !== null && !isForCompliance;
+  const needsAssignee =
+    nextStep !== null && !isForCompliance && !nextStepActive;
   const isLRDChiefAdmin = currentStep === "LRD Chief Admin";
   const isODReleasing = currentStep === "OD-Releasing";
   const isODReleasingDecision =
     isODReleasing &&
-    formData.decision === "Scanned and Endorse to Releasing Officer";
+    formData.decision === "Scanned and Endorsed to Releasing Officer";
   // Shows the approval fields section (any decision + For Approval action)
   const isQEForApproval =
     currentStep === "Quality Evaluation" && formData.action === "For Approval";
@@ -253,17 +273,16 @@ export function Step4ActionForm({
   // Required validation only applies when Endorse to Supervisor
   const isQEApprovalRequired =
     currentStep === "Quality Evaluation" &&
-    formData.decision === "Endorse to Supervisor" &&
+    formData.decision === "Endorsed to Supervisor" &&
     formData.action === "For Approval";
 
   // Action dropdown key
   const actionKey = `${currentStep}_${formData.decision}`;
   const actionConfig = ACTION_CONFIG[actionKey] ?? null;
 
-  const availableDecisions = STEP_DECISIONS[currentStep] ?? [
-    "Approved",
-    "Rejected",
-  ];
+  const availableDecisions = (
+    STEP_DECISIONS[currentStep] ?? ["Approved", "Rejected"]
+  ).filter((d) => d !== "Returned to S&E Evaluator" || canReturnToSE);
 
   const dirtyFields = computeFieldChanges(
     record,
@@ -271,6 +290,28 @@ export function Step4ActionForm({
     FIELD_LABEL_MAP,
     currentStep,
   );
+
+  useEffect(() => {
+    if (!nextStep || !record?.mainDbId) {
+      setNextStepActive(false);
+      return;
+    }
+    (async () => {
+      try {
+        const data = await getApplicationLogs(record.mainDbId);
+        const logs = Array.isArray(data) ? data : [];
+        setNextStepActive(
+          logs.some(
+            (l) =>
+              l.application_step === nextStep &&
+              l.application_status === "IN PROGRESS",
+          ),
+        );
+      } catch {
+        setNextStepActive(false);
+      }
+    })();
+  }, [nextStep, record?.mainDbId]);
 
   /* ── Shared label style ── */
   const labelStyle = {
@@ -307,6 +348,37 @@ export function Step4ActionForm({
     }
   }, []);
 
+  useEffect(() => {
+    if (currentStep !== "Quality Evaluation" || !record?.mainDbId) return;
+    (async () => {
+      try {
+        setLoadingSeCheck(true);
+        const data = await getApplicationLogs(record.mainDbId);
+        const logs = Array.isArray(data) ? data : [];
+
+        const hasCompletedSE = logs.some(
+          (l) =>
+            l.application_step === "S&E" &&
+            l.application_status === "COMPLETED",
+        );
+
+        const seInProgress = logs.some(
+          (l) =>
+            (l.application_step === "S&E" ||
+              l.application_step === "S&E Supervisor" ||
+              l.application_step === "S&E Checker") &&
+            l.application_status === "IN PROGRESS",
+        );
+
+        setCanReturnToSE(hasCompletedSE && !seInProgress);
+      } catch {
+        setCanReturnToSE(false);
+      } finally {
+        setLoadingSeCheck(false);
+      }
+    })();
+  }, [currentStep, record?.mainDbId]);
+
   /* ── Load previous evaluator when "Return to Evaluator" is selected ── */
   useEffect(() => {
     if (!isReturnToEvaluator || !record?.mainDbId) {
@@ -317,7 +389,15 @@ export function Step4ActionForm({
       try {
         const data = await getApplicationLogs(record.mainDbId);
         const logs = Array.isArray(data) ? data : [];
-        const prevEval = findPreviousEvaluator(logs, currentStep);
+
+        const targetStep =
+          formData.decision === "Returned to S&E Evaluator" ||
+          formData.decision === "Checked and Returned to S&E Evaluator" ||
+          formData.decision === "Signed and Returned to S&E Evaluator"
+            ? "S&E"
+            : "Quality Evaluation";
+
+        const prevEval = findPreviousEvaluator(logs, currentStep, targetStep);
         setAutoAssignee(prevEval);
         if (prevEval) {
           setFormData((p) => ({ ...p, assignee: prevEval }));
@@ -326,7 +406,7 @@ export function Step4ActionForm({
         setAutoAssignee(null);
       }
     })();
-  }, [isReturnToEvaluator, record?.mainDbId, currentStep]);
+  }, [isReturnToEvaluator, record?.mainDbId, currentStep, formData.decision]);
 
   /* ── Load assignee user list for next step ── */
   useEffect(() => {
@@ -380,7 +460,7 @@ export function Step4ActionForm({
   /* ── Signed date change — updates doctrack remarks in sync ── */
   const handleSignedDateChange = (dateStr) => {
     setSignedDate(dateStr);
-    if (formData.decision === "Scanned and Endorse to Releasing Officer") {
+    if (formData.decision === "Scanned and Endorsed to Releasing Officer") {
       setFormData((p) => ({
         ...p,
         doctrackRemarks: buildODReleasingDoctrack(dateStr),
@@ -400,10 +480,14 @@ export function Step4ActionForm({
         if (!RETURNS_TO_EVALUATOR(currentStep, v)) setAutoAssignee(null);
 
         // ── Dynamic doctrack remarks for OD-Releasing (uses signedDate state) ──
-        if (v === "Scanned and Endorse to Releasing Officer") {
+        if (v === "Scanned and Endorsed to Releasing Officer") {
           updated.doctrackRemarks = buildODReleasingDoctrack(signedDate);
         } else {
-          updated.doctrackRemarks = DECISION_DOCTRACK[v] ?? "";
+          // Check step-specific override first, then fall back to global
+          updated.doctrackRemarks =
+            STEP_DECISION_DOCTRACK[currentStep]?.[v] ??
+            DECISION_DOCTRACK[v] ??
+            "";
         }
       }
       return updated;
@@ -436,9 +520,11 @@ export function Step4ActionForm({
       ? `Your log will be completed and a Compliance log will be self-assigned to you (${currentUser?.username ?? ""}) with deadline: ${deadlineDate}.`
       : isReturnToEvaluator && autoAssignee
         ? `Your log will be completed and automatically returned to the previous evaluator: ${autoAssignee}.`
-        : nextStep
-          ? `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
-          : "Your log will be completed. This is the final step — no further assignment needed.";
+        : nextStepActive
+          ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
+          : nextStep
+            ? `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
+            : "Your log will be completed. This is the final step — no further assignment needed.";
 
   const inp = {
     width: "100%",
@@ -615,24 +701,35 @@ export function Step4ActionForm({
           assignedUserId = resolveAssigneeId(assignedUser);
         }
 
-        await createApplicationLog({
-          main_db_id: record.mainDbId,
-          application_step: nextStep,
-          user_name: assignedUser,
-          application_status: "IN PROGRESS",
-          application_decision: "",
-          application_remarks: "",
-          start_date: formattedDateTime,
-          accomplished_date: null,
-          del_index: nextIndex,
-          del_previous: indexData.last_index,
-          del_last_index: 1,
-          del_thread: "Open",
-          user_id: assignedUserId,
-          ...(isForCompliance
-            ? { deadline_date: deadlineDate, working_days: workingDays }
-            : {}),
-        });
+        // ── Check if next step already has an IN PROGRESS log ──
+        const allLogs = await getApplicationLogs(record.mainDbId);
+        const logsArr = Array.isArray(allLogs) ? allLogs : [];
+        const nextStepAlreadyActive = logsArr.some(
+          (l) =>
+            l.application_step === nextStep &&
+            l.application_status === "IN PROGRESS",
+        );
+
+        if (!nextStepAlreadyActive) {
+          await createApplicationLog({
+            main_db_id: record.mainDbId,
+            application_step: nextStep,
+            user_name: assignedUser,
+            application_status: "IN PROGRESS",
+            application_decision: "",
+            application_remarks: "",
+            start_date: formattedDateTime,
+            accomplished_date: null,
+            del_index: nextIndex,
+            del_previous: indexData.last_index,
+            del_last_index: 1,
+            del_thread: "Open",
+            user_id: assignedUserId,
+            ...(isForCompliance
+              ? { deadline_date: deadlineDate, working_days: workingDays }
+              : {}),
+          });
+        }
       }
 
       console.log(
@@ -737,7 +834,7 @@ export function Step4ActionForm({
             </div>
           </div>
         ))}
-        {nextStep && (
+        {nextStep && !nextStepActive && (
           <>
             <div style={{ fontSize: "1rem", color: colors.textTertiary }}>
               →
@@ -1438,8 +1535,13 @@ export function Step4ActionForm({
                 color: "#047857",
               }}
             >
-              ↩️ Automatically returning to previous evaluator:{" "}
-              <strong>{autoAssignee}</strong>
+              ↩️ Automatically returning to previous{" "}
+              {formData.decision === "Returned to S&E Evaluator" ||
+              currentStep === "S&E Supervisor" ||
+              currentStep === "S&E Checker"
+                ? "S&E"
+                : "evaluator"}
+              : <strong>{autoAssignee}</strong>
             </div>
           )}
 

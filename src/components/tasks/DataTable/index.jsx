@@ -29,6 +29,7 @@ import {
   countWorkingDays,
 } from "./constants";
 import { BulkCompleteModal } from "./BulkCompleteModal";
+import HowToUseModal, { useHowToUseGuide } from "./HowToUseModal";
 
 /* ================================================================== */
 function DataTable({
@@ -66,6 +67,7 @@ function DataTable({
   const [hoveredRowId, setHoveredRowId] = useState(null);
   const [showBulkDeck, setShowBulkDeck] = useState(false);
   const [showBulkComplete, setShowBulkComplete] = useState(false);
+  const { showGuide, openGuide, closeGuide } = useHowToUseGuide();
 
   const isComplianceTab = activeTab === "Compliance";
   const isRecordTab = activeTab === "Record";
@@ -491,6 +493,40 @@ function DataTable({
             >
               Task Data
             </h3>
+            <button
+              onClick={openGuide}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "4px 12px",
+                borderRadius: 999,
+                background: colors.badgeBg,
+                border: `1px solid ${colors.cardBorder}`,
+                color: colors.textSecondary,
+                fontSize: "0.65rem",
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <span
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: "50%",
+                  background: "#7c3aed",
+                  color: "#fff",
+                  fontSize: 10,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontWeight: 700,
+                }}
+              >
+                ?
+              </span>
+              How to use
+            </button>
             <span
               style={{
                 padding: "0.25rem 0.75rem",
@@ -984,9 +1020,16 @@ function DataTable({
                       background: isHovered ? colors.tableRowHover : bg,
                       transition: "background .2s",
                       borderLeft: rowBorderLeft,
+                      cursor: isHovered
+                        ? `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath fill='%234CAF50' stroke='white' stroke-width='1' d='M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87c.45 0 .67-.54.35-.85L6.35 2.85a.5.5 0 0 0-.85.36Z'/%3E%3C/svg%3E") 4 2, pointer`
+                        : "default",
                     }}
                     onMouseEnter={() => setHoveredRowId(row.id)}
                     onMouseLeave={() => setHoveredRowId(null)}
+                    onDoubleClick={() => {
+                      if (activeSubTab === "received" && !isRecordTab)
+                        openDetails(row);
+                    }}
                   >
                     <td
                       style={{
@@ -1038,6 +1081,11 @@ function DataTable({
                     {visibleColumns.map((col) => (
                       <td
                         key={col.key}
+                        onClick={
+                          col.key === "dtn"
+                            ? () => openDoctrack(row)
+                            : undefined
+                        }
                         style={{
                           padding: "1rem",
                           fontSize: "0.78rem",
@@ -1070,6 +1118,7 @@ function DataTable({
                                     : "rgba(245,158,11,0.02)"
                                   : undefined,
                               }),
+                          cursor: col.key === "dtn" ? "pointer" : undefined,
                         }}
                       >
                         {renderCell(col, row, colors)}
@@ -1372,6 +1421,14 @@ function DataTable({
             </div>
           </div>
         </div>
+      )}
+
+      {showGuide && (
+        <HowToUseModal
+          colors={colors}
+          darkMode={darkMode}
+          onClose={closeGuide}
+        />
       )}
 
       {/* ── Bulk Deck Modal ── */}

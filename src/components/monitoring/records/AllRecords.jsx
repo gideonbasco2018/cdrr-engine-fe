@@ -6,6 +6,8 @@ import RerouteModal from "../../reports/actions/RerouteModal";
 import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
 import { getUploadReports } from "../../../api/reports";
 import { mapDataItem } from "../../reports/utils";
+import ApplicationLogsModal from "../../tasks/ApplicationLogsModal";
+import DoctrackModal from "../../reports/actions/DoctrackModal";
 
 const FB = "#1877F2";
 
@@ -70,6 +72,8 @@ function ActionMenu({ row, ui, darkMode, onAction }) {
     { key: "view", icon: "👁️", label: "View Details" },
     { key: "reassign", icon: "🔄", label: "Re-assign" },
     { key: "reroute", icon: "🔀", label: "Re-route" },
+    { key: "applogs", icon: "📦", label: "Application Logs" },
+    { key: "doctrack", icon: "📋", label: "Doctrack Details" },
   ];
 
   return (
@@ -1018,6 +1022,22 @@ export default function AllRecords({
           onClose={handleCloseModal}
           colors={colors}
           darkMode={darkMode}
+        />
+      )}
+
+      {activeModal === "applogs" && selectedRecord && (
+        <ApplicationLogsModal
+          record={selectedRecord}
+          onClose={handleCloseModal}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+      {activeModal === "doctrack" && selectedRecord && (
+        <DoctrackModal
+          record={selectedRecord}
+          onClose={handleCloseModal}
+          colors={colors}
         />
       )}
     </>
