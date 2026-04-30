@@ -96,6 +96,21 @@ function UserSelect({ value, onChange, users, colors, darkMode }) {
   );
 }
 
+// I-add itong helper sa itaas ng file (bago ang component)
+const nowPHT = () => {
+  // Kumuha ng PHT time gamit ang Intl API — pinaka-reliable
+  const now = new Date();
+
+  // Format bilang PHT string
+  const phtString = now.toLocaleString("sv-SE", {
+    timeZone: "Asia/Manila",
+  });
+  // Output: "2026-04-30 16:20:23" — tama na ito (PHT)
+
+  // I-convert sa ISO format na walang Z
+  return phtString.replace(" ", "T");
+  // Output: "2026-04-30T16:20:23"
+};
 // ── Main ReassignmentModal ────────────────────────────────────────────────────
 
 function ReassignmentModal({ record, onClose, colors, darkMode }) {
@@ -209,7 +224,7 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
         reassignment_remarks: remarks || null,
         reassigned_by_user_id: currentUser?.id ?? null,
         reassigned_by_user_name: currentUser?.username ?? null,
-        reassigned_at: new Date().toISOString(),
+        reassigned_at: nowPHT(),
       });
 
       setSubmitted(true);

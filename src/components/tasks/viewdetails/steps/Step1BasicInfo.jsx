@@ -13,16 +13,120 @@ import {
   SummaryCard,
   CountrySelect,
 } from "../components/BaseFields";
-
+import { SpellCheckButton } from "./SpellCheckButton";
 export function Step1BasicInfo({
   record,
   editedFields,
   onFieldChange,
   canEdit,
   colors,
+  isQAAdmin = false,
+  missingFields = [],
 }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
+
+  // ─── QA Admin helpers ───
+  const CONDITIONAL_COUNTRY_PARENTS = {
+    prodManuCountry: "prodManu",
+    prodTraderCountry: "prodTrader",
+    prodImporterCountry: "prodImporter",
+    prodDistriCountry: "prodDistri",
+    prodRepackerCountry: "prodRepacker",
+  };
+  const isNAValue = (val) => {
+    const v = String(val ?? "")
+      .trim()
+      .toLowerCase();
+    return v === "" || v === "n/a" || v === "na";
+  };
+  const isCountryApplicable = (fieldKey) => {
+    if (!(fieldKey in CONDITIONAL_COUNTRY_PARENTS)) return true;
+    const parentKey = CONDITIONAL_COUNTRY_PARENTS[fieldKey];
+    const parentVal =
+      parentKey in editedFields
+        ? editedFields[parentKey]
+        : (record[parentKey] ?? "");
+    return !isNAValue(parentVal);
+  };
+
+  const isMissing = (fieldKey) => isQAAdmin && missingFields.includes(fieldKey);
+
+  const requiredBadge = (fieldKey) => {
+    if (!isQAAdmin) return null;
+    if (!isCountryApplicable(fieldKey)) return null;
+    return isMissing(fieldKey) ? (
+      <span
+        style={{
+          fontSize: "0.55rem",
+          fontWeight: "700",
+          color: "#ef4444",
+          background: "rgba(239,68,68,0.1)",
+          border: "1px solid rgba(239,68,68,0.3)",
+          padding: "0.05rem 0.3rem",
+          borderRadius: "3px",
+          marginLeft: "0.3rem",
+          textTransform: "none",
+          letterSpacing: "normal",
+        }}
+      >
+        Required
+      </span>
+    ) : (
+      <span
+        style={{ fontSize: "0.55rem", color: "#10b981", marginLeft: "0.3rem" }}
+      >
+        ✓
+      </span>
+    );
+  };
+
+  const enhancedLabel = (label, fieldKey) =>
+    isQAAdmin ? (
+      <span>
+        {label}
+        {requiredBadge(fieldKey)}
+      </span>
+    ) : (
+      label
+    );
+
+  // ─── Entity guide (QA Admin mode only) ───
+  const entityGuide = isQAAdmin ? (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "0.4rem",
+        padding: "0.4rem 0.6rem",
+        background: "rgba(33,150,243,0.06)",
+        border: "1px solid rgba(33,150,243,0.18)",
+        borderRadius: "5px",
+        marginBottom: "0.4rem",
+        fontSize: "0.68rem",
+        color: "#1976d2",
+        lineHeight: "1.4",
+      }}
+    >
+      <span style={{ flexShrink: 0, marginTop: "0.05rem" }}>ℹ️</span>
+      <span>
+        If this entity does not apply, enter{" "}
+        <strong>
+          <code
+            style={{
+              background: "rgba(33,150,243,0.12)",
+              padding: "0 0.25rem",
+              borderRadius: "3px",
+            }}
+          >
+            N/A
+          </code>
+        </strong>{" "}
+        in the name field — the <strong>Country</strong> field will no longer be
+        required.
+      </span>
+    </div>
+  ) : null;
 
   const field = (
     label,
@@ -35,11 +139,13 @@ export function Step1BasicInfo({
         ? editedFields[fieldKey]
         : (record[fieldKey] ?? "");
     const originalVal = record[fieldKey] ?? "";
+    const missing = isMissing(fieldKey);
+
     if (isEditable) {
       return (
         <EditableField
           key={fieldKey}
-          label={label}
+          label={enhancedLabel(label, fieldKey)}
           fieldKey={fieldKey}
           value={currentVal}
           originalValue={originalVal}
@@ -47,13 +153,14 @@ export function Step1BasicInfo({
           colors={colors}
           fullWidth={fullWidth}
           multiline={multiline}
+          style={missing ? { borderColor: "#ef4444" } : undefined}
         />
       );
     }
     return (
       <DisplayField
         key={fieldKey}
-        label={label}
+        label={enhancedLabel(label, fieldKey)}
         value={cleanValue(record[fieldKey])}
         colors={colors}
         fullWidth={fullWidth}
@@ -69,32 +176,71 @@ export function Step1BasicInfo({
         : (record[fieldKey] ?? "");
     const originalVal = record[fieldKey] ?? "";
     const isDirty = String(currentVal ?? "") !== String(originalVal ?? "");
+    const missing = isMissing(fieldKey);
+    const applicable = isCountryApplicable(fieldKey);
+    const effectiveAccent = missing && applicable ? "#ef4444" : accent;
+
     const containerStyle = {
       ...(fullWidth ? { gridColumn: "1 / -1" } : {}),
       padding: "0.5rem 0.65rem",
       background: colors.inputBg,
-      border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
-      borderLeft: `3px solid ${isDirty ? "#f59e0b" : accent}`,
+      border: `1px solid ${missing && applicable ? "rgba(239,68,68,0.4)" : isDirty ? "#f59e0b" : colors.inputBorder}`,
+      borderLeft: `3px solid ${effectiveAccent}`,
       borderRadius: "6px",
       display: "flex",
       flexDirection: "column",
       gap: "0.2rem",
     };
+
+    const labelNode = (
+      <span
+        style={{
+          fontSize: "0.6rem",
+          fontWeight: "700",
+          color: colors.textTertiary,
+          textTransform: "uppercase",
+          letterSpacing: "0.07em",
+        }}
+      >
+        {icon} {label}
+        {isQAAdmin &&
+          applicable &&
+          (missing ? (
+            <span
+              style={{
+                fontSize: "0.55rem",
+                fontWeight: "700",
+                color: "#ef4444",
+                background: "rgba(239,68,68,0.1)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                padding: "0.05rem 0.3rem",
+                borderRadius: "3px",
+                marginLeft: "0.3rem",
+                textTransform: "none",
+                letterSpacing: "normal",
+              }}
+            >
+              Required
+            </span>
+          ) : (
+            <span
+              style={{
+                fontSize: "0.55rem",
+                color: "#10b981",
+                marginLeft: "0.3rem",
+              }}
+            >
+              ✓
+            </span>
+          ))}
+      </span>
+    );
+
     if (isEditable) {
       return (
         <div key={fieldKey} style={containerStyle}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-            <span
-              style={{
-                fontSize: "0.6rem",
-                fontWeight: "700",
-                color: colors.textTertiary,
-                textTransform: "uppercase",
-                letterSpacing: "0.07em",
-              }}
-            >
-              {icon} {label}
-            </span>
+            {labelNode}
             {isDirty && (
               <span
                 style={{
@@ -118,7 +264,7 @@ export function Step1BasicInfo({
               width: "100%",
               padding: "0.25rem 0.4rem",
               background: "transparent",
-              border: `1px solid ${isDirty ? "#f59e0b" : colors.cardBorder}`,
+              border: `1px solid ${missing ? "#ef4444" : isDirty ? "#f59e0b" : colors.cardBorder}`,
               borderRadius: "4px",
               color: colors.textPrimary,
               fontSize: "0.78rem",
@@ -127,12 +273,18 @@ export function Step1BasicInfo({
               boxSizing: "border-box",
             }}
             onFocus={(e) => {
-              e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+              e.target.style.borderColor = missing
+                ? "#ef4444"
+                : isDirty
+                  ? "#f59e0b"
+                  : "#2196F3";
             }}
             onBlur={(e) => {
-              e.target.style.borderColor = isDirty
-                ? "#f59e0b"
-                : colors.cardBorder;
+              e.target.style.borderColor = missing
+                ? "#ef4444"
+                : isDirty
+                  ? "#f59e0b"
+                  : colors.cardBorder;
             }}
           />
           {isDirty && (
@@ -155,11 +307,24 @@ export function Step1BasicInfo({
     }
     return (
       <div key={fieldKey} style={fullWidth ? { gridColumn: "1 / -1" } : {}}>
+        {isQAAdmin && missing && (
+          <div style={{ marginBottom: "0.1rem" }}>
+            <span
+              style={{
+                fontSize: "0.58rem",
+                fontWeight: "700",
+                color: "#ef4444",
+              }}
+            >
+              ⚠ Required
+            </span>
+          </div>
+        )}
         <SummaryCard
           icon={icon}
           label={label}
           value={cleanValue(record[fieldKey])}
-          accent={accent}
+          accent={effectiveAccent}
           colors={colors}
         />
       </div>
@@ -174,6 +339,9 @@ export function Step1BasicInfo({
         : (record[fieldKey] ?? "");
     const originalVal = record[fieldKey] ?? "";
     const isDirty = String(currentVal ?? "") !== String(originalVal ?? "");
+    const missing = isMissing(fieldKey);
+    const effectiveAccent = missing ? "#ef4444" : accent;
+
     const toInputDate = (val) => {
       if (!val || val === "N/A") return "";
       try {
@@ -190,8 +358,8 @@ export function Step1BasicInfo({
           style={{
             padding: "0.5rem 0.65rem",
             background: colors.inputBg,
-            border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
-            borderLeft: `3px solid ${isDirty ? "#f59e0b" : accent}`,
+            border: `1px solid ${missing ? "rgba(239,68,68,0.4)" : isDirty ? "#f59e0b" : colors.inputBorder}`,
+            borderLeft: `3px solid ${effectiveAccent}`,
             borderRadius: "6px",
             display: "flex",
             flexDirection: "column",
@@ -209,6 +377,35 @@ export function Step1BasicInfo({
               }}
             >
               {icon} {label}
+              {isQAAdmin &&
+                (missing ? (
+                  <span
+                    style={{
+                      fontSize: "0.55rem",
+                      fontWeight: "700",
+                      color: "#ef4444",
+                      background: "rgba(239,68,68,0.1)",
+                      border: "1px solid rgba(239,68,68,0.3)",
+                      padding: "0.05rem 0.3rem",
+                      borderRadius: "3px",
+                      marginLeft: "0.3rem",
+                      textTransform: "none",
+                      letterSpacing: "normal",
+                    }}
+                  >
+                    Required
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "0.55rem",
+                      color: "#10b981",
+                      marginLeft: "0.3rem",
+                    }}
+                  >
+                    ✓
+                  </span>
+                ))}
             </span>
             {isDirty && (
               <span
@@ -233,7 +430,7 @@ export function Step1BasicInfo({
               width: "100%",
               padding: "0.25rem 0.4rem",
               background: "transparent",
-              border: `1px solid ${isDirty ? "#f59e0b" : colors.cardBorder}`,
+              border: `1px solid ${missing ? "#ef4444" : isDirty ? "#f59e0b" : colors.cardBorder}`,
               borderRadius: "4px",
               color: colors.textPrimary,
               fontSize: "0.78rem",
@@ -242,12 +439,18 @@ export function Step1BasicInfo({
               boxSizing: "border-box",
             }}
             onFocus={(e) => {
-              e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+              e.target.style.borderColor = missing
+                ? "#ef4444"
+                : isDirty
+                  ? "#f59e0b"
+                  : "#2196F3";
             }}
             onBlur={(e) => {
-              e.target.style.borderColor = isDirty
-                ? "#f59e0b"
-                : colors.cardBorder;
+              e.target.style.borderColor = missing
+                ? "#ef4444"
+                : isDirty
+                  ? "#f59e0b"
+                  : colors.cardBorder;
             }}
           />
           {isDirty && (
@@ -274,7 +477,7 @@ export function Step1BasicInfo({
         icon={icon}
         label={label}
         value={formatDate(record[fieldKey])}
-        accent={accent}
+        accent={effectiveAccent}
         colors={colors}
       />
     );
@@ -291,7 +494,7 @@ export function Step1BasicInfo({
       return (
         <CountrySelect
           key={fieldKey}
-          label={label}
+          label={enhancedLabel(label, fieldKey)}
           fieldKey={fieldKey}
           value={currentVal}
           originalValue={originalVal}
@@ -303,7 +506,7 @@ export function Step1BasicInfo({
     return (
       <DisplayField
         key={fieldKey}
-        label={label}
+        label={enhancedLabel(label, fieldKey)}
         value={cleanValue(record[fieldKey])}
         colors={colors}
       />
@@ -312,6 +515,58 @@ export function Step1BasicInfo({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+      {canEdit && (
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <SpellCheckButton
+            record={record}
+            editedFields={editedFields}
+            onFieldChange={onFieldChange}
+            colors={colors}
+          />
+        </div>
+      )}
+      {/* ── QA Admin required fields banner ── */}
+      {isQAAdmin && (
+        <div
+          style={{
+            padding: "0.5rem 0.75rem",
+            background:
+              missingFields.length > 0
+                ? "rgba(239,68,68,0.07)"
+                : "rgba(16,185,129,0.07)",
+            border: `1px solid ${
+              missingFields.length > 0
+                ? "rgba(239,68,68,0.3)"
+                : "rgba(16,185,129,0.3)"
+            }`,
+            borderRadius: "6px",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            fontSize: "0.75rem",
+            color: missingFields.length > 0 ? "#dc2626" : "#059669",
+          }}
+        >
+          <span>{missingFields.length > 0 ? "⚠️" : "✓"}</span>
+          <span>
+            {missingFields.length > 0 ? (
+              <>
+                <strong>
+                  {missingFields.length} required field
+                  {missingFields.length !== 1 ? "s" : ""} missing
+                </strong>{" "}
+                — Fill all required fields to proceed to Step 2.
+              </>
+            ) : (
+              <strong>
+                All required fields are complete — you may proceed to Step 2.
+              </strong>
+            )}
+          </span>
+        </div>
+      )}
+
+      {/* Edit mode banner */}
       {canEdit && (
         <div
           style={{
@@ -515,14 +770,6 @@ export function Step1BasicInfo({
           accent="#0b5b83"
           colors={colors}
         />
-
-        {/* <SummaryCard
-          icon="📅"
-          label="Date Released"
-          value={formatDate(record.dateReleased)}
-          accent="#607d8b"
-          colors={colors}
-        /> */}
       </div>
 
       {/* Product Details */}
@@ -537,18 +784,16 @@ export function Step1BasicInfo({
           {field("Shelf Life", "prodDistriShelfLife")}
           {field("Pharma Category", "prodPharmaCat")}
           {field("Product Category", "prodCat")}
-          {/* {field("Pharma Prod. Cat.", "pharmaProdCat")} */}
-          {/* {field("Pharma Prod. Label", "pharmaProdCatLabel")} */}
           {field("File", "file")}
         </FieldGrid>
       </VDSection>
+
       <VDSection title="📦 Storage & Packaging" colors={colors}>
         <FieldGrid>
           {field("Storage Condition", "storageCond")}
           {field("Packaging", "packaging")}
           {field("Suggested Retail Price", "suggRp")}
           {field("No. of Samples", "noSample")}
-          {/* {field("Expiry Date", "expiryDate")} */}
         </FieldGrid>
       </VDSection>
 
@@ -571,6 +816,35 @@ export function Step1BasicInfo({
               }}
             >
               Date Issued
+              {isQAAdmin &&
+                (isMissing("dateIssued") ? (
+                  <span
+                    style={{
+                      fontSize: "0.55rem",
+                      fontWeight: "700",
+                      color: "#ef4444",
+                      background: "rgba(239,68,68,0.1)",
+                      border: "1px solid rgba(239,68,68,0.3)",
+                      padding: "0.05rem 0.3rem",
+                      borderRadius: "3px",
+                      marginLeft: "0.3rem",
+                      textTransform: "none",
+                      letterSpacing: "normal",
+                    }}
+                  >
+                    Required
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: "0.55rem",
+                      color: "#10b981",
+                      marginLeft: "0.3rem",
+                    }}
+                  >
+                    ✓
+                  </span>
+                ))}
             </div>
             <input
               type="date"
@@ -594,7 +868,7 @@ export function Step1BasicInfo({
                 width: "100%",
                 padding: "0.4rem 0.6rem",
                 background: colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
+                border: `1px solid ${isMissing("dateIssued") ? "#ef4444" : colors.inputBorder}`,
                 borderRadius: "6px",
                 color: colors.textPrimary,
                 fontSize: "0.8rem",
@@ -607,7 +881,9 @@ export function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
+      {/* ── Manufacturer ── */}
       <VDSection title="🏭 Manufacturer" colors={colors}>
+        {entityGuide}
         <FieldGrid>
           {field("Manufacturer", "prodManu")}
           {countryField("Country", "prodManuCountry")}
@@ -620,7 +896,9 @@ export function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
+      {/* ── Trader ── */}
       <VDSection title="🤝 Trader" colors={colors}>
+        {entityGuide}
         <FieldGrid>
           {field("Trader", "prodTrader")}
           {countryField("Country", "prodTraderCountry")}
@@ -633,7 +911,9 @@ export function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
+      {/* ── Importer ── */}
       <VDSection title="🚢 Importer" colors={colors}>
+        {entityGuide}
         <FieldGrid>
           {field("Importer", "prodImporter")}
           {countryField("Country", "prodImporterCountry")}
@@ -646,7 +926,9 @@ export function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
+      {/* ── Distributor ── */}
       <VDSection title="📦 Distributor" colors={colors}>
+        {entityGuide}
         <FieldGrid>
           {field("Distributor", "prodDistri")}
           {countryField("Country", "prodDistriCountry")}
@@ -659,7 +941,9 @@ export function Step1BasicInfo({
         </FieldGrid>
       </VDSection>
 
+      {/* ── Repacker ── */}
       <VDSection title="🔄 Repacker" colors={colors}>
+        {entityGuide}
         <FieldGrid>
           {field("Repacker", "prodRepacker")}
           {countryField("Country", "prodRepackerCountry")}

@@ -1288,18 +1288,53 @@ export function Step4ActionForm({
                   (u) => String(u.id) === e.target.value,
                 );
                 if (selected) {
-                  handleChange("decisionAuthorityId", selected.id);
                   const fullName =
                     selected.first_name &&
                     (selected.last_name || selected.surname)
                       ? `${selected.first_name} ${selected.last_name ?? selected.surname}`
                       : selected.username;
-                  handleChange("decisionAuthorityName", fullName);
+
+                  // ── Dynamic doctrack remarks para sa LRD Chief Admin ──
+                  const isMMZamudio = fullName
+                    ?.toLowerCase()
+                    .includes("zamudio");
+                  const lrdDoctrack = isLRDChiefAdmin
+                    ? isMMZamudio
+                      ? "Signed by LRD Chief and forwarded to CDRR Director for signing"
+                      : "Signed by LRD (OIC) Chief and forwarded to CDRR Director for signing"
+                    : null;
+
+                  setFormData((p) => ({
+                    ...p,
+                    decisionAuthorityId: selected.id,
+                    decisionAuthorityName: fullName,
+                    ...(lrdDoctrack ? { doctrackRemarks: lrdDoctrack } : {}),
+                  }));
                 } else {
-                  handleChange("decisionAuthorityId", null);
-                  handleChange("decisionAuthorityName", "");
+                  setFormData((p) => ({
+                    ...p,
+                    decisionAuthorityId: null,
+                    decisionAuthorityName: "",
+                  }));
                 }
               }}
+              // onChange={(e) => {
+              //   const selected = authorityOptions.find(
+              //     (u) => String(u.id) === e.target.value,
+              //   );
+              //   if (selected) {
+              //     handleChange("decisionAuthorityId", selected.id);
+              //     const fullName =
+              //       selected.first_name &&
+              //       (selected.last_name || selected.surname)
+              //         ? `${selected.first_name} ${selected.last_name ?? selected.surname}`
+              //         : selected.username;
+              //     handleChange("decisionAuthorityName", fullName);
+              //   } else {
+              //     handleChange("decisionAuthorityId", null);
+              //     handleChange("decisionAuthorityName", "");
+              //   }
+              // }}
               style={{ ...inp, cursor: "pointer" }}
               onFocus={(e) => {
                 e.target.style.borderColor = "#2196F3";

@@ -21,7 +21,6 @@ export const EDITABLE_FIELDS = [
   "secpaExpDate",
   "secpaIssuedOn",
   "dateIssued",
-  
 ];
 
 export const FIELD_LABEL_MAP = {
@@ -95,7 +94,7 @@ export const FIELD_LABEL_MAP = {
   orNo: "OR No.",
   dateIssued: "Date Issued",
   secpa: "SECPA",
-  validity: "LTO Validity", // ← CHANGED: was "Validity"
+  validity: "LTO Validity",
   attaReleased: "Attachment Released",
   dateReleased: "Date Released",
   typeDocReleased: "Type of Document Released",
@@ -103,8 +102,8 @@ export const FIELD_LABEL_MAP = {
   secpaIssuedOn: "SECPA Issued On",
   prodBrName: "Brand Name",
   prodGenName: "Generic Name",
-  expiryDate: "Expiry Date", 
-  cprValidity: "CPR Validity",    
+  expiryDate: "Expiry Date",
+  cprValidity: "CPR Validity",
 };
 
 export const FIELD_KEY_TO_DB = {
@@ -180,7 +179,7 @@ export const FIELD_KEY_TO_DB = {
   orNo: "DB_OR_NO",
   dateIssued: "DB_DATE_ISSUED",
   secpa: "DB_SECPA",
-  validity: "DB_EST_VALIDITY", // ← CHANGED: was "DB_VALIDITY" (column does not exist)
+  validity: "DB_EST_VALIDITY",
   attaReleased: "DB_ATTA_RELEASED",
   dateReleased: "DB_DATE_RELEASED",
   typeDocReleased: "DB_TYPE_DOC_RELEASED",
@@ -189,3 +188,60 @@ export const FIELD_KEY_TO_DB = {
   expiryDate: "DB_EXPIRY_DATE",
   cprValidity: "DB_CPR_VALIDITY",
 };
+
+// ─── QA Admin required fields (all fields visible in Step 1 and Step 2) ───
+export const QA_ADMIN_REQUIRED_FIELDS = {
+  step1: [
+    "processingType", "estCat", "appType",
+    "ltoCompany", "ltoAdd", "eadd", "tin", "contactNo", "ltoNo", "validity",
+    "prodBrName", "prodGenName", "prodDosStr", "prodDosForm",
+    "prodClassPrescript", "prodEssDrugList", "prodDistriShelfLife",
+    "prodPharmaCat", "prodCat", "file",
+    "storageCond", "packaging", "suggRp", "noSample",
+    "fee", "lrf", "surc", "total", "orNo", "dateIssued",
+    "prodManu", "prodManuCountry", "prodManuLtoNo", "prodManuTin", "prodManuAdd",
+    "prodTrader", "prodTraderCountry", "prodTraderLtoNo", "prodTraderTin", "prodTraderAdd",
+    "prodImporter", "prodImporterCountry", "prodImporterLtoNo", "prodImporterTin", "prodImporterAdd",
+    "prodDistri", "prodDistriCountry", "prodDistriLtoNo", "prodDistriTin", "prodDistriAdd",
+    "prodRepacker", "prodRepackerCountry", "prodRepackerLtoNo", "prodRepackerTin", "prodRepackerAdd",
+  ],
+  step2: [
+    "regNo", "motherAppType", "oldRsn", "certification", "class", "mo",
+    "secpa", "secpaExpDate", "secpaIssuedOn",
+    "cprCond", "cprCondRemarks", "cprCondAddRemarks",
+    "ammend1", "ammend2", "ammend3",
+    "appRemarks", "remarks1",
+  ],
+};
+
+// ─── Conditional country → parent mapping ───
+export const CONDITIONAL_COUNTRY_PARENTS = {
+  prodManuCountry:      "prodManu",
+  prodTraderCountry:    "prodTrader",
+  prodImporterCountry:  "prodImporter",
+  prodDistriCountry:    "prodDistri",
+  prodRepackerCountry:  "prodRepacker",
+};
+
+const isNAValue = (val) => {
+  const v = String(val ?? "").trim().toLowerCase();
+  return v === "" || v === "n/a" || v === "na";
+};
+
+/**
+ * Returns the effective Step 1 required fields for a given record + editedFields.
+ * Country fields are excluded when their parent entity is N/A / empty.
+ */
+export function getStep1RequiredFields(record, editedFields = {}) {
+  return QA_ADMIN_REQUIRED_FIELDS.step1.filter((fieldKey) => {
+    const parentKey = CONDITIONAL_COUNTRY_PARENTS[fieldKey];
+    if (!parentKey) return true; // not a conditional country field — always required
+
+    const parentVal =
+      parentKey in editedFields
+        ? editedFields[parentKey]
+        : (record[parentKey] ?? "");
+
+    return !isNAValue(parentVal); // only required when parent has a real value
+  });
+}

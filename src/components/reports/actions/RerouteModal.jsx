@@ -128,6 +128,21 @@ function EmptyWarning({ label }) {
   );
 }
 
+// I-add itong helper sa itaas ng file (bago ang component)
+const nowPHT = () => {
+  // Kumuha ng PHT time gamit ang Intl API — pinaka-reliable
+  const now = new Date();
+
+  // Format bilang PHT string
+  const phtString = now.toLocaleString("sv-SE", {
+    timeZone: "Asia/Manila",
+  });
+  // Output: "2026-04-30 16:20:23" — tama na ito (PHT)
+
+  // I-convert sa ISO format na walang Z
+  return phtString.replace(" ", "T");
+  // Output: "2026-04-30T16:20:23"
+};
 // ── Main RerouteModal ─────────────────────────────────────────────────────────
 
 function RerouteModal({ record, onClose, colors, darkMode }) {
@@ -241,7 +256,7 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
         reroute_remarks: remarks || null,
         rerouted_by_user_id: currentUser?.id ?? null,
         rerouted_by_user_name: currentUser?.username ?? null,
-        rerouted_at: new Date().toISOString(),
+        rerouted_at: nowPHT(),
         // ── Assigned user sa target step ──
         user_name: assignedUser || null,
         user_id: assignedUserObj?.id ?? null,
