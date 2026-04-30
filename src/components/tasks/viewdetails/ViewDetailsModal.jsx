@@ -7,6 +7,10 @@ import {
   fmtDeadline,
 } from "./config/helpers";
 import { EDITABLE_STEPS } from "./config/workflow";
+import {
+  getStep1RequiredFields,
+  QA_ADMIN_REQUIRED_FIELDS,
+} from "./config/fields";
 import { StepIndicator } from "./components/BaseFields";
 import { Step1BasicInfo } from "./steps/Step1BasicInfo";
 import { Step2FullDetails } from "./steps/Step2FullDetails";
@@ -85,6 +89,7 @@ export default function ViewDetailsModal({
   if (!record) return null;
 
   const canEdit = EDITABLE_STEPS.includes(record?.applicationStep);
+  const isQAAdmin = record?.applicationStep === "QA Admin";
   const totalSteps = STEPS.length;
 
   const handleFieldChange = (fieldKey, newValue) =>
@@ -94,7 +99,30 @@ export default function ViewDetailsModal({
     ([k, v]) => String(v ?? "") !== String(record[k] ?? ""),
   ).length;
 
-  const goNext = () => setCurrentStep((s) => Math.min(s + 1, totalSteps));
+  // ─── QA Admin: compute missing required fields per step ───
+  const getMissingFields = (fieldKeys) =>
+    fieldKeys.filter((key) => {
+      const val = key in editedFields ? editedFields[key] : (record[key] ?? "");
+      return !String(val ?? "").trim();
+    });
+
+  const step1Missing = isQAAdmin
+    ? getMissingFields(getStep1RequiredFields(record, editedFields)) // ← ganito na
+    : [];
+
+  const step2Missing = isQAAdmin
+    ? getMissingFields(QA_ADMIN_REQUIRED_FIELDS.step2)
+    : [];
+
+  const isNextBlocked =
+    isQAAdmin &&
+    ((currentStep === 1 && step1Missing.length > 0) ||
+      (currentStep === 2 && step2Missing.length > 0));
+
+  const goNext = () => {
+    if (isNextBlocked) return;
+    setCurrentStep((s) => Math.min(s + 1, totalSteps));
+  };
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 1));
 
   // Switch view mode — reset step to 1 when switching back
@@ -115,6 +143,9 @@ export default function ViewDetailsModal({
         : currentStep === 3
           ? "📋 Application Logs"
           : `✅ ${record.applicationStep}`;
+
+  const missingCount =
+    currentStep === 1 ? step1Missing.length : step2Missing.length;
 
   return (
     <>
@@ -431,6 +462,8 @@ export default function ViewDetailsModal({
               onFieldChange={handleFieldChange}
               canEdit={canEdit}
               colors={colors}
+              isQAAdmin={isQAAdmin}
+              missingFields={step1Missing}
             />
           )}
           {!isCPR && currentStep === 2 && (
@@ -441,6 +474,8 @@ export default function ViewDetailsModal({
               canEdit={canEdit}
               colors={colors}
               currentStep={record.applicationStep}
+              isQAAdmin={isQAAdmin}
+              missingFields={step2Missing}
             />
           )}
           {!isCPR && currentStep === 3 && (
@@ -512,7 +547,9 @@ export default function ViewDetailsModal({
 
           {/* Navigation — only shown in normal mode */}
           {!isCPR && (
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
               {currentStep > 1 && (
                 <button
                   onClick={goPrev}
@@ -531,29 +568,57 @@ export default function ViewDetailsModal({
                 </button>
               )}
               {currentStep < totalSteps && (
-                <button
-                  onClick={goNext}
+                <div
                   style={{
-                    padding: "0.45rem 1rem",
-                    background: "linear-gradient(135deg, #2196F3, #1976D2)",
-                    border: "none",
-                    borderRadius: "6px",
-                    color: "#fff",
-                    fontSize: "0.78rem",
-                    fontWeight: "700",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 6px rgba(33,150,243,0.3)",
-                    transition: "all 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = "translateY(-1px)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = "none";
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-end",
+                    gap: "0.25rem",
                   }}
                 >
-                  Next →
-                </button>
+                  {isNextBlocked && (
+                    <span
+                      style={{
+                        fontSize: "0.63rem",
+                        color: "#ef4444",
+                        fontWeight: "600",
+                        textAlign: "right",
+                      }}
+                    >
+                      ⚠️ {missingCount} required field
+                      {missingCount !== 1 ? "s" : ""} must be filled first
+                    </span>
+                  )}
+                  <button
+                    onClick={goNext}
+                    disabled={isNextBlocked}
+                    style={{
+                      padding: "0.45rem 1rem",
+                      background: isNextBlocked
+                        ? "rgba(33,150,243,0.3)"
+                        : "linear-gradient(135deg, #2196F3, #1976D2)",
+                      border: "none",
+                      borderRadius: "6px",
+                      color: "#fff",
+                      fontSize: "0.78rem",
+                      fontWeight: "700",
+                      cursor: isNextBlocked ? "not-allowed" : "pointer",
+                      boxShadow: isNextBlocked
+                        ? "none"
+                        : "0 2px 6px rgba(33,150,243,0.3)",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isNextBlocked)
+                        e.currentTarget.style.transform = "translateY(-1px)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = "none";
+                    }}
+                  >
+                    Next →
+                  </button>
+                </div>
               )}
             </div>
           )}
