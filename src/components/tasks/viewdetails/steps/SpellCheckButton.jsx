@@ -13,6 +13,7 @@ const CHECKABLE_FIELDS = [
   "packaging",
   "ltoCompany",
   "ltoAdd",
+  "prodDistriShelfLife",
   "prodManu",
   "prodManuAdd",
   "prodTrader",
@@ -38,6 +39,7 @@ export function SpellCheckButton({
   const [applied, setApplied] = useState({});
   const [open, setOpen] = useState(false);
   const [error, setError] = useState(null);
+  const [selectedWords, setSelectedWords] = useState({});
 
   const getCurrentVal = (fieldKey) =>
     fieldKey in editedFields
@@ -49,9 +51,9 @@ export function SpellCheckButton({
     setError(null);
     setResults(null);
     setApplied({});
+    setSelectedWords({});
     setOpen(true);
 
-    // Build fields object — skip empty and N/A values
     const fields = {};
     CHECKABLE_FIELDS.forEach((key) => {
       const val = getCurrentVal(key);
@@ -83,9 +85,34 @@ export function SpellCheckButton({
     }
   };
 
+  // Apply the fully-corrected string (all errors in field)
   const applyFix = (fieldKey, corrected) => {
     onFieldChange(fieldKey, corrected);
     setApplied((prev) => ({ ...prev, [fieldKey]: true }));
+    setSelectedWords((prev) => ({ ...prev, [fieldKey]: {} }));
+  };
+
+  // Apply only the selected words' fixes, leave the rest as-is
+  const applyWordFix = (fieldKey, words) => {
+    const selected = selectedWords[fieldKey] ?? {};
+    const newValue = words
+      .map((w, i) =>
+        w.hasError && w.corrected && selected[i] ? w.corrected : w.original,
+      )
+      .join(" ");
+    onFieldChange(fieldKey, newValue);
+
+    // If ALL errored words were selected and fixed, mark card as fully applied
+    const allFixed = words
+      .filter((w) => w.hasError)
+      .every((w) => {
+        const idx = words.indexOf(w);
+        return selected[idx];
+      });
+    if (allFixed) {
+      setApplied((prev) => ({ ...prev, [fieldKey]: true }));
+    }
+    setSelectedWords((prev) => ({ ...prev, [fieldKey]: {} }));
   };
 
   const applyAll = () => {
@@ -95,6 +122,18 @@ export function SpellCheckButton({
     setApplied(
       Object.fromEntries((results ?? []).map((r) => [r.fieldKey, true])),
     );
+    setSelectedWords({});
+  };
+
+  // FIXED: was checking current[fieldKey] instead of current[wordIdx]
+  const toggleWord = (fieldKey, wordIdx) => {
+    setSelectedWords((prev) => {
+      const current = prev[fieldKey] ?? {};
+      return {
+        ...prev,
+        [fieldKey]: { ...current, [wordIdx]: !current[wordIdx] },
+      };
+    });
   };
 
   const unappliedCount = (results ?? []).filter(
@@ -336,8 +375,12 @@ export function SpellCheckButton({
               {/* Results list */}
               {!loading &&
                 results?.map(
-                  ({ fieldKey, label, original, corrected, note }) => {
+                  ({ fieldKey, label, original, corrected, words, note }) => {
                     const isApplied = applied[fieldKey];
+                    const hasWords = Array.isArray(words) && words.length > 0;
+                    const selected = selectedWords[fieldKey] ?? {};
+                    const hasSelection = Object.values(selected).some(Boolean);
+
                     return (
                       <div
                         key={fieldKey}
@@ -367,47 +410,261 @@ export function SpellCheckButton({
                           {label || fieldKey}
                         </div>
 
-                        {/* Original → Corrected */}
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.78rem",
-                              color: "#ef4444",
-                              textDecoration: "line-through",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {original}
-                          </span>
-                          <span
-                            style={{
-                              color: colors.textTertiary,
-                              fontSize: "0.7rem",
-                            }}
-                          >
-                            →
-                          </span>
-                          <span
-                            style={{
-                              fontSize: "0.78rem",
-                              fontWeight: "600",
-                              color: "#059669",
-                              wordBreak: "break-word",
-                            }}
-                          >
-                            {corrected}
-                          </span>
-                        </div>
+                        {/* Word-by-word tokens */}
+                        {hasWords ? (
+                          <>
+                            <div
+                              style={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: "4px",
+                              }}
+                            >
+                              {words.map((w, i) => {
+                                const isErr = w.hasError && !isApplied;
+                                const isSel = !!selected[i];
+                                return (
+                                  <span
+                                    key={i}
+                                    onClick={() =>
+                                      isErr && toggleWord(fieldKey, i)
+                                    }
+                                    title={
+                                      isErr
+                                        ? `Click to select — fix: "${w.corrected}"`
+                                        : undefined
+                                    }
+                                    style={{
+                                      padding: "2px 7px",
+                                      borderRadius: "4px",
+                                      fontSize: "0.78rem",
+                                      cursor: isErr ? "pointer" : "default",
+                                      userSelect: "none",
+                                      transition: "all 0.12s",
+                                      border: isSel
+                                        ? "1px solid #7c3aed"
+                                        : isErr
+                                          ? "1px solid rgba(239,68,68,0.45)"
+                                          : "1px solid transparent",
+                                      background: isSel
+                                        ? "rgba(124,58,237,0.12)"
+                                        : isErr
+                                          ? "rgba(239,68,68,0.07)"
+                                          : "transparent",
+                                      color: isSel
+                                        ? "#7c3aed"
+                                        : isErr
+                                          ? "#dc2626"
+                                          : colors.textPrimary,
+                                      fontWeight: isErr ? "600" : "400",
+                                      textDecoration:
+                                        isErr && !isSel
+                                          ? "underline wavy #ef4444"
+                                          : "none",
+                                    }}
+                                  >
+                                    {isApplied && w.hasError
+                                      ? w.corrected
+                                      : w.original}
+                                  </span>
+                                );
+                              })}
+                            </div>
 
-                        {/* Note */}
-                        {note && (
+                            {/* ── Sentence Preview ── */}
+                            {!isApplied && (
+                              <div
+                                style={{
+                                  marginTop: "0.15rem",
+                                  padding: "0.4rem 0.6rem",
+                                  background: hasSelection
+                                    ? "rgba(124,58,237,0.05)"
+                                    : "rgba(0,0,0,0.025)",
+                                  border: `1px solid ${hasSelection ? "rgba(124,58,237,0.2)" : colors.cardBorder}`,
+                                  borderRadius: "5px",
+                                  lineHeight: "1.6",
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: "0.58rem",
+                                    fontWeight: "700",
+                                    color: colors.textTertiary,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.06em",
+                                    display: "block",
+                                    marginBottom: "3px",
+                                  }}
+                                >
+                                  Preview
+                                </span>
+                                <span style={{ fontSize: "0.75rem" }}>
+                                  {(() => {
+                                    // Reconstruct the final sentence from original string
+                                    // by replacing only the selected/corrected words
+                                    let result = original;
+                                    let offset = 0;
+
+                                    words.forEach((w, i) => {
+                                      if (!w.hasError || !w.corrected) return;
+                                      const isSel = !!selected[i];
+                                      const replacement = isSel
+                                        ? w.corrected
+                                        : w.original;
+
+                                      // Find this word's position in the current result string
+                                      const searchFrom = offset;
+                                      const idx = result.indexOf(
+                                        w.original,
+                                        searchFrom,
+                                      );
+                                      if (idx === -1) return;
+
+                                      if (isSel) {
+                                        // Replace the word in the result string
+                                        result =
+                                          result.slice(0, idx) +
+                                          replacement +
+                                          result.slice(idx + w.original.length);
+                                        offset = idx + replacement.length;
+                                      } else {
+                                        offset = idx + w.original.length;
+                                      }
+                                    });
+
+                                    // Now render: split into error/non-error segments for coloring
+                                    // Re-walk original to find remaining errors vs fixed
+                                    let segments = [];
+                                    let remaining = result;
+                                    let pos = 0;
+                                    const originalCopy = original;
+
+                                    // Build segments based on words positions in original
+                                    let cursorOrig = 0;
+                                    let cursorResult = 0;
+
+                                    words.forEach((w, i) => {
+                                      const isSel = !!selected[i];
+                                      const idxInOrig = originalCopy.indexOf(
+                                        w.original,
+                                        cursorOrig,
+                                      );
+                                      if (idxInOrig === -1) return;
+
+                                      // Text before this word (normal)
+                                      if (idxInOrig > cursorOrig) {
+                                        const between = originalCopy.slice(
+                                          cursorOrig,
+                                          idxInOrig,
+                                        );
+                                        segments.push({
+                                          text: between,
+                                          type: "normal",
+                                        });
+                                      }
+
+                                      if (w.hasError) {
+                                        if (isSel) {
+                                          segments.push({
+                                            text: w.corrected,
+                                            type: "fixed",
+                                          });
+                                        } else {
+                                          segments.push({
+                                            text: w.original,
+                                            type: "error",
+                                          });
+                                        }
+                                      } else {
+                                        segments.push({
+                                          text: w.original,
+                                          type: "normal",
+                                        });
+                                      }
+
+                                      cursorOrig =
+                                        idxInOrig + w.original.length;
+                                    });
+
+                                    // Remaining text after last word
+                                    if (cursorOrig < originalCopy.length) {
+                                      segments.push({
+                                        text: originalCopy.slice(cursorOrig),
+                                        type: "normal",
+                                      });
+                                    }
+
+                                    return segments.map((seg, si) => (
+                                      <span
+                                        key={si}
+                                        style={{
+                                          fontWeight:
+                                            seg.type !== "normal"
+                                              ? "600"
+                                              : "400",
+                                          color:
+                                            seg.type === "fixed"
+                                              ? "#059669"
+                                              : seg.type === "error"
+                                                ? "#dc2626"
+                                                : colors.textPrimary,
+                                          textDecoration:
+                                            seg.type === "error"
+                                              ? "underline wavy #ef4444"
+                                              : "none",
+                                        }}
+                                      >
+                                        {seg.text}
+                                      </span>
+                                    ));
+                                  })()}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          /* Fallback: full string diff display */
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "0.78rem",
+                                color: "#ef4444",
+                                textDecoration: "line-through",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {original}
+                            </span>
+                            <span
+                              style={{
+                                color: colors.textTertiary,
+                                fontSize: "0.7rem",
+                              }}
+                            >
+                              →
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "0.78rem",
+                                fontWeight: "600",
+                                color: "#059669",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {corrected}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Hint text */}
+                        {!isApplied && (
                           <div
                             style={{
                               fontSize: "0.62rem",
@@ -415,12 +672,21 @@ export function SpellCheckButton({
                               fontStyle: "italic",
                             }}
                           >
-                            {note}
+                            {hasWords
+                              ? "Click a highlighted word to select/deselect it."
+                              : note || "Possible spelling error detected"}
                           </div>
                         )}
 
-                        {/* Action */}
-                        <div style={{ marginTop: "0.1rem" }}>
+                        {/* Action buttons */}
+                        <div
+                          style={{
+                            marginTop: "0.1rem",
+                            display: "flex",
+                            gap: "0.4rem",
+                            flexWrap: "wrap",
+                          }}
+                        >
                           {isApplied ? (
                             <span
                               style={{
@@ -431,6 +697,44 @@ export function SpellCheckButton({
                             >
                               ✓ Applied
                             </span>
+                          ) : hasSelection ? (
+                            <>
+                              <button
+                                onClick={() => applyWordFix(fieldKey, words)}
+                                style={{
+                                  padding: "0.2rem 0.6rem",
+                                  background:
+                                    "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  color: "#fff",
+                                  fontSize: "0.65rem",
+                                  fontWeight: "700",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Fix Selected Word
+                                {Object.values(selected).filter(Boolean)
+                                  .length > 1
+                                  ? "s"
+                                  : ""}
+                              </button>
+                              <button
+                                onClick={() => applyFix(fieldKey, corrected)}
+                                style={{
+                                  padding: "0.2rem 0.6rem",
+                                  background: "transparent",
+                                  border: `1px solid ${colors.cardBorder}`,
+                                  borderRadius: "4px",
+                                  color: colors.textSecondary,
+                                  fontSize: "0.65rem",
+                                  fontWeight: "600",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Fix All in Field
+                              </button>
+                            </>
                           ) : (
                             <button
                               onClick={() => applyFix(fieldKey, corrected)}
