@@ -56,8 +56,29 @@ const GENERAL_FIELDS = [
     label: "💊 Dosage Form",
     placeholder: "e.g., Tablet, Capsule",
   },
+  {
+    key: "typeDocReleased",
+    label: "📄 Type Doc Released",
+    type: "typeDocSelect",
+  },
+  {
+    key: "dateReleasedFrom",
+    label: "📅 Date Released From",
+    inputType: "date",
+  },
+  {
+    key: "dateReleasedTo",
+    label: "📅 Date Released To",
+    inputType: "date",
+  },
 ];
 
+// Static known values — matches your renderTypeDocReleased logic
+const TYPE_DOC_OPTIONS = [
+  { value: "CPR", label: "📜 CPR" },
+  { value: "LOD", label: "📋 LOD" },
+  { value: "CERT", label: "🏆 CERT" },
+];
 // ── Supply chain filters ─────────────────────────────────────────────────────
 const SUPPLY_CHAIN_FIELDS = [
   {
@@ -384,6 +405,24 @@ function FilterField({
           accentColor={accentColor}
           isActive={isActive}
         />
+      )}
+
+      {field.type === "typeDocSelect" && (
+        <select
+          value={value || ""}
+          onChange={(e) => onChange(field.key, e.target.value)}
+          style={inputStyle(colors, {
+            cursor: "pointer",
+            ...(isActive ? activeBorder : {}),
+          })}
+        >
+          <option value="">All Types</option>
+          {TYPE_DOC_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       )}
 
       {/* Text / number input */}

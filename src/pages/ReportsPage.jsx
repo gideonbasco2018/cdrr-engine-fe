@@ -26,6 +26,10 @@ function buildFilterParams(filters) {
   if (filters.brandName) p.brand_name = filters.brandName;
   if (filters.genericName) p.generic_name = filters.genericName;
   if (filters.dtn) p.dtn = parseInt(filters.dtn, 10);
+  // ✅ New filters
+  if (filters.typeDocReleased) p.type_doc_released = filters.typeDocReleased;
+  if (filters.dateReleasedFrom) p.date_released_from = filters.dateReleasedFrom;
+  if (filters.dateReleasedTo) p.date_released_to = filters.dateReleasedTo;
   // ✅ Supply chain filters
   if (filters.manufacturerCountry)
     p.manufacturer_country = filters.manufacturerCountry;
