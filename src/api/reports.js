@@ -28,8 +28,12 @@ export const getUploadReports = async ({
   distributor_country = '',
   repacker = '',
   repacker_country = '',
+
+  type_doc_released = '',
+  date_released_from = '',
+  date_released_to = '',
   sortBy = 'DB_DATE_EXCEL_UPLOAD',
-  sortOrder = 'desc'
+  sortOrder = 'desc',
 }) => {
   const params = {
     page,
@@ -60,6 +64,9 @@ export const getUploadReports = async ({
   if (distributor_country) params.distributor_country = distributor_country;
   if (repacker) params.repacker = repacker;
   if (repacker_country) params.repacker_country = repacker_country;
+  if (type_doc_released) params.type_doc_released = type_doc_released;
+  if (date_released_from) params.date_released_from = date_released_from;
+  if (date_released_to) params.date_released_to = date_released_to;
 
   if (sortBy && sortBy.trim() !== '') {
     params.sort_by = sortBy;
@@ -218,6 +225,9 @@ export const exportFilteredRecords = async ({
   distributor_country = '',
   repacker = '',
   repacker_country = '',
+  type_doc_released = '',
+  date_released_from = '',
+  date_released_to = '',
 }) => {
   const params = {};
 
@@ -245,6 +255,9 @@ export const exportFilteredRecords = async ({
   if (distributor_country) params.distributor_country = distributor_country;
   if (repacker) params.repacker = repacker;
   if (repacker_country) params.repacker_country = repacker_country;
+  if (type_doc_released) params.type_doc_released = type_doc_released;
+  if (date_released_from) params.date_released_from = date_released_from;
+  if (date_released_to) params.date_released_to = date_released_to;
 
   const response = await API.get('/main-db/export-filtered', {
     params,

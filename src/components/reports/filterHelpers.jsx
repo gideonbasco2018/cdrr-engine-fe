@@ -145,5 +145,35 @@ export const applyClientSideFilters = (data, filters) => {
     });
   }
 
+  // Filter by Type Doc Released
+  if (filters.typeDocReleased && filters.typeDocReleased !== "all") {
+    filteredData = filteredData.filter((row) => {
+      const val = row.typeDocReleased?.toUpperCase();
+      return val?.includes(filters.typeDocReleased.toUpperCase());
+    });
+  }
+
+  // Filter by Date Released range
+  if (filters.dateReleasedFrom || filters.dateReleasedTo) {
+    filteredData = filteredData.filter((row) => {
+      if (!row.dateReleased || row.dateReleased === "N/A") return false;
+      const recordDate = new Date(row.dateReleased);
+      if (isNaN(recordDate.getTime())) return false;
+
+      if (filters.dateReleasedFrom) {
+        const fromDate = new Date(filters.dateReleasedFrom);
+        if (recordDate < fromDate) return false;
+      }
+
+      if (filters.dateReleasedTo) {
+        const toDate = new Date(filters.dateReleasedTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (recordDate > toDate) return false;
+      }
+
+      return true;
+    });
+  }
+
   return filteredData;
 };
