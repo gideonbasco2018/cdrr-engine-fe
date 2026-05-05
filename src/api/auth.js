@@ -63,7 +63,7 @@ export const logout = async () => {
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('userRole');
     sessionStorage.removeItem('userGroup');
-    console.log('✅ All auth data cleared from storage');
+
   }
 };
 
