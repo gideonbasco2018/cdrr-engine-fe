@@ -30,6 +30,16 @@ function buildFilterParams(filters) {
   if (filters.brandName) p.brand_name = filters.brandName;
   if (filters.genericName) p.generic_name = filters.genericName;
   if (filters.dtn) p.dtn = parseInt(filters.dtn, 10);
+  if (filters.typeDocReleased) p.type_doc_released = filters.typeDocReleased;
+  if (filters.dateReleasedFrom) p.date_released_from = filters.dateReleasedFrom;
+  if (filters.dateReleasedTo) p.date_released_to = filters.dateReleasedTo;
+
+  if (filters.userUploader) p.user_uploader = filters.userUploader;
+  if (filters.dateExcelUploadFrom)
+    p.date_excel_upload_from = filters.dateExcelUploadFrom;
+  if (filters.dateExcelUploadTo)
+    p.date_excel_upload_to = filters.dateExcelUploadTo;
+  // Supply chain filters
   if (filters.manufacturerCountry)
     p.manufacturer_country = filters.manufacturerCountry;
   if (filters.trader) p.trader = filters.trader;

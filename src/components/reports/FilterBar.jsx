@@ -71,13 +71,34 @@ const GENERAL_FIELDS = [
     label: "📅 Date Released To",
     inputType: "date",
   },
+  {
+    key: "userUploader",
+    label: "👤 Uploaded By",
+    placeholder: "Search uploader name",
+  },
+  {
+    key: "dateExcelUploadFrom",
+    label: "📅 Upload Date From",
+    inputType: "date",
+  },
+  {
+    key: "dateExcelUploadTo",
+    label: "📅 Upload Date To",
+    inputType: "date",
+  },
 ];
 
 // Static known values — matches your renderTypeDocReleased logic
 const TYPE_DOC_OPTIONS = [
-  { value: "CPR", label: "📜 CPR" },
-  { value: "LOD", label: "📋 LOD" },
-  { value: "CERT", label: "🏆 CERT" },
+  { value: "CPR", label: "🩺 CPR" }, // medical / product registration
+  { value: "LOD", label: "📑 LOD" }, // official document
+  { value: "Certificate", label: "📜 Certificate" }, // certificate scroll
+  { value: "Letter", label: "✉️ Letter" }, // letter icon
+  { value: "COPP", label: "🌍 COPP" }, // international certificate
+  { value: "CFS", label: "📦 CFS" }, // product / free sale
+  { value: "GLE", label: "🧾 GLE" }, // form / document
+  { value: "Letter for non acceptance", label: "❌ Letter for non acceptance" },
+  { value: "Product classification", label: "🏷️ Product classification" }, // tag / category
 ];
 // ── Supply chain filters ─────────────────────────────────────────────────────
 const SUPPLY_CHAIN_FIELDS = [
