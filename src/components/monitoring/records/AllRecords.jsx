@@ -31,7 +31,6 @@ const avatarPalette = [
   { bg: "#fef9c3", color: "#713f12" },
 ];
 
-// Known steps for dropdown — adjust to match your actual data
 const STEP_OPTIONS = [
   "Quality Evaluation",
   "Compliance",
@@ -43,6 +42,33 @@ const STEP_OPTIONS = [
   "OD-Releasing",
   "Releasing Officer",
 ];
+
+const MONTH_OPTIONS = [
+  { value: "01", label: "January" },
+  { value: "02", label: "February" },
+  { value: "03", label: "March" },
+  { value: "04", label: "April" },
+  { value: "05", label: "May" },
+  { value: "06", label: "June" },
+  { value: "07", label: "July" },
+  { value: "08", label: "August" },
+  { value: "09", label: "September" },
+  { value: "10", label: "October" },
+  { value: "11", label: "November" },
+  { value: "12", label: "December" },
+];
+
+const DAY_OPTIONS = Array.from({ length: 31 }, (_, i) => {
+  const d = String(i + 1).padStart(2, "0");
+  return { value: d, label: d };
+});
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from({ length: 11 }, (_, i) => {
+  const y = String(CURRENT_YEAR - 5 + i);
+  return { value: y, label: y };
+});
+
 function nameToAvatarColor(name = "") {
   let hash = 0;
   for (let i = 0; i < name.length; i++)
@@ -261,7 +287,6 @@ function rowToRecord(row) {
   };
 }
 
-// ── Step badge colors ─────────────────────────────────────────────────────────
 const stepColors = {
   Decking: { bg: "#ede9fe", color: "#5b21b6" },
   Checking: { bg: "#dbeafe", color: "#1d4ed8" },
@@ -276,6 +301,132 @@ const stepColorsDark = {
   Releasing: { bg: "#0a2e1a", color: "#4ade80" },
   Encoding: { bg: "#2e0a1a", color: "#f9a8d4" },
 };
+
+// ── DTN Date Range sub-component ──────────────────────────────────────────────
+// Renders Year → Month → Day cascading selects for one side of the range.
+// label: "From" | "To"
+// defaults: when a Year is set but Month/Day are omitted, "From" pads with
+//   01/01 and "To" pads with 12/31 so the backend always receives 8 digits.
+function DtnDateSide({
+  label,
+  year,
+  month,
+  day,
+  onYearChange,
+  onMonthChange,
+  onDayChange,
+  active,
+  darkMode,
+  ui,
+  inputSt,
+  labelSt,
+  font,
+}) {
+  const accentColor = label === "From" ? "#1877F2" : "#7c3aed";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {/* Side label */}
+      <span
+        style={{
+          fontSize: "0.62rem",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.07em",
+          color: active ? accentColor : ui.textMuted,
+          fontFamily: font,
+          marginBottom: 2,
+        }}
+      >
+        {label}
+      </span>
+
+      <div style={{ display: "flex", gap: 5, alignItems: "flex-end" }}>
+        {/* Year */}
+        <div>
+          <label style={{ ...labelSt, marginBottom: 2 }}>Year</label>
+          <select
+            value={year}
+            onChange={(e) => onYearChange(e.target.value)}
+            style={{ ...inputSt, width: 84, cursor: "pointer" }}
+          >
+            <option value="">Any</option>
+            {YEAR_OPTIONS.map(({ value, label: lbl }) => (
+              <option key={value} value={value}>
+                {lbl}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Month */}
+        <div style={{ opacity: year ? 1 : 0.4, transition: "opacity 0.15s" }}>
+          <label style={{ ...labelSt, marginBottom: 2 }}>Month</label>
+          <select
+            value={month}
+            onChange={(e) => onMonthChange(e.target.value)}
+            disabled={!year}
+            style={{
+              ...inputSt,
+              width: 110,
+              cursor: year ? "pointer" : "not-allowed",
+            }}
+          >
+            <option value="">Any</option>
+            {MONTH_OPTIONS.map(({ value, label: lbl }) => (
+              <option key={value} value={value}>
+                {lbl}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Day */}
+        <div style={{ opacity: month ? 1 : 0.4, transition: "opacity 0.15s" }}>
+          <label style={{ ...labelSt, marginBottom: 2 }}>Day</label>
+          <select
+            value={day}
+            onChange={(e) => onDayChange(e.target.value)}
+            disabled={!month}
+            style={{
+              ...inputSt,
+              width: 68,
+              cursor: month ? "pointer" : "not-allowed",
+            }}
+          >
+            <option value="">Any</option>
+            {DAY_OPTIONS.map(({ value, label: lbl }) => (
+              <option key={value} value={value}>
+                {lbl}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Build an 8-digit DTN date prefix from parts ───────────────────────────────
+// side: "from" → pads month with "01", day with "01"
+//        "to"  → pads month with "12", day with "31"
+function buildDtnPrefix(year, month, day, side) {
+  if (!year) return "";
+  const m = month || (side === "from" ? "01" : "12");
+  const d = day || (side === "from" ? "01" : "31");
+  return `${year}${m}${d}`;
+}
+
+// ── Human-readable label for a DTN date side ─────────────────────────────────
+function dtnSideLabel(year, month, day) {
+  if (!year) return null;
+  const monthLabel = month
+    ? MONTH_OPTIONS.find((m) => m.value === month)?.label
+    : null;
+  return [year, monthLabel, day ? `Day ${day}` : null]
+    .filter(Boolean)
+    .join(" · ");
+}
 
 export default function AllRecords({
   ui,
@@ -299,22 +450,43 @@ export default function AllRecords({
   const [sortCol, setSortCol] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
 
-  // ── NEW filter states ──────────────────────────────────────────
   const [dtnSearch, setDtnSearch] = useState("");
-  const [dtnInput, setDtnInput] = useState(""); // debounce buffer
+  const [dtnInput, setDtnInput] = useState("");
   const [stepFilter, setStepFilter] = useState("");
   const [localStatusFilter, setLocalStatusFilter] = useState("");
-  // ──────────────────────────────────────────────────────────────
+
+  // ── DTN Date RANGE states ─────────────────────────────────────────────────
+  // "From" side — lower bound of the range
+  const [dtnFromYear, setDtnFromYear] = useState("");
+  const [dtnFromMonth, setDtnFromMonth] = useState("");
+  const [dtnFromDay, setDtnFromDay] = useState("");
+  // "To" side — upper bound of the range
+  const [dtnToYear, setDtnToYear] = useState("");
+  const [dtnToMonth, setDtnToMonth] = useState("");
+  const [dtnToDay, setDtnToDay] = useState("");
+  // ─────────────────────────────────────────────────────────────────────────
 
   const [modalLoading, setModalLoading] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Debounce DTN input by 400ms
+  // Debounce DTN text input
   useEffect(() => {
     const t = setTimeout(() => setDtnSearch(dtnInput), 400);
     return () => clearTimeout(t);
   }, [dtnInput]);
+
+  // ── Build 8-digit prefixes sent to the backend ────────────────────────────
+  // e.g. from=2023, no month → "20230101"  /  to=2026, no month → "20261231"
+  const dtnDateFrom = buildDtnPrefix(
+    dtnFromYear,
+    dtnFromMonth,
+    dtnFromDay,
+    "from",
+  );
+  const dtnDateTo = buildDtnPrefix(dtnToYear, dtnToMonth, dtnToDay, "to");
+
+  const rangeActive = !!(dtnDateFrom || dtnDateTo);
 
   const handleAction = async (actionKey, row) => {
     if (actionKey === "view") {
@@ -401,12 +573,15 @@ export default function AllRecords({
       if (filterUserId) params.user_id = filterUserId;
       if (dateFrom) params.date_from = dateFrom;
       if (dateTo) params.date_to = dateTo;
-      if (dtnSearch) params.dtn = dtnSearch; // ← NEW
-      if (stepFilter) params.app_step = stepFilter; // ← NEW
+      if (dtnSearch) params.dtn = dtnSearch;
+      if (stepFilter) params.app_step = stepFilter;
+      if (localStatusFilter) params.application_status = localStatusFilter;
 
-      if (localStatusFilter) {
-        params.application_status = localStatusFilter;
-      }
+      // ── DTN date range ── both params are always 8 digits (YYYYMMDD)
+      // Backend does: LEFT(DB_DTN, 8) >= dtn_date_from AND LEFT(DB_DTN, 8) <= dtn_date_to
+      if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
+      if (dtnDateTo) params.dtn_date_to = dtnDateTo;
+
       const data = await getAllRecords(params);
       setRecords(data.data || []);
       setTotal(data.total || 0);
@@ -426,7 +601,9 @@ export default function AllRecords({
     dtnSearch,
     stepFilter,
     localStatusFilter,
-  ]); // ← added deps
+    dtnDateFrom,
+    dtnDateTo,
+  ]);
 
   useEffect(() => {
     fetchRecords();
@@ -443,7 +620,9 @@ export default function AllRecords({
     statusFilter,
     dtnSearch,
     stepFilter,
-  ]); // ← added deps
+    dtnDateFrom,
+    dtnDateTo,
+  ]);
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -481,19 +660,63 @@ export default function AllRecords({
     setDateFrom("");
     setDateTo("");
     setDtnInput("");
-    setDtnSearch(""); // ← NEW
-    setStepFilter(""); // ← NEW
+    setDtnSearch("");
+    setStepFilter("");
     setLocalStatusFilter("");
     setSortCol("date");
     setSortDir("desc");
+    setPage(1);
+    // Reset DTN date range
+    setDtnFromYear("");
+    setDtnFromMonth("");
+    setDtnFromDay("");
+    setDtnToYear("");
+    setDtnToMonth("");
+    setDtnToDay("");
+  };
+
+  // ── Cascading reset helpers ───────────────────────────────────────────────
+  const handleFromYearChange = (val) => {
+    setDtnFromYear(val);
+    if (!val) {
+      setDtnFromMonth("");
+      setDtnFromDay("");
+    }
+    setPage(1);
+  };
+  const handleFromMonthChange = (val) => {
+    setDtnFromMonth(val);
+    if (!val) setDtnFromDay("");
+    setPage(1);
+  };
+  const handleToYearChange = (val) => {
+    setDtnToYear(val);
+    if (!val) {
+      setDtnToMonth("");
+      setDtnToDay("");
+    }
+    setPage(1);
+  };
+  const handleToMonthChange = (val) => {
+    setDtnToMonth(val);
+    if (!val) setDtnToDay("");
     setPage(1);
   };
 
   const TL = darkMode ? timelineColorsDark : timelineColors;
   const SP = darkMode ? stepColorsDark : stepColors;
 
-  // 8 columns now — added Step
   const GRID = "1.4fr 1.2fr 1.8fr 1fr 1fr 1fr 0.9fr 0.6fr";
+
+  // ── Footer label summarising the active DTN range ─────────────────────────
+  const fromLabel = dtnSideLabel(dtnFromYear, dtnFromMonth, dtnFromDay);
+  const toLabel = dtnSideLabel(dtnToYear, dtnToMonth, dtnToDay);
+  const dtnRangeFooterLabel = (() => {
+    if (!fromLabel && !toLabel) return null;
+    if (fromLabel && toLabel) return `${fromLabel} → ${toLabel}`;
+    if (fromLabel) return `From ${fromLabel}`;
+    return `To ${toLabel}`;
+  })();
 
   return (
     <>
@@ -544,7 +767,7 @@ export default function AllRecords({
               flexWrap: "wrap",
             }}
           >
-            {/* DTN Search — NEW */}
+            {/* DTN Text Search */}
             <div>
               <label style={labelSt}>DTN</label>
               <input
@@ -556,7 +779,129 @@ export default function AllRecords({
               />
             </div>
 
-            {/* Step Filter — NEW */}
+            {/* ── DTN Date Range group ─────────────────────────────────────────
+                Filters by the date encoded in the first 8 digits of the DTN.
+                Format: YYYYMMDD  →  e.g. DTN "20240506141704" = May 6, 2024
+
+                "From" side: omitted month/day are padded with 01/01 (start of period)
+                "To" side:   omitted month/day are padded with 12/31 (end of period)
+
+                Examples:
+                  From Year=2023           → 20230101
+                  To   Year=2026           → 20261231
+                  From Year=2023 Month=05  → 20230501
+                  To   Year=2023 Month=05  → 20230531
+            ──────────────────────────────────────────────────────────────────── */}
+            <div
+              style={{
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-end",
+                padding: "8px 12px",
+                borderRadius: 8,
+                border: rangeActive
+                  ? `1.5px solid ${FB}44`
+                  : `1px dashed ${ui.cardBorder}`,
+                background: rangeActive
+                  ? darkMode
+                    ? "#0a1e3a"
+                    : "#eff6ff"
+                  : "transparent",
+                transition: "all 0.2s",
+              }}
+            >
+              {/* Group header */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "flex-end",
+                  marginBottom: 1,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    color: rangeActive ? FB : ui.textMuted,
+                    fontFamily: font,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  DTN Date Range
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.58rem",
+                    color: rangeActive ? FB : ui.textMuted,
+                    fontFamily: font,
+                    whiteSpace: "nowrap",
+                    fontWeight: rangeActive ? 600 : 400,
+                    marginTop: 1,
+                  }}
+                >
+                  {rangeActive ? dtnRangeFooterLabel : "digits 1–8 of DTN"}
+                </span>
+              </div>
+
+              {/* From side */}
+              <DtnDateSide
+                label="From"
+                year={dtnFromYear}
+                month={dtnFromMonth}
+                day={dtnFromDay}
+                onYearChange={handleFromYearChange}
+                onMonthChange={handleFromMonthChange}
+                onDayChange={(val) => {
+                  setDtnFromDay(val);
+                  setPage(1);
+                }}
+                active={!!dtnFromYear}
+                darkMode={darkMode}
+                ui={ui}
+                inputSt={inputSt}
+                labelSt={labelSt}
+                font={font}
+              />
+
+              {/* Arrow separator */}
+              <span
+                style={{
+                  fontSize: "0.9rem",
+                  color: rangeActive ? FB : ui.textMuted,
+                  paddingBottom: 6,
+                  fontFamily: font,
+                  opacity: rangeActive ? 1 : 0.4,
+                }}
+              >
+                →
+              </span>
+
+              {/* To side */}
+              <DtnDateSide
+                label="To"
+                year={dtnToYear}
+                month={dtnToMonth}
+                day={dtnToDay}
+                onYearChange={handleToYearChange}
+                onMonthChange={handleToMonthChange}
+                onDayChange={(val) => {
+                  setDtnToDay(val);
+                  setPage(1);
+                }}
+                active={!!dtnToYear}
+                darkMode={darkMode}
+                ui={ui}
+                inputSt={inputSt}
+                labelSt={labelSt}
+                font={font}
+              />
+            </div>
+            {/* ── end DTN Date Range group ── */}
+
+            {/* Step Filter */}
             <div>
               <label style={labelSt}>Step</label>
               <select
@@ -587,7 +932,7 @@ export default function AllRecords({
               </select>
             </div>
 
-            {/* Date Range */}
+            {/* Date Range (date_received_cent) */}
             {[
               { label: "From", val: dateFrom, set: setDateFrom },
               { label: "To", val: dateTo, set: setDateTo },
@@ -635,7 +980,7 @@ export default function AllRecords({
               { label: "User", col: "user" },
               { label: "Drug / Application", col: "drug" },
               { label: "Date", col: "date" },
-              { label: "Step", col: "step" }, // ← NEW
+              { label: "Step", col: "step" },
               { label: "Timeline", col: "timeline" },
               { label: "Status", col: "status" },
               { label: "Actions", col: null },
@@ -725,7 +1070,6 @@ export default function AllRecords({
                   statusKey
                 ] || { bg: "#f3f4f6", color: "#374151" };
 
-                // Step badge
                 const stepKey = row.app_step || "";
                 const spStyle = SP[stepKey] || {
                   bg: darkMode ? "#1e1e2e" : "#f3f4f6",
@@ -847,7 +1191,7 @@ export default function AllRecords({
                         : "—"}
                     </span>
 
-                    {/* Step — NEW */}
+                    {/* Step */}
                     <span
                       style={{
                         padding: "10px 12px",
@@ -968,6 +1312,18 @@ export default function AllRecords({
                   · page {page} of {totalPages}
                 </span>
               )}
+              {dtnRangeFooterLabel && (
+                <span
+                  style={{
+                    marginLeft: 8,
+                    color: FB,
+                    fontWeight: 600,
+                    fontSize: "0.7rem",
+                  }}
+                >
+                  · DTN range: {dtnRangeFooterLabel}
+                </span>
+              )}
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <button
@@ -1024,7 +1380,6 @@ export default function AllRecords({
           darkMode={darkMode}
         />
       )}
-
       {activeModal === "applogs" && selectedRecord && (
         <ApplicationLogsModal
           record={selectedRecord}

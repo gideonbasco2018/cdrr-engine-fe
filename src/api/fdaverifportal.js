@@ -8,14 +8,13 @@ import API from "./axios";
  * @returns {Promise<Blob>} Excel file blob
  */
 export const downloadTemplate = async () => {
-  console.log('🔍 Downloading FDA template...');
+
 
   try {
     const response = await API.get('/fda/download-template', {
       responseType: 'blob',
     });
 
-    console.log('✅ Template downloaded successfully');
     return response.data;
   } catch (error) {
     console.error('❌ Error downloading template:', error);
@@ -30,7 +29,6 @@ export const downloadTemplate = async () => {
  * @returns {Promise<Object>} Upload result
  */
 export const uploadExcelFile = async (file, uploadedBy = null) => {
-  console.log('🔍 Uploading FDA Excel file...', { filename: file.name, uploadedBy });
 
   try {
     const formData = new FormData();
@@ -295,7 +293,7 @@ export const exportDrugsToExcel = async ({ search = '', include_canceled = false
       responseType: 'blob', // Important: get blob for file download
     });
 
-    console.log('✅ Export file received');
+
 
     return response.data; // Return blob directly
   } catch (error) {
@@ -311,14 +309,14 @@ export const exportDrugsToExcel = async ({ search = '', include_canceled = false
  * @returns {Promise<Object>} Dashboard stats
  */
 export const getDashboardStats = async (uploadedBy) => {
-  console.log('🔍 Fetching FDA dashboard stats...', { uploadedBy });
+  
 
   try {
     const params = uploadedBy ? { uploaded_by: uploadedBy } : {};
 
     const response = await API.get('/fda/stats/dashboard', { params });
 
-    console.log('✅ Dashboard Stats:', response.data.data);
+
     return response.data.data; // Only return the "data" object
   } catch (error) {
     console.error('❌ Error fetching dashboard stats:', error);
