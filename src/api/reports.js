@@ -32,6 +32,9 @@ export const getUploadReports = async ({
   type_doc_released = '',
   date_released_from = '',
   date_released_to = '',
+  user_uploader = '',
+  date_excel_upload_from = '',
+  date_excel_upload_to = '',
   sortBy = 'DB_DATE_EXCEL_UPLOAD',
   sortOrder = 'desc',
 }) => {
@@ -67,6 +70,10 @@ export const getUploadReports = async ({
   if (type_doc_released) params.type_doc_released = type_doc_released;
   if (date_released_from) params.date_released_from = date_released_from;
   if (date_released_to) params.date_released_to = date_released_to;
+
+  if (user_uploader) params.user_uploader = user_uploader;
+  if (date_excel_upload_from) params.date_excel_upload_from = date_excel_upload_from;
+  if (date_excel_upload_to) params.date_excel_upload_to = date_excel_upload_to;
 
   if (sortBy && sortBy.trim() !== '') {
     params.sort_by = sortBy;
@@ -228,6 +235,9 @@ export const exportFilteredRecords = async ({
   type_doc_released = '',
   date_released_from = '',
   date_released_to = '',
+  user_uploader = '',
+  date_excel_upload_from = '',
+  date_excel_upload_to = '',
 }) => {
   const params = {};
 
@@ -258,6 +268,10 @@ export const exportFilteredRecords = async ({
   if (type_doc_released) params.type_doc_released = type_doc_released;
   if (date_released_from) params.date_released_from = date_released_from;
   if (date_released_to) params.date_released_to = date_released_to;
+
+  if (user_uploader) params.user_uploader = user_uploader;
+  if (date_excel_upload_from) params.date_excel_upload_from = date_excel_upload_from;
+  if (date_excel_upload_to) params.date_excel_upload_to = date_excel_upload_to;
 
   const response = await API.get('/main-db/export-filtered', {
     params,

@@ -29,6 +29,7 @@ export const WORKFLOW = {
   },
   Checking: {
     "Checked and returned to evaluator": "Quality Evaluation",
+    "Forwarded to Supervisor": "Supervisor",
   },
   Supervisor: {
     "Endorsed to QA Admin": "QA Admin",
@@ -90,7 +91,7 @@ export const STEP_DECISIONS = {
     "Signed and Returned to S&E Evaluator",
   ],
   Compliance: ["Endorsed to Checker", "For Compliance"],
-  Checking: ["Checked and returned to evaluator"],
+  Checking: ["Checked and returned to evaluator", "Forwarded to Supervisor", ],
   Supervisor: ["Endorsed to QA Admin", "Returned to Evaluator"],
   "QA Admin": [
     "Endorsed to LRD Chief Admin",
@@ -121,6 +122,7 @@ export const DECISION_DOCTRACK = {
   "Signed and Returned to S&E Evaluator": "Reviewed and signed by S&E Supervisor. Returned to S&E Evaluator for further processing.",
   "Approved": "Approved by S&E",
   "Rejected": "Rejected by S&E",
+  "Forwarded to Supervisor": "Forwarded to Supervisor for review and signing of the final recommendation",
 };
 
 export const EDITABLE_STEPS = [

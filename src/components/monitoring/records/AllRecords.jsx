@@ -303,10 +303,8 @@ const stepColorsDark = {
 };
 
 // ── DTN Date Range sub-component ──────────────────────────────────────────────
-// Renders Year → Month → Day cascading selects for one side of the range.
-// label: "From" | "To"
-// defaults: when a Year is set but Month/Day are omitted, "From" pads with
-//   01/01 and "To" pads with 12/31 so the backend always receives 8 digits.
+// Compact inline Year / Month / Day cascading selects for one side of the range.
+// Designed for the sub-bar row — no stacked labels, just tiny selects.
 function DtnDateSide({
   label,
   year,
@@ -319,90 +317,90 @@ function DtnDateSide({
   darkMode,
   ui,
   inputSt,
-  labelSt,
   font,
 }) {
-  const accentColor = label === "From" ? "#1877F2" : "#7c3aed";
+  const accentColor = "#1877F2";
+  const tinySelect = {
+    ...inputSt,
+    padding: "4px 6px",
+    fontSize: "0.78rem",
+    cursor: "pointer",
+    height: 28,
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {/* Side label */}
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      {/* Side pill label */}
       <span
         style={{
           fontSize: "0.62rem",
           fontWeight: 700,
           textTransform: "uppercase",
-          letterSpacing: "0.07em",
+          letterSpacing: "0.06em",
           color: active ? accentColor : ui.textMuted,
           fontFamily: font,
-          marginBottom: 2,
+          minWidth: 28,
         }}
       >
         {label}
       </span>
 
-      <div style={{ display: "flex", gap: 5, alignItems: "flex-end" }}>
-        {/* Year */}
-        <div>
-          <label style={{ ...labelSt, marginBottom: 2 }}>Year</label>
-          <select
-            value={year}
-            onChange={(e) => onYearChange(e.target.value)}
-            style={{ ...inputSt, width: 84, cursor: "pointer" }}
-          >
-            <option value="">Any</option>
-            {YEAR_OPTIONS.map(({ value, label: lbl }) => (
-              <option key={value} value={value}>
-                {lbl}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Year */}
+      <select
+        value={year}
+        onChange={(e) => onYearChange(e.target.value)}
+        style={{ ...tinySelect, width: 76 }}
+        title="Year"
+      >
+        <option value="">Year</option>
+        {YEAR_OPTIONS.map(({ value, label: lbl }) => (
+          <option key={value} value={value}>
+            {lbl}
+          </option>
+        ))}
+      </select>
 
-        {/* Month */}
-        <div style={{ opacity: year ? 1 : 0.4, transition: "opacity 0.15s" }}>
-          <label style={{ ...labelSt, marginBottom: 2 }}>Month</label>
-          <select
-            value={month}
-            onChange={(e) => onMonthChange(e.target.value)}
-            disabled={!year}
-            style={{
-              ...inputSt,
-              width: 110,
-              cursor: year ? "pointer" : "not-allowed",
-            }}
-          >
-            <option value="">Any</option>
-            {MONTH_OPTIONS.map(({ value, label: lbl }) => (
-              <option key={value} value={value}>
-                {lbl}
-              </option>
-            ))}
-          </select>
-        </div>
+      {/* Month */}
+      <select
+        value={month}
+        onChange={(e) => onMonthChange(e.target.value)}
+        disabled={!year}
+        title="Month"
+        style={{
+          ...tinySelect,
+          width: 96,
+          opacity: year ? 1 : 0.45,
+          cursor: year ? "pointer" : "not-allowed",
+        }}
+      >
+        <option value="">Month</option>
+        {MONTH_OPTIONS.map(({ value, label: lbl }) => (
+          <option key={value} value={value}>
+            {lbl}
+          </option>
+        ))}
+      </select>
 
-        {/* Day */}
-        <div style={{ opacity: month ? 1 : 0.4, transition: "opacity 0.15s" }}>
-          <label style={{ ...labelSt, marginBottom: 2 }}>Day</label>
-          <select
-            value={day}
-            onChange={(e) => onDayChange(e.target.value)}
-            disabled={!month}
-            style={{
-              ...inputSt,
-              width: 68,
-              cursor: month ? "pointer" : "not-allowed",
-            }}
-          >
-            <option value="">Any</option>
-            {DAY_OPTIONS.map(({ value, label: lbl }) => (
-              <option key={value} value={value}>
-                {lbl}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      {/* Day */}
+      <select
+        value={day}
+        onChange={(e) => onDayChange(e.target.value)}
+        disabled={!month}
+        title="Day"
+        style={{
+          ...tinySelect,
+          width: 62,
+          opacity: month ? 1 : 0.45,
+          cursor: month ? "pointer" : "not-allowed",
+        }}
+      >
+        <option value="">Day</option>
+        {DAY_OPTIONS.map(({ value, label: lbl }) => (
+          <option key={value} value={value}>
+            {lbl}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }
@@ -755,14 +753,14 @@ export default function AllRecords({
             minHeight: 0,
           }}
         >
-          {/* ── Filter Bar ── */}
+          {/* ══ Filter Bar — Row 1: standard filters ══════════════════════════ */}
           <div
             style={{
-              padding: "10px 14px",
+              padding: "8px 14px",
               borderBottom: `1px solid ${ui.divider}`,
               background: colHdr,
               display: "flex",
-              gap: 10,
+              gap: 8,
               alignItems: "flex-end",
               flexWrap: "wrap",
             }}
@@ -778,128 +776,6 @@ export default function AllRecords({
                 style={{ ...inputSt, width: 130 }}
               />
             </div>
-
-            {/* ── DTN Date Range group ─────────────────────────────────────────
-                Filters by the date encoded in the first 8 digits of the DTN.
-                Format: YYYYMMDD  →  e.g. DTN "20240506141704" = May 6, 2024
-
-                "From" side: omitted month/day are padded with 01/01 (start of period)
-                "To" side:   omitted month/day are padded with 12/31 (end of period)
-
-                Examples:
-                  From Year=2023           → 20230101
-                  To   Year=2026           → 20261231
-                  From Year=2023 Month=05  → 20230501
-                  To   Year=2023 Month=05  → 20230531
-            ──────────────────────────────────────────────────────────────────── */}
-            <div
-              style={{
-                display: "flex",
-                gap: 10,
-                alignItems: "flex-end",
-                padding: "8px 12px",
-                borderRadius: 8,
-                border: rangeActive
-                  ? `1.5px solid ${FB}44`
-                  : `1px dashed ${ui.cardBorder}`,
-                background: rangeActive
-                  ? darkMode
-                    ? "#0a1e3a"
-                    : "#eff6ff"
-                  : "transparent",
-                transition: "all 0.2s",
-              }}
-            >
-              {/* Group header */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "flex-end",
-                  marginBottom: 1,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "0.62rem",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
-                    color: rangeActive ? FB : ui.textMuted,
-                    fontFamily: font,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  DTN Date Range
-                </span>
-                <span
-                  style={{
-                    fontSize: "0.58rem",
-                    color: rangeActive ? FB : ui.textMuted,
-                    fontFamily: font,
-                    whiteSpace: "nowrap",
-                    fontWeight: rangeActive ? 600 : 400,
-                    marginTop: 1,
-                  }}
-                >
-                  {rangeActive ? dtnRangeFooterLabel : "digits 1–8 of DTN"}
-                </span>
-              </div>
-
-              {/* From side */}
-              <DtnDateSide
-                label="From"
-                year={dtnFromYear}
-                month={dtnFromMonth}
-                day={dtnFromDay}
-                onYearChange={handleFromYearChange}
-                onMonthChange={handleFromMonthChange}
-                onDayChange={(val) => {
-                  setDtnFromDay(val);
-                  setPage(1);
-                }}
-                active={!!dtnFromYear}
-                darkMode={darkMode}
-                ui={ui}
-                inputSt={inputSt}
-                labelSt={labelSt}
-                font={font}
-              />
-
-              {/* Arrow separator */}
-              <span
-                style={{
-                  fontSize: "0.9rem",
-                  color: rangeActive ? FB : ui.textMuted,
-                  paddingBottom: 6,
-                  fontFamily: font,
-                  opacity: rangeActive ? 1 : 0.4,
-                }}
-              >
-                →
-              </span>
-
-              {/* To side */}
-              <DtnDateSide
-                label="To"
-                year={dtnToYear}
-                month={dtnToMonth}
-                day={dtnToDay}
-                onYearChange={handleToYearChange}
-                onMonthChange={handleToMonthChange}
-                onDayChange={(val) => {
-                  setDtnToDay(val);
-                  setPage(1);
-                }}
-                active={!!dtnToYear}
-                darkMode={darkMode}
-                ui={ui}
-                inputSt={inputSt}
-                labelSt={labelSt}
-                font={font}
-              />
-            </div>
-            {/* ── end DTN Date Range group ── */}
 
             {/* Step Filter */}
             <div>
@@ -960,11 +836,175 @@ export default function AllRecords({
                 color: ui.textMuted,
                 cursor: "pointer",
                 fontFamily: font,
+                alignSelf: "flex-end",
               }}
             >
               Reset
             </button>
           </div>
+
+          {/* ══ Filter Bar — Row 2: DTN Date Range ════════════════════════════
+              Filters by the date encoded in the first 8 digits of the DTN.
+              Format: YYYYMMDD  e.g. DTN "20240506141704" = May 6, 2024
+              "From" pads missing month/day → 01/01   "To" → 12/31
+          ═════════════════════════════════════════════════════════════════════ */}
+          <div
+            style={{
+              borderBottom: `1px solid ${ui.divider}`,
+              background: rangeActive
+                ? darkMode
+                  ? "#07121f"
+                  : "#f5f9ff"
+                : colHdr,
+              transition: "background 0.2s",
+              // Left accent bar that lights up when the range is active
+              borderLeft: rangeActive
+                ? `3px solid ${FB}`
+                : `3px solid transparent`,
+            }}
+          >
+            <div
+              style={{
+                padding: "6px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "nowrap",
+                overflowX: "auto",
+              }}
+            >
+              {/* Section label */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.07em",
+                    color: rangeActive ? FB : ui.textMuted,
+                    fontFamily: font,
+                    whiteSpace: "nowrap",
+                    transition: "color 0.15s",
+                  }}
+                >
+                  DTN Date Range
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.58rem",
+                    color: rangeActive ? `${FB}cc` : ui.textMuted,
+                    fontFamily: font,
+                    whiteSpace: "nowrap",
+                    fontWeight: 500,
+                    opacity: rangeActive ? 1 : 0.6,
+                  }}
+                >
+                  {rangeActive
+                    ? dtnRangeFooterLabel
+                    : "based on DTN digits 1–8"}
+                </span>
+              </div>
+
+              {/* Thin divider */}
+              <div
+                style={{
+                  width: 1,
+                  height: 28,
+                  background: ui.divider,
+                  flexShrink: 0,
+                }}
+              />
+
+              {/* From side */}
+              <DtnDateSide
+                label="From"
+                year={dtnFromYear}
+                month={dtnFromMonth}
+                day={dtnFromDay}
+                onYearChange={handleFromYearChange}
+                onMonthChange={handleFromMonthChange}
+                onDayChange={(val) => {
+                  setDtnFromDay(val);
+                  setPage(1);
+                }}
+                active={!!dtnFromYear}
+                darkMode={darkMode}
+                ui={ui}
+                inputSt={inputSt}
+                font={font}
+              />
+
+              {/* Arrow */}
+              <span
+                style={{
+                  fontSize: "1rem",
+                  color: rangeActive ? FB : ui.textMuted,
+                  opacity: rangeActive ? 1 : 0.3,
+                  transition: "all 0.2s",
+                  flexShrink: 0,
+                  lineHeight: 1,
+                }}
+              >
+                →
+              </span>
+
+              {/* To side */}
+              <DtnDateSide
+                label="To"
+                year={dtnToYear}
+                month={dtnToMonth}
+                day={dtnToDay}
+                onYearChange={handleToYearChange}
+                onMonthChange={handleToMonthChange}
+                onDayChange={(val) => {
+                  setDtnToDay(val);
+                  setPage(1);
+                }}
+                active={!!dtnToYear}
+                darkMode={darkMode}
+                ui={ui}
+                inputSt={inputSt}
+                font={font}
+              />
+
+              {/* Clear range — only visible when active */}
+              {rangeActive && (
+                <button
+                  onClick={() => {
+                    setDtnFromYear("");
+                    setDtnFromMonth("");
+                    setDtnFromDay("");
+                    setDtnToYear("");
+                    setDtnToMonth("");
+                    setDtnToDay("");
+                    setPage(1);
+                  }}
+                  style={{
+                    background: "transparent",
+                    border: `1px solid ${FB}55`,
+                    borderRadius: 5,
+                    color: FB,
+                    cursor: "pointer",
+                    padding: "2px 8px",
+                    fontSize: "0.72rem",
+                    fontFamily: font,
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                  }}
+                  title="Clear DTN date range"
+                >
+                  ✕ Clear range
+                </button>
+              )}
+            </div>
+          </div>
+          {/* ══ end DTN Date Range row ══ */}
 
           {/* ── Column Headers ── */}
           <div
