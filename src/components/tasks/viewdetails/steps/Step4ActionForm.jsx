@@ -203,6 +203,7 @@ export function Step4ActionForm({
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [autoAssignee, setAutoAssignee] = useState(null);
+  const [autoAssigneeId, setAutoAssigneeId] = useState(null);
   const [workingDays, setWorkingDays] = useState(DEFAULT_WORKING_DAYS);
   const [deadlineDate, setDeadlineDate] = useState(() =>
     addWorkingDays(todayStr(), DEFAULT_WORKING_DAYS),
@@ -398,9 +399,13 @@ export function Step4ActionForm({
             : "Quality Evaluation";
 
         const prevEval = findPreviousEvaluator(logs, currentStep, targetStep);
-        setAutoAssignee(prevEval);
+        setAutoAssignee(prevEval?.username ?? prevEval);
+        setAutoAssigneeId(prevEval?.user_id ?? null);
         if (prevEval) {
-          setFormData((p) => ({ ...p, assignee: prevEval }));
+          setFormData((p) => ({
+            ...p,
+            assignee: prevEval?.username ?? prevEval,
+          }));
         }
       } catch {
         setAutoAssignee(null);
@@ -695,7 +700,8 @@ export function Step4ActionForm({
           assignedUserId = currentUser?.id ?? null;
         } else if (isReturnToEvaluator) {
           assignedUser = formData.assignee;
-          assignedUserId = resolveAssigneeId(assignedUser) ?? null;
+          assignedUserId =
+            resolveAssigneeId(assignedUser) ?? autoAssigneeId ?? null;
         } else {
           assignedUser = formData.assignee;
           assignedUserId = resolveAssigneeId(assignedUser);
