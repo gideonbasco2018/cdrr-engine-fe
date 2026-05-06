@@ -33,6 +33,9 @@ const avatarPalette = [
 
 const STEP_OPTIONS = [
   "Quality Evaluation",
+  "S&E",
+  "S&E Checker",
+  "S&E Supervisor",
   "Compliance",
   "Checking",
   "Supervisor",
