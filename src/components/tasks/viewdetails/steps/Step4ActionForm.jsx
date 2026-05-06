@@ -53,15 +53,30 @@ const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 /* decisions that need an extra "Action" dropdown */
 const ACTION_CONFIG = {
   "Quality Evaluation_Endorsed to Checker": {
-    options: ["For ENOD", "For Approval", "For Disapproval"],
+    options: [
+      "For ENOD",
+      "For Approval",
+      "For Disapproval",
+      "For Cancellation",
+    ],
     warning: "Action is required when endorsing to checker.",
   },
   "Quality Evaluation_Endorsed to Supervisor": {
-    options: ["For ENOD", "For Approval", "For Disapproval"],
+    options: [
+      "For ENOD",
+      "For Approval",
+      "For Disapproval",
+      "For Cancellation",
+    ],
     warning: "Action is required when endorsing to supervisor.",
   },
   "Checking_Checked and returned to evaluator": {
-    options: ["Checked and Returned", "Recommended for printing"],
+    options: [
+      "For appropriate action - Re-evaluation",
+      "For appropriate action - Send eNOD",
+      "For Printing (Approval)",
+      "For Printing (Disapproval)",
+    ],
     warning: "Action is required when returning to evaluator.",
   },
   "Supervisor_Endorsed to QA Admin": {
@@ -107,6 +122,10 @@ const ACTION_CONFIG = {
   "S&E_Endorsed to S&E Checker": {
     options: ["Endorsed to S&E Checker for review"],
     warning: "Action is required when endorsing to S&E Checker.",
+  },
+  "Quality Evaluation_For Cancellation": {
+    options: ["Cancel Application"],
+    warning: "Action is required for cancellation.",
   },
 };
 
@@ -965,10 +984,10 @@ export function Step4ActionForm({
         )}
       </div>
 
-      {/* Decision */}
+      {/* ACTION */}
       <div>
         <label style={labelStyle}>
-          Decision <span style={{ color: "#ef4444" }}>*</span>
+          ACTION <span style={{ color: "#ef4444" }}>*</span>
         </label>
         <select
           value={formData.decision}
@@ -981,7 +1000,7 @@ export function Step4ActionForm({
             e.target.style.borderColor = colors.inputBorder;
           }}
         >
-          <option value="">Select decision...</option>
+          <option value="">Select Action...</option>
           {availableDecisions.map((d) => (
             <option key={d} value={d}>
               {d}
@@ -994,7 +1013,7 @@ export function Step4ActionForm({
       {actionConfig && (
         <div>
           <label style={labelStyle}>
-            Action <span style={{ color: "#ef4444" }}>*</span>
+            RECOMMENDATION <span style={{ color: "#ef4444" }}>*</span>
           </label>
           <select
             value={formData.action}
@@ -1007,7 +1026,7 @@ export function Step4ActionForm({
               e.target.style.borderColor = colors.inputBorder;
             }}
           >
-            <option value="">Select action...</option>
+            <option value="">Select Recommendation...</option>
             {actionConfig.options.map((o) => (
               <option key={o} value={o}>
                 {o}

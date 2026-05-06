@@ -8,7 +8,6 @@ export const WORKFLOW = {
     "Endorsed to Supervisor": "Supervisor",
     "Draft Recommendation": "Checking",
     "Returned to S&E Evaluator": "S&E",
-    "For Cancellation": "Checking",
   },
    "S&E": {
     "Endorsed to S&E Supervisor": "S&E Supervisor",
@@ -76,7 +75,6 @@ export const STEP_DECISIONS = {
     "For Compliance",
     "Draft Recommendation",
     "Returned to S&E Evaluator",
-    "For Cancellation",
   ],
   "S&E": [
     "Endorsed to S&E Supervisor",  
