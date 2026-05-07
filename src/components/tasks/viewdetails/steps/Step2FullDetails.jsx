@@ -19,6 +19,8 @@ const TYPE_DOC_OPTIONS = [
   "GLE",
   "Letter for non acceptance",
   "Product classification",
+  "Letter (Withdrawal)",
+  "Letter (Re-routed)",
 ];
 
 export function Step2FullDetails({
