@@ -172,8 +172,13 @@ function TaskPage({ darkMode }) {
     prescription: "",
     appStatus: "",
     processingType: "",
+    sentBy: "",
+    lastModifiedFrom: "",
+    lastModifiedTo: "",
+    estCat: "",
   });
 
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState(null);
   const colors = getColorScheme(darkMode);
 
   // useEffect(() => {
@@ -203,11 +208,14 @@ function TaskPage({ darkMode }) {
     if (!currentUser?.id) return;
     setLoading(true);
     try {
+      const isFrontendSort =
+        sortBy === "log_sent_by" || sortBy === "log_last_modified";
+
       const res = await getWorkflowTasks({
         page: currentPage,
         page_size: 10000,
-        sort_by: sortBy,
-        sort_order: sortOrder,
+        sort_by: isFrontendSort ? "created_at" : sortBy,
+        sort_order: isFrontendSort ? "desc" : sortOrder,
         user_id: currentUser.id,
         only_latest_per_thread: false,
         del_last_index: 1,
@@ -313,30 +321,60 @@ function TaskPage({ darkMode }) {
     [tabData, activeSubTab],
   );
 
-  const filteredData = useMemo(
-    () =>
-      subTabData.filter((r) => {
-        const s = filters.search;
-        const ms =
-          !s ||
-          ["dtn", "ltoCompany", "prodBrName", "prodGenName", "prodManu"].some(
-            (f) =>
-              String(r[f] ?? "")
-                .toLowerCase()
-                .includes(s.toLowerCase()),
-          );
-        const ma = !filters.appType || r.appType === filters.appType;
-        const mp =
-          !filters.prescription ||
-          r.prodClassPrescript === filters.prescription;
-        const mst = !filters.appStatus || r.appStatus === filters.appStatus;
-        const mpt =
-          !filters.processingType ||
-          r.processingType === filters.processingType;
-        return ms && ma && mp && mst && mpt;
-      }),
-    [subTabData, filters],
-  );
+  const filteredData = useMemo(() => {
+    const filtered = subTabData.filter((r) => {
+      const s = filters.search;
+      const ms =
+        !s ||
+        ["dtn", "ltoCompany", "prodBrName", "prodGenName", "prodManu"].some(
+          (f) =>
+            String(r[f] ?? "")
+              .toLowerCase()
+              .includes(s.toLowerCase()),
+        );
+      const ma = !filters.appType || r.appType === filters.appType;
+      const mp =
+        !filters.prescription || r.prodClassPrescript === filters.prescription;
+      const mst = !filters.appStatus || r.appStatus === filters.appStatus;
+      const mpt =
+        !filters.processingType || r.processingType === filters.processingType;
+
+      const msb =
+        !filters.sentBy ||
+        (r.sentBy ?? "").toLowerCase().includes(filters.sentBy.toLowerCase());
+
+      const from = filters.lastModifiedFrom
+        ? new Date(filters.lastModifiedFrom)
+        : null;
+      const to = filters.lastModifiedTo
+        ? new Date(filters.lastModifiedTo + "T23:59:59")
+        : null;
+      const lm = r.lastModified ? new Date(r.lastModified) : null;
+      const mfrom = !from || (lm && lm >= from);
+      const mto = !to || (lm && lm <= to);
+      const mcat = !filters.estCat || r.estCat === filters.estCat;
+      return ms && ma && mp && mst && mpt && msb && mfrom && mto && mcat;
+    });
+
+    // ── Frontend sort for sentBy and lastModified ──
+    if (sortBy === "log_sent_by" || sortBy === "log_last_modified") {
+      filtered.sort((a, b) => {
+        let valA, valB;
+        if (sortBy === "log_sent_by") {
+          valA = (a.sentBy ?? "").toLowerCase();
+          valB = (b.sentBy ?? "").toLowerCase();
+        } else {
+          valA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+          valB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+        }
+        if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+        if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [subTabData, filters, sortBy, sortOrder]);
 
   // persistent, hindi nire-reset ang ibang selections
   const handleSelectAll = () => {
@@ -374,7 +412,11 @@ function TaskPage({ darkMode }) {
     filters.appType ||
     filters.prescription ||
     filters.appStatus ||
-    filters.processingType;
+    filters.processingType ||
+    filters.sentBy ||
+    filters.lastModifiedFrom ||
+    filters.lastModifiedTo ||
+    filters.estCat;
 
   const emptyLabel =
     activeSubTab === "received"
@@ -530,7 +572,225 @@ function TaskPage({ darkMode }) {
             darkMode={darkMode}
           />
         )}
+        {/* ── Sent By + Last Modified inline filters ── */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            flexWrap: "wrap",
+            flexShrink: 0,
+            padding: "0.5rem 0.75rem",
+            background: darkMode
+              ? "rgba(255,255,255,0.03)"
+              : "rgba(0,0,0,0.02)",
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 8,
+          }}
+        >
+          {/* Sent By */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                color: colors.textTertiary,
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              👤 Sent By
+            </span>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                placeholder="Search sender..."
+                value={filters.sentBy}
+                onChange={(e) =>
+                  setFilters({ ...filters, sentBy: e.target.value })
+                }
+                style={{
+                  padding: "0.35rem 1.5rem 0.35rem 0.6rem",
+                  background: colors.inputBg,
+                  border: `1px solid ${filters.sentBy ? "#4CAF50" : colors.inputBorder}`,
+                  borderRadius: 6,
+                  color: colors.textPrimary,
+                  fontSize: "0.7rem",
+                  outline: "none",
+                  width: 140,
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                onBlur={(e) =>
+                  (e.target.style.borderColor = filters.sentBy
+                    ? "#4CAF50"
+                    : colors.inputBorder)
+                }
+              />
+              {filters.sentBy && (
+                <button
+                  onClick={() => setFilters({ ...filters, sentBy: "" })}
+                  style={{
+                    position: "absolute",
+                    right: "0.4rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    color: colors.textTertiary,
+                    cursor: "pointer",
+                    fontSize: "0.75rem",
+                    padding: 0,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
 
+          {/* Divider */}
+          <div
+            style={{ width: 1, height: 24, background: colors.cardBorder }}
+          />
+
+          {/* Last Modified From - To */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                color: colors.textTertiary,
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              🕓 Last Modified
+            </span>
+            <input
+              type="date"
+              value={filters.lastModifiedFrom}
+              onChange={(e) =>
+                setFilters({ ...filters, lastModifiedFrom: e.target.value })
+              }
+              style={{
+                padding: "0.35rem 0.6rem",
+                background: colors.inputBg,
+                border: `1px solid ${filters.lastModifiedFrom ? "#4CAF50" : colors.inputBorder}`,
+                borderRadius: 6,
+                color: colors.textPrimary,
+                fontSize: "0.7rem",
+                outline: "none",
+                colorScheme: darkMode ? "dark" : "light",
+              }}
+            />
+            <span style={{ fontSize: "0.7rem", color: colors.textTertiary }}>
+              to
+            </span>
+            <input
+              type="date"
+              value={filters.lastModifiedTo}
+              onChange={(e) =>
+                setFilters({ ...filters, lastModifiedTo: e.target.value })
+              }
+              style={{
+                padding: "0.35rem 0.6rem",
+                background: colors.inputBg,
+                border: `1px solid ${filters.lastModifiedTo ? "#4CAF50" : colors.inputBorder}`,
+                borderRadius: 6,
+                color: colors.textPrimary,
+                fontSize: "0.7rem",
+                outline: "none",
+                colorScheme: darkMode ? "dark" : "light",
+              }}
+            />
+            {(filters.lastModifiedFrom || filters.lastModifiedTo) && (
+              <button
+                onClick={() =>
+                  setFilters({
+                    ...filters,
+                    lastModifiedFrom: "",
+                    lastModifiedTo: "",
+                  })
+                }
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#ef4444",
+                  cursor: "pointer",
+                  fontSize: "0.75rem",
+                  padding: 0,
+                  fontWeight: 600,
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div
+            style={{ width: 1, height: 24, background: colors.cardBorder }}
+          />
+
+          {/* Category */}
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                color: colors.textTertiary,
+                fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}
+            >
+              🗂️ Category
+            </span>
+            <select
+              value={filters.estCat}
+              onChange={(e) =>
+                setFilters({ ...filters, estCat: e.target.value })
+              }
+              style={{
+                padding: "0.35rem 0.6rem",
+                background: colors.inputBg,
+                border: `1px solid ${filters.estCat ? "#4CAF50" : colors.inputBorder}`,
+                borderRadius: 6,
+                color: filters.estCat
+                  ? colors.textPrimary
+                  : colors.textTertiary,
+                fontSize: "0.7rem",
+                outline: "none",
+                cursor: "pointer",
+              }}
+            >
+              <option value="">All</option>
+              {Array.from(
+                new Set(
+                  data.map((r) => r.estCat).filter((v) => v && v !== "N/A"),
+                ),
+              )
+                .sort()
+                .map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+            </select>
+            {filters.estCat && (
+              <button
+                onClick={() => setFilters({ ...filters, estCat: "" })}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "#ef4444",
+                  cursor: "pointer",
+                  fontSize: "0.75rem",
+                  padding: 0,
+                  fontWeight: 600,
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
         {/* Active filter chips */}
         {hasActiveFilters && (
           <div
@@ -580,6 +840,30 @@ function TaskPage({ darkMode }) {
                 colors={colors}
               />
             )}
+
+            {filters.sentBy && (
+              <Chip
+                label={`Sent By: "${filters.sentBy}"`}
+                onRemove={() => setFilters({ ...filters, sentBy: "" })}
+                colors={colors}
+              />
+            )}
+            {filters.lastModifiedFrom && (
+              <Chip
+                label={`From: ${filters.lastModifiedFrom}`}
+                onRemove={() =>
+                  setFilters({ ...filters, lastModifiedFrom: "" })
+                }
+                colors={colors}
+              />
+            )}
+            {filters.lastModifiedTo && (
+              <Chip
+                label={`To: ${filters.lastModifiedTo}`}
+                onRemove={() => setFilters({ ...filters, lastModifiedTo: "" })}
+                colors={colors}
+              />
+            )}
             <button
               onClick={() =>
                 setFilters({
@@ -588,6 +872,10 @@ function TaskPage({ darkMode }) {
                   prescription: "",
                   appStatus: "",
                   processingType: "",
+                  sentBy: "",
+                  lastModifiedFrom: "",
+                  lastModifiedTo: "",
+                  estCat: "",
                 })
               }
               style={{
@@ -729,6 +1017,8 @@ function TaskPage({ darkMode }) {
               onSort={handleSort}
               readIds={readIds}
               onMarkAsRead={markAsRead}
+              visibleColumnKeys={visibleColumnKeys}
+              onVisibleColumnKeysChange={setVisibleColumnKeys}
             />
           </div>
         )}

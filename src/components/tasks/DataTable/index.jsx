@@ -56,6 +56,8 @@ function DataTable({
   readIds = new Set(),
   onMarkAsRead,
   activeSubTab = "not_yet",
+  visibleColumnKeys = null,
+  onVisibleColumnKeysChange,
 }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
@@ -69,6 +71,7 @@ function DataTable({
   const [showBulkDeck, setShowBulkDeck] = useState(false);
   const [showBulkComplete, setShowBulkComplete] = useState(false);
   const { showGuide, openGuide, closeGuide } = useHowToUseGuide();
+  const [showColPicker, setShowColPicker] = useState(false);
 
   const isComplianceTab = activeTab === "Compliance";
   const isRecordTab = activeTab === "Record";
@@ -80,11 +83,18 @@ function DataTable({
     !!bulkDeckConfig && isReceivedSubTab && selectedRows.length > 0;
 
   /* ── Visible columns ── */
-  const visibleColumns = isRecordTab
+  const allColumns = isRecordTab
     ? RECORD_TAB_COLUMNS.map((key) =>
         tableColumns.find((col) => col.key === key),
       ).filter(Boolean)
     : tableColumns.filter((col) => !col.complianceOnly || isComplianceTab);
+
+  const visibleColumns = visibleColumnKeys
+    ? allColumns.filter(
+        (col) =>
+          col.key === "__divider__" || visibleColumnKeys.includes(col.key),
+      )
+    : allColumns;
 
   /* ── Sort ── */
   const getDbKey = (k) => COLUMN_DB_KEY_MAP[k] || k;
@@ -774,6 +784,178 @@ function DataTable({
                 <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
               </span>
             )}
+            {/* Column Picker */}
+            <div style={{ position: "relative", marginLeft: "auto" }}>
+              <button
+                onClick={() => setShowColPicker((p) => !p)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  padding: "0.4rem 0.85rem",
+                  background: showColPicker
+                    ? "linear-gradient(135deg,#4f46e5,#4338ca)"
+                    : colors.badgeBg,
+                  border: `1px solid ${showColPicker ? "#4f46e5" : colors.cardBorder}`,
+                  borderRadius: 8,
+                  color: showColPicker ? "#fff" : colors.textSecondary,
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                <span>⚙️</span>
+                Columns
+                {visibleColumnKeys && (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: "1.1rem",
+                      height: "1.1rem",
+                      padding: "0 0.25rem",
+                      background: "#4f46e5",
+                      borderRadius: 999,
+                      fontSize: "0.6rem",
+                      fontWeight: 800,
+                      color: "#fff",
+                    }}
+                  >
+                    {visibleColumnKeys.length}
+                  </span>
+                )}
+              </button>
+
+              {showColPicker && (
+                <>
+                  <div
+                    onClick={() => setShowColPicker(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 9998 }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 8px)",
+                      right: 0,
+                      background: colors.cardBg,
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: 10,
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+                      zIndex: 9999,
+                      width: 220,
+                      maxHeight: 400,
+                      overflowY: "auto",
+                      padding: "0.5rem 0",
+                    }}
+                  >
+                    {/* Header */}
+                    <div
+                      style={{
+                        padding: "0.5rem 0.85rem 0.4rem",
+                        borderBottom: `1px solid ${colors.tableBorder}`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        Toggle Columns
+                      </span>
+                      <button
+                        onClick={() => onVisibleColumnKeysChange?.(null)}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: "#4CAF50",
+                          fontSize: "0.65rem",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Show All
+                      </button>
+                    </div>
+
+                    {/* Column list */}
+                    {allColumns
+                      .filter((col) => col.key !== "__divider__" && col.label)
+                      .map((col) => {
+                        const isChecked =
+                          !visibleColumnKeys ||
+                          visibleColumnKeys.includes(col.key);
+                        return (
+                          <label
+                            key={col.key}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.6rem",
+                              padding: "0.45rem 0.85rem",
+                              cursor: "pointer",
+                              fontSize: "0.75rem",
+                              color: colors.textPrimary,
+                              transition: "background .15s",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background =
+                                colors.tableRowHover)
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "transparent")
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                const currentKeys =
+                                  visibleColumnKeys ||
+                                  allColumns
+                                    .filter(
+                                      (c) => c.key !== "__divider__" && c.label,
+                                    )
+                                    .map((c) => c.key);
+                                const next = isChecked
+                                  ? currentKeys.filter((k) => k !== col.key)
+                                  : [...currentKeys, col.key];
+                                onVisibleColumnKeysChange?.(
+                                  next.length ===
+                                    allColumns.filter(
+                                      (c) => c.key !== "__divider__" && c.label,
+                                    ).length
+                                    ? null
+                                    : next,
+                                );
+                              }}
+                              style={{
+                                accentColor: "#4CAF50",
+                                width: 14,
+                                height: 14,
+                              }}
+                            />
+                            <span
+                              style={{
+                                color: col.complianceOnly
+                                  ? "#f59e0b"
+                                  : colors.textPrimary,
+                              }}
+                            >
+                              {col.label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -850,76 +1032,93 @@ function DataTable({
                   #
                 </th>
 
-                {visibleColumns.map((col) => (
-                  <th
-                    key={col.key}
-                    onClick={() => handleSort(col.key)}
-                    style={{
-                      padding: "1rem",
-                      textAlign: "left",
-                      fontSize: "0.6rem",
-                      fontWeight: 600,
-                      color: col.complianceOnly
-                        ? "#f59e0b"
-                        : colors.textTertiary,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.05em",
-                      borderBottom: `1px solid ${colors.tableBorder}`,
-                      borderTop: col.complianceOnly
-                        ? "2px solid #f59e0b"
-                        : undefined,
-                      width: col.width,
-                      minWidth: col.width,
-                      whiteSpace: "nowrap",
-                      ...(col.frozen
-                        ? {
-                            position: "sticky",
-                            left: col.frozenLeft,
-                            zIndex: 22,
-                            background: colors.tableBg,
-                            boxShadow: "2px 0 6px rgba(0,0,0,0.18)",
-                          }
-                        : {
-                            background: col.complianceOnly
-                              ? darkMode
-                                ? "rgba(245,158,11,0.08)"
-                                : "rgba(245,158,11,0.05)"
-                              : colors.tableBg,
-                          }),
-                      cursor:
-                        col.key !== "statusTimeline" &&
-                        col.key !== "deadlineDate"
-                          ? "pointer"
-                          : "default",
-                      userSelect: "none",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (
-                        col.key !== "statusTimeline" &&
-                        col.key !== "deadlineDate"
-                      )
-                        e.currentTarget.style.background = darkMode
-                          ? "#1e1e1e"
-                          : "#ebebeb";
-                    }}
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = col.frozen
-                        ? colors.tableBg
-                        : col.complianceOnly
-                          ? darkMode
-                            ? "rgba(245,158,11,0.08)"
-                            : "rgba(245,158,11,0.05)"
-                          : colors.tableBg)
-                    }
-                  >
-                    <span
-                      style={{ display: "inline-flex", alignItems: "center" }}
+                {visibleColumns.map((col) =>
+                  col.key === "__divider__" ? (
+                    <th
+                      key="__divider__"
+                      style={{
+                        padding: 0,
+                        width: "1px",
+                        minWidth: "4px",
+                        background: darkMode
+                          ? "rgba(156,163,175,0.25)"
+                          : "rgba(156,163,175,0.15)",
+                        borderBottom: `1px solid ${colors.tableBorder}`,
+                        borderLeft: "1px solid rgba(156,163,175,0.3)",
+                        borderRight: "1px solid rgba(156,163,175,0.3)",
+                      }}
+                    />
+                  ) : (
+                    <th
+                      key={col.key}
+                      onClick={() => handleSort(col.key)}
+                      style={{
+                        padding: "1rem",
+                        textAlign: "left",
+                        fontSize: "0.6rem",
+                        fontWeight: 600,
+                        color: col.complianceOnly
+                          ? "#f59e0b"
+                          : colors.textTertiary,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                        borderBottom: `1px solid ${colors.tableBorder}`,
+                        borderTop: col.complianceOnly
+                          ? "2px solid #f59e0b"
+                          : undefined,
+                        width: col.width,
+                        minWidth: col.width,
+                        whiteSpace: "nowrap",
+                        ...(col.frozen
+                          ? {
+                              position: "sticky",
+                              left: col.frozenLeft,
+                              zIndex: 22,
+                              background: colors.tableBg,
+                              boxShadow: "2px 0 6px rgba(0,0,0,0.18)",
+                            }
+                          : {
+                              background: col.complianceOnly
+                                ? darkMode
+                                  ? "rgba(245,158,11,0.08)"
+                                  : "rgba(245,158,11,0.05)"
+                                : colors.tableBg,
+                            }),
+                        cursor:
+                          col.key !== "statusTimeline" &&
+                          col.key !== "deadlineDate"
+                            ? "pointer"
+                            : "default",
+                        userSelect: "none",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (
+                          col.key !== "statusTimeline" &&
+                          col.key !== "deadlineDate"
+                        )
+                          e.currentTarget.style.background = darkMode
+                            ? "#1e1e1e"
+                            : "#ebebeb";
+                      }}
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = col.frozen
+                          ? colors.tableBg
+                          : col.complianceOnly
+                            ? darkMode
+                              ? "rgba(245,158,11,0.08)"
+                              : "rgba(245,158,11,0.05)"
+                            : colors.tableBg)
+                      }
                     >
-                      {col.label}
-                      <SortIcon colKey={col.key} />
-                    </span>
-                  </th>
-                ))}
+                      <span
+                        style={{ display: "inline-flex", alignItems: "center" }}
+                      >
+                        {col.label}
+                        <SortIcon colKey={col.key} />
+                      </span>
+                    </th>
+                  ),
+                )}
 
                 <th
                   style={{
@@ -1072,52 +1271,69 @@ function DataTable({
                       {(indexOfFirstRow || 0) + idx + 1}
                     </td>
 
-                    {visibleColumns.map((col) => (
-                      <td
-                        key={col.key}
-                        onClick={
-                          col.key === "dtn"
-                            ? () => openDoctrack(row)
-                            : undefined
-                        }
-                        style={{
-                          padding: "1rem",
-                          fontSize: "0.78rem",
-                          fontWeight: isUnread ? 700 : 400,
-                          color: isUnread
-                            ? colors.textPrimary
-                            : colors.tableText,
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          whiteSpace:
-                            col.key === "deadlineDate" || col.wrap
-                              ? "normal"
-                              : "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          width: col.width,
-                          minWidth: col.width,
-                          ...(col.frozen
-                            ? {
-                                position: "sticky",
-                                left: col.frozenLeft,
-                                background: solidStickyBg,
-                                zIndex: 9,
-                                boxShadow: "2px 0 6px rgba(0,0,0,0.18)",
-                                transition: "background .2s",
-                              }
-                            : {
-                                background: col.complianceOnly
-                                  ? darkMode
-                                    ? "rgba(245,158,11,0.04)"
-                                    : "rgba(245,158,11,0.02)"
-                                  : undefined,
-                              }),
-                          cursor: col.key === "dtn" ? "pointer" : undefined,
-                        }}
-                      >
-                        {renderCell(col, row, colors)}
-                      </td>
-                    ))}
+                    {visibleColumns.map((col) =>
+                      col.key === "__divider__" ? (
+                        <td
+                          key="__divider__"
+                          style={{
+                            padding: 0,
+                            width: "1px",
+                            minWidth: "4px",
+                            background: darkMode
+                              ? "rgba(156,163,175,0.25)"
+                              : "rgba(156,163,175,0.15)",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                            borderLeft: "1px solid rgba(156,163,175,0.3)",
+                            borderRight: "1px solid rgba(156,163,175,0.3)",
+                          }}
+                        />
+                      ) : (
+                        <td
+                          key={col.key}
+                          onClick={
+                            col.key === "dtn"
+                              ? () => openDoctrack(row)
+                              : undefined
+                          }
+                          style={{
+                            padding: "1rem",
+                            fontSize: "0.78rem",
+                            fontWeight: isUnread ? 700 : 400,
+                            color: isUnread
+                              ? colors.textPrimary
+                              : colors.tableText,
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                            whiteSpace:
+                              col.key === "deadlineDate" || col.wrap
+                                ? "normal"
+                                : "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            width: col.width,
+                            minWidth: col.width,
+                            ...(col.frozen
+                              ? {
+                                  position: "sticky",
+                                  left: col.frozenLeft,
+                                  background: solidStickyBg,
+                                  zIndex: 9,
+                                  boxShadow: "2px 0 6px rgba(0,0,0,0.18)",
+                                  transition: "background .2s",
+                                }
+                              : {
+                                  background: col.complianceOnly
+                                    ? darkMode
+                                      ? "rgba(245,158,11,0.04)"
+                                      : "rgba(245,158,11,0.02)"
+                                    : undefined,
+                                }),
+                            cursor: col.key === "dtn" ? "pointer" : undefined,
+                          }}
+                        >
+                          {renderCell(col, row, colors)}
+                        </td>
+                      ),
+                    )}
 
                     {/* Actions cell */}
                     <td
