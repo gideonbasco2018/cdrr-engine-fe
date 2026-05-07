@@ -58,7 +58,10 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
     (filters.appType ? 1 : 0) +
     (filters.prescription ? 1 : 0) +
     (filters.appStatus ? 1 : 0) +
-    (filters.processingType ? 1 : 0);
+    (filters.processingType ? 1 : 0) +
+    (filters.sentBy ? 1 : 0) +
+    (filters.lastModifiedFrom ? 1 : 0) +
+    (filters.lastModifiedTo ? 1 : 0);
 
   if (!isSidebarOpen) {
     return (

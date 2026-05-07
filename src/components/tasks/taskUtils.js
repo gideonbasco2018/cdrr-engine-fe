@@ -103,6 +103,13 @@ export const mapWorkflowTask = (task, index) => {
 
     // ── From ApplicationLog (task itself) ──────────────────────────
     applicationStep: task.application_step ?? "N/A",
+
+    // ── Sent By (from previous log's user) ────────────────────────────
+    sentBy: [task.sent_by_surname, task.sent_by_first_name]
+              .filter(Boolean)
+              .join(", ") || task.sent_by_user_name || null,
+    // ── Last Modified (when the previous step forwarded it) ───────────
+    lastModified: task.sent_at ?? null,
     accomplishedDate: task.accomplished_date ?? "N/A",
     logCreatedAt: task.created_at ?? "N/A",
     evaluator: task.user_name ?? "N/A",
