@@ -89,8 +89,30 @@ const numCell = (v, colors) =>
     </span>
   );
 
-export const renderDTN = (v) =>
-  pill("linear-gradient(135deg,#8b5cf6,#7c3aed)", "rgba(139,92,246,.3)", v);
+// BAGO — plain text na lang
+export const renderDTN = (v, colors) =>
+  v != null && v !== "" ? (
+    <span
+      style={{
+        fontSize: "0.78rem",
+        fontWeight: 600,
+        color: colors?.tableText,
+        fontFamily: "monospace",
+      }}
+    >
+      {v}
+    </span>
+  ) : (
+    <span
+      style={{
+        color: colors?.textTertiary,
+        fontSize: "0.78rem",
+        fontStyle: "italic",
+      }}
+    >
+      N/A
+    </span>
+  );
 
 export const renderGenericName = (v) =>
   pill("linear-gradient(135deg,#06b6d4,#0891b2)", "rgba(6,182,212,.3)", v);
@@ -474,7 +496,7 @@ export const renderCell = (col, row, colors) => {
   const v = row[col.key]; // col.key is the exact field name from the API response
   switch (col.key) {
     case "dtn":
-      return renderDTN(v);
+      return renderDTN(v, colors);
     case "prodGenName":
       return renderGenericName(v);
     case "prodBrName":

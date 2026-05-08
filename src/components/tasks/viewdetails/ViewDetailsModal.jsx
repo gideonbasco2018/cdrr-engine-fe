@@ -17,7 +17,7 @@ import { Step2FullDetails } from "./steps/Step2FullDetails";
 import { Step3AppLogs } from "./steps/Step3AppLogs";
 import { Step4ActionForm } from "./steps/Step4ActionForm";
 import { StepCPRView } from "./steps/StepCPRView";
-
+import { SpellCheckButton } from "./steps/SpellCheckButton";
 const STEPS = ["Basic Info", "Full Details", "App Logs", "Action"];
 
 // ─── View mode toggle icon buttons ───
@@ -389,6 +389,7 @@ export default function ViewDetailsModal({
           </div>
 
           {/* Right: view toggle + close */}
+          {/* Right: spell check + view toggle + close */}
           <div
             style={{
               display: "flex",
@@ -397,6 +398,16 @@ export default function ViewDetailsModal({
               flexShrink: 0,
             }}
           >
+            {/* Spell Check — Step 1 + normal mode + canEdit lang */}
+            {!isCPR && currentStep === 1 && canEdit && (
+              <SpellCheckButton
+                record={record}
+                editedFields={editedFields}
+                onFieldChange={handleFieldChange}
+                colors={colors}
+              />
+            )}
+
             <ViewModeToggle
               mode={viewMode}
               onChange={handleViewModeChange}

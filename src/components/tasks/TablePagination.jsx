@@ -1,5 +1,4 @@
-import { useState } from "react";
-
+import { useState, useEffect } from "react";
 function TablePagination({
   currentPage,
   rowsPerPage,
@@ -12,6 +11,10 @@ function TablePagination({
   colors,
 }) {
   const [pageInput, setPageInput] = useState(String(currentPage));
+
+  useEffect(() => {
+    setPageInput(String(currentPage));
+  }, [currentPage]);
 
   const handlePageJump = () => {
     const n = parseInt(pageInput);

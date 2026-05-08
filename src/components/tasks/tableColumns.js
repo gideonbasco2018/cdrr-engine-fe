@@ -1,17 +1,18 @@
 // ── Column order: applicationStep, sentBy, lastModified appear right after DTN ──
 export const tableColumns = [
-  { key: "dtn", label: "DTN", width: "180px" },
+
+  // ── From application_logs — mapped from top-level fields in the API response
+  { key: "sentBy",          label: "Sent By",       width: "150px" },
+  { key: "lastModified",    label: "Last Modified", width: "120px" },
+    { key: "dtn", label: "DTN", width: "140px" },
   // { key: "appStatus",             label: "Status",             width: "130px" },
 
   // Compliance-only deadline column (still right after DTN when visible)
-  { key: "deadlineDate", label: "Compliance Deadline", width: "180px", complianceOnly: true },
+  { key: "deadlineDate", label: "Compliance Deadline", width: "140px", complianceOnly: true },
 
-  // ── From application_logs — mapped from top-level fields in the API response
-  { key: "sentBy",          label: "Sent By",       width: "160px" },
-  { key: "lastModified",    label: "Last Modified", width: "170px" },
   // ─────────────────────────────────────────────────────────────────────────
   { key: "__divider__",  label: "",              width: "1px"   },
-  { key: "estCat",                label: "Category",           width: "120px" },
+  { key: "estCat",                label: "Category",           width: "80px" },
   { key: "ltoCompany",            label: "LTO Company",        width: "200px" },
   { key: "ltoAdd",                label: "LTO Address",        width: "200px" },
   { key: "eadd",                  label: "Email",              width: "180px" },

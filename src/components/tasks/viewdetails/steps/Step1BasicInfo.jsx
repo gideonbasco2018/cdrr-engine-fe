@@ -13,7 +13,6 @@ import {
   SummaryCard,
   CountrySelect,
 } from "../components/BaseFields";
-import { SpellCheckButton } from "./SpellCheckButton";
 export function Step1BasicInfo({
   record,
   editedFields,
@@ -515,16 +514,6 @@ export function Step1BasicInfo({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
-      {canEdit && (
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
-          <SpellCheckButton
-            record={record}
-            editedFields={editedFields}
-            onFieldChange={onFieldChange}
-            colors={colors}
-          />
-        </div>
-      )}
       {/* ── QA Admin required fields banner ── */}
       {isQAAdmin && (
         <div
