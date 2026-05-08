@@ -13,6 +13,7 @@ import ReassignmentModal from "./actions/ReassignmentModal";
 import RerouteModal from "./actions/RerouteModal";
 import UpdateCPRModal from "./actions/UpdateCPRModal";
 import { BulkCompleteModal } from "../tasks/DataTable/BulkCompleteModal";
+import { closeTasksBulk, getCurrentUser } from "../../api/closed-tasks";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -1753,52 +1754,55 @@ function DataTable({
           darkMode={darkMode}
           onClose={() => setBulkCompleteModalRecords(null)}
           onConfirm={async ({ remarks, reason }) => {
-            const { getApplicationLogs, updateApplicationLog } =
-              await import("../../api/application-logs");
+            // ── 1. Get the logged-in user ────────────────────────────────────
+            const me = getCurrentUser();
+            if (!me?.id) throw new Error("No logged-in user found.");
+
+            // ── 2. Build the PHT timestamp (UTC+8) ───────────────────────────
+            const closedAt = new Date(
+              Date.now() + 8 * 60 * 60 * 1000,
+            ).toISOString();
+
+            // ── 3. Call POST /api/closed-tasks/bulk ──────────────────────────
+            //    Backend will:
+            //      a) find each record's IN PROGRESS log
+            //      b) mark it COMPLETED (action_type = PERMANENT_CLOSE)
+            //      c) insert a row in closed_tasks for audit
+            const mainDbIds = bulkCompleteModalRecords.map(
+              (r) => r.mainDbId ?? r.id,
+            );
+
+            await closeTasksBulk({
+              main_db_ids: mainDbIds,
+              reason_for_closing: reason,
+              remarks: remarks || null,
+              closed_by_user_id: me.id,
+              closed_by_user_name: me.username,
+              closed_at: closedAt,
+            });
+            // ↑ throws on HTTP error → caught by BulkCompleteModal → result.failed
+
+            // ── 4. Sync DB_APP_STATUS on main_db per row ─────────────────────
+            //    (closed-tasks backend doesn't touch main_db table)
             const { updateUploadReport: updateReport } =
               await import("../../api/reports");
 
-            const now = new Date();
-            const formattedDateTime = new Date(
-              now.getTime() + 8 * 60 * 60 * 1000,
-            ).toISOString();
+            let success = 0;
+            let failed = 0;
 
-            let success = 0,
-              failed = 0;
-
-            for (const row of bulkCompleteModalRecords) {
-              try {
-                // 1. Hanapin ang open log ng record
-                const logs = await getApplicationLogs(row.mainDbId ?? row.id);
-                const openLog = Array.isArray(logs)
-                  ? logs.find(
-                      (l) => l.del_thread === "Open" && l.del_last_index === 1,
-                    )
-                  : null;
-
-                if (openLog) {
-                  await updateApplicationLog(openLog.id, {
-                    application_status: "COMPLETED",
-                    application_decision: reason,
-                    application_remarks: remarks || "",
-                    action_type: "Mark as Completed",
-                    accomplished_date: formattedDateTime,
-                    del_last_index: 0,
-                    del_thread: "Close",
+            await Promise.allSettled(
+              bulkCompleteModalRecords.map(async (row) => {
+                try {
+                  await updateReport(row.mainDbId ?? row.id, {
+                    DB_APP_STATUS: "COMPLETED",
                   });
+                  success++;
+                } catch (e) {
+                  console.error(`updateReport failed for id ${row.id}:`, e);
+                  failed++;
                 }
-
-                // 2. I-update ang MainDB status
-                await updateReport(row.mainDbId ?? row.id, {
-                  DB_APP_STATUS: "COMPLETED",
-                });
-
-                success++;
-              } catch (e) {
-                console.error(`Failed for row id ${row.id}:`, e);
-                failed++;
-              }
-            }
+              }),
+            );
 
             return { success, failed };
           }}

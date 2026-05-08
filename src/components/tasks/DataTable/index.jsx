@@ -30,7 +30,7 @@ import {
 } from "./constants";
 import { BulkCompleteModal } from "./BulkCompleteModal";
 import HowToUseModal, { useHowToUseGuide } from "./HowToUseModal";
-
+import { closeTasksBulk, getCurrentUser } from "../../../api/closed-tasks";
 /* ================================================================== */
 function DataTable({
   data,
@@ -363,6 +363,14 @@ function DataTable({
   };
 
   const handleBulkComplete = async ({ remarks, reason }) => {
+    // ── 1. Get logged-in user ──────────────────────────────────────────
+    const me = getCurrentUser();
+    if (!me?.id) throw new Error("No logged-in user found.");
+
+    // ── 2. PHT timestamp ───────────────────────────────────────────────
+    const closedAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
+
+    // ── 3. Collect main_db_ids ─────────────────────────────────────────
     const seen = new Set();
     const selectedData = data
       .filter((r) => selectedRows.includes(r.id))
@@ -372,35 +380,40 @@ function DataTable({
         return true;
       });
 
-    let success = 0,
-      failed = 0;
-    const now = new Date();
-    const formattedDateTime = new Date(
-      now.getTime() + 8 * 60 * 60 * 1000,
-    ).toISOString();
+    const mainDbIds = selectedData.map((r) => r.mainDbId ?? r.id);
 
-    for (const row of selectedData) {
-      try {
-        const { id: logId, mainDbId } = row;
-        await updateApplicationLog(logId, {
-          application_status: "COMPLETED",
-          application_decision: reason,
-          application_remarks: remarks || "",
-          action_type: "Mark as Completed",
-          accomplished_date: formattedDateTime,
-          del_last_index: 0,
-          del_thread: "Close",
-        });
-        await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
-        success++;
-      } catch (e) {
-        console.error(`Bulk complete failed for row id ${row.id}:`, e);
-        failed++;
-      }
-    }
+    // ── 4. POST /api/closed-tasks/bulk ────────────────────────────────
+    //    Backend handles: find active log → COMPLETED (PERMANENT_CLOSE)
+    //                     + insert closed_tasks audit row
+    await closeTasksBulk({
+      main_db_ids: mainDbIds,
+      reason_for_closing: reason,
+      remarks: remarks || null,
+      closed_by_user_id: me.id,
+      closed_by_user_name: me.username,
+      closed_at: closedAt,
+    });
+
+    // ── 5. Sync DB_APP_STATUS on main_db ──────────────────────────────
+    let success = 0;
+    let failed = 0;
+
+    await Promise.allSettled(
+      selectedData.map(async (row) => {
+        try {
+          await updateUploadReport(row.mainDbId ?? row.id, {
+            DB_APP_STATUS: "COMPLETED",
+          });
+          success++;
+        } catch (e) {
+          console.error(`updateReport failed for id ${row.id}:`, e);
+          failed++;
+        }
+      }),
+    );
+
     return { success, failed };
   };
-
   /* ── Transmittal ── */
   const handleGenerateTransmittal = async () => {
     if (!selectedRows.length) return;
