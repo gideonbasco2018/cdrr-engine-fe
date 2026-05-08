@@ -63,66 +63,70 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
     (filters.lastModifiedFrom ? 1 : 0) +
     (filters.lastModifiedTo ? 1 : 0);
 
+  const iconBtn = (onClick, title, children) => (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: "28px",
+        height: "28px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "transparent",
+        border: `1px solid ${colors.cardBorder}`,
+        borderRadius: "6px",
+        cursor: "pointer",
+        color: colors.textTertiary,
+        fontSize: "0.7rem",
+        transition: "all 0.2s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#e5e5e5";
+        e.currentTarget.style.color = colors.textPrimary;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.color = colors.textTertiary;
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  /* ── Collapsed state ── */
   if (!isSidebarOpen) {
     return (
       <div
         style={{
-          width: "52px",
-          minWidth: "52px",
+          width: "44px",
+          minWidth: "44px",
           background: darkMode ? "#0a0a0a" : "#ffffff",
           borderRight: `1px solid ${colors.cardBorder}`,
-          padding: "1rem 0",
+          padding: "0.75rem 0",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: "1rem",
+          gap: "0.85rem",
           flexShrink: 0,
-          transition: "width 0.25s ease, min-width 0.25s ease",
         }}
       >
-        <button
-          onClick={() => setIsSidebarOpen(true)}
-          title="Show Quick Filters"
-          style={{
-            width: "30px",
-            height: "30px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "transparent",
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "6px",
-            cursor: "pointer",
-            color: colors.textTertiary,
-            fontSize: "0.75rem",
-            transition: "all 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#e5e5e5";
-            e.currentTarget.style.color = colors.textPrimary;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = colors.textTertiary;
-          }}
-        >
-          ▶
-        </button>
+        {iconBtn(() => setIsSidebarOpen(true), "Show filters", "▶")}
 
         {activeFilterCount > 0 && (
           <div
             onClick={() => setIsSidebarOpen(true)}
-            title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""} — click to expand`}
+            title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""}`}
             style={{
-              width: "20px",
-              height: "20px",
-              background: "#2196F3",
+              width: "18px",
+              height: "18px",
+              background: "#6366f1",
               borderRadius: "50%",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "0.7rem",
-              fontWeight: "700",
+              fontSize: "0.6rem",
+              fontWeight: 700,
               color: "#fff",
               cursor: "pointer",
             }}
@@ -131,169 +135,133 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
           </div>
         )}
 
-        <span
-          title="Application Type (click to expand)"
-          style={{
-            fontSize: "1.2rem",
-            opacity: filters.appType ? 1 : 0.3,
-            cursor: "pointer",
-          }}
-          onClick={() => setIsSidebarOpen(true)}
-        >
-          📄
-        </span>
-        <span
-          title="Prescriptions (click to expand)"
-          style={{
-            fontSize: "1.2rem",
-            opacity: filters.prescription ? 1 : 0.3,
-            cursor: "pointer",
-          }}
-          onClick={() => setIsSidebarOpen(true)}
-        >
-          💊
-        </span>
-        <span
-          title="All Status (click to expand)"
-          style={{
-            fontSize: "1.2rem",
-            opacity: filters.appStatus ? 1 : 0.3,
-            cursor: "pointer",
-          }}
-          onClick={() => setIsSidebarOpen(true)}
-        >
-          🔖
-        </span>
-        <span
-          title="Processing Type (click to expand)"
-          style={{
-            fontSize: "1.2rem",
-            opacity: filters.processingType ? 1 : 0.3,
-            cursor: "pointer",
-          }}
-          onClick={() => setIsSidebarOpen(true)}
-        >
-          ⚙️
-        </span>
+        {[
+          { icon: "🗂️", key: "appType", title: "Application Type" },
+          { icon: "💊", key: "prescription", title: "Classification" },
+          { icon: "📌", key: "appStatus", title: "Status" },
+          { icon: "⚡", key: "processingType", title: "Processing Type" },
+        ].map(({ icon, key, title }) => (
+          <span
+            key={key}
+            title={title}
+            onClick={() => setIsSidebarOpen(true)}
+            style={{
+              fontSize: "1rem",
+              opacity: filters[key] ? 1 : 0.3,
+              cursor: "pointer",
+              transition: "opacity 0.2s",
+            }}
+          >
+            {icon}
+          </span>
+        ))}
       </div>
     );
   }
 
+  /* ── Expanded state ── */
   return (
     <div
       style={{
-        width: isSidebarOpen ? "200px" : "52px",
-        minWidth: isSidebarOpen ? "200px" : "52px",
+        width: "190px",
+        minWidth: "190px",
         background: darkMode ? "#0a0a0a" : "#ffffff",
         borderRight: `1px solid ${colors.cardBorder}`,
-        padding: isSidebarOpen ? "1rem 0" : "1rem 0",
         overflowY: "hidden",
         overflowX: "hidden",
         display: "flex",
         flexDirection: "column",
-        gap: "0.5rem",
-        transition: "width 0.25s ease, min-width 0.25s ease",
         flexShrink: 0,
       }}
     >
-      {/* Fixed header */}
+      {/* Header */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 1rem 0.75rem",
-          borderBottom: `2px solid ${colors.cardBorder}`,
+          padding: "0.6rem 0.75rem 0.6rem 0.85rem",
+          borderBottom: `1px solid ${colors.cardBorder}`,
           flexShrink: 0,
-          overflow: "hidden",
-          whiteSpace: "nowrap",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "1rem" }}>⚡</span>
-
+        <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#6366f1"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
           <h2
             style={{
-              fontSize: ".82rem",
-              fontWeight: "600",
+              fontSize: "0.78rem",
+              fontWeight: 700,
               color: colors.textPrimary,
               margin: 0,
+              letterSpacing: "0.01em",
             }}
           >
             Quick Filters
           </h2>
+          {activeFilterCount > 0 && (
+            <span
+              style={{
+                fontSize: "0.58rem",
+                fontWeight: 700,
+                background: "#6366f1",
+                color: "#fff",
+                borderRadius: 99,
+                padding: "1px 6px",
+              }}
+            >
+              {activeFilterCount}
+            </span>
+          )}
         </div>
-        <button
-          onClick={() => setIsSidebarOpen(false)}
-          title="Hide Quick Filters"
-          style={{
-            width: "26px",
-            height: "26px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "transparent",
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "6px",
-            cursor: "pointer",
-            color: colors.textTertiary,
-            fontSize: "0.7rem",
-            flexShrink: 0,
-            transition: "all 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#e5e5e5";
-            e.currentTarget.style.color = colors.textPrimary;
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = colors.textTertiary;
-          }}
-        >
-          ◀
-        </button>
+        {iconBtn(() => setIsSidebarOpen(false), "Hide filters", "◀")}
       </div>
 
-      {/* Scrollable content */}
+      {/* Scrollable body */}
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "1rem",
-          padding: "0.75rem 0.75rem 1rem",
+          flex: 1,
           overflowY: "auto",
           overflowX: "hidden",
-          flex: 1,
+          padding: "0.6rem 0.6rem 1rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.25rem",
         }}
       >
         {/* Search */}
-        <div style={{ padding: "0 0.25rem" }}>
-          <p
-            style={{
-              fontSize: "0.72rem",
-              fontWeight: "600",
-              color: colors.textTertiary,
-              letterSpacing: "0.06em",
-              marginBottom: "0.4rem",
-              marginTop: 0,
-            }}
-          >
-            Search
-          </p>
+        <div style={{ marginBottom: "0.5rem" }}>
           <div style={{ position: "relative" }}>
-            <span
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={colors.textTertiary}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
               style={{
                 position: "absolute",
-                left: "0.65rem",
+                left: "0.55rem",
                 top: "50%",
                 transform: "translateY(-50%)",
-                color: colors.textTertiary,
-                fontSize: "0.75rem",
                 pointerEvents: "none",
               }}
             >
-              🔍
-            </span>
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
             <input
               type="text"
               placeholder="DTN, Company, Brand..."
@@ -303,37 +271,33 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
               }
               style={{
                 width: "100%",
-                padding: "0.6rem 2rem 0.6rem 1.9rem",
+                boxSizing: "border-box",
+                padding: "0.45rem 1.8rem 0.45rem 1.8rem",
                 background: colors.inputBg,
                 border: `1px solid ${colors.inputBorder}`,
-                borderRadius: "8px",
+                borderRadius: "7px",
                 color: colors.textPrimary,
                 fontSize: "0.65rem",
-                boxSizing: "border-box",
                 outline: "none",
-                transition: "border-color 0.2s",
               }}
-              onFocus={(e) => {
-                e.target.style.borderColor = "#4CAF50";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = colors.inputBorder;
-              }}
+              onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+              onBlur={(e) => (e.target.style.borderColor = colors.inputBorder)}
             />
             {filters.search && (
               <button
                 onClick={() => onFiltersChange({ ...filters, search: "" })}
                 style={{
                   position: "absolute",
-                  right: "0.5rem",
+                  right: "0.45rem",
                   top: "50%",
                   transform: "translateY(-50%)",
                   background: "none",
                   border: "none",
                   color: colors.textTertiary,
                   cursor: "pointer",
-                  fontSize: "0.85rem",
+                  fontSize: "0.75rem",
                   padding: 0,
+                  lineHeight: 1,
                 }}
               >
                 ✕
@@ -344,20 +308,20 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
 
         <div
           style={{
-            height: "1px",
+            height: "0.5px",
             background: colors.cardBorder,
-            margin: "0 0.25rem",
+            margin: "0 2px 0.4rem",
           }}
         />
 
         {appTypes.length > 0 && (
           <SidebarSection
             title="Application Type"
-            icon="📄"
+            groupColor="#6366f1"
             items={appTypes}
             activeItem={filters.appType || null}
-            onItemClick={(value) =>
-              onFiltersChange({ ...filters, appType: value ?? "" })
+            onItemClick={(v) =>
+              onFiltersChange({ ...filters, appType: v ?? "" })
             }
             colors={colors}
             darkMode={darkMode}
@@ -368,11 +332,11 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
         {prescriptions.length > 0 && (
           <SidebarSection
             title="Classification"
-            icon="💊"
+            groupColor="#0891b2"
             items={prescriptions}
             activeItem={filters.prescription || null}
-            onItemClick={(value) =>
-              onFiltersChange({ ...filters, prescription: value ?? "" })
+            onItemClick={(v) =>
+              onFiltersChange({ ...filters, prescription: v ?? "" })
             }
             colors={colors}
             darkMode={darkMode}
@@ -383,11 +347,11 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
         {statuses.length > 0 && (
           <SidebarSection
             title="Status"
-            icon="🔖"
+            groupColor="#059669"
             items={statuses}
             activeItem={filters.appStatus || null}
-            onItemClick={(value) =>
-              onFiltersChange({ ...filters, appStatus: value ?? "" })
+            onItemClick={(v) =>
+              onFiltersChange({ ...filters, appStatus: v ?? "" })
             }
             colors={colors}
             darkMode={darkMode}
@@ -398,11 +362,11 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
         {processingTypes.length > 0 && (
           <SidebarSection
             title="Processing Type"
-            icon="⚙️"
+            groupColor="#f97316"
             items={processingTypes}
             activeItem={filters.processingType || null}
-            onItemClick={(value) =>
-              onFiltersChange({ ...filters, processingType: value ?? "" })
+            onItemClick={(v) =>
+              onFiltersChange({ ...filters, processingType: v ?? "" })
             }
             colors={colors}
             darkMode={darkMode}

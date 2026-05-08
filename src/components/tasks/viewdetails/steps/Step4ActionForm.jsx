@@ -419,8 +419,15 @@ export function Step4ActionForm({
             : "Quality Evaluation";
 
         const prevEval = findPreviousEvaluator(logs, currentStep, targetStep);
+        console.log("🔍 prevEval object:", prevEval); // ← tingnan sa browser console
         setAutoAssignee(prevEval?.username ?? prevEval);
-        setAutoAssigneeId(prevEval?.user_id ?? null);
+        setAutoAssigneeId(
+          prevEval?.user_id ?? prevEval?.userId ?? prevEval?.id ?? null,
+        );
+        setAutoAssignee(prevEval?.username ?? prevEval);
+        setAutoAssigneeId(
+          prevEval?.user_id ?? prevEval?.userId ?? prevEval?.id ?? null,
+        );
         if (prevEval) {
           setFormData((p) => ({
             ...p,
@@ -721,7 +728,7 @@ export function Step4ActionForm({
         } else if (isReturnToEvaluator) {
           assignedUser = formData.assignee;
           assignedUserId =
-            resolveAssigneeId(assignedUser) ?? autoAssigneeId ?? null;
+            autoAssigneeId ?? resolveAssigneeId(assignedUser) ?? null;
         } else {
           assignedUser = formData.assignee;
           assignedUserId = resolveAssigneeId(assignedUser);
