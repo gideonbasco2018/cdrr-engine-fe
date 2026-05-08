@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Step3AppLogs } from "../../tasks/viewdetails/steps/Step3AppLogs";
+
 /* ================================================================== */
 /*  Helpers                                                             */
 /* ================================================================== */
@@ -56,32 +57,34 @@ const calculateStatusTimeline = (record) => {
 /* ================================================================== */
 function VDSection({ title, children, colors }) {
   return (
-    <div style={{ marginBottom: "1.5rem" }}>
-      <h3
-        style={{
-          fontSize: "0.95rem",
-          fontWeight: "700",
-          color: colors.textPrimary,
-          marginBottom: "0.75rem",
-          paddingBottom: "0.5rem",
-          borderBottom: `2px solid ${colors.cardBorder}`,
-          letterSpacing: "0.02em",
-        }}
-      >
-        {title}
-      </h3>
+    <div style={{ marginBottom: "1rem" }}>
+      {title && (
+        <h3
+          style={{
+            fontSize: "0.72rem",
+            fontWeight: "700",
+            color: colors.textPrimary,
+            marginBottom: "0.5rem",
+            paddingBottom: "0.35rem",
+            borderBottom: `2px solid ${colors.cardBorder}`,
+            letterSpacing: "0.02em",
+          }}
+        >
+          {title}
+        </h3>
+      )}
       {children}
     </div>
   );
 }
 
-function FieldGrid({ children }) {
+function FieldGrid({ children, cols = 2 }) {
   return (
     <div
       style={{
         display: "grid",
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gap: "0.75rem",
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        gap: "0.5rem",
       }}
     >
       {children}
@@ -95,13 +98,13 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
     <div
       style={
         fullWidth
-          ? { gridColumn: "1 / -1", marginBottom: "0.5rem" }
-          : { display: "flex", flexDirection: "column", gap: "0.25rem" }
+          ? { gridColumn: "1 / -1", marginBottom: "0.3rem" }
+          : { display: "flex", flexDirection: "column", gap: "0.15rem" }
       }
     >
       <label
         style={{
-          fontSize: "0.65rem",
+          fontSize: "0.55rem",
           fontWeight: "700",
           color: colors.textTertiary,
           letterSpacing: "0.07em",
@@ -112,13 +115,13 @@ function DisplayField({ label, value, colors, fullWidth = false }) {
       </label>
       <div
         style={{
-          padding: "0.45rem 0.7rem",
+          padding: "0.3rem 0.5rem",
           background: colors.inputBg,
           border: `1px solid ${colors.inputBorder}`,
-          borderRadius: "6px",
+          borderRadius: "5px",
           color: isNA ? colors.textTertiary : colors.textPrimary,
-          fontSize: "0.82rem",
-          minHeight: fullWidth ? "3rem" : "2rem",
+          fontSize: "0.65rem",
+          minHeight: fullWidth ? "2rem" : "1.6rem",
           whiteSpace: fullWidth ? "pre-wrap" : "normal",
           wordBreak: "break-word",
           display: "flex",
@@ -144,19 +147,19 @@ function SummaryCard({
     <div
       style={{
         ...(fullWidth ? { gridColumn: "1 / -1" } : {}),
-        padding: "0.6rem 0.85rem",
+        padding: "0.4rem 0.6rem",
         background: colors.inputBg,
         border: `1px solid ${colors.inputBorder}`,
         borderLeft: `3px solid ${accent}`,
-        borderRadius: "6px",
+        borderRadius: "5px",
         display: "flex",
         flexDirection: "column",
-        gap: "0.2rem",
+        gap: "0.1rem",
       }}
     >
       <span
         style={{
-          fontSize: "0.6rem",
+          fontSize: "0.5rem",
           fontWeight: "700",
           color: colors.textTertiary,
           textTransform: "uppercase",
@@ -167,7 +170,7 @@ function SummaryCard({
       </span>
       <span
         style={{
-          fontSize: "0.85rem",
+          fontSize: "0.65rem",
           fontWeight: "600",
           color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
           fontStyle: value === "N/A" ? "italic" : "normal",
@@ -184,10 +187,10 @@ function StatusTimelineField({ label, record, colors }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
       <label
         style={{
-          fontSize: "0.65rem",
+          fontSize: "0.55rem",
           fontWeight: "700",
           color: colors.textTertiary,
           letterSpacing: "0.07em",
@@ -198,14 +201,14 @@ function StatusTimelineField({ label, record, colors }) {
       </label>
       <div
         style={{
-          padding: "0.45rem 0.7rem",
+          padding: "0.3rem 0.5rem",
           background: colors.inputBg,
           border: `1px solid ${colors.inputBorder}`,
-          borderRadius: "6px",
-          fontSize: "0.82rem",
+          borderRadius: "5px",
+          fontSize: "0.65rem",
           display: "flex",
           alignItems: "center",
-          minHeight: "2rem",
+          minHeight: "1.6rem",
         }}
       >
         {!status ? (
@@ -215,22 +218,19 @@ function StatusTimelineField({ label, record, colors }) {
         ) : (
           <span
             style={{
-              padding: "0.25rem 0.65rem",
+              padding: "0.18rem 0.5rem",
               background: ok
                 ? "linear-gradient(135deg,#10b981,#059669)"
                 : "linear-gradient(135deg,#ef4444,#dc2626)",
               color: "#fff",
-              borderRadius: "6px",
-              fontSize: "0.72rem",
+              borderRadius: "5px",
+              fontSize: "0.58rem",
               fontWeight: "700",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
-              boxShadow: ok
-                ? "0 2px 8px rgba(16,185,129,.3)"
-                : "0 2px 8px rgba(239,68,68,.3)",
               display: "inline-flex",
               alignItems: "center",
-              gap: "0.4rem",
+              gap: "0.3rem",
             }}
           >
             {ok ? "✓" : "⚠"} {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
@@ -241,90 +241,49 @@ function StatusTimelineField({ label, record, colors }) {
   );
 }
 
-/* ── Step Progress Bar ── */
-function StepIndicator({ currentStep, steps, colors }) {
+/* ================================================================== */
+/*  Step Tab Bar                                                        */
+/* ================================================================== */
+function StepTabBar({ currentStep, setCurrentStep, colors }) {
+  const tabs = [
+    { step: 1, icon: "👁️", label: "Application Information" },
+    { step: 2, icon: "🗂️", label: "Application Logs" },
+  ];
   return (
     <div
       style={{
         display: "flex",
-        alignItems: "center",
-        gap: 0,
-        padding: "0 0.5rem",
+        borderBottom: `1px solid ${colors.cardBorder}`,
+        flexShrink: 0,
       }}
     >
-      {steps.map((step, i) => {
-        const stepNum = i + 1;
-        const isCompleted = stepNum < currentStep;
-        const isActive = stepNum === currentStep;
+      {tabs.map(({ step, icon, label }) => {
+        const isActive = currentStep === step;
         return (
-          <div
-            key={i}
+          <button
+            key={step}
+            onClick={() => setCurrentStep(step)}
             style={{
-              display: "flex",
+              padding: "0.55rem 1.25rem",
+              background: "transparent",
+              border: "none",
+              borderBottom: isActive
+                ? "2px solid #2196F3"
+                : "2px solid transparent",
+              color: isActive ? "#2196F3" : colors.textTertiary,
+              fontSize: "0.72rem",
+              fontWeight: isActive ? "700" : "500",
+              cursor: "pointer",
+              display: "inline-flex",
               alignItems: "center",
-              flex: i < steps.length - 1 ? 1 : "none",
+              gap: "0.4rem",
+              transition: "all 0.2s",
+              marginBottom: "-1px",
             }}
           >
-            <div
-              style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "0.75rem",
-                fontWeight: "700",
-                flexShrink: 0,
-                transition: "all 0.3s ease",
-                background: isCompleted
-                  ? "#10b981"
-                  : isActive
-                    ? "#2196F3"
-                    : colors.inputBg,
-                border: isCompleted
-                  ? "2px solid #10b981"
-                  : isActive
-                    ? "2px solid #2196F3"
-                    : `2px solid ${colors.cardBorder}`,
-                color: isCompleted || isActive ? "#fff" : colors.textTertiary,
-                boxShadow: isActive
-                  ? "0 0 0 4px rgba(33,150,243,0.15)"
-                  : "none",
-              }}
-            >
-              {isCompleted ? "✓" : stepNum}
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                marginTop: "2.8rem",
-                fontSize: "0.65rem",
-                fontWeight: isActive ? "700" : "500",
-                color: isActive
-                  ? "#2196F3"
-                  : isCompleted
-                    ? "#10b981"
-                    : colors.textTertiary,
-                whiteSpace: "nowrap",
-                transform: "translateX(-50%)",
-                marginLeft: "16px",
-              }}
-            >
-              {step}
-            </div>
-            {i < steps.length - 1 && (
-              <div
-                style={{
-                  flex: 1,
-                  height: "2px",
-                  background: isCompleted ? "#10b981" : colors.cardBorder,
-                  margin: "0 4px",
-                  transition: "background 0.3s ease",
-                }}
-              />
-            )}
-          </div>
+            <span>{icon}</span>
+            {label}
+          </button>
         );
       })}
     </div>
@@ -332,44 +291,44 @@ function StepIndicator({ currentStep, steps, colors }) {
 }
 
 /* ================================================================== */
-/*  Step 1: Basic Info                                                  */
+/*  All Details (Step 1)                                               */
 /* ================================================================== */
-function Step1BasicInfo({ record, colors }) {
+function AllDetails({ record, colors }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
       {/* DTN Banner */}
       <div
         style={{
-          padding: "0.9rem 1.1rem",
+          padding: "0.65rem 0.85rem",
           background:
             "linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))",
           border: "1px solid rgba(33,150,243,0.2)",
           borderRadius: "8px",
           display: "flex",
           alignItems: "center",
-          gap: "1rem",
+          gap: "0.75rem",
           flexWrap: "wrap",
         }}
       >
         <div>
           <div
             style={{
-              fontSize: "0.6rem",
+              fontSize: "0.5rem",
               fontWeight: "700",
               color: "#2196F3",
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              marginBottom: "0.15rem",
+              marginBottom: "0.1rem",
             }}
           >
             Document Tracking No.
           </div>
           <div
             style={{
-              fontSize: "1.25rem",
+              fontSize: "1rem",
               fontWeight: "800",
               color: colors.textPrimary,
               letterSpacing: "-0.02em",
@@ -381,19 +340,19 @@ function Step1BasicInfo({ record, colors }) {
         <div
           style={{
             width: "1px",
-            height: "32px",
+            height: "28px",
             background: colors.cardBorder,
           }}
         />
-        <div style={{ flex: 1, minWidth: "160px" }}>
+        <div style={{ flex: 1, minWidth: "120px" }}>
           <div
             style={{
-              fontSize: "0.6rem",
+              fontSize: "0.5rem",
               fontWeight: "700",
               color: colors.textTertiary,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              marginBottom: "0.2rem",
+              marginBottom: "0.15rem",
             }}
           >
             App Status
@@ -402,7 +361,7 @@ function Step1BasicInfo({ record, colors }) {
             style={{
               display: "inline-flex",
               alignItems: "center",
-              padding: "0.25rem 0.65rem",
+              padding: "0.18rem 0.5rem",
               background: (() => {
                 const s = record.appStatus?.toUpperCase();
                 if (s === "COMPLETED" || s === "APPROVED")
@@ -414,12 +373,11 @@ function Step1BasicInfo({ record, colors }) {
                 return "linear-gradient(135deg,#6b7280,#4b5563)";
               })(),
               color: "#fff",
-              borderRadius: "6px",
-              fontSize: "0.72rem",
+              borderRadius: "5px",
+              fontSize: "0.58rem",
               fontWeight: "700",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
             }}
           >
             {cleanValue(record.appStatus)}
@@ -431,12 +389,12 @@ function Step1BasicInfo({ record, colors }) {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: "0.1rem",
+              gap: "0.05rem",
             }}
           >
             <div
               style={{
-                fontSize: "0.6rem",
+                fontSize: "0.5rem",
                 fontWeight: "700",
                 color: colors.textTertiary,
                 textTransform: "uppercase",
@@ -447,7 +405,7 @@ function Step1BasicInfo({ record, colors }) {
             </div>
             <div
               style={{
-                fontSize: "0.95rem",
+                fontSize: "0.8rem",
                 fontWeight: "800",
                 color: colors.textPrimary,
               }}
@@ -455,7 +413,7 @@ function Step1BasicInfo({ record, colors }) {
               {cleanValue(record.dbTimelineCitizenCharter)}
               <span
                 style={{
-                  fontSize: "0.62rem",
+                  fontSize: "0.52rem",
                   fontWeight: "500",
                   color: colors.textTertiary,
                   marginLeft: "0.2rem",
@@ -469,19 +427,16 @@ function Step1BasicInfo({ record, colors }) {
         {status && (
           <span
             style={{
-              padding: "0.3rem 0.75rem",
+              padding: "0.22rem 0.6rem",
               background: ok
                 ? "linear-gradient(135deg,#10b981,#059669)"
                 : "linear-gradient(135deg,#ef4444,#dc2626)",
               color: "#fff",
-              borderRadius: "6px",
-              fontSize: "0.65rem",
+              borderRadius: "5px",
+              fontSize: "0.55rem",
               fontWeight: "700",
               letterSpacing: "0.5px",
               textTransform: "uppercase",
-              boxShadow: ok
-                ? "0 2px 6px rgba(16,185,129,.3)"
-                : "0 2px 6px rgba(239,68,68,.3)",
             }}
           >
             {ok ? "✓" : "⚠"} {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
@@ -493,8 +448,8 @@ function Step1BasicInfo({ record, colors }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "0.5rem",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "0.4rem",
         }}
       >
         <SummaryCard
@@ -536,25 +491,24 @@ function Step1BasicInfo({ record, colors }) {
         />
         <SummaryCard
           icon="📧"
-          label="Email Address"
+          label="Email"
           value={cleanValue(record.eadd)}
           accent="#fa3a93"
           colors={colors}
         />
         <SummaryCard
           icon="🪪"
-          label="TIN Number"
+          label="TIN"
           value={cleanValue(record.tin)}
           accent="#ca44ff"
           colors={colors}
         />
         <SummaryCard
           icon="📞"
-          label="Contact Number"
+          label="Contact No."
           value={cleanValue(record.contactNo)}
           accent="#00f18d"
           colors={colors}
-          fullWidth
         />
         <SummaryCard
           icon="🔑"
@@ -588,7 +542,7 @@ function Step1BasicInfo({ record, colors }) {
 
       {/* Product Details */}
       <VDSection title="💊 Product Details" colors={colors}>
-        <FieldGrid>
+        <FieldGrid cols={3}>
           <DisplayField
             label="Brand Name"
             value={cleanValue(record.prodBrName)}
@@ -635,25 +589,10 @@ function Step1BasicInfo({ record, colors }) {
             colors={colors}
           />
           <DisplayField
-            label="Pharma Prod. Cat."
-            value={cleanValue(record.pharmaProdCat)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Pharma Prod. Label"
-            value={cleanValue(record.pharmaProdCatLabel)}
-            colors={colors}
-          />
-          <DisplayField
             label="File"
             value={cleanValue(record.file)}
             colors={colors}
           />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📦 Storage & Packaging" colors={colors}>
-        <FieldGrid>
           <DisplayField
             label="Storage Condition"
             value={cleanValue(record.storageCond)}
@@ -662,6 +601,11 @@ function Step1BasicInfo({ record, colors }) {
           <DisplayField
             label="Packaging"
             value={cleanValue(record.packaging)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Expiry Date"
+            value={formatDate(record.expiryDate)}
             colors={colors}
           />
           <DisplayField
@@ -674,16 +618,12 @@ function Step1BasicInfo({ record, colors }) {
             value={cleanValue(record.noSample)}
             colors={colors}
           />
-          <DisplayField
-            label="Expiry Date"
-            value={formatDate(record.expiryDate)}
-            colors={colors}
-          />
         </FieldGrid>
       </VDSection>
 
+      {/* Fees */}
       <VDSection title="💰 Fees" colors={colors}>
-        <FieldGrid>
+        <FieldGrid cols={3}>
           <DisplayField
             label="Fee"
             value={cleanValue(record.fee)}
@@ -717,172 +657,94 @@ function Step1BasicInfo({ record, colors }) {
         </FieldGrid>
       </VDSection>
 
-      <VDSection title="🏭 Manufacturer" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Manufacturer"
-            value={cleanValue(record.prodManu)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Country"
-            value={cleanValue(record.prodManuCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.prodManuLtoNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="TIN"
-            value={cleanValue(record.prodManuTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Address"
-            value={cleanValue(record.prodManuAdd)}
-            colors={colors}
-            fullWidth
-          />
-        </FieldGrid>
-      </VDSection>
+      {/* Manufacturer / Trader / Importer / Distributor / Repacker */}
+      {[
+        {
+          title: "🏭 Manufacturer",
+          keys: {
+            name: "prodManu",
+            country: "prodManuCountry",
+            lto: "prodManuLtoNo",
+            tin: "prodManuTin",
+            add: "prodManuAdd",
+          },
+        },
+        {
+          title: "🤝 Trader",
+          keys: {
+            name: "prodTrader",
+            country: "prodTraderCountry",
+            lto: "prodTraderLtoNo",
+            tin: "prodTraderTin",
+            add: "prodTraderAdd",
+          },
+        },
+        {
+          title: "🚢 Importer",
+          keys: {
+            name: "prodImporter",
+            country: "prodImporterCountry",
+            lto: "prodImporterLtoNo",
+            tin: "prodImporterTin",
+            add: "prodImporterAdd",
+          },
+        },
+        {
+          title: "📦 Distributor",
+          keys: {
+            name: "prodDistri",
+            country: "prodDistriCountry",
+            lto: "prodDistriLtoNo",
+            tin: "prodDistriTin",
+            add: "prodDistriAdd",
+          },
+        },
+        {
+          title: "🔄 Repacker",
+          keys: {
+            name: "prodRepacker",
+            country: "prodRepackerCountry",
+            lto: "prodRepackerLtoNo",
+            tin: "prodRepackerTin",
+            add: "prodRepackerAdd",
+          },
+        },
+      ].map(({ title, keys }) => (
+        <VDSection key={title} title={title} colors={colors}>
+          <FieldGrid cols={2}>
+            <DisplayField
+              label="Name"
+              value={cleanValue(record[keys.name])}
+              colors={colors}
+            />
+            <DisplayField
+              label="Country"
+              value={cleanValue(record[keys.country])}
+              colors={colors}
+            />
+            <DisplayField
+              label="LTO No."
+              value={cleanValue(record[keys.lto])}
+              colors={colors}
+            />
+            <DisplayField
+              label="TIN"
+              value={cleanValue(record[keys.tin])}
+              colors={colors}
+            />
+            <DisplayField
+              label="Address"
+              value={cleanValue(record[keys.add])}
+              colors={colors}
+              fullWidth
+            />
+          </FieldGrid>
+        </VDSection>
+      ))}
 
-      <VDSection title="🤝 Trader" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Trader"
-            value={cleanValue(record.prodTrader)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Country"
-            value={cleanValue(record.prodTraderCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.prodTraderLtoNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="TIN"
-            value={cleanValue(record.prodTraderTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Address"
-            value={cleanValue(record.prodTraderAdd)}
-            colors={colors}
-            fullWidth
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="🚢 Importer" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Importer"
-            value={cleanValue(record.prodImporter)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Country"
-            value={cleanValue(record.prodImporterCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.prodImporterLtoNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="TIN"
-            value={cleanValue(record.prodImporterTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Address"
-            value={cleanValue(record.prodImporterAdd)}
-            colors={colors}
-            fullWidth
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📦 Distributor" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Distributor"
-            value={cleanValue(record.prodDistri)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Country"
-            value={cleanValue(record.prodDistriCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.prodDistriLtoNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="TIN"
-            value={cleanValue(record.prodDistriTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Address"
-            value={cleanValue(record.prodDistriAdd)}
-            colors={colors}
-            fullWidth
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="🔄 Repacker" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Repacker"
-            value={cleanValue(record.prodRepacker)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Country"
-            value={cleanValue(record.prodRepackerCountry)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LTO No."
-            value={cleanValue(record.prodRepackerLtoNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="TIN"
-            value={cleanValue(record.prodRepackerTin)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Address"
-            value={cleanValue(record.prodRepackerAdd)}
-            colors={colors}
-            fullWidth
-          />
-        </FieldGrid>
-      </VDSection>
-    </div>
-  );
-}
-
-/* ================================================================== */
-/*  Step 2: Full Details                                                */
-/* ================================================================== */
-function Step2FullDetails({ record, colors }) {
-  return (
-    <div>
+      {/* Application Info */}
       <VDSection title="📋 Application Information" colors={colors}>
-        <FieldGrid>
+        <FieldGrid cols={3}>
           <DisplayField
             label="Registration No."
             value={cleanValue(record.regNo)}
@@ -916,77 +778,32 @@ function Step2FullDetails({ record, colors }) {
         </FieldGrid>
       </VDSection>
 
-      <VDSection title="" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="Date Deck"
-            value={formatDate(record.dateDeck)}
-            colors={colors}
-          />
-
-          {/* <DisplayField
-            label="CPR Validity"
-            value={formatDate(record.cprValidity)}
-            colors={colors}
-          /> */}
-          <DisplayField
-            label="Date Remarks"
-            value={formatDate(record.dateRemarks)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="File"
-            value={cleanValue(record.file)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Decking Schedule"
-            value={formatDate(record.deckingSched)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Evaluator"
-            value={cleanValue(record.eval)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
-      <VDSection title="" colors={colors}>
-        <FieldGrid>
-          <DisplayField
-            label="SECPA"
-            value={cleanValue(record.secpa)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Expiry Date"
-            value={formatDate(record.secpaExpDate)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Issued On / Issuance Date"
-            value={formatDate(record.secpaIssuedOn)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
-
+      {/* Released Info */}
       <VDSection title="📤 Released Information" colors={colors}>
-        <FieldGrid>
+        <FieldGrid cols={3}>
           <DisplayField
             label="Type of Document Released"
             value={cleanValue(record.typeDocReleased)}
             colors={colors}
           />
           <DisplayField
-            label="Attachment/s released with authorization"
+            label="Attachments Released"
             value={cleanValue(record.attaReleased)}
+            colors={colors}
+          />
+          <DisplayField
+            label="SECPA"
+            value={cleanValue(record.secpa)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Expiry"
+            value={formatDate(record.secpaExpDate)}
+            colors={colors}
+          />
+          <DisplayField
+            label="Issued On"
+            value={formatDate(record.secpaIssuedOn)}
             colors={colors}
           />
           <DisplayField
@@ -997,9 +814,10 @@ function Step2FullDetails({ record, colors }) {
         </FieldGrid>
       </VDSection>
 
+      {/* CPR Conditions */}
       <VDSection title="📜 CPR Conditions" colors={colors}>
         <DisplayField
-          label="CPR Condition/s Ticked at the back of CPR"
+          label="CPR Condition/s"
           value={cleanValue(record.cprCond)}
           colors={colors}
           fullWidth
@@ -1011,15 +829,16 @@ function Step2FullDetails({ record, colors }) {
           fullWidth
         />
         <DisplayField
-          label="CPR Condition Additional Remarks"
+          label="Additional Remarks"
           value={cleanValue(record.cprCondAddRemarks)}
           colors={colors}
           fullWidth
         />
       </VDSection>
 
-      <VDSection title="📝 Amendments" colors={colors}>
-        <FieldGrid>
+      {/* Amendments & Remarks */}
+      <VDSection title="📝 Amendments & Remarks" colors={colors}>
+        <FieldGrid cols={3}>
           <DisplayField
             label="Amendment 1"
             value={cleanValue(record.ammend1)}
@@ -1036,46 +855,27 @@ function Step2FullDetails({ record, colors }) {
             colors={colors}
           />
         </FieldGrid>
-      </VDSection>
-
-      <VDSection title="📝 Remarks & Notes" colors={colors}>
-        <DisplayField
-          label="Application Remarks"
-          value={cleanValue(record.appRemarks)}
-          colors={colors}
-          fullWidth
-        />
-        <DisplayField
-          label="General Remarks"
-          value={cleanValue(record.remarks1)}
-          colors={colors}
-          fullWidth
-        />
-      </VDSection>
-
-      <VDSection title="📊 Metadata" colors={colors}>
-        <FieldGrid>
+        <div
+          style={{
+            marginTop: "0.4rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.4rem",
+          }}
+        >
           <DisplayField
-            label="Timeline (Days)"
-            value={cleanValue(record.dbTimelineCitizenCharter)}
+            label="Application Remarks"
+            value={cleanValue(record.appRemarks)}
             colors={colors}
-          />
-          <StatusTimelineField
-            label="Status Timeline"
-            record={record}
-            colors={colors}
+            fullWidth
           />
           <DisplayField
-            label="Uploaded By"
-            value={cleanValue(record.userUploader)}
+            label="General Remarks"
+            value={cleanValue(record.remarks1)}
             colors={colors}
+            fullWidth
           />
-          <DisplayField
-            label="Upload Date"
-            value={formatDate(record.dateExcelUpload)}
-            colors={colors}
-          />
-        </FieldGrid>
+        </div>
       </VDSection>
     </div>
   );
@@ -1091,15 +891,8 @@ function ViewDetailsModal({
   darkMode,
   loading = false,
 }) {
-  // function ViewDetailsModal({ record, onClose, colors, darkMode }) {
   const [currentStep, setCurrentStep] = useState(1);
   if (!record) return null;
-
-  const STEPS = ["Basic Info", "Full Details", "App Logs"];
-  const totalSteps = STEPS.length;
-
-  const goNext = () => setCurrentStep((s) => Math.min(s + 1, totalSteps));
-  const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 1));
 
   return (
     <>
@@ -1123,10 +916,10 @@ function ViewDetailsModal({
           left: "50%",
           transform: "translate(-50%, -50%)",
           width: "min(1100px, 95vw)",
-          maxHeight: "92vh",
+          maxHeight: "94vh",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "16px",
+          borderRadius: "14px",
           boxShadow: "0 24px 80px rgba(0,0,0,0.4)",
           zIndex: 1001,
           display: "flex",
@@ -1138,7 +931,7 @@ function ViewDetailsModal({
         {/* ── Header ── */}
         <div
           style={{
-            padding: "1.25rem 1.75rem",
+            padding: "0.75rem 1.25rem",
             borderBottom: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
@@ -1148,21 +941,23 @@ function ViewDetailsModal({
           }}
         >
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}
+            style={{ display: "flex", flexDirection: "column", gap: "0.1rem" }}
           >
             <h2
               style={{
-                fontSize: "1.25rem",
+                fontSize: "0.95rem",
                 fontWeight: "700",
                 color: colors.textPrimary,
                 margin: 0,
               }}
             >
-              {currentStep === 1 ? "👁️ Basic Information" : "📄 Full Details"}
+              {currentStep === 1
+                ? "👁️ Application Information"
+                : "🗂️ Application Logs"}
             </h2>
             <p
               style={{
-                fontSize: "0.78rem",
+                fontSize: "0.65rem",
                 color: colors.textTertiary,
                 margin: 0,
               }}
@@ -1175,33 +970,17 @@ function ViewDetailsModal({
               {cleanValue(record.prodBrName)}
             </p>
           </div>
-
-          <div
-            style={{
-              flex: 1,
-              maxWidth: "280px",
-              position: "relative",
-              paddingBottom: "1.2rem",
-            }}
-          >
-            <StepIndicator
-              currentStep={currentStep}
-              steps={STEPS}
-              colors={colors}
-            />
-          </div>
-
           <button
             onClick={onClose}
             style={{
-              width: "34px",
-              height: "34px",
-              borderRadius: "8px",
+              width: "28px",
+              height: "28px",
+              borderRadius: "6px",
               border: `1px solid ${colors.cardBorder}`,
               background: "transparent",
               color: colors.textSecondary,
               cursor: "pointer",
-              fontSize: "1.1rem",
+              fontSize: "0.9rem",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -1223,57 +1002,58 @@ function ViewDetailsModal({
           </button>
         </div>
 
-        {/* ── Scrollable Content ── */}
+        {/* ── Step Tab Bar ── */}
+        <StepTabBar
+          currentStep={currentStep}
+          setCurrentStep={setCurrentStep}
+          colors={colors}
+        />
+
         {/* ── Scrollable Content ── */}
         <div
           style={{
             flex: 1,
-            overflowY: "auto",
-            padding: "1.75rem",
             minHeight: 0,
+            overflowY: "auto",
+            padding: "1rem 1.25rem",
           }}
         >
-          {loading ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "300px",
-                gap: "1rem",
-                color: colors.textTertiary,
-              }}
-            >
-              <div style={{ fontSize: "2.5rem" }}>⏳</div>
-              <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>
-                Loading full details...
-              </span>
-              <span style={{ fontSize: "0.75rem", opacity: 0.6 }}>
-                Fetching record for DTN: {record?.dtn}
-              </span>
-            </div>
-          ) : (
-            <>
-              {currentStep === 1 && (
-                <Step1BasicInfo record={record} colors={colors} />
-              )}
-              {currentStep === 2 && (
-                <Step2FullDetails record={record} colors={colors} />
-              )}
-              {currentStep === 3 && (
-                <Step3AppLogs
-                  record={{ ...record, mainDbId: record.mainDbId ?? record.id }}
-                  colors={colors}
-                />
-              )}
-            </>
+          {currentStep === 1 &&
+            (loading ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "300px",
+                  gap: "0.75rem",
+                  color: colors.textTertiary,
+                }}
+              >
+                <div style={{ fontSize: "2rem" }}>⏳</div>
+                <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>
+                  Loading details...
+                </span>
+                <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
+                  DTN: {record?.dtn}
+                </span>
+              </div>
+            ) : (
+              <AllDetails record={record} colors={colors} />
+            ))}
+          {currentStep === 2 && (
+            <Step3AppLogs
+              record={{ ...record, mainDbId: record.mainDbId ?? record.id }}
+              colors={colors}
+            />
           )}
         </div>
+
         {/* ── Footer ── */}
         <div
           style={{
-            padding: "1rem 1.75rem",
+            padding: "0.65rem 1.25rem",
             borderTop: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
@@ -1284,64 +1064,49 @@ function ViewDetailsModal({
         >
           <span
             style={{
-              fontSize: "0.78rem",
+              fontSize: "0.65rem",
               color: colors.textTertiary,
               fontWeight: "600",
             }}
           >
-            Step {currentStep} of {totalSteps}
+            Step {currentStep} of 2
           </span>
-          <div style={{ display: "flex", gap: "0.75rem" }}>
-            {/* <button
-              onClick={onClose}
-              style={{
-                padding: "0.6rem 1.2rem",
-                background: "transparent",
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "8px",
-                color: colors.textSecondary,
-                fontSize: "0.875rem",
-                fontWeight: "500",
-                cursor: "pointer",
-              }}
-            >
-              Close
-            </button> */}
+          <div style={{ display: "flex", gap: "0.5rem" }}>
             {currentStep > 1 && (
               <button
-                onClick={goPrev}
+                onClick={() => setCurrentStep((s) => s - 1)}
                 style={{
-                  padding: "0.6rem 1.2rem",
+                  padding: "0.45rem 1rem",
                   background: colors.inputBg,
                   border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
+                  borderRadius: "7px",
                   color: colors.textPrimary,
-                  fontSize: "0.875rem",
+                  fontSize: "0.72rem",
                   fontWeight: "600",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.4rem",
+                  gap: "0.35rem",
                 }}
               >
                 ← Previous
               </button>
             )}
-            {currentStep < totalSteps && (
+            {currentStep < 2 && (
               <button
-                onClick={goNext}
+                onClick={() => setCurrentStep((s) => s + 1)}
                 style={{
-                  padding: "0.6rem 1.4rem",
+                  padding: "0.45rem 1.1rem",
                   background: "linear-gradient(135deg, #2196F3, #1976D2)",
                   border: "none",
-                  borderRadius: "8px",
+                  borderRadius: "7px",
                   color: "#fff",
-                  fontSize: "0.875rem",
+                  fontSize: "0.72rem",
                   fontWeight: "700",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.4rem",
+                  gap: "0.35rem",
                   boxShadow: "0 2px 8px rgba(33,150,243,0.3)",
                   transition: "all 0.2s",
                 }}
