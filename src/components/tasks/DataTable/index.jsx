@@ -113,7 +113,7 @@ function DataTable({
         style={{
           display: "inline-flex",
           flexDirection: "column",
-          marginLeft: 4,
+          marginLeft: 3,
           lineHeight: 1,
           verticalAlign: "middle",
           gap: 1,
@@ -121,7 +121,7 @@ function DataTable({
       >
         <span
           style={{
-            fontSize: "0.48rem",
+            fontSize: "0.42rem",
             lineHeight: 1,
             color: on && sortOrder === "asc" ? "#4CAF50" : colors.textTertiary,
             opacity: on && sortOrder === "asc" ? 1 : 0.3,
@@ -131,7 +131,7 @@ function DataTable({
         </span>
         <span
           style={{
-            fontSize: "0.48rem",
+            fontSize: "0.42rem",
             lineHeight: 1,
             color: on && sortOrder === "desc" ? "#4CAF50" : colors.textTertiary,
             opacity: on && sortOrder === "desc" ? 1 : 0.3,
@@ -363,14 +363,11 @@ function DataTable({
   };
 
   const handleBulkComplete = async ({ remarks, reason }) => {
-    // ── 1. Get logged-in user ──────────────────────────────────────────
     const me = getCurrentUser();
     if (!me?.id) throw new Error("No logged-in user found.");
 
-    // ── 2. PHT timestamp ───────────────────────────────────────────────
     const closedAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
 
-    // ── 3. Collect main_db_ids ─────────────────────────────────────────
     const seen = new Set();
     const selectedData = data
       .filter((r) => selectedRows.includes(r.id))
@@ -382,9 +379,6 @@ function DataTable({
 
     const mainDbIds = selectedData.map((r) => r.mainDbId ?? r.id);
 
-    // ── 4. POST /api/closed-tasks/bulk ────────────────────────────────
-    //    Backend handles: find active log → COMPLETED (PERMANENT_CLOSE)
-    //                     + insert closed_tasks audit row
     await closeTasksBulk({
       main_db_ids: mainDbIds,
       reason_for_closing: reason,
@@ -394,7 +388,6 @@ function DataTable({
       closed_at: closedAt,
     });
 
-    // ── 5. Sync DB_APP_STATUS on main_db ──────────────────────────────
     let success = 0;
     let failed = 0;
 
@@ -414,6 +407,7 @@ function DataTable({
 
     return { success, failed };
   };
+
   /* ── Transmittal ── */
   const handleGenerateTransmittal = async () => {
     if (!selectedRows.length) return;
@@ -427,16 +421,16 @@ function DataTable({
       onClick={onClick}
       style={{
         width: "100%",
-        padding: "0.75rem 1rem",
+        padding: "0.55rem 0.85rem",
         background: "transparent",
         border: "none",
         color: colors.textPrimary,
-        fontSize: "0.85rem",
+        fontSize: "0.78rem",
         textAlign: "left",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
-        gap: "0.5rem",
+        gap: "0.4rem",
         transition: "background .2s",
         ...style,
       }}
@@ -448,6 +442,35 @@ function DataTable({
       {children}
     </button>
   );
+
+  /* ── Shared small-button style ── */
+  const smallBtn = (extra = {}) => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    padding: "0.22rem 0.55rem",
+    borderRadius: 5,
+    border: "none",
+    color: "#fff",
+    fontSize: "0.62rem",
+    fontWeight: 700,
+    cursor: "pointer",
+    letterSpacing: "0.01em",
+    ...extra,
+  });
+
+  const smallBadge = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: "0.9rem",
+    height: "0.9rem",
+    padding: "0 0.2rem",
+    background: "rgba(255,255,255,0.25)",
+    borderRadius: 999,
+    fontSize: "0.55rem",
+    fontWeight: 800,
+  };
 
   return (
     <>
@@ -466,7 +489,7 @@ function DataTable({
         {/* ── Header bar ── */}
         <div
           style={{
-            padding: "1rem 1.5rem",
+            padding: "0.45rem 0.85rem",
             borderBottom: `1px solid ${colors.tableBorder}`,
             display: "flex",
             alignItems: "center",
@@ -477,15 +500,16 @@ function DataTable({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "0.75rem",
+              gap: "0.4rem",
               flexWrap: "wrap",
             }}
           >
             <h3
               style={{
-                fontSize: ".8rem",
+                fontSize: "0.7rem",
                 fontWeight: 600,
                 color: colors.textPrimary,
+                margin: 0,
               }}
             >
               Task Data
@@ -496,25 +520,25 @@ function DataTable({
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                padding: "4px 12px",
+                gap: 3,
+                padding: "2px 7px",
                 borderRadius: 999,
                 background: colors.badgeBg,
                 border: `1px solid ${colors.cardBorder}`,
                 color: colors.textSecondary,
-                fontSize: "0.65rem",
+                fontSize: "0.58rem",
                 fontWeight: 600,
                 cursor: "pointer",
               }}
             >
               <span
                 style={{
-                  width: 16,
-                  height: 16,
+                  width: 12,
+                  height: 12,
                   borderRadius: "50%",
                   background: "#7c3aed",
                   color: "#fff",
-                  fontSize: 10,
+                  fontSize: 8,
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -528,10 +552,10 @@ function DataTable({
 
             <span
               style={{
-                padding: "0.25rem 0.75rem",
+                padding: "0.15rem 0.5rem",
                 background: colors.badgeBg,
-                borderRadius: 12,
-                fontSize: "0.6rem",
+                borderRadius: 10,
+                fontSize: "0.55rem",
                 color: colors.textTertiary,
                 fontWeight: 600,
               }}
@@ -539,285 +563,27 @@ function DataTable({
               {totalRecords} total records
             </span>
 
-            {/* Mark as Received */}
-            {selectedRows.length > 0 && showMarkAsReceived && (
-              <button
-                onClick={() => {
-                  setConfirmReceiveRow(null);
-                  setConfirmReceive(true);
-                }}
-                disabled={markingReceived}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.4rem 1rem",
-                  background: markingReceived
-                    ? "rgba(16,185,129,0.4)"
-                    : "linear-gradient(135deg,#10b981,#059669)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: "0.6rem",
-                  fontWeight: 700,
-                  cursor: markingReceived ? "not-allowed" : "pointer",
-                  boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
-                }}
-              >
-                {markingReceived ? (
-                  <>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 12,
-                        height: 12,
-                        border: "2px solid rgba(255,255,255,0.4)",
-                        borderTopColor: "#fff",
-                        borderRadius: "50%",
-                        animation: "spin 0.7s linear infinite",
-                      }}
-                    />
-                    Processing…
-                  </>
-                ) : (
-                  <>
-                    <span>✔</span>Mark as Received
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        minWidth: "1.25rem",
-                        height: "1.25rem",
-                        padding: "0 0.3rem",
-                        background: "rgba(255,255,255,0.25)",
-                        borderRadius: 999,
-                        fontSize: "0.7rem",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {selectedRows.length}
-                    </span>
-                  </>
-                )}
-              </button>
-            )}
-
-            {/* Generate Transmittal */}
-            {selectedRows.length > 0 && (
-              <button
-                onClick={handleGenerateTransmittal}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.4rem 1rem",
-                  background: "linear-gradient(135deg,#1976d2,#1565c0)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(25,118,210,0.35)",
-                }}
-              >
-                <span>📄</span>Generate Transmittal
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: "1.25rem",
-                    height: "1.25rem",
-                    padding: "0 0.3rem",
-                    background: "rgba(255,255,255,0.25)",
-                    borderRadius: 999,
-                    fontSize: "0.7rem",
-                    fontWeight: 800,
-                  }}
-                >
-                  {selectedRows.length}
-                </span>
-              </button>
-            )}
-
-            {/* ── CLOSE TASK (FINAL) — was "Mark as Completed" ── */}
-
-            {selectedRows.length > 0 && (
-              <button
-                onClick={() => setShowBulkComplete(true)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.4rem 1rem",
-                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
-                  color: "#fff",
-                  border: "1px solid #991b1b",
-                  borderRadius: 8,
-                  fontSize: "0.75rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  boxShadow: "0 2px 8px rgba(220,38,38,0.40)",
-                  letterSpacing: "0.01em",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.boxShadow =
-                    "0 4px 14px rgba(220,38,38,0.55)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.boxShadow =
-                    "0 2px 8px rgba(220,38,38,0.40)")
-                }
-              >
-                <span>🔒</span>
-                Close Task (Final)
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: "1.25rem",
-                    height: "1.25rem",
-                    padding: "0 0.3rem",
-                    background: "rgba(255,255,255,0.20)",
-                    borderRadius: 999,
-                    fontSize: "0.7rem",
-                    fontWeight: 800,
-                  }}
-                >
-                  {selectedRows.length}
-                </span>
-              </button>
-            )}
-
-            {/* Bulk Endorse / End Task */}
-            {showBulkDeckBtn && (
-              <button
-                onClick={() => setShowBulkDeck(true)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.4rem 1rem",
-                  background: bulkDeckConfig.isEndTask
-                    ? "linear-gradient(135deg,#10b981,#059669)"
-                    : "linear-gradient(135deg,#7c3aed,#6d28d9)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: "0.8rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  boxShadow: bulkDeckConfig.isEndTask
-                    ? "0 2px 8px rgba(16,185,129,0.35)"
-                    : "0 2px 8px rgba(124,58,237,0.35)",
-                  transition: "box-shadow .2s",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.boxShadow = bulkDeckConfig.isEndTask
-                    ? "0 4px 14px rgba(16,185,129,0.5)"
-                    : "0 4px 14px rgba(124,58,237,0.5)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.boxShadow = bulkDeckConfig.isEndTask
-                    ? "0 2px 8px rgba(16,185,129,0.35)"
-                    : "0 2px 8px rgba(124,58,237,0.35)")
-                }
-              >
-                <span>{bulkDeckConfig.isEndTask ? "✅" : "📋"}</span>
-                {bulkDeckConfig.isEndTask
-                  ? "End Task"
-                  : bulkDeckConfig.buttonLabel || "Bulk Deck"}
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    minWidth: "1.25rem",
-                    height: "1.25rem",
-                    padding: "0 0.3rem",
-                    background: "rgba(255,255,255,0.25)",
-                    borderRadius: 999,
-                    fontSize: "0.7rem",
-                    fontWeight: 800,
-                  }}
-                >
-                  {selectedRows.length}
-                </span>
-              </button>
-            )}
-
-            {isComplianceTab && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  fontSize: "0.68rem",
-                  color: colors.textTertiary,
-                }}
-              >
-                <span style={{ color: "#ef4444", fontWeight: 700 }}>
-                  🚨 Overdue
-                </span>
-                <span>·</span>
-                <span style={{ color: "#f97316", fontWeight: 700 }}>
-                  🔴 Today
-                </span>
-                <span>·</span>
-                <span style={{ color: "#f59e0b", fontWeight: 700 }}>
-                  🟠 ≤3 days
-                </span>
-                <span>·</span>
-                <span style={{ color: "#eab308", fontWeight: 700 }}>
-                  🟡 ≤5 days
-                </span>
-                <span>·</span>
-                <span style={{ color: "#10b981", fontWeight: 700 }}>🟢 OK</span>
-              </div>
-            )}
-
-            {sortBy && (
-              <span
-                style={{
-                  fontSize: "0.6rem",
-                  color: colors.textTertiary,
-                  padding: "0.2rem 0.6rem",
-                  background: colors.badgeBg,
-                  borderRadius: 6,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.3rem",
-                }}
-              >
-                Sorted by{" "}
-                <strong style={{ color: "#4CAF50" }}>{activeSortLabel}</strong>
-                <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
-              </span>
-            )}
             {/* Column Picker */}
-            <div style={{ position: "relative", marginLeft: "auto" }}>
+            <div style={{ position: "relative" }}>
               <button
                 onClick={() => setShowColPicker((p) => !p)}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: "0.4rem",
-                  padding: "0.4rem 0.85rem",
+                  gap: "0.25rem",
+                  padding: "0.22rem 0.55rem",
                   background: showColPicker
                     ? "linear-gradient(135deg,#4f46e5,#4338ca)"
                     : colors.badgeBg,
                   border: `1px solid ${showColPicker ? "#4f46e5" : colors.cardBorder}`,
-                  borderRadius: 8,
+                  borderRadius: 5,
                   color: showColPicker ? "#fff" : colors.textSecondary,
-                  fontSize: "0.7rem",
+                  fontSize: "0.62rem",
                   fontWeight: 600,
                   cursor: "pointer",
                 }}
               >
-                <span>⚙️</span>
+                <span style={{ fontSize: "0.6rem" }}>⚙️</span>
                 Columns
                 {visibleColumnKeys && (
                   <span
@@ -825,12 +591,12 @@ function DataTable({
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      minWidth: "1.1rem",
-                      height: "1.1rem",
-                      padding: "0 0.25rem",
+                      minWidth: "0.9rem",
+                      height: "0.9rem",
+                      padding: "0 0.2rem",
                       background: "#4f46e5",
                       borderRadius: 999,
-                      fontSize: "0.6rem",
+                      fontSize: "0.55rem",
                       fontWeight: 800,
                       color: "#fff",
                     }}
@@ -849,23 +615,22 @@ function DataTable({
                   <div
                     style={{
                       position: "absolute",
-                      top: "calc(100% + 8px)",
+                      top: "calc(100% + 6px)",
                       right: 0,
                       background: colors.cardBg,
                       border: `1px solid ${colors.cardBorder}`,
                       borderRadius: 10,
                       boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
                       zIndex: 9999,
-                      width: 220,
-                      maxHeight: 400,
+                      width: 210,
+                      maxHeight: 380,
                       overflowY: "auto",
-                      padding: "0.5rem 0",
+                      padding: "0.4rem 0",
                     }}
                   >
-                    {/* Header */}
                     <div
                       style={{
-                        padding: "0.5rem 0.85rem 0.4rem",
+                        padding: "0.4rem 0.75rem",
                         borderBottom: `1px solid ${colors.tableBorder}`,
                         display: "flex",
                         alignItems: "center",
@@ -874,7 +639,7 @@ function DataTable({
                     >
                       <span
                         style={{
-                          fontSize: "0.72rem",
+                          fontSize: "0.68rem",
                           fontWeight: 700,
                           color: colors.textPrimary,
                         }}
@@ -887,7 +652,7 @@ function DataTable({
                           background: "none",
                           border: "none",
                           color: "#4CAF50",
-                          fontSize: "0.65rem",
+                          fontSize: "0.62rem",
                           cursor: "pointer",
                           fontWeight: 600,
                         }}
@@ -895,8 +660,6 @@ function DataTable({
                         Show All
                       </button>
                     </div>
-
-                    {/* Column list */}
                     {allColumns
                       .filter((col) => col.key !== "__divider__" && col.label)
                       .map((col) => {
@@ -909,10 +672,10 @@ function DataTable({
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: "0.6rem",
-                              padding: "0.45rem 0.85rem",
+                              gap: "0.5rem",
+                              padding: "0.38rem 0.75rem",
                               cursor: "pointer",
-                              fontSize: "0.75rem",
+                              fontSize: "0.7rem",
                               color: colors.textPrimary,
                               transition: "background .15s",
                             }}
@@ -949,8 +712,8 @@ function DataTable({
                               }}
                               style={{
                                 accentColor: "#4CAF50",
-                                width: 14,
-                                height: 14,
+                                width: 12,
+                                height: 12,
                               }}
                             />
                             <span
@@ -969,6 +732,163 @@ function DataTable({
                 </>
               )}
             </div>
+
+            {/* Mark as Received */}
+            {selectedRows.length > 0 && showMarkAsReceived && (
+              <button
+                onClick={() => {
+                  setConfirmReceiveRow(null);
+                  setConfirmReceive(true);
+                }}
+                disabled={markingReceived}
+                style={smallBtn({
+                  background: markingReceived
+                    ? "rgba(16,185,129,0.4)"
+                    : "linear-gradient(135deg,#10b981,#059669)",
+                  boxShadow: "0 1px 4px rgba(16,185,129,0.3)",
+                  cursor: markingReceived ? "not-allowed" : "pointer",
+                })}
+              >
+                {markingReceived ? (
+                  <>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 8,
+                        height: 8,
+                        border: "1.5px solid rgba(255,255,255,0.4)",
+                        borderTopColor: "#fff",
+                        borderRadius: "50%",
+                        animation: "spin 0.7s linear infinite",
+                      }}
+                    />
+                    Processing…
+                  </>
+                ) : (
+                  <>
+                    <span>✔</span>Mark as Received
+                    <span style={smallBadge}>{selectedRows.length}</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* Generate Transmittal */}
+            {selectedRows.length > 0 && (
+              <button
+                onClick={handleGenerateTransmittal}
+                style={smallBtn({
+                  background: "linear-gradient(135deg,#1976d2,#1565c0)",
+                  boxShadow: "0 1px 4px rgba(25,118,210,0.3)",
+                })}
+              >
+                <span>📄</span>Generate Transmittal
+                <span style={smallBadge}>{selectedRows.length}</span>
+              </button>
+            )}
+
+            {/* Close Task (Final) */}
+            {selectedRows.length > 0 && (
+              <button
+                onClick={() => setShowBulkComplete(true)}
+                style={smallBtn({
+                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                  border: "1px solid #991b1b",
+                  boxShadow: "0 1px 4px rgba(220,38,38,0.3)",
+                })}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(220,38,38,0.45)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 1px 4px rgba(220,38,38,0.3)")
+                }
+              >
+                <span>🔒</span>Close Task (Final)
+                <span style={smallBadge}>{selectedRows.length}</span>
+              </button>
+            )}
+
+            {/* Bulk Endorse / End Task */}
+            {showBulkDeckBtn && (
+              <button
+                onClick={() => setShowBulkDeck(true)}
+                style={smallBtn({
+                  background: bulkDeckConfig.isEndTask
+                    ? "linear-gradient(135deg,#10b981,#059669)"
+                    : "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                  boxShadow: bulkDeckConfig.isEndTask
+                    ? "0 1px 4px rgba(16,185,129,0.3)"
+                    : "0 1px 4px rgba(124,58,237,0.3)",
+                })}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.boxShadow = bulkDeckConfig.isEndTask
+                    ? "0 2px 8px rgba(16,185,129,0.45)"
+                    : "0 2px 8px rgba(124,58,237,0.45)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.boxShadow = bulkDeckConfig.isEndTask
+                    ? "0 1px 4px rgba(16,185,129,0.3)"
+                    : "0 1px 4px rgba(124,58,237,0.3)")
+                }
+              >
+                <span>{bulkDeckConfig.isEndTask ? "✅" : "📋"}</span>
+                {bulkDeckConfig.isEndTask
+                  ? "End Task"
+                  : bulkDeckConfig.buttonLabel || "Bulk Deck"}
+                <span style={smallBadge}>{selectedRows.length}</span>
+              </button>
+            )}
+
+            {isComplianceTab && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  fontSize: "0.6rem",
+                  color: colors.textTertiary,
+                }}
+              >
+                <span style={{ color: "#ef4444", fontWeight: 700 }}>
+                  🚨 Overdue
+                </span>
+                <span>·</span>
+                <span style={{ color: "#f97316", fontWeight: 700 }}>
+                  🔴 Today
+                </span>
+                <span>·</span>
+                <span style={{ color: "#f59e0b", fontWeight: 700 }}>
+                  🟠 ≤3 days
+                </span>
+                <span>·</span>
+                <span style={{ color: "#eab308", fontWeight: 700 }}>
+                  🟡 ≤5 days
+                </span>
+                <span>·</span>
+                <span style={{ color: "#10b981", fontWeight: 700 }}>🟢 OK</span>
+              </div>
+            )}
+
+            {sortBy && (
+              <span
+                style={{
+                  fontSize: "0.55rem",
+                  color: colors.textTertiary,
+                  padding: "0.15rem 0.5rem",
+                  background: colors.badgeBg,
+                  borderRadius: 5,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                }}
+              >
+                Sorted by{" "}
+                <strong style={{ color: "#4CAF50" }}>{activeSortLabel}</strong>
+                <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -999,15 +919,15 @@ function DataTable({
               <tr>
                 <th
                   style={{
-                    padding: "1rem",
+                    padding: "0.45rem 0.5rem",
                     borderBottom: `1px solid ${colors.tableBorder}`,
                     borderRight: `1px solid ${colors.tableBorder}`,
                     background: colors.tableBg,
                     position: "sticky",
                     left: 0,
                     zIndex: 21,
-                    width: "50px",
-                    minWidth: "50px",
+                    width: "40px",
+                    minWidth: "40px",
                   }}
                 >
                   <input
@@ -1017,8 +937,8 @@ function DataTable({
                     }
                     onChange={onSelectAll}
                     style={{
-                      width: 16,
-                      height: 16,
+                      width: 13,
+                      height: 13,
                       cursor: "pointer",
                       accentColor: "#4CAF50",
                     }}
@@ -1026,9 +946,9 @@ function DataTable({
                 </th>
                 <th
                   style={{
-                    padding: "1rem",
+                    padding: "0.45rem 0.5rem",
                     textAlign: "center",
-                    fontSize: "0.6rem",
+                    fontSize: "0.55rem",
                     fontWeight: 600,
                     color: colors.textTertiary,
                     textTransform: "uppercase",
@@ -1036,10 +956,10 @@ function DataTable({
                     borderRight: `1px solid ${colors.tableBorder}`,
                     background: colors.tableBg,
                     position: "sticky",
-                    left: "50px",
+                    left: "40px",
                     zIndex: 21,
-                    width: "60px",
-                    minWidth: "60px",
+                    width: "40px",
+                    minWidth: "40px",
                   }}
                 >
                   #
@@ -1066,9 +986,9 @@ function DataTable({
                       key={col.key}
                       onClick={() => handleSort(col.key)}
                       style={{
-                        padding: "1rem",
+                        padding: "0.45rem 0.6rem",
                         textAlign: "left",
-                        fontSize: "0.6rem",
+                        fontSize: "0.55rem",
                         fontWeight: 600,
                         color: col.complianceOnly
                           ? "#f59e0b"
@@ -1135,15 +1055,15 @@ function DataTable({
 
                 <th
                   style={{
-                    padding: "1rem",
+                    padding: "0.45rem 0.5rem",
                     textAlign: "center",
-                    fontSize: "0.6rem",
+                    fontSize: "0.55rem",
                     fontWeight: 600,
                     color: colors.textTertiary,
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                     borderBottom: `1px solid ${colors.tableBorder}`,
-                    width: 80,
+                    width: 60,
                     whiteSpace: "nowrap",
                     position: "sticky",
                     right: 0,
@@ -1181,26 +1101,18 @@ function DataTable({
                 const isHovered = hoveredRowId === row.id;
                 const bg = sel
                   ? "#4CAF5015"
-                  : isUnread
-                    ? darkMode
-                      ? "rgba(33,150,243,0.07)"
-                      : "rgba(33,150,243,0.04)"
-                    : idx % 2 === 0
-                      ? colors.tableRowEven
-                      : colors.tableRowOdd;
+                  : idx % 2 === 0
+                    ? colors.tableRowEven
+                    : colors.tableRowOdd;
                 const solidStickyBg = isHovered
                   ? colors.tableRowHover
                   : sel
                     ? darkMode
                       ? "#1a2e1a"
                       : "#edf7ed"
-                    : isUnread
-                      ? darkMode
-                        ? "#0f1e2e"
-                        : "#e8f1fb"
-                      : idx % 2 === 0
-                        ? colors.tableRowEven
-                        : colors.tableRowOdd;
+                    : idx % 2 === 0
+                      ? colors.tableRowEven
+                      : colors.tableRowOdd;
                 const rowBorderLeft = sel
                   ? "3px solid #4CAF50"
                   : isUnread
@@ -1239,15 +1151,15 @@ function DataTable({
                   >
                     <td
                       style={{
-                        padding: "1rem",
+                        padding: "0.45rem 0.5rem",
                         borderBottom: `1px solid ${colors.tableBorder}`,
                         borderRight: `1px solid ${colors.tableBorder}`,
                         position: "sticky",
                         left: 0,
                         background: solidStickyBg,
                         zIndex: 9,
-                        width: "50px",
-                        minWidth: "50px",
+                        width: "40px",
+                        minWidth: "40px",
                         transition: "background .2s",
                       }}
                     >
@@ -1256,8 +1168,8 @@ function DataTable({
                         checked={sel}
                         onChange={() => onSelectRow(row.id)}
                         style={{
-                          width: 16,
-                          height: 16,
+                          width: 13,
+                          height: 13,
                           cursor: "pointer",
                           accentColor: "#4CAF50",
                         }}
@@ -1265,19 +1177,19 @@ function DataTable({
                     </td>
                     <td
                       style={{
-                        padding: "1rem",
-                        fontSize: "0.78rem",
+                        padding: "0.45rem 0.5rem",
+                        fontSize: "0.65rem",
                         fontWeight: 700,
                         color: colors.textTertiary,
                         borderBottom: `1px solid ${colors.tableBorder}`,
                         borderRight: `1px solid ${colors.tableBorder}`,
                         textAlign: "center",
                         position: "sticky",
-                        left: "50px",
+                        left: "40px",
                         background: solidStickyBg,
                         zIndex: 9,
-                        width: "60px",
-                        minWidth: "60px",
+                        width: "40px",
+                        minWidth: "40px",
                         transition: "background .2s",
                       }}
                     >
@@ -1309,8 +1221,8 @@ function DataTable({
                               : undefined
                           }
                           style={{
-                            padding: "1rem",
-                            fontSize: "0.78rem",
+                            padding: "0.4rem 0.6rem",
+                            fontSize: "0.68rem",
                             fontWeight: isUnread ? 700 : 400,
                             color: isUnread
                               ? colors.textPrimary
@@ -1351,7 +1263,7 @@ function DataTable({
                     {/* Actions cell */}
                     <td
                       style={{
-                        padding: "1rem",
+                        padding: "0.4rem 0.5rem",
                         borderBottom: `1px solid ${colors.tableBorder}`,
                         textAlign: "center",
                         position: "sticky",
@@ -1371,15 +1283,17 @@ function DataTable({
                         <button
                           onClick={(e) => toggleMenu(e, row.id)}
                           style={{
-                            padding: "0.5rem",
+                            padding: "0.25rem",
                             background: "transparent",
                             border: `1px solid ${colors.cardBorder}`,
-                            borderRadius: 6,
+                            borderRadius: 5,
                             color: colors.textPrimary,
                             cursor: "pointer",
-                            width: 32,
-                            height: 32,
+                            width: 24,
+                            height: 24,
                             position: "relative",
+                            fontSize: "0.75rem",
+                            lineHeight: 1,
                           }}
                         >
                           ⋮
@@ -1387,10 +1301,10 @@ function DataTable({
                             <span
                               style={{
                                 position: "absolute",
-                                top: -3,
-                                right: -3,
-                                width: 8,
-                                height: 8,
+                                top: -2,
+                                right: -2,
+                                width: 6,
+                                height: 6,
                                 borderRadius: "50%",
                                 background: "#2196F3",
                                 border: `1.5px solid ${solidStickyBg}`,
@@ -1423,7 +1337,7 @@ function DataTable({
                                 border: `1px solid ${colors.cardBorder}`,
                                 borderRadius: 8,
                                 boxShadow: "0 8px 24px rgba(0,0,0,.3)",
-                                minWidth: 200,
+                                minWidth: 190,
                                 zIndex: 9999,
                                 overflow: "hidden",
                               }}

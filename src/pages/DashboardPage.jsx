@@ -22,6 +22,7 @@ import {
   getWorkingWeek,
   formatDateRange,
 } from "../components/dashboard/utils";
+
 import {
   FB,
   ALL_MONTHS,
@@ -971,11 +972,41 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                           fontSize: "0.8rem",
                           color: ui.textSub,
                           margin: "2px 0 0",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
                         }}
                       >
                         Learn how your applications are performing.
+                        <button
+                          onClick={openGuide}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: FB,
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            padding: "0 6px",
+                            borderRadius: 4,
+                            fontFamily: "inherit",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            opacity: 0.85,
+                            textDecoration: "underline",
+                            textUnderlineOffset: "2px",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.opacity = "1")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.opacity = "0.85")
+                          }
+                        >
+                          ? How to use
+                        </button>
                       </p>
-                      <button onClick={openGuide}>? How to use</button>
                     </div>
                     <div
                       style={{

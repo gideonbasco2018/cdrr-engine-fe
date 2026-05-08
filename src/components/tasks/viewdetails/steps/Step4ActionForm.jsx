@@ -58,6 +58,7 @@ const ACTION_CONFIG = {
       "For Approval",
       "For Disapproval",
       "For Cancellation",
+      "For referral to S&E",
     ],
     warning: "Action is required when endorsing to checker.",
   },
