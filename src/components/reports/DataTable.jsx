@@ -12,6 +12,7 @@ import ChangeLogModal from "../tasks/ChangeLogModal";
 import ReassignmentModal from "./actions/ReassignmentModal";
 import RerouteModal from "./actions/RerouteModal";
 import UpdateCPRModal from "./actions/UpdateCPRModal";
+import { BulkCompleteModal } from "../tasks/DataTable/BulkCompleteModal";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -149,8 +150,19 @@ function DataTable({
   const [rerouteRecord, setRerouteRecord] = useState(null);
   const [cprUpdateRecord, setCprUpdateRecord] = useState(null);
 
+  const [bulkCompleteModalRecords, setBulkCompleteModalRecords] =
+    useState(null);
+
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
+  console.log(
+    "activeTab:",
+    activeTab,
+    "showAppLogs:",
+    showAppLogs,
+    "selectedRows:",
+    selectedRows.length,
+  );
 
   const handleOpenChangeLog = (row) => {
     setOpenMenuId(null);
@@ -960,6 +972,56 @@ function DataTable({
               </span>
             )}
 
+            {showAppLogs && selectedRows.length > 0 && (
+              <button
+                onClick={() =>
+                  setBulkCompleteModalRecords(
+                    data.filter((row) => selectedRows.includes(row.id)),
+                  )
+                }
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                  border: "1px solid #991b1b",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  fontSize: "0.75rem",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  boxShadow: "0 2px 8px rgba(220,38,38,0.40)",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 4px 14px rgba(220,38,38,0.55)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(220,38,38,0.40)")
+                }
+              >
+                <span>🔒</span> Close Task (Final)
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: "1.1rem",
+                    height: "1.1rem",
+                    padding: "0 0.25rem",
+                    background: "rgba(255,255,255,0.20)",
+                    borderRadius: 999,
+                    fontSize: "0.65rem",
+                    fontWeight: 800,
+                  }}
+                >
+                  {selectedRows.length}
+                </span>
+              </button>
+            )}
+
             {selectedRows.length > 0 && (
               <div
                 style={{
@@ -1680,6 +1742,71 @@ function DataTable({
           colors={colors}
           darkMode={darkMode}
           updateUploadReport={updateUploadReport}
+        />
+      )}
+
+      {bulkCompleteModalRecords && (
+        <BulkCompleteModal
+          selectedCount={bulkCompleteModalRecords.length}
+          selectedDtns={bulkCompleteModalRecords.map((r) => r.dtn || r.id)}
+          colors={colors}
+          darkMode={darkMode}
+          onClose={() => setBulkCompleteModalRecords(null)}
+          onConfirm={async ({ remarks, reason }) => {
+            const { getApplicationLogs, updateApplicationLog } =
+              await import("../../api/application-logs");
+            const { updateUploadReport: updateReport } =
+              await import("../../api/reports");
+
+            const now = new Date();
+            const formattedDateTime = new Date(
+              now.getTime() + 8 * 60 * 60 * 1000,
+            ).toISOString();
+
+            let success = 0,
+              failed = 0;
+
+            for (const row of bulkCompleteModalRecords) {
+              try {
+                // 1. Hanapin ang open log ng record
+                const logs = await getApplicationLogs(row.mainDbId ?? row.id);
+                const openLog = Array.isArray(logs)
+                  ? logs.find(
+                      (l) => l.del_thread === "Open" && l.del_last_index === 1,
+                    )
+                  : null;
+
+                if (openLog) {
+                  await updateApplicationLog(openLog.id, {
+                    application_status: "COMPLETED",
+                    application_decision: reason,
+                    application_remarks: remarks || "",
+                    action_type: "Mark as Completed",
+                    accomplished_date: formattedDateTime,
+                    del_last_index: 0,
+                    del_thread: "Close",
+                  });
+                }
+
+                // 2. I-update ang MainDB status
+                await updateReport(row.mainDbId ?? row.id, {
+                  DB_APP_STATUS: "COMPLETED",
+                });
+
+                success++;
+              } catch (e) {
+                console.error(`Failed for row id ${row.id}:`, e);
+                failed++;
+              }
+            }
+
+            return { success, failed };
+          }}
+          onDone={async () => {
+            setBulkCompleteModalRecords(null);
+            if (onClearSelections) onClearSelections();
+            if (onRefresh) await onRefresh();
+          }}
         />
       )}
     </>

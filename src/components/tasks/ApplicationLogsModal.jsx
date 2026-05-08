@@ -206,29 +206,9 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
   }, [record?.dtn]);
 
   const onBackdrop = (e) => e.target === e.currentTarget && onClose();
-  const ascendingLogs = [...logs].sort((a, b) => {
-    // Checking logs — laging nasa UNAHAN
-    const aChecking = a.application_step === "Decking";
-    const bChecking = b.application_step === "Decking";
-    if (aChecking && !bChecking) return -1;
-    if (!aChecking && bChecking) return 1;
-
-    // IN PROGRESS logs — laging nasa DULO
-    const aActive = a.application_status === "IN PROGRESS";
-    const bActive = b.application_status === "IN PROGRESS";
-    if (aActive && !bActive) return 1;
-    if (!aActive && bActive) return -1;
-
-    // COMPLETED logs — sorted by accomplished_date ascending
-    const aDate = a.accomplished_date ? new Date(a.accomplished_date) : null;
-    const bDate = b.accomplished_date ? new Date(b.accomplished_date) : null;
-    if (aDate && bDate) return aDate - bDate;
-    if (aDate) return -1;
-    if (bDate) return 1;
-
-    // fallback — del_index
-    return (a.del_index ?? 0) - (b.del_index ?? 0);
-  });
+  const ascendingLogs = [...logs].sort(
+    (a, b) => (a.del_index ?? 0) - (b.del_index ?? 0),
+  );
   const completedCount = logs.filter((l) => l.accomplished_date).length;
   const inProgressCount = logs.filter((l) => !l.accomplished_date).length;
 
@@ -822,6 +802,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   {log.user_name || "—"}
                                 </span>
                               </div>
+
                               {log.application_decision && (
                                 <>
                                   <span
@@ -838,9 +819,33 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                       color: textSub,
                                     }}
                                   >
-                                    Decision:{" "}
+                                    Action:{" "}
                                     <strong style={{ color: textPrimary }}>
                                       {log.application_decision}
+                                    </strong>
+                                  </span>
+                                </>
+                              )}
+                              {log.action_type && (
+                                <>
+                                  <span
+                                    style={{
+                                      color: dividerColor,
+                                      fontSize: "0.8rem",
+                                    }}
+                                  >
+                                    ·
+                                  </span>
+
+                                  <span
+                                    style={{
+                                      fontSize: "0.72rem",
+                                      color: textSub,
+                                    }}
+                                  >
+                                    Recommendation:{" "}
+                                    <strong style={{ color: textPrimary }}>
+                                      {log.action_type}
                                     </strong>
                                   </span>
                                 </>
@@ -952,39 +957,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </span>
                                 )}
                               </div>
-
-                              {/* Action */}
-                              {log.action_type && (
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.58rem",
-                                      fontWeight: 700,
-                                      color: textMuted,
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.05em",
-                                      marginBottom: 2,
-                                    }}
-                                  >
-                                    Action
-                                  </div>
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      padding: "0.18rem 0.55rem",
-                                      background: ac.bg,
-                                      color: ac.color,
-                                      border: `1px solid ${ac.border}`,
-                                      borderRadius: 20,
-                                      fontSize: "0.7rem",
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {log.action_type}
-                                  </span>
-                                </div>
-                              )}
 
                               {/* Meta */}
                               {(log.del_index != null ||
