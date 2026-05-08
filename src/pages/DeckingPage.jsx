@@ -20,7 +20,6 @@ import EditRecordModal from "../components/reports/actions/EditRecordModal";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
 import UploadErrorModal from "../components/reports/UploadErrorModal";
 
-// ─── helper: build API params from filters state ──────────────────────────────
 function buildFilterParams(filters) {
   const p = {};
   if (filters.category) p.category = filters.category;
@@ -33,13 +32,11 @@ function buildFilterParams(filters) {
   if (filters.typeDocReleased) p.type_doc_released = filters.typeDocReleased;
   if (filters.dateReleasedFrom) p.date_released_from = filters.dateReleasedFrom;
   if (filters.dateReleasedTo) p.date_released_to = filters.dateReleasedTo;
-
   if (filters.userUploader) p.user_uploader = filters.userUploader;
   if (filters.dateExcelUploadFrom)
     p.date_excel_upload_from = filters.dateExcelUploadFrom;
   if (filters.dateExcelUploadTo)
     p.date_excel_upload_to = filters.dateExcelUploadTo;
-  // Supply chain filters
   if (filters.manufacturerCountry)
     p.manufacturer_country = filters.manufacturerCountry;
   if (filters.trader) p.trader = filters.trader;
@@ -54,12 +51,25 @@ function buildFilterParams(filters) {
   return p;
 }
 
-/* ================================================================== */
-/*  SidebarSection                                                      */
-/* ================================================================== */
+/* ── SidebarSection ── */
+const ITEM_DOT_COLORS = [
+  "#7c3aed",
+  "#0891b2",
+  "#059669",
+  "#b45309",
+  "#f97316",
+  "#be185d",
+  "#6366f1",
+  "#e11d48",
+  "#0ea5e9",
+  "#84cc16",
+  "#a855f7",
+  "#14b8a6",
+];
+
 function SidebarSection({
   title,
-  icon,
+  groupColor,
   items,
   activeItem,
   onItemClick,
@@ -68,189 +78,227 @@ function SidebarSection({
   totalCount,
 }) {
   const [isOpen, setIsOpen] = useState(true);
+  const activeBg = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
+  const activeBorder = darkMode ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.1)";
+  const hoverBg = darkMode ? "#161616" : "#f0f0f0";
 
   return (
-    <div>
+    <div style={{ marginBottom: 2 }}>
       <div
         onClick={() => setIsOpen(!isOpen)}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "8px 12px",
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "8px",
+          padding: "4px 4px 3px",
           cursor: "pointer",
-          transition: "all 0.2s ease",
-          marginBottom: "6px",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#f0f0f0";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = colors.cardBg;
+          userSelect: "none",
         }}
       >
-        <div
-          style={{
-            fontSize: "0.72rem",
-            fontWeight: "600",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            color: colors.textPrimary,
-          }}
-        >
-          <span style={{ fontSize: "0.8rem" }}>{icon}</span>
-          <span>{title}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
           <span
             style={{
-              background: darkMode ? "#1f1f1f" : "#e5e5e5",
-              padding: "2px 7px",
-              borderRadius: "5px",
-              fontSize: "0.68rem",
-              fontWeight: "600",
-              fontFamily: "monospace",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: groupColor,
+              flexShrink: 0,
+              display: "inline-block",
+            }}
+          />
+          <span
+            style={{
+              fontSize: "0.6rem",
+              fontWeight: 700,
               color: colors.textTertiary,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
             }}
           >
-            {totalCount}
+            {title}
           </span>
         </div>
-        <span
-          style={{
-            color: colors.textTertiary,
-            transition: "transform 0.2s",
-            transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
-            fontSize: "0.6rem",
-          }}
-        >
-          ▼
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span
+            style={{
+              fontSize: "0.58rem",
+              color: colors.textTertiary,
+              background: darkMode ? "#1a1a1a" : "#e8e8e8",
+              borderRadius: 4,
+              padding: "1px 5px",
+              fontWeight: 600,
+            }}
+          >
+            {items.length}
+          </span>
+          <svg
+            width="8"
+            height="8"
+            viewBox="0 0 10 10"
+            style={{
+              transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
+              transition: "transform 0.2s",
+              flexShrink: 0,
+            }}
+          >
+            <polyline
+              points="1,3 5,7 9,3"
+              fill="none"
+              stroke={colors.textTertiary}
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       </div>
 
       {isOpen && (
         <div
           style={{
-            paddingLeft: "8px",
             display: "flex",
             flexDirection: "column",
-            gap: "4px",
+            gap: 0,
+            marginBottom: 2,
           }}
         >
-          {/* "All" Option */}
+          {/* All option */}
           <div
             onClick={() => onItemClick(null)}
             style={{
-              padding: "7px 12px",
-              background:
-                activeItem === null ? "rgba(33,150,243,0.1)" : "transparent",
-              border: `1px solid ${activeItem === null ? "#2196F3" : "transparent"}`,
-              borderRadius: "6px",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              fontSize: "0.72rem",
+              padding: "3px 6px",
+              borderRadius: 5,
+              cursor: "pointer",
+              background: activeItem === null ? activeBg : "transparent",
+              border: `0.5px solid ${activeItem === null ? activeBorder : "transparent"}`,
             }}
             onMouseEnter={(e) => {
-              if (activeItem !== null) {
-                e.currentTarget.style.background = colors.cardBg;
-                e.currentTarget.style.borderColor = colors.cardBorder;
-              }
+              if (activeItem !== null)
+                e.currentTarget.style.background = hoverBg;
             }}
             onMouseLeave={(e) => {
-              if (activeItem !== null) {
+              if (activeItem !== null)
                 e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.borderColor = "transparent";
-              }
             }}
           >
-            <span style={{ color: colors.textPrimary, fontWeight: 500 }}>
-              All {title}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: groupColor,
+                  opacity: 0.5,
+                  flexShrink: 0,
+                  display: "inline-block",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  fontWeight: activeItem === null ? 600 : 400,
+                  color:
+                    activeItem === null
+                      ? colors.textPrimary
+                      : colors.textSecondary,
+                }}
+              >
+                All
+              </span>
+            </div>
             <span
               style={{
-                background:
+                fontSize: "0.6rem",
+                fontWeight: 600,
+                color:
                   activeItem === null
-                    ? "#2196F3"
-                    : darkMode
-                      ? "#1f1f1f"
-                      : "#e5e5e5",
-                color: activeItem === null ? "#fff" : colors.textTertiary,
-                padding: "2px 7px",
-                borderRadius: "4px",
-                fontSize: "0.68rem",
-                fontWeight: "600",
-                fontFamily: "monospace",
+                    ? colors.textPrimary
+                    : colors.textTertiary,
+                background: darkMode ? "#1a1a1a" : "#e8e8e8",
+                borderRadius: 99,
+                padding: "1px 6px",
+                minWidth: 18,
+                textAlign: "center",
               }}
             >
               {totalCount}
             </span>
           </div>
 
-          {/* Individual Items */}
-          {items.map((item) => {
+          {/* Individual items */}
+          {items.map((item, idx) => {
             const displayValue = item.value || `No ${title}`;
             const filterValue = item.value === null ? "" : item.value;
             const isActive = activeItem === filterValue;
+            const dot = ITEM_DOT_COLORS[idx % ITEM_DOT_COLORS.length];
             return (
               <div
                 key={filterValue || `no-${title}`}
                 onClick={() => onItemClick(filterValue)}
                 style={{
-                  padding: "7px 12px",
-                  background: isActive ? "rgba(33,150,243,0.1)" : "transparent",
-                  border: `1px solid ${isActive ? "#2196F3" : "transparent"}`,
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  gap: "6px",
-                  fontSize: "0.72rem",
+                  padding: "3px 6px",
+                  borderRadius: 5,
+                  cursor: "pointer",
+                  background: isActive ? activeBg : "transparent",
+                  border: `0.5px solid ${isActive ? activeBorder : "transparent"}`,
                 }}
                 onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.background = colors.cardBg;
-                    e.currentTarget.style.borderColor = colors.cardBorder;
-                  }
+                  if (!isActive) e.currentTarget.style.background = hoverBg;
                 }}
                 onMouseLeave={(e) => {
-                  if (!isActive) {
+                  if (!isActive)
                     e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.borderColor = "transparent";
-                  }
                 }}
               >
-                <span
+                <div
                   style={{
-                    color: colors.textPrimary,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
                     minWidth: 0,
                   }}
                 >
-                  {displayValue}
-                </span>
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: dot,
+                      flexShrink: 0,
+                      display: "inline-block",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive
+                        ? colors.textPrimary
+                        : colors.textSecondary,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {displayValue}
+                  </span>
+                </div>
                 <span
                   style={{
-                    background: isActive
-                      ? "#2196F3"
-                      : darkMode
-                        ? "#1f1f1f"
-                        : "#e5e5e5",
-                    color: isActive ? "#fff" : colors.textTertiary,
-                    padding: "2px 7px",
-                    borderRadius: "4px",
-                    fontSize: "0.68rem",
-                    fontWeight: "600",
-                    fontFamily: "monospace",
+                    fontSize: "0.6rem",
+                    fontWeight: 600,
+                    color: isActive ? colors.textPrimary : colors.textTertiary,
+                    background: darkMode ? "#1a1a1a" : "#e8e8e8",
+                    borderRadius: 99,
+                    padding: "1px 6px",
+                    minWidth: 18,
+                    textAlign: "center",
                     flexShrink: 0,
                   }}
                 >
@@ -261,13 +309,19 @@ function SidebarSection({
           })}
         </div>
       )}
+
+      <div
+        style={{
+          height: "0.5px",
+          background: colors.cardBorder,
+          margin: "4px 2px 3px",
+        }}
+      />
     </div>
   );
 }
 
-/* ================================================================== */
-/*  ActiveFiltersBar                                                    */
-/* ================================================================== */
+/* ── ActiveFiltersBar ── */
 function ActiveFiltersBar({
   subTab,
   prescriptionTab,
@@ -314,7 +368,7 @@ function ActiveFiltersBar({
         style={{
           fontSize: "0.72rem",
           color: colors.textTertiary,
-          fontWeight: "500",
+          fontWeight: 500,
           whiteSpace: "nowrap",
         }}
       >
@@ -333,7 +387,7 @@ function ActiveFiltersBar({
             borderRadius: "20px",
             fontSize: "0.72rem",
             color: "#2196F3",
-            fontWeight: "500",
+            fontWeight: 500,
             whiteSpace: "nowrap",
           }}
         >
@@ -346,7 +400,7 @@ function ActiveFiltersBar({
               cursor: "pointer",
               color: "#2196F3",
               fontSize: "0.68rem",
-              padding: "0",
+              padding: 0,
               lineHeight: 1,
               display: "flex",
               alignItems: "center",
@@ -368,12 +422,9 @@ function ActiveFiltersBar({
           cursor: "pointer",
           color: "#ef4444",
           fontSize: "0.72rem",
-          fontWeight: "600",
+          fontWeight: 600,
           padding: "0 0.25rem",
-          transition: "opacity 0.15s",
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = 0.7)}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = 1)}
       >
         Clear all
       </button>
@@ -381,14 +432,11 @@ function ActiveFiltersBar({
   );
 }
 
-/* ================================================================== */
-/*  DeckingPage                                                         */
-/* ================================================================== */
+/* ── DeckingPage ── */
 function DeckingPage({ darkMode }) {
   const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({});
-  // ✅ selectedRows persists across search/page changes — cleared only on tab switch
   const [selectedRows, setSelectedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -422,6 +470,7 @@ function DeckingPage({ darkMode }) {
   const [sortOrder, setSortOrder] = useState("desc");
   const [failedRecords, setFailedRecords] = useState([]);
   const [showErrorModal, setShowErrorModal] = useState(false);
+
   const colors = getColorScheme(darkMode);
 
   const activeFilterCount =
@@ -430,15 +479,47 @@ function DeckingPage({ darkMode }) {
     (appStatusTab !== null ? 1 : 0) +
     (processingTypeTab !== null ? 1 : 0);
 
+  const iconBtn = (onClick, title, children) => (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: "26px",
+        height: "26px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "transparent",
+        border: `1px solid ${colors.cardBorder}`,
+        borderRadius: "6px",
+        cursor: "pointer",
+        color: colors.textTertiary,
+        fontSize: "0.7rem",
+        transition: "all 0.2s ease",
+        flexShrink: 0,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#e5e5e5";
+        e.currentTarget.style.color = colors.textPrimary;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.color = colors.textTertiary;
+      }}
+    >
+      {children}
+    </button>
+  );
+
   useEffect(() => {
     let username = null;
     const userStr =
       localStorage.getItem("user") || sessionStorage.getItem("user");
     if (userStr) {
       try {
-        const userObj = JSON.parse(userStr);
-        username = userObj.username || userObj.email || userObj.first_name;
-      } catch (e) {
+        const o = JSON.parse(userStr);
+        username = o.username || o.email || o.first_name;
+      } catch {
         username = userStr;
       }
     }
@@ -489,12 +570,16 @@ function DeckingPage({ darkMode }) {
     fetchStats();
   }, []);
 
+  const getStatusFilter = () => {
+    if (activeTab === "not-decked") return "not_decked";
+    if (activeTab === "decked") return "decked";
+    return "";
+  };
+
   useEffect(() => {
     const fetch = async () => {
       try {
-        let status = null;
-        if (activeTab === "not-decked") status = "not_decked";
-        else if (activeTab === "decked") status = "decked";
+        const status = getStatusFilter() || null;
         setAvailableProcessingTypes(
           await getProcessingTypes(
             status,
@@ -513,9 +598,7 @@ function DeckingPage({ darkMode }) {
   useEffect(() => {
     const fetch = async () => {
       try {
-        let status = null;
-        if (activeTab === "not-decked") status = "not_decked";
-        else if (activeTab === "decked") status = "decked";
+        const status = getStatusFilter() || null;
         setAvailableAppTypes(await getAppTypes(status, processingTypeTab));
       } catch {
         setAvailableAppTypes([]);
@@ -527,9 +610,7 @@ function DeckingPage({ darkMode }) {
   useEffect(() => {
     const fetch = async () => {
       try {
-        let status = null;
-        if (activeTab === "not-decked") status = "not_decked";
-        else if (activeTab === "decked") status = "decked";
+        const status = getStatusFilter() || null;
         setAvailablePrescriptionTypes(
           await getPrescriptionTypes(status, subTab, processingTypeTab),
         );
@@ -543,9 +624,7 @@ function DeckingPage({ darkMode }) {
   useEffect(() => {
     const fetch = async () => {
       try {
-        let status = null;
-        if (activeTab === "not-decked") status = "not_decked";
-        else if (activeTab === "decked") status = "decked";
+        const status = getStatusFilter() || null;
         setAvailableAppStatusTypes(
           await getAppStatusTypes(
             status,
@@ -560,33 +639,6 @@ function DeckingPage({ darkMode }) {
     };
     fetch();
   }, [activeTab, subTab, prescriptionTab, processingTypeTab]);
-
-  const getStatusFilter = () => {
-    if (activeTab === "not-decked") return "not_decked";
-    if (activeTab === "decked") return "decked";
-    return "";
-  };
-
-  const getExportParams = () => {
-    const params = {
-      search: searchTerm,
-      sortBy,
-      sortOrder,
-      ...buildFilterParams(filters),
-    };
-    const statusFilter = getStatusFilter();
-    if (statusFilter) params.status = statusFilter;
-    if (subTab !== null) params.app_type = subTab === "" ? "__EMPTY__" : subTab;
-    if (prescriptionTab !== null)
-      params.prescription =
-        prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
-    if (appStatusTab !== null)
-      params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
-    if (processingTypeTab !== null)
-      params.processing_type =
-        processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
-    return params;
-  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -612,7 +664,7 @@ function DeckingPage({ darkMode }) {
           params.processing_type =
             processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
         const json = await getUploadReports(params);
-        if (!json || !json.data || !Array.isArray(json.data)) {
+        if (!json?.data || !Array.isArray(json.data)) {
           setUploadReportsData([]);
           setFilteredData([]);
           setTotalRecords(0);
@@ -683,9 +735,7 @@ function DeckingPage({ darkMode }) {
         notDecked: notDeckedData.total || 0,
         decked: deckedData.total || 0,
       });
-      let status = null;
-      if (activeTab === "not-decked") status = "not_decked";
-      else if (activeTab === "decked") status = "decked";
+      const status = getStatusFilter() || null;
       const [processingTypes, appTypes, prescriptionTypes, appStatusTypes] =
         await Promise.all([
           getProcessingTypes(status, subTab, prescriptionTab, appStatusTab),
@@ -717,7 +767,7 @@ function DeckingPage({ darkMode }) {
         params.processing_type =
           processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
       const json = await getUploadReports(params);
-      if (json && json.data) {
+      if (json?.data) {
         const mappedData = json.data.map(mapDataItem);
         setUploadReportsData(mappedData);
         setFilteredData(mappedData);
@@ -750,12 +800,10 @@ function DeckingPage({ darkMode }) {
     }
     try {
       setUploading(true);
-
       setUploadProgress({
         message: `Uploading as: ${username}...`,
         percent: 0,
       });
-
       let currentPercent = 0;
       const result = await uploadExcelFile(file, username, (percent) => {
         currentPercent = Math.min(Math.round(percent * 0.9), 90);
@@ -764,7 +812,6 @@ function DeckingPage({ darkMode }) {
           percent: currentPercent,
         });
       });
-
       const processingInterval = setInterval(() => {
         currentPercent = currentPercent < 99 ? currentPercent + 1 : 99;
         setUploadProgress({
@@ -772,30 +819,24 @@ function DeckingPage({ darkMode }) {
           percent: currentPercent,
         });
       }, 300);
-
       clearInterval(processingInterval);
       setUploadProgress({ message: `Finalizing...`, percent: 100 });
-
       await new Promise((resolve) => setTimeout(resolve, 500));
       setUploadProgress(null);
-
       setUploading(false);
       const { success, errors, duplicates_skipped, total_processed } =
         result.stats;
       const failed = result.failed_records || [];
-
       if (failed.length > 0) {
         setFailedRecords(failed);
         setShowErrorModal(true);
       }
-
       let alertMessage = `✅ Upload Complete!\n\n👤 Uploaded by: ${username}\n📊 Processed: ${total_processed} rows\n✓ Inserted: ${success} new records\n`;
       if (duplicates_skipped > 0)
         alertMessage += `⊘ Skipped: ${duplicates_skipped} duplicates\n`;
       if (errors > 0)
         alertMessage += `✗ Errors: ${errors} failed — see error log\n`;
       alert(alertMessage);
-
       setCurrentPage(1);
       await refreshData();
     } catch (error) {
@@ -818,21 +859,17 @@ function DeckingPage({ darkMode }) {
     }
   };
 
-  // ✅ Select all / deselect all for CURRENT PAGE only — cross-page selections are preserved
   const handleSelectAll = () => {
     const currentPageIds = filteredData.map((row) => row.id);
     const allCurrentPageSelected = currentPageIds.every((id) =>
       selectedRows.includes(id),
     );
     if (allCurrentPageSelected) {
-      // Deselect only current page rows
       setSelectedRows(
         selectedRows.filter((id) => !currentPageIds.includes(id)),
       );
     } else {
-      // Add current page rows to existing selection (no duplicates)
-      const merged = [...new Set([...selectedRows, ...currentPageIds])];
-      setSelectedRows(merged);
+      setSelectedRows([...new Set([...selectedRows, ...currentPageIds])]);
     }
   };
 
@@ -840,27 +877,18 @@ function DeckingPage({ darkMode }) {
     selectedRows.includes(id)
       ? setSelectedRows(selectedRows.filter((r) => r !== id))
       : setSelectedRows([...selectedRows, id]);
-
   const clearSelections = () => setSelectedRows([]);
-
   const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-      // ✅ Do NOT clear selectedRows — preserve cross-page/search selections
-    }
+    if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
   };
-
   const handleRowsPerPageChange = (e) => {
-    const n = Math.min(Number(e.target.value), 100);
-    setRowsPerPage(n);
+    setRowsPerPage(Math.min(Number(e.target.value), 100));
     setCurrentPage(1);
-    // ✅ Do NOT clear selectedRows — preserve cross-page/search selections
   };
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
-    setSelectedRows([]); // ✅ Clear only on tab switch (genuinely different dataset)
+    setSelectedRows([]);
     setSubTab(null);
     setPrescriptionTab(null);
     setAppStatusTab(null);
@@ -871,7 +899,6 @@ function DeckingPage({ darkMode }) {
     setCurrentPage(1);
     setPrescriptionTab(null);
     setAppStatusTab(null);
-    // ✅ No selectedRows clear — user may have selections they want to keep
   };
   const handlePrescriptionTabChange = (value) => {
     setPrescriptionTab(value);
@@ -916,37 +943,55 @@ function DeckingPage({ darkMode }) {
   const handleExport = async () => {
     try {
       setExporting(true);
-      await exportFilteredRecords(getExportParams());
+      const params = {
+        search: searchTerm,
+        sortBy,
+        sortOrder,
+        ...buildFilterParams(filters),
+      };
+      const statusFilter = getStatusFilter();
+      if (statusFilter) params.status = statusFilter;
+      if (subTab !== null)
+        params.app_type = subTab === "" ? "__EMPTY__" : subTab;
+      if (prescriptionTab !== null)
+        params.prescription =
+          prescriptionTab === "" ? "__EMPTY__" : prescriptionTab;
+      if (appStatusTab !== null)
+        params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
+      if (processingTypeTab !== null)
+        params.processing_type =
+          processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
+      await exportFilteredRecords(params);
       alert(
         `✅ Export successful!\n\nExported ${totalRecords} filtered records.`,
       );
     } catch (error) {
       console.error("Export error:", error);
-      let errorMessage = "Unknown error";
+      let msg = "Unknown error";
       if (error.response?.data) {
         if (error.response.data instanceof Blob) {
           try {
-            const text = await error.response.data.text();
+            const t = await error.response.data.text();
             try {
-              errorMessage = JSON.parse(text).detail || text;
+              msg = JSON.parse(t).detail || t;
             } catch {
-              errorMessage = text;
+              msg = t;
             }
           } catch {
-            errorMessage = "Failed to parse error response";
+            msg = "Failed to parse error response";
           }
         } else if (typeof error.response.data === "object") {
-          errorMessage =
+          msg =
             error.response.data.detail ||
             error.response.data.message ||
             JSON.stringify(error.response.data);
         } else {
-          errorMessage = String(error.response.data);
+          msg = String(error.response.data);
         }
       } else if (error.message) {
-        errorMessage = error.message;
+        msg = error.message;
       }
-      alert(`❌ Export failed: ${errorMessage}`);
+      alert(`❌ Export failed: ${msg}`);
     } finally {
       setExporting(false);
     }
@@ -960,46 +1005,56 @@ function DeckingPage({ darkMode }) {
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      {/* ══════ SIDEBAR ══════ */}
+      {/* ── Sidebar ── */}
       <div
         style={{
-          width: isSidebarOpen ? "200px" : "52px",
-          minWidth: isSidebarOpen ? "200px" : "52px",
+          width: isSidebarOpen ? "190px" : "44px",
+          minWidth: isSidebarOpen ? "190px" : "44px",
           background: darkMode ? "#0a0a0a" : "#ffffff",
           borderRight: `1px solid ${colors.cardBorder}`,
-          padding: isSidebarOpen ? "1rem 0" : "1rem 0",
-          overflowY: "hidden",
-          overflowX: "hidden",
           display: "flex",
           flexDirection: "column",
-          gap: "0.5rem",
-          transition: "width 0.25s ease, min-width 0.25s ease",
           flexShrink: 0,
+          overflow: "hidden",
+          transition: "width 0.25s ease, min-width 0.25s ease",
         }}
       >
         {isSidebarOpen ? (
           <>
-            {/* Pinned header */}
+            {/* Header */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "0 1rem 0.75rem",
-                borderBottom: `2px solid ${colors.cardBorder}`,
+                padding: "0.6rem 0.75rem 0.6rem 0.85rem",
+                borderBottom: `1px solid ${colors.cardBorder}`,
                 flexShrink: 0,
-                overflow: "hidden",
-                whiteSpace: "nowrap",
               }}
             >
               <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.45rem",
+                }}
               >
-                <span style={{ fontSize: "1rem" }}>⚡</span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#6366f1"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                </svg>
                 <h2
                   style={{
-                    fontSize: "0.82rem",
-                    fontWeight: "600",
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
                     color: colors.textPrimary,
                     margin: 0,
                   }}
@@ -1009,67 +1064,37 @@ function DeckingPage({ darkMode }) {
                 {activeFilterCount > 0 && (
                   <span
                     style={{
-                      background: "#2196F3",
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      background: "#6366f1",
                       color: "#fff",
-                      borderRadius: "10px",
-                      padding: "2px 8px",
-                      fontSize: "0.68rem",
-                      fontWeight: "700",
+                      borderRadius: 99,
+                      padding: "1px 6px",
                     }}
                   >
                     {activeFilterCount}
                   </span>
                 )}
               </div>
-              <button
-                onClick={() => setIsSidebarOpen(false)}
-                title="Hide Quick Filters"
-                style={{
-                  width: "26px",
-                  height: "26px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: "transparent",
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  color: colors.textTertiary,
-                  fontSize: "0.7rem",
-                  flexShrink: 0,
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = darkMode
-                    ? "#1f1f1f"
-                    : "#e5e5e5";
-                  e.currentTarget.style.color = colors.textPrimary;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.color = colors.textTertiary;
-                }}
-              >
-                ◀
-              </button>
+              {iconBtn(() => setIsSidebarOpen(false), "Hide filters", "◀")}
             </div>
 
-            {/* Scrollable section list */}
+            {/* Scrollable body */}
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.75rem",
-                padding: "0.75rem 0.75rem 1rem",
+                flex: 1,
                 overflowY: "auto",
                 overflowX: "hidden",
-                flex: 1,
+                padding: "0.6rem 0.6rem 1rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
               }}
             >
               {availableAppTypes.length > 0 && (
                 <SidebarSection
                   title="Application Type"
-                  icon="📦"
+                  groupColor="#6366f1"
                   items={availableAppTypes}
                   activeItem={subTab}
                   onItemClick={handleSubTabChange}
@@ -1084,7 +1109,7 @@ function DeckingPage({ darkMode }) {
               {availablePrescriptionTypes.length > 0 && (
                 <SidebarSection
                   title="Classification"
-                  icon="💊"
+                  groupColor="#0891b2"
                   items={availablePrescriptionTypes}
                   activeItem={prescriptionTab}
                   onItemClick={handlePrescriptionTabChange}
@@ -1099,7 +1124,7 @@ function DeckingPage({ darkMode }) {
               {availableAppStatusTypes.length > 0 && (
                 <SidebarSection
                   title="All Status"
-                  icon="📈"
+                  groupColor="#059669"
                   items={availableAppStatusTypes}
                   activeItem={appStatusTab}
                   onItemClick={handleAppStatusTabChange}
@@ -1114,7 +1139,7 @@ function DeckingPage({ darkMode }) {
               {availableProcessingTypes.length > 0 && (
                 <SidebarSection
                   title="Processing Type"
-                  icon="⚙️"
+                  groupColor="#f97316"
                   items={availableProcessingTypes}
                   activeItem={processingTypeTab}
                   onItemClick={handleProcessingTypeTabChange}
@@ -1129,61 +1154,31 @@ function DeckingPage({ darkMode }) {
             </div>
           </>
         ) : (
-          /* COLLAPSED icon strip */
+          /* Collapsed */
           <div
             style={{
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
-              gap: "1rem",
-              paddingTop: "0.75rem",
+              gap: "0.85rem",
+              padding: "0.75rem 0",
             }}
           >
-            <button
-              onClick={() => setIsSidebarOpen(true)}
-              title="Show Quick Filters"
-              style={{
-                width: "26px",
-                height: "26px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: "transparent",
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "6px",
-                cursor: "pointer",
-                color: colors.textTertiary,
-                fontSize: "0.7rem",
-                flexShrink: 0,
-                transition: "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = darkMode
-                  ? "#1f1f1f"
-                  : "#e5e5e5";
-                e.currentTarget.style.color = colors.textPrimary;
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.color = colors.textTertiary;
-              }}
-            >
-              ▶
-            </button>
+            {iconBtn(() => setIsSidebarOpen(true), "Show filters", "▶")}
             {activeFilterCount > 0 && (
               <div
                 onClick={() => setIsSidebarOpen(true)}
-                title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""} — click to expand`}
+                title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""}`}
                 style={{
                   width: "18px",
                   height: "18px",
-                  background: "#2196F3",
+                  background: "#6366f1",
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "0.65rem",
-                  fontWeight: "700",
+                  fontSize: "0.6rem",
+                  fontWeight: 700,
                   color: "#fff",
                   cursor: "pointer",
                 }}
@@ -1192,45 +1187,30 @@ function DeckingPage({ darkMode }) {
               </div>
             )}
             {[
-              {
-                icon: "📦",
-                title: "Application Type",
-                active: subTab !== null,
-              },
-              {
-                icon: "💊",
-                title: "Classification",
-                active: prescriptionTab !== null,
-              },
-              {
-                icon: "📈",
-                title: "All Status",
-                active: appStatusTab !== null,
-              },
-              {
-                icon: "⚙️",
-                title: "Processing Type",
-                active: processingTypeTab !== null,
-              },
-            ].map((item) => (
+              { icon: "🗂️", key: subTab, title: "Application Type" },
+              { icon: "💊", key: prescriptionTab, title: "Classification" },
+              { icon: "📌", key: appStatusTab, title: "All Status" },
+              { icon: "⚡", key: processingTypeTab, title: "Processing Type" },
+            ].map(({ icon, key, title }) => (
               <span
-                key={item.icon}
-                title={`${item.title} (click to expand)`}
+                key={title}
+                title={title}
+                onClick={() => setIsSidebarOpen(true)}
                 style={{
                   fontSize: "1rem",
-                  opacity: item.active ? 1 : 0.3,
                   cursor: "pointer",
+                  opacity: key !== null ? 1 : 0.3,
+                  transition: "opacity 0.2s",
                 }}
-                onClick={() => setIsSidebarOpen(true)}
               >
-                {item.icon}
+                {icon}
               </span>
             ))}
           </div>
         )}
       </div>
 
-      {/* ══════ MAIN CONTENT ══════ */}
+      {/* ── Main content ── */}
       <div
         style={{
           flex: 1,
@@ -1248,53 +1228,120 @@ function DeckingPage({ darkMode }) {
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
         >
+          {/* Main Tabs + Action Buttons */}
           <div
             style={{
               display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "0.6rem",
+              alignItems: "center",
+              marginTop: "0.5rem",
+              borderBottom: `2px solid ${colors.cardBorder}`,
             }}
           >
-            <div>
-              <h1
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: "600",
-                  marginBottom: "0.2rem",
-                  color: colors.textPrimary,
-                  margin: 0,
-                }}
-              >
-                Decking
-              </h1>
-              <p
-                style={{
-                  color: colors.textTertiary,
-                  fontSize: "0.75rem",
-                  margin: "0.2rem 0 0",
-                }}
-              >
-                Upload reports and assign evaluators for decking
-              </p>
-            </div>
+            {/* Tabs */}
             <div
-              style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}
+              style={{
+                display: "flex",
+                flex: 1,
+                overflowX: "auto",
+                scrollbarWidth: "none",
+              }}
             >
-              {/* ✅ Selection badge — shows total selected across all pages/searches */}
+              {[
+                {
+                  id: "all",
+                  label: "All Reports",
+                  icon: "📋",
+                  count: statsData.total,
+                },
+                {
+                  id: "not-decked",
+                  label: "Not Yet Decked",
+                  icon: "⏳",
+                  count: statsData.notDecked,
+                },
+                {
+                  id: "decked",
+                  label: "Decked",
+                  icon: "✅",
+                  count: statsData.decked,
+                },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabChange(tab.id)}
+                  style={{
+                    padding: "6px 14px",
+                    fontSize: "12px",
+                    background: "transparent",
+                    border: "none",
+                    borderBottom:
+                      activeTab === tab.id
+                        ? "2px solid #4CAF50"
+                        : "2px solid transparent",
+                    color:
+                      activeTab === tab.id
+                        ? colors.textPrimary
+                        : colors.textTertiary,
+                    fontWeight: activeTab === tab.id ? 600 : 400,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    position: "relative",
+                    top: "1px",
+                    whiteSpace: "nowrap",
+                    transition: "all 0.2s ease",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{ fontSize: "0.82rem" }}>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      padding: "1px 6px",
+                      borderRadius: "999px",
+                      background:
+                        activeTab === tab.id ? "#4CAF50" : colors.badgeBg,
+                      color:
+                        activeTab === tab.id ? "#fff" : colors.textTertiary,
+                      border: `0.5px solid ${activeTab === tab.id ? "#4CAF50" : colors.cardBorder}`,
+                      fontWeight: 600,
+                      minWidth: "20px",
+                      textAlign: "center",
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Action buttons — naka-fix sa kanan */}
+            <div
+              style={{
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                paddingLeft: "10px",
+                paddingBottom: "4px",
+                borderLeft: `1px solid ${colors.cardBorder}`,
+              }}
+            >
               {selectedRows.length > 0 && (
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "0.5rem",
-                    padding: "0.4rem 0.75rem",
+                    padding: "3px 10px",
                     background: "rgba(33,150,243,0.1)",
                     border: "1px solid rgba(33,150,243,0.35)",
-                    borderRadius: "8px",
-                    fontSize: "0.75rem",
+                    borderRadius: "6px",
+                    fontSize: "11px",
                     color: "#2196F3",
-                    fontWeight: "600",
+                    fontWeight: 600,
                   }}
                 >
                   <span>✓ {selectedRows.length} selected</span>
@@ -1312,7 +1359,6 @@ function DeckingPage({ darkMode }) {
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
                     onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.7)}
-                    title="Clear all selections"
                   >
                     ✕
                   </button>
@@ -1322,28 +1368,23 @@ function DeckingPage({ darkMode }) {
                 onClick={handleExport}
                 disabled={exporting || totalRecords === 0}
                 style={{
-                  padding: "0.7rem 1rem",
-                  background: exporting ? colors.cardBorder : "#10B981",
+                  padding: "5px 14px",
+                  background: exporting
+                    ? colors.cardBorder
+                    : "linear-gradient(135deg,#10B981,#059669)",
                   color: "#fff",
                   border: "none",
-                  borderRadius: "8px",
-                  fontSize: "0.75rem",
-                  fontWeight: "500",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: 600,
                   cursor:
                     exporting || totalRecords === 0 ? "not-allowed" : "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.4rem",
-                  transition: "all 0.2s ease",
+                  gap: "5px",
                   opacity: totalRecords === 0 ? 0.5 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!exporting && totalRecords > 0)
-                    e.currentTarget.style.background = "#059669";
-                }}
-                onMouseLeave={(e) => {
-                  if (!exporting && totalRecords > 0)
-                    e.currentTarget.style.background = "#10B981";
+                  boxShadow: "0 2px 6px rgba(16,185,129,0.25)",
+                  height: "30px",
                 }}
               >
                 <span>{exporting ? "⏳" : "📥"}</span>
@@ -1358,82 +1399,6 @@ function DeckingPage({ darkMode }) {
                 colors={colors}
               />
             </div>
-          </div>
-
-          {/* Main Tabs */}
-          <div
-            style={{
-              display: "flex",
-              gap: "0.25rem",
-              marginTop: "0.5rem",
-              borderBottom: `2px solid ${colors.cardBorder}`,
-            }}
-          >
-            {[
-              {
-                id: "all",
-                label: "All Reports",
-                icon: "📋",
-                count: statsData.total,
-              },
-              {
-                id: "not-decked",
-                label: "Not Yet Decked",
-                icon: "⏳",
-                count: statsData.notDecked,
-              },
-              {
-                id: "decked",
-                label: "Decked",
-                icon: "✅",
-                count: statsData.decked,
-              },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                style={{
-                  padding: "0.35rem 0.85rem",
-                  fontSize: "0.78rem",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom:
-                    activeTab === tab.id
-                      ? "3px solid #4CAF50"
-                      : "3px solid transparent",
-                  color:
-                    activeTab === tab.id
-                      ? colors.textPrimary
-                      : colors.textSecondary,
-                  fontWeight: activeTab === tab.id ? "600" : "500",
-                  cursor: "pointer",
-                  transition: "all 0.2s ease",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  position: "relative",
-                  top: "2px",
-                }}
-              >
-                <span style={{ fontSize: "0.82rem" }}>{tab.icon}</span>
-                <span>{tab.label}</span>
-                <span
-                  style={{
-                    padding: "0.1rem 0.45rem",
-                    background:
-                      activeTab === tab.id ? "#4CAF50" : colors.badgeBg,
-                    color: activeTab === tab.id ? "#fff" : colors.textTertiary,
-                    borderRadius: "12px",
-                    fontSize: "0.68rem",
-                    fontWeight: "600",
-                    minWidth: "28px",
-                    textAlign: "center",
-                  }}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            ))}
           </div>
         </div>
 
@@ -1485,7 +1450,7 @@ function DeckingPage({ darkMode }) {
               <div
                 style={{
                   fontSize: "0.88rem",
-                  fontWeight: "600",
+                  fontWeight: 600,
                   marginBottom: "0.35rem",
                 }}
               >
@@ -1514,7 +1479,7 @@ function DeckingPage({ darkMode }) {
               <div
                 style={{
                   fontSize: "0.88rem",
-                  fontWeight: "600",
+                  fontWeight: 600,
                   marginBottom: "0.35rem",
                 }}
               >
@@ -1565,7 +1530,6 @@ function DeckingPage({ darkMode }) {
           updateUploadReport={updateUploadReport}
         />
       )}
-
       {showErrorModal && (
         <UploadErrorModal
           failedRecords={failedRecords}

@@ -270,7 +270,7 @@ function DataTable({
     const { status, days } = calculateStatusTimeline(row);
     if (!status)
       return (
-        <span style={{ color: colors.textTertiary, fontSize: "0.72rem" }}>
+        <span style={{ color: colors.textTertiary, fontSize: "0.55rem" }}>
           N/A
         </span>
       );
@@ -284,7 +284,7 @@ function DataTable({
             : "linear-gradient(135deg,#ef4444,#dc2626)",
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.72rem",
+          fontSize: "0.55rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -305,7 +305,7 @@ function DataTable({
   const renderProcessingTypeBadge = (value) => {
     if (!value || value === "N/A")
       return (
-        <span style={{ color: colors.textTertiary, fontSize: "0.72rem" }}>
+        <span style={{ color: colors.textTertiary, fontSize: "0.55rem" }}>
           N/A
         </span>
       );
@@ -316,7 +316,7 @@ function DataTable({
           background: "linear-gradient(135deg,#2196F3,#1976D2)",
           color: "#fff",
           borderRadius: "6px",
-          fontSize: "0.72rem",
+          fontSize: "0.55rem",
           fontWeight: "600",
           display: "inline-flex",
           alignItems: "center",
@@ -376,7 +376,7 @@ function DataTable({
         background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.72rem",
+        fontSize: "0.55rem",
         fontWeight: "700",
         letterSpacing: "0.5px",
         boxShadow: "0 2px 8px rgba(8, 8, 8, 0.3)",
@@ -397,7 +397,7 @@ function DataTable({
         background: "linear-gradient(135deg,#06b6d4,#0891b2)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.72rem",
+        fontSize: "0.55rem",
         fontWeight: "700",
         boxShadow: "0 2px 8px rgba(6,182,212,0.3)",
       }}
@@ -417,7 +417,7 @@ function DataTable({
         background: "linear-gradient(135deg,#f59e0b,#d97706)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.72rem",
+        fontSize: "0.55rem",
         fontWeight: "700",
         boxShadow: "0 2px 8px rgba(245,158,11,0.3)",
       }}
@@ -439,7 +439,7 @@ function DataTable({
           background: bg,
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.72rem",
+          fontSize: "0.55rem",
           fontWeight: "700",
           boxShadow: `0 2px 8px ${sh}`,
         }}
@@ -520,7 +520,7 @@ function DataTable({
           background: c.bg,
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.72rem",
+          fontSize: "0.55rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -588,7 +588,7 @@ function DataTable({
 
   const subTabStyle = (isActive) => ({
     padding: "0.3rem 0.75rem",
-    fontSize: "0.72rem",
+    fontSize: "0.55rem",
     background: "transparent",
     border: "none",
     borderBottom: isActive ? "2px solid #2196F3" : "2px solid transparent",
@@ -874,9 +874,9 @@ function DataTable({
   };
 
   const thStyle = {
-    padding: "0.65rem 0.85rem",
+    padding: "0.45rem 0.6rem",
     textAlign: "left",
-    fontSize: "0.6rem",
+    fontSize: "0.55rem",
     fontWeight: "600",
     color: colors.textTertiary,
     textTransform: "uppercase",
@@ -890,8 +890,8 @@ function DataTable({
   };
 
   const tdStyle = {
-    padding: "0.65rem 0.85rem",
-    fontSize: "0.78rem",
+    padding: "0.4rem 0.6rem",
+    fontSize: "0.55rem",
     color: colors.tableText,
     borderBottom: `1px solid ${colors.tableBorder}`,
     whiteSpace: "normal",
@@ -1219,7 +1219,7 @@ function DataTable({
                   style={{
                     ...thStyle,
                     cursor: "default",
-                    width: "50px",
+                    width: "60px",
                     position: "sticky",
                     left: 0,
                     background: colors.tableBg,
@@ -1357,8 +1357,8 @@ function DataTable({
                     </td>
                     <td
                       style={{
-                        padding: "0.65rem 0.85rem",
-                        fontSize: "0.78rem",
+                        padding: "0.4rem 0.6rem",
+                        fontSize: "0.65rem",
                         fontWeight: "700",
                         color: colors.textTertiary,
                         borderBottom: `1px solid ${colors.tableBorder}`,
