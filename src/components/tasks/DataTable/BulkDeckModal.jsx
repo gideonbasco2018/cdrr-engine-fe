@@ -23,48 +23,61 @@ const ACTION_CONFIG = {
     options: ["For ENOD", "For Approval", "For Disapproval"],
     warning: "Action is required when endorsing to supervisor.",
   },
-  "Checking_Checked and return to evaluator": {
-    options: ["Checked and Return", "Recommended for printing"],
+  "Checking_Checked and returned to evaluator": {
+    options: [
+      "For appropriate action - Re-evaluation",
+      "For appropriate action - Send eNOD",
+      "For Printing (Approval)",
+      "For Printing (Disapproval)",
+    ],
     warning: "Action is required when returning to evaluator.",
   },
-  "Supervisor_Endorse to QA Admin": {
+  "Checking_Forwarded to Supervisor": {
+    options: [
+      "For appropriate action - Re-evaluation",
+      "For appropriate action - Send eNOD",
+      "For Printing (Approval)",
+      "For Printing (Disapproval)",
+    ],
+    warning: "Action is required when forwarding to supervisor.",
+  },
+  "Supervisor_Returned to Evaluator": {
+    options: ["Return to Evaluator for Clarification"],
+    warning: "Action is required when returning to evaluator.",
+  },
+  "Supervisor_Endorsed to QA Admin": {
     options: ["Signed and forwarded to QA Admin"],
     warning: "Action is required when endorsing to QA Admin.",
   },
-  "Supervisor_Return to Evaluator": {
-    options: ["Return to Evaluator for Clarification"],
-    warning: "Action is required when returning to evaluator.",
-  },
-  "QA Admin_Endorse to LRD Chief Admin": {
+  "QA Admin_Endorsed to LRD Chief Admin": {
     options: ["Checked and Forwarded to LRD Admin"],
     warning: "Action is required when endorsing to LRD Chief Admin.",
   },
-  "QA Admin_Return to Evaluator": {
+  "QA Admin_Returned to Evaluator": {
     options: ["Return to Evaluator for Clarification"],
     warning: "Action is required when returning to evaluator.",
   },
-  "LRD Chief Admin_Endorse to OD-Receiving": {
-    // ← ADD THIS
+  "LRD Chief Admin_Endorsed to OD-Receiving": {
     options: ["Signed and forwarded to OD-Receiving"],
     warning: "Action is required when endorsing to OD-Receiving.",
   },
-  "OD-Receiving_Endorse to OD-Releasing": {
+  "OD-Receiving_Endorsed to OD-Releasing": {
     options: ["For signature"],
     warning: "Action is required when endorsing to OD-Releasing.",
   },
-  "OD-Releasing_Scanned and Endorse to Releasing Officer": {
+  "OD-Releasing_Scanned and Endorsed to Releasing Officer": {
     options: ["Signed"],
     warning: "Action is required when endorsing to Releasing Officer.",
   },
   "Releasing Officer_Released": {
-    options: ["Release to record"],
+    options: ["Released"],
     warning: "Action is required when releasing.",
   },
 };
 
 const RETURN_DECISIONS = new Set([
-  "Return to Evaluator",
-  "Checked and return to evaluator",
+  "Returned to Evaluator",
+  "Checked and returned to evaluator",
 ]);
 
 const formatSignedDate = (dateStr) => {
@@ -162,7 +175,7 @@ export function BulkDeckModal({
     if (!dec) return config.defaultDoctrack ?? "";
     if (
       config.requiresSignedDate &&
-      dec === "Scanned and Endorse to Releasing Officer"
+      dec === "Scanned and Endorsed to Releasing Officer"
     ) {
       return buildODReleasingDoctrack(signedDate);
     }
@@ -934,11 +947,11 @@ export function BulkDeckModal({
               </div>
             </div>
 
-            {/* ── Decision ── */}
+            {/* ── Decision replace to action only field name not variable/value ── */}
             {hasDecisions && (
               <div>
                 <label style={labelStyle(colors)}>
-                  Decision <span style={{ color: "#ef4444" }}>*</span>
+                  Action <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <select
                   value={decision}
@@ -981,7 +994,7 @@ export function BulkDeckModal({
             {actionConfig && (
               <div>
                 <label style={labelStyle(colors)}>
-                  Action <span style={{ color: "#ef4444" }}>*</span>
+                  Recommendation <span style={{ color: "#ef4444" }}>*</span>
                 </label>
                 <select
                   value={action}

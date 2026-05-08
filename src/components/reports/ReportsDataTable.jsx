@@ -119,7 +119,7 @@ function ReportsDataTable({
       >
         <span
           style={{
-            fontSize: "0.48rem",
+            fontSize: "0.42rem",
             lineHeight: 1,
             color:
               isActive && sortOrder === "asc" ? "#4CAF50" : colors.textTertiary,
@@ -427,7 +427,7 @@ function ReportsDataTable({
           background: c.bg,
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.72rem",
+          fontSize: "0.50rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -455,7 +455,23 @@ function ReportsDataTable({
   const renderCell = (col, row) => {
     switch (col.key) {
       case "dtn":
-        return renderDTN(row[col.key]);
+        return (
+          <span
+            style={{
+              fontSize: "0.65rem",
+              color: colors.tableText,
+              fontWeight: 600,
+            }}
+          >
+            {row[col.key] || "N/A"}
+          </span>
+        );
+      case "processingType":
+        return (
+          <span style={{ fontSize: "0.65rem", color: colors.tableText }}>
+            {row[col.key] || "Regular"}
+          </span>
+        );
       case "prodGenName":
         return renderGenericName(row[col.key]);
       case "prodBrName":
@@ -468,8 +484,7 @@ function ReportsDataTable({
         return row.dbTimelineCitizenCharter || "N/A";
       case "typeDocReleased":
         return renderTypeDocReleased(row[col.key]);
-      case "processingType":
-        return renderProcessingTypeBadge(row[col.key]);
+
       default:
         return (
           <span style={{ fontSize: "0.78rem", color: colors.tableText }}>
@@ -503,8 +518,8 @@ function ReportsDataTable({
   };
 
   const thBase = {
-    padding: "0.65rem 0.85rem",
-    fontSize: "0.6rem",
+    padding: "0.45rem 0.6rem",
+    fontSize: "0.55rem",
     fontWeight: "600",
     color: colors.textTertiary,
     textTransform: "uppercase",
@@ -517,8 +532,8 @@ function ReportsDataTable({
   };
 
   const tdBase = {
-    padding: "0.65rem 0.85rem",
-    fontSize: "0.78rem",
+    padding: "0.4rem 0.6rem",
+    fontSize: "0.68rem",
     color: colors.tableText,
     borderBottom: `1px solid ${colors.tableBorder}`,
   };
@@ -541,7 +556,7 @@ function ReportsDataTable({
         {/* Header */}
         <div
           style={{
-            padding: "0.75rem 1.25rem",
+            padding: "0.45rem 0.85rem",
             borderBottom: `1px solid ${colors.tableBorder}`,
             display: "flex",
             alignItems: "center",
@@ -554,7 +569,7 @@ function ReportsDataTable({
           >
             <h3
               style={{
-                fontSize: "0.8rem",
+                fontSize: "0.7rem",
                 fontWeight: "600",
                 color: colors.textPrimary,
                 margin: 0,
@@ -567,7 +582,7 @@ function ReportsDataTable({
                 padding: "0.2rem 0.6rem",
                 background: colors.badgeBg,
                 borderRadius: "12px",
-                fontSize: "0.68rem",
+                fontSize: "0.55rem",
                 color: colors.textTertiary,
                 fontWeight: "600",
               }}
@@ -626,8 +641,8 @@ function ReportsDataTable({
                     ...thBase,
                     cursor: "default",
                     textAlign: "center",
-                    width: "60px",
-                    minWidth: "60px",
+                    width: "40px",
+                    minWidth: "40px",
                     position: "sticky",
                     left: 0,
                     background: colors.tableBg,
@@ -674,7 +689,7 @@ function ReportsDataTable({
                     ...thBase,
                     cursor: "default",
                     textAlign: "center",
-                    width: "80px",
+                    width: "60px",
                     position: "sticky",
                     right: 0,
                     background: colors.tableBg,
@@ -709,8 +724,8 @@ function ReportsDataTable({
                         color: colors.textTertiary,
                         textAlign: "center",
                         whiteSpace: "nowrap",
-                        width: "60px",
-                        minWidth: "60px",
+                        width: "40px",
+                        minWidth: "40px",
                         position: "sticky",
                         left: 0,
                         background: rowBg,
@@ -763,8 +778,8 @@ function ReportsDataTable({
                             borderRadius: "6px",
                             color: colors.textPrimary,
                             cursor: "pointer",
-                            width: "28px",
-                            height: "28px",
+                            width: "24px",
+                            height: "24px",
                             transition: "all 0.2s ease",
                           }}
                         >

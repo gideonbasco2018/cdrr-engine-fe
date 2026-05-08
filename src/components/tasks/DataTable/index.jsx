@@ -221,8 +221,8 @@ function DataTable({
       });
 
     const isReturnDecision =
-      decision === "Return to Evaluator" ||
-      decision === "Checked and return to evaluator";
+      decision === "Returned to Evaluator" ||
+      decision === "Checked and returned to evaluator";
 
     const resolvedNextStep = isReturnDecision
       ? "Quality Evaluation"
@@ -282,6 +282,12 @@ function DataTable({
             }
             resolvedAssignee = prevEval;
             resolvedAssigneeId = prevEvalId;
+            console.log(
+              "🔍 BulkDeck return — resolvedAssignee:",
+              resolvedAssignee,
+              "| resolvedAssigneeId:",
+              resolvedAssigneeId,
+            );
           } catch {
             resolvedAssignee = null;
             resolvedAssigneeId = null;
@@ -337,7 +343,12 @@ function DataTable({
               DB_DECISION_SIGNED_DATE: signedDate || null,
             });
           }
-
+          console.log(
+            "🔍 createApplicationLog payload — user_name:",
+            resolvedAssignee,
+            "| user_id:",
+            resolvedAssigneeId,
+          );
           await createApplicationLog({
             main_db_id: mainDbId,
             application_step: resolvedNextStep,
@@ -967,18 +978,14 @@ function DataTable({
 
                 {visibleColumns.map((col) =>
                   col.key === "__divider__" ? (
-                    <th
+                    <td
                       key="__divider__"
                       style={{
                         padding: 0,
                         width: "1px",
-                        minWidth: "4px",
-                        background: darkMode
-                          ? "rgba(156,163,175,0.25)"
-                          : "rgba(156,163,175,0.15)",
+                        minWidth: "1px",
+                        background: colors.tableBorder,
                         borderBottom: `1px solid ${colors.tableBorder}`,
-                        borderLeft: "1px solid rgba(156,163,175,0.3)",
-                        borderRight: "1px solid rgba(156,163,175,0.3)",
                       }}
                     />
                   ) : (
@@ -1114,18 +1121,16 @@ function DataTable({
                       ? colors.tableRowEven
                       : colors.tableRowOdd;
                 const rowBorderLeft = sel
-                  ? "3px solid #4CAF50"
-                  : isUnread
-                    ? "3px solid #2196F3"
-                    : urgency === "overdue"
-                      ? "3px solid #ef4444"
-                      : urgency === "today"
-                        ? "3px solid #f97316"
-                        : urgency === "critical"
-                          ? "3px solid #f59e0b"
-                          : urgency === "warning"
-                            ? "3px solid #eab308"
-                            : "3px solid transparent";
+                  ? "1px solid #4CAF50"
+                  : urgency === "overdue"
+                    ? "1px solid #ef4444"
+                    : urgency === "today"
+                      ? "1px solid #f97316"
+                      : urgency === "critical"
+                        ? "1px solid #f59e0b"
+                        : urgency === "warning"
+                          ? "1px solid #eab308"
+                          : "1px solid transparent";
 
                 return (
                   <tr
@@ -1203,13 +1208,9 @@ function DataTable({
                           style={{
                             padding: 0,
                             width: "1px",
-                            minWidth: "4px",
-                            background: darkMode
-                              ? "rgba(156,163,175,0.25)"
-                              : "rgba(156,163,175,0.15)",
+                            minWidth: "1px",
+                            background: colors.tableBorder,
                             borderBottom: `1px solid ${colors.tableBorder}`,
-                            borderLeft: "1px solid rgba(156,163,175,0.3)",
-                            borderRight: "1px solid rgba(156,163,175,0.3)",
                           }}
                         />
                       ) : (

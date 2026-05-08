@@ -5,12 +5,12 @@ import { COUNTRIES } from "../tasks/viewdetails/config/constants";
 
 const inputStyle = (colors, overrides = {}) => ({
   width: "100%",
-  padding: "0.38rem 0.65rem",
+  padding: "0.25rem 0.5rem",
+  fontSize: "0.65rem",
   background: colors.inputBg,
   border: `1px solid ${colors.inputBorder}`,
   borderRadius: "6px",
   color: colors.textPrimary,
-  fontSize: "0.72rem",
   outline: "none",
   boxSizing: "border-box",
   transition: "border-color 0.2s",
@@ -19,10 +19,10 @@ const inputStyle = (colors, overrides = {}) => ({
 
 const labelStyle = (colors) => ({
   display: "block",
-  fontSize: "0.62rem",
+  fontSize: "0.58rem",
+  marginBottom: "0.2rem",
   fontWeight: "600",
   color: colors.textTertiary,
-  marginBottom: "0.28rem",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 });
@@ -557,8 +557,8 @@ function FilterBar({
         background: colors.cardBg,
         border: `1px solid ${colors.cardBorder}`,
         borderRadius: "12px",
-        padding: "0.6rem 0.75rem",
-        marginBottom: "0.75rem",
+        padding: "0.4rem 0.6rem",
+        marginBottom: "0.5rem",
         transition: "all 0.3s ease",
       }}
     >
@@ -580,7 +580,7 @@ function FilterBar({
               top: "50%",
               transform: "translateY(-50%)",
               color: colors.textTertiary,
-              fontSize: "0.68rem",
+              fontSize: "0.6rem",
               pointerEvents: "none",
             }}
           >
@@ -591,7 +591,7 @@ function FilterBar({
             placeholder="Search by DTN, Company, Brand Name, Generic Name, Manufacturer..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            style={inputStyle(colors, { paddingLeft: "1.9rem" })}
+            style={inputStyle(colors, { paddingLeft: "1.6rem" })}
             onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
             onBlur={(e) => (e.target.style.borderColor = colors.inputBorder)}
           />
@@ -601,12 +601,13 @@ function FilterBar({
         <button
           onClick={() => setShowAdvanced((v) => !v)}
           style={{
-            padding: "0.38rem 0.75rem",
+            padding: "0.25rem 0.55rem",
+            fontSize: "0.65rem",
             background: showAdvanced ? "#4CAF50" : colors.inputBg,
             border: `1px solid ${showAdvanced ? "#4CAF50" : colors.inputBorder}`,
             borderRadius: "6px",
             color: showAdvanced ? "#fff" : colors.textPrimary,
-            fontSize: "0.72rem",
+
             cursor: "pointer",
             fontWeight: "500",
             transition: "all 0.2s",
@@ -639,12 +640,13 @@ function FilterBar({
           <button
             onClick={clearAllFilters}
             style={{
-              padding: "0.38rem 0.75rem",
+              padding: "0.25rem 0.55rem",
+              fontSize: "0.65rem",
               background: "transparent",
               border: `1px solid ${colors.cardBorder}`,
               borderRadius: "6px",
               color: colors.textSecondary,
-              fontSize: "0.72rem",
+
               cursor: "pointer",
               fontWeight: "500",
               transition: "all 0.2s",
@@ -755,7 +757,7 @@ function FilterBar({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
                 gap: "0.5rem",
               }}
             >
@@ -776,10 +778,10 @@ function FilterBar({
           <div
             style={{
               marginTop: "0.6rem",
-              padding: "0.45rem 0.7rem",
               background: colors.badgeBg,
               borderRadius: "6px",
-              fontSize: "0.68rem",
+              fontSize: "0.6rem",
+              padding: "0.3rem 0.55rem",
               color: colors.textSecondary,
               lineHeight: 1.5,
             }}
