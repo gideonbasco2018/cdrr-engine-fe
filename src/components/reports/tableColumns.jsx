@@ -8,7 +8,7 @@ export const tableColumns = [
   {
     key: "dtn",
     label: "DTN",
-    width: "160px",
+    width: "150px",
     frozen: true,
     frozenLeft: "40px",
   },
