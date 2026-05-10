@@ -42,20 +42,18 @@ export default function TasksPerUser({
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [groupFilter, setGroupFilter] = useState(""); // "" = all groups
+  const [groupFilter, setGroupFilter] = useState("");
 
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const colHdr = darkMode ? ui.sidebarBg : "#f8f9fd";
 
-  // Fetch groups once for the dropdown
   useEffect(() => {
     getGroups()
       .then(setGroups)
       .catch(() => setGroups([]));
   }, []);
 
-  // Fetch users — re-fetch whenever groupFilter changes (server-side filtering)
   useEffect(() => {
     let cancelled = false;
     const fetchData = async () => {
@@ -80,7 +78,6 @@ export default function TasksPerUser({
     };
   }, [groupFilter]);
 
-  // Client-side search only (group filtering is server-side)
   const filtered = useMemo(() => {
     return allUsers.filter((u) => {
       const name = (u.full_name || u.username || "").toLowerCase();
@@ -92,27 +89,26 @@ export default function TasksPerUser({
     setPage(1);
   }, [search]);
 
-  const maxTasks = Math.max(...allUsers.map((u) => u.tasks?.total || 0), 1);
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pagedUsers = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const btnStyle = (disabled) => ({
     background: "transparent",
     border: `1px solid ${ui.cardBorder}`,
-    borderRadius: 5,
+    borderRadius: 4,
     color: disabled ? ui.textMuted : ui.textPrimary,
     cursor: disabled ? "not-allowed" : "pointer",
-    padding: "2px 8px",
-    fontSize: "0.78rem",
+    padding: "1px 6px",
+    fontSize: "0.72rem",
     fontFamily: font,
   });
 
   const inputSt = {
     background: ui.inputBg,
     border: `1px solid ${ui.cardBorder}`,
-    borderRadius: 6,
-    padding: "5px 8px",
-    fontSize: "0.76rem",
+    borderRadius: 5,
+    padding: "3px 6px",
+    fontSize: "0.66rem",
     color: ui.textPrimary,
     outline: "none",
     fontFamily: font,
@@ -140,20 +136,20 @@ export default function TasksPerUser({
   return (
     <div
       style={{
-        flex: "0 0 300px",
-        minWidth: 260,
+        flex: "0 0 210px",
+        minWidth: 190,
         display: "flex",
         flexDirection: "column",
-        height: "calc(100vh - 160px)",
-        maxHeight: "calc(100vh - 160px)",
+        height: "calc(100vh - 110px)",
+        maxHeight: "calc(100vh - 110px)",
       }}
     >
       <p
         style={{
-          fontSize: "0.9rem",
+          fontSize: "0.8rem",
           fontWeight: 700,
           color: ui.textPrimary,
-          margin: "0 0 8px",
+          margin: "0 0 6px",
           fontFamily: font,
           flexShrink: 0,
         }}
@@ -177,12 +173,12 @@ export default function TasksPerUser({
         {/* Filter Bar */}
         <div
           style={{
-            padding: "8px 10px",
+            padding: "6px 8px",
             borderBottom: `1px solid ${ui.divider}`,
             background: colHdr,
             display: "flex",
             flexDirection: "column",
-            gap: 6,
+            gap: 4,
             flexShrink: 0,
           }}
         >
@@ -211,17 +207,17 @@ export default function TasksPerUser({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 44px 44px 44px",
+            gridTemplateColumns: "1fr 36px 36px 36px",
             background: colHdr,
             borderBottom: `1px solid ${ui.divider}`,
-            padding: "6px 12px",
-            gap: 4,
+            padding: "4px 8px",
+            gap: 2,
             flexShrink: 0,
           }}
         >
           <span
             style={{
-              fontSize: "0.63rem",
+              fontSize: "0.56rem",
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.07em",
@@ -235,7 +231,7 @@ export default function TasksPerUser({
             <span
               key={key}
               style={{
-                fontSize: "0.63rem",
+                fontSize: "0.56rem",
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.07em",
@@ -250,15 +246,18 @@ export default function TasksPerUser({
           ))}
         </div>
 
-        {/* Body — scrollable */}
-        <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+        {/* Body */}
+        <div
+          style={{ flex: 1, overflowY: "auto", minHeight: 0 }}
+          className="monitoring-scroll"
+        >
           {loading ? (
             <div
               style={{
-                padding: "24px",
+                padding: "20px",
                 textAlign: "center",
                 color: ui.textMuted,
-                fontSize: "0.82rem",
+                fontSize: "0.76rem",
                 fontFamily: font,
               }}
             >
@@ -267,10 +266,10 @@ export default function TasksPerUser({
           ) : error ? (
             <div
               style={{
-                padding: "16px",
+                padding: "14px",
                 textAlign: "center",
                 color: "#e02020",
-                fontSize: "0.8rem",
+                fontSize: "0.74rem",
                 fontFamily: font,
               }}
             >
@@ -279,10 +278,10 @@ export default function TasksPerUser({
           ) : filtered.length === 0 ? (
             <div
               style={{
-                padding: "24px",
+                padding: "20px",
                 textAlign: "center",
                 color: ui.textMuted,
-                fontSize: "0.82rem",
+                fontSize: "0.76rem",
                 fontFamily: font,
               }}
             >
@@ -294,9 +293,8 @@ export default function TasksPerUser({
               const av = getAvatarColor(globalIndex >= 0 ? globalIndex : i);
               const tasks = user.tasks || {};
               const displayName = user.full_name || user.username || "—";
-              const displayGroup = user.group_name || "—"; // ← group_name from backend
+              const displayGroup = user.group_name || "—";
               const total = tasks.total || 0;
-
               const isSelected =
                 selectedUserId && selectedUserId === user.user_id;
 
@@ -305,9 +303,9 @@ export default function TasksPerUser({
                   key={user.user_id}
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "1fr 44px 44px 44px",
-                    padding: "9px 12px",
-                    gap: 4,
+                    gridTemplateColumns: "1fr 36px 36px 36px",
+                    padding: "5px 8px",
+                    gap: 2,
                     borderBottom:
                       i < pagedUsers.length - 1
                         ? `1px solid ${ui.divider}`
@@ -338,15 +336,15 @@ export default function TasksPerUser({
                     style={{
                       display: "flex",
                       alignItems: "flex-start",
-                      gap: 8,
+                      gap: 6,
                       minWidth: 0,
                       cursor: "pointer",
                     }}
                   >
                     <div
                       style={{
-                        width: 32,
-                        height: 32,
+                        width: 22,
+                        height: 22,
                         borderRadius: "50%",
                         flexShrink: 0,
                         background: av.bg,
@@ -354,7 +352,7 @@ export default function TasksPerUser({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: "0.65rem",
+                        fontSize: "0.52rem",
                         fontWeight: 700,
                         border: `1.5px solid ${av.color}33`,
                         fontFamily: font,
@@ -367,7 +365,7 @@ export default function TasksPerUser({
                       <p
                         style={{
                           margin: 0,
-                          fontSize: "0.78rem",
+                          fontSize: "0.66rem",
                           fontWeight: 600,
                           color: ui.textPrimary,
                           lineHeight: 1.3,
@@ -377,43 +375,39 @@ export default function TasksPerUser({
                       >
                         {displayName}
                       </p>
-                      {/* ← group_name instead of position */}
                       <p
                         style={{
-                          margin: "1px 0 4px",
-                          fontSize: "0.64rem",
+                          margin: "1px 0 3px",
+                          fontSize: "0.56rem",
                           color: ui.textMuted,
-                          lineHeight: 1.3,
+                          lineHeight: 1.2,
                           wordBreak: "break-word",
                           fontFamily: font,
                         }}
                       >
                         {displayGroup}
                       </p>
-
                       <div
                         style={{
-                          height: 3,
+                          height: 2,
                           borderRadius: 99,
                           background: ui.progressBg,
                           overflow: "hidden",
                           display: "flex",
                         }}
                       >
-                        {/* Completed — green */}
                         <div
                           style={{
-                            height: 3,
+                            height: 2,
                             background: "#36a420",
                             width: `${total > 0 ? ((tasks.completed || 0) / total) * 100 : 0}%`,
                             transition: "width 0.4s",
                             flexShrink: 0,
                           }}
                         />
-                        {/* In Progress — yellow */}
                         <div
                           style={{
-                            height: 3,
+                            height: 2,
                             background: "#f59e0b",
                             width: `${total > 0 ? ((tasks.in_progress || 0) / total) * 100 : 0}%`,
                             transition: "width 0.4s",
@@ -424,7 +418,7 @@ export default function TasksPerUser({
                     </div>
                   </div>
 
-                  {/* Clickable count cells */}
+                  {/* Count cells */}
                   {countCols.map(({ key, color, getValue }) => {
                     const val = getValue(tasks);
                     const isActiveCol = isSelected && selectedStatus === key;
@@ -434,14 +428,14 @@ export default function TasksPerUser({
                         onClick={() => onUserClick && onUserClick(user, key)}
                         title={`Show ${key === "all" ? "all" : key === "completed" ? "completed" : "in-progress"} records`}
                         style={{
-                          fontSize: "0.88rem",
+                          fontSize: "0.74rem",
                           fontWeight: 800,
                           color: isActiveCol ? "#fff" : color,
                           textAlign: "center",
                           fontFamily: font,
                           cursor: "pointer",
-                          borderRadius: 6,
-                          padding: "2px 4px",
+                          borderRadius: 5,
+                          padding: "1px 2px",
                           background: isActiveCol ? color : "transparent",
                           transition: "all 0.15s",
                           userSelect: "none",
@@ -465,10 +459,10 @@ export default function TasksPerUser({
           )}
         </div>
 
-        {/* Footer with Pagination */}
+        {/* Footer */}
         <div
           style={{
-            padding: "7px 12px",
+            padding: "5px 10px",
             borderTop: `1px solid ${ui.divider}`,
             background: colHdr,
             display: "flex",
@@ -479,7 +473,7 @@ export default function TasksPerUser({
         >
           <span
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.6rem",
               color: ui.textMuted,
               fontFamily: font,
             }}
@@ -487,7 +481,7 @@ export default function TasksPerUser({
             {filtered.length} / {allUsers.length} users
           </span>
           {totalPages > 1 && (
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
@@ -497,12 +491,12 @@ export default function TasksPerUser({
               </button>
               <span
                 style={{
-                  fontSize: "0.73rem",
+                  fontSize: "0.62rem",
                   color: ui.textMuted,
                   fontFamily: font,
                 }}
               >
-                {page} / {totalPages}
+                {page}/{totalPages}
               </span>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
