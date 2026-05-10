@@ -11,9 +11,6 @@ import WorkloadView from "../components/monitoring/workload/WorkloadView";
 import ActivityFeedView from "../components/monitoring/activityFeed/ActivityFeedView";
 import UsersView from "../components/monitoring/users/UsersView";
 
-// ── Shared modals (kept in parent since they span multiple views) ─────────────
-// ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
-
 const FB = "#1877F2";
 
 function makeUI(dark) {
@@ -662,7 +659,7 @@ function generateData() {
 const staticData = generateData();
 const uniqueEvaluators = [...new Set(staticData.map((d) => d.evaluator))];
 
-// ── Shared modal components ───────────────────────────────────────────────────
+// ── Step / Rx colors ─────────────────────────────────────────────────────────
 const stepColors = {
   "For Evaluation": { bg: "#dbeafe", color: "#1d4ed8" },
   "For Compliance": { bg: "#fef9c3", color: "#a16207" },
@@ -696,6 +693,121 @@ function rxShortLabel(p) {
       : "Vaccine";
 }
 
+// ── Coming Soon Screen ────────────────────────────────────────────────────────
+function ComingSoonView({ label, icon, ui, darkMode }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "60vh",
+        gap: "1.25rem",
+        padding: "2rem",
+        textAlign: "center",
+      }}
+    >
+      {/* Animated icon container */}
+      <div
+        style={{
+          width: 88,
+          height: 88,
+          borderRadius: "50%",
+          background: darkMode ? "#1e2a3a" : "#e7f0fd",
+          border: `2px dashed ${darkMode ? "#3a5070" : "#93c5fd"}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: "2.4rem",
+          animation: "cs-pulse 2.5s ease-in-out infinite",
+        }}
+      >
+        {icon}
+      </div>
+
+      {/* Badge */}
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "0.4rem",
+          padding: "0.3rem 0.9rem",
+          background: darkMode ? "#1a2744" : "#eff6ff",
+          border: `1px solid ${darkMode ? "#2d4a7a" : "#bfdbfe"}`,
+          borderRadius: "999px",
+          fontSize: "0.7rem",
+          fontWeight: 700,
+          color: FB,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+        }}
+      >
+        <span style={{ fontSize: "0.75rem" }}>🚧</span>
+        Coming Soon
+      </div>
+
+      <div>
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "1.35rem",
+            fontWeight: 700,
+            color: ui.textPrimary,
+          }}
+        >
+          {label}
+        </h2>
+        <p
+          style={{
+            margin: "0.5rem 0 0",
+            fontSize: "0.82rem",
+            color: ui.textMuted,
+            maxWidth: 360,
+            lineHeight: 1.6,
+          }}
+        >
+          This section is currently under development. We're working hard to
+          bring it to you soon. Stay tuned!
+        </p>
+      </div>
+
+      {/* Progress bar decoration */}
+      <div
+        style={{
+          width: 220,
+          height: 6,
+          borderRadius: 99,
+          background: darkMode ? "#2d2e2f" : "#e5e7eb",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: "60%",
+            borderRadius: 99,
+            background: `linear-gradient(90deg, ${FB}, #60a5fa)`,
+            animation: "cs-bar 2s ease-in-out infinite alternate",
+          }}
+        />
+      </div>
+
+      <style>{`
+        @keyframes cs-pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.06); opacity: 0.85; }
+        }
+        @keyframes cs-bar {
+          0% { width: 30%; }
+          100% { width: 75%; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+// ── Shared modal components ───────────────────────────────────────────────────
 function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
   const [search, setSearch] = useState("");
   const font =
@@ -1397,11 +1509,12 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
   );
 }
 
-function NavItem({ icon, label, active, onClick, ui }) {
+// ── NavItem — supports comingSoon flag ────────────────────────────────────────
+function NavItem({ icon, label, active, onClick, ui, comingSoon }) {
   const [hov, setHov] = useState(false);
   return (
     <div
-      onClick={onClick}
+      onClick={comingSoon ? undefined : onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -1411,9 +1524,15 @@ function NavItem({ icon, label, active, onClick, ui }) {
         padding: "6px 10px",
         borderRadius: 8,
         margin: "2px 8px",
-        background: active ? ui.activeNavBg : hov ? ui.hoverBg : "transparent",
-        cursor: "pointer",
+        background: active
+          ? ui.activeNavBg
+          : hov && !comingSoon
+            ? ui.hoverBg
+            : "transparent",
+        cursor: comingSoon ? "default" : "pointer",
         transition: "background 0.12s",
+        opacity: comingSoon ? 0.55 : 1,
+        position: "relative",
       }}
     >
       <span
@@ -1442,6 +1561,25 @@ function NavItem({ icon, label, active, onClick, ui }) {
       >
         {label}
       </span>
+      {/* Coming Soon pill */}
+      {comingSoon && (
+        <span
+          style={{
+            fontSize: "0.58rem",
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            padding: "2px 6px",
+            borderRadius: 99,
+            background: "linear-gradient(90deg, #f59e0b, #f97316)",
+            color: "#fff",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
+          }}
+        >
+          Soon
+        </span>
+      )}
     </div>
   );
 }
@@ -1454,15 +1592,16 @@ function MonitoringPage({ darkMode }) {
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
+  // ✅ "comingSoon: true" = disabled in nav + shows Coming Soon screen
   const navItems = [
-    { key: "overview", icon: "🏠", label: "Overview" },
-    { key: "records", icon: "📋", label: "Records" },
-    { key: "analytics", icon: "📊", label: "Analytics" },
-    { key: "deadlines", icon: "⏰", label: "Deadlines" },
-    { key: "compliance", icon: "🚩", label: "Compliance" },
-    { key: "workload", icon: "🔥", label: "Workload" },
-    { key: "activity", icon: "📡", label: "Activity Feed" },
-    { key: "users", icon: "👥", label: "Users" },
+    { key: "overview", icon: "🏠", label: "Overview", comingSoon: true },
+    { key: "records", icon: "📋", label: "Records", comingSoon: false },
+    { key: "analytics", icon: "📊", label: "Analytics", comingSoon: true },
+    { key: "deadlines", icon: "⏰", label: "Deadlines", comingSoon: true },
+    { key: "compliance", icon: "🚩", label: "Compliance", comingSoon: true },
+    { key: "workload", icon: "🔥", label: "Workload", comingSoon: true },
+    { key: "activity", icon: "📡", label: "Activity Feed", comingSoon: true },
+    { key: "users", icon: "👥", label: "Users", comingSoon: true },
   ];
 
   const [activeNav, setActiveNav] = useState("overview");
@@ -1475,7 +1614,6 @@ function MonitoringPage({ darkMode }) {
     return () => window.removeEventListener("resize", h);
   }, []);
 
-  // ── Shared state passed to children ────────────────────────────────────────
   const [tableData, setTableData] = useState(staticData);
   const [chartYear, setChartYear] = useState("All");
   const [chartMonth, setChartMonth] = useState("All");
@@ -1486,8 +1624,6 @@ function MonitoringPage({ darkMode }) {
   const [reassignTask, setReassignTask] = useState(null);
   const [impersonating, setImpersonating] = useState(null);
   const [showImpersonateConfirm, setShowImpersonateConfirm] = useState(null);
-
-  // Modal sub-state
   const [modalDateFrom, setModalDateFrom] = useState("");
   const [modalDateTo, setModalDateTo] = useState("");
   const [modalSortCol, setModalSortCol] = useState("date");
@@ -1541,7 +1677,6 @@ function MonitoringPage({ darkMode }) {
     });
   };
 
-  // Evaluator detail modal helpers
   const allModalTasks = modalEval
     ? tableData.filter((d) => d.evaluator === modalEval)
     : [];
@@ -1598,7 +1733,6 @@ function MonitoringPage({ darkMode }) {
       setModalSortDir("asc");
     }
   };
-
   const SortArrow = ({ col }) => {
     const active = modalSortCol === col;
     return (
@@ -1615,7 +1749,6 @@ function MonitoringPage({ darkMode }) {
     );
   };
 
-  // ── Shared props bundles ───────────────────────────────────────────────────
   const sharedProps = {
     ui,
     darkMode,
@@ -1626,6 +1759,19 @@ function MonitoringPage({ darkMode }) {
   };
 
   const MainContent = () => {
+    // If it's a coming-soon nav, show the screen regardless
+    const navItem = navItems.find((n) => n.key === activeNav);
+    if (navItem?.comingSoon) {
+      return (
+        <ComingSoonView
+          label={navItem.label}
+          icon={navItem.icon}
+          ui={ui}
+          darkMode={darkMode}
+        />
+      );
+    }
+
     switch (activeNav) {
       case "overview":
         return (
@@ -1641,70 +1787,6 @@ function MonitoringPage({ darkMode }) {
         );
       case "records":
         return <RecordsView {...sharedProps} setModalEval={setModalEval} />;
-      case "analytics":
-        return (
-          <AnalyticsView
-            {...sharedProps}
-            availableYears={availableYears}
-            chartYear={chartYear}
-            setChartYear={setChartYear}
-            chartMonth={chartMonth}
-            setChartMonth={setChartMonth}
-            rxFilter={rxFilter}
-            setRxFilter={setRxFilter}
-            onSliceClick={handleSliceClick}
-          />
-        );
-      // ✅ FIX — match the prop names the components expect:
-      case "deadlines":
-        return (
-          <DeadlinesView
-            ui={ui}
-            darkMode={darkMode}
-            DEADLINES={DEADLINES}
-            USER_ROLE_MAP={USER_ROLE_MAP}
-          />
-        );
-      case "compliance":
-        return (
-          <ComplianceView
-            ui={ui}
-            darkMode={darkMode}
-            COMPLIANCE_FLAGS={COMPLIANCE_FLAGS}
-            USER_ROLE_MAP={USER_ROLE_MAP}
-          />
-        );
-      case "workload":
-        return (
-          <WorkloadView
-            ui={ui}
-            darkMode={darkMode}
-            currentEvaluators={currentEvaluators}
-            workloadData={WORKLOAD_DATA}
-            uniqueEvaluators={uniqueEvaluators}
-          />
-        );
-      case "activity":
-        return (
-          <ActivityFeedView
-            ui={ui}
-            darkMode={darkMode}
-            activitySearch={activitySearch}
-            setActivitySearch={setActivitySearch}
-          />
-        );
-      case "users":
-        return (
-          <UsersView
-            ui={ui}
-            darkMode={darkMode}
-            userDatabase={USER_DATABASE}
-            impersonating={impersonating}
-            setImpersonating={setImpersonating}
-            setShowImpersonateConfirm={setShowImpersonateConfirm}
-            tableData={tableData}
-          />
-        );
       default:
         return null;
     }
@@ -1770,13 +1852,14 @@ function MonitoringPage({ darkMode }) {
                   >
                     Monitoring
                   </p>
-                  {navItems.map(({ key, ...rest }) => (
+                  {navItems.map(({ key, comingSoon, ...rest }) => (
                     <NavItem
                       key={key}
                       {...rest}
                       active={activeNav === key}
                       onClick={() => setActiveNav(key)}
                       ui={ui}
+                      comingSoon={comingSoon}
                     />
                   ))}
                 </div>
@@ -1889,22 +1972,31 @@ function MonitoringPage({ darkMode }) {
                 {navItems.map((n) => (
                   <button
                     key={n.key}
-                    onClick={() => setActiveNav(n.key)}
+                    onClick={
+                      n.comingSoon ? undefined : () => setActiveNav(n.key)
+                    }
                     style={{
                       padding: "6px 14px",
                       borderRadius: 99,
                       border: `1px solid ${activeNav === n.key ? FB : ui.cardBorder}`,
                       background:
                         activeNav === n.key ? `${FB}12` : "transparent",
-                      color: activeNav === n.key ? FB : ui.textMuted,
+                      color:
+                        activeNav === n.key
+                          ? FB
+                          : n.comingSoon
+                            ? ui.textMuted
+                            : ui.textPrimary,
                       fontSize: "0.78rem",
                       fontWeight: activeNav === n.key ? 700 : 500,
-                      cursor: "pointer",
+                      cursor: n.comingSoon ? "default" : "pointer",
                       whiteSpace: "nowrap",
                       fontFamily: font,
+                      opacity: n.comingSoon ? 0.5 : 1,
                     }}
                   >
                     {n.icon} {n.label}
+                    {n.comingSoon ? " 🚧" : ""}
                   </button>
                 ))}
               </div>
@@ -2037,7 +2129,6 @@ function MonitoringPage({ darkMode }) {
             </div>
             <div style={{ overflowY: "auto", overflowX: "auto", flex: 1 }}>
               <div style={{ minWidth: 700 }}>
-                {/* Date filters */}
                 <div
                   style={{
                     display: "flex",
@@ -2110,7 +2201,6 @@ function MonitoringPage({ darkMode }) {
                     </button>
                   )}
                 </div>
-                {/* Status tabs */}
                 <div
                   style={{
                     padding: "10px 14px",
@@ -2184,7 +2274,6 @@ function MonitoringPage({ darkMode }) {
                     );
                   })}
                 </div>
-                {/* Table header */}
                 <div
                   style={{
                     display: "grid",
@@ -2244,7 +2333,6 @@ function MonitoringPage({ darkMode }) {
                     Action
                   </span>
                 </div>
-                {/* Table rows */}
                 {modalTasks.length === 0 ? (
                   <div
                     style={{
@@ -2443,7 +2531,6 @@ function MonitoringPage({ darkMode }) {
         </div>
       )}
 
-      {/* Chart Detail Modal */}
       {chartModal && (
         <ChartDetailModal
           title={chartModal.title}
@@ -2454,8 +2541,6 @@ function MonitoringPage({ darkMode }) {
           ui={ui}
         />
       )}
-
-      {/* Reassign Modal */}
       {reassignTask && (
         <ReassignModal
           task={reassignTask}
@@ -2467,7 +2552,6 @@ function MonitoringPage({ darkMode }) {
         />
       )}
 
-      {/* Impersonate Confirm */}
       {showImpersonateConfirm && (
         <div
           onClick={() => setShowImpersonateConfirm(null)}
