@@ -177,6 +177,7 @@ function Sidebar({
       access: `${basePath}/access`,
       users: `${basePath}/users`,
       settings: `${basePath}/settings`,
+      "lead-assignments": `${basePath}/lead-assignments`,
     };
     // Auto-close on mobile after navigating
     if (isMobile) setMobileOpen(false);

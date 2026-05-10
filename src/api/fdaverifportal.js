@@ -8,13 +8,10 @@ import API from "./axios";
  * @returns {Promise<Blob>} Excel file blob
  */
 export const downloadTemplate = async () => {
-
-
   try {
     const response = await API.get('/fda/download-template', {
       responseType: 'blob',
     });
-
     return response.data;
   } catch (error) {
     console.error('❌ Error downloading template:', error);
@@ -29,11 +26,10 @@ export const downloadTemplate = async () => {
  * @returns {Promise<Object>} Upload result
  */
 export const uploadExcelFile = async (file, uploadedBy = null) => {
-
   try {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const params = uploadedBy ? { uploaded_by: uploadedBy } : {};
 
     const response = await API.post('/fda/upload-excel', formData, {
@@ -42,15 +38,12 @@ export const uploadExcelFile = async (file, uploadedBy = null) => {
       },
       params,
     });
-
-    console.log('✅ Upload Response:', response.data);
     return response.data;
   } catch (error) {
     console.error('❌ Error uploading file:', error);
     throw error;
   }
 };
-
 
 export const getAllDrugs = async ({
   page = 1,
@@ -64,8 +57,6 @@ export const getAllDrugs = async ({
   uploaded_this_month = false,
   uploaded_by = null,
 } = {}) => {
-  console.log('🔍 Fetching FDA drugs...', { page, page_size, search, include_canceled });
-
   try {
     const params = {
       page,
@@ -82,13 +73,6 @@ export const getAllDrugs = async ({
     if (uploaded_by) params.uploaded_by = uploaded_by;
 
     const response = await API.get('/fda/drugs', { params });
-
-    console.log('✅ Drugs Response:', {
-      total: response.data.pagination?.total || 0,
-      page: response.data.pagination?.page || page,
-      records: response.data.data?.length || 0,
-    });
-
     return response.data;
   } catch (error) {
     console.error('❌ Error fetching drugs:', error);
@@ -102,12 +86,8 @@ export const getAllDrugs = async ({
  * @returns {Promise<Object>} Drug details
  */
 export const getDrugById = async (drugId) => {
-  console.log('🔍 Fetching drug by ID...', { drugId });
-
   try {
     const response = await API.get(`/fda/drugs/${drugId}`);
-
-    console.log('✅ Drug Details:', response.data);
     return response.data;
   } catch (error) {
     console.error('❌ Error fetching drug:', error);
@@ -121,16 +101,8 @@ export const getDrugById = async (drugId) => {
  * @returns {Promise<Object>} Verification result
  */
 export const verifyRegistration = async (registrationNumber) => {
-  console.log('🔍 Verifying registration number...', { registrationNumber });
-
   try {
     const response = await API.get(`/fda/verify/${registrationNumber}`);
-
-    console.log('✅ Verification Result:', {
-      found: response.data.status === 'found',
-      isValid: response.data.is_valid,
-    });
-
     return response.data;
   } catch (error) {
     console.error('❌ Error verifying registration:', error);
@@ -145,12 +117,8 @@ export const verifyRegistration = async (registrationNumber) => {
  * @returns {Promise<Object>} Update result
  */
 export const updateDrug = async (drugId, updateData) => {
-  console.log('🔍 Updating drug...', { drugId, updateData });
-
   try {
     const response = await API.put(`/fda/drugs/${drugId}`, updateData);
-
-    console.log('✅ Update Response:', response.data);
     return response.data;
   } catch (error) {
     console.error('❌ Error updating drug:', error);
@@ -165,14 +133,10 @@ export const updateDrug = async (drugId, updateData) => {
  * @returns {Promise<Object>} Cancel result
  */
 export const cancelDrug = async (drugId, canceledBy) => {
-  console.log('🔍 Canceling drug...', { drugId, canceledBy });
-
   try {
     const response = await API.put(`/fda/drugs/${drugId}/cancel`, null, {
-      params: { canceled_by: canceledBy }
+      params: { canceled_by: canceledBy },
     });
-
-    console.log('✅ Cancel Response:', response.data);
     return response.data;
   } catch (error) {
     console.error('❌ Error canceling drug:', error);
@@ -186,12 +150,8 @@ export const cancelDrug = async (drugId, canceledBy) => {
  * @returns {Promise<Object>} Restore result
  */
 export const restoreDrug = async (drugId) => {
-  console.log('🔍 Restoring drug...', { drugId });
-
   try {
     const response = await API.put(`/fda/drugs/${drugId}/restore`);
-
-    console.log('✅ Restore Response:', response.data);
     return response.data;
   } catch (error) {
     console.error('❌ Error restoring drug:', error);
@@ -206,16 +166,8 @@ export const restoreDrug = async (drugId) => {
  * @returns {Promise<Object>} Connection test result
  */
 export const testConnection = async () => {
-  console.log('🔍 Testing FDA database connection...');
-
   try {
     const response = await API.get('/fda/test-connection');
-
-    console.log('✅ Connection Test:', {
-      status: response.data.status,
-      database: response.data.database_info?.database_name,
-    });
-
     return response.data;
   } catch (error) {
     console.error('❌ Error testing connection:', error);
@@ -228,16 +180,8 @@ export const testConnection = async () => {
  * @returns {Promise<Object>} List of tables
  */
 export const listTables = async () => {
-  console.log('🔍 Fetching FDA database tables...');
-
   try {
     const response = await API.get('/fda/list-tables');
-
-    console.log('✅ Tables Response:', {
-      total: response.data.total_tables || 0,
-      tables: response.data.tables?.length || 0,
-    });
-
     return response.data;
   } catch (error) {
     console.error('❌ Error listing tables:', error);
@@ -251,16 +195,8 @@ export const listTables = async () => {
  * @returns {Promise<Object>} Table structure
  */
 export const getTableStructure = async (tableName) => {
-  console.log('🔍 Fetching table structure...', { tableName });
-
   try {
     const response = await API.get(`/fda/table-structure/${tableName}`);
-
-    console.log('✅ Table Structure:', {
-      table: response.data.table_name,
-      columns: response.data.total_columns || 0,
-    });
-
     return response.data;
   } catch (error) {
     console.error('❌ Error fetching table structure:', error);
@@ -276,32 +212,25 @@ export const getTableStructure = async (tableName) => {
  * @returns {Promise<Blob>} Excel file blob
  */
 export const exportDrugsToExcel = async ({ search = '', include_canceled = false } = {}) => {
-  console.log('🔍 Exporting drugs to Excel...', { search, include_canceled });
-
   try {
     const params = {
-      include_canceled, // ✅ Changed from include_deleted
+      include_canceled,
     };
 
     if (search) {
       params.search = search;
     }
 
-    // Call export endpoint that returns Excel file directly
     const response = await API.get('/fda/drugs/export', {
       params,
-      responseType: 'blob', // Important: get blob for file download
+      responseType: 'blob',
     });
-
-
-
-    return response.data; // Return blob directly
+    return response.data;
   } catch (error) {
     console.error('❌ Error exporting drugs:', error);
     throw error;
   }
 };
-
 
 /**
  * ✅ Get FDA dashboard statistics for a specific uploader
@@ -309,21 +238,15 @@ export const exportDrugsToExcel = async ({ search = '', include_canceled = false
  * @returns {Promise<Object>} Dashboard stats
  */
 export const getDashboardStats = async (uploadedBy) => {
-  
-
   try {
     const params = uploadedBy ? { uploaded_by: uploadedBy } : {};
-
     const response = await API.get('/fda/stats/dashboard', { params });
-
-
-    return response.data.data; // Only return the "data" object
+    return response.data.data;
   } catch (error) {
     console.error('❌ Error fetching dashboard stats:', error);
     throw error;
   }
 };
-
 
 /**
  * Bulk insert FDA drug registrations from DTN list (End Task / Releasing Officer flow)
@@ -332,9 +255,14 @@ export const getDashboardStats = async (uploadedBy) => {
  * @returns {Promise<Object>} Result with successful, failed, skipped counts
  */
 export const bulkCreateFromDtns = async (dtnList, uploadedBy = null) => {
-  const response = await API.post("/fda/drugs/from-dtns", {
-    dtn_list: dtnList,
-    uploaded_by: uploadedBy,
-  });
-  return response.data;
+  try {
+    const response = await API.post("/fda/drugs/from-dtns", {
+      dtn_list: dtnList,
+      uploaded_by: uploadedBy,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('❌ Error bulk creating from DTNs:', error);
+    throw error;
+  }
 };
