@@ -33,7 +33,7 @@ export const allMenuItems = [
    {
     id: "lead-assignments",
     label: "Lead Assignments",
-    icon: "📋",
+    icon: "🔗",
     category: "Platform",
   },
 ];
