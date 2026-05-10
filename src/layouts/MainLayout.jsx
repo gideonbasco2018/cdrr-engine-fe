@@ -17,6 +17,7 @@ import TaskPage from "../pages/TaskPage";
 import MonitoringPage from "../pages/MonitoringPage";
 import DoctrackMagicPage from "../pages/DoctrackMagicPage";
 import RecordSectionPage from "../pages/RecordSectionPage";
+import LeadAssignmentsPage from "../pages/LeadAssignmentsPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -58,7 +59,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("access")) return "access";
     if (path.includes("users")) return "users";
     if (path.includes("settings")) return "settings";
-
+    if (path.includes("lead-assignments")) return "lead-assignments";
     // Workflow paths
     if (path.includes("for-decking")) return "for-decking";
     if (path.includes("task")) return "task";
@@ -202,6 +203,8 @@ function MainLayout({ darkMode, setDarkMode }) {
         return <GroupManagementPage darkMode={darkMode} userRole={userRole} />;
       case "users":
         return <UserManagementPage darkMode={darkMode} userRole={userRole} />;
+      case "lead-assignments":
+        return <LeadAssignmentsPage darkMode={darkMode} userRole={userRole} />;
       case "settings":
         return (
           <div style={{ padding: "2rem", color: colors.textPrimary }}>
@@ -212,6 +215,7 @@ function MainLayout({ darkMode, setDarkMode }) {
           </div>
         );
       case "dashboard":
+
       default:
         return <DashboardPage darkMode={darkMode} userRole={userRole} />;
     }
