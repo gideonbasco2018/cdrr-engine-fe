@@ -149,7 +149,7 @@ export const menuDefinitions = {
     },
     {
       id: "lead-assignments",
-      icon: "📋",
+      icon: "🔗",
       label: "Lead Assignment",
       roles: ["User", "Admin", "SuperAdmin"],
     },
