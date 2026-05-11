@@ -1,5 +1,4 @@
 // FILE: src/components/sidebar/MenuItem.jsx
-
 import { roleBadgeColors } from "./useSidebarColors";
 
 function MenuItem({
@@ -9,24 +8,34 @@ function MenuItem({
   colors,
   userRole,
   handleNavigation,
+  isImpersonating, // 👈 ADD THIS
 }) {
   const isDisabled = item.comingSoon === true;
+  const isImpersonationLocked = isImpersonating && item.id !== "dashboard"; // 👈 ADD THIS
 
   return (
     <div
-      onClick={() => !isDisabled && handleNavigation(item.id)}
-      title={collapsed ? item.label : ""}
+      onClick={() => !isDisabled && !isImpersonationLocked && handleNavigation(item.id)} // 👈 ADD !isImpersonationLocked
+      title={
+        collapsed
+          ? item.label
+          : isImpersonationLocked
+          ? "Not accessible during impersonation" // 👈 ADD THIS
+          : ""
+      }
       style={{
         display: "flex",
         alignItems: "center",
         justifyContent: collapsed ? "center" : "space-between",
         gap: collapsed ? 0 : "0.5rem",
         padding: collapsed ? "0.5rem" : "0.5rem 1.25rem",
-        cursor: isDisabled ? "not-allowed" : "pointer",
+        cursor: isDisabled || isImpersonationLocked ? "not-allowed" : "pointer", // 👈 ADD isImpersonationLocked
         background:
           activeMenu === item.id ? colors.activeItemBg : "transparent",
         color: isDisabled
           ? colors.comingSoonText
+          : isImpersonationLocked        // 👈 ADD THIS BLOCK
+          ? "#9ca3af"
           : activeMenu === item.id
             ? colors.textPrimary
             : colors.textSecondary,
@@ -36,16 +45,18 @@ function MenuItem({
             ? `3px solid ${roleBadgeColors[userRole]}`
             : "3px solid transparent",
         position: "relative",
-        opacity: isDisabled ? 0.5 : 1,
+        opacity: isDisabled || isImpersonationLocked ? 0.4 : 1, // 👈 ADD isImpersonationLocked
+        filter: isImpersonationLocked ? "grayscale(100%)" : "none", // 👈 ADD THIS
+        pointerEvents: isImpersonationLocked ? "none" : "auto", // 👈 ADD THIS (extra safety)
       }}
       onMouseEnter={(e) => {
-        if (activeMenu !== item.id && !isDisabled) {
+        if (activeMenu !== item.id && !isDisabled && !isImpersonationLocked) { // 👈 ADD !isImpersonationLocked
           e.currentTarget.style.background = colors.hoverBg;
           e.currentTarget.style.color = colors.textPrimary;
         }
       }}
       onMouseLeave={(e) => {
-        if (activeMenu !== item.id && !isDisabled) {
+        if (activeMenu !== item.id && !isDisabled && !isImpersonationLocked) { // 👈 ADD !isImpersonationLocked
           e.currentTarget.style.background = "transparent";
           e.currentTarget.style.color = isDisabled
             ? colors.comingSoonText
@@ -53,6 +64,7 @@ function MenuItem({
         }
       }}
     >
+      {/* rest of the JSX stays exactly the same... */}
       <div
         style={{
           display: "flex",

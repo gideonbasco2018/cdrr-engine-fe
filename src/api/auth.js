@@ -63,7 +63,9 @@ export const logout = async () => {
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('userRole');
     sessionStorage.removeItem('userGroup');
-
+    sessionStorage.removeItem('impersonate_user_id');
+    sessionStorage.removeItem('impersonate_username');
+    sessionStorage.removeItem('impersonate_name');
   }
 };
 
@@ -98,10 +100,6 @@ export const getUsersByGroup = async (groupId) => {
 // ADMIN: USER APPROVAL FUNCTIONS
 // ========================================
 
-/**
- * Get all pending users (inactive users awaiting approval)
- * ✅ NOW accepts { limit, offset } params for pagination
- */
 export const getPendingUsers = async (params = {}) => {
   try {
     const response = await api.get('auth/admin/users/pending', { params });
@@ -139,10 +137,6 @@ export const resetPassword = async (userId, newPassword) => {
   return response.data;
 };
 
-/**
- * Get all users (active and inactive)
- * ✅ NOW accepts { limit, offset } params for pagination
- */
 export const getAllUsers = async (params = {}) => {
   try {
     const response = await api.get('auth/admin/users', { params });
@@ -346,4 +340,38 @@ export const removeUserFromGroup = async (groupId, userId) => {
 export const updateUser = async (userId, updates) => {
   const response = await api.patch(`/auth/admin/users/${userId}`, updates);
   return response.data;
+};
+
+
+// ========================================
+// IMPERSONATION HELPERS
+// ========================================
+
+export const startImpersonation = (user) => {
+  // Store both user_id and username
+  sessionStorage.setItem('impersonate_user_id', String(user.id));
+  sessionStorage.setItem('impersonate_username', user.username);
+  sessionStorage.setItem('impersonate_name', user.name || `${user.first_name} ${user.surname}`);
+};
+
+export const stopImpersonation = () => {
+  sessionStorage.removeItem('impersonate_user_id');
+  sessionStorage.removeItem('impersonate_username');
+  sessionStorage.removeItem('impersonate_name');
+};
+
+export const getImpersonatedUserId = () => {
+  return sessionStorage.getItem('impersonate_user_id');
+};
+
+export const getImpersonatedUsername = () => {
+  return sessionStorage.getItem('impersonate_username');
+};
+
+export const getImpersonatedName = () => {
+  return sessionStorage.getItem('impersonate_name');
+};
+
+export const isImpersonating = () => {
+  return !!sessionStorage.getItem('impersonate_user_id');
 };

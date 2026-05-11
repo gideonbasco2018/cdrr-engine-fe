@@ -319,6 +319,13 @@ function TaskPage({ darkMode }) {
                 .toLowerCase()
                 .includes(term),
           ),
+      const ms =
+        !s ||
+        ["dtn", "ltoCompany", "prodBrName", "prodGenName", "prodManu"].some(
+          (f) =>
+            String(r[f] ?? "")
+              .toLowerCase()
+              .includes(s.toLowerCase()),
         );
       const ma = !filters.appType || r.appType === filters.appType;
       const mp =
