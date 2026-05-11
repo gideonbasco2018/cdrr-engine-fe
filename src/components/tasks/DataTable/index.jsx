@@ -337,10 +337,31 @@ function DataTable({
           });
 
           if (isODReleasing) {
+            const DECISION_RESULT_TO_DOC_TYPE = {
+              "For issuance of CPR": "CPR",
+              "For issuance of LOD": "LOD",
+              "For issuance of Certificate": "Certificate",
+              "For issuance of Letter": "Letter",
+              "For issuance of COPP": "COPP",
+              "For issuance of CFS": "CFS",
+              "For issuance of GLE": "GLE",
+              "For issuance of Letter for non acceptance":
+                "Letter for non acceptance",
+              "For issuance of Product classification":
+                "Product classification",
+              "Letter (Withdrawal)": "Letter (Withdrawal)",
+              "Letter (Re-routed)": "Letter (Re-routed)",
+            };
+            const docTypeReleased =
+              DECISION_RESULT_TO_DOC_TYPE[decisionResult] ?? null;
+
             await updateUploadReport(mainDbId, {
               DB_DECISION_RESULT: decisionResult || "",
               DB_DECISION_AUTHORITY: decisionAuthorityName || "",
               DB_DECISION_SIGNED_DATE: signedDate || null,
+              ...(docTypeReleased != null && {
+                DB_TYPE_DOC_RELEASED: docTypeReleased,
+              }),
             });
           }
           console.log(
