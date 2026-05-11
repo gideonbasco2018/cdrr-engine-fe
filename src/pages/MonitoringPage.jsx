@@ -1,7 +1,11 @@
 // FILE: src/pages/MonitoringPage.jsx
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { startImpersonation, stopImpersonation } from "../api/auth";
+import {
+  startImpersonation,
+  stopImpersonation,
+  getAllUsers,
+} from "../api/auth";
 
 // ── Child Views ───────────────────────────────────────────────────────────────
 import OverviewView from "../components/monitoring/overview/OverviewView";
