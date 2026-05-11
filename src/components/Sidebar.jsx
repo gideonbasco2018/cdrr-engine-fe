@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { getUploadReports } from "../api/reports";
 import { mapDataItem } from "./reports/utils.js";
-import { getUser } from "../api/auth";
+import { getUser, isImpersonating } from "../api/auth";
 import { getMenuPermissions } from "../api/menuPermissions";
 import { useSidebarColors } from "./sidebar/useSidebarColors";
 import { menuDefinitions } from "./sidebar/menuDefinitions";
@@ -39,6 +39,8 @@ function Sidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const colors = useSidebarColors(darkMode);
+
+  const impersonating = isImpersonating();
 
   // Auto-close mobile drawer on route change
   useEffect(() => {
@@ -153,6 +155,7 @@ function Sidebar({
   const visiblePlatform = filterByRoleAndGroup(menuDefinitions.platformItems);
 
   const handleNavigation = (itemId) => {
+    if (impersonating && itemId !== "dashboard") return;
     const basePath = getBasePath();
     const routeMap = {
       dashboard: `${basePath}/dashboard`,
@@ -178,14 +181,13 @@ function Sidebar({
       users: `${basePath}/users`,
       settings: `${basePath}/settings`,
     };
-    // Auto-close on mobile after navigating
     if (isMobile) setMobileOpen(false);
     navigate(routeMap[itemId] || `${basePath}/dashboard`);
   };
 
   const renderSection = (title, items) => {
     if (items.length === 0) return null;
-    const isCollapsed = isMobile ? false : collapsed; // never collapse on mobile drawer
+    const isCollapsed = isMobile ? false : collapsed;
     return (
       <div style={{ paddingBottom: "1rem" }}>
         {!isCollapsed && (
@@ -210,6 +212,7 @@ function Sidebar({
             colors={colors}
             userRole={userRole}
             handleNavigation={handleNavigation}
+            isImpersonating={impersonating}
           />
         ))}
       </div>
@@ -232,7 +235,6 @@ function Sidebar({
           @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
         `}</style>
 
-        {/* Hamburger button — visible only when drawer is closed */}
         {!mobileOpen && (
           <button
             onClick={() => setMobileOpen(true)}
@@ -272,7 +274,6 @@ function Sidebar({
           </button>
         )}
 
-        {/* Backdrop */}
         {mobileOpen && (
           <div
             onClick={() => setMobileOpen(false)}
@@ -287,7 +288,6 @@ function Sidebar({
           />
         )}
 
-        {/* Drawer */}
         {mobileOpen && (
           <div
             style={{
@@ -305,7 +305,6 @@ function Sidebar({
               boxShadow: "4px 0 24px rgba(0,0,0,0.25)",
             }}
           >
-            {/* Logo + Close */}
             <div
               style={{
                 padding: "1rem 1.25rem",
@@ -347,7 +346,6 @@ function Sidebar({
               </button>
             </div>
 
-            {/* Menu items */}
             <div
               className="sidebar-scroll"
               style={{ flex: 1, overflowY: "auto" }}
