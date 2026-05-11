@@ -219,33 +219,33 @@ export default function OverviewView({
         }}
       >
         {[
-          {
-            icon: "⏰",
-            label: "Critical Deadlines",
-            value: criticalDeadlines,
-            color: "#e02020",
-            bg: darkMode ? "#2e0f0f" : "#fff1f2",
-            desc: "Due within 2 days",
-            action: () => setActiveNav("deadlines"),
-          },
-          {
-            icon: "🚩",
-            label: "High Compliance Flags",
-            value: highFlags,
-            color: "#f59e0b",
-            bg: darkMode ? "#2e1f00" : "#fffbeb",
-            desc: "Require immediate attention",
-            action: () => setActiveNav("compliance"),
-          },
-          {
-            icon: "📤",
-            label: "Beyond Timeline",
-            value: beyondTimeline,
-            color: "#9333ea",
-            bg: darkMode ? "#1e1a2e" : "#f5f3ff",
-            desc: "Applications past due",
-            action: () => setActiveNav("records"),
-          },
+          // {
+          //   icon: "⏰",
+          //   label: "Critical Deadlines",
+          //   value: criticalDeadlines,
+          //   color: "#e02020",
+          //   bg: darkMode ? "#2e0f0f" : "#fff1f2",
+          //   desc: "Due within 2 days",
+          //   action: () => setActiveNav("deadlines"),
+          // },
+          // {
+          //   icon: "🚩",
+          //   label: "High Compliance Flags",
+          //   value: highFlags,
+          //   color: "#f59e0b",
+          //   bg: darkMode ? "#2e1f00" : "#fffbeb",
+          //   desc: "Require immediate attention",
+          //   action: () => setActiveNav("compliance"),
+          // },
+          // {
+          //   icon: "📤",
+          //   label: "Beyond Timeline",
+          //   value: beyondTimeline,
+          //   color: "#9333ea",
+          //   bg: darkMode ? "#1e1a2e" : "#f5f3ff",
+          //   desc: "Applications past due",
+          //   action: () => setActiveNav("records"),
+          // },
         ].map((alert) => (
           <Card
             key={alert.label}
@@ -321,16 +321,38 @@ export default function OverviewView({
       {/* User Load + Recent Activity */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.88rem",
-              fontWeight: 700,
-              color: ui.textPrimary,
-            }}
-          >
-            User Load
-          </p>
+          <div
+  style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  }}
+>
+  <p
+    style={{
+      margin: 0,
+      fontSize: "0.88rem",
+      fontWeight: 700,
+      color: ui.textPrimary,
+    }}
+  >
+    User Load
+  </p>
+  <button
+    onClick={() => setActiveNav("users")}
+    style={{
+      background: "none",
+      border: "none",
+      color: FB,
+      fontSize: "0.8rem",
+      fontWeight: 600,
+      cursor: "pointer",
+      padding: 0,
+    }}
+  >
+    See all
+  </button>
+</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {currentEvaluators.map((ev) => {
               const tasks = tableData.filter((d) => d.evaluator === ev);
