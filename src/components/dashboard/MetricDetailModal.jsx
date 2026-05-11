@@ -77,6 +77,7 @@ export default function MetricDetailModal({
           ...extraParams,
         });
         setData(res.data);
+        console.log("🔍 ROW FIELDS:", res.data[0]);
         setTotal(res.total);
         setTotalPages(res.total_pages);
         setPage(res.page);
@@ -118,7 +119,7 @@ export default function MetricDetailModal({
     appType: r.app_type ?? "N/A",
     regNo: r.reg_no ?? "N/A",
     typeDocReleased: r.app_step ?? "N/A",
-    attaReleased: r.brand_name ?? "N/A",
+    attaReleased: r.atta_released ?? "N/A",
     dateReleased: r.end_date
       ? new Date(r.end_date).toLocaleDateString("en-PH", {
           year: "numeric",
@@ -127,7 +128,6 @@ export default function MetricDetailModal({
         })
       : "N/A",
   });
-
   const handleExport = async (format, scope) => {
     setShowExportMenu(false);
     setTransmittalLoading(true);
@@ -922,149 +922,69 @@ export default function MetricDetailModal({
                 ? `${startRow}–${endRow} of ${total.toLocaleString()} records`
                 : ""}
             </span>
-
-            {/* ── Transmittal Export ── */}
             {total > 0 && (
-              <div style={{ position: "relative" }}>
-                <button
-                  onClick={() => setShowExportMenu((v) => !v)}
-                  disabled={transmittalLoading}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                    padding: "5px 12px",
-                    borderRadius: 7,
-                    border: `1px solid ${accentColor}`,
-                    background: "transparent",
-                    color: accentColor,
-                    fontSize: "0.76rem",
-                    fontWeight: 700,
-                    cursor: transmittalLoading ? "not-allowed" : "pointer",
-                    fontFamily: "inherit",
-                    opacity: transmittalLoading ? 0.6 : 1,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {transmittalLoading ? "⏳ Generating…" : "📄 Transmittal ▾"}
-                </button>
+              <button
+                onClick={async () => {
+                  if (transmittalLoading) return;
+                  setTransmittalLoading(true);
+                  try {
+                    const extraParams = {};
+                    if (appliedFrom)
+                      extraParams.accomplished_date_from = appliedFrom;
+                    if (appliedTo) extraParams.accomplished_date_to = appliedTo;
+                    if (appliedStep) extraParams.app_step = appliedStep;
 
-                {showExportMenu && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      bottom: "calc(100% + 6px)",
-                      left: 0,
-                      zIndex: 100,
-                      background: ui.cardBg,
-                      border: `1px solid ${ui.cardBorder}`,
-                      borderRadius: 10,
-                      boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-                      minWidth: 210,
-                      overflow: "hidden",
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div
-                      style={{
-                        padding: "8px 12px 4px",
-                        fontSize: "0.68rem",
-                        fontWeight: 700,
-                        color: ui.textMuted,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      Current Page ({data.length} records)
-                    </div>
-                    {[
-                      { fmt: "pdf", icon: "🗎", label: "Export as PDF" },
-                      { fmt: "excel", icon: "📊", label: "Export as Excel" },
-                      { fmt: "both", icon: "📦", label: "Export Both" },
-                    ].map(({ fmt, icon, label }) => (
-                      <button
-                        key={fmt}
-                        onClick={() => handleExport(fmt, "page")}
-                        style={{
-                          width: "100%",
-                          padding: "8px 14px",
-                          background: "none",
-                          border: "none",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          fontSize: "0.8rem",
-                          color: ui.textPrimary,
-                          fontFamily: "inherit",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = ui.hoverBg)
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = "none")
-                        }
-                      >
-                        {icon} {label}
-                      </button>
-                    ))}
+                    // Fetch all records with current filters
+                    const firstRes = await getDashboardDetail({
+                      metric: metricKey,
+                      page: 1,
+                      page_size: 500,
+                      ...dateParams,
+                      ...extraParams,
+                    });
+                    let rows = firstRes.data.map(toTransmittalRow);
 
-                    <div
-                      style={{
-                        borderTop: `1px solid ${ui.divider}`,
-                        margin: "4px 0",
-                      }}
-                    />
+                    for (let p = 2; p <= firstRes.total_pages; p++) {
+                      const res = await getDashboardDetail({
+                        metric: metricKey,
+                        page: p,
+                        page_size: 500,
+                        ...dateParams,
+                        ...extraParams,
+                      });
+                      rows.push(...res.data.map(toTransmittalRow));
+                    }
 
-                    <div
-                      style={{
-                        padding: "4px 12px 4px",
-                        fontSize: "0.68rem",
-                        fontWeight: 700,
-                        color: ui.textMuted,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      All Records ({total.toLocaleString()})
-                    </div>
-                    {[
-                      { fmt: "pdf", icon: "🗎", label: "Export as PDF" },
-                      { fmt: "excel", icon: "📊", label: "Export as Excel" },
-                      { fmt: "both", icon: "📦", label: "Export Both" },
-                    ].map(({ fmt, icon, label }) => (
-                      <button
-                        key={`all-${fmt}`}
-                        onClick={() => handleExport(fmt, "all")}
-                        style={{
-                          width: "100%",
-                          padding: "8px 14px",
-                          background: "none",
-                          border: "none",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          fontSize: "0.8rem",
-                          color: ui.textPrimary,
-                          fontFamily: "inherit",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = ui.hoverBg)
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = "none")
-                        }
-                      >
-                        {icon} {label}
-                      </button>
-                    ))}
-                    <div style={{ height: 6 }} />
-                  </div>
-                )}
-              </div>
+                    await generatePDF(rows, metricKey);
+                    await generateExcel(rows, metricKey);
+                  } catch (err) {
+                    console.error("Transmittal export failed:", err);
+                  } finally {
+                    setTransmittalLoading(false);
+                  }
+                }}
+                disabled={transmittalLoading}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "5px 12px",
+                  borderRadius: 7,
+                  border: `1px solid ${accentColor}`,
+                  background: "transparent",
+                  color: accentColor,
+                  fontSize: "0.76rem",
+                  fontWeight: 700,
+                  cursor: transmittalLoading ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                  opacity: transmittalLoading ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {transmittalLoading
+                  ? "⏳ Generating…"
+                  : `📄 Transmittal (${total})`}
+              </button>
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>

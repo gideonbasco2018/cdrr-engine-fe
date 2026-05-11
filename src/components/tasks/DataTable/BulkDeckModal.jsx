@@ -80,6 +80,20 @@ const RETURN_DECISIONS = new Set([
   "Checked and returned to evaluator",
 ]);
 
+const DECISION_RESULT_TO_DOC_TYPE = {
+  "For issuance of CPR": "CPR",
+  "For issuance of LOD": "LOD",
+  "For issuance of Certificate": "Certificate",
+  "For issuance of Letter": "Letter",
+  "For issuance of COPP": "COPP",
+  "For issuance of CFS": "CFS",
+  "For issuance of GLE": "GLE",
+  "For issuance of Letter for non acceptance": "Letter for non acceptance",
+  "For issuance of Product classification": "Product classification",
+  "Letter (Withdrawal)": "Letter (Withdrawal)",
+  "Letter (Re-routed)": "Letter (Re-routed)",
+};
+
 const formatSignedDate = (dateStr) => {
   if (!dateStr) return "";
   const d = new Date(dateStr + "T00:00:00");
@@ -306,6 +320,8 @@ export function BulkDeckModal({
       // ── STEP 2: Main DB ──
       let res;
       try {
+        const docTypeReleased =
+          DECISION_RESULT_TO_DOC_TYPE[decisionResult] ?? null;
         res = await onConfirm(isReturnDecision ? null : assignee, {
           decision,
           action,
@@ -315,6 +331,7 @@ export function BulkDeckModal({
           decisionAuthorityId,
           decisionAuthorityName,
           signedDate,
+          docTypeReleased,
         });
       } catch (confirmErr) {
         console.error("❌ onConfirm failed:", confirmErr.message);

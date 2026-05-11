@@ -1974,7 +1974,7 @@ function MonitoringPage({ darkMode }) {
                           color: ui.textMuted,
                         }}
                       >
-                        Tasks for
+                        Tasks for a
                       </p>
                       <h3
                         style={{
