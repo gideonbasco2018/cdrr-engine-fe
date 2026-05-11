@@ -1,6 +1,7 @@
 // src/components/tasks/viewdetails/ApplicationLogsModal.jsx
 import { useEffect, useState } from "react";
 import { getApplicationLogsByDtn } from "../../api/application-logs";
+import { getClosedTaskByMainDbId } from "../../api/closed-tasks";
 
 /* ── date formatter ── */
 const fmt = (v) => {
@@ -154,19 +155,11 @@ const statusCfg = (s) => {
   return { bg: "#f9fafb", text: "#374151", border: "#e5e7eb", dot: "#9ca3af" };
 };
 
-const actionCfg = (a) => {
-  const u = a?.toUpperCase();
-  if (u?.includes("REASSIGN"))
-    return { bg: "#ede9fe", color: "#7c3aed", border: "#c4b5fd" };
-  if (u?.includes("REROUTE"))
-    return { bg: "#e0f2fe", color: "#0369a1", border: "#7dd3fc" };
-  return { bg: "#f0f9ff", color: "#0284c7", border: "#bae6fd" };
-};
-
 function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [closedTask, setClosedTask] = useState(null); // ← NEW
 
   // ── theme vars ──────────────────────────────────────────────
   const accent = "#2196F3";
@@ -190,45 +183,39 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
       setError("No DTN found.");
       return;
     }
+
     const run = async () => {
       setLoading(true);
       setError(null);
       try {
+        // ── fetch logs ─────────────────────────────────────────────
         const data = await getApplicationLogsByDtn(record.dtn);
         setLogs(Array.isArray(data) ? data : []);
+
+        // ── fetch closed task (silently — don't fail if 404) ───────
+        const mainDbId = record.mainDbId ?? record.id;
+        if (mainDbId) {
+          try {
+            const ct = await getClosedTaskByMainDbId(mainDbId);
+            setClosedTask(ct ?? null);
+          } catch {
+            setClosedTask(null);
+          }
+        }
       } catch (e) {
         setError(e.message || "Failed to load logs.");
       } finally {
         setLoading(false);
       }
     };
+
     run();
-  }, [record?.dtn]);
+  }, [record?.dtn, record?.mainDbId, record?.id]);
 
   const onBackdrop = (e) => e.target === e.currentTarget && onClose();
-  const ascendingLogs = [...logs].sort((a, b) => {
-    // Checking logs — laging nasa UNAHAN
-    const aChecking = a.application_step === "Decking";
-    const bChecking = b.application_step === "Decking";
-    if (aChecking && !bChecking) return -1;
-    if (!aChecking && bChecking) return 1;
-
-    // IN PROGRESS logs — laging nasa DULO
-    const aActive = a.application_status === "IN PROGRESS";
-    const bActive = b.application_status === "IN PROGRESS";
-    if (aActive && !bActive) return 1;
-    if (!aActive && bActive) return -1;
-
-    // COMPLETED logs — sorted by accomplished_date ascending
-    const aDate = a.accomplished_date ? new Date(a.accomplished_date) : null;
-    const bDate = b.accomplished_date ? new Date(b.accomplished_date) : null;
-    if (aDate && bDate) return aDate - bDate;
-    if (aDate) return -1;
-    if (bDate) return 1;
-
-    // fallback — del_index
-    return (a.del_index ?? 0) - (b.del_index ?? 0);
-  });
+  const ascendingLogs = [...logs].sort(
+    (a, b) => (a.del_index ?? 0) - (b.del_index ?? 0),
+  );
   const completedCount = logs.filter((l) => l.accomplished_date).length;
   const inProgressCount = logs.filter((l) => !l.accomplished_date).length;
 
@@ -335,15 +322,299 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
     );
   };
 
+  // ── Permanently Closed Card ──────────────────────────────────────────
+  const renderClosedTaskCard = () => {
+    if (!closedTask) return null;
+    const closedDt = fmt(closedTask.closed_at);
+    return (
+      <div
+        className="alm-card"
+        style={{
+          display: "flex",
+          gap: "0.75rem",
+          alignItems: "flex-start",
+          position: "relative",
+          zIndex: 1,
+          marginTop: "0.65rem",
+        }}
+      >
+        {/* Timeline dot — lock icon */}
+        <div style={{ flexShrink: 0, paddingTop: "0.85rem" }}>
+          <div
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+              border: "2px solid #dc2626",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.9rem",
+              boxShadow: "0 0 0 3px rgba(220,38,38,0.15)",
+            }}
+          >
+            🔒
+          </div>
+        </div>
+
+        {/* Card */}
+        <div
+          style={{
+            flex: 1,
+            background: darkMode ? "#1e1e1e" : "#fff",
+            border: "2px solid #dc2626",
+            borderLeft: "4px solid #dc2626",
+            borderRadius: 8,
+            overflow: "hidden",
+            boxShadow: "0 2px 12px rgba(220,38,38,0.12)",
+          }}
+        >
+          {/* Card top */}
+          <div
+            style={{
+              padding: "0.75rem 1rem",
+              background: darkMode
+                ? "rgba(220,38,38,0.08)"
+                : "rgba(220,38,38,0.04)",
+            }}
+          >
+            {/* Title row */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.45rem",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.9rem",
+                    fontWeight: 800,
+                    color: "#dc2626",
+                  }}
+                >
+                  Task Permanently Closed
+                </span>
+                <span
+                  style={{
+                    background: "rgba(220,38,38,0.1)",
+                    color: "#dc2626",
+                    border: "1px solid rgba(220,38,38,0.35)",
+                    fontSize: "0.58rem",
+                    fontWeight: 700,
+                    padding: "0.1rem 0.45rem",
+                    borderRadius: 20,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                  }}
+                >
+                  Final
+                </span>
+              </div>
+              {/* Status badge */}
+              <span
+                style={{
+                  background: "#fef2f2",
+                  color: "#dc2626",
+                  border: "1px solid #fecaca",
+                  fontSize: "0.65rem",
+                  fontWeight: 700,
+                  padding: "0.18rem 0.55rem",
+                  borderRadius: 20,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.28rem",
+                }}
+              >
+                <span
+                  style={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: "50%",
+                    background: "#dc2626",
+                    flexShrink: 0,
+                  }}
+                />
+                CLOSED
+              </span>
+            </div>
+
+            {/* Closed by */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                marginTop: "0.4rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <div
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  background: "rgba(220,38,38,0.12)",
+                  border: "1.5px solid #dc2626",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#dc2626",
+                  fontSize: "0.62rem",
+                  fontWeight: 700,
+                }}
+              >
+                {(closedTask.closed_by_user_name || "?")[0].toUpperCase()}
+              </div>
+              <span
+                style={{ fontSize: "0.75rem", color: textSub, fontWeight: 500 }}
+              >
+                {closedTask.closed_by_user_name || "—"}
+              </span>
+              <span style={{ color: dividerColor }}>·</span>
+              <span style={{ fontSize: "0.72rem", color: textSub }}>
+                Reason:{" "}
+                <strong style={{ color: textPrimary }}>
+                  {closedTask.reason_for_closing || "—"}
+                </strong>
+              </span>
+            </div>
+
+            {/* Closed at date */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+                gap: "0.5rem 1.5rem",
+                marginTop: "0.6rem",
+                paddingTop: "0.6rem",
+                borderTop: `1px dashed ${dividerColor}`,
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    fontSize: "0.58rem",
+                    fontWeight: 700,
+                    color: "#dc2626",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginBottom: 2,
+                  }}
+                >
+                  Closed On
+                </div>
+                {closedDt ? (
+                  <div style={{ fontSize: "0.75rem" }}>
+                    <span style={{ fontWeight: 600, color: "#dc2626" }}>
+                      ● {closedDt.date}
+                    </span>
+                    <span
+                      style={{
+                        color: textSub,
+                        marginLeft: "0.3rem",
+                        fontSize: "0.7rem",
+                      }}
+                    >
+                      {closedDt.time}
+                    </span>
+                  </div>
+                ) : (
+                  <span style={{ fontSize: "0.75rem", color: textMuted }}>
+                    —
+                  </span>
+                )}
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontSize: "0.58rem",
+                    fontWeight: 700,
+                    color: textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                    marginBottom: 2,
+                  }}
+                >
+                  Closed By
+                </div>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    color: textPrimary,
+                  }}
+                >
+                  {closedTask.closed_by_user_name || "—"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Remarks panel — only if may laman */}
+          {closedTask.remarks && (
+            <div
+              style={{
+                borderTop: `1px solid rgba(220,38,38,0.2)`,
+                background: darkMode ? "#181818" : "#fef2f2",
+                padding: "0.7rem 1rem",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.6rem",
+                  fontWeight: 700,
+                  color: "#dc2626",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 4,
+                }}
+              >
+                💬 Closing Remarks
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.78rem",
+                  color: textPrimary,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  padding: "0.55rem 0.75rem",
+                  background: darkMode ? "#111" : "#fff",
+                  border: "1px solid rgba(220,38,38,0.2)",
+                  borderRadius: 6,
+                  borderLeft: "3px solid #dc2626",
+                }}
+              >
+                {closedTask.remarks}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+  // ────────────────────────────────────────────────────────────────────
+
   return (
     <>
       <style>{`
-        @keyframes alm-spin { to { transform: rotate(360deg); } }
-        @keyframes alm-fadeup { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes alm-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+        @keyframes alm-spin    { to { transform: rotate(360deg); } }
+        @keyframes alm-fadeup  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes alm-pulse   { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
         .alm-card { animation: alm-fadeup 0.2s ease forwards; }
         .alm-inprogress { animation: alm-pulse 1.6s ease-in-out infinite; }
-        .alm-close:hover { background: ${accentLight} !important; color: ${accent} !important; border-color: ${accentBorder} !important; }
         .alm-close-btn:hover { background: ${accentLight} !important; color: ${accent} !important; border-color: ${accentBorder} !important; }
       `}</style>
 
@@ -438,6 +709,24 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                       {logs.length}
                     </span>
                   )}
+                  {/* Closed badge in header */}
+                  {closedTask && (
+                    <span
+                      style={{
+                        background: "#dc2626",
+                        color: "#fff",
+                        fontSize: "0.62rem",
+                        fontWeight: 700,
+                        padding: "0.1rem 0.5rem",
+                        borderRadius: 20,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                      }}
+                    >
+                      🔒 Closed
+                    </span>
+                  )}
                 </div>
                 <div
                   style={{
@@ -488,7 +777,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                 </div>
               </div>
             </div>
-
             <button
               className="alm-close-btn"
               onClick={onClose}
@@ -566,7 +854,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
               </div>
             )}
 
-            {!loading && !error && logs.length === 0 && (
+            {!loading && !error && logs.length === 0 && !closedTask && (
               <div style={{ padding: "3rem", textAlign: "center" }}>
                 <div style={{ fontSize: "2.5rem", marginBottom: "0.5rem" }}>
                   📭
@@ -577,7 +865,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
               </div>
             )}
 
-            {!loading && !error && logs.length > 0 && (
+            {!loading && !error && (logs.length > 0 || closedTask) && (
               <div style={{ position: "relative" }}>
                 {/* Timeline line */}
                 <div
@@ -603,19 +891,18 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                   {ascendingLogs.map((log, idx) => {
                     const meta = stepMeta(log.application_step);
                     const sc = statusCfg(log.application_status);
-                    const ac = actionCfg(log.action_type);
-                    const isLatest = idx === ascendingLogs.length - 1;
+                    const isLatest =
+                      !closedTask && idx === ascendingLogs.length - 1;
                     const isCompliance = log.application_step
                       ?.toLowerCase()
                       .includes("compliance");
                     const startDt = fmt(log.start_date);
                     const doneDt = fmt(log.accomplished_date);
-                    const cardId = log.id ?? idx;
                     const hasRemarks = !!log.application_remarks?.trim();
 
                     return (
                       <div
-                        key={cardId}
+                        key={log.id ?? idx}
                         className="alm-card"
                         style={{
                           animationDelay: `${idx * 0.04}s`,
@@ -669,9 +956,8 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                               : "0 1px 3px rgba(0,0,0,0.04)",
                           }}
                         >
-                          {/* Card top */}
                           <div style={{ padding: "0.75rem 1rem" }}>
-                            {/* Step name row */}
+                            {/* Step + status row */}
                             <div
                               style={{
                                 display: "flex",
@@ -767,14 +1053,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                     {log.application_status}
                                   </span>
                                 )}
-                                {log.application_step
-                                  ?.toLowerCase()
-                                  .includes("closed") ||
-                                log.application_status
-                                  ?.toLowerCase()
-                                  .includes("closed")
-                                  ? null
-                                  : null}
                               </div>
                             </div>
 
@@ -838,16 +1116,39 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                       color: textSub,
                                     }}
                                   >
-                                    Decision:{" "}
+                                    Action:{" "}
                                     <strong style={{ color: textPrimary }}>
                                       {log.application_decision}
                                     </strong>
                                   </span>
                                 </>
                               )}
+                              {log.action_type && (
+                                <>
+                                  <span
+                                    style={{
+                                      color: dividerColor,
+                                      fontSize: "0.8rem",
+                                    }}
+                                  >
+                                    ·
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "0.72rem",
+                                      color: textSub,
+                                    }}
+                                  >
+                                    Recommendation:{" "}
+                                    <strong style={{ color: textPrimary }}>
+                                      {log.action_type}
+                                    </strong>
+                                  </span>
+                                </>
+                              )}
                             </div>
 
-                            {/* Dates + action type grid */}
+                            {/* Dates grid */}
                             <div
                               style={{
                                 display: "grid",
@@ -859,7 +1160,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                 borderTop: `1px dashed ${dividerColor}`,
                               }}
                             >
-                              {/* Start date */}
                               <div>
                                 <div
                                   style={{
@@ -904,8 +1204,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </span>
                                 )}
                               </div>
-
-                              {/* Accomplished */}
                               <div>
                                 <div
                                   style={{
@@ -952,41 +1250,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </span>
                                 )}
                               </div>
-
-                              {/* Action */}
-                              {log.action_type && (
-                                <div>
-                                  <div
-                                    style={{
-                                      fontSize: "0.58rem",
-                                      fontWeight: 700,
-                                      color: textMuted,
-                                      textTransform: "uppercase",
-                                      letterSpacing: "0.05em",
-                                      marginBottom: 2,
-                                    }}
-                                  >
-                                    Action
-                                  </div>
-                                  <span
-                                    style={{
-                                      display: "inline-flex",
-                                      alignItems: "center",
-                                      padding: "0.18rem 0.55rem",
-                                      background: ac.bg,
-                                      color: ac.color,
-                                      border: `1px solid ${ac.border}`,
-                                      borderRadius: 20,
-                                      fontSize: "0.7rem",
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {log.action_type}
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* Meta */}
                               {(log.del_index != null ||
                                 log.prev_del_index != null) && (
                                 <div>
@@ -1017,7 +1280,6 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                               )}
                             </div>
 
-                            {/* Compliance deadline */}
                             {isCompliance && renderDeadline(log)}
                           </div>
 
@@ -1397,6 +1659,9 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                       </div>
                     );
                   })}
+
+                  {/* ── CLOSED TASK CARD — pinakababa ng timeline ── */}
+                  {renderClosedTaskCard()}
                 </div>
               </div>
             )}
@@ -1419,7 +1684,7 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                 ? "Loading…"
                 : error
                   ? "Failed to load"
-                  : `${logs.length} step${logs.length !== 1 ? "s" : ""} recorded`}
+                  : `${logs.length} step${logs.length !== 1 ? "s" : ""} recorded${closedTask ? " · Task permanently closed" : ""}`}
             </span>
             <button
               className="alm-close-btn"

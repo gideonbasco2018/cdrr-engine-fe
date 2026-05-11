@@ -49,26 +49,26 @@ export const URGENCY_CONFIG = {
 /* ── Doctrack remarks per decision (mirrors DECISION_DOCTRACK in workflow) ── */
 export const DECISION_DOCTRACK_MAP = {
   // Checking
-  "Endorse to Supervisor":
-    "Forwarded to Supervisor for review and signing of the final recommendation",
-  "Checked and return to evaluator": "Returned to evaluator for correction/clarification",
+  "Endorse to Supervisor": "Forwarded to Supervisor for review and signing of the final recommendation",
+  "Checked and returned to evaluator": "Returned to evaluator for correction/clarification",
+  "Forwarded to Supervisor": "Forwarded to Supervisor for review and signing of the final recommendation",
 
   // Supervisor
-  "Endorse to QA Admin": "Forwarded to LRD Chief for signing",
-  "Return to Evaluator": "Returned to evaluator for correction/clarification",
+  "Endorsed to QA Admin": "Forwarded to Supervisor for review and signing of the final recommendation",
+  "Returned to Evaluator": "Returned to evaluator for correction/clarification",
 
   // QA Admin
-  "Endorse to LRD Chief Admin": "Checked and Forwarded to LRD Admin",
+   "Endorsed to LRD Chief Admin": "Checked and Forwarded to LRD Admin",
 
   // LRD Chief Admin
-  "Endorse to OD-Receiving":
+  "Endorsed to OD-Receiving":
     "Signed by LRD Chief and forwarded to CDRR Director for signing",
 
   // OD-Receiving
-  "Endorse to OD-Releasing": "Received by CDRR-OD",
+   "Endorsed to OD-Releasing": "Received by CDRR-OD",
 
   // OD-Releasing — built dynamically from signed date (see BulkDeckModal)
-  "Scanned and Endorse to Releasing Officer": "",
+  "Scanned and Endorsed to Releasing Officer": "",
 
   // Releasing Officer
   "Released": "Scanned and stamp, Forwarded to AFO Records",
@@ -81,11 +81,11 @@ export const BULK_DECK_CONFIG = {
     nextGroupId: 5,
     fromLabel: "Checking",
     buttonLabel: "Endorse Selected Applications",
-    modalTitle: "Checking — Select Action",   // ← generic, kasi may 2 decisions
-    defaultDoctrack: "",                       // ← blank muna, mag-uupdate base sa decision
+    modalTitle: "Checking — Select Action",
+    defaultDoctrack: "",
     availableDecisions: [
-      "Endorse to Supervisor",
-      "Checked and return to evaluator",       // ← fixed key
+      "Checked and returned to evaluator",
+      "Forwarded to Supervisor",
     ],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
@@ -96,10 +96,10 @@ export const BULK_DECK_CONFIG = {
     fromLabel: "Supervisor",
     buttonLabel: "Endorse Selected Applications",
     modalTitle: "Endorse Selected Applications to QA Admin",
-    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorse to QA Admin"],
+    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to QA Admin"],
     availableDecisions: [
-      "Endorse to QA Admin",
-      "Return to Evaluator",
+      "Endorsed to QA Admin",
+      "Returned to Evaluator",
     ],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
@@ -110,10 +110,10 @@ export const BULK_DECK_CONFIG = {
     fromLabel: "QA Admin",
     buttonLabel: "Endorse Selected Applications",
     modalTitle: "Endorse Selected Applications to LRD Chief Admin",
-    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorse to LRD Chief Admin"],
+    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to LRD Chief Admin"],
     availableDecisions: [
-      "Endorse to LRD Chief Admin",
-      "Return to Evaluator",
+      "Endorsed to LRD Chief Admin",
+      "Returned to Evaluator",
     ],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
@@ -124,10 +124,8 @@ export const BULK_DECK_CONFIG = {
     fromLabel: "LRD Chief Admin",
     buttonLabel: "Endorse Selected Applications",
     modalTitle: "Endorse Selected Applications to OD-Receiving",
-    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorse to OD-Receiving"],
-    availableDecisions: [
-      "Endorse to OD-Receiving",
-    ],
+    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to OD-Receiving"],
+    availableDecisions: ["Endorsed to OD-Receiving"],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
   "OD-Receiving": {
@@ -137,10 +135,8 @@ export const BULK_DECK_CONFIG = {
     fromLabel: "OD-Receiving",
     buttonLabel: "Endorse Selected Applications",
     modalTitle: "Endorse Selected Applications to OD-Releasing",
-    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorse to OD-Releasing"],
-    availableDecisions: [
-      "Endorse to OD-Releasing",
-    ],
+    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to OD-Releasing"],
+    availableDecisions: ["Endorsed to OD-Releasing"],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
   "OD-Releasing": {
@@ -152,9 +148,7 @@ export const BULK_DECK_CONFIG = {
     modalTitle: "Endorse Selected Applications to Releasing Officer",
     defaultDoctrack: "", // built dynamically from signed date
     requiresSignedDate: true,
-    availableDecisions: [
-      "Scanned and Endorse to Releasing Officer",
-    ],
+    availableDecisions: ["Scanned and Endorsed to Releasing Officer"],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
   "Releasing Officer": {

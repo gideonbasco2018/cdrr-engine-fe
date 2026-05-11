@@ -20,6 +20,7 @@ import {
   getWorkingWeek,
   formatDateRange,
 } from "../components/dashboard/utils";
+
 import {
   FB,
   ALL_MONTHS,
@@ -574,6 +575,56 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                       <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: ui.textPrimary, margin: 0 }}>Insights</h2>
                       <p style={{ fontSize: "0.8rem", color: ui.textSub, margin: "2px 0 0" }}>Learn how your applications are performing.</p>
                       <button onClick={openGuide}>? How to use</button>
+                      <h2
+                        style={{
+                          fontSize: "1.1rem",
+                          fontWeight: 700,
+                          color: ui.textPrimary,
+                          margin: 0,f
+                        }}
+                      >
+                        Insights
+                      </h2>
+                      <p
+                        style={{
+                          fontSize: "0.8rem",
+                          color: ui.textSub,
+                          margin: "2px 0 0",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        Learn how your applications are performing.
+                        <button
+                          onClick={openGuide}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: FB,
+                            fontSize: "0.75rem",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            padding: "0 6px",
+                            borderRadius: 4,
+                            fontFamily: "inherit",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                            opacity: 0.85,
+                            textDecoration: "underline",
+                            textUnderlineOffset: "2px",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.opacity = "1")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.opacity = "0.85")
+                          }
+                        >
+                          ? How to use
+                        </button>
+                      </p>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 2, padding: "3px", borderRadius: 8, background: ui.inputBg, border: `1px solid ${ui.cardBorder}` }}>

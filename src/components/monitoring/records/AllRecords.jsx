@@ -33,6 +33,9 @@ const avatarPalette = [
 
 const STEP_OPTIONS = [
   "Quality Evaluation",
+  "S&E",
+  "S&E Checker",
+  "S&E Supervisor",
   "Compliance",
   "Checking",
   "Supervisor",
@@ -76,7 +79,7 @@ function nameToAvatarColor(name = "") {
   return avatarPalette[Math.abs(hash) % avatarPalette.length];
 }
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 15;
 
 // ── 3-dot Action Menu ─────────────────────────────────────────────────────────
 function ActionMenu({ row, ui, darkMode, onAction }) {
@@ -112,11 +115,11 @@ function ActionMenu({ row, ui, darkMode, onAction }) {
         style={{
           background: "transparent",
           border: `1px solid ${ui.cardBorder}`,
-          borderRadius: 6,
+          borderRadius: 5,
           color: ui.textMuted,
           cursor: "pointer",
-          padding: "3px 8px",
-          fontSize: "1rem",
+          padding: "2px 6px",
+          fontSize: "0.9rem",
           lineHeight: 1,
           fontFamily: font,
           transition: "all 0.15s",
@@ -139,13 +142,13 @@ function ActionMenu({ row, ui, darkMode, onAction }) {
           style={{
             position: "absolute",
             right: 0,
-            top: "calc(100% + 4px)",
+            top: "calc(100% + 3px)",
             background: ui.cardBg,
             border: `1px solid ${ui.cardBorder}`,
-            borderRadius: 8,
+            borderRadius: 7,
             boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
             zIndex: 9999,
-            minWidth: 160,
+            minWidth: 150,
             overflow: "hidden",
           }}
         >
@@ -160,13 +163,13 @@ function ActionMenu({ row, ui, darkMode, onAction }) {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
+                gap: 7,
                 width: "100%",
-                padding: "9px 14px",
+                padding: "7px 12px",
                 background: "transparent",
                 border: "none",
                 color: ui.textPrimary,
-                fontSize: "0.8rem",
+                fontSize: "0.72rem",
                 fontFamily: font,
                 cursor: "pointer",
                 textAlign: "left",
@@ -179,7 +182,7 @@ function ActionMenu({ row, ui, darkMode, onAction }) {
                 (e.currentTarget.style.background = "transparent")
               }
             >
-              <span style={{ fontSize: "0.9rem" }}>{icon}</span>
+              <span style={{ fontSize: "0.82rem" }}>{icon}</span>
               {label}
             </button>
           ))}
@@ -303,8 +306,6 @@ const stepColorsDark = {
 };
 
 // ── DTN Date Range sub-component ──────────────────────────────────────────────
-// Compact inline Year / Month / Day cascading selects for one side of the range.
-// Designed for the sub-bar row — no stacked labels, just tiny selects.
 function DtnDateSide({
   label,
   year,
@@ -322,34 +323,31 @@ function DtnDateSide({
   const accentColor = "#1877F2";
   const tinySelect = {
     ...inputSt,
-    padding: "4px 6px",
-    fontSize: "0.78rem",
+    padding: "2px 4px",
+    fontSize: "0.64rem",
     cursor: "pointer",
-    height: 28,
+    height: 22,
   };
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-      {/* Side pill label */}
+    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
       <span
         style={{
-          fontSize: "0.62rem",
+          fontSize: "0.54rem",
           fontWeight: 700,
           textTransform: "uppercase",
           letterSpacing: "0.06em",
           color: active ? accentColor : ui.textMuted,
           fontFamily: font,
-          minWidth: 28,
+          minWidth: 24,
         }}
       >
         {label}
       </span>
-
-      {/* Year */}
       <select
         value={year}
         onChange={(e) => onYearChange(e.target.value)}
-        style={{ ...tinySelect, width: 76 }}
+        style={{ ...tinySelect, width: 68 }}
         title="Year"
       >
         <option value="">Year</option>
@@ -359,8 +357,6 @@ function DtnDateSide({
           </option>
         ))}
       </select>
-
-      {/* Month */}
       <select
         value={month}
         onChange={(e) => onMonthChange(e.target.value)}
@@ -368,7 +364,7 @@ function DtnDateSide({
         title="Month"
         style={{
           ...tinySelect,
-          width: 96,
+          width: 86,
           opacity: year ? 1 : 0.45,
           cursor: year ? "pointer" : "not-allowed",
         }}
@@ -380,8 +376,6 @@ function DtnDateSide({
           </option>
         ))}
       </select>
-
-      {/* Day */}
       <select
         value={day}
         onChange={(e) => onDayChange(e.target.value)}
@@ -389,7 +383,7 @@ function DtnDateSide({
         title="Day"
         style={{
           ...tinySelect,
-          width: 62,
+          width: 56,
           opacity: month ? 1 : 0.45,
           cursor: month ? "pointer" : "not-allowed",
         }}
@@ -405,9 +399,6 @@ function DtnDateSide({
   );
 }
 
-// ── Build an 8-digit DTN date prefix from parts ───────────────────────────────
-// side: "from" → pads month with "01", day with "01"
-//        "to"  → pads month with "12", day with "31"
 function buildDtnPrefix(year, month, day, side) {
   if (!year) return "";
   const m = month || (side === "from" ? "01" : "12");
@@ -415,7 +406,6 @@ function buildDtnPrefix(year, month, day, side) {
   return `${year}${m}${d}`;
 }
 
-// ── Human-readable label for a DTN date side ─────────────────────────────────
 function dtnSideLabel(year, month, day) {
   if (!year) return null;
   const monthLabel = month
@@ -453,29 +443,22 @@ export default function AllRecords({
   const [stepFilter, setStepFilter] = useState("");
   const [localStatusFilter, setLocalStatusFilter] = useState("");
 
-  // ── DTN Date RANGE states ─────────────────────────────────────────────────
-  // "From" side — lower bound of the range
   const [dtnFromYear, setDtnFromYear] = useState("");
   const [dtnFromMonth, setDtnFromMonth] = useState("");
   const [dtnFromDay, setDtnFromDay] = useState("");
-  // "To" side — upper bound of the range
   const [dtnToYear, setDtnToYear] = useState("");
   const [dtnToMonth, setDtnToMonth] = useState("");
   const [dtnToDay, setDtnToDay] = useState("");
-  // ─────────────────────────────────────────────────────────────────────────
 
   const [modalLoading, setModalLoading] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Debounce DTN text input
   useEffect(() => {
     const t = setTimeout(() => setDtnSearch(dtnInput), 400);
     return () => clearTimeout(t);
   }, [dtnInput]);
 
-  // ── Build 8-digit prefixes sent to the backend ────────────────────────────
-  // e.g. from=2023, no month → "20230101"  /  to=2026, no month → "20261231"
   const dtnDateFrom = buildDtnPrefix(
     dtnFromYear,
     dtnFromMonth,
@@ -483,7 +466,6 @@ export default function AllRecords({
     "from",
   );
   const dtnDateTo = buildDtnPrefix(dtnToYear, dtnToMonth, dtnToDay, "to");
-
   const rangeActive = !!(dtnDateFrom || dtnDateTo);
 
   const handleAction = async (actionKey, row) => {
@@ -527,9 +509,9 @@ export default function AllRecords({
   const inputSt = {
     background: ui.inputBg,
     border: `1px solid ${ui.cardBorder}`,
-    borderRadius: 7,
-    padding: "7px 10px",
-    fontSize: "0.82rem",
+    borderRadius: 6,
+    padding: "3px 6px",
+    fontSize: "0.68rem",
     color: ui.textPrimary,
     outline: "none",
     colorScheme: darkMode ? "dark" : "light",
@@ -537,12 +519,12 @@ export default function AllRecords({
   };
 
   const labelSt = {
-    fontSize: "0.68rem",
+    fontSize: "0.56rem",
     fontWeight: 700,
     textTransform: "uppercase",
     letterSpacing: "0.06em",
     color: ui.textMuted,
-    marginBottom: 4,
+    marginBottom: 2,
     display: "block",
     fontFamily: font,
   };
@@ -550,11 +532,11 @@ export default function AllRecords({
   const btnStyle = (disabled) => ({
     background: "transparent",
     border: `1px solid ${ui.cardBorder}`,
-    borderRadius: 5,
+    borderRadius: 4,
     color: disabled ? ui.textMuted : ui.textPrimary,
     cursor: disabled ? "not-allowed" : "pointer",
-    padding: "2px 8px",
-    fontSize: "0.78rem",
+    padding: "1px 7px",
+    fontSize: "0.72rem",
     fontFamily: font,
   });
 
@@ -574,9 +556,6 @@ export default function AllRecords({
       if (dtnSearch) params.dtn = dtnSearch;
       if (stepFilter) params.app_step = stepFilter;
       if (localStatusFilter) params.application_status = localStatusFilter;
-
-      // ── DTN date range ── both params are always 8 digits (YYYYMMDD)
-      // Backend does: LEFT(DB_DTN, 8) >= dtn_date_from AND LEFT(DB_DTN, 8) <= dtn_date_to
       if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
       if (dtnDateTo) params.dtn_date_to = dtnDateTo;
 
@@ -643,8 +622,8 @@ export default function AllRecords({
     return (
       <span
         style={{
-          marginLeft: 3,
-          fontSize: "0.62rem",
+          marginLeft: 2,
+          fontSize: "0.58rem",
           opacity: active ? 1 : 0.3,
           color: FB,
         }}
@@ -664,7 +643,6 @@ export default function AllRecords({
     setSortCol("date");
     setSortDir("desc");
     setPage(1);
-    // Reset DTN date range
     setDtnFromYear("");
     setDtnFromMonth("");
     setDtnFromDay("");
@@ -673,7 +651,6 @@ export default function AllRecords({
     setDtnToDay("");
   };
 
-  // ── Cascading reset helpers ───────────────────────────────────────────────
   const handleFromYearChange = (val) => {
     setDtnFromYear(val);
     if (!val) {
@@ -704,9 +681,8 @@ export default function AllRecords({
   const TL = darkMode ? timelineColorsDark : timelineColors;
   const SP = darkMode ? stepColorsDark : stepColors;
 
-  const GRID = "1.4fr 1.2fr 1.8fr 1fr 1fr 1fr 0.9fr 0.6fr";
+  const GRID = "1.4fr 1.1fr 1.8fr 0.95fr 1fr 0.9fr 0.85fr 0.5fr";
 
-  // ── Footer label summarising the active DTN range ─────────────────────────
   const fromLabel = dtnSideLabel(dtnFromYear, dtnFromMonth, dtnFromDay);
   const toLabel = dtnSideLabel(dtnToYear, dtnToMonth, dtnToDay);
   const dtnRangeFooterLabel = (() => {
@@ -724,16 +700,16 @@ export default function AllRecords({
           minWidth: 300,
           display: "flex",
           flexDirection: "column",
-          height: "calc(100vh - 160px)",
-          maxHeight: "calc(100vh - 160px)",
+          height: "calc(100vh - 110px)",
+          maxHeight: "calc(100vh - 110px)",
         }}
       >
         <p
           style={{
-            fontSize: "0.9rem",
+            fontSize: "0.8rem",
             fontWeight: 700,
             color: ui.textPrimary,
-            margin: "0 0 8px",
+            margin: "0 0 6px",
             fontFamily: font,
           }}
         >
@@ -753,19 +729,19 @@ export default function AllRecords({
             minHeight: 0,
           }}
         >
-          {/* ══ Filter Bar — Row 1: standard filters ══════════════════════════ */}
+          {/* ══ Filter Bar Row 1 ═══════════════════════════════════════════ */}
           <div
             style={{
-              padding: "8px 14px",
+              padding: "6px 12px",
               borderBottom: `1px solid ${ui.divider}`,
               background: colHdr,
               display: "flex",
-              gap: 8,
+              gap: 6,
               alignItems: "flex-end",
               flexWrap: "wrap",
             }}
           >
-            {/* DTN Text Search */}
+            {/* DTN */}
             <div>
               <label style={labelSt}>DTN</label>
               <input
@@ -773,17 +749,17 @@ export default function AllRecords({
                 placeholder="Search DTN…"
                 value={dtnInput}
                 onChange={(e) => setDtnInput(e.target.value)}
-                style={{ ...inputSt, width: 130 }}
+                style={{ ...inputSt, width: 120 }}
               />
             </div>
 
-            {/* Step Filter */}
+            {/* Step */}
             <div>
               <label style={labelSt}>Step</label>
               <select
                 value={stepFilter}
                 onChange={(e) => setStepFilter(e.target.value)}
-                style={{ ...inputSt, paddingRight: 24, cursor: "pointer" }}
+                style={{ ...inputSt, paddingRight: 20, cursor: "pointer" }}
               >
                 <option value="">All Steps</option>
                 {STEP_OPTIONS.map((s) => (
@@ -794,13 +770,13 @@ export default function AllRecords({
               </select>
             </div>
 
-            {/* Status Filter */}
+            {/* Status */}
             <div>
               <label style={labelSt}>Status</label>
               <select
                 value={localStatusFilter}
                 onChange={(e) => setLocalStatusFilter(e.target.value)}
-                style={{ ...inputSt, paddingRight: 24, cursor: "pointer" }}
+                style={{ ...inputSt, paddingRight: 20, cursor: "pointer" }}
               >
                 <option value="">All Status</option>
                 <option value="COMPLETED">Completed</option>
@@ -808,7 +784,7 @@ export default function AllRecords({
               </select>
             </div>
 
-            {/* Date Range (date_received_cent) */}
+            {/* Date range */}
             {[
               { label: "From", val: dateFrom, set: setDateFrom },
               { label: "To", val: dateTo, set: setDateTo },
@@ -827,10 +803,10 @@ export default function AllRecords({
             <button
               onClick={handleReset}
               style={{
-                padding: "7px 14px",
-                fontSize: "0.8rem",
+                padding: "5px 12px",
+                fontSize: "0.66rem",
                 fontWeight: 500,
-                borderRadius: 7,
+                borderRadius: 6,
                 border: `1px solid ${ui.cardBorder}`,
                 background: "transparent",
                 color: ui.textMuted,
@@ -843,11 +819,7 @@ export default function AllRecords({
             </button>
           </div>
 
-          {/* ══ Filter Bar — Row 2: DTN Date Range ════════════════════════════
-              Filters by the date encoded in the first 8 digits of the DTN.
-              Format: YYYYMMDD  e.g. DTN "20240506141704" = May 6, 2024
-              "From" pads missing month/day → 01/01   "To" → 12/31
-          ═════════════════════════════════════════════════════════════════════ */}
+          {/* ══ Filter Bar Row 2: DTN Date Range ══════════════════════════ */}
           <div
             style={{
               borderBottom: `1px solid ${ui.divider}`,
@@ -857,7 +829,6 @@ export default function AllRecords({
                   : "#f5f9ff"
                 : colHdr,
               transition: "background 0.2s",
-              // Left accent bar that lights up when the range is active
               borderLeft: rangeActive
                 ? `3px solid ${FB}`
                 : `3px solid transparent`,
@@ -865,15 +836,15 @@ export default function AllRecords({
           >
             <div
               style={{
-                padding: "6px 14px",
+                padding: "4px 12px",
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
+                gap: 10,
                 flexWrap: "nowrap",
                 overflowX: "auto",
               }}
+              className="monitoring-scroll"
             >
-              {/* Section label */}
               <div
                 style={{
                   display: "flex",
@@ -883,7 +854,7 @@ export default function AllRecords({
               >
                 <span
                   style={{
-                    fontSize: "0.62rem",
+                    fontSize: "0.56rem",
                     fontWeight: 700,
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
@@ -897,7 +868,7 @@ export default function AllRecords({
                 </span>
                 <span
                   style={{
-                    fontSize: "0.58rem",
+                    fontSize: "0.52rem",
                     color: rangeActive ? `${FB}cc` : ui.textMuted,
                     fontFamily: font,
                     whiteSpace: "nowrap",
@@ -911,17 +882,15 @@ export default function AllRecords({
                 </span>
               </div>
 
-              {/* Thin divider */}
               <div
                 style={{
                   width: 1,
-                  height: 28,
+                  height: 24,
                   background: ui.divider,
                   flexShrink: 0,
                 }}
               />
 
-              {/* From side */}
               <DtnDateSide
                 label="From"
                 year={dtnFromYear}
@@ -940,10 +909,9 @@ export default function AllRecords({
                 font={font}
               />
 
-              {/* Arrow */}
               <span
                 style={{
-                  fontSize: "1rem",
+                  fontSize: "0.9rem",
                   color: rangeActive ? FB : ui.textMuted,
                   opacity: rangeActive ? 1 : 0.3,
                   transition: "all 0.2s",
@@ -954,7 +922,6 @@ export default function AllRecords({
                 →
               </span>
 
-              {/* To side */}
               <DtnDateSide
                 label="To"
                 year={dtnToYear}
@@ -973,7 +940,6 @@ export default function AllRecords({
                 font={font}
               />
 
-              {/* Clear range — only visible when active */}
               {rangeActive && (
                 <button
                   onClick={() => {
@@ -988,11 +954,11 @@ export default function AllRecords({
                   style={{
                     background: "transparent",
                     border: `1px solid ${FB}55`,
-                    borderRadius: 5,
+                    borderRadius: 4,
                     color: FB,
                     cursor: "pointer",
-                    padding: "2px 8px",
-                    fontSize: "0.72rem",
+                    padding: "1px 7px",
+                    fontSize: "0.64rem",
                     fontFamily: font,
                     flexShrink: 0,
                     whiteSpace: "nowrap",
@@ -1004,7 +970,6 @@ export default function AllRecords({
               )}
             </div>
           </div>
-          {/* ══ end DTN Date Range row ══ */}
 
           {/* ── Column Headers ── */}
           <div
@@ -1029,13 +994,13 @@ export default function AllRecords({
                 key={label}
                 onClick={() => col && toggleSort(col)}
                 style={{
-                  fontSize: "0.67rem",
+                  fontSize: "0.56rem",
                   fontWeight: 700,
                   textTransform: "uppercase",
                   letterSpacing: "0.07em",
                   color: col && sortCol === col ? FB : ui.textMuted,
                   textAlign: "center",
-                  padding: "8px 12px",
+                  padding: "5px 8px",
                   cursor: col ? "pointer" : "default",
                   userSelect: "none",
                   display: "flex",
@@ -1052,14 +1017,17 @@ export default function AllRecords({
           </div>
 
           {/* ── Table Body ── */}
-          <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+          <div
+            style={{ flex: 1, overflowY: "auto", minHeight: 0 }}
+            className="monitoring-scroll"
+          >
             {loading ? (
               <div
                 style={{
-                  padding: "32px",
+                  padding: "28px",
                   textAlign: "center",
                   color: ui.textMuted,
-                  fontSize: "0.84rem",
+                  fontSize: "0.78rem",
                   fontFamily: font,
                 }}
               >
@@ -1068,10 +1036,10 @@ export default function AllRecords({
             ) : error ? (
               <div
                 style={{
-                  padding: "20px",
+                  padding: "16px",
                   textAlign: "center",
                   color: "#e02020",
-                  fontSize: "0.8rem",
+                  fontSize: "0.74rem",
                   fontFamily: font,
                 }}
               >
@@ -1080,10 +1048,10 @@ export default function AllRecords({
             ) : records.length === 0 ? (
               <div
                 style={{
-                  padding: "24px",
+                  padding: "20px",
                   textAlign: "center",
                   color: ui.textMuted,
-                  fontSize: "0.84rem",
+                  fontSize: "0.78rem",
                   fontFamily: font,
                 }}
               >
@@ -1127,6 +1095,8 @@ export default function AllRecords({
                           ? `1px solid ${ui.divider}`
                           : "none",
                       transition: "background 0.12s",
+                      height: 42,
+                      alignItems: "center",
                     }}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.background = ui.hoverBg)
@@ -1138,11 +1108,11 @@ export default function AllRecords({
                     {/* DTN */}
                     <span
                       style={{
-                        fontSize: "0.72rem",
+                        fontSize: "0.62rem",
                         color: FB,
                         fontWeight: 700,
                         textAlign: "center",
-                        padding: "10px 12px",
+                        padding: "5px 8px",
                         fontFamily: "monospace",
                         alignSelf: "center",
                       }}
@@ -1153,7 +1123,7 @@ export default function AllRecords({
                     {/* User */}
                     <span
                       style={{
-                        fontSize: "0.8rem",
+                        fontSize: "0.66rem",
                         color: ui.textPrimary,
                         fontWeight: 500,
                         display: "flex",
@@ -1161,20 +1131,20 @@ export default function AllRecords({
                         alignItems: "center",
                         justifyContent: "center",
                         gap: 1,
-                        padding: "10px 12px",
+                        padding: "5px 8px",
                       }}
                     >
                       <span
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: 5,
+                          gap: 4,
                         }}
                       >
                         <span
                           style={{
-                            width: 7,
-                            height: 7,
+                            width: 6,
+                            height: 6,
                             borderRadius: "50%",
                             background: av.color,
                             flexShrink: 0,
@@ -1185,7 +1155,7 @@ export default function AllRecords({
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
-                            maxWidth: 100,
+                            maxWidth: 90,
                           }}
                         >
                           {row.user_name || "—"}
@@ -1195,15 +1165,19 @@ export default function AllRecords({
 
                     {/* Drug */}
                     <span
+                      title={row.drug_name || ""}
                       style={{
-                        fontSize: "0.75rem",
+                        fontSize: "0.63rem",
                         color: ui.textSub,
-                        padding: "10px 12px",
+                        padding: "5px 8px",
                         alignSelf: "center",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        wordBreak: "break-word",
+                        lineHeight: 1.4,
                         fontFamily: font,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
                       }}
                     >
                       {row.drug_name || "—"}
@@ -1212,12 +1186,13 @@ export default function AllRecords({
                     {/* Date */}
                     <span
                       style={{
-                        fontSize: "0.8rem",
+                        fontSize: "0.66rem",
                         color: ui.textPrimary,
                         textAlign: "center",
-                        padding: "10px 12px",
+                        padding: "5px 8px",
                         alignSelf: "center",
                         fontFamily: font,
+                        whiteSpace: "nowrap",
                       }}
                     >
                       {row.date_received_cent
@@ -1234,7 +1209,7 @@ export default function AllRecords({
                     {/* Step */}
                     <span
                       style={{
-                        padding: "10px 12px",
+                        padding: "5px 8px",
                         display: "flex",
                         justifyContent: "center",
                         alignItems: "center",
@@ -1242,9 +1217,9 @@ export default function AllRecords({
                     >
                       <span
                         style={{
-                          fontSize: "0.68rem",
+                          fontSize: "0.57rem",
                           fontWeight: 600,
-                          padding: "3px 9px",
+                          padding: "2px 6px",
                           borderRadius: 99,
                           background: spStyle.bg,
                           color: spStyle.color,
@@ -1259,7 +1234,7 @@ export default function AllRecords({
                     {/* Timeline */}
                     <span
                       style={{
-                        padding: "10px 12px",
+                        padding: "5px 8px",
                         display: "flex",
                         justifyContent: "center",
                         alignItems: "center",
@@ -1267,9 +1242,9 @@ export default function AllRecords({
                     >
                       <span
                         style={{
-                          fontSize: "0.71rem",
+                          fontSize: "0.62rem",
                           fontWeight: 600,
-                          padding: "3px 10px",
+                          padding: "2px 8px",
                           borderRadius: 99,
                           background: tlStyle.bg,
                           color: tlStyle.color,
@@ -1284,7 +1259,7 @@ export default function AllRecords({
                     {/* Status */}
                     <span
                       style={{
-                        padding: "10px 12px",
+                        padding: "5px 8px",
                         display: "flex",
                         justifyContent: "center",
                         alignItems: "center",
@@ -1292,9 +1267,9 @@ export default function AllRecords({
                     >
                       <span
                         style={{
-                          fontSize: "0.7rem",
+                          fontSize: "0.62rem",
                           fontWeight: 600,
-                          padding: "3px 8px",
+                          padding: "2px 7px",
                           borderRadius: 99,
                           background: sc.bg,
                           color: sc.color,
@@ -1309,7 +1284,7 @@ export default function AllRecords({
                     {/* Actions */}
                     <span
                       style={{
-                        padding: "10px 12px",
+                        padding: "5px 8px",
                         display: "flex",
                         justifyContent: "center",
                         alignItems: "center",
@@ -1331,7 +1306,7 @@ export default function AllRecords({
           {/* ── Footer / Pagination ── */}
           <div
             style={{
-              padding: "7px 14px",
+              padding: "5px 12px",
               borderTop: `1px solid ${ui.divider}`,
               background: colHdr,
               display: "flex",
@@ -1341,31 +1316,31 @@ export default function AllRecords({
           >
             <span
               style={{
-                fontSize: "0.73rem",
+                fontSize: "0.62rem",
                 color: ui.textMuted,
                 fontFamily: font,
               }}
             >
               {total} record{total !== 1 ? "s" : ""}
               {totalPages > 1 && (
-                <span style={{ marginLeft: 6 }}>
+                <span style={{ marginLeft: 5 }}>
                   · page {page} of {totalPages}
                 </span>
               )}
               {dtnRangeFooterLabel && (
                 <span
                   style={{
-                    marginLeft: 8,
+                    marginLeft: 7,
                     color: FB,
                     fontWeight: 600,
-                    fontSize: "0.7rem",
+                    fontSize: "0.63rem",
                   }}
                 >
-                  · DTN range: {dtnRangeFooterLabel}
+                  · DTN: {dtnRangeFooterLabel}
                 </span>
               )}
             </span>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
@@ -1375,7 +1350,7 @@ export default function AllRecords({
               </button>
               <span
                 style={{
-                  fontSize: "0.73rem",
+                  fontSize: "0.62rem",
                   color: ui.textMuted,
                   fontFamily: font,
                 }}

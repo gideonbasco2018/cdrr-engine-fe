@@ -6,8 +6,6 @@ import {
 import { getColorScheme } from "../components/tasks/ColorScheme";
 
 import { mapWorkflowTask } from "../components/tasks/taskUtils";
-// import { getCurrentUser } from "../api/auth";
-// import call api from local storage
 import { getUser } from "../api/auth";
 
 import QuickFilters from "../components/tasks/QuickFilters";
@@ -51,7 +49,7 @@ function Chip({ label, onRemove, colors }) {
 }
 
 /* ================================================================== */
-/*  Sub-tab bar component — matches main step tab style                 */
+/*  Sub-tab bar component                                               */
 /* ================================================================== */
 function SubTabBar({
   activeSubTab,
@@ -80,9 +78,9 @@ function SubTabBar({
     <div
       style={{
         display: "flex",
-        gap: "5px",
+        gap: "3px",
         background: darkMode ? "#181818" : "#f0f0f0",
-        padding: "4px",
+        padding: "3px",
         borderRadius: "8px",
         width: "fit-content",
         flexShrink: 0,
@@ -97,8 +95,8 @@ function SubTabBar({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "6px",
-              padding: "5px 14px",
+              gap: "5px",
+              padding: "3px 10px",
               border: "none",
               borderRadius: "6px",
               background: isActive
@@ -109,7 +107,7 @@ function SubTabBar({
               color: isActive ? colors.textPrimary : colors.textTertiary,
               fontWeight: isActive ? 600 : 400,
               cursor: "pointer",
-              fontSize: "0.78rem",
+              fontSize: "0.72rem",
               transition: "all .15s ease",
               boxShadow: isActive
                 ? darkMode
@@ -124,11 +122,11 @@ function SubTabBar({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                minWidth: "1.2rem",
-                height: "1.2rem",
-                padding: "0 0.35rem",
+                minWidth: "1.1rem",
+                height: "1.1rem",
+                padding: "0 0.3rem",
                 borderRadius: "999px",
-                fontSize: "0.65rem",
+                fontSize: "0.6rem",
                 fontWeight: 700,
                 lineHeight: 1,
                 background: isActive
@@ -148,6 +146,7 @@ function SubTabBar({
     </div>
   );
 }
+
 /* ================================================================== */
 /*  TaskPage                                                            */
 /* ================================================================== */
@@ -159,7 +158,7 @@ function TaskPage({ darkMode }) {
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10000);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [sortBy, setSortBy] = useState("created_at");
@@ -172,42 +171,36 @@ function TaskPage({ darkMode }) {
     prescription: "",
     appStatus: "",
     processingType: "",
+    sentBy: "",
+    lastModifiedFrom: "",
+    lastModifiedTo: "",
+    estCat: "",
   });
 
+  const [visibleColumnKeys, setVisibleColumnKeys] = useState(null);
   const colors = getColorScheme(darkMode);
-
-  // useEffect(() => {
-  //   const fetchUser = async () => {
-  //     try {
-  //       const user = await getCurrentUser();
-  //       setCurrentUser(user?.username || "Unknown User");
-  //     } catch {
-  //       setCurrentUser("Unknown User");
-  //     }
-  //   };
-  //   fetchUser();
-  // }, []);
-
-  // call local storage
-  // useEffect(() => {
-  //   const user = getUser();
-  //   setCurrentUser(user?.username || "Unknown User");
-  // }, []);
 
   useEffect(() => {
     const user = getUser();
     setCurrentUser(user || null);
   }, []);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters, activeSubTab, activeTab]);
+
   const fetchTasks = useCallback(async () => {
     if (!currentUser?.id) return;
     setLoading(true);
     try {
+      const isFrontendSort =
+        sortBy === "log_sent_by" || sortBy === "log_last_modified";
+
       const res = await getWorkflowTasks({
-        page: currentPage,
+        page: 1,
         page_size: 10000,
-        sort_by: sortBy,
-        sort_order: sortOrder,
+        sort_by: isFrontendSort ? "created_at" : sortBy,
+        sort_order: isFrontendSort ? "desc" : sortOrder,
         user_id: currentUser.id,
         only_latest_per_thread: false,
         del_last_index: 1,
@@ -229,7 +222,7 @@ function TaskPage({ darkMode }) {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, currentPage, rowsPerPage, sortBy, sortOrder]);
+  }, [currentUser, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchTasks();
@@ -248,16 +241,11 @@ function TaskPage({ darkMode }) {
   const handleTabChange = (step) => {
     setActiveTab(step);
     setSelectedRows([]);
-
     const stepRows = data.filter((d) => d.applicationStep === step);
     const hasNotYet = stepRows.some((d) => d.is_received !== 1);
     const hasReceived = stepRows.some((d) => d.is_received === 1);
-
-    if (!hasNotYet && hasReceived) {
-      setActiveSubTab("received");
-    } else {
-      setActiveSubTab("not_yet");
-    }
+    if (!hasNotYet && hasReceived) setActiveSubTab("received");
+    else setActiveSubTab("not_yet");
   };
 
   const handleSubTabChange = (sub) => {
@@ -313,43 +301,66 @@ function TaskPage({ darkMode }) {
     [tabData, activeSubTab],
   );
 
-  const filteredData = useMemo(
-    () =>
-      subTabData.filter((r) => {
-        const s = filters.search;
-        const ms =
-          !s ||
-          ["dtn", "ltoCompany", "prodBrName", "prodGenName", "prodManu"].some(
-            (f) =>
-              String(r[f] ?? "")
-                .toLowerCase()
-                .includes(s.toLowerCase()),
-          );
-        const ma = !filters.appType || r.appType === filters.appType;
-        const mp =
-          !filters.prescription ||
-          r.prodClassPrescript === filters.prescription;
-        const mst = !filters.appStatus || r.appStatus === filters.appStatus;
-        const mpt =
-          !filters.processingType ||
-          r.processingType === filters.processingType;
-        return ms && ma && mp && mst && mpt;
-      }),
-    [subTabData, filters],
-  );
+  const filteredData = useMemo(() => {
+    const filtered = subTabData.filter((r) => {
+      const s = filters.search;
+      const ms =
+        !s ||
+        ["dtn", "ltoCompany", "prodBrName", "prodGenName", "prodManu"].some(
+          (f) =>
+            String(r[f] ?? "")
+              .toLowerCase()
+              .includes(s.toLowerCase()),
+        );
+      const ma = !filters.appType || r.appType === filters.appType;
+      const mp =
+        !filters.prescription || r.prodClassPrescript === filters.prescription;
+      const mst = !filters.appStatus || r.appStatus === filters.appStatus;
+      const mpt =
+        !filters.processingType || r.processingType === filters.processingType;
+      const msb =
+        !filters.sentBy ||
+        (r.sentBy ?? "").toLowerCase().includes(filters.sentBy.toLowerCase());
+      const from = filters.lastModifiedFrom
+        ? new Date(filters.lastModifiedFrom)
+        : null;
+      const to = filters.lastModifiedTo
+        ? new Date(filters.lastModifiedTo + "T23:59:59")
+        : null;
+      const lm = r.lastModified ? new Date(r.lastModified) : null;
+      const mfrom = !from || (lm && lm >= from);
+      const mto = !to || (lm && lm <= to);
+      const mcat = !filters.estCat || r.estCat === filters.estCat;
+      return ms && ma && mp && mst && mpt && msb && mfrom && mto && mcat;
+    });
 
-  // persistent, hindi nire-reset ang ibang selections
+    if (sortBy === "log_sent_by" || sortBy === "log_last_modified") {
+      filtered.sort((a, b) => {
+        let valA, valB;
+        if (sortBy === "log_sent_by") {
+          valA = (a.sentBy ?? "").toLowerCase();
+          valB = (b.sentBy ?? "").toLowerCase();
+        } else {
+          valA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
+          valB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
+        }
+        if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+        if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [subTabData, filters, sortBy, sortOrder]);
+
   const handleSelectAll = () => {
     const filteredIds = filteredData.map((r) => r.id);
     const allFilteredSelected = filteredIds.every((id) =>
       selectedRows.includes(id),
     );
-
     if (allFilteredSelected) {
-      // I-deselect lang ang nasa current filtered view
       setSelectedRows((prev) => prev.filter((id) => !filteredIds.includes(id)));
     } else {
-      // I-add ang lahat ng nasa current filtered view, keep ang dati
       setSelectedRows((prev) => [...new Set([...prev, ...filteredIds])]);
     }
   };
@@ -366,21 +377,55 @@ function TaskPage({ darkMode }) {
 
   const indexOfFirstRow = (currentPage - 1) * rowsPerPage;
   const displayedTotal = filteredData.length;
-  const displayedPages =
-    totalPages || Math.ceil(displayedTotal / rowsPerPage) || 1;
+  const displayedPages = Math.ceil(displayedTotal / rowsPerPage) || 1;
+
+  const paginatedData = filteredData.slice(
+    indexOfFirstRow,
+    indexOfFirstRow + rowsPerPage,
+  );
 
   const hasActiveFilters =
     filters.search ||
     filters.appType ||
     filters.prescription ||
     filters.appStatus ||
-    filters.processingType;
+    filters.processingType ||
+    filters.sentBy ||
+    filters.lastModifiedFrom ||
+    filters.lastModifiedTo ||
+    filters.estCat;
 
   const emptyLabel =
     activeSubTab === "received"
       ? "No received tasks yet."
       : "No pending tasks — all caught up!";
   const emptyIcon = activeSubTab === "received" ? "📭" : "✅";
+
+  // Compact shared styles
+  const inputStyle = (active) => ({
+    padding: "0.25rem 0.5rem",
+    background: colors.inputBg,
+    border: `1px solid ${active ? "#4CAF50" : colors.inputBorder}`,
+    borderRadius: 6,
+    color: colors.textPrimary,
+    fontSize: "0.68rem",
+    outline: "none",
+    colorScheme: darkMode ? "dark" : "light",
+  });
+
+  const labelStyle = {
+    fontSize: "0.65rem",
+    color: colors.textTertiary,
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+  };
+
+  const dividerStyle = {
+    width: 1,
+    height: 22,
+    background: colors.cardBorder,
+    flexShrink: 0,
+  };
 
   return (
     <div
@@ -397,9 +442,7 @@ function TaskPage({ darkMode }) {
       <QuickFilters
         data={subTabData}
         filters={filters}
-        onFiltersChange={(f) => {
-          setFilters(f);
-        }}
+        onFiltersChange={(f) => setFilters(f)}
         colors={colors}
         darkMode={darkMode}
       />
@@ -416,28 +459,6 @@ function TaskPage({ darkMode }) {
           overflow: "hidden",
         }}
       >
-        <div>
-          <h1
-            style={{
-              fontSize: ".95rem",
-              fontWeight: "600",
-              marginBottom: "0.15rem",
-              color: colors.textPrimary,
-            }}
-          >
-            Task
-          </h1>
-          <p
-            style={{
-              color: colors.textTertiary,
-              fontSize: "0.75rem",
-              margin: 0,
-            }}
-          >
-            Track and complete assigned tasks
-          </p>
-        </div>
-
         {/* ── Main step tabs ── */}
         {steps.length > 0 && (
           <div
@@ -519,19 +540,227 @@ function TaskPage({ darkMode }) {
           </div>
         )}
 
-        {/* ── Sub-tabs ── */}
+        {/* ── SubTab + Filters + Selection — iisang row ── */}
         {steps.length > 0 && (receivedCount > 0 || notYetReceivedCount > 0) && (
-          <SubTabBar
-            activeSubTab={activeSubTab}
-            setActiveSubTab={handleSubTabChange}
-            receivedCount={receivedCount}
-            notYetCount={notYetReceivedCount}
-            colors={colors}
-            darkMode={darkMode}
-          />
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              flexWrap: "wrap",
+              flexShrink: 0,
+            }}
+          >
+            {/* SubTabBar */}
+            <SubTabBar
+              activeSubTab={activeSubTab}
+              setActiveSubTab={handleSubTabChange}
+              receivedCount={receivedCount}
+              notYetCount={notYetReceivedCount}
+              colors={colors}
+              darkMode={darkMode}
+            />
+
+            <div style={dividerStyle} />
+
+            {/* Sent By */}
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
+            >
+              <span style={labelStyle}>👤 Sent By</span>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  placeholder="Search sender..."
+                  value={filters.sentBy}
+                  onChange={(e) =>
+                    setFilters({ ...filters, sentBy: e.target.value })
+                  }
+                  style={{
+                    ...inputStyle(filters.sentBy),
+                    width: 110,
+                    paddingRight: filters.sentBy ? "1.4rem" : "0.5rem",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                  onBlur={(e) =>
+                    (e.target.style.borderColor = filters.sentBy
+                      ? "#4CAF50"
+                      : colors.inputBorder)
+                  }
+                />
+                {filters.sentBy && (
+                  <button
+                    onClick={() => setFilters({ ...filters, sentBy: "" })}
+                    style={{
+                      position: "absolute",
+                      right: "0.35rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      color: colors.textTertiary,
+                      cursor: "pointer",
+                      fontSize: "0.65rem",
+                      padding: 0,
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div style={dividerStyle} />
+
+            {/* Last Modified */}
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
+            >
+              <span style={labelStyle}>🕓 Last Modified</span>
+              <input
+                type="date"
+                value={filters.lastModifiedFrom}
+                onChange={(e) =>
+                  setFilters({ ...filters, lastModifiedFrom: e.target.value })
+                }
+                style={inputStyle(filters.lastModifiedFrom)}
+              />
+              <span style={{ fontSize: "0.65rem", color: colors.textTertiary }}>
+                to
+              </span>
+              <input
+                type="date"
+                value={filters.lastModifiedTo}
+                onChange={(e) =>
+                  setFilters({ ...filters, lastModifiedTo: e.target.value })
+                }
+                style={inputStyle(filters.lastModifiedTo)}
+              />
+              {(filters.lastModifiedFrom || filters.lastModifiedTo) && (
+                <button
+                  onClick={() =>
+                    setFilters({
+                      ...filters,
+                      lastModifiedFrom: "",
+                      lastModifiedTo: "",
+                    })
+                  }
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                    fontSize: "0.65rem",
+                    padding: 0,
+                    fontWeight: 600,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div style={dividerStyle} />
+
+            {/* Category */}
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
+            >
+              <span style={labelStyle}>🗂️ Category</span>
+              <select
+                value={filters.estCat}
+                onChange={(e) =>
+                  setFilters({ ...filters, estCat: e.target.value })
+                }
+                style={{
+                  ...inputStyle(filters.estCat),
+                  cursor: "pointer",
+                  color: filters.estCat
+                    ? colors.textPrimary
+                    : colors.textTertiary,
+                }}
+              >
+                <option value="">All</option>
+                {Array.from(
+                  new Set(
+                    data.map((r) => r.estCat).filter((v) => v && v !== "N/A"),
+                  ),
+                )
+                  .sort()
+                  .map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+              </select>
+              {filters.estCat && (
+                <button
+                  onClick={() => setFilters({ ...filters, estCat: "" })}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                    fontSize: "0.65rem",
+                    padding: 0,
+                    fontWeight: 600,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Selection indicator */}
+            {selectedRows.length > 0 && (
+              <>
+                <div style={dividerStyle} />
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.2rem 0.6rem",
+                    background: darkMode
+                      ? "rgba(33,150,243,0.12)"
+                      : "rgba(33,150,243,0.08)",
+                    border: "1px solid rgba(33,150,243,0.3)",
+                    borderRadius: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      color: "#2196F3",
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    ✔ {selectedRows.length} record
+                    {selectedRows.length > 1 ? "s" : ""} selected
+                  </span>
+                  <button
+                    onClick={() => setSelectedRows([])}
+                    style={{
+                      fontSize: "0.65rem",
+                      color: "#ef4444",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    ✕ Clear
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         )}
 
-        {/* Active filter chips */}
+        {/* ── Active filter chips ── */}
         {hasActiveFilters && (
           <div
             style={{
@@ -580,6 +809,29 @@ function TaskPage({ darkMode }) {
                 colors={colors}
               />
             )}
+            {filters.sentBy && (
+              <Chip
+                label={`Sent By: "${filters.sentBy}"`}
+                onRemove={() => setFilters({ ...filters, sentBy: "" })}
+                colors={colors}
+              />
+            )}
+            {filters.lastModifiedFrom && (
+              <Chip
+                label={`From: ${filters.lastModifiedFrom}`}
+                onRemove={() =>
+                  setFilters({ ...filters, lastModifiedFrom: "" })
+                }
+                colors={colors}
+              />
+            )}
+            {filters.lastModifiedTo && (
+              <Chip
+                label={`To: ${filters.lastModifiedTo}`}
+                onRemove={() => setFilters({ ...filters, lastModifiedTo: "" })}
+                colors={colors}
+              />
+            )}
             <button
               onClick={() =>
                 setFilters({
@@ -588,6 +840,10 @@ function TaskPage({ darkMode }) {
                   prescription: "",
                   appStatus: "",
                   processingType: "",
+                  sentBy: "",
+                  lastModifiedFrom: "",
+                  lastModifiedTo: "",
+                  estCat: "",
                 })
               }
               style={{
@@ -600,51 +856,6 @@ function TaskPage({ darkMode }) {
               }}
             >
               Clear all
-            </button>
-          </div>
-        )}
-
-        {/* ── Persistent selection indicator ── */}
-        {selectedRows.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              padding: "0.5rem 0.85rem",
-              background: darkMode
-                ? "rgba(33,150,243,0.1)"
-                : "rgba(33,150,243,0.06)",
-              border: "1px solid rgba(33,150,243,0.25)",
-              borderRadius: 8,
-              flexShrink: 0,
-            }}
-          >
-            <span
-              style={{ fontSize: "0.78rem", color: "#2196F3", fontWeight: 700 }}
-            >
-              ✔ {selectedRows.length} record{selectedRows.length > 1 ? "s" : ""}{" "}
-              selected
-              {selectedRows.length !== filteredData.length && (
-                <span style={{ fontWeight: 400, color: colors.textTertiary }}>
-                  {" "}
-                  (across all filters)
-                </span>
-              )}
-            </span>
-            <button
-              onClick={() => setSelectedRows([])}
-              style={{
-                fontSize: "0.72rem",
-                color: "#ef4444",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                padding: "0.15rem 0.4rem",
-                fontWeight: 600,
-              }}
-            >
-              ✕ Clear selection
             </button>
           </div>
         )}
@@ -700,7 +911,7 @@ function TaskPage({ darkMode }) {
         {!loading && filteredData.length > 0 && (
           <div style={{ flex: 1, minHeight: 0 }}>
             <DataTable
-              data={filteredData}
+              data={paginatedData}
               selectedRows={selectedRows}
               onSelectRow={handleSelectRow}
               onSelectAll={handleSelectAll}
@@ -719,7 +930,7 @@ function TaskPage({ darkMode }) {
               activeSubTab={activeSubTab}
               onRefresh={fetchTasks}
               onClearSelections={() => setSelectedRows([])}
-              indexOfFirstRow={indexOfFirstRow}
+              indexOfFirstRow={indexOfFirstRow + 1}
               indexOfLastRow={Math.min(
                 indexOfFirstRow + rowsPerPage,
                 displayedTotal,
@@ -729,6 +940,8 @@ function TaskPage({ darkMode }) {
               onSort={handleSort}
               readIds={readIds}
               onMarkAsRead={markAsRead}
+              visibleColumnKeys={visibleColumnKeys}
+              onVisibleColumnKeysChange={setVisibleColumnKeys}
             />
           </div>
         )}

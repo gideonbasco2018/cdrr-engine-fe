@@ -366,7 +366,7 @@ function LogCard({ log, index, isLast }) {
               >
                 {/* Decision */}
                 <div>
-                  <FieldLabel>Decision</FieldLabel>
+                  <FieldLabel>Action</FieldLabel>
                   {log.application_decision ? (
                     <span
                       style={{
@@ -396,7 +396,7 @@ function LogCard({ log, index, isLast }) {
 
                 {/* Action */}
                 <div>
-                  <FieldLabel>Action</FieldLabel>
+                  <FieldLabel>Recommendation</FieldLabel>
                   {log.action_type ? (
                     <span
                       style={{
@@ -580,30 +580,13 @@ export function Step3AppLogs({ record, colors }) {
         setLoading(true);
         const data = await getApplicationLogs(record.mainDbId);
         const sorted = [...(Array.isArray(data) ? data : [])].sort((a, b) => {
-          // Checking logs — laging nasa UNAHAN
-          const aChecking = a.application_step === "Decking";
-          const bChecking = b.application_step === "Decking";
-          if (aChecking && !bChecking) return -1;
-          if (!aChecking && bChecking) return 1;
-
           // IN PROGRESS logs — laging nasa DULO
           const aActive = a.application_status === "IN PROGRESS";
           const bActive = b.application_status === "IN PROGRESS";
           if (aActive && !bActive) return 1;
           if (!aActive && bActive) return -1;
 
-          // COMPLETED logs — sorted by accomplished_date ascending
-          const aDate = a.accomplished_date
-            ? new Date(a.accomplished_date)
-            : null;
-          const bDate = b.accomplished_date
-            ? new Date(b.accomplished_date)
-            : null;
-          if (aDate && bDate) return aDate - bDate;
-          if (aDate) return -1;
-          if (bDate) return 1;
-
-          // fallback — del_index
+          // Primary sort — del_index ascending
           return (a.del_index ?? 0) - (b.del_index ?? 0);
         });
         setLogs(sorted);

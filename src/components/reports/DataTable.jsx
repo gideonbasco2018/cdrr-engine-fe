@@ -12,6 +12,8 @@ import ChangeLogModal from "../tasks/ChangeLogModal";
 import ReassignmentModal from "./actions/ReassignmentModal";
 import RerouteModal from "./actions/RerouteModal";
 import UpdateCPRModal from "./actions/UpdateCPRModal";
+import { BulkCompleteModal } from "../tasks/DataTable/BulkCompleteModal";
+import { closeTasksBulk, getCurrentUser } from "../../api/closed-tasks";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -149,8 +151,19 @@ function DataTable({
   const [rerouteRecord, setRerouteRecord] = useState(null);
   const [cprUpdateRecord, setCprUpdateRecord] = useState(null);
 
+  const [bulkCompleteModalRecords, setBulkCompleteModalRecords] =
+    useState(null);
+
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
+  console.log(
+    "activeTab:",
+    activeTab,
+    "showAppLogs:",
+    showAppLogs,
+    "selectedRows:",
+    selectedRows.length,
+  );
 
   const handleOpenChangeLog = (row) => {
     setOpenMenuId(null);
@@ -257,7 +270,7 @@ function DataTable({
     const { status, days } = calculateStatusTimeline(row);
     if (!status)
       return (
-        <span style={{ color: colors.textTertiary, fontSize: "0.72rem" }}>
+        <span style={{ color: colors.textTertiary, fontSize: "0.55rem" }}>
           N/A
         </span>
       );
@@ -271,7 +284,7 @@ function DataTable({
             : "linear-gradient(135deg,#ef4444,#dc2626)",
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.72rem",
+          fontSize: "0.55rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -292,7 +305,7 @@ function DataTable({
   const renderProcessingTypeBadge = (value) => {
     if (!value || value === "N/A")
       return (
-        <span style={{ color: colors.textTertiary, fontSize: "0.72rem" }}>
+        <span style={{ color: colors.textTertiary, fontSize: "0.55rem" }}>
           N/A
         </span>
       );
@@ -303,7 +316,7 @@ function DataTable({
           background: "linear-gradient(135deg,#2196F3,#1976D2)",
           color: "#fff",
           borderRadius: "6px",
-          fontSize: "0.72rem",
+          fontSize: "0.55rem",
           fontWeight: "600",
           display: "inline-flex",
           alignItems: "center",
@@ -363,7 +376,7 @@ function DataTable({
         background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.72rem",
+        fontSize: "0.55rem",
         fontWeight: "700",
         letterSpacing: "0.5px",
         boxShadow: "0 2px 8px rgba(8, 8, 8, 0.3)",
@@ -384,7 +397,7 @@ function DataTable({
         background: "linear-gradient(135deg,#06b6d4,#0891b2)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.72rem",
+        fontSize: "0.55rem",
         fontWeight: "700",
         boxShadow: "0 2px 8px rgba(6,182,212,0.3)",
       }}
@@ -404,7 +417,7 @@ function DataTable({
         background: "linear-gradient(135deg,#f59e0b,#d97706)",
         color: "#fff",
         borderRadius: "8px",
-        fontSize: "0.72rem",
+        fontSize: "0.55rem",
         fontWeight: "700",
         boxShadow: "0 2px 8px rgba(245,158,11,0.3)",
       }}
@@ -426,7 +439,7 @@ function DataTable({
           background: bg,
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.72rem",
+          fontSize: "0.55rem",
           fontWeight: "700",
           boxShadow: `0 2px 8px ${sh}`,
         }}
@@ -507,7 +520,7 @@ function DataTable({
           background: c.bg,
           color: "#fff",
           borderRadius: "8px",
-          fontSize: "0.72rem",
+          fontSize: "0.55rem",
           fontWeight: "700",
           letterSpacing: "0.5px",
           textTransform: "uppercase",
@@ -575,7 +588,7 @@ function DataTable({
 
   const subTabStyle = (isActive) => ({
     padding: "0.3rem 0.75rem",
-    fontSize: "0.72rem",
+    fontSize: "0.55rem",
     background: "transparent",
     border: "none",
     borderBottom: isActive ? "2px solid #2196F3" : "2px solid transparent",
@@ -861,9 +874,9 @@ function DataTable({
   };
 
   const thStyle = {
-    padding: "0.65rem 0.85rem",
+    padding: "0.45rem 0.6rem",
     textAlign: "left",
-    fontSize: "0.6rem",
+    fontSize: "0.55rem",
     fontWeight: "600",
     color: colors.textTertiary,
     textTransform: "uppercase",
@@ -877,8 +890,8 @@ function DataTable({
   };
 
   const tdStyle = {
-    padding: "0.65rem 0.85rem",
-    fontSize: "0.78rem",
+    padding: "0.4rem 0.6rem",
+    fontSize: "0.55rem",
     color: colors.tableText,
     borderBottom: `1px solid ${colors.tableBorder}`,
     whiteSpace: "normal",
@@ -958,6 +971,56 @@ function DataTable({
                 <strong style={{ color: "#4CAF50" }}>{activeSortLabel}</strong>
                 <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
               </span>
+            )}
+
+            {showAppLogs && selectedRows.length > 0 && (
+              <button
+                onClick={() =>
+                  setBulkCompleteModalRecords(
+                    data.filter((row) => selectedRows.includes(row.id)),
+                  )
+                }
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                  border: "1px solid #991b1b",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  fontSize: "0.75rem",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  boxShadow: "0 2px 8px rgba(220,38,38,0.40)",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 4px 14px rgba(220,38,38,0.55)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(220,38,38,0.40)")
+                }
+              >
+                <span>🔒</span> Close Task (Final)
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: "1.1rem",
+                    height: "1.1rem",
+                    padding: "0 0.25rem",
+                    background: "rgba(255,255,255,0.20)",
+                    borderRadius: 999,
+                    fontSize: "0.65rem",
+                    fontWeight: 800,
+                  }}
+                >
+                  {selectedRows.length}
+                </span>
+              </button>
             )}
 
             {selectedRows.length > 0 && (
@@ -1156,7 +1219,7 @@ function DataTable({
                   style={{
                     ...thStyle,
                     cursor: "default",
-                    width: "50px",
+                    width: "60px",
                     position: "sticky",
                     left: 0,
                     background: colors.tableBg,
@@ -1294,8 +1357,8 @@ function DataTable({
                     </td>
                     <td
                       style={{
-                        padding: "0.65rem 0.85rem",
-                        fontSize: "0.78rem",
+                        padding: "0.4rem 0.6rem",
+                        fontSize: "0.65rem",
                         fontWeight: "700",
                         color: colors.textTertiary,
                         borderBottom: `1px solid ${colors.tableBorder}`,
@@ -1680,6 +1743,74 @@ function DataTable({
           colors={colors}
           darkMode={darkMode}
           updateUploadReport={updateUploadReport}
+        />
+      )}
+
+      {bulkCompleteModalRecords && (
+        <BulkCompleteModal
+          selectedCount={bulkCompleteModalRecords.length}
+          selectedDtns={bulkCompleteModalRecords.map((r) => r.dtn || r.id)}
+          colors={colors}
+          darkMode={darkMode}
+          onClose={() => setBulkCompleteModalRecords(null)}
+          onConfirm={async ({ remarks, reason }) => {
+            // ── 1. Get the logged-in user ────────────────────────────────────
+            const me = getCurrentUser();
+            if (!me?.id) throw new Error("No logged-in user found.");
+
+            // ── 2. Build the PHT timestamp (UTC+8) ───────────────────────────
+            const closedAt = new Date(
+              Date.now() + 8 * 60 * 60 * 1000,
+            ).toISOString();
+
+            // ── 3. Call POST /api/closed-tasks/bulk ──────────────────────────
+            //    Backend will:
+            //      a) find each record's IN PROGRESS log
+            //      b) mark it COMPLETED (action_type = PERMANENT_CLOSE)
+            //      c) insert a row in closed_tasks for audit
+            const mainDbIds = bulkCompleteModalRecords.map(
+              (r) => r.mainDbId ?? r.id,
+            );
+
+            await closeTasksBulk({
+              main_db_ids: mainDbIds,
+              reason_for_closing: reason,
+              remarks: remarks || null,
+              closed_by_user_id: me.id,
+              closed_by_user_name: me.username,
+              closed_at: closedAt,
+            });
+            // ↑ throws on HTTP error → caught by BulkCompleteModal → result.failed
+
+            // ── 4. Sync DB_APP_STATUS on main_db per row ─────────────────────
+            //    (closed-tasks backend doesn't touch main_db table)
+            const { updateUploadReport: updateReport } =
+              await import("../../api/reports");
+
+            let success = 0;
+            let failed = 0;
+
+            await Promise.allSettled(
+              bulkCompleteModalRecords.map(async (row) => {
+                try {
+                  await updateReport(row.mainDbId ?? row.id, {
+                    DB_APP_STATUS: "COMPLETED",
+                  });
+                  success++;
+                } catch (e) {
+                  console.error(`updateReport failed for id ${row.id}:`, e);
+                  failed++;
+                }
+              }),
+            );
+
+            return { success, failed };
+          }}
+          onDone={async () => {
+            setBulkCompleteModalRecords(null);
+            if (onClearSelections) onClearSelections();
+            if (onRefresh) await onRefresh();
+          }}
         />
       )}
     </>

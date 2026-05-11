@@ -147,5 +147,11 @@ export const menuDefinitions = {
       label: "Settings",
       roles: ["SuperAdmin"],
     },
+    {
+      id: "lead-assignments",
+      icon: "🔗",
+      label: "Lead Assignment",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 };

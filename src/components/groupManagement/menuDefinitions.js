@@ -26,7 +26,14 @@ export const allMenuItems = [
   { id: "doctrack-magic", label: "Doctrack (Bulk Upload)", icon: "📦", category: "Other Database" },
   { id: "records-report", label: "Records List", icon: "🗂️", category: "Other Database" },
 
+
   // Platform
   { id: "announcements", label: "Announcements", icon: "📢", category: "Platform" },
   { id: "support", label: "Support", icon: "🛠️", category: "Platform" },
+   {
+    id: "lead-assignments",
+    label: "Lead Assignments",
+    icon: "🔗",
+    category: "Platform",
+  },
 ];

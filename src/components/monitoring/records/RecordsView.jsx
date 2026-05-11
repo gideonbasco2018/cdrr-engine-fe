@@ -1,16 +1,56 @@
 // src/components/monitoring/records/RecordsView.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import TasksPerUser from "./TasksPerUser";
 import AllRecords from "./AllRecords";
 
+// ── Inject scrollbar styles ───────────────────────────────────────────────────
+function useScrollbarStyles() {
+  useEffect(() => {
+    const id = "monitoring-scrollbar-style";
+    let el = document.getElementById(id);
+    if (!el) {
+      el = document.createElement("style");
+      el.id = id;
+      document.head.appendChild(el);
+    }
+
+    el.textContent = `
+      .monitoring-scroll::-webkit-scrollbar {
+        width: 3px;
+        height: 3px;
+      }
+      .monitoring-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .monitoring-scroll::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 99px;
+      }
+      .monitoring-scroll::-webkit-scrollbar-thumb:hover {
+        background: #b0b6bf;
+      }
+      .monitoring-scroll::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+      .monitoring-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: #d1d5db transparent;
+      }
+    `;
+
+    return () => el.remove();
+  }, []);
+}
+
 export default function RecordsView({ ui, darkMode }) {
+  useScrollbarStyles();
+
   const [selectedUser, setSelectedUser] = useState(null);
-  const [statusFilter, setStatusFilter] = useState("all"); // "all" | "completed" | "in_progress"
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const handleUserClick = (user, clickedStatus = "all") => {
     const isSameUser = selectedUser?.user_id === user.user_id;
     if (isSameUser && clickedStatus === statusFilter) {
-      // deselect if same user + same column clicked
       setSelectedUser(null);
       setStatusFilter("all");
     } else {
@@ -30,14 +70,11 @@ export default function RecordsView({ ui, darkMode }) {
     in_progress: "In Progress",
   }[statusFilter];
 
+  const font =
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: 14,
-        alignItems: "stretch",
-      }}
-    >
+    <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
       <TasksPerUser
         ui={ui}
         darkMode={darkMode}
@@ -53,18 +90,17 @@ export default function RecordsView({ ui, darkMode }) {
           display: "flex",
           flexDirection: "column",
           gap: 0,
-          // match TasksPerUser height
-          height: "calc(100vh - 160px)",
-          maxHeight: "calc(100vh - 160px)",
+          height: "calc(100vh - 110px)",
+          maxHeight: "calc(100vh - 110px)",
         }}
       >
         {/* Active filter banner */}
         {selectedUser && (
           <div
             style={{
-              marginBottom: 8,
-              padding: "8px 14px",
-              borderRadius: 8,
+              marginBottom: 5,
+              padding: "5px 12px",
+              borderRadius: 7,
               background: darkMode ? "#1a2744" : "#e7f0fd",
               border: "1.5px solid #1877F2",
               display: "flex",
@@ -76,22 +112,21 @@ export default function RecordsView({ ui, darkMode }) {
           >
             <span
               style={{
-                fontSize: "0.8rem",
+                fontSize: "0.73rem",
                 fontWeight: 600,
                 color: "#1877F2",
-                fontFamily:
-                  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
+                fontFamily: font,
               }}
             >
-              👤 Showing records for:{" "}
+              👤 Showing:{" "}
               <strong>{selectedUser.full_name || selectedUser.username}</strong>
               {statusFilter !== "all" && (
                 <span
                   style={{
-                    marginLeft: 8,
-                    padding: "2px 8px",
+                    marginLeft: 7,
+                    padding: "1px 7px",
                     borderRadius: 99,
-                    fontSize: "0.72rem",
+                    fontSize: "0.66rem",
                     background:
                       statusFilter === "completed" ? "#dcfce7" : "#fef9c3",
                     color: statusFilter === "completed" ? "#15803d" : "#a16207",
@@ -106,14 +141,13 @@ export default function RecordsView({ ui, darkMode }) {
               style={{
                 background: "transparent",
                 border: "1px solid #1877F2",
-                borderRadius: 6,
+                borderRadius: 5,
                 color: "#1877F2",
                 cursor: "pointer",
-                fontSize: "0.75rem",
+                fontSize: "0.68rem",
                 fontWeight: 600,
-                padding: "2px 10px",
-                fontFamily:
-                  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
+                padding: "1px 8px",
+                fontFamily: font,
               }}
             >
               ✕ Clear

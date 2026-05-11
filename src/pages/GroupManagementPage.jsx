@@ -112,6 +112,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       "records-report": "Other Database",
       announcements: "Platform",
       support: "Platform",
+      "lead-assignments": "Other Database",
     };
     return categoryMap[menuId] || "Other";
   };

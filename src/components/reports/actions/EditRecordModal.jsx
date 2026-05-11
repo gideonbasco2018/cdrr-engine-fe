@@ -804,28 +804,18 @@ function Step1BasicInfo({ formData, handleChange, colors, darkMode }) {
           >
             Document Tracking No.
           </div>
-          <input
-            type="number"
-            value={formData.DB_DTN}
-            onChange={(e) => handleChange("DB_DTN", e.target.value)}
+          <div
             style={{
               fontSize: "1.1rem",
               fontWeight: "800",
               color: colors.textPrimary,
-              background: colors.inputBg,
-              border: `1px solid ${colors.inputBorder}`,
-              borderRadius: "6px",
               padding: "0.2rem 0.5rem",
-              outline: "none",
-              width: "260px",
               letterSpacing: "-0.02em",
-              transition: "border-color 0.2s",
+              userSelect: "text",
             }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "#2196F3")}
-            onBlur={(e) =>
-              (e.currentTarget.style.borderColor = colors.inputBorder)
-            }
-          />
+          >
+            {formData.DB_DTN || "—"}
+          </div>
         </div>
         <div
           style={{
@@ -835,53 +825,54 @@ function Step1BasicInfo({ formData, handleChange, colors, darkMode }) {
           }}
         />
         <div style={{ flex: 1, minWidth: "160px" }}>
-          <div
-            style={{
-              fontSize: "0.6rem",
-              fontWeight: "700",
-              color: colors.textTertiary,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: "0.2rem",
-            }}
-          >
-            App Status
+          <div style={{ flex: 1, minWidth: "160px" }}>
+            <div
+              style={{
+                fontSize: "0.6rem",
+                fontWeight: "700",
+                color: colors.textTertiary,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: "0.2rem",
+              }}
+            >
+              App Status
+            </div>
+            <div
+              style={{
+                padding: "0.25rem 0.65rem",
+                display: "inline-block",
+                background: (() => {
+                  const s = formData.DB_APP_STATUS?.toUpperCase();
+                  if (s === "COMPLETED" || s === "APPROVED")
+                    return "linear-gradient(135deg,#10b981,#059669)";
+                  if (s === "PENDING")
+                    return "linear-gradient(135deg,#eab308,#ca8a04)";
+                  if (s === "REJECTED")
+                    return "linear-gradient(135deg,#ef4444,#dc2626)";
+                  return colors.inputBg;
+                })(),
+                color: [
+                  "COMPLETED",
+                  "APPROVED",
+                  "PENDING",
+                  "REJECTED",
+                ].includes(formData.DB_APP_STATUS?.toUpperCase())
+                  ? "#fff"
+                  : colors.textPrimary,
+                border: "none",
+                borderRadius: "6px",
+                fontSize: "0.72rem",
+                fontWeight: "700",
+                letterSpacing: "0.5px",
+                textTransform: "uppercase",
+                userSelect: "none",
+                cursor: "default",
+              }}
+            >
+              {formData.DB_APP_STATUS || "—"}
+            </div>
           </div>
-          <input
-            type="text"
-            value={formData.DB_APP_STATUS}
-            onChange={(e) => handleChange("DB_APP_STATUS", e.target.value)}
-            placeholder="e.g. PENDING, APPROVED..."
-            style={{
-              padding: "0.25rem 0.65rem",
-              background: (() => {
-                if (appStatus === "COMPLETED" || appStatus === "APPROVED")
-                  return "linear-gradient(135deg,#10b981,#059669)";
-                if (appStatus === "PENDING")
-                  return "linear-gradient(135deg,#eab308,#ca8a04)";
-                if (appStatus === "REJECTED")
-                  return "linear-gradient(135deg,#ef4444,#dc2626)";
-                return colors.inputBg;
-              })(),
-              color: ["COMPLETED", "APPROVED", "PENDING", "REJECTED"].includes(
-                appStatus,
-              )
-                ? "#fff"
-                : colors.textPrimary,
-              border: `1px solid ${colors.inputBorder}`,
-              borderRadius: "6px",
-              fontSize: "0.72rem",
-              fontWeight: "700",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-              outline: "none",
-              transition: "border-color 0.2s",
-            }}
-            onFocus={(e) => (e.currentTarget.style.borderColor = "#2196F3")}
-            onBlur={(e) =>
-              (e.currentTarget.style.borderColor = colors.inputBorder)
-            }
-          />
         </div>
         {formData.DB_TIMELINE_CITIZEN_CHARTER && (
           <div
@@ -1600,13 +1591,70 @@ function Step2FullDetails({ formData, handleChange, colors, darkMode }) {
 
       <ERSection title="📤 Released Information" colors={colors}>
         <FieldGrid>
-          <FormField
-            label="Type Doc Released"
-            value={formData.DB_TYPE_DOC_RELEASED}
-            onChange={(v) => handleChange("DB_TYPE_DOC_RELEASED", v)}
-            colors={colors}
-            darkMode={darkMode}
-          />
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}
+          >
+            <label
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: "700",
+                color: colors.textTertiary,
+                letterSpacing: "0.07em",
+                textTransform: "uppercase",
+              }}
+            >
+              Type Doc Released
+            </label>
+            <select
+              value={formData.DB_TYPE_DOC_RELEASED}
+              onChange={(e) =>
+                handleChange("DB_TYPE_DOC_RELEASED", e.target.value)
+              }
+              style={{
+                padding: "0.45rem 0.7rem",
+                background: colors.inputBg,
+                border: `1px solid ${colors.inputBorder}`,
+                borderRadius: "6px",
+                color: formData.DB_TYPE_DOC_RELEASED
+                  ? colors.textPrimary
+                  : colors.textTertiary,
+                fontSize: "0.82rem",
+                outline: "none",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                width: "100%",
+                boxSizing: "border-box",
+                appearance: "none",
+                WebkitAppearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 10px center",
+              }}
+              onFocus={(e) => (e.currentTarget.style.borderColor = "#2196F3")}
+              onBlur={(e) =>
+                (e.currentTarget.style.borderColor = colors.inputBorder)
+              }
+            >
+              <option value="">— Select —</option>
+              {[
+                "CPR",
+                "LOD",
+                "Certificate",
+                "Letter",
+                "COPP",
+                "CFS",
+                "GLE",
+                "Letter for non acceptance",
+                "Product classification",
+                "Letter (Withdrawal)",
+                "Letter (Re-routed)",
+              ].map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
           <FormField
             label="Atta Released"
             value={formData.DB_ATTA_RELEASED}

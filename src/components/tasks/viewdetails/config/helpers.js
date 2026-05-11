@@ -99,8 +99,13 @@ export const findPreviousEvaluator = (logs, currentStep, targetStep = "Quality E
   );
   if (currentLogIdx <= 0) return null;
   for (let i = currentLogIdx - 1; i >= 0; i--) {
-    if (sorted[i].application_step === targetStep) {  // ← CHANGE: was hardcoded "Quality Evaluation"
-      return sorted[i].user_name ?? null;
+    if (sorted[i].application_step === targetStep) {
+      const log = sorted[i];
+      // Return object na may username at user_id
+      return {
+        username: log.user_name ?? null,
+        user_id: log.user_id ?? null,
+      };
     }
   }
   return null;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 function TablePagination({
   currentPage,
@@ -9,13 +9,13 @@ function TablePagination({
   indexOfLastRow,
   onPageChange,
   onRowsPerPageChange,
-  colors
+  colors,
 }) {
   const [pageInput, setPageInput] = useState(String(currentPage));
 
   const handlePageInputChange = (e) => {
     const value = e.target.value;
-    if (value === '' || /^\d+$/.test(value)) {
+    if (value === "" || /^\d+$/.test(value)) {
       setPageInput(value);
     }
   };
@@ -30,60 +30,69 @@ function TablePagination({
   };
 
   const handlePageInputKeyPress = (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       handlePageJump();
       e.target.blur();
     }
   };
 
   return (
-    <div style={{
-      padding: '1rem 1.5rem',
-      borderTop: `1px solid ${colors.tableBorder}`,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between'
-    }}>
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.5rem',
-        color: colors.textTertiary,
-        fontSize: '0.85rem',
-        transition: 'color 0.3s ease'
-      }}>
+    <div
+      style={{
+        padding: "0.35rem 0.65rem",
+        borderTop: `1px solid ${colors.tableBorder}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+          color: colors.textTertiary,
+          fontSize: "0.65rem",
+          transition: "color 0.3s ease",
+        }}
+      >
         <span>Rows per page:</span>
-        <select 
+        <select
           value={rowsPerPage}
           onChange={onRowsPerPageChange}
           style={{
-            padding: '0.4rem 0.8rem',
+            padding: "0.2rem 0.4rem",
             background: colors.inputBg,
             border: `1px solid ${colors.inputBorder}`,
-            borderRadius: '6px',
+            borderRadius: "6px",
             color: colors.textPrimary,
-            fontSize: '0.85rem',
-            cursor: 'pointer',
-            outline: 'none',
-            transition: 'all 0.3s ease'
-          }}>
+            fontSize: "0.65rem",
+            cursor: "pointer",
+            outline: "none",
+            transition: "all 0.3s ease",
+          }}
+        >
           <option value={10}>10</option>
           <option value={25}>25</option>
           <option value={50}>50</option>
           <option value={100}>100</option>
         </select>
       </div>
-      
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '0.75rem'
-      }}>
-        <span style={{
-          color: colors.textTertiary,
-          fontSize: '0.85rem',
-          transition: 'color 0.3s ease'
-        }}>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+        }}
+      >
+        <span
+          style={{
+            color: colors.textTertiary,
+            fontSize: "0.65rem",
+            transition: "color 0.3s ease",
+          }}
+        >
           Page
         </span>
         <input
@@ -96,85 +105,99 @@ function TablePagination({
             handlePageJump();
           }}
           style={{
-            width: '60px',
-            padding: '0.4rem 0.6rem',
+            width: "44px",
+            padding: "0.2rem 0.4rem",
             background: colors.inputBg,
             border: `1px solid ${colors.inputBorder}`,
-            borderRadius: '6px',
+            borderRadius: "6px",
             color: colors.textPrimary,
-            fontSize: '0.85rem',
-            textAlign: 'center',
-            outline: 'none',
-            transition: 'all 0.2s'
+            fontSize: "0.65rem",
+            textAlign: "center",
+            outline: "none",
+            transition: "all 0.2s",
           }}
           onFocus={(e) => {
-            e.target.style.borderColor = '#4CAF50';
+            e.target.style.borderColor = "#4CAF50";
             e.target.select();
           }}
         />
-        <span style={{
-          color: colors.textTertiary,
-          fontSize: '0.85rem',
-          transition: 'color 0.3s ease'
-        }}>
+        <span
+          style={{
+            color: colors.textTertiary,
+            fontSize: "0.65rem",
+            transition: "color 0.3s ease",
+          }}
+        >
           of {totalPages}
         </span>
       </div>
 
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem'
-      }}>
-        <span style={{
-          color: colors.textTertiary,
-          fontSize: '0.85rem',
-          transition: 'color 0.3s ease'
-        }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5rem",
+        }}
+      >
+        <span
+          style={{
+            color: colors.textTertiary,
+            fontSize: "0.65rem",
+            transition: "color 0.3s ease",
+          }}
+        >
           {indexOfFirstRow}-{indexOfLastRow} of {totalRecords}
         </span>
-        <div style={{
-          display: 'flex',
-          gap: '0.5rem'
-        }}>
-          <button 
+        <div
+          style={{
+            display: "flex",
+            gap: "0.5rem",
+          }}
+        >
+          <button
             onClick={() => onPageChange(currentPage - 1)}
             disabled={currentPage === 1}
             style={{
-              width: '32px',
-              height: '32px',
+              width: "24px",
+              height: "24px",
               background: colors.buttonSecondaryBg,
               border: `1px solid ${colors.buttonSecondaryBorder}`,
-              borderRadius: '6px',
-              color: currentPage === 1 ? colors.textTertiary : colors.textPrimary,
-              cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.85rem',
-              transition: 'all 0.3s ease',
-              opacity: currentPage === 1 ? 0.5 : 1
-            }}>
+              borderRadius: "6px",
+              color:
+                currentPage === 1 ? colors.textTertiary : colors.textPrimary,
+              cursor: currentPage === 1 ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.65rem",
+              transition: "all 0.3s ease",
+              opacity: currentPage === 1 ? 0.5 : 1,
+            }}
+          >
             ‹
           </button>
-          <button 
+          <button
             onClick={() => onPageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
             style={{
-              width: '32px',
-              height: '32px',
+              width: "24px",
+              height: "24px",
               background: colors.buttonSecondaryBg,
               border: `1px solid ${colors.buttonSecondaryBorder}`,
-              borderRadius: '6px',
-              color: currentPage === totalPages ? colors.textTertiary : colors.textPrimary,
-              cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '0.85rem',
-              transition: 'all 0.3s ease',
-              opacity: currentPage === totalPages ? 0.5 : 1
-            }}>
+              borderRadius: "6px",
+              color:
+                currentPage === totalPages
+                  ? colors.textTertiary
+                  : colors.textPrimary,
+              cursor: currentPage === totalPages ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "0.65rem",
+              transition: "all 0.3s ease",
+              opacity: currentPage === totalPages ? 0.5 : 1,
+            }}
+          >
             ›
           </button>
         </div>
