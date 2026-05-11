@@ -2,6 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { getDashboardDetail } from "../../api/dashboard";
 import { FB } from "./constants";
 import { statusBadge, fmtDateTime, formatDateRange } from "./utils";
+import {
+  generatePDF,
+  generateExcel,
+} from "../tasks/DataTable/TransmittalGenerator";
 
 const PAGE_SIZE = 10;
 
@@ -13,6 +17,7 @@ export default function MetricDetailModal({
   onRowClick,
   onViewLogs,
   ui,
+  darkMode = false,
 }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,16 +27,54 @@ export default function MetricDetailModal({
   const [total, setTotal] = useState(0);
   const [openMenuRow, setOpenMenuRow] = useState(null);
 
+  // ── Filters ───────────────────────────────────────────────────────────────
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [filterStep, setFilterStep] = useState("");
+  const [appliedFrom, setAppliedFrom] = useState("");
+  const [appliedTo, setAppliedTo] = useState("");
+  const [appliedStep, setAppliedStep] = useState("");
+
+  const hasActiveDateFilter = appliedFrom || appliedTo;
+  const hasActiveStepFilter = !!appliedStep;
+  const hasActiveFilter = hasActiveDateFilter || hasActiveStepFilter;
+
+  const applyFilter = () => {
+    setAppliedFrom(filterFrom);
+    setAppliedTo(filterTo);
+    setAppliedStep(filterStep);
+    fetchPage(1, filterFrom, filterTo, filterStep);
+  };
+
+  const clearFilter = () => {
+    setFilterFrom("");
+    setFilterTo("");
+    setFilterStep("");
+    setAppliedFrom("");
+    setAppliedTo("");
+    setAppliedStep("");
+    fetchPage(1, "", "", "");
+  };
+
   const fetchPage = useCallback(
-    async (p) => {
+    async (p, accFrom, accTo, step) => {
       setLoading(true);
       setError(null);
       try {
+        const extraParams = {};
+        const resolvedFrom = accFrom !== undefined ? accFrom : appliedFrom;
+        const resolvedTo = accTo !== undefined ? accTo : appliedTo;
+        const resolvedStep = step !== undefined ? step : appliedStep;
+        if (resolvedFrom) extraParams.accomplished_date_from = resolvedFrom;
+        if (resolvedTo) extraParams.accomplished_date_to = resolvedTo;
+        if (resolvedStep) extraParams.app_step = resolvedStep;
+
         const res = await getDashboardDetail({
           metric: metricKey,
           page: p,
           page_size: PAGE_SIZE,
           ...dateParams,
+          ...extraParams,
         });
         setData(res.data);
         setTotal(res.total);
@@ -46,11 +89,14 @@ export default function MetricDetailModal({
         setLoading(false);
       }
     },
-    [metricKey, dateParams],
+    [metricKey, dateParams, appliedFrom, appliedTo, appliedStep],
   );
 
   useEffect(() => {
-    const handler = () => setOpenMenuRow(null);
+    const handler = () => {
+      setOpenMenuRow(null);
+      setShowExportMenu(false);
+    };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, []);
@@ -58,6 +104,78 @@ export default function MetricDetailModal({
   useEffect(() => {
     fetchPage(1);
   }, [fetchPage]);
+
+  // ── Transmittal export ───────────────────────────────────────────────────
+  const [transmittalLoading, setTransmittalLoading] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Map a modal row → transmittal row shape
+  const toTransmittalRow = (r) => ({
+    dtn: r.dtn ?? "N/A",
+    ltoCompany: r.lto_company ?? "N/A",
+    ltoAdd: r.lto_address ?? "N/A",
+    secpa: r.secpa ?? "N/A",
+    appType: r.app_type ?? "N/A",
+    regNo: r.reg_no ?? "N/A",
+    typeDocReleased: r.app_step ?? "N/A",
+    attaReleased: r.brand_name ?? "N/A",
+    dateReleased: r.end_date
+      ? new Date(r.end_date).toLocaleDateString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : "N/A",
+  });
+
+  const handleExport = async (format, scope) => {
+    setShowExportMenu(false);
+    setTransmittalLoading(true);
+    try {
+      let rows;
+      if (scope === "page") {
+        rows = data.map(toTransmittalRow);
+      } else {
+        // Fetch all pages with current filters
+        const extraParams = {};
+        if (appliedFrom) extraParams.accomplished_date_from = appliedFrom;
+        if (appliedTo) extraParams.accomplished_date_to = appliedTo;
+        if (appliedStep) extraParams.app_step = appliedStep;
+
+        const firstRes = await getDashboardDetail({
+          metric: metricKey,
+          page: 1,
+          page_size: 500,
+          ...dateParams,
+          ...extraParams,
+        });
+        rows = firstRes.data.map(toTransmittalRow);
+
+        // If there are more pages, fetch them too
+        for (let p = 2; p <= firstRes.total_pages; p++) {
+          const res = await getDashboardDetail({
+            metric: metricKey,
+            page: p,
+            page_size: 500,
+            ...dateParams,
+            ...extraParams,
+          });
+          rows.push(...res.data.map(toTransmittalRow));
+        }
+      }
+
+      if (format === "pdf") await generatePDF(rows, metricKey);
+      if (format === "excel") await generateExcel(rows, metricKey);
+      if (format === "both") {
+        await generatePDF(rows, metricKey);
+        await generateExcel(rows, metricKey);
+      }
+    } catch (err) {
+      console.error("Transmittal export failed:", err);
+    } finally {
+      setTransmittalLoading(false);
+    }
+  };
 
   const accentColor =
     metricKey === "received"
@@ -79,6 +197,20 @@ export default function MetricDetailModal({
 
   const startRow = (page - 1) * PAGE_SIZE + 1;
   const endRow = Math.min(startRow + PAGE_SIZE - 1, total);
+
+  // Input style helper
+  const inputStyle = {
+    padding: "5px 10px",
+    borderRadius: 7,
+    border: `1px solid ${ui.cardBorder}`,
+    background: ui.inputBg,
+    color: ui.textPrimary,
+    fontSize: "0.76rem",
+    fontFamily: "inherit",
+    outline: "none",
+    cursor: "pointer",
+    colorScheme: darkMode ? "dark" : "light",
+  };
 
   return (
     <div
@@ -176,6 +308,195 @@ export default function MetricDetailModal({
           </button>
         </div>
 
+        {/* ── Filter Bar ── */}
+        <div
+          style={{
+            padding: "10px 20px",
+            borderBottom: `1px solid ${ui.divider}`,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            flexWrap: "wrap",
+            flexShrink: 0,
+            background: hasActiveFilter ? `${accentColor}08` : "transparent",
+          }}
+        >
+          {/* Accomplished Date */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                color: ui.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                whiteSpace: "nowrap",
+              }}
+            >
+              📅 Accomplished
+            </span>
+            <input
+              type="date"
+              value={filterFrom}
+              onChange={(e) => setFilterFrom(e.target.value)}
+              style={inputStyle}
+            />
+            <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>→</span>
+            <input
+              type="date"
+              value={filterTo}
+              onChange={(e) => setFilterTo(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Divider */}
+          <div
+            style={{
+              width: 1,
+              height: 22,
+              background: ui.divider,
+              flexShrink: 0,
+            }}
+          />
+
+          {/* Step */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                color: ui.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                whiteSpace: "nowrap",
+              }}
+            >
+              📌 Step
+            </span>
+            <select
+              value={filterStep}
+              onChange={(e) => setFilterStep(e.target.value)}
+              style={{ ...inputStyle, width: 160 }}
+            >
+              <option value="">All Steps</option>
+              {[
+                "Quality Evaluation",
+                "S&E",
+                "S&E Checker",
+                "S&E Supervisor",
+                "Compliance",
+                "Checking",
+                "Supervisor",
+                "QA Admin",
+                "LRD Chief Admin",
+                "OD-Receiving",
+                "OD-Releasing",
+                "Releasing Officer",
+              ].map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Apply */}
+          <button
+            onClick={applyFilter}
+            disabled={!filterFrom && !filterTo && !filterStep}
+            style={{
+              padding: "5px 14px",
+              borderRadius: 7,
+              border: "none",
+              background:
+                filterFrom || filterTo || filterStep ? FB : ui.progressBg,
+              color:
+                filterFrom || filterTo || filterStep ? "#fff" : ui.textMuted,
+              fontSize: "0.76rem",
+              fontWeight: 700,
+              cursor:
+                filterFrom || filterTo || filterStep
+                  ? "pointer"
+                  : "not-allowed",
+              fontFamily: "inherit",
+              opacity: filterFrom || filterTo || filterStep ? 1 : 0.5,
+              whiteSpace: "nowrap",
+            }}
+          >
+            Apply
+          </button>
+
+          {/* Clear all */}
+          {hasActiveFilter && (
+            <button
+              onClick={clearFilter}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 7,
+                border: `1px solid ${ui.cardBorder}`,
+                background: "transparent",
+                color: "#e02020",
+                fontSize: "0.74rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ✕ Clear all
+            </button>
+          )}
+
+          {/* Active filter pills */}
+          {hasActiveDateFilter && (
+            <span
+              style={{
+                fontSize: "0.71rem",
+                color: accentColor,
+                fontWeight: 600,
+                padding: "3px 10px",
+                borderRadius: 99,
+                background: `${accentColor}15`,
+                whiteSpace: "nowrap",
+              }}
+            >
+              📅{" "}
+              {appliedFrom
+                ? new Date(appliedFrom).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "—"}
+              {" → "}
+              {appliedTo
+                ? new Date(appliedTo).toLocaleDateString("en-US", {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : "—"}
+            </span>
+          )}
+
+          {hasActiveStepFilter && (
+            <span
+              style={{
+                fontSize: "0.71rem",
+                color: "#f59e0b",
+                fontWeight: 600,
+                padding: "3px 10px",
+                borderRadius: 99,
+                background: "#f59e0b18",
+                whiteSpace: "nowrap",
+              }}
+            >
+              📌 {appliedStep}
+            </span>
+          )}
+        </div>
+
         {/* Body */}
         <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
           {loading && (
@@ -238,7 +559,9 @@ export default function MetricDetailModal({
                 fontSize: "0.84rem",
               }}
             >
-              No records found.
+              {hasActiveFilter
+                ? "No records found for the applied filters."
+                : "No records found."}
             </div>
           )}
 
@@ -267,30 +590,48 @@ export default function MetricDetailModal({
                       { label: "Company", align: "left" },
                       { label: "Brand Name", align: "left" },
                       { label: "Generic Name", align: "left" },
-                      { label: "Step", align: "left" },
+                      {
+                        label: "Step",
+                        align: "left",
+                        stepHighlight: hasActiveStepFilter,
+                      },
                       { label: "Status", align: "center" },
                       { label: "Start Date", align: "right" },
-                      { label: "Accomplished Date", align: "right" },
+                      {
+                        label: "Accomplished Date",
+                        align: "right",
+                        highlight: hasActiveDateFilter,
+                      },
                       { label: "Action", align: "center", width: 60 },
-                    ].map((col, ci) => (
-                      <th
-                        key={ci}
-                        style={{
-                          padding: "9px 12px",
-                          textAlign: col.align,
-                          fontSize: "0.69rem",
-                          fontWeight: 700,
-                          color: ui.textMuted,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          borderBottom: `1px solid ${ui.cardBorder}`,
-                          whiteSpace: "nowrap",
-                          width: col.width || "auto",
-                        }}
-                      >
-                        {col.label}
-                      </th>
-                    ))}
+                    ].map((col, ci) => {
+                      const hlColor = col.stepHighlight
+                        ? "#f59e0b"
+                        : col.highlight
+                          ? accentColor
+                          : null;
+                      return (
+                        <th
+                          key={ci}
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: col.align,
+                            fontSize: "0.69rem",
+                            fontWeight: 700,
+                            color: hlColor || ui.textMuted,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                            borderBottom: `1px solid ${hlColor || ui.cardBorder}`,
+                            whiteSpace: "nowrap",
+                            width: col.width || "auto",
+                          }}
+                        >
+                          {col.label}
+                          {(col.highlight || col.stepHighlight) && (
+                            <span style={{ marginLeft: 4 }}>▼</span>
+                          )}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -468,6 +809,8 @@ export default function MetricDetailModal({
                             borderBottom: border,
                             whiteSpace: "nowrap",
                             color: row.end_date ? "#36a420" : ui.textMuted,
+                            fontWeight:
+                              hasActiveFilter && row.end_date ? 700 : 400,
                           }}
                         >
                           {row.end_date ? fmtDateTime(row.end_date) : "—"}
@@ -573,11 +916,157 @@ export default function MetricDetailModal({
             gap: 8,
           }}
         >
-          <span style={{ fontSize: "0.74rem", color: ui.textMuted }}>
-            {total > 0
-              ? `${startRow}–${endRow} of ${total.toLocaleString()} records`
-              : ""}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: "0.74rem", color: ui.textMuted }}>
+              {total > 0
+                ? `${startRow}–${endRow} of ${total.toLocaleString()} records`
+                : ""}
+            </span>
+
+            {/* ── Transmittal Export ── */}
+            {total > 0 && (
+              <div style={{ position: "relative" }}>
+                <button
+                  onClick={() => setShowExportMenu((v) => !v)}
+                  disabled={transmittalLoading}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "5px 12px",
+                    borderRadius: 7,
+                    border: `1px solid ${accentColor}`,
+                    background: "transparent",
+                    color: accentColor,
+                    fontSize: "0.76rem",
+                    fontWeight: 700,
+                    cursor: transmittalLoading ? "not-allowed" : "pointer",
+                    fontFamily: "inherit",
+                    opacity: transmittalLoading ? 0.6 : 1,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {transmittalLoading ? "⏳ Generating…" : "📄 Transmittal ▾"}
+                </button>
+
+                {showExportMenu && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      bottom: "calc(100% + 6px)",
+                      left: 0,
+                      zIndex: 100,
+                      background: ui.cardBg,
+                      border: `1px solid ${ui.cardBorder}`,
+                      borderRadius: 10,
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+                      minWidth: 210,
+                      overflow: "hidden",
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      style={{
+                        padding: "8px 12px 4px",
+                        fontSize: "0.68rem",
+                        fontWeight: 700,
+                        color: ui.textMuted,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      Current Page ({data.length} records)
+                    </div>
+                    {[
+                      { fmt: "pdf", icon: "🗎", label: "Export as PDF" },
+                      { fmt: "excel", icon: "📊", label: "Export as Excel" },
+                      { fmt: "both", icon: "📦", label: "Export Both" },
+                    ].map(({ fmt, icon, label }) => (
+                      <button
+                        key={fmt}
+                        onClick={() => handleExport(fmt, "page")}
+                        style={{
+                          width: "100%",
+                          padding: "8px 14px",
+                          background: "none",
+                          border: "none",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          fontSize: "0.8rem",
+                          color: ui.textPrimary,
+                          fontFamily: "inherit",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = ui.hoverBg)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "none")
+                        }
+                      >
+                        {icon} {label}
+                      </button>
+                    ))}
+
+                    <div
+                      style={{
+                        borderTop: `1px solid ${ui.divider}`,
+                        margin: "4px 0",
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        padding: "4px 12px 4px",
+                        fontSize: "0.68rem",
+                        fontWeight: 700,
+                        color: ui.textMuted,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      All Records ({total.toLocaleString()})
+                    </div>
+                    {[
+                      { fmt: "pdf", icon: "🗎", label: "Export as PDF" },
+                      { fmt: "excel", icon: "📊", label: "Export as Excel" },
+                      { fmt: "both", icon: "📦", label: "Export Both" },
+                    ].map(({ fmt, icon, label }) => (
+                      <button
+                        key={`all-${fmt}`}
+                        onClick={() => handleExport(fmt, "all")}
+                        style={{
+                          width: "100%",
+                          padding: "8px 14px",
+                          background: "none",
+                          border: "none",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          fontSize: "0.8rem",
+                          color: ui.textPrimary,
+                          fontFamily: "inherit",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = ui.hoverBg)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "none")
+                        }
+                      >
+                        {icon} {label}
+                      </button>
+                    ))}
+                    <div style={{ height: 6 }} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <button
               onClick={() => fetchPage(page - 1)}
