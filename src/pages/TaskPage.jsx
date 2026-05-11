@@ -304,13 +304,21 @@ function TaskPage({ darkMode }) {
   const filteredData = useMemo(() => {
     const filtered = subTabData.filter((r) => {
       const s = filters.search;
+      const searchTerms = s
+        ? s
+            .split(",")
+            .map((t) => t.trim().toLowerCase())
+            .filter(Boolean)
+        : [];
       const ms =
-        !s ||
-        ["dtn", "ltoCompany", "prodBrName", "prodGenName", "prodManu"].some(
-          (f) =>
-            String(r[f] ?? "")
-              .toLowerCase()
-              .includes(s.toLowerCase()),
+        searchTerms.length === 0 ||
+        searchTerms.some((term) =>
+          ["dtn", "ltoCompany", "prodBrName", "prodGenName", "prodManu"].some(
+            (f) =>
+              String(r[f] ?? "")
+                .toLowerCase()
+                .includes(term),
+          ),
         );
       const ma = !filters.appType || r.appType === filters.appType;
       const mp =

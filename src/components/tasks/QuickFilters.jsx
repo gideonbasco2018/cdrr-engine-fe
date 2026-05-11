@@ -264,7 +264,7 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
             </svg>
             <input
               type="text"
-              placeholder="DTN, Company, Brand..."
+              placeholder="DTN, Company, Brand... (comma for multiple)"
               value={filters.search}
               onChange={(e) =>
                 onFiltersChange({ ...filters, search: e.target.value })
@@ -304,6 +304,62 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
               </button>
             )}
           </div>
+
+          {/* ── Multi-search indicator ── */}
+          {filters.search &&
+            filters.search.includes(",") &&
+            (() => {
+              const terms = filters.search
+                .split(",")
+                .map((t) => t.trim())
+                .filter(Boolean);
+              if (terms.length < 2) return null;
+              return (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "3px",
+                    marginTop: "6px",
+                  }}
+                >
+                  {terms.map((term, i) => (
+                    <span
+                      key={i}
+                      title={term}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "3px",
+                        padding: "1px 7px",
+                        borderRadius: "99px",
+                        background: "#6366f115",
+                        border: "1px solid #6366f140",
+                        fontSize: "0.6rem",
+                        color: "#6366f1",
+                        fontWeight: 600,
+                        maxWidth: "100%",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {term}
+                    </span>
+                  ))}
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      color: colors.textTertiary,
+                      alignSelf: "center",
+                      marginLeft: "2px",
+                    }}
+                  >
+                    {terms.length} terms
+                  </span>
+                </div>
+              );
+            })()}
         </div>
 
         <div
