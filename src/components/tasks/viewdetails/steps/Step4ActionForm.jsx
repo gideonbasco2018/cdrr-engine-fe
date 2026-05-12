@@ -719,7 +719,11 @@ export function Step4ActionForm({
       }
 
       // Create next log
-      if (nextStep) {
+      const effectiveNextStep = isForCompliance
+        ? (nextStep ?? "Compliance")
+        : nextStep;
+
+      if (effectiveNextStep) {
         let assignedUser, assignedUserId;
 
         if (isForCompliance) {
@@ -739,14 +743,14 @@ export function Step4ActionForm({
         const logsArr = Array.isArray(allLogs) ? allLogs : [];
         const nextStepAlreadyActive = logsArr.some(
           (l) =>
-            l.application_step === nextStep &&
+            l.application_step === effectiveNextStep &&
             l.application_status === "IN PROGRESS",
         );
 
         if (!nextStepAlreadyActive) {
           await createApplicationLog({
             main_db_id: record.mainDbId,
-            application_step: nextStep,
+            application_step: effectiveNextStep,
             user_name: assignedUser,
             application_status: "IN PROGRESS",
             application_decision: "",
