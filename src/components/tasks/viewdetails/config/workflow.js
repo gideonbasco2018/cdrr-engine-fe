@@ -106,6 +106,7 @@ export const STEP_DECISIONS = {
 export const DECISION_DOCTRACK = {
   "Endorsed to Checker": "Forwarded to Senior Evaluator for checking",
   "Endorsed to Supervisor": "Forwarded to Supervisor for review and signing of the final recommendation",
+  "For Compliance": "Endorsed for compliance",
   "Checked and returned to evaluator": "Return to evaluator for the result of recommendation",
   "Endorsed to QA Admin": "Forwarded to LRD Chief for signing",
   "Endorsed to LRD Chief Admin": "Checked and Forwarded to LRD Admin",
