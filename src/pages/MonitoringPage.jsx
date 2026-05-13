@@ -1384,11 +1384,11 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
   );
 }
 
-function NavItem({ icon, label, active, onClick, ui }) {
+function NavItem({ icon, label, active, onClick, ui, comingSoon }) {
   const [hov, setHov] = useState(false);
   return (
     <div
-      onClick={onClick}
+      onClick={comingSoon ? undefined : onClick}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -1399,7 +1399,8 @@ function NavItem({ icon, label, active, onClick, ui }) {
         borderRadius: 8,
         margin: "2px 8px",
         background: active ? ui.activeNavBg : hov ? ui.hoverBg : "transparent",
-        cursor: "pointer",
+        cursor: comingSoon ? "default" : "pointer",
+        opacity: comingSoon ? 0.45 : 1,
         transition: "background 0.12s",
       }}
     >
@@ -1429,6 +1430,54 @@ function NavItem({ icon, label, active, onClick, ui }) {
       >
         {label}
       </span>
+      {comingSoon && (
+        <span
+          style={{
+            fontSize: "0.6rem",
+            fontWeight: 700,
+            padding: "1px 5px",
+            borderRadius: 4,
+            background: "#f3e8ff",
+            color: "#7e22ce",
+            whiteSpace: "nowrap",
+            marginLeft: 2,
+          }}
+        >
+          Soon
+        </span>
+      )}
+    </div>
+  );
+}
+
+function ComingSoonView({ label, ui }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: 340,
+        gap: 14,
+        color: ui.textMuted,
+        userSelect: "none",
+      }}
+    >
+      <span style={{ fontSize: "2.8rem" }}>🚧</span>
+      <p
+        style={{
+          margin: 0,
+          fontSize: "1rem",
+          fontWeight: 700,
+          color: ui.textPrimary,
+        }}
+      >
+        {label}
+      </p>
+      <p style={{ margin: 0, fontSize: "0.82rem" }}>
+        This section is coming soon.
+      </p>
     </div>
   );
 }
@@ -1443,17 +1492,18 @@ function MonitoringPage({ darkMode }) {
   const navigate = useNavigate();
 
   const navItems = [
-    { key: "overview", icon: "🏠", label: "Overview" },
+    { key: "overview", icon: "🏠", label: "Overview", comingSoon: true },
     { key: "records", icon: "📋", label: "Records" },
-    { key: "analytics", icon: "📊", label: "Analytics" },
-    { key: "deadlines", icon: "⏰", label: "Deadlines" },
-    { key: "compliance", icon: "🚩", label: "Compliance" },
-    { key: "workload", icon: "🔥", label: "Workload" },
+    { key: "analytics", icon: "📊", label: "Analytics", comingSoon: true },
+    { key: "deadlines", icon: "⏰", label: "Deadlines", comingSoon: true },
+    { key: "compliance", icon: "🚩", label: "Compliance", comingSoon: true },
+    { key: "workload", icon: "🔥", label: "Workload", comingSoon: true },
     { key: "activity", icon: "📡", label: "Activity Feed" },
     { key: "users", icon: "👥", label: "Users" },
   ];
 
-  const [activeNav, setActiveNav] = useState("overview");
+  // const [activeNav, setActiveNav] = useState("overview");
+  const [activeNav, setActiveNav] = useState("records");
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
   );
@@ -1613,63 +1663,22 @@ function MonitoringPage({ darkMode }) {
   };
 
   const MainContent = () => {
+    const COMING_SOON = [
+      "overview",
+      "analytics",
+      "deadlines",
+      "compliance",
+      "workload",
+    ];
+    if (COMING_SOON.includes(activeNav)) {
+      // ✅ now declared inside MainContent
+      const found = navItems.find((n) => n.key === activeNav);
+      return <ComingSoonView label={found?.label ?? activeNav} ui={ui} />;
+    }
     switch (activeNav) {
-      case "overview":
-        return (
-          <OverviewView
-            {...sharedProps}
-            USER_ROLE_MAP={USER_ROLE_MAP}
-            ACTIVITY_FEED={ACTIVITY_FEED}
-            DEADLINES={DEADLINES}
-            COMPLIANCE_FLAGS={COMPLIANCE_FLAGS}
-            setActiveNav={setActiveNav}
-            setModalEval={setModalEval}
-          />
-        );
       case "records":
         return <RecordsView {...sharedProps} setModalEval={setModalEval} />;
-      case "analytics":
-        return (
-          <AnalyticsView
-            {...sharedProps}
-            availableYears={availableYears}
-            chartYear={chartYear}
-            setChartYear={setChartYear}
-            chartMonth={chartMonth}
-            setChartMonth={setChartMonth}
-            rxFilter={rxFilter}
-            setRxFilter={setRxFilter}
-            onSliceClick={handleSliceClick}
-          />
-        );
-      case "deadlines":
-        return (
-          <DeadlinesView
-            ui={ui}
-            darkMode={darkMode}
-            DEADLINES={DEADLINES}
-            USER_ROLE_MAP={USER_ROLE_MAP}
-          />
-        );
-      case "compliance":
-        return (
-          <ComplianceView
-            ui={ui}
-            darkMode={darkMode}
-            COMPLIANCE_FLAGS={COMPLIANCE_FLAGS}
-            USER_ROLE_MAP={USER_ROLE_MAP}
-          />
-        );
-      case "workload":
-        return (
-          <WorkloadView
-            ui={ui}
-            darkMode={darkMode}
-            currentEvaluators={currentEvaluators}
-            workloadData={WORKLOAD_DATA}
-            uniqueEvaluators={uniqueEvaluators}
-          />
-        );
+
       case "activity":
         return (
           <ActivityFeedView
@@ -1755,13 +1764,14 @@ function MonitoringPage({ darkMode }) {
                   >
                     Monitoring
                   </p>
-                  {navItems.map(({ key, ...rest }) => (
+                  {navItems.map(({ key, comingSoon, ...rest }) => (
                     <NavItem
                       key={key}
                       {...rest}
                       active={activeNav === key}
                       onClick={() => setActiveNav(key)}
                       ui={ui}
+                      comingSoon={comingSoon}
                     />
                   ))}
                 </div>
@@ -1871,7 +1881,9 @@ function MonitoringPage({ darkMode }) {
                 {navItems.map((n) => (
                   <button
                     key={n.key}
-                    onClick={() => setActiveNav(n.key)}
+                    onClick={
+                      n.comingSoon ? undefined : () => setActiveNav(n.key)
+                    }
                     style={{
                       padding: "6px 14px",
                       borderRadius: 99,
@@ -1881,7 +1893,8 @@ function MonitoringPage({ darkMode }) {
                       color: activeNav === n.key ? FB : ui.textMuted,
                       fontSize: "0.78rem",
                       fontWeight: activeNav === n.key ? 700 : 500,
-                      cursor: "pointer",
+                      cursor: n.comingSoon ? "default" : "pointer",
+                      opacity: n.comingSoon ? 0.45 : 1,
                       whiteSpace: "nowrap",
                       fontFamily: font,
                     }}
