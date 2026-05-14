@@ -973,7 +973,7 @@ function TaskPage({ darkMode }) {
                 await fetchTasks();
               }}
               onClearSelections={() => setSelectedRows([])}
-              indexOfFirstRow={indexOfFirstRow + 1}
+              indexOfFirstRow={indexOfFirstRow}
               indexOfLastRow={Math.min(
                 indexOfFirstRow + rowsPerPage,
                 displayedTotal,

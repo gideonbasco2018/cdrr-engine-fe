@@ -1426,7 +1426,7 @@ function DataTable({
             rowsPerPage={rowsPerPage}
             totalRecords={totalRecords}
             totalPages={totalPages}
-            indexOfFirstRow={indexOfFirstRow}
+            indexOfFirstRow={totalRecords === 0 ? 0 : indexOfFirstRow + 1}
             indexOfLastRow={indexOfLastRow}
             onPageChange={onPageChange}
             onRowsPerPageChange={onRowsPerPageChange}
