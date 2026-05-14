@@ -165,7 +165,7 @@ function TaskPage({ darkMode }) {
   const [sortOrder, setSortOrder] = useState("desc");
   const [readIds, setReadIds] = useState(new Set());
   const [searchInput, setSearchInput] = useState("");
-
+  const [allStepsData, setAllStepsData] = useState([]);
   const [filters, setFilters] = useState({
     dtn: null,
     appType: "",
@@ -190,8 +190,32 @@ function TaskPage({ darkMode }) {
     setCurrentPage(1);
   }, [filters, activeSubTab, activeTab]);
 
-  const fetchTasks = useCallback(async () => {
+  // ✅ Fetch 1 — para sa tabs at counts (walang application_step filter)
+  const fetchAllSteps = useCallback(async () => {
     if (!currentUser?.id) return;
+    try {
+      const res = await getWorkflowTasks({
+        page: 1,
+        page_size: 10000,
+        user_id: currentUser.id,
+        only_latest_per_thread: false,
+        del_last_index: 1,
+        del_thread: "Open",
+      });
+      const mapped = (res.data || []).map((t, i) => mapWorkflowTask(t, i));
+      setAllStepsData(mapped);
+
+      // ✅ Set initial active tab
+      if (!activeTab && mapped.length) setActiveTab(mapped[0].applicationStep);
+    } catch (e) {
+      console.error(e);
+      setAllStepsData([]);
+    }
+  }, [currentUser]); // ✅ activeTab wala dito — isang beses lang mag-fetch ng tabs
+
+  // ✅ Fetch 2 — para sa actual table data (may application_step + filters)
+  const fetchTasks = useCallback(async () => {
+    if (!currentUser?.id || !activeTab) return;
     setLoading(true);
     try {
       const isFrontendSort =
@@ -206,9 +230,7 @@ function TaskPage({ darkMode }) {
         only_latest_per_thread: false,
         del_last_index: 1,
         del_thread: "Open",
-
-        // ✅ Backend filters — mag-trigger ng API call kada pagbabago
-        ...(activeTab && { application_step: activeTab }),
+        application_step: activeTab, // ✅ laging may step filter dito
         ...(filters.appType && { app_type: filters.appType }),
         ...(filters.prescription && { prescription: filters.prescription }),
         ...(filters.appStatus && { application_status: filters.appStatus }),
@@ -221,9 +243,12 @@ function TaskPage({ darkMode }) {
 
       const mapped = (res.data || []).map((t, i) => mapWorkflowTask(t, i));
       setData(mapped);
-      setTotalRecords(res.total || 0);
-      setTotalPages(res.total_pages || 0);
-      if (!activeTab && mapped.length) setActiveTab(mapped[0].applicationStep);
+
+      // ✅ Auto-switch subtab kapag nag-search ng DTN
+      if (filters.dtn && mapped.length > 0) {
+        const found = mapped[0];
+        setActiveSubTab(found.is_received === 1 ? "received" : "not_yet");
+      }
 
       const alreadyRead = new Set(
         (res.data || []).filter((t) => t.is_read === 1).map((t) => t.id),
@@ -235,11 +260,14 @@ function TaskPage({ darkMode }) {
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, sortBy, sortOrder, activeTab, filters]); // ✅ filters at activeTab nasa deps na
+  }, [currentUser, sortBy, sortOrder, activeTab, filters]);
 
   useEffect(() => {
-    fetchTasks();
+    fetchAllSteps();
+  }, [fetchAllSteps]);
+
+  useEffect(() => {
+    if (activeTab) fetchTasks();
   }, [fetchTasks]);
 
   const markAsRead = useCallback(async (id) => {
@@ -267,36 +295,34 @@ function TaskPage({ darkMode }) {
     setSelectedRows([]);
   };
 
+  // ✅ Tabs at counts — galing sa allStepsData (walang filter)
   const steps = useMemo(
-    () => Array.from(new Set(data.map((d) => d.applicationStep))),
-    [data],
+    () => Array.from(new Set(allStepsData.map((d) => d.applicationStep))),
+    [allStepsData],
   );
-
   const stepCounts = useMemo(
     () =>
       steps.reduce((acc, step) => {
-        acc[step] = data.filter((d) => d.applicationStep === step).length;
+        acc[step] = allStepsData.filter(
+          (d) => d.applicationStep === step,
+        ).length;
         return acc;
       }, {}),
-    [steps, data],
+    [steps, allStepsData],
   );
-
   const stepUnreadCounts = useMemo(
     () =>
       steps.reduce((acc, step) => {
-        acc[step] = data.filter(
+        acc[step] = allStepsData.filter(
           (d) => d.applicationStep === step && !readIds.has(d.id),
         ).length;
         return acc;
       }, {}),
-    [steps, data, readIds],
+    [steps, allStepsData, readIds],
   );
 
-  const tabData = useMemo(
-    () =>
-      !activeTab ? data : data.filter((d) => d.applicationStep === activeTab),
-    [data, activeTab],
-  );
+  // ✅ tabData — data na lang (already filtered by step sa backend)
+  const tabData = useMemo(() => data, [data]);
 
   const receivedCount = useMemo(
     () => tabData.filter((d) => d.is_received === 1).length,
@@ -942,7 +968,10 @@ function TaskPage({ darkMode }) {
               darkMode={darkMode}
               activeTab={activeTab}
               activeSubTab={activeSubTab}
-              onRefresh={fetchTasks}
+              onRefresh={async () => {
+                await fetchAllSteps();
+                await fetchTasks();
+              }}
               onClearSelections={() => setSelectedRows([])}
               indexOfFirstRow={indexOfFirstRow + 1}
               indexOfLastRow={Math.min(
