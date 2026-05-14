@@ -164,9 +164,10 @@ function TaskPage({ darkMode }) {
   const [sortBy, setSortBy] = useState("created_at");
   const [sortOrder, setSortOrder] = useState("desc");
   const [readIds, setReadIds] = useState(new Set());
+  const [searchInput, setSearchInput] = useState("");
 
   const [filters, setFilters] = useState({
-    search: "",
+    dtn: null,
     appType: "",
     prescription: "",
     appStatus: "",
@@ -204,7 +205,20 @@ function TaskPage({ darkMode }) {
         user_id: currentUser.id,
         only_latest_per_thread: false,
         del_last_index: 1,
+        del_thread: "Open",
+
+        // ✅ Backend filters — mag-trigger ng API call kada pagbabago
+        ...(activeTab && { application_step: activeTab }),
+        ...(filters.appType && { app_type: filters.appType }),
+        ...(filters.prescription && { prescription: filters.prescription }),
+        ...(filters.appStatus && { application_status: filters.appStatus }),
+        ...(filters.processingType && {
+          processing_type: filters.processingType,
+        }),
+        ...(filters.estCat && { est_cat: filters.estCat }),
+        ...(filters.dtn && { dtn: filters.dtn }),
       });
+
       const mapped = (res.data || []).map((t, i) => mapWorkflowTask(t, i));
       setData(mapped);
       setTotalRecords(res.total || 0);
@@ -222,7 +236,7 @@ function TaskPage({ darkMode }) {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentUser, sortBy, sortOrder]);
+  }, [currentUser, sortBy, sortOrder, activeTab, filters]); // ✅ filters at activeTab nasa deps na
 
   useEffect(() => {
     fetchTasks();
@@ -301,34 +315,19 @@ function TaskPage({ darkMode }) {
     [tabData, activeSubTab],
   );
 
+  // ✅ Backend na ang nag-hahandle ng appType, prescription, appStatus,
+  //    processingType, estCat, at search — frontend lang ang natitira
   const filteredData = useMemo(() => {
     const filtered = subTabData.filter((r) => {
-      const s = filters.search;
-      const searchTerms = s
-        ? s
-            .split(",")
-            .map((t) => t.trim().toLowerCase())
-            .filter(Boolean)
-        : [];
-      const ms =
-        searchTerms.length === 0 ||
-        searchTerms.some((term) =>
-          ["dtn", "ltoCompany", "prodBrName", "prodGenName", "prodManu"].some(
-            (f) =>
-              String(r[f] ?? "")
-                .toLowerCase()
-                .includes(term),
-          ),
-        );
-      const ma = !filters.appType || r.appType === filters.appType;
-      const mp =
-        !filters.prescription || r.prodClassPrescript === filters.prescription;
-      const mst = !filters.appStatus || r.appStatus === filters.appStatus;
-      const mpt =
-        !filters.processingType || r.processingType === filters.processingType;
+      // sentBy — frontend lang kasi walang param sa backend
       const msb =
         !filters.sentBy ||
-        (r.sentBy ?? "").toLowerCase().includes(filters.sentBy.toLowerCase());
+        (r.sentBy ?? "")
+          .trim()
+          .toLowerCase()
+          .includes(filters.sentBy.trim().toLowerCase());
+
+      // lastModified date range — frontend lang
       const from = filters.lastModifiedFrom
         ? new Date(filters.lastModifiedFrom)
         : null;
@@ -338,16 +337,17 @@ function TaskPage({ darkMode }) {
       const lm = r.lastModified ? new Date(r.lastModified) : null;
       const mfrom = !from || (lm && lm >= from);
       const mto = !to || (lm && lm <= to);
-      const mcat = !filters.estCat || r.estCat === filters.estCat;
-      return ms && ma && mp && mst && mpt && msb && mfrom && mto && mcat;
+
+      return msb && mfrom && mto;
     });
 
+    // Frontend sort para sa fields na hindi kaya ng backend
     if (sortBy === "log_sent_by" || sortBy === "log_last_modified") {
       filtered.sort((a, b) => {
         let valA, valB;
         if (sortBy === "log_sent_by") {
-          valA = (a.sentBy ?? "").toLowerCase();
-          valB = (b.sentBy ?? "").toLowerCase();
+          valA = (a.sentBy ?? "").trim().toLowerCase();
+          valB = (b.sentBy ?? "").trim().toLowerCase();
         } else {
           valA = a.lastModified ? new Date(a.lastModified).getTime() : 0;
           valB = b.lastModified ? new Date(b.lastModified).getTime() : 0;
@@ -393,7 +393,7 @@ function TaskPage({ darkMode }) {
   );
 
   const hasActiveFilters =
-    filters.search ||
+    filters.dtn ||
     filters.appType ||
     filters.prescription ||
     filters.appStatus ||
@@ -451,6 +451,8 @@ function TaskPage({ darkMode }) {
         data={subTabData}
         filters={filters}
         onFiltersChange={(f) => setFilters(f)}
+        searchInput={searchInput}
+        onSearchInputChange={setSearchInput}
         colors={colors}
         darkMode={darkMode}
       />
@@ -782,10 +784,13 @@ function TaskPage({ darkMode }) {
             <span style={{ fontSize: "0.75rem", color: colors.textTertiary }}>
               Active filters:
             </span>
-            {filters.search && (
+            {filters.dtn && (
               <Chip
-                label={`Search: "${filters.search}"`}
-                onRemove={() => setFilters({ ...filters, search: "" })}
+                label={`DTN: ${filters.dtn}`}
+                onRemove={() => {
+                  setSearchInput("");
+                  setFilters({ ...filters, dtn: null });
+                }}
                 colors={colors}
               />
             )}
@@ -841,9 +846,10 @@ function TaskPage({ darkMode }) {
               />
             )}
             <button
-              onClick={() =>
+              onClick={() => {
+                setSearchInput("");
                 setFilters({
-                  search: "",
+                  dtn: null,
                   appType: "",
                   prescription: "",
                   appStatus: "",
@@ -852,8 +858,8 @@ function TaskPage({ darkMode }) {
                   lastModifiedFrom: "",
                   lastModifiedTo: "",
                   estCat: "",
-                })
-              }
+                });
+              }}
               style={{
                 fontSize: "0.72rem",
                 color: "#ef4444",

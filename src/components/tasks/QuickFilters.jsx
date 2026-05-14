@@ -1,7 +1,15 @@
 import { useState, useMemo } from "react";
 import SidebarSection from "./SidebarSection";
 
-function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
+function QuickFilters({
+  data,
+  filters,
+  onFiltersChange,
+  searchInput,
+  onSearchInputChange,
+  colors,
+  darkMode,
+}) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const appTypes = useMemo(() => {
@@ -239,127 +247,92 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
           gap: "0.25rem",
         }}
       >
-        {/* Search */}
+        {/* DTN Search */}
         <div style={{ marginBottom: "0.5rem" }}>
           <div style={{ position: "relative" }}>
+            <input
+              type="number"
+              placeholder="Search by DTN..."
+              value={searchInput}
+              onChange={(e) => onSearchInputChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter")
+                  onFiltersChange({
+                    ...filters,
+                    dtn: searchInput ? Number(searchInput) : null,
+                  });
+              }}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                padding: "0.45rem 0.75rem", // ✅ tanggal na ang right padding para sa X
+                background: colors.inputBg,
+                border: `1px solid ${searchInput ? "#6366f1" : colors.inputBorder}`,
+                borderRadius: "7px 7px 0 0",
+                color: colors.textPrimary,
+                fontSize: "0.65rem",
+                outline: "none",
+                // ✅ Itago ang default number input arrows
+                MozAppearance: "textfield",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+              onBlur={(e) =>
+                (e.target.style.borderColor = searchInput
+                  ? "#6366f1"
+                  : colors.inputBorder)
+              }
+            />
+          </div>
+
+          {/* Search button */}
+          <button
+            onClick={() =>
+              onFiltersChange({
+                ...filters,
+                dtn: searchInput ? Number(searchInput) : null,
+              })
+            }
+            style={{
+              width: "100%",
+              padding: "0.4rem",
+              background: searchInput
+                ? "linear-gradient(135deg, #6366f1, #4f46e5)"
+                : colors.inputBg,
+              border: `1px solid ${searchInput ? "#6366f1" : colors.inputBorder}`,
+              borderTop: "none",
+              borderRadius: "0 0 7px 7px",
+              color: searchInput ? "#fff" : colors.textTertiary,
+              fontSize: "0.65rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "0.35rem",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              if (searchInput) e.currentTarget.style.opacity = "0.85";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.opacity = "1";
+            }}
+          >
             <svg
-              width="13"
-              height="13"
+              width="11"
+              height="11"
               viewBox="0 0 24 24"
               fill="none"
-              stroke={colors.textTertiary}
+              stroke="currentColor"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{
-                position: "absolute",
-                left: "0.55rem",
-                top: "50%",
-                transform: "translateY(-50%)",
-                pointerEvents: "none",
-              }}
             >
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <input
-              type="text"
-              placeholder="DTN, Company, Brand... (comma for multiple)"
-              value={filters.search}
-              onChange={(e) =>
-                onFiltersChange({ ...filters, search: e.target.value })
-              }
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "0.45rem 1.8rem 0.45rem 1.8rem",
-                background: colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: "7px",
-                color: colors.textPrimary,
-                fontSize: "0.65rem",
-                outline: "none",
-              }}
-              onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
-              onBlur={(e) => (e.target.style.borderColor = colors.inputBorder)}
-            />
-            {filters.search && (
-              <button
-                onClick={() => onFiltersChange({ ...filters, search: "" })}
-                style={{
-                  position: "absolute",
-                  right: "0.45rem",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  color: colors.textTertiary,
-                  cursor: "pointer",
-                  fontSize: "0.75rem",
-                  padding: 0,
-                  lineHeight: 1,
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-
-          {/* ── Multi-search indicator ── */}
-          {filters.search &&
-            filters.search.includes(",") &&
-            (() => {
-              const terms = filters.search
-                .split(",")
-                .map((t) => t.trim())
-                .filter(Boolean);
-              if (terms.length < 2) return null;
-              return (
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "3px",
-                    marginTop: "6px",
-                  }}
-                >
-                  {terms.map((term, i) => (
-                    <span
-                      key={i}
-                      title={term}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "3px",
-                        padding: "1px 7px",
-                        borderRadius: "99px",
-                        background: "#6366f115",
-                        border: "1px solid #6366f140",
-                        fontSize: "0.6rem",
-                        color: "#6366f1",
-                        fontWeight: 600,
-                        maxWidth: "100%",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {term}
-                    </span>
-                  ))}
-                  <span
-                    style={{
-                      fontSize: "0.58rem",
-                      color: colors.textTertiary,
-                      alignSelf: "center",
-                      marginLeft: "2px",
-                    }}
-                  >
-                    {terms.length} terms
-                  </span>
-                </div>
-              );
-            })()}
+            Search DTN
+          </button>
         </div>
 
         <div
@@ -429,6 +402,14 @@ function QuickFilters({ data, filters, onFiltersChange, colors, darkMode }) {
             totalCount={processingTypes.reduce((s, x) => s + x.count, 0)}
           />
         )}
+
+        <style>{`
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+      `}</style>
       </div>
     </div>
   );
