@@ -138,6 +138,16 @@ const ACTION_CONFIG = {
     ],
     warning: "Action is required when endorsing to checker.",
   },
+  "Compliance_Endorsed to Supervisor": {
+    options: [
+      "For ENOD",
+      "For Approval",
+      "For Disapproval",
+      "For Cancellation",
+      "For referral to S&E",
+    ],
+    warning: "Action is required when endorsing to supervisor.",
+  },
 };
 
 /* Fields shown in Step 4  "For Approval" action */

@@ -26,6 +26,7 @@ export const WORKFLOW = {
   Compliance: {
     "For Compliance": "Compliance",
     "Endorsed to Checker": "Checking",
+    "Endorsed to Supervisor": "Supervisor",
   },
   Checking: {
     "Checked and returned to evaluator": "Quality Evaluation",
@@ -90,7 +91,7 @@ export const STEP_DECISIONS = {
     "Checked and Returned to S&E Evaluator",
     "Signed and Returned to S&E Evaluator",
   ],
-  Compliance: ["Endorsed to Checker", "For Compliance"],
+  Compliance: ["Endorsed to Checker", "For Compliance", "Endorsed to Supervisor"],
   Checking: ["Checked and returned to evaluator", "Forwarded to Supervisor", ],
   Supervisor: ["Endorsed to QA Admin", "Returned to Evaluator"],
   "QA Admin": [
