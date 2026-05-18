@@ -128,6 +128,16 @@ const ACTION_CONFIG = {
     options: ["Cancel Application"],
     warning: "Action is required for cancellation.",
   },
+  "Compliance_Endorsed to Checker": {
+    options: [
+      "For ENOD",
+      "For Approval",
+      "For Disapproval",
+      "For Cancellation",
+      "For referral to S&E",
+    ],
+    warning: "Action is required when endorsing to checker.",
+  },
 };
 
 /* Fields shown in Step 4  "For Approval" action */
