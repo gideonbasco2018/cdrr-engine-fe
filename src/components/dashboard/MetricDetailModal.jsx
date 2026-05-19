@@ -31,33 +31,40 @@ export default function MetricDetailModal({
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
   const [filterStep, setFilterStep] = useState("");
+  const [filterDtn, setFilterDtn] = useState("");
   const [appliedFrom, setAppliedFrom] = useState("");
   const [appliedTo, setAppliedTo] = useState("");
   const [appliedStep, setAppliedStep] = useState("");
+  const [appliedDtn, setAppliedDtn] = useState("");
 
   const hasActiveDateFilter = appliedFrom || appliedTo;
   const hasActiveStepFilter = !!appliedStep;
-  const hasActiveFilter = hasActiveDateFilter || hasActiveStepFilter;
+  const hasActiveDtnFilter = !!appliedDtn;
+  const hasActiveFilter =
+    hasActiveDateFilter || hasActiveStepFilter || hasActiveDtnFilter;
 
   const applyFilter = () => {
     setAppliedFrom(filterFrom);
     setAppliedTo(filterTo);
     setAppliedStep(filterStep);
-    fetchPage(1, filterFrom, filterTo, filterStep);
+    setAppliedDtn(filterDtn);
+    fetchPage(1, filterFrom, filterTo, filterStep, filterDtn);
   };
 
   const clearFilter = () => {
     setFilterFrom("");
     setFilterTo("");
     setFilterStep("");
+    setFilterDtn("");
     setAppliedFrom("");
     setAppliedTo("");
     setAppliedStep("");
-    fetchPage(1, "", "", "");
+    setAppliedDtn("");
+    fetchPage(1, "", "", "", "");
   };
 
   const fetchPage = useCallback(
-    async (p, accFrom, accTo, step) => {
+    async (p, accFrom, accTo, step, dtn) => {
       setLoading(true);
       setError(null);
       try {
@@ -65,9 +72,11 @@ export default function MetricDetailModal({
         const resolvedFrom = accFrom !== undefined ? accFrom : appliedFrom;
         const resolvedTo = accTo !== undefined ? accTo : appliedTo;
         const resolvedStep = step !== undefined ? step : appliedStep;
+        const resolvedDtn = dtn !== undefined ? dtn : appliedDtn;
         if (resolvedFrom) extraParams.accomplished_date_from = resolvedFrom;
         if (resolvedTo) extraParams.accomplished_date_to = resolvedTo;
         if (resolvedStep) extraParams.app_step = resolvedStep;
+        if (resolvedDtn) extraParams.dtn = resolvedDtn;
 
         const res = await getDashboardDetail({
           metric: metricKey,
@@ -90,7 +99,7 @@ export default function MetricDetailModal({
         setLoading(false);
       }
     },
-    [metricKey, dateParams, appliedFrom, appliedTo, appliedStep],
+    [metricKey, dateParams, appliedFrom, appliedTo, appliedStep, appliedDtn],
   );
 
   useEffect(() => {
@@ -141,6 +150,7 @@ export default function MetricDetailModal({
         if (appliedFrom) extraParams.accomplished_date_from = appliedFrom;
         if (appliedTo) extraParams.accomplished_date_to = appliedTo;
         if (appliedStep) extraParams.app_step = appliedStep;
+        if (appliedDtn) extraParams.dtn = appliedDtn;
 
         const firstRes = await getDashboardDetail({
           metric: metricKey,
@@ -360,6 +370,66 @@ export default function MetricDetailModal({
             }}
           />
 
+          {/* DTN Search */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                fontWeight: 700,
+                color: ui.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                whiteSpace: "nowrap",
+              }}
+            >
+              🔢 DTN
+            </span>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                placeholder="Search DTN..."
+                value={filterDtn}
+                onChange={(e) => setFilterDtn(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && applyFilter()} // Enter key support
+                style={{
+                  ...inputStyle,
+                  width: 160,
+                  paddingRight: filterDtn ? "1.6rem" : "0.6rem",
+                }}
+              />
+              {filterDtn && (
+                <button
+                  onClick={() => setFilterDtn("")}
+                  style={{
+                    position: "absolute",
+                    right: "0.4rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "transparent",
+                    border: "none",
+                    color: ui.textMuted,
+                    cursor: "pointer",
+                    fontSize: "0.65rem",
+                    padding: 0,
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div
+            style={{
+              width: 1,
+              height: 22,
+              background: ui.divider,
+              flexShrink: 0,
+            }}
+          />
+
           {/* Step */}
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span
@@ -404,23 +474,28 @@ export default function MetricDetailModal({
           {/* Apply */}
           <button
             onClick={applyFilter}
-            disabled={!filterFrom && !filterTo && !filterStep}
+            disabled={!filterFrom && !filterTo && !filterStep && !filterDtn}
             style={{
               padding: "5px 14px",
               borderRadius: 7,
               border: "none",
               background:
-                filterFrom || filterTo || filterStep ? FB : ui.progressBg,
+                filterFrom || filterTo || filterStep || filterDtn
+                  ? FB
+                  : ui.progressBg,
               color:
-                filterFrom || filterTo || filterStep ? "#fff" : ui.textMuted,
+                filterFrom || filterTo || filterStep || filterDtn
+                  ? "#fff"
+                  : ui.textMuted,
               fontSize: "0.76rem",
               fontWeight: 700,
               cursor:
-                filterFrom || filterTo || filterStep
+                filterFrom || filterTo || filterStep || filterDtn
                   ? "pointer"
                   : "not-allowed",
               fontFamily: "inherit",
-              opacity: filterFrom || filterTo || filterStep ? 1 : 0.5,
+              opacity:
+                filterFrom || filterTo || filterStep || filterDtn ? 1 : 0.5,
               whiteSpace: "nowrap",
             }}
           >
@@ -493,6 +568,22 @@ export default function MetricDetailModal({
               }}
             >
               📌 {appliedStep}
+            </span>
+          )}
+
+          {hasActiveDtnFilter && (
+            <span
+              style={{
+                fontSize: "0.71rem",
+                color: "#6366f1",
+                fontWeight: 600,
+                padding: "3px 10px",
+                borderRadius: 99,
+                background: "#6366f115",
+                whiteSpace: "nowrap",
+              }}
+            >
+              🔢 {appliedDtn}
             </span>
           )}
         </div>
