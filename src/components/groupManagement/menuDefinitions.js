@@ -19,7 +19,7 @@ export const allMenuItems = [
   { id: "for-qa", label: "QA", icon: "✅", category: "Workflow" },
   { id: "for-director-signature", label: "Director Signature", icon: "🖊️", category: "Workflow" },
   { id: "for-releasing", label: "Releasing", icon: "📤", category: "Workflow" },
-
+ 
   // Other Database
   { id: "fda-verification", label: "FDA Verification Portal", icon: "🔎", category: "Other Database" },
   { id: "cdrr-inspector-reports", label: "CDRR Inspection Reports", icon: "📑", category: "Other Database" },
@@ -36,4 +36,5 @@ export const allMenuItems = [
     icon: "🔗",
     category: "Platform",
   },
+  { id: "appCorrection", label: "Manual CPR Correction", icon: "📝", category: "Workflow" }, 
 ];
