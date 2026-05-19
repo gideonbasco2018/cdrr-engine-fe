@@ -399,7 +399,12 @@ function DataTable({
     return { success, failed };
   };
 
-  const handleBulkComplete = async ({ remarks, reason }) => {
+  const handleBulkComplete = async ({
+    remarks,
+    reason,
+    dateReleased,
+    typeDocReleased,
+  }) => {
     const me = getCurrentUser();
     if (!me?.id) throw new Error("No logged-in user found.");
 
@@ -433,6 +438,8 @@ function DataTable({
         try {
           await updateUploadReport(row.mainDbId ?? row.id, {
             DB_APP_STATUS: "COMPLETED",
+            DB_DATE_RELEASED: dateReleased || null,
+            DB_TYPE_DOC_RELEASED: typeDocReleased || null,
           });
           success++;
         } catch (e) {

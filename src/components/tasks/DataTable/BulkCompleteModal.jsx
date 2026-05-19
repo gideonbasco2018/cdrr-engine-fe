@@ -16,6 +16,20 @@ export function BulkCompleteModal({
   const [result, setResult] = useState(null);
   const [reason, setReason] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [dateReleased, setDateReleased] = useState("");
+  const [typeDocReleased, setTypeDocReleased] = useState("");
+
+  const TYPE_DOC_OPTIONS = [
+    "CPR",
+    "LOD",
+    "Certificate",
+    "Letter",
+    "COPP",
+    "CFS",
+    "GLE",
+    "Letter for non acceptance",
+    "Product classification",
+  ];
 
   const REASONS = [
     "Task fulfilled",
@@ -28,7 +42,12 @@ export function BulkCompleteModal({
     if (!reason || !confirmed) return;
     setLoading(true);
     try {
-      const res = await onConfirm({ remarks, reason });
+      const res = await onConfirm({
+        remarks,
+        reason,
+        dateReleased,
+        typeDocReleased,
+      });
       setResult(res);
     } catch (e) {
       console.error("Bulk complete error:", e);
@@ -626,6 +645,108 @@ export function BulkCompleteModal({
                   />
                 </div>
 
+                {/* Date Released */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.4rem",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                    }}
+                  >
+                    Date Released <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={dateReleased}
+                    onChange={(e) => setDateReleased(e.target.value)}
+                    style={{
+                      padding: "0.6rem 0.8rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${dateReleased ? "#dc2626" : colors.inputBorder}`,
+                      borderRadius: 8,
+                      color: dateReleased
+                        ? colors.textPrimary
+                        : colors.textTertiary,
+                      fontSize: "0.82rem",
+                      outline: "none",
+                      cursor: "pointer",
+                      transition: "border-color 0.2s",
+                    }}
+                    onFocus={(e) =>
+                      (e.currentTarget.style.borderColor = "#dc2626")
+                    }
+                    onBlur={(e) =>
+                      (e.currentTarget.style.borderColor = dateReleased
+                        ? "#dc2626"
+                        : colors.inputBorder)
+                    }
+                  />
+                </div>
+
+                {/* Type of Doc Released */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.4rem",
+                    marginBottom: "1rem",
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.07em",
+                    }}
+                  >
+                    Type of Doc Released{" "}
+                    <span style={{ color: "#ef4444" }}>*</span>
+                  </label>
+                  <select
+                    value={typeDocReleased}
+                    onChange={(e) => setTypeDocReleased(e.target.value)}
+                    style={{
+                      padding: "0.6rem 0.8rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${typeDocReleased ? "#dc2626" : colors.inputBorder}`,
+                      borderRadius: 8,
+                      color: typeDocReleased
+                        ? colors.textPrimary
+                        : colors.textTertiary,
+                      fontSize: "0.82rem",
+                      outline: "none",
+                      cursor: "pointer",
+                      transition: "border-color 0.2s",
+                      appearance: "none",
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "right 0.75rem center",
+                      paddingRight: "2rem",
+                    }}
+                  >
+                    <option value="" disabled>
+                      Select type...
+                    </option>
+                    {TYPE_DOC_OPTIONS.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Confirmation checkbox */}
                 <label
                   style={{
@@ -701,7 +822,13 @@ export function BulkCompleteModal({
                   </button>
                   <button
                     onClick={handleConfirm}
-                    disabled={loading || !reason || !confirmed}
+                    disabled={
+                      loading ||
+                      !reason ||
+                      !confirmed ||
+                      !dateReleased ||
+                      !typeDocReleased
+                    }
                     style={{
                       padding: "0.6rem 1.5rem",
                       background:
