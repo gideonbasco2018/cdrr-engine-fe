@@ -16,7 +16,7 @@ import ComplianceView from "../components/monitoring/compliance/ComplianceView";
 import WorkloadView from "../components/monitoring/workload/WorkloadView";
 import ActivityFeedView from "../components/monitoring/activityFeed/ActivityFeedView";
 import UsersView from "../components/monitoring/users/UsersView";
-
+import FRPTatView from "../components/monitoring/frpTat/FRPTatView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -448,114 +448,6 @@ const USER_DATABASE = [
     tasks: 72,
     approved: 45,
     specialization: "Prescription Drug (RX)",
-  },
-  {
-    id: 2,
-    name: "Maria Santos",
-    email: "msantos@pba.gov.ph",
-    role: "QA Officer",
-    status: "Active",
-    lastLogin: "Today, 8:50 AM",
-    avatar: 1,
-    tasks: 68,
-    approved: 50,
-    specialization: "Prescription Drug (RX)",
-  },
-  {
-    id: 3,
-    name: "Pedro Reyes",
-    email: "preyes@pba.gov.ph",
-    role: "Checker",
-    status: "Active",
-    lastLogin: "Yesterday, 4:22 PM",
-    avatar: 2,
-    tasks: 54,
-    approved: 38,
-    specialization: "Vaccine",
-  },
-  {
-    id: 4,
-    name: "Ana Gonzales",
-    email: "agonzales@pba.gov.ph",
-    role: "Releasing Officer",
-    status: "Active",
-    lastLogin: "Today, 10:05 AM",
-    avatar: 3,
-    tasks: 60,
-    approved: 42,
-    specialization: "Over-the-Counter (OTC)",
-  },
-  {
-    id: 5,
-    name: "Jose Bautista",
-    email: "jbautista@pba.gov.ph",
-    role: "Decker",
-    status: "Inactive",
-    lastLogin: "Mar 8, 2026",
-    avatar: 4,
-    tasks: 48,
-    approved: 30,
-    specialization: "Prescription Drug (RX)",
-  },
-  {
-    id: 6,
-    name: "Liza Reyes",
-    email: "lreyes@pba.gov.ph",
-    role: "Supervisor",
-    status: "Active",
-    lastLogin: "Today, 11:30 AM",
-    avatar: 5,
-    tasks: 55,
-    approved: 40,
-    specialization: "Over-the-Counter (OTC)",
-  },
-  {
-    id: 7,
-    name: "Carlo Mendoza",
-    email: "cmendoza@pba.gov.ph",
-    role: "Director",
-    status: "Active",
-    lastLogin: "Today, 7:45 AM",
-    avatar: 6,
-    tasks: 0,
-    approved: 0,
-    specialization: "All Types",
-  },
-  {
-    id: 8,
-    name: "Rosa Villanueva",
-    email: "rvillanueva@pba.gov.ph",
-    role: "Compliance Officer",
-    status: "Active",
-    lastLogin: "Today, 9:00 AM",
-    avatar: 7,
-    tasks: 0,
-    approved: 0,
-    specialization: "Compliance",
-  },
-  {
-    id: 9,
-    name: "Dante Flores",
-    email: "dflores@pba.gov.ph",
-    role: "Admin",
-    status: "Active",
-    lastLogin: "Today, 8:00 AM",
-    avatar: 0,
-    tasks: 0,
-    approved: 0,
-    specialization: "System Admin",
-  },
-  {
-    id: 10,
-    name: "Nena Cruz",
-    email: "ncruz@pba.gov.ph",
-    role: "Checker",
-    status: "Suspended",
-    lastLogin: "Feb 28, 2026",
-    avatar: 1,
-    tasks: 20,
-    approved: 10,
-    specialization: "Vaccine",
   },
 ];
 const avatarPalette = [
@@ -1492,7 +1384,7 @@ function MonitoringPage({ darkMode }) {
   const navigate = useNavigate();
 
   const navItems = [
-    { key: "overview", icon: "🏠", label: "Overview"},
+    { key: "overview", icon: "🏠", label: "Overview" },
     { key: "records", icon: "📋", label: "Records" },
     { key: "analytics", icon: "📊", label: "Analytics" },
     { key: "deadlines", icon: "⏰", label: "Deadlines", comingSoon: true },
@@ -1500,6 +1392,7 @@ function MonitoringPage({ darkMode }) {
     { key: "workload", icon: "🔥", label: "Workload", comingSoon: true },
     { key: "activity", icon: "📡", label: "Activity Feed" },
     { key: "users", icon: "👥", label: "Users" },
+    { key: "frptat", icon: "⏱️", label: "FRP TAT" },
   ];
 
   // const [activeNav, setActiveNav] = useState("overview");
@@ -1527,15 +1420,15 @@ function MonitoringPage({ darkMode }) {
 
   const [userDatabase, setUserDatabase] = useState(USER_DATABASE);
 
-useEffect(() => {
-  getAllUsers()
-    .then((users) => {
-      if (users && users.length > 0) setUserDatabase(users);
-    })
-    .catch(() => {
-      // silently fall back to static USER_DATABASE
-    });
-}, []);
+  useEffect(() => {
+    getAllUsers()
+      .then((users) => {
+        if (users && users.length > 0) setUserDatabase(users);
+      })
+      .catch(() => {
+        // silently fall back to static USER_DATABASE
+      });
+  }, []);
 
   // Modal sub-state
   const [modalDateFrom, setModalDateFrom] = useState("");
@@ -1675,11 +1568,7 @@ useEffect(() => {
   };
 
   const MainContent = () => {
-    const COMING_SOON = [
-      "deadlines",
-      "compliance",
-      "workload",
-    ];
+    const COMING_SOON = ["deadlines", "compliance", "workload"];
     if (COMING_SOON.includes(activeNav)) {
       // ✅ now declared inside MainContent
       const found = navItems.find((n) => n.key === activeNav);
@@ -1714,7 +1603,7 @@ useEffect(() => {
             rxFilter={rxFilter}
             setRxFilter={setRxFilter}
             onSliceClick={handleSliceClick}
-         />
+          />
         );
 
       case "activity":
@@ -1738,6 +1627,8 @@ useEffect(() => {
             tableData={tableData}
           />
         );
+      case "frptat":
+        return <FRPTatView ui={ui} darkMode={darkMode} />;
       default:
         return null;
     }
@@ -1821,7 +1712,9 @@ useEffect(() => {
             style={{
               flex: 1,
               minWidth: 0,
-              padding: isMobile ? "10px 10px 100px 10px" : "14px 14px 100px 14px",
+              padding: isMobile
+                ? "10px 10px 100px 10px"
+                : "14px 14px 100px 14px",
               boxSizing: "border-box",
             }}
           >

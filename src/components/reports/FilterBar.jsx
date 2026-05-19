@@ -400,7 +400,7 @@ function FilterField({
           </option>
           {categories.map((cat) => (
             <option key={cat.value || "empty"} value={cat.value || ""}>
-              {cat.value || "No Category"} ({cat.count})
+              {cat.value || "No Category"}
             </option>
           ))}
         </select>
