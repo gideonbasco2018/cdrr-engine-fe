@@ -18,6 +18,7 @@ import MonitoringPage from "../pages/MonitoringPage";
 import DoctrackMagicPage from "../pages/DoctrackMagicPage";
 import RecordSectionPage from "../pages/RecordSectionPage";
 import LeadAssignmentsPage from "../pages/LeadAssignmentsPage";
+import ApplicationCorrectionPage from "../pages/ApplicationCorrectionPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -87,7 +88,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
     if (path.includes("monitoring")) return "monitoring";
-
+    if (path.includes("appCorrection")) return "appCorrection";
     return "dashboard";
   };
 
@@ -214,6 +215,10 @@ function MainLayout({ darkMode, setDarkMode }) {
             <p>Settings Page - Coming Soon</p>
           </div>
         );
+      case "appCorrection":
+        return (
+          <ApplicationCorrectionPage darkMode={darkMode} userRole={userRole} />
+        );
       case "dashboard":
 
       default:
@@ -248,7 +253,7 @@ function MainLayout({ darkMode, setDarkMode }) {
           flex: 1,
           display: "flex",
           flexDirection: "column",
-          overflow: "hidden",
+          overflow: "auto",
         }}
       >
         {/* Top Navbar */}

@@ -48,3 +48,8 @@ export async function getDashboardAllRecentApplications(params = {}) {
   const { data } = await axios.get("/dashboard/stats/recent-applications", { params });
   return data;
 }
+
+export async function getDashboardGlobalAllRecentApplications(params = {}) {
+  const { data } = await axios.get("/dashboard/stats/global-recent-applications", { params });
+  return data;
+}

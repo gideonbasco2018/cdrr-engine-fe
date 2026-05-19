@@ -90,16 +90,18 @@ const GENERAL_FIELDS = [
 
 // Static known values — matches your renderTypeDocReleased logic
 const TYPE_DOC_OPTIONS = [
-  { value: "CPR", label: "🩺 CPR" }, // medical / product registration
-  { value: "LOD", label: "📑 LOD" }, // official document
-  { value: "Certificate", label: "📜 Certificate" }, // certificate scroll
-  { value: "Letter", label: "✉️ Letter" }, // letter icon
-  { value: "COPP", label: "🌍 COPP" }, // international certificate
-  { value: "CFS", label: "📦 CFS" }, // product / free sale
-  { value: "GLE", label: "🧾 GLE" }, // form / document
+  { value: "__EMPTY__", label: "⬜ Blank / No Data" },
+  { value: "CPR", label: "🩺 CPR" },
+  { value: "LOD", label: "📑 LOD" },
+  { value: "Certificate", label: "📜 Certificate" },
+  { value: "Letter", label: "✉️ Letter" },
+  { value: "COPP", label: "🌍 COPP" },
+  { value: "CFS", label: "📦 CFS" },
+  { value: "GLE", label: "🧾 GLE" },
   { value: "Letter for non acceptance", label: "❌ Letter for non acceptance" },
-  { value: "Product classification", label: "🏷️ Product classification" }, // tag / category
+  { value: "Product classification", label: "🏷️ Product classification" },
 ];
+
 // ── Supply chain filters ─────────────────────────────────────────────────────
 const SUPPLY_CHAIN_FIELDS = [
   {
@@ -155,7 +157,6 @@ export function CountryDropdown({
     ? COUNTRIES.filter((c) => c.toLowerCase().includes(search.toLowerCase()))
     : COUNTRIES;
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) {
@@ -167,7 +168,6 @@ export function CountryDropdown({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Focus search input when opened
   useEffect(() => {
     if (open && searchRef.current) {
       setTimeout(() => searchRef.current?.focus(), 50);
@@ -185,7 +185,6 @@ export function CountryDropdown({
 
   return (
     <div ref={ref} style={{ position: "relative", width: "100%" }}>
-      {/* Trigger button */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -231,7 +230,6 @@ export function CountryDropdown({
         </span>
       </button>
 
-      {/* Dropdown panel */}
       {open && (
         <div
           style={{
@@ -247,7 +245,6 @@ export function CountryDropdown({
             overflow: "hidden",
           }}
         >
-          {/* Search input */}
           <div
             style={{
               padding: "0.4rem 0.5rem",
@@ -274,14 +271,7 @@ export function CountryDropdown({
             />
           </div>
 
-          {/* Options list — max 40% of viewport height */}
-          <div
-            style={{
-              maxHeight: "40vh",
-              overflowY: "auto",
-            }}
-          >
-            {/* All Countries option */}
+          <div style={{ maxHeight: "40vh", overflowY: "auto" }}>
             <div
               onClick={() => handleSelect("")}
               style={{
@@ -394,7 +384,6 @@ function FilterField({
         )}
       </label>
 
-      {/* Establishment category select */}
       {field.type === "select" && (
         <select
           value={value || ""}
@@ -417,7 +406,6 @@ function FilterField({
         </select>
       )}
 
-      {/* ✅ Custom country dropdown — replaces native <select> */}
       {field.type === "country" && (
         <CountryDropdown
           value={value || ""}
@@ -446,7 +434,6 @@ function FilterField({
         </select>
       )}
 
-      {/* Text / number input */}
       {!field.type && (
         <div style={{ position: "relative" }}>
           <input
@@ -504,6 +491,18 @@ function FilterBar({
   const [establishmentCategories, setEstablishmentCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
+  // ── Local (pending) state — not pushed to parent until Search is clicked ──
+  const [localSearch, setLocalSearch] = useState(searchTerm);
+  const [localFilters, setLocalFilters] = useState(filters);
+
+  // Keep local in sync when parent resets externally (e.g. Clear All from parent)
+  useEffect(() => {
+    setLocalSearch(searchTerm);
+  }, [searchTerm]);
+  useEffect(() => {
+    setLocalFilters(filters);
+  }, [filters]);
+
   useEffect(() => {
     const fetch = async () => {
       try {
@@ -535,20 +534,41 @@ function FilterBar({
     fetch();
   }, [activeTab, subTab, prescriptionTab, appStatusTab]);
 
-  const handleFilterChange = (key, value) =>
-    onFilterChange({ ...filters, [key]: value });
+  // ── Local handlers (no parent calls yet) ──
+  const handleLocalFilterChange = (key, value) =>
+    setLocalFilters((prev) => ({ ...prev, [key]: value }));
 
+  // ── Commit to parent → triggers the actual API fetch ──
+  const handleSearch = () => {
+    onSearchChange(localSearch);
+    onFilterChange(localFilters);
+  };
+
+  // ── Clear: wipe both local and parent immediately ──
   const clearAllFilters = () => {
+    setLocalSearch("");
+    setLocalFilters({});
     onFilterChange({});
     onSearchChange("");
   };
 
+  // Count pending (local) active filters for the badge
+  const pendingFilterCount = Object.values(localFilters).filter(
+    (v) => v && v !== "all" && v.trim() !== "",
+  ).length;
+
+  // Count committed (parent) active filters for the Advanced badge
   const activeFilterCount = Object.values(filters).filter(
     (v) => v && v !== "all" && v.trim() !== "",
   ).length;
 
-  const supplyChainActiveCount = SUPPLY_CHAIN_FIELDS.filter(
-    (f) => filters[f.key] && filters[f.key].trim() !== "",
+  // Has anything changed vs what the parent has committed?
+  const isDirty =
+    localSearch !== searchTerm ||
+    JSON.stringify(localFilters) !== JSON.stringify(filters);
+
+  const supplyChainPendingCount = SUPPLY_CHAIN_FIELDS.filter(
+    (f) => localFilters[f.key] && localFilters[f.key].trim() !== "",
   ).length;
 
   return (
@@ -571,7 +591,7 @@ function FilterBar({
           flexWrap: "wrap",
         }}
       >
-        {/* Search */}
+        {/* Search input */}
         <div style={{ flex: "1", minWidth: "160px", position: "relative" }}>
           <span
             style={{
@@ -589,8 +609,12 @@ function FilterBar({
           <input
             type="text"
             placeholder="Search by DTN, Company, Brand Name, Generic Name, Manufacturer..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
+            value={localSearch}
+            onChange={(e) => setLocalSearch(e.target.value)}
+            // Allow pressing Enter to trigger search
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSearch();
+            }}
             style={inputStyle(colors, { paddingLeft: "1.6rem" })}
             onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
             onBlur={(e) => (e.target.style.borderColor = colors.inputBorder)}
@@ -607,7 +631,6 @@ function FilterBar({
             border: `1px solid ${showAdvanced ? "#4CAF50" : colors.inputBorder}`,
             borderRadius: "6px",
             color: showAdvanced ? "#fff" : colors.textPrimary,
-
             cursor: "pointer",
             fontWeight: "500",
             transition: "all 0.2s",
@@ -619,6 +642,7 @@ function FilterBar({
         >
           <span>⚙️</span>
           <span>Advanced</span>
+          {/* Badge shows committed active filters */}
           {activeFilterCount > 0 && (
             <span
               style={{
@@ -636,7 +660,10 @@ function FilterBar({
         </button>
 
         {/* Clear all */}
-        {(activeFilterCount > 0 || searchTerm) && (
+        {(activeFilterCount > 0 ||
+          searchTerm ||
+          localSearch ||
+          pendingFilterCount > 0) && (
           <button
             onClick={clearAllFilters}
             style={{
@@ -646,7 +673,6 @@ function FilterBar({
               border: `1px solid ${colors.cardBorder}`,
               borderRadius: "6px",
               color: colors.textSecondary,
-
               cursor: "pointer",
               fontWeight: "500",
               transition: "all 0.2s",
@@ -700,8 +726,8 @@ function FilterBar({
               <FilterField
                 key={field.key}
                 field={field}
-                value={filters[field.key] || ""}
-                onChange={handleFilterChange}
+                value={localFilters[field.key] || ""}
+                onChange={handleLocalFilterChange}
                 colors={colors}
                 accentColor="#4CAF50"
                 categories={establishmentCategories}
@@ -738,7 +764,7 @@ function FilterBar({
               >
                 Supply Chain Filters
               </p>
-              {supplyChainActiveCount > 0 && (
+              {supplyChainPendingCount > 0 && (
                 <span
                   style={{
                     padding: "0.05rem 0.4rem",
@@ -749,7 +775,7 @@ function FilterBar({
                     fontWeight: "700",
                   }}
                 >
-                  {supplyChainActiveCount} active
+                  {supplyChainPendingCount} active
                 </span>
               )}
             </div>
@@ -765,8 +791,8 @@ function FilterBar({
                 <FilterField
                   key={field.key}
                   field={field}
-                  value={filters[field.key] || ""}
-                  onChange={handleFilterChange}
+                  value={localFilters[field.key] || ""}
+                  onChange={handleLocalFilterChange}
                   colors={colors}
                   accentColor="#6366f1"
                 />
@@ -789,6 +815,111 @@ function FilterBar({
             💡 <strong>Tip:</strong> Use the sidebar for Application Type,
             Classification, and Status filters.
           </div>
+
+          {/* ── Search button ── */}
+          <div
+            style={{
+              marginTop: "0.75rem",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
+            <button
+              onClick={handleSearch}
+              style={{
+                padding: "0.4rem 1.1rem",
+                fontSize: "0.7rem",
+                fontWeight: "700",
+                background: isDirty
+                  ? "linear-gradient(135deg, #4CAF50, #2e7d32)"
+                  : colors.inputBg,
+                border: `1px solid ${isDirty ? "#4CAF50" : colors.inputBorder}`,
+                borderRadius: "7px",
+                color: isDirty ? "#fff" : colors.textSecondary,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                transition: "all 0.2s",
+                boxShadow: isDirty ? "0 2px 8px rgba(76,175,80,0.35)" : "none",
+              }}
+              onMouseEnter={(e) => {
+                if (isDirty) {
+                  e.currentTarget.style.boxShadow =
+                    "0 4px 14px rgba(76,175,80,0.5)";
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = isDirty
+                  ? "0 2px 8px rgba(76,175,80,0.35)"
+                  : "none";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <span>🔍</span>
+              <span>{isDirty ? "Apply Filters & Search" : "Search"}</span>
+              {pendingFilterCount > 0 && (
+                <span
+                  style={{
+                    background: isDirty
+                      ? "rgba(255,255,255,0.25)"
+                      : colors.badgeBg,
+                    color: isDirty ? "#fff" : colors.textTertiary,
+                    padding: "0.05rem 0.4rem",
+                    borderRadius: "10px",
+                    fontSize: "0.62rem",
+                    fontWeight: "700",
+                  }}
+                >
+                  {pendingFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Search button shown inline (below primary row) when advanced is CLOSED */}
+      {!showAdvanced && isDirty && (
+        <div
+          style={{
+            marginTop: "0.45rem",
+            display: "flex",
+            justifyContent: "flex-end",
+          }}
+        >
+          <button
+            onClick={handleSearch}
+            style={{
+              padding: "0.3rem 0.9rem",
+              fontSize: "0.65rem",
+              fontWeight: "700",
+              background: "linear-gradient(135deg, #4CAF50, #2e7d32)",
+              border: "1px solid #4CAF50",
+              borderRadius: "7px",
+              color: "#fff",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+              transition: "all 0.2s",
+              boxShadow: "0 2px 8px rgba(76,175,80,0.35)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow =
+                "0 4px 14px rgba(76,175,80,0.5)";
+              e.currentTarget.style.transform = "translateY(-1px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow =
+                "0 2px 8px rgba(76,175,80,0.35)";
+              e.currentTarget.style.transform = "translateY(0)";
+            }}
+          >
+            <span>🔍</span>
+            <span>Search</span>
+          </button>
         </div>
       )}
     </div>

@@ -162,6 +162,7 @@ function Sidebar({
       monitoring: `${basePath}/monitoring`,
       reports: `${basePath}/reports`,
       "for-decking": `${basePath}/for-decking`,
+      appCorrection: `${basePath}/appCorrection`,
       task: `${basePath}/task`,
       "for-evaluation": `${basePath}/for-evaluation`,
       "for-compliance": `${basePath}/for-compliance`,

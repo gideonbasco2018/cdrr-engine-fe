@@ -528,6 +528,7 @@ function ReportsPage({ darkMode }) {
         params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
       if (processingTypeTab !== null)
         params.processing_type = processingTypeParam;
+      console.log("Export params:", params);
       await exportFilteredRecords(params);
       alert(
         `✅ Export successful!\n\nExported ${totalRecords.toLocaleString()} records.`,

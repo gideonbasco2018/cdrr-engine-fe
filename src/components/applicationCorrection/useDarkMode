@@ -1,0 +1,78 @@
+import { useState, useEffect } from "react";
+
+/**
+ * Auto-detects dark mode from the app's existing mechanism.
+ * Works with OR without the darkMode prop being passed.
+ *
+ * Detection order:
+ * 1) Explicit prop (highest priority)
+ * 2) <html> class/data-theme attribute
+ * 3) <body> class
+ * 4) localStorage (covers most custom React dashboards)
+ * 5) OS prefers-color-scheme
+ */
+export function useDarkMode(propValue) {
+  const detect = () => {
+    if (propValue !== undefined) return Boolean(propValue);
+
+    const html = document.documentElement;
+    const body = document.body;
+
+    // Tailwind / class-based dark mode
+    if (html.classList.contains("dark")) return true;
+    if (body.classList.contains("dark")) return true;
+
+    // data-theme attribute (Daisy UI, custom)
+    if (html.dataset.theme === "dark") return true;
+    if (body.dataset.theme === "dark") return true;
+
+    // localStorage — check every common key
+    const keys = ["darkMode", "isDarkMode", "dark_mode", "theme", "color-theme", "colorTheme"];
+    for (const key of keys) {
+      const val = localStorage.getItem(key);
+      if (val === "true" || val === "dark" || val === "1") return true;
+      if (val === "false" || val === "light" || val === "0") return false;
+    }
+
+    // OS fallback
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+
+  const [dark, setDark] = useState(detect);
+
+  useEffect(() => {
+    // If prop is passed, just sync it — no need for observers
+    if (propValue !== undefined) {
+      setDark(Boolean(propValue));
+      return;
+    }
+
+    const refresh = () => setDark(detect());
+
+    // Watch <html> and <body> attribute/class changes (covers Tailwind toggle)
+    const observer = new MutationObserver(refresh);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+
+    // Watch localStorage changes from other tabs or components
+    window.addEventListener("storage", refresh);
+
+    // Watch OS preference
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    mq.addEventListener("change", refresh);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", refresh);
+      mq.removeEventListener("change", refresh);
+    };
+  }, [propValue]);
+
+  return dark;
+}

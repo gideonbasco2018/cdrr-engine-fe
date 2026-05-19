@@ -10,7 +10,7 @@ export const menuDefinitions = {
     },
     {
       id: "monitoring",
-      icon: "📡", // improved
+      icon: "📡", 
       label: "Monitoring",
       roles: ["User", "Admin", "SuperAdmin"],
     },
@@ -19,7 +19,7 @@ export const menuDefinitions = {
   cdrReportsItems: [
     {
       id: "reports",
-      icon: "🗃️", // improved
+      icon: "🗃️",
       label: "CDRR Reports",
       roles: ["User", "Admin", "SuperAdmin"],
       comingSoon: false,
@@ -43,6 +43,12 @@ export const menuDefinitions = {
       id: "task",
       icon: "📝",
       label: "Tasks",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
+    {
+      id: "appCorrection",
+      icon: "✍️",
+      label: "Manual CPR Correction",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
@@ -92,19 +98,19 @@ export const menuDefinitions = {
   otherDatabaseItems: [
     {
       id: "fda-verification",
-      icon: "🔎", // refined
+      icon: "🔎", 
       label: "FDA Verification Portal",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "cdrr-inspector-reports",
-      icon: "📑", // improved
+      icon: "📑", 
       label: "CDRR Inspection Reports",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "doctrack-magic",
-      icon: "📦", // improved (bulk)
+      icon: "📦",
       label: "Doctrack (Bulk Upload)",
       roles: ["User", "Admin", "SuperAdmin"],
     },
