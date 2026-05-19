@@ -312,7 +312,12 @@ function DataTable({
               : {}),
             doctrack_remarks: doctrackRemarks || "",
           });
-          await updateUploadReport(mainDbId, { DB_APP_STATUS: "COMPLETED" });
+          const phtDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+          const dateReleasedStr = phtDate.toISOString().slice(0, 10);
+          await updateUploadReport(mainDbId, {
+            DB_APP_STATUS: "COMPLETED",
+            DB_DATE_RELEASED: dateReleasedStr,
+          });
         } else {
           const indexData = await getLastApplicationLogIndex(mainDbId);
           const lastIndex = indexData.last_index;
