@@ -9,8 +9,6 @@ export const tableColumns = [
     key: "dtn",
     label: "DTN",
     width: "150px",
-    frozen: true,
-    frozenLeft: "40px",
   },
 
   { key: "estCat", label: "Est. Category", width: "120px" },

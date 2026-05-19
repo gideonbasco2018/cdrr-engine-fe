@@ -36,3 +36,8 @@ export const getAnalyticsTopCountries = async (params = {}) => {
     const res = await API.get("/analytics/top-countries", { params });
     return res.data;
 };
+
+export const getAnalyticsFRPTATTrend = async (params = {}) => {
+    const res = await API.get("/analytics/frp-tat-trend", { params });
+    return res.data;
+};
