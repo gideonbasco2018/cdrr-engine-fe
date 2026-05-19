@@ -799,8 +799,13 @@ export function Step4ActionForm({
         currentStep === "Releasing Officer" &&
         formData.decision === "Released"
       ) {
+        // PHT (UTC+8) adjusted date
+        const phtDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+        const dateReleasedStr = phtDate.toISOString().slice(0, 10); // "YYYY-MM-DD"
+
         await updateUploadReport(record.mainDbId, {
           DB_APP_STATUS: "COMPLETED",
+          DB_DATE_RELEASED: dateReleasedStr,
         });
 
         // ── CPR API — fetch fresh record para makuha ang DB_DECISION_RESULT ──
