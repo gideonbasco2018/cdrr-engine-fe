@@ -375,3 +375,4 @@ export const getImpersonatedName = () => {
 export const isImpersonating = () => {
   return !!sessionStorage.getItem('impersonate_user_id');
 };
+
