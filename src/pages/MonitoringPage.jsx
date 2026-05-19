@@ -1492,9 +1492,9 @@ function MonitoringPage({ darkMode }) {
   const navigate = useNavigate();
 
   const navItems = [
-    { key: "overview", icon: "🏠", label: "Overview", comingSoon: true },
+    { key: "overview", icon: "🏠", label: "Overview"},
     { key: "records", icon: "📋", label: "Records" },
-    { key: "analytics", icon: "📊", label: "Analytics", comingSoon: true },
+    { key: "analytics", icon: "📊", label: "Analytics" },
     { key: "deadlines", icon: "⏰", label: "Deadlines", comingSoon: true },
     { key: "compliance", icon: "🚩", label: "Compliance", comingSoon: true },
     { key: "workload", icon: "🔥", label: "Workload", comingSoon: true },
@@ -1503,7 +1503,7 @@ function MonitoringPage({ darkMode }) {
   ];
 
   // const [activeNav, setActiveNav] = useState("overview");
-  const [activeNav, setActiveNav] = useState("records");
+  const [activeNav, setActiveNav] = useState("overview");
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
   );
@@ -1524,6 +1524,18 @@ function MonitoringPage({ darkMode }) {
   const [reassignTask, setReassignTask] = useState(null);
   const [impersonating, setImpersonating] = useState(null);
   const [showImpersonateConfirm, setShowImpersonateConfirm] = useState(null);
+
+  const [userDatabase, setUserDatabase] = useState(USER_DATABASE);
+
+useEffect(() => {
+  getAllUsers()
+    .then((users) => {
+      if (users && users.length > 0) setUserDatabase(users);
+    })
+    .catch(() => {
+      // silently fall back to static USER_DATABASE
+    });
+}, []);
 
   // Modal sub-state
   const [modalDateFrom, setModalDateFrom] = useState("");
@@ -1664,8 +1676,6 @@ function MonitoringPage({ darkMode }) {
 
   const MainContent = () => {
     const COMING_SOON = [
-      "overview",
-      "analytics",
       "deadlines",
       "compliance",
       "workload",
@@ -1676,8 +1686,36 @@ function MonitoringPage({ darkMode }) {
       return <ComingSoonView label={found?.label ?? activeNav} ui={ui} />;
     }
     switch (activeNav) {
+      case "overview":
+        return (
+          <OverviewView
+            {...sharedProps}
+            USER_ROLE_MAP={USER_ROLE_MAP}
+            ACTIVITY_FEED={ACTIVITY_FEED}
+            DEADLINES={DEADLINES}
+            COMPLIANCE_FLAGS={COMPLIANCE_FLAGS}
+            setActiveNav={setActiveNav}
+            setModalEval={setModalEval}
+            userDatabase={userDatabase}
+          />
+        );
       case "records":
         return <RecordsView {...sharedProps} setModalEval={setModalEval} />;
+
+      case "analytics":
+        return (
+          <AnalyticsView
+            ui={ui}
+            darkMode={darkMode}
+            chartYear={chartYear}
+            setChartYear={setChartYear}
+            chartMonth={chartMonth}
+            setChartMonth={setChartMonth}
+            rxFilter={rxFilter}
+            setRxFilter={setRxFilter}
+            onSliceClick={handleSliceClick}
+         />
+        );
 
       case "activity":
         return (
@@ -1783,8 +1821,7 @@ function MonitoringPage({ darkMode }) {
             style={{
               flex: 1,
               minWidth: 0,
-              padding: isMobile ? "10px" : "14px",
-              paddingBottom: 100,
+              padding: isMobile ? "10px 10px 100px 10px" : "14px 14px 100px 14px",
               boxSizing: "border-box",
             }}
           >
@@ -1875,7 +1912,7 @@ function MonitoringPage({ darkMode }) {
                   gap: 6,
                   marginBottom: 14,
                   overflowX: "auto",
-                  paddingBottom: 2,
+                  padding: "0 0 2px 0",
                 }}
               >
                 {navItems.map((n) => (

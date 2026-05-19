@@ -807,9 +807,9 @@ export default function AllRecords({
                 fontSize: "0.66rem",
                 fontWeight: 500,
                 borderRadius: 6,
-                border: `1px solid ${ui.cardBorder}`,
-                background: "transparent",
-                color: ui.textMuted,
+                border: `1px solid ${ui.cardBorder}`,   // ← gray border
+                background: ui.progressBg,              // ← light gray background
+                color: ui.textMuted,                    // ← gray text
                 cursor: "pointer",
                 fontFamily: font,
                 alignSelf: "flex-end",
