@@ -287,8 +287,6 @@ export default function FRPTatView({ ui, darkMode }) {
 
   // Target from citizen charter — if all rows share the same value use it,
   // otherwise fall back to null so we don't show a misleading number.
-  const targets = [...new Set(data.map((d) => d.target_days).filter(Boolean))];
-  const TARGET_DAYS = targets.length === 1 ? targets[0] : null;
 
   const bestQuarter =
     minAll != null
@@ -343,21 +341,6 @@ export default function FRPTatView({ ui, darkMode }) {
         </h2>
         <p style={{ margin: 0, fontSize: "0.78rem", color: ui.textMuted }}>
           Processing time from date received (Central) to date released
-          {TARGET_DAYS && (
-            <span
-              style={{
-                marginLeft: 8,
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                padding: "2px 8px",
-                borderRadius: 99,
-                background: darkMode ? "#1a2744" : "#e7f0fd",
-                color: FB,
-              }}
-            >
-              Target: {TARGET_DAYS} days
-            </span>
-          )}
         </p>
       </div>
 

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { runSpellCheck as runSpellCheckApi } from "../../../../api/spellCheckApi";
 
 const CHECKABLE_FIELDS = [
   "prodBrName",
@@ -26,8 +27,6 @@ const CHECKABLE_FIELDS = [
   "prodRepackerAdd",
 ];
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-
 export function SpellCheckButton({
   record,
   editedFields,
@@ -46,7 +45,7 @@ export function SpellCheckButton({
       ? editedFields[fieldKey]
       : (record[fieldKey] ?? "");
 
-  const runSpellCheck = async () => {
+  const handleSpellCheck = async () => {
     setLoading(true);
     setError(null);
     setResults(null);
@@ -64,19 +63,8 @@ export function SpellCheckButton({
     });
 
     try {
-      const response = await fetch(`${API_BASE}/api/spellcheck`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fields }),
-      });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData?.detail ?? `Server error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      setResults(Array.isArray(data) ? data : []);
+      const data = await runSpellCheckApi(fields);
+      setResults(data);
     } catch (err) {
       console.error("Spell check error:", err);
       setError(err.message ?? "Failed to run spell check. Please try again.");
@@ -144,7 +132,7 @@ export function SpellCheckButton({
     <>
       {/* ── Trigger Button ── */}
       <button
-        onClick={runSpellCheck}
+        onClick={handleSpellCheck}
         disabled={loading}
         title="Spell Check — checks all text fields for spelling errors"
         style={{
