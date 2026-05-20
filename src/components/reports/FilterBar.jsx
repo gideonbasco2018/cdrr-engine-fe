@@ -57,6 +57,16 @@ const GENERAL_FIELDS = [
     placeholder: "e.g., Tablet, Capsule",
   },
   {
+    key: "dateReceivedCentFrom",
+    label: "📅 Date Received Center From",
+    inputType: "date",
+  },
+  {
+    key: "dateReceivedCentTo",
+    label: "📅 Date Received Center To",
+    inputType: "date",
+  },
+  {
     key: "typeDocReleased",
     label: "📄 Type Doc Released",
     type: "typeDocSelect",
