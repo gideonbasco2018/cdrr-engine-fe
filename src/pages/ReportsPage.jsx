@@ -25,6 +25,10 @@ function buildFilterParams(filters) {
   if (filters.typeDocReleased) p.type_doc_released = filters.typeDocReleased;
   if (filters.dateReleasedFrom) p.date_released_from = filters.dateReleasedFrom;
   if (filters.dateReleasedTo) p.date_released_to = filters.dateReleasedTo;
+  if (filters.dateReceivedCentFrom)
+    p.date_received_cent_from = filters.dateReceivedCentFrom;
+  if (filters.dateReceivedCentTo)
+    p.date_received_cent_to = filters.dateReceivedCentTo;
   if (filters.userUploader) p.user_uploader = filters.userUploader;
   if (filters.dateExcelUploadFrom)
     p.date_excel_upload_from = filters.dateExcelUploadFrom;
