@@ -37,6 +37,8 @@ export const getUploadReports = async ({
   user_uploader = '',
   date_excel_upload_from = '',
   date_excel_upload_to = '',
+  null_date_released = false,      
+  null_date_received_cent = false, 
   sortBy = 'DB_DATE_EXCEL_UPLOAD',
   sortOrder = 'desc',
 }) => {
@@ -77,7 +79,8 @@ export const getUploadReports = async ({
   if (user_uploader) params.user_uploader = user_uploader;
   if (date_excel_upload_from) params.date_excel_upload_from = date_excel_upload_from;
   if (date_excel_upload_to) params.date_excel_upload_to = date_excel_upload_to;
-
+  if (null_date_released) params.null_date_released = 'true';
+  if (null_date_received_cent) params.null_date_received_cent = 'true';
   if (sortBy && sortBy.trim() !== '') {
     params.sort_by = sortBy;
     params.sort_order = sortOrder;
@@ -243,6 +246,8 @@ export const exportFilteredRecords = async ({
   user_uploader = '',
   date_excel_upload_from = '',
   date_excel_upload_to = '',
+  null_date_released = false,     
+  null_date_received_cent = false,
 }) => {
   const params = {};
 
@@ -278,7 +283,8 @@ export const exportFilteredRecords = async ({
   if (user_uploader) params.user_uploader = user_uploader;
   if (date_excel_upload_from) params.date_excel_upload_from = date_excel_upload_from;
   if (date_excel_upload_to) params.date_excel_upload_to = date_excel_upload_to;
-
+  if (null_date_released) params.null_date_released = 'true';      
+  if (null_date_received_cent) params.null_date_received_cent = 'true';
   const response = await API.get('/main-db/export-filtered', {
     params,
     responseType: 'blob',

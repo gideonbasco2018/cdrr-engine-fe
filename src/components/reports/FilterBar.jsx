@@ -57,29 +57,9 @@ const GENERAL_FIELDS = [
     placeholder: "e.g., Tablet, Capsule",
   },
   {
-    key: "dateReceivedCentFrom",
-    label: "📅 Date Received Center From",
-    inputType: "date",
-  },
-  {
-    key: "dateReceivedCentTo",
-    label: "📅 Date Received Center To",
-    inputType: "date",
-  },
-  {
     key: "typeDocReleased",
     label: "📄 Type Doc Released",
     type: "typeDocSelect",
-  },
-  {
-    key: "dateReleasedFrom",
-    label: "📅 Date Released From",
-    inputType: "date",
-  },
-  {
-    key: "dateReleasedTo",
-    label: "📅 Date Released To",
-    inputType: "date",
   },
   {
     key: "userUploader",
@@ -97,6 +77,14 @@ const GENERAL_FIELDS = [
     inputType: "date",
   },
 ];
+
+// Keys that are handled by DateRangeWithNull — skip in GENERAL_FIELDS loop
+const DATE_RANGE_NULL_KEYS = new Set([
+  "dateReceivedCentFrom",
+  "dateReceivedCentTo",
+  "dateReleasedFrom",
+  "dateReleasedTo",
+]);
 
 // Static known values — matches your renderTypeDocReleased logic
 const TYPE_DOC_OPTIONS = [
@@ -352,6 +340,182 @@ export function CountryDropdown({
   );
 }
 
+// ── Date Range with "No Date" toggle ────────────────────────────────────────
+function DateRangeWithNull({
+  labelFrom,
+  labelTo,
+  keyFrom,
+  keyTo,
+  nullFilterKey,
+  nullActive,
+  onNullToggle,
+  localFilters,
+  onChange,
+  colors,
+  accentColor = "#4CAF50",
+}) {
+  const hasFrom = Boolean(
+    localFilters[keyFrom] && localFilters[keyFrom] !== "",
+  );
+  const hasTo = Boolean(localFilters[keyTo] && localFilters[keyTo] !== "");
+  const isActive = nullActive || hasFrom || hasTo;
+
+  return (
+    <>
+      {/* FROM field */}
+      <div>
+        <label style={labelStyle(colors)}>
+          {labelFrom}
+          {hasFrom && !nullActive && (
+            <span
+              style={{
+                float: "right",
+                padding: "0.02rem 0.3rem",
+                background: accentColor,
+                color: "#fff",
+                borderRadius: "6px",
+                fontSize: "0.58rem",
+                fontWeight: "700",
+                textTransform: "none",
+                letterSpacing: 0,
+              }}
+            >
+              on
+            </span>
+          )}
+        </label>
+        <input
+          type="date"
+          value={localFilters[keyFrom] || ""}
+          onChange={(e) => onChange(keyFrom, e.target.value)}
+          disabled={nullActive}
+          onFocus={(e) => {
+            if (!nullActive) e.target.style.borderColor = accentColor;
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = hasFrom
+              ? accentColor
+              : colors.inputBorder;
+          }}
+          style={inputStyle(colors, {
+            opacity: nullActive ? 0.35 : 1,
+            cursor: nullActive ? "not-allowed" : "pointer",
+            borderColor:
+              hasFrom && !nullActive ? accentColor : colors.inputBorder,
+          })}
+        />
+      </div>
+
+      {/* TO field + No Date toggle */}
+      <div>
+        <label
+          style={{
+            ...labelStyle(colors),
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: "0.2rem",
+          }}
+        >
+          <span>{labelTo}</span>
+
+          {/* ── No Date toggle button ── */}
+          <button
+            type="button"
+            onClick={onNullToggle}
+            title={
+              nullActive
+                ? "Click to turn off No Date filter"
+                : "Click to search records with no date"
+            }
+            style={{
+              padding: "0.06rem 0.4rem",
+              background: nullActive
+                ? "linear-gradient(135deg, #ef4444, #dc2626)"
+                : colors.inputBg,
+              border: `1px solid ${nullActive ? "#ef4444" : colors.inputBorder}`,
+              borderRadius: "5px",
+              color: nullActive ? "#fff" : colors.textTertiary,
+              fontSize: "0.55rem",
+              fontWeight: "700",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.2rem",
+              letterSpacing: "0.02em",
+              transition: "all 0.2s",
+              textTransform: "none",
+              lineHeight: 1.4,
+              flexShrink: 0,
+            }}
+            onMouseEnter={(e) => {
+              if (!nullActive) {
+                e.currentTarget.style.background = "#ef444420";
+                e.currentTarget.style.borderColor = "#ef4444";
+                e.currentTarget.style.color = "#ef4444";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!nullActive) {
+                e.currentTarget.style.background = colors.inputBg;
+                e.currentTarget.style.borderColor = colors.inputBorder;
+                e.currentTarget.style.color = colors.textTertiary;
+              }
+            }}
+          >
+            {nullActive ? "✕ No Date ON" : "∅ No Date"}
+          </button>
+        </label>
+
+        <input
+          type="date"
+          value={localFilters[keyTo] || ""}
+          onChange={(e) => onChange(keyTo, e.target.value)}
+          disabled={nullActive}
+          onFocus={(e) => {
+            if (!nullActive) e.target.style.borderColor = accentColor;
+          }}
+          onBlur={(e) => {
+            e.target.style.borderColor = hasTo
+              ? accentColor
+              : colors.inputBorder;
+          }}
+          style={inputStyle(colors, {
+            opacity: nullActive ? 0.35 : 1,
+            cursor: nullActive ? "not-allowed" : "pointer",
+            borderColor: nullActive
+              ? "#ef4444"
+              : hasTo
+                ? accentColor
+                : colors.inputBorder,
+          })}
+        />
+
+        {/* Active state indicator below the TO field */}
+        {nullActive && (
+          <div
+            style={{
+              marginTop: "0.2rem",
+              padding: "0.18rem 0.45rem",
+              background: "rgba(239,68,68,0.1)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              borderRadius: "4px",
+              fontSize: "0.55rem",
+              color: "#ef4444",
+              fontWeight: "600",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
+            }}
+          >
+            ∅ Showing records with no date
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ── Reusable field ───────────────────────────────────────────────────────────
 function FilterField({
   field,
@@ -505,12 +669,22 @@ function FilterBar({
   const [localSearch, setLocalSearch] = useState(searchTerm);
   const [localFilters, setLocalFilters] = useState(filters);
 
+  // ── No Date toggles ──────────────────────────────────────────────────────
+  const [nullDateReleased, setNullDateReleased] = useState(false);
+  const [nullDateReceivedCent, setNullDateReceivedCent] = useState(false);
+
   // Keep local in sync when parent resets externally (e.g. Clear All from parent)
   useEffect(() => {
     setLocalSearch(searchTerm);
   }, [searchTerm]);
+
   useEffect(() => {
     setLocalFilters(filters);
+    // If parent cleared filters, also reset null date toggles
+    const hasNullDateReleased = filters.nullDateReleased === "true";
+    const hasNullDateReceivedCent = filters.nullDateReceivedCent === "true";
+    setNullDateReleased(hasNullDateReleased);
+    setNullDateReceivedCent(hasNullDateReceivedCent);
   }, [filters]);
 
   useEffect(() => {
@@ -548,6 +722,29 @@ function FilterBar({
   const handleLocalFilterChange = (key, value) =>
     setLocalFilters((prev) => ({ ...prev, [key]: value }));
 
+  // ── No Date toggle handlers ──────────────────────────────────────────────
+  const handleNullDateReleasedToggle = () => {
+    const next = !nullDateReleased;
+    setNullDateReleased(next);
+    setLocalFilters((prev) => ({
+      ...prev,
+      nullDateReleased: next ? "true" : "",
+      // Clear date range inputs when activating No Date
+      ...(next ? { dateReleasedFrom: "", dateReleasedTo: "" } : {}),
+    }));
+  };
+
+  const handleNullDateReceivedCentToggle = () => {
+    const next = !nullDateReceivedCent;
+    setNullDateReceivedCent(next);
+    setLocalFilters((prev) => ({
+      ...prev,
+      nullDateReceivedCent: next ? "true" : "",
+      // Clear date range inputs when activating No Date
+      ...(next ? { dateReceivedCentFrom: "", dateReceivedCentTo: "" } : {}),
+    }));
+  };
+
   // ── Commit to parent → triggers the actual API fetch ──
   const handleSearch = () => {
     onSearchChange(localSearch);
@@ -558,6 +755,8 @@ function FilterBar({
   const clearAllFilters = () => {
     setLocalSearch("");
     setLocalFilters({});
+    setNullDateReleased(false);
+    setNullDateReceivedCent(false);
     onFilterChange({});
     onSearchChange("");
   };
@@ -621,7 +820,6 @@ function FilterBar({
             placeholder="Search by DTN, Company, Brand Name, Generic Name, Manufacturer..."
             value={localSearch}
             onChange={(e) => setLocalSearch(e.target.value)}
-            // Allow pressing Enter to trigger search
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSearch();
             }}
@@ -652,7 +850,6 @@ function FilterBar({
         >
           <span>⚙️</span>
           <span>Advanced</span>
-          {/* Badge shows committed active filters */}
           {activeFilterCount > 0 && (
             <span
               style={{
@@ -732,18 +929,51 @@ function FilterBar({
               gap: "0.5rem",
             }}
           >
-            {GENERAL_FIELDS.map((field) => (
-              <FilterField
-                key={field.key}
-                field={field}
-                value={localFilters[field.key] || ""}
-                onChange={handleLocalFilterChange}
-                colors={colors}
-                accentColor="#4CAF50"
-                categories={establishmentCategories}
-                loadingCategories={loadingCategories}
-              />
-            ))}
+            {/* Regular GENERAL_FIELDS — skip the 4 date keys handled below */}
+            {GENERAL_FIELDS.filter((f) => !DATE_RANGE_NULL_KEYS.has(f.key)).map(
+              (field) => (
+                <FilterField
+                  key={field.key}
+                  field={field}
+                  value={localFilters[field.key] || ""}
+                  onChange={handleLocalFilterChange}
+                  colors={colors}
+                  accentColor="#4CAF50"
+                  categories={establishmentCategories}
+                  loadingCategories={loadingCategories}
+                />
+              ),
+            )}
+
+            {/* ── Date Received Center with No Date toggle ── */}
+            <DateRangeWithNull
+              labelFrom="📅 Date Received Center From"
+              labelTo="📅 Date Received Center To"
+              keyFrom="dateReceivedCentFrom"
+              keyTo="dateReceivedCentTo"
+              nullFilterKey="nullDateReceivedCent"
+              nullActive={nullDateReceivedCent}
+              onNullToggle={handleNullDateReceivedCentToggle}
+              localFilters={localFilters}
+              onChange={handleLocalFilterChange}
+              colors={colors}
+              accentColor="#4CAF50"
+            />
+
+            {/* ── Date Released with No Date toggle ── */}
+            <DateRangeWithNull
+              labelFrom="📅 Date Released From"
+              labelTo="📅 Date Released To"
+              keyFrom="dateReleasedFrom"
+              keyTo="dateReleasedTo"
+              nullFilterKey="nullDateReleased"
+              nullActive={nullDateReleased}
+              onNullToggle={handleNullDateReleasedToggle}
+              localFilters={localFilters}
+              onChange={handleLocalFilterChange}
+              colors={colors}
+              accentColor="#4CAF50"
+            />
           </div>
 
           {/* Section B — Supply Chain */}
@@ -890,7 +1120,7 @@ function FilterBar({
         </div>
       )}
 
-      {/* Search button shown inline (below primary row) when advanced is CLOSED */}
+      {/* Search button shown inline when advanced is CLOSED */}
       {!showAdvanced && isDirty && (
         <div
           style={{

@@ -780,38 +780,56 @@ function AllDetails({ record, colors }) {
 
       {/* Released Info */}
       <VDSection title="📤 Released Information" colors={colors}>
-        <FieldGrid cols={3}>
-          <DisplayField
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "0.4rem",
+          }}
+        >
+          <SummaryCard
+            icon="📄"
             label="Type of Document Released"
             value={cleanValue(record.typeDocReleased)}
+            accent="#2196F3"
             colors={colors}
           />
-          <DisplayField
+          <SummaryCard
+            icon="📎"
             label="Attachments Released"
             value={cleanValue(record.attaReleased)}
+            accent="#10b981"
             colors={colors}
           />
-          <DisplayField
+          <SummaryCard
+            icon="🔖"
             label="SECPA"
             value={cleanValue(record.secpa)}
+            accent="#f59e0b"
             colors={colors}
           />
-          <DisplayField
+          <SummaryCard
+            icon="📅"
             label="Expiry"
             value={formatDate(record.secpaExpDate)}
+            accent="#ef4444"
             colors={colors}
           />
-          <DisplayField
+          <SummaryCard
+            icon="📅"
             label="Issued On"
             value={formatDate(record.secpaIssuedOn)}
+            accent="#8b5cf6"
             colors={colors}
           />
-          <DisplayField
+          <SummaryCard
+            icon="📅"
             label="Date Released by CDRR"
             value={formatDate(record.dateReleased)}
+            accent="#06b6d4"
             colors={colors}
           />
-        </FieldGrid>
+        </div>
       </VDSection>
 
       {/* CPR Conditions */}

@@ -45,6 +45,8 @@ function buildFilterParams(filters) {
     p.distributor_country = filters.distributorCountry;
   if (filters.repacker) p.repacker = filters.repacker;
   if (filters.repackerCountry) p.repacker_country = filters.repackerCountry;
+  if (filters.nullDateReleased === "true") p.null_date_released = true;
+  if (filters.nullDateReceivedCent === "true") p.null_date_received_cent = true;
   return p;
 }
 
