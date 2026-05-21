@@ -24,6 +24,15 @@ const avatarPalette = [
   { bg: "#F0FFF4", color: "#276749" },
 ];
 
+// Card height (px) + gap (px) = one tile's total vertical space
+const TILE_H = 86;
+const TILE_GAP = 8;
+const VISIBLE_TILES = 5;
+// Height that shows exactly 5 tiles
+const PANEL_MAX_H = VISIBLE_TILES * TILE_H + (VISIBLE_TILES - 1) * TILE_GAP;
+
+const PAGE_OPTIONS = [5, 10, 50];
+
 function getInitials(name = "") {
   return name.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join("");
 }
@@ -110,11 +119,106 @@ function Card({ children, style = {}, onClick, darkMode }) {
   );
 }
 
-// ── Section Header ────────────────────────────────────────────
-function SectionHeader({ title, liveColor, liveBg, error, lastUpdated, onRefresh, onSeeAll, darkMode }) {
+// ── Page Size Selector (dropdown) ────────────────────────────
+function PageSizeSelector({ value, onChange, darkMode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <div ref={ref} style={{ position: "relative", display: "flex", alignItems: "center", gap: 4 }}>
+      <span style={{ fontSize: "0.63rem", color: darkMode ? "#65676b" : "#9CA3AF", whiteSpace: "nowrap" }}>Show</span>
+
+      {/* Single trigger button */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          fontSize: "0.63rem",
+          fontWeight: 600,
+          padding: "2px 8px",
+          borderRadius: 6,
+          border: `1px solid ${open ? "#4A7FD4" : (darkMode ? "#4a4b4c" : "#E2E8F0")}`,
+          background: open ? "#4A7FD415" : (darkMode ? "#3a3b3c" : "#F3F6FC"),
+          color: open ? "#4A7FD4" : (darkMode ? "#9CA3AF" : "#6B7280"),
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          lineHeight: 1.6,
+          transition: "all 0.15s ease",
+          userSelect: "none",
+        }}
+      >
+        {value}
+        <span style={{
+          fontSize: "0.5rem",
+          display: "inline-block",
+          transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          transition: "transform 0.15s ease",
+          lineHeight: 1,
+        }}>▼</span>
+      </button>
+
+      {/* Dropdown menu */}
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 4px)",
+          right: 0,
+          background: darkMode ? "#2d2e2f" : "#FFFFFF",
+          border: `1px solid ${darkMode ? "#4a4b4c" : "#E2E8F0"}`,
+          borderRadius: 8,
+          boxShadow: darkMode ? "0 4px 16px rgba(0,0,0,0.4)" : "0 4px 16px rgba(0,0,0,0.10)",
+          overflow: "hidden",
+          zIndex: 100,
+          minWidth: 56,
+        }}>
+          {PAGE_OPTIONS.map((opt) => {
+            const active = value === opt;
+            return (
+              <button
+                key={opt}
+                onClick={() => { onChange(opt); setOpen(false); }}
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "6px 14px",
+                  fontSize: "0.72rem",
+                  fontWeight: active ? 700 : 400,
+                  textAlign: "center",
+                  border: "none",
+                  background: active ? (darkMode ? "#1a2744" : "#EEF4FF") : "transparent",
+                  color: active ? "#4A7FD4" : (darkMode ? "#b0b3b8" : "#374151"),
+                  cursor: "pointer",
+                  transition: "background 0.1s ease",
+                }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = darkMode ? "#3a3b3c" : "#F3F6FC"; }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+              >
+                {opt}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Section Header ────────────────────────────────────────────
+function SectionHeader({ title, liveColor, liveBg, error, lastUpdated, onRefresh, onSeeAll, darkMode, pageSize, onPageSizeChange }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 6 }}>
+      {/* Left: title · LIVE · time · refresh */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 700, color: darkMode ? "#e4e6ea" : "#1E2A3B" }}>{title}</p>
         {!error ? (
           <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 99, background: liveBg, border: `1px solid ${liveColor}30` }}>
@@ -124,8 +228,6 @@ function SectionHeader({ title, liveColor, liveBg, error, lastUpdated, onRefresh
         ) : (
           <span style={{ fontSize: "0.63rem", color: "#C98A2E", padding: "2px 8px", borderRadius: 99, background: "#FFFBEB", border: "1px solid #C98A2E30" }}>⚠ offline</span>
         )}
-      </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         {lastUpdated && (
           <span style={{ fontSize: "0.63rem", color: darkMode ? "#65676b" : "#9CA3AF" }}>
             {lastUpdated.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}
@@ -135,13 +237,55 @@ function SectionHeader({ title, liveColor, liveBg, error, lastUpdated, onRefresh
           background: darkMode ? "#3a3b3c" : "#F3F6FC",
           border: `1px solid ${darkMode ? "#4a4b4c" : "#E2E8F0"}`,
           borderRadius: 8, color: darkMode ? "#9CA3AF" : "#6B7280",
-          cursor: "pointer", width: 28, height: 28,
-          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem", padding: 0, flexShrink: 0,
+          cursor: "pointer", width: 24, height: 24,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8rem", padding: 0, flexShrink: 0,
         }}>↻</button>
+      </div>
+      {/* Right: page size · See all */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <PageSizeSelector value={pageSize} onChange={onPageSizeChange} darkMode={darkMode} />
         {onSeeAll && (
           <button onClick={onSeeAll} style={{ background: "none", border: "none", color: "#4A7FD4", fontSize: "0.78rem", fontWeight: 600, cursor: "pointer", padding: 0 }}>See all</button>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Scrollable Panel Wrapper ──────────────────────────────────
+// Traps scroll inside when hovering over the panel content,
+// lets scroll propagate to the page when the panel is fully scrolled.
+function ScrollablePanel({ children, darkMode }) {
+  const ref = useRef(null);
+
+  const handleWheel = useCallback((e) => {
+    const el = ref.current;
+    if (!el) return;
+    const atTop = el.scrollTop === 0;
+    const atBottom = Math.abs(el.scrollTop + el.clientHeight - el.scrollHeight) < 2;
+    // If scrolling up and already at top, or scrolling down and at bottom — let page scroll
+    if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) return;
+    // Otherwise consume the event so the page doesn't scroll
+    e.stopPropagation();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      onWheel={handleWheel}
+      style={{
+        maxHeight: PANEL_MAX_H,
+        overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
+        gap: TILE_GAP,
+        // Subtle custom scrollbar
+        scrollbarWidth: "thin",
+        scrollbarColor: darkMode ? "#4a4b4c #242526" : "#D1D9E6 #F3F6FC",
+        paddingRight: 2,
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -170,6 +314,10 @@ export default function OverviewView({
   const [userLoadLoading, setUserLoadLoading] = useState(true);
   const [userLoadError, setUserLoadError] = useState(null);
   const [userLoadLastUpdated, setUserLoadLastUpdated] = useState(null);
+
+  // ── Page size state (independent per panel) ────────────────
+  const [userLoadPageSize, setUserLoadPageSize] = useState(5);
+  const [activityPageSize, setActivityPageSize] = useState(5);
 
   const fetchUserLoad = useCallback(async () => {
     try {
@@ -219,7 +367,6 @@ export default function OverviewView({
   const onProcessAll = tableData.filter((r) => r.status === "On Process").length;
   const approvalRateAll = totalAll ? ((approvedAll / totalAll) * 100).toFixed(1) : "0.0";
 
-  // Pastel colors — light or dark mode
   const kpiPalettes = [
     darkMode ? P.blue.dark   : P.blue,
     darkMode ? P.green.dark  : P.green,
@@ -227,8 +374,12 @@ export default function OverviewView({
     darkMode ? P.rose.dark   : P.rose,
   ];
 
-  const liveGreen  = darkMode ? "#6DD4A0" : "#3A9E6A";
+  const liveGreen   = darkMode ? "#6DD4A0" : "#3A9E6A";
   const liveBgGreen = darkMode ? "#0f2e1a" : "#EDFBF3";
+
+  // Sliced data respecting page size
+  const visibleUsers    = userLoadData.slice(0, userLoadPageSize);
+  const visibleActivity = liveFeed.slice(0, activityPageSize);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 15, fontFamily: font }}>
@@ -258,12 +409,15 @@ export default function OverviewView({
             onRefresh={() => { setUserLoadLoading(true); fetchUserLoad(); }}
             onSeeAll={() => setActiveNav("users")}
             darkMode={darkMode}
+            pageSize={userLoadPageSize}
+            onPageSizeChange={setUserLoadPageSize}
           />
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* ── Scrollable tile window ── */}
+          <ScrollablePanel darkMode={darkMode}>
             {/* Skeleton */}
             {userLoadLoading && userLoadData.length === 0 && Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} style={{ background: darkMode ? "#242526" : "#FFFFFF", border: `1px solid ${darkMode ? "#3a3b3c" : "#EDF1F7"}`, borderRadius: 14, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", opacity: 1 - i * 0.2 }}>
+              <div key={i} style={{ background: darkMode ? "#242526" : "#FFFFFF", border: `1px solid ${darkMode ? "#3a3b3c" : "#EDF1F7"}`, borderRadius: 14, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", opacity: 1 - i * 0.2, flexShrink: 0 }}>
                 <div style={{ width: 38, height: 38, borderRadius: "50%", background: darkMode ? "#3a3b3c" : "#F3F6FC", flexShrink: 0, animation: "pulse 1.4s ease-in-out infinite" }} />
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ height: 9, borderRadius: 4, background: darkMode ? "#3a3b3c" : "#F3F6FC", width: "55%", animation: "pulse 1.4s ease-in-out infinite" }} />
@@ -273,7 +427,7 @@ export default function OverviewView({
             ))}
 
             {/* Live user cards */}
-            {userLoadData.map((user, idx) => {
+            {visibleUsers.map((user, idx) => {
               const completed  = user.tasks?.completed ?? 0;
               const inProgress = user.tasks?.in_progress ?? 0;
               const total      = user.tasks?.total ?? 0;
@@ -283,9 +437,8 @@ export default function OverviewView({
               const progressP = pct >= 70 ? (darkMode ? P.green.dark : P.green) : (darkMode ? P.blue.dark : P.blue);
 
               return (
-                <Card key={user.user_id} darkMode={darkMode} style={{ padding: "12px 14px" }}>
+                <Card key={user.user_id} darkMode={darkMode} style={{ padding: "12px 14px", flexShrink: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    {/* Avatar */}
                     <div style={{ width: 38, height: 38, borderRadius: "50%", background: av.bg, color: av.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.78rem", fontWeight: 700, flexShrink: 0, border: `2px solid ${av.color}30` }}>
                       {getInitials(user.full_name || user.username)}
                     </div>
@@ -313,7 +466,6 @@ export default function OverviewView({
                         </div>
                       </div>
 
-                      {/* Progress bar */}
                       <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 5 }}>
                         <div style={{ flex: 1, height: 5, borderRadius: 99, background: darkMode ? "#3a3b3c" : "#EDF1F7", overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${pct}%`, borderRadius: 99, background: progressP.color, transition: "width 0.5s ease" }} />
@@ -322,7 +474,6 @@ export default function OverviewView({
                       </div>
                     </div>
 
-                    {/* Task badges */}
                     <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
                       <span style={{ fontSize: "0.66rem", fontWeight: 600, padding: "3px 7px", borderRadius: 99, background: darkMode ? P.green.dark.bg : P.green.bg, color: darkMode ? P.green.dark.color : P.green.color, border: `1px solid ${darkMode ? P.green.dark.border : P.green.border}` }}>
                         {completed} ✅
@@ -341,7 +492,14 @@ export default function OverviewView({
                 No users found
               </div>
             )}
-          </div>
+          </ScrollablePanel>
+
+          {/* Count label */}
+          {!userLoadLoading && userLoadData.length > 0 && (
+            <p style={{ margin: 0, fontSize: "0.65rem", color: darkMode ? "#65676b" : "#9CA3AF", textAlign: "right" }}>
+              Showing {visibleUsers.length} of {userLoadData.length} users
+            </p>
+          )}
         </div>
 
         {/* ── Recent Activity ── */}
@@ -354,12 +512,15 @@ export default function OverviewView({
             onRefresh={() => { setFeedLoading(true); fetchFeed(); }}
             onSeeAll={() => setActiveNav("activity")}
             darkMode={darkMode}
+            pageSize={activityPageSize}
+            onPageSizeChange={setActivityPageSize}
           />
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* ── Scrollable tile window ── */}
+          <ScrollablePanel darkMode={darkMode}>
             {/* Skeleton */}
             {feedLoading && liveFeed.length === 0 && Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} style={{ background: darkMode ? "#242526" : "#FFFFFF", border: `1px solid ${darkMode ? "#3a3b3c" : "#EDF1F7"}`, borderRadius: 14, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", opacity: 1 - i * 0.15 }}>
+              <div key={i} style={{ background: darkMode ? "#242526" : "#FFFFFF", border: `1px solid ${darkMode ? "#3a3b3c" : "#EDF1F7"}`, borderRadius: 14, padding: "12px 14px", display: "flex", gap: 10, alignItems: "center", opacity: 1 - i * 0.15, flexShrink: 0 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 10, background: darkMode ? "#3a3b3c" : "#F3F6FC", flexShrink: 0, animation: "pulse 1.4s ease-in-out infinite" }} />
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
                   <div style={{ height: 9, borderRadius: 4, background: darkMode ? "#3a3b3c" : "#F3F6FC", width: `${60 + i * 6}%`, animation: "pulse 1.4s ease-in-out infinite" }} />
@@ -369,7 +530,7 @@ export default function OverviewView({
             ))}
 
             {/* Live feed */}
-            {liveFeed.slice(0, 6).map((act) => {
+            {visibleActivity.map((act) => {
               const isNew = newIds.has(act.id);
               return (
                 <div key={act.id} style={{
@@ -378,9 +539,9 @@ export default function OverviewView({
                   borderRadius: 14, padding: "12px 14px",
                   boxShadow: darkMode ? "none" : "0 2px 8px rgba(0,0,0,0.03)",
                   animation: isNew ? "slideIn 0.35s ease, fadeFlash 1.6s ease" : undefined,
+                  flexShrink: 0,
                 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-                    {/* Icon */}
                     <div style={{
                       width: 34, height: 34, borderRadius: 10,
                       background: `${act.statusColor}15`,
@@ -391,7 +552,6 @@ export default function OverviewView({
                       {act.icon}
                     </div>
 
-                    {/* Body */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ margin: 0, fontSize: "0.78rem", color: darkMode ? "#e4e6ea" : "#1E2A3B", lineHeight: 1.4 }}>
                         <span style={{ fontWeight: 600 }}>{act.user}</span>{" "}
@@ -413,7 +573,6 @@ export default function OverviewView({
                       )}
                     </div>
 
-                    {/* Time */}
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
                       <span style={{ fontSize: "0.65rem", color: darkMode ? "#65676b" : "#9CA3AF", whiteSpace: "nowrap" }}>{act.time}</span>
                       {act.appStep && <span style={{ fontSize: "0.6rem", color: darkMode ? "#65676b" : "#B0B8C4", whiteSpace: "nowrap" }}>{act.appStep}</span>}
@@ -429,7 +588,14 @@ export default function OverviewView({
                 No recent activity found
               </div>
             )}
-          </div>
+          </ScrollablePanel>
+
+          {/* Count label */}
+          {!feedLoading && liveFeed.length > 0 && (
+            <p style={{ margin: 0, fontSize: "0.65rem", color: darkMode ? "#65676b" : "#9CA3AF", textAlign: "right" }}>
+              Showing {visibleActivity.length} of {liveFeed.length} activities
+            </p>
+          )}
         </div>
 
       </div>
