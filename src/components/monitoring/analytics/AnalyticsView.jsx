@@ -57,7 +57,7 @@ function TrendChart({ data, ui, darkMode }) {
 
   const series = [
     { key: "cpr",        color: "#36a420", label: "CPR" },
-    { key: "nod",        color: "#e02020", label: "NOD" },
+    { key: "lod",        color: "#e02020", label: "LOD" },
     { key: "on_process", color: "#f59e0b", label: "On Process" },
     { key: "completed",  color: FB,        label: "Completed" },
   ];
@@ -264,7 +264,7 @@ export default function AnalyticsView({
 
   // ── State ─────────────────────────────────────────────────
   const [availableYears, setAvailableYears] = useState(["All"]);
-  const [summary, setSummary] = useState({ total: 0, cpr: 0, nod: 0, on_process: 0, completed: 0, approval_rate: 0 });
+  const [summary, setSummary] = useState({ total: 0, cpr: 0, lod: 0, on_process: 0, completed: 0, approval_rate: 0 });
   const [trendData, setTrendData] = useState([]);
   const [classificationData, setClassificationData] = useState([]);
   const [yearSummaryData, setYearSummaryData] = useState([]);
@@ -280,7 +280,14 @@ export default function AnalyticsView({
     setLoading(true);
     try {
       const params = { year: chartYear, month: chartMonth, prescription: rxFilter };
-      const countryParams = { ...params, entity_type: topCountryTab, limit: topCountryLimit };
+      const countryParams = { 
+        year: chartYear, 
+        month: chartMonth, 
+        prescription: rxFilter, 
+        entity_type: topCountryTab, 
+        limit: topCountryLimit 
+      };
+
       const [years, sum, trend, classification, yearSum, drugs, countries] = await Promise.all([
         getAnalyticsAvailableYears(),
         getAnalyticsSummary(params),
@@ -289,7 +296,7 @@ export default function AnalyticsView({
         getAnalyticsYearSummary(),
         getAnalyticsTopDrugs(params),
         getAnalyticsTopCountries(countryParams),
-      ]);
+      ]);;
       setAvailableYears(years.years ?? ["All"]);
       setSummary(sum);
       setTrendData(trend.data ?? []);
@@ -308,20 +315,19 @@ export default function AnalyticsView({
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   // Refetch countries when tab changes
-  const fetchCountries = useCallback(async () => {
-    try {
-      const params = { year: chartYear, month: chartMonth, prescription: rxFilter, entity_type: topCountryTab, limit: topCountryLimit };
-      const res = await getAnalyticsTopCountries(params);
-      setTopCountriesData(res.data ?? []);
-    } catch (err) { console.error(err); }
-  }, [chartYear, chartMonth, rxFilter, topCountryTab, topCountryLimit]);
+  // const fetchCountries = useCallback(async () => {
+  //   try {
+  //     const params = { year: chartYear, month: chartMonth, prescription: rxFilter, entity_type: topCountryTab, limit: topCountryLimit };
+  //     const res = await getAnalyticsTopCountries(params);
+  //     setTopCountriesData(res.data ?? []);
+  //   } catch (err) { console.error(err); }
+  // }, [chartYear, chartMonth, rxFilter, topCountryTab, topCountryLimit]);
 
-  useEffect(() => { fetchCountries(); }, [fetchCountries]);
 
   // ── Derived ───────────────────────────────────────────────
   const pieData = [
     { name: "CPR Released", value: summary.cpr },
-    { name: "NOD Released", value: summary.nod },
+    { name: "LOD Released", value: summary.lod },
     { name: "On Process",   value: summary.on_process },
   ];
 
@@ -413,7 +419,7 @@ export default function AnalyticsView({
         {[
           { icon: "📥", label: "Total",       value: summary.total,         color: FB,        sub: "All applications" },
           { icon: "✅", label: "CPR Released", value: summary.cpr,           color: "#36a420", sub: "Documents issued" },
-          { icon: "❌", label: "NOD Released", value: summary.nod,           color: "#e02020", sub: "Notices of disapproval" },
+          { icon: "❌", label: "LOD Released", value: summary.lod,           color: "#e02020", sub: "Disapproved" },
           { icon: "⏳", label: "On Process",   value: summary.on_process,    color: "#f59e0b", sub: "Pending completion" },
           { icon: "🏁", label: "Completed",    value: summary.completed,     color: "#0891b2", sub: "Fully processed" },
           { icon: "📈", label: "Approval %",   value: `${summary.approval_rate}%`, color: "#9333ea", sub: "CPR over total" },
@@ -427,7 +433,7 @@ export default function AnalyticsView({
         <SectionCard title="Trend Overview" subtitle={`Grouped by ${chartYear === "All" ? "year" : "month"}`} icon="📈" ui={ui}>
           <TrendChart data={trendData} ui={ui} darkMode={darkMode} />
         </SectionCard>
-        <SectionCard title="Approval Breakdown" subtitle="CPR vs NOD vs On Process" icon="🍩" ui={ui}>
+        <SectionCard title="Approval Breakdown" subtitle="CPR vs LOD vs On Process" icon="🍩" ui={ui}>
           <DonutChart data={pieData} ui={ui} darkMode={darkMode} />
         </SectionCard>
       </div>
@@ -479,7 +485,7 @@ export default function AnalyticsView({
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
                 <thead>
                   <tr style={{ background: darkMode ? ui.sidebarBg : "#f8f9fd" }}>
-                    {["Year", "Total", "CPR ✅", "NOD ❌", "On Process ⏳", "Rate"].map(h => (
+                    {["Year", "Total", "CPR ✅", "LOD ❌", "On Process ⏳", "Rate"].map(h => (
                       <th key={h} style={{ padding: "8px 12px", textAlign: h === "Year" ? "left" : "center", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: ui.textMuted, borderBottom: `1px solid ${ui.divider}` }}>{h}</th>
                     ))}
                   </tr>
@@ -492,7 +498,7 @@ export default function AnalyticsView({
                       <td style={{ padding: "9px 12px", fontWeight: 700, color: FB }}>{row.year}</td>
                       <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: ui.textPrimary }}>{row.total}</td>
                       <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#36a420" }}>{row.cpr}</td>
-                      <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#e02020" }}>{row.nod}</td>
+                      <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#e02020" }}>{row.lod}</td>
                       <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#f59e0b" }}>{row.on_process}</td>
                       <td style={{ padding: "9px 12px", textAlign: "center", fontWeight: 700, color: parseFloat(row.rate) >= 60 ? "#36a420" : "#f59e0b" }}>{row.rate}%</td>
                     </tr>
@@ -601,7 +607,7 @@ export default function AnalyticsView({
                     <MiniBar value={d.count} max={maxCountry} color={activeEntity?.color || FB} />
                     <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
                       <span style={{ fontSize: "0.62rem", color: "#36a420" }}>✅ {d.cpr}</span>
-                      <span style={{ fontSize: "0.62rem", color: "#e02020" }}>❌ {d.nod}</span>
+                      <span style={{ fontSize: "0.62rem", color: "#e02020" }}>❌ {d.lod}</span>
                       <span style={{ fontSize: "0.62rem", color: "#f59e0b" }}>⏳ {d.on_process}</span>
                     </div>
                   </div>
