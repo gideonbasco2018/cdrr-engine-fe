@@ -22,17 +22,12 @@ const MONTH_OPTIONS = [
   { value: "12", label: "December" },
 ];
 
-// ── Small reusable pieces ─────────────────────────────────────────────────────
+// ── Reusable pieces ───────────────────────────────────────────────────────────
 
 function SkeletonBox({ height = 74, borderRadius = 10, ui }) {
   return (
     <div
-      style={{
-        height,
-        borderRadius,
-        background: ui.inputBg,
-        opacity: 0.6,
-      }}
+      style={{ height, borderRadius, background: ui.inputBg, opacity: 0.6 }}
     />
   );
 }
@@ -122,6 +117,23 @@ function StatusPill({ avgTat, target }) {
   );
 }
 
+function EmptyChart({ label, ui }) {
+  return (
+    <div
+      style={{
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: ui.textMuted,
+        fontSize: "0.8rem",
+      }}
+    >
+      {label}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function FRPTatView({ ui, darkMode }) {
@@ -137,7 +149,6 @@ export default function FRPTatView({ ui, darkMode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Chart refs
   const lineCanvasRef = useRef(null);
   const barCanvasRef = useRef(null);
   const lineChartRef = useRef(null);
@@ -171,7 +182,7 @@ export default function FRPTatView({ ui, darkMode }) {
       .finally(() => setLoading(false));
   }, [year, month]);
 
-  // ── Build / rebuild charts when data changes ──────────────────────────────
+  // ── Build / rebuild charts ────────────────────────────────────────────────
   useEffect(() => {
     if (loading || !data.length) return;
 
@@ -179,6 +190,7 @@ export default function FRPTatView({ ui, darkMode }) {
     const avgData = data.map((d) => +(d.avg_tat_days ?? 0).toFixed(2));
     const minData = data.map((d) => d.min_tat_days ?? 0);
     const maxData = data.map((d) => d.max_tat_days ?? 0);
+
     const gridCol = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)";
     const tickCol = darkMode ? "#b0b3b8" : "#65676b";
 
@@ -196,11 +208,9 @@ export default function FRPTatView({ ui, darkMode }) {
       },
     };
 
-    // Destroy old instances
     lineChartRef.current?.destroy();
     barChartRef.current?.destroy();
 
-    // Line chart — avg TAT trend
     if (lineCanvasRef.current) {
       lineChartRef.current = new Chart(lineCanvasRef.current, {
         type: "line",
@@ -229,7 +239,6 @@ export default function FRPTatView({ ui, darkMode }) {
       });
     }
 
-    // Bar chart — min / avg / max
     if (barCanvasRef.current) {
       barChartRef.current = new Chart(barCanvasRef.current, {
         type: "bar",
@@ -271,22 +280,22 @@ export default function FRPTatView({ ui, darkMode }) {
     };
   }, [data, darkMode, loading]);
 
-  // ── Derived summary (computed from real API data only) ────────────────────
+  // ── Derived summary ───────────────────────────────────────────────────────
   const totalApps = data.reduce((s, d) => s + (d.total_applications ?? 0), 0);
+
   const avgAll = data.length
     ? +(
         data.reduce((s, d) => s + (d.avg_tat_days ?? 0), 0) / data.length
       ).toFixed(1)
     : null;
+
   const minAll = data.length
     ? Math.min(...data.map((d) => d.min_tat_days ?? Infinity))
     : null;
+
   const maxAll = data.length
     ? Math.max(...data.map((d) => d.max_tat_days ?? -Infinity))
     : null;
-
-  // Target from citizen charter — if all rows share the same value use it,
-  // otherwise fall back to null so we don't show a misleading number.
 
   const bestQuarter =
     minAll != null
@@ -296,6 +305,11 @@ export default function FRPTatView({ ui, darkMode }) {
     maxAll != null
       ? data.find((d) => d.max_tat_days === maxAll)?.quarter
       : null;
+
+  // Per-row target — galing sa DB_TIMELINE_CITIZEN_CHARTER via backend
+  // firstTarget: for metric card sub label only
+  const firstTarget =
+    data.find((d) => d.target_days != null)?.target_days ?? null;
 
   // ── Shared styles ─────────────────────────────────────────────────────────
   const colHdr = darkMode ? ui.sidebarBg : "#f8f9fd";
@@ -311,6 +325,7 @@ export default function FRPTatView({ ui, darkMode }) {
     fontFamily: font,
     cursor: "pointer",
   };
+
   const legendDot = (color) => (
     <span
       style={{
@@ -341,6 +356,21 @@ export default function FRPTatView({ ui, darkMode }) {
         </h2>
         <p style={{ margin: 0, fontSize: "0.78rem", color: ui.textMuted }}>
           Processing time from date received (Central) to date released
+          {firstTarget && (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                padding: "2px 8px",
+                borderRadius: 99,
+                background: darkMode ? "#1a2744" : "#e7f0fd",
+                color: FB,
+              }}
+            >
+              Target: {firstTarget} days
+            </span>
+          )}
         </p>
       </div>
 
@@ -439,15 +469,15 @@ export default function FRPTatView({ ui, darkMode }) {
               ui={ui}
               value={avgAll != null ? `${avgAll} days` : "—"}
               sub={
-                avgAll != null && TARGET_DAYS
-                  ? avgAll <= TARGET_DAYS
+                avgAll != null && firstTarget
+                  ? avgAll <= firstTarget
                     ? "↓ Within target"
                     : "↑ Exceeds target"
                   : undefined
               }
               subColor={
-                avgAll != null && TARGET_DAYS
-                  ? avgAll <= TARGET_DAYS
+                avgAll != null && firstTarget
+                  ? avgAll <= firstTarget
                     ? "#15803d"
                     : "#b91c1c"
                   : undefined
@@ -634,7 +664,7 @@ export default function FRPTatView({ ui, darkMode }) {
             </p>
             <p style={{ margin: 0, fontSize: "0.72rem", color: ui.textMuted }}>
               Detailed TAT stats per quarter
-              {TARGET_DAYS && ` · target: ${TARGET_DAYS} days`}
+              {firstTarget && ` · target: ${firstTarget} days`}
             </p>
           </div>
 
@@ -776,21 +806,23 @@ export default function FRPTatView({ ui, darkMode }) {
                           ? `${row.max_tat_days} days`
                           : "—"}
                       </td>
+
+                      {/* VS Target — per row, galing sa row.target_days */}
                       <td style={{ padding: "10px 14px", textAlign: "center" }}>
-                        {row.avg_tat_days != null && TARGET_DAYS ? (
+                        {row.avg_tat_days != null && row.target_days != null ? (
                           <span
                             style={{
                               fontSize: "0.75rem",
                               fontWeight: 700,
                               color:
-                                row.avg_tat_days <= TARGET_DAYS
+                                row.avg_tat_days <= row.target_days
                                   ? "#15803d"
                                   : "#b91c1c",
                             }}
                           >
-                            {row.avg_tat_days - TARGET_DAYS > 0
-                              ? `+${(row.avg_tat_days - TARGET_DAYS).toFixed(1)}`
-                              : (row.avg_tat_days - TARGET_DAYS).toFixed(
+                            {row.avg_tat_days - row.target_days > 0
+                              ? `+${(row.avg_tat_days - row.target_days).toFixed(1)}`
+                              : (row.avg_tat_days - row.target_days).toFixed(
                                   1,
                                 )}{" "}
                             days
@@ -799,10 +831,12 @@ export default function FRPTatView({ ui, darkMode }) {
                           "—"
                         )}
                       </td>
+
+                      {/* Status — per row, galing sa row.target_days */}
                       <td style={{ padding: "10px 14px", textAlign: "center" }}>
                         <StatusPill
                           avgTat={row.avg_tat_days}
-                          target={TARGET_DAYS}
+                          target={row.target_days}
                         />
                       </td>
                     </tr>
@@ -813,24 +847,6 @@ export default function FRPTatView({ ui, darkMode }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Empty state for charts ────────────────────────────────────────────────────
-function EmptyChart({ label, ui }) {
-  return (
-    <div
-      style={{
-        height: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        color: ui.textMuted,
-        fontSize: "0.8rem",
-      }}
-    >
-      {label}
     </div>
   );
 }
