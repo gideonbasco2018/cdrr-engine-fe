@@ -39,6 +39,7 @@ export const getUploadReports = async ({
   date_excel_upload_to = '',
   null_date_released = false,      
   null_date_received_cent = false, 
+  dtns = '',  
   sortBy = 'DB_DATE_EXCEL_UPLOAD',
   sortOrder = 'desc',
 }) => {
@@ -81,6 +82,7 @@ export const getUploadReports = async ({
   if (date_excel_upload_to) params.date_excel_upload_to = date_excel_upload_to;
   if (null_date_released) params.null_date_released = 'true';
   if (null_date_received_cent) params.null_date_received_cent = 'true';
+  if (dtns) params.dtns = dtns; 
   if (sortBy && sortBy.trim() !== '') {
     params.sort_by = sortBy;
     params.sort_order = sortOrder;

@@ -54,6 +54,7 @@ function buildFilterParams(filters) {
   if (filters.repackerCountry) p.repacker_country = filters.repackerCountry;
   if (filters.nullDateReleased === "true") p.null_date_released = true;
   if (filters.nullDateReceivedCent === "true") p.null_date_received_cent = true;
+  if (filters.dtns) p.dtns = filters.dtns;
   return p;
 }
 
