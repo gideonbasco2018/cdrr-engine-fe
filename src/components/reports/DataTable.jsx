@@ -153,6 +153,10 @@ function DataTable({
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
   const [bulkCompleteModalRecords, setBulkCompleteModalRecords] =
     useState(null);
+  const [dblClickAction, setDblClickAction] = useState(
+    () => localStorage.getItem("dblClickAction") || "viewDetails",
+  );
+  const [showDblClickConfig, setShowDblClickConfig] = useState(false);
 
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
@@ -350,6 +354,32 @@ function DataTable({
     setMenuPosition({ top, right });
     setOpenMenuId(rowId);
   };
+
+  const handleRowDoubleClick = (row) => {
+    switch (dblClickAction) {
+      case "viewDetails":
+        handleViewDetails(row);
+        break;
+      case "editRecord":
+        handleEditClick(row);
+        break;
+      case "appLogs":
+        handleOpenAppLogs(row);
+        break;
+      case "doctrack":
+        handleOpenDoctrackModal(row);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const DBL_CLICK_OPTIONS = [
+    { value: "viewDetails", label: "Application Information", icon: "👁️" },
+    { value: "editRecord", label: "Update Application Info", icon: "✏️" },
+    { value: "appLogs", label: "Application Log", icon: "📦" },
+    { value: "doctrack", label: "Doctrack Details", icon: "📋" },
+  ];
 
   const handleViewDetails = (row) => {
     setOpenMenuId(null);
@@ -991,6 +1021,128 @@ function DataTable({
               </span>
             )}
 
+            {/* ── Double-click config button ── */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowDblClickConfig((v) => !v)}
+                title="Configure double-click action"
+                style={{
+                  padding: "0.2rem 0.55rem",
+                  background: showDblClickConfig
+                    ? "#4CAF50"
+                    : colors.inputBg || colors.badgeBg,
+                  border: `1px solid ${showDblClickConfig ? "#4CAF50" : colors.cardBorder}`,
+                  borderRadius: "6px",
+                  color: showDblClickConfig ? "#fff" : colors.textTertiary,
+                  fontSize: "0.65rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  transition: "all 0.2s",
+                }}
+              >
+                <span>⚙️</span>
+                <span style={{ fontSize: "0.6rem" }}>
+                  Double-click:{" "}
+                  <strong>
+                    {
+                      DBL_CLICK_OPTIONS.find((o) => o.value === dblClickAction)
+                        ?.icon
+                    }
+                  </strong>
+                </span>
+              </button>
+
+              {showDblClickConfig && (
+                <>
+                  <div
+                    onClick={() => setShowDblClickConfig(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 9997 }}
+                  />
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "calc(100% + 6px)",
+                      right: 0,
+                      background: colors.cardBg,
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: "10px",
+                      boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+                      minWidth: "210px",
+                      zIndex: 9998,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        fontSize: "0.58rem",
+                        fontWeight: 700,
+                        color: colors.textTertiary,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        borderBottom: `1px solid ${colors.cardBorder}`,
+                      }}
+                    >
+                      Double-click opens...
+                    </div>
+                    {DBL_CLICK_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setDblClickAction(opt.value);
+                          localStorage.setItem("dblClickAction", opt.value);
+                          setShowDblClickConfig(false);
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "0.55rem 0.85rem",
+                          background:
+                            dblClickAction === opt.value
+                              ? "#4CAF5018"
+                              : "transparent",
+                          border: "none",
+                          borderTop: `1px solid ${colors.cardBorder}`,
+                          color:
+                            dblClickAction === opt.value
+                              ? "#4CAF50"
+                              : colors.textPrimary,
+                          fontSize: "0.78rem",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.6rem",
+                          fontWeight: dblClickAction === opt.value ? 700 : 400,
+                          transition: "background 0.15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (dblClickAction !== opt.value)
+                            e.currentTarget.style.background =
+                              colors.tableRowHover;
+                        }}
+                        onMouseLeave={(e) => {
+                          if (dblClickAction !== opt.value)
+                            e.currentTarget.style.background = "transparent";
+                        }}
+                      >
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                        {dblClickAction === opt.value && (
+                          <span
+                            style={{ marginLeft: "auto", fontSize: "0.65rem" }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             {showAppLogs && selectedRows.length > 0 && (
               <button
                 onClick={() =>
@@ -1335,7 +1487,9 @@ function DataTable({
                 return (
                   <tr
                     key={row.id}
+                    onDoubleClick={() => handleRowDoubleClick(row)}
                     style={{
+                      cursor: "pointer",
                       background: rowBg,
                       transition: "background 0.2s",
                       borderLeft: isSelected
