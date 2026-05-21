@@ -837,7 +837,7 @@ function FilterBar({
           <textarea
             rows={1}
             placeholder={
-              "Search by DTN, Company, Brand Name, Generic Name, Manufacturer…\nPaste multiple DTN numbers (one per line or comma-separated)"
+              "Paste multiple DTN numbers (one per line or comma-separated)"
             }
             value={localSearch}
             onChange={(e) => {
