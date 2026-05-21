@@ -150,7 +150,7 @@ function DataTable({
   const [reassignmentRecord, setReassignmentRecord] = useState(null);
   const [rerouteRecord, setRerouteRecord] = useState(null);
   const [cprUpdateRecord, setCprUpdateRecord] = useState(null);
-
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
   const [bulkCompleteModalRecords, setBulkCompleteModalRecords] =
     useState(null);
 
@@ -331,8 +331,26 @@ function DataTable({
 
   const handleMenuToggle = (e, rowId) => {
     e.stopPropagation();
-    setOpenMenuId(openMenuId === rowId ? null : rowId);
+    if (openMenuId === rowId) {
+      setOpenMenuId(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropdownHeight = 240;
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    // ✅ FIX: when flipping up, anchor to rect.bottom - dropdownHeight
+    // so the BOTTOM of the dropdown aligns with the button
+    const top =
+      spaceBelow < dropdownHeight
+        ? rect.bottom - dropdownHeight // ✅ was: rect.top - dropdownHeight
+        : rect.bottom + 4;
+
+    const right = window.innerWidth - rect.right;
+    setMenuPosition({ top, right });
+    setOpenMenuId(rowId);
   };
+
   const handleViewDetails = (row) => {
     setOpenMenuId(null);
     setSelectedRowDetails(row);
@@ -1435,8 +1453,9 @@ function DataTable({
                             <div
                               style={{
                                 position: "fixed",
-                                right: "20px",
-                                top: `${event.clientY}px`,
+                                top: `${menuPosition.top}px`,
+                                right: `${menuPosition.right}px`,
+                                left: "auto",
                                 background: colors.cardBg,
                                 border: `1px solid ${colors.cardBorder}`,
                                 borderRadius: "8px",

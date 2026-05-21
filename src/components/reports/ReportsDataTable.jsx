@@ -86,7 +86,7 @@ function ReportsDataTable({
   const [selectedRowDetails, setSelectedRowDetails] = useState(null);
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
   const [appLogsModalRecord, setAppLogsModalRecord] = useState(null);
-  // ✅ DAGDAG
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
   const [changeLogRecord, setChangeLogRecord] = useState(null);
 
   const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
@@ -251,8 +251,24 @@ function ReportsDataTable({
     );
   };
 
-  const handleMenuToggle = (rowId) =>
-    setOpenMenuId(openMenuId === rowId ? null : rowId);
+  const handleMenuToggle = (e, rowId) => {
+    e.stopPropagation();
+    if (openMenuId === rowId) {
+      setOpenMenuId(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropdownHeight = 170; // mas maliit lang dito, 4 items lang
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top =
+      spaceBelow < dropdownHeight
+        ? rect.bottom - dropdownHeight
+        : rect.bottom + 4;
+    const right = window.innerWidth - rect.right;
+    setMenuPosition({ top, right });
+    setOpenMenuId(rowId);
+  };
+
   const handleViewDetails = (row) => {
     setOpenMenuId(null);
     setSelectedRowDetails(row);
@@ -770,7 +786,7 @@ function ReportsDataTable({
                         }}
                       >
                         <button
-                          onClick={() => handleMenuToggle(row.id)}
+                          onClick={(e) => handleMenuToggle(e, row.id)}
                           style={{
                             padding: "0.4rem",
                             background: "transparent",
@@ -802,8 +818,9 @@ function ReportsDataTable({
                             <div
                               style={{
                                 position: "fixed",
-                                right: "20px",
-                                top: `${event.clientY}px`,
+                                top: `${menuPosition.top}px`, // ✅
+                                right: `${menuPosition.right}px`, // ✅
+                                left: "auto",
                                 background: colors.cardBg,
                                 border: `1px solid ${colors.cardBorder}`,
                                 borderRadius: "8px",
