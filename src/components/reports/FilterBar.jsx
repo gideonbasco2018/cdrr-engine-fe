@@ -27,6 +27,17 @@ const labelStyle = (colors) => ({
   letterSpacing: "0.5px",
 });
 
+// ── Parse raw textarea text into trimmed, non-empty strings ─────────────────
+const parseSearchLines = (raw = "") =>
+  raw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+// ── Check if all parsed tokens look like DTN numbers (digits only) ──────────
+const allAreDTNs = (tokens) =>
+  tokens.length > 0 && tokens.every((t) => /^\d+$/.test(t));
+
 // ── General filters ──────────────────────────────────────────────────────────
 const GENERAL_FIELDS = [
   {
@@ -78,7 +89,6 @@ const GENERAL_FIELDS = [
   },
 ];
 
-// Keys that are handled by DateRangeWithNull — skip in GENERAL_FIELDS loop
 const DATE_RANGE_NULL_KEYS = new Set([
   "dateReceivedCentFrom",
   "dateReceivedCentTo",
@@ -86,7 +96,6 @@ const DATE_RANGE_NULL_KEYS = new Set([
   "dateReleasedTo",
 ]);
 
-// Static known values — matches your renderTypeDocReleased logic
 const TYPE_DOC_OPTIONS = [
   { value: "__EMPTY__", label: "⬜ Blank / No Data" },
   { value: "CPR", label: "🩺 CPR" },
@@ -100,7 +109,6 @@ const TYPE_DOC_OPTIONS = [
   { value: "Product classification", label: "🏷️ Product classification" },
 ];
 
-// ── Supply chain filters ─────────────────────────────────────────────────────
 const SUPPLY_CHAIN_FIELDS = [
   {
     key: "manufacturer",
@@ -358,11 +366,9 @@ function DateRangeWithNull({
     localFilters[keyFrom] && localFilters[keyFrom] !== "",
   );
   const hasTo = Boolean(localFilters[keyTo] && localFilters[keyTo] !== "");
-  const isActive = nullActive || hasFrom || hasTo;
 
   return (
     <>
-      {/* FROM field */}
       <div>
         <label style={labelStyle(colors)}>
           {labelFrom}
@@ -406,7 +412,6 @@ function DateRangeWithNull({
         />
       </div>
 
-      {/* TO field + No Date toggle */}
       <div>
         <label
           style={{
@@ -418,8 +423,6 @@ function DateRangeWithNull({
           }}
         >
           <span>{labelTo}</span>
-
-          {/* ── No Date toggle button ── */}
           <button
             type="button"
             onClick={onNullToggle}
@@ -491,7 +494,6 @@ function DateRangeWithNull({
           })}
         />
 
-        {/* Active state indicator below the TO field */}
         {nullActive && (
           <div
             style={{
@@ -665,26 +667,28 @@ function FilterBar({
   const [establishmentCategories, setEstablishmentCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
-  // ── Local (pending) state — not pushed to parent until Search is clicked ──
-  const [localSearch, setLocalSearch] = useState(searchTerm);
+  // ── Normalize incoming searchTerm to a string for the textarea ──
+  const normalizeSearchToString = (val) => {
+    if (Array.isArray(val)) return val.join("\n");
+    return val || "";
+  };
+
+  const [localSearch, setLocalSearch] = useState(
+    normalizeSearchToString(searchTerm),
+  );
   const [localFilters, setLocalFilters] = useState(filters);
 
-  // ── No Date toggles ──────────────────────────────────────────────────────
   const [nullDateReleased, setNullDateReleased] = useState(false);
   const [nullDateReceivedCent, setNullDateReceivedCent] = useState(false);
 
-  // Keep local in sync when parent resets externally (e.g. Clear All from parent)
   useEffect(() => {
-    setLocalSearch(searchTerm);
+    setLocalSearch(normalizeSearchToString(searchTerm));
   }, [searchTerm]);
 
   useEffect(() => {
     setLocalFilters(filters);
-    // If parent cleared filters, also reset null date toggles
-    const hasNullDateReleased = filters.nullDateReleased === "true";
-    const hasNullDateReceivedCent = filters.nullDateReceivedCent === "true";
-    setNullDateReleased(hasNullDateReleased);
-    setNullDateReceivedCent(hasNullDateReceivedCent);
+    setNullDateReleased(filters.nullDateReleased === "true");
+    setNullDateReceivedCent(filters.nullDateReceivedCent === "true");
   }, [filters]);
 
   useEffect(() => {
@@ -718,18 +722,15 @@ function FilterBar({
     fetch();
   }, [activeTab, subTab, prescriptionTab, appStatusTab]);
 
-  // ── Local handlers (no parent calls yet) ──
   const handleLocalFilterChange = (key, value) =>
     setLocalFilters((prev) => ({ ...prev, [key]: value }));
 
-  // ── No Date toggle handlers ──────────────────────────────────────────────
   const handleNullDateReleasedToggle = () => {
     const next = !nullDateReleased;
     setNullDateReleased(next);
     setLocalFilters((prev) => ({
       ...prev,
       nullDateReleased: next ? "true" : "",
-      // Clear date range inputs when activating No Date
       ...(next ? { dateReleasedFrom: "", dateReleasedTo: "" } : {}),
     }));
   };
@@ -740,40 +741,57 @@ function FilterBar({
     setLocalFilters((prev) => ({
       ...prev,
       nullDateReceivedCent: next ? "true" : "",
-      // Clear date range inputs when activating No Date
       ...(next ? { dateReceivedCentFrom: "", dateReceivedCentTo: "" } : {}),
     }));
   };
 
-  // ── Commit to parent → triggers the actual API fetch ──
+  // ── Determine search mode ─────────────────────────────────────────────────
+  const parsedTokens = parseSearchLines(localSearch);
+  const isMultiDTNMode = allAreDTNs(parsedTokens) && parsedTokens.length > 1;
+
+  // ── Commit to parent ──────────────────────────────────────────────────────
+  // If multi-DTN mode: pass { dtns: "123,456,789", search: "" }
+  // If single/normal: pass { dtns: "", search: localSearch }
   const handleSearch = () => {
-    onSearchChange(localSearch);
-    onFilterChange(localFilters);
+    if (isMultiDTNMode) {
+      // Send dtns as comma-separated, clear search
+      onSearchChange(""); // clear the generic search
+      onFilterChange({
+        ...localFilters,
+        dtns: parsedTokens.join(","),
+        search: "",
+      });
+    } else {
+      // Normal single search — clear any leftover dtns
+      onSearchChange(localSearch);
+      onFilterChange({
+        ...localFilters,
+        dtns: "",
+        search: localSearch,
+      });
+    }
   };
 
-  // ── Clear: wipe both local and parent immediately ──
   const clearAllFilters = () => {
     setLocalSearch("");
     setLocalFilters({});
     setNullDateReleased(false);
     setNullDateReceivedCent(false);
-    onFilterChange({});
+    onFilterChange({ dtns: "", search: "" });
     onSearchChange("");
   };
 
-  // Count pending (local) active filters for the badge
   const pendingFilterCount = Object.values(localFilters).filter(
-    (v) => v && v !== "all" && v.trim() !== "",
+    (v) => v && v !== "all" && String(v).trim() !== "",
   ).length;
 
-  // Count committed (parent) active filters for the Advanced badge
   const activeFilterCount = Object.values(filters).filter(
-    (v) => v && v !== "all" && v.trim() !== "",
+    (v) => v && v !== "all" && String(v).trim() !== "",
   ).length;
 
-  // Has anything changed vs what the parent has committed?
+  const normalizedParent = normalizeSearchToString(searchTerm);
   const isDirty =
-    localSearch !== searchTerm ||
+    localSearch !== normalizedParent ||
     JSON.stringify(localFilters) !== JSON.stringify(filters);
 
   const supplyChainPendingCount = SUPPLY_CHAIN_FIELDS.filter(
@@ -796,37 +814,121 @@ function FilterBar({
         style={{
           display: "flex",
           gap: "0.5rem",
-          alignItems: "center",
+          alignItems: "flex-start",
           flexWrap: "wrap",
         }}
       >
-        {/* Search input */}
+        {/* Search textarea */}
         <div style={{ flex: "1", minWidth: "160px", position: "relative" }}>
           <span
             style={{
               position: "absolute",
               left: "0.6rem",
-              top: "50%",
-              transform: "translateY(-50%)",
+              top: "0.45rem",
               color: colors.textTertiary,
               fontSize: "0.6rem",
               pointerEvents: "none",
+              zIndex: 1,
             }}
           >
-            🔍
+            {isMultiDTNMode ? "🔢" : "🔍"}
           </span>
-          <input
-            type="text"
-            placeholder="Search by DTN, Company, Brand Name, Generic Name, Manufacturer..."
+
+          <textarea
+            rows={1}
+            placeholder={
+              "Search by DTN, Company, Brand Name, Generic Name, Manufacturer…\nPaste multiple DTN numbers (one per line or comma-separated)"
+            }
             value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSearch();
+            onChange={(e) => {
+              setLocalSearch(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
             }}
-            style={inputStyle(colors, { paddingLeft: "1.6rem" })}
-            onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
-            onBlur={(e) => (e.target.style.borderColor = colors.inputBorder)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                handleSearch();
+              }
+            }}
+            style={{
+              ...inputStyle(colors, {
+                paddingLeft: "1.6rem",
+                paddingRight: isMultiDTNMode ? "4rem" : "0.65rem",
+                borderColor: isMultiDTNMode ? "#4CAF50" : colors.inputBorder,
+              }),
+              resize: "none",
+              overflow: "hidden",
+              lineHeight: "1.5",
+              minHeight: "28px",
+              fontFamily: "inherit",
+            }}
+            onFocus={(e) =>
+              (e.target.style.borderColor = isMultiDTNMode
+                ? "#4CAF50"
+                : "#4CAF50")
+            }
+            onBlur={(e) =>
+              (e.target.style.borderColor = isMultiDTNMode
+                ? "#4CAF50"
+                : colors.inputBorder)
+            }
           />
+
+          {/* DTN count badge */}
+          {isMultiDTNMode && (
+            <span
+              style={{
+                position: "absolute",
+                right: "0.45rem",
+                top: "0.35rem",
+                background: "#4CAF50",
+                color: "#fff",
+                borderRadius: "8px",
+                fontSize: "0.58rem",
+                fontWeight: "700",
+                padding: "0.05rem 0.38rem",
+                pointerEvents: "none",
+                lineHeight: 1.6,
+              }}
+            >
+              {parsedTokens.length} DTNs
+            </span>
+          )}
+
+          {/* Multi-DTN hint bar */}
+          {isMultiDTNMode && (
+            <div
+              style={{
+                marginTop: "0.25rem",
+                padding: "0.18rem 0.45rem",
+                background: "rgba(76,175,80,0.08)",
+                border: "1px solid rgba(76,175,80,0.25)",
+                borderRadius: "4px",
+                fontSize: "0.55rem",
+                color: "#4CAF50",
+                fontWeight: "600",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.25rem",
+              }}
+            >
+              🔢 {parsedTokens.length} DTN numbers detected — press{" "}
+              <kbd
+                style={{
+                  background: "rgba(76,175,80,0.15)",
+                  border: "1px solid rgba(76,175,80,0.3)",
+                  borderRadius: "3px",
+                  padding: "0 0.25rem",
+                  fontSize: "0.53rem",
+                  fontFamily: "monospace",
+                }}
+              >
+                Ctrl+Enter
+              </kbd>{" "}
+              or click Search
+            </div>
+          )}
         </div>
 
         {/* Advanced toggle */}
@@ -846,6 +948,7 @@ function FilterBar({
             alignItems: "center",
             gap: "0.35rem",
             whiteSpace: "nowrap",
+            marginTop: "0.15rem",
           }}
         >
           <span>⚙️</span>
@@ -884,6 +987,7 @@ function FilterBar({
               fontWeight: "500",
               transition: "all 0.2s",
               whiteSpace: "nowrap",
+              marginTop: "0.15rem",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = "#f44336";
@@ -908,7 +1012,6 @@ function FilterBar({
             borderTop: `1px solid ${colors.cardBorder}`,
           }}
         >
-          {/* Section A — General */}
           <p
             style={{
               margin: "0 0 0.5rem",
@@ -929,7 +1032,6 @@ function FilterBar({
               gap: "0.5rem",
             }}
           >
-            {/* Regular GENERAL_FIELDS — skip the 4 date keys handled below */}
             {GENERAL_FIELDS.filter((f) => !DATE_RANGE_NULL_KEYS.has(f.key)).map(
               (field) => (
                 <FilterField
@@ -945,7 +1047,6 @@ function FilterBar({
               ),
             )}
 
-            {/* ── Date Received Center with No Date toggle ── */}
             <DateRangeWithNull
               labelFrom="📅 Date Received Center From"
               labelTo="📅 Date Received Center To"
@@ -960,7 +1061,6 @@ function FilterBar({
               accentColor="#4CAF50"
             />
 
-            {/* ── Date Released with No Date toggle ── */}
             <DateRangeWithNull
               labelFrom="📅 Date Released From"
               labelTo="📅 Date Released To"
@@ -976,7 +1076,6 @@ function FilterBar({
             />
           </div>
 
-          {/* Section B — Supply Chain */}
           <div
             style={{
               marginTop: "0.75rem",
@@ -1040,7 +1139,6 @@ function FilterBar({
             </div>
           </div>
 
-          {/* Tip */}
           <div
             style={{
               marginTop: "0.6rem",
@@ -1056,7 +1154,6 @@ function FilterBar({
             Classification, and Status filters.
           </div>
 
-          {/* ── Search button ── */}
           <div
             style={{
               marginTop: "0.75rem",
@@ -1098,7 +1195,13 @@ function FilterBar({
               }}
             >
               <span>🔍</span>
-              <span>{isDirty ? "Apply Filters & Search" : "Search"}</span>
+              <span>
+                {isMultiDTNMode
+                  ? `Search ${parsedTokens.length} DTNs`
+                  : isDirty
+                    ? "Apply Filters & Search"
+                    : "Search"}
+              </span>
               {pendingFilterCount > 0 && (
                 <span
                   style={{
@@ -1120,7 +1223,7 @@ function FilterBar({
         </div>
       )}
 
-      {/* Search button shown inline when advanced is CLOSED */}
+      {/* Inline search button when advanced is closed */}
       {!showAdvanced && isDirty && (
         <div
           style={{
@@ -1158,7 +1261,9 @@ function FilterBar({
             }}
           >
             <span>🔍</span>
-            <span>Search</span>
+            <span>
+              {isMultiDTNMode ? `Search ${parsedTokens.length} DTNs` : "Search"}
+            </span>
           </button>
         </div>
       )}
