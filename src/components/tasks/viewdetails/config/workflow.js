@@ -50,10 +50,14 @@ export const WORKFLOW = {
     "Scanned and Endorsed to Releasing Officer": "Releasing Officer",
   },
   "Releasing Officer": { default: null },
+  "LRD Decking": {
+    "For Decking": "Quality Evaluation", 
+  },
   
 };
 
 export const STEP_GROUP_MAP = {
+  "LRD Decking": 2,
   "Quality Evaluation": 3,
   "S&E": 13,  
   Compliance: 4,
@@ -102,6 +106,7 @@ export const STEP_DECISIONS = {
   "OD-Receiving": ["Endorsed to OD-Releasing"],
   "OD-Releasing": ["Scanned and Endorsed to Releasing Officer"],
   "Releasing Officer": ["Released"],
+  "LRD Decking": ["For Decking"], 
 };
 
 export const DECISION_DOCTRACK = {
@@ -126,6 +131,7 @@ export const DECISION_DOCTRACK = {
   "Rejected": "Rejected by S&E",
   "Forwarded to Supervisor": "Forwarded to Supervisor for review and signing of the final recommendation",
   "For Cancellation": "Application cancelled",
+  "For Decking": "Forwarded to Evaluator",
 };
 
 export const EDITABLE_STEPS = [

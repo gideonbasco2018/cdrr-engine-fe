@@ -126,6 +126,7 @@ export const mapWorkflowTask = (task, index) => {
     is_received: task.is_received ?? 0,   // ← THIS WAS MISSING — caused rows to never appear in Received tab
     received_at: task.received_at ?? null,
     received_by: task.received_by ?? null,
+    entryType: m.DB_ENTRY_TYPE ?? null,
   };
 };
 

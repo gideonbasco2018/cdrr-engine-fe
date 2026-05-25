@@ -89,9 +89,8 @@ const numCell = (v, colors) =>
     </span>
   );
 
-// BAGO — plain text na lang
-export const renderDTN = (v, colors) =>
-  v != null && v !== "" ? (
+export const renderDTN = (v, colors) => {
+  return v != null && v !== "" ? (
     <span
       style={{
         fontSize: "0.78rem",
@@ -113,6 +112,7 @@ export const renderDTN = (v, colors) =>
       N/A
     </span>
   );
+};
 
 export const renderGenericName = (v) =>
   pill("linear-gradient(135deg,#06b6d4,#0891b2)", "rgba(6,182,212,.3)", v);
@@ -491,12 +491,78 @@ export const renderLastModified = (v, colors) => {
   );
 };
 
+export const renderEntryType = (v, colors) => {
+  if (!v)
+    return (
+      <span
+        style={{
+          color: colors?.textTertiary,
+          fontSize: "0.78rem",
+          fontStyle: "italic",
+        }}
+      >
+        —
+      </span>
+    );
+
+  const STYLES = {
+    ORIGINAL: {
+      bg: "#dcfce7",
+      color: "#15803d",
+      darkBg: "rgba(16,185,129,0.15)",
+      darkColor: "#34d399",
+    },
+    CORRECTION: {
+      bg: "#fef9c3",
+      color: "#a16207",
+      darkBg: "rgba(245,158,11,0.15)",
+      darkColor: "#fbbf24",
+    },
+    RECONSTRUCTION: {
+      bg: "#fef2f2",
+      color: "#b91c1c",
+      darkBg: "rgba(239,68,68,0.15)",
+      darkColor: "#f87171",
+    },
+  };
+
+  const isDark =
+    colors?.tableText?.startsWith("#e") ||
+    colors?.tableText?.startsWith("#d") ||
+    colors?.tableText === "#fff";
+  const s = STYLES[v] ?? {
+    bg: "#f3f4f6",
+    color: "#374151",
+    darkBg: "rgba(107,114,128,0.2)",
+    darkColor: "#9ca3af",
+  };
+
+  return (
+    <span
+      style={{
+        fontSize: "0.7rem",
+        fontWeight: 700,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        padding: "3px 8px",
+        borderRadius: 5,
+        display: "inline-block",
+        background: isDark ? s.darkBg : s.bg,
+        color: isDark ? s.darkColor : s.color,
+      }}
+    >
+      {v}
+    </span>
+  );
+};
 // ── Main cell dispatcher ──────────────────────────────────────────────────────
 export const renderCell = (col, row, colors) => {
   const v = row[col.key]; // col.key is the exact field name from the API response
   switch (col.key) {
     case "dtn":
       return renderDTN(v, colors);
+    case "entryType":
+      return renderEntryType(v, colors);
     case "prodGenName":
       return renderGenericName(v);
     case "prodBrName":

@@ -18,6 +18,8 @@ export function LoadingModal({
   const [newDtnTouched, setNewDtnTouched] = useState(false);
   const [newDtnError, setNewDtnError] = useState("");
   const [checkingDtn, setCheckingDtn] = useState(false);
+  const [entryType, setEntryType] = useState("");
+  const [entryTypeTouched, setEntryTypeTouched] = useState(false);
 
   const isLoading = phase === "loading";
   const isSuccess = phase === "success";
@@ -45,6 +47,8 @@ export function LoadingModal({
       return;
     }
 
+    if (!entryType) return;
+
     setCheckingDtn(true);
     try {
       const data = await verifyDTN(trimmed);
@@ -61,7 +65,7 @@ export function LoadingModal({
     }
 
     setNewDtnError("");
-    onContinue(trimmed);
+    onContinue(trimmed, entryType);
   };
 
   return (
@@ -544,6 +548,96 @@ export function LoadingModal({
                     }}
                   >
                     💡 This will be the replacement DTN for the application.
+                  </div>
+                )}
+              </div>
+
+              {/* Entry Type Dropdown */}
+              <div style={{ marginTop: "1rem", textAlign: "left" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: t.textTertiary,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: 7,
+                  }}
+                >
+                  <svg
+                    width="11"
+                    height="11"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M4 6h16M4 12h16M4 18h7" />
+                  </svg>
+                  Entry Type
+                </label>
+
+                <select
+                  value={entryType}
+                  onChange={(e) => setEntryType(e.target.value)}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "9px 12px",
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    border: `1.5px solid ${
+                      entryTypeTouched && !entryType
+                        ? t.errorBorder
+                        : t.cardBorder
+                    }`,
+                    borderRadius: 9,
+                    background:
+                      entryTypeTouched && !entryType ? t.errorBg : t.inputBg,
+                    color: entryType ? t.textPrimary : t.textTertiary,
+                    outline: "none",
+                    cursor: "pointer",
+                    appearance: "none",
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
+                    backgroundRepeat: "no-repeat",
+                    backgroundPosition: "right 12px center",
+                    paddingRight: 32,
+                  }}
+                >
+                  <option value="" disabled>
+                    Select entry type...
+                  </option>
+                  <option value="CORRECTION">Correction</option>
+                  <option value="RECONSTRUCTION">Reconstruction</option>
+                </select>
+
+                {entryTypeTouched && !entryType && (
+                  <div
+                    style={{
+                      marginTop: 5,
+                      fontSize: 12,
+                      color: t.errorText,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    Please select an entry type.
                   </div>
                 )}
               </div>

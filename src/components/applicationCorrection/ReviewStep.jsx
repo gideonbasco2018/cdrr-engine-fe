@@ -1,11 +1,54 @@
+import { useState } from "react";
 import { formatDate } from "./utils";
 import { getTheme } from "./theme";
+import { submitCorrection } from "../../api/cpr-correction";
 
-export function ReviewStep({ record, deckerData, darkMode }) {
+export function ReviewStep({
+  record,
+  newDtn,
+  entryType,
+  editedFields,
+  darkMode,
+  onSuccess,
+  onError,
+}) {
   const t = getTheme(darkMode);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await submitCorrection({
+        old_dtn: record.dtn,
+        new_dtn: newDtn,
+        DB_OLD_RSN: record.dtn,
+        DB_ENTRY_TYPE: entryType,
+        ...editedFields,
+        DB_APP_STATUS: "ON-PROCESS",
+      });
+
+      if (result.success) {
+        onSuccess?.(result); // ✅ parent ang bahala mag-redirect
+      } else {
+        setError(result.message);
+        onError?.(result.message); // ✅ stay sa form
+      }
+    } catch (err) {
+      const msg =
+        err?.response?.data?.detail || err?.message || "Unexpected error.";
+      setError(msg);
+      onError?.(msg); // ✅ stay sa form
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const sections = [
-    { label: "DTN", value: record?.dtn },
+    { label: "Old DTN", value: record?.dtn },
+    { label: "New DTN", value: newDtn || "—" },
+    { label: "Entry Type", value: entryType || "—" },
     { label: "Company", value: record?.ltoComp },
     { label: "Product", value: record?.prodBrName },
     { label: "Application Type", value: record?.appType },
@@ -23,6 +66,7 @@ export function ReviewStep({ record, deckerData, darkMode }) {
         marginBottom: "1rem",
       }}
     >
+      {/* Header */}
       <div
         style={{
           padding: "11px 16px",
@@ -43,6 +87,8 @@ export function ReviewStep({ record, deckerData, darkMode }) {
           Review Summary
         </span>
       </div>
+
+      {/* Body */}
       <div style={{ padding: "16px" }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
           {sections.map(({ label, value }, i) => (
@@ -76,17 +122,16 @@ export function ReviewStep({ record, deckerData, darkMode }) {
                   fontWeight: 600,
                   textAlign: "right",
                   wordBreak: "break-word",
-                  color:
-                    label === "Decision" && value !== "—"
-                      ? t.accent
-                      : t.textPrimary,
+                  color: label === "New DTN" ? t.accent : t.textPrimary,
                 }}
               >
-                {value}
+                {value ?? "—"}
               </span>
             </div>
           ))}
         </div>
+
+        {/* Warning */}
         <div
           style={{
             marginTop: 16,
@@ -118,6 +163,68 @@ export function ReviewStep({ record, deckerData, darkMode }) {
           Please review all information carefully before submitting. This action
           will create activity logs and cannot be undone.
         </div>
+
+        {/* Error message */}
+        {error && (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "10px 14px",
+              borderRadius: 9,
+              background: "rgba(239,68,68,0.08)",
+              border: "1px solid rgba(239,68,68,0.25)",
+              color: "#ef4444",
+              fontSize: 12.5,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {/* Confirm button */}
+        <button
+          onClick={handleConfirm}
+          disabled={loading}
+          style={{
+            marginTop: 14,
+            width: "100%",
+            padding: "10px 0",
+            borderRadius: 9,
+            border: "none",
+            background: loading ? t.textTertiary : t.accent,
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: loading ? "not-allowed" : "pointer",
+            letterSpacing: "0.3px",
+            transition: "background 0.2s",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          {loading ? (
+            <>
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 13,
+                  height: 13,
+                  border: "2px solid rgba(255,255,255,0.3)",
+                  borderTopColor: "#fff",
+                  borderRadius: "50%",
+                  animation: "spin 0.6s linear infinite",
+                }}
+              />
+              Submitting…
+            </>
+          ) : (
+            "Confirm & Submit"
+          )}
+        </button>
+
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     </div>
   );

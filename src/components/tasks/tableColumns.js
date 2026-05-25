@@ -5,6 +5,7 @@ export const tableColumns = [
   { key: "sentBy",          label: "Sent By",       width: "150px" },
   { key: "lastModified",    label: "Last Modified", width: "120px" },
     { key: "dtn", label: "DTN", width: "140px" },
+    { key: "entryType", label: "Entry Type", width: "110px" },
   // { key: "appStatus",             label: "Status",             width: "130px" },
 
   // Compliance-only deadline column (still right after DTN when visible)
@@ -159,4 +160,5 @@ export const COLUMN_DB_KEY_MAP = {
   applicationStep:            "log_application_step",
   sentBy:                     "log_sent_by",
   lastModified:               "log_last_modified",
+  entryType:                  "DB_ENTRY_TYPE",
 };

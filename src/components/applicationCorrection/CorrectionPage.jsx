@@ -6,24 +6,37 @@ import { ReviewStep } from "./ReviewStep";
 import { MOCK_RECORD } from "./constants";
 import { cleanValue, formatDate } from "./utils";
 import { getTheme } from "./theme";
+import {
+  createApplicationLog,
+  getLastApplicationLogIndex,
+} from "../../api/application-logs";
+import { getUser } from "../../api/auth";
 
-export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
-  console.log("CorrectionPage received newDtn:", newDtn);
+export function CorrectionPage({
+  record,
+  onBack,
+  darkMode,
+  newDtn,
+  entryType,
+}) {
   const t = getTheme(darkMode);
   const rec = record ?? MOCK_RECORD;
 
   const [step, setStep] = useState(1);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitResult, setSubmitResult] = useState(null); // { success, message, new_dtn }
   const [deckerData, setDeckerData] = useState({
     selectedApps: [],
-    deckerName: "gaebasco",
+    deckerName: "",
     decision: "",
+    assignee: "",
     remarks: "",
     doctrackRemarks: "",
     doctrackAutoFill: true,
-    evaluator: "",
     decisionTouched: false,
   });
+
+  // editedFields will be populated by DeckerDecisionForm or other editable steps
+  const [editedFields, setEditedFields] = useState({});
 
   const showSidebar = step !== 2;
 
@@ -37,13 +50,17 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
         setDeckerData((d) => ({ ...d, decisionTouched: true }));
         return;
       }
+      if (!deckerData.assignee) {
+        // ✅ validate assignee
+        setDeckerData((d) => ({ ...d, decisionTouched: true }));
+        return;
+      }
       setStep(3);
     }
   };
-  const handleBack = () => (step > 1 ? setStep(step - 1) : onBack());
-  const handleSubmit = () => setSubmitted(true);
 
-  // Reusable card shell
+  const handleBack = () => (step > 1 ? setStep(step - 1) : onBack());
+
   const Card = ({ children, title }) => (
     <div
       style={{
@@ -91,6 +108,8 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
     cursor: "pointer",
     transition: "all 0.15s",
   };
+
+  const isStep3 = step === 3;
 
   return (
     <div
@@ -151,13 +170,17 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
                 margin: 0,
               }}
             >
-              Manual CPR Correction
+              {entryType === "RECONSTRUCTION"
+                ? "Manual CPR Reconstruction"
+                : "Manual CPR Correction"}
             </h1>
             <p style={{ fontSize: 13, color: t.textSecondary, marginTop: 3 }}>
               Document Tracking No.{" "}
-              <strong style={{ color: t.textPrimary }}>{newDtn}</strong>{" "}
+              <strong style={{ color: t.textPrimary }}>{newDtn}</strong>
             </p>
           </div>
+
+          {/* Header buttons — hide Submit on step 3, ReviewStep owns that */}
           <div style={{ display: "flex", gap: 7, flexShrink: 0 }}>
             <button
               onClick={onBack}
@@ -170,7 +193,7 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
             >
               Cancel
             </button>
-            {step < 3 ? (
+            {!isStep3 && (
               <button
                 onClick={handleNext}
                 style={{
@@ -182,34 +205,24 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
               >
                 Next →
               </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                style={{
-                  ...btnBase,
-                  background: t.successText,
-                  borderColor: t.successText,
-                  color: "#fff",
-                }}
-              >
-                Submit
-              </button>
             )}
           </div>
         </div>
 
         <StepIndicator currentStep={step} darkMode={darkMode} />
 
-        {/* ── Success Banner ── */}
-        {submitted && (
+        {/* ── API result banner (success or error) ── */}
+        {submitResult && (
           <div
             style={{
               gridColumn: "1 / -1",
               padding: "11px 14px",
               borderRadius: 9,
-              background: t.successBg,
-              border: `1px solid ${t.successBorder}`,
-              color: t.successText,
+              background: submitResult.success
+                ? t.successBg
+                : "rgba(239,68,68,0.08)",
+              border: `1px solid ${submitResult.success ? t.successBorder : "rgba(239,68,68,0.25)"}`,
+              color: submitResult.success ? t.successText : "#ef4444",
               fontSize: 13,
               display: "flex",
               gap: 8,
@@ -224,11 +237,22 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
               strokeWidth="2"
               viewBox="0 0 24 24"
             >
-              <polyline points="20 6 9 17 4 12" />
+              {submitResult.success ? (
+                <polyline points="20 6 9 17 4 12" />
+              ) : (
+                <>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </>
+              )}
             </svg>
             <div>
-              <strong>Corrections submitted successfully!</strong> Your
-              application is now under review.
+              <strong>
+                {submitResult.success
+                  ? "Corrections submitted successfully!"
+                  : "Submission failed."}
+              </strong>{" "}
+              {submitResult.message}
             </div>
           </div>
         )}
@@ -248,12 +272,82 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
               darkMode={darkMode}
             />
           )}
+
           {step === 3 && (
             <>
               <ReviewStep
                 record={rec}
-                deckerData={deckerData}
+                newDtn={newDtn}
+                entryType={entryType}
+                editedFields={editedFields}
                 darkMode={darkMode}
+                onSuccess={async (result) => {
+                  try {
+                    const currentUser = getUser();
+                    const now = new Date();
+                    const phtOffset = 8 * 60 * 60 * 1000;
+                    const formattedDateTime = new Date(
+                      now.getTime() + phtOffset,
+                    ).toISOString();
+
+                    const indexData = await getLastApplicationLogIndex(
+                      result.main_db_id,
+                    );
+                    const lastIndex = indexData.last_index ?? 0;
+                    const nextIndex = lastIndex + 1;
+
+                    // Log 1 — Decker COMPLETED
+                    await createApplicationLog({
+                      main_db_id: result.main_db_id,
+                      application_step: "Decking",
+                      user_name: deckerData.deckerName,
+                      application_status: "COMPLETED",
+                      application_decision: deckerData.decision,
+                      application_remarks: deckerData.remarks || "",
+                      doctrack_remarks: deckerData.doctrackRemarks || "",
+                      start_date: formattedDateTime,
+                      accomplished_date: formattedDateTime,
+                      del_index: nextIndex,
+                      del_previous: lastIndex,
+                      del_last_index: 0,
+                      del_thread: "Close",
+                      user_id: currentUser?.id ?? null,
+                      action_type: "Decked",
+                    });
+
+                    // Log 2 — Assignee IN PROGRESS
+                    const nextStep =
+                      deckerData.decision === "For Quality Evaluation"
+                        ? "Quality Evaluation"
+                        : "LRD Decking";
+
+                    await createApplicationLog({
+                      main_db_id: result.main_db_id,
+                      application_step: nextStep,
+                      user_name: deckerData.assignee,
+                      application_status: "IN PROGRESS",
+                      application_decision: "",
+                      application_remarks: "",
+                      start_date: formattedDateTime,
+                      accomplished_date: null,
+                      del_index: nextIndex + 1,
+                      del_previous: nextIndex,
+                      del_last_index: 1,
+                      del_thread: "Open",
+                      user_id: deckerData.assigneeId ?? null,
+                    });
+                  } catch (err) {
+                    console.error("❌ Failed to create application logs:", err);
+                  }
+
+                  setSubmitResult(result);
+                  setTimeout(() => {
+                    onBack();
+                  }, 1500);
+                }}
+                onError={(msg) =>
+                  setSubmitResult({ success: false, message: msg })
+                }
               />
               <Card title="Application Details">
                 <AllDetails record={rec} darkMode={darkMode} newDtn={newDtn} />
@@ -265,7 +359,6 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
         {/* ── Right sidebar ── */}
         {showSidebar && (
           <div>
-            {/*Decker Summary */}
             {step === 3 && deckerData.decision && (
               <div
                 style={{
@@ -304,11 +397,11 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
                   }}
                 >
                   {[
-                    ["Decker", deckerData.deckerName], // ← dagdag
+                    ["Decker", deckerData.deckerName],
                     ["Decision", deckerData.decision],
-                    ["Decker Remarks", deckerData.remarks || "—"], // ← dagdag
-                    ["Doctrack Remarks", deckerData.doctrackRemarks || "—"], // ← dagdag
-                    ["Evaluator", deckerData.evaluator || "—"], // ← dagdag
+                    ["Decker Remarks", deckerData.remarks || "—"],
+                    ["Doctrack Remarks", deckerData.doctrackRemarks || "—"],
+                    ["Assignee", deckerData.assignee || "—"],
                   ].map(([lbl, val]) => (
                     <div key={lbl}>
                       <div
@@ -340,7 +433,7 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
                 </div>
               </div>
             )}
-            {/* Fees */}
+
             <Card title="Fees">
               <div
                 style={{ display: "flex", flexDirection: "column", gap: 10 }}
@@ -386,7 +479,6 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
               </div>
             </Card>
 
-            {/* Supporting Docs */}
             <Card title="Supporting Documents">
               <div
                 style={{
@@ -467,7 +559,8 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
             >
               Withdraw Application
             </button>
-            {step < 3 ? (
+            {/* Footer also hides Submit on step 3 — ReviewStep owns it */}
+            {!isStep3 && (
               <button
                 onClick={handleNext}
                 style={{
@@ -478,18 +571,6 @@ export function CorrectionPage({ record, onBack, darkMode, newDtn }) {
                 }}
               >
                 Next →
-              </button>
-            ) : (
-              <button
-                onClick={handleSubmit}
-                style={{
-                  ...btnBase,
-                  background: t.successText,
-                  borderColor: t.successText,
-                  color: "#fff",
-                }}
-              >
-                Submit Corrections
               </button>
             )}
           </div>
