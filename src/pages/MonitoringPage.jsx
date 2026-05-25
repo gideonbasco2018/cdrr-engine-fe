@@ -1374,6 +1374,94 @@ function ComingSoonView({ label, ui }) {
   );
 }
 
+function renderContent(
+  activeNav,
+  {
+    ui,
+    darkMode,
+    sharedProps,
+    navItems,
+    chartYear,
+    setChartYear,
+    chartMonth,
+    setChartMonth,
+    rxFilter,
+    setRxFilter,
+    handleSliceClick,
+    activitySearch,
+    setActivitySearch,
+    userDatabase,
+    impersonating,
+    setImpersonating,
+    setShowImpersonateConfirm,
+    tableData,
+    setModalEval,
+    setActiveNav,
+  },
+) {
+  const COMING_SOON = ["deadlines", "compliance", "workload"];
+  if (COMING_SOON.includes(activeNav)) {
+    const found = navItems.find((n) => n.key === activeNav);
+    return <ComingSoonView label={found?.label ?? activeNav} ui={ui} />;
+  }
+  switch (activeNav) {
+    case "overview":
+      return (
+        <OverviewView
+          {...sharedProps}
+          USER_ROLE_MAP={USER_ROLE_MAP}
+          ACTIVITY_FEED={ACTIVITY_FEED}
+          DEADLINES={DEADLINES}
+          COMPLIANCE_FLAGS={COMPLIANCE_FLAGS}
+          setActiveNav={setActiveNav}
+          setModalEval={setModalEval}
+          userDatabase={userDatabase}
+        />
+      );
+    case "records":
+      return <RecordsView {...sharedProps} setModalEval={setModalEval} />;
+    case "analytics":
+      return (
+        <AnalyticsView
+          ui={ui}
+          darkMode={darkMode}
+          chartYear={chartYear}
+          setChartYear={setChartYear}
+          chartMonth={chartMonth}
+          setChartMonth={setChartMonth}
+          rxFilter={rxFilter}
+          setRxFilter={setRxFilter}
+          onSliceClick={handleSliceClick}
+        />
+      );
+    case "activity":
+      return (
+        <ActivityFeedView
+          ui={ui}
+          darkMode={darkMode}
+          activitySearch={activitySearch}
+          setActivitySearch={setActivitySearch}
+        />
+      );
+    case "users":
+      return (
+        <UsersView
+          ui={ui}
+          darkMode={darkMode}
+          userDatabase={userDatabase}
+          impersonating={impersonating}
+          setImpersonating={setImpersonating}
+          setShowImpersonateConfirm={setShowImpersonateConfirm}
+          tableData={tableData}
+        />
+      );
+    case "frptat":
+      return <FRPTatView ui={ui} darkMode={darkMode} />;
+    default:
+      return null;
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // MAIN MonitoringPage
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1565,73 +1653,6 @@ function MonitoringPage({ darkMode }) {
     uniqueEvaluators,
     chartFiltered,
     currentEvaluators,
-  };
-
-  const MainContent = () => {
-    const COMING_SOON = ["deadlines", "compliance", "workload"];
-    if (COMING_SOON.includes(activeNav)) {
-      // ✅ now declared inside MainContent
-      const found = navItems.find((n) => n.key === activeNav);
-      return <ComingSoonView label={found?.label ?? activeNav} ui={ui} />;
-    }
-    switch (activeNav) {
-      case "overview":
-        return (
-          <OverviewView
-            {...sharedProps}
-            USER_ROLE_MAP={USER_ROLE_MAP}
-            ACTIVITY_FEED={ACTIVITY_FEED}
-            DEADLINES={DEADLINES}
-            COMPLIANCE_FLAGS={COMPLIANCE_FLAGS}
-            setActiveNav={setActiveNav}
-            setModalEval={setModalEval}
-            userDatabase={userDatabase}
-          />
-        );
-      case "records":
-        return <RecordsView {...sharedProps} setModalEval={setModalEval} />;
-
-      case "analytics":
-        return (
-          <AnalyticsView
-            ui={ui}
-            darkMode={darkMode}
-            chartYear={chartYear}
-            setChartYear={setChartYear}
-            chartMonth={chartMonth}
-            setChartMonth={setChartMonth}
-            rxFilter={rxFilter}
-            setRxFilter={setRxFilter}
-            onSliceClick={handleSliceClick}
-          />
-        );
-
-      case "activity":
-        return (
-          <ActivityFeedView
-            ui={ui}
-            darkMode={darkMode}
-            activitySearch={activitySearch}
-            setActivitySearch={setActivitySearch}
-          />
-        );
-      case "users":
-        return (
-          <UsersView
-            ui={ui}
-            darkMode={darkMode}
-            userDatabase={USER_DATABASE}
-            impersonating={impersonating}
-            setImpersonating={setImpersonating}
-            setShowImpersonateConfirm={setShowImpersonateConfirm}
-            tableData={tableData}
-          />
-        );
-      case "frptat":
-        return <FRPTatView ui={ui} darkMode={darkMode} />;
-      default:
-        return null;
-    }
   };
 
   return (
@@ -1835,7 +1856,28 @@ function MonitoringPage({ darkMode }) {
               </div>
             )}
 
-            <MainContent />
+            {renderContent(activeNav, {
+              ui,
+              darkMode,
+              sharedProps,
+              navItems,
+              chartYear,
+              setChartYear,
+              chartMonth,
+              setChartMonth,
+              rxFilter,
+              setRxFilter,
+              handleSliceClick,
+              activitySearch,
+              setActivitySearch,
+              userDatabase,
+              impersonating,
+              setImpersonating,
+              setShowImpersonateConfirm,
+              tableData,
+              setModalEval,
+              setActiveNav,
+            })}
           </div>
         </div>
       </div>
