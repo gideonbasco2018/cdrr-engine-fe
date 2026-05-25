@@ -2,19 +2,27 @@
 
 import API from "./axios";
 
+export async function verifyDTN(dtn) {
+  const res = await API.post("/cpr-correction/verify-dtn", { dtn });
+  return res.data;
+}
+
 /**
- * Verifies a DTN against the backend.
+ * Submits a CPR correction — inserts a new MainDB record with the corrected DTN.
+ *
+ * @param {Object} payload
+ * @param {string} payload.old_dtn   - Original DTN from the verified record
+ * @param {string} payload.new_dtn   - New DTN entered by the user
+ * @param {Object} payload.*         - Any corrected fields (only send changed ones)
  *
  * Response shape:
  * {
- *   found: boolean,
- *   eligible: boolean,
+ *   success: boolean,
  *   message: string,
- *   dtn, app_status, lto_comp, prod_br_name, app_type,
- *   date_received_cent, ... (all fields when eligible=true)
+ *   new_dtn: string | null
  * }
  */
-export async function verifyDTN(dtn) {
-  const res = await API.post("/cpr-correction/verify-dtn", { dtn });
+export async function submitCorrection(payload) {
+  const res = await API.post("/cpr-correction/submit-correction", payload);
   return res.data;
 }

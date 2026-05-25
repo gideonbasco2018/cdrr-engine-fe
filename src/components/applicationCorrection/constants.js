@@ -10,16 +10,12 @@ export const COLORS = {
 
 export const DECKER_DECISIONS = [
   "For Quality Evaluation",
+  "For LRD Decking",
 ];
 
 export const DOCTRACK_DEFAULTS = {
-  "For Compliance": "For compliance with requirements",
-  "For Correction": "Application returned for correction",
-  Approved: "Application approved",
-  Rejected: "Application rejected",
-  "Returned to Applicant": "Forwarded to applicant",
-  "For Additional Documents": "Additional documents required",
   "For Quality Evaluation": "Forwarded to evaluator",
+  "For LRD Decking": "Forwarded to LRD Decker",  
 };
 
 export const MOCK_RECORD = {

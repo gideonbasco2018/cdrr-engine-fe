@@ -101,6 +101,7 @@ export default function ApplicationCorrectionPage({ darkMode: darkModeProp }) {
   const [fetchedRecord, setFetchedRecord] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [newDtn, setNewDtn] = useState("");
+  const [entryType, setEntryType] = useState("");
   const handleVerify = async (dtn) => {
     setPhase("loading");
     setErrorMessage("");
@@ -157,8 +158,9 @@ export default function ApplicationCorrectionPage({ darkMode: darkModeProp }) {
           phase={phase}
           record={fetchedRecord}
           errorMessage={errorMessage}
-          onContinue={(newDtn) => {
-            setNewDtn(newDtn);
+          onContinue={(trimmedDtn, entryType) => {
+            setNewDtn(trimmedDtn);
+            setEntryType(entryType);
             setPhase("correction");
           }}
           onBack={handleBack}
@@ -174,6 +176,7 @@ export default function ApplicationCorrectionPage({ darkMode: darkModeProp }) {
         <CorrectionPage
           record={fetchedRecord}
           newDtn={newDtn}
+          entryType={entryType}
           onBack={handleBack}
           darkMode={darkMode}
         />

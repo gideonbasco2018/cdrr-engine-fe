@@ -169,8 +169,10 @@ export function DTNEntryScreen({ onVerify, darkMode }) {
               letterSpacing: "-0.01em",
             }}
           >
-            Manual CPR-
-            <span style={{ color: "#2C5F8A" }}>Correction</span>
+            Manual CPR{" "}
+            <span style={{ color: "#2C5F8A" }}>
+              Correction & Reconstruction
+            </span>
           </h1>
 
           <p
@@ -184,7 +186,7 @@ export function DTNEntryScreen({ onVerify, darkMode }) {
             }}
           >
             Enter your Document Tracking Number to retrieve your application and
-            begin the correction process.
+            begin the correction or reconstruction process.
           </p>
         </div>
 

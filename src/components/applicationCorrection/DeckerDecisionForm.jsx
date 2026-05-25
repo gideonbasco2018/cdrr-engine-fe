@@ -2,15 +2,12 @@ import { useState, useEffect } from "react";
 import { ToggleSwitch } from "./shared/ToggleSwitch";
 import { DECKER_DECISIONS, DOCTRACK_DEFAULTS } from "./constants";
 import { getTheme } from "./theme";
-import { getUsersByGroup } from "../../api/auth"; // ← adjust path kung kailangan
+import { getUser, getUsersByGroup } from "../../api/auth";
 
 const DECISION_CONFIG = {
-  "For S&E": { fetchEvaluator: false, fetchSne: true },
-  "For Quality Evaluation": { fetchEvaluator: true, fetchSne: false },
-  "For S&E and Quality Evaluation": { fetchEvaluator: true, fetchSne: true },
+  "For Quality Evaluation": { groupId: 3, label: "Evaluator" },
+  "For LRD Decking": { groupId: 2, label: "Decker" },
 };
-
-const GROUP_IDS = { EVALUATOR: 3, SE: 13 };
 
 export function DeckerDecisionForm({
   record,
@@ -21,44 +18,38 @@ export function DeckerDecisionForm({
   const t = getTheme(darkMode);
   const dm = darkMode;
 
-  const [evaluatorUsers, setEvaluatorUsers] = useState([]);
-  const [sneUsers, setSneUsers] = useState([]);
-  const [loadingEvaluator, setLoadingEvaluator] = useState(false);
-  const [loadingSne, setLoadingSne] = useState(false);
+  const [assigneeUsers, setAssigneeUsers] = useState([]);
+  const [loadingAssignees, setLoadingAssignees] = useState(false);
 
-  // ← Fetch users kapag nagbago ang decision
   useEffect(() => {
-    const decision = deckerData.decision;
-    setEvaluatorUsers([]);
-    setSneUsers([]);
+    const config = DECISION_CONFIG[deckerData.decision];
+    setAssigneeUsers([]);
+    if (!config) return;
 
-    if (!decision || !DECISION_CONFIG[decision]) return;
-    const config = DECISION_CONFIG[decision];
-
-    if (config.fetchEvaluator) {
-      setLoadingEvaluator(true);
-      getUsersByGroup(GROUP_IDS.EVALUATOR)
-        .then(setEvaluatorUsers)
-        .catch(() => setEvaluatorUsers([]))
-        .finally(() => setLoadingEvaluator(false));
-    }
-
-    if (config.fetchSne) {
-      setLoadingSne(true);
-      getUsersByGroup(GROUP_IDS.SE)
-        .then(setSneUsers)
-        .catch(() => setSneUsers([]))
-        .finally(() => setLoadingSne(false));
-    }
+    setLoadingAssignees(true);
+    getUsersByGroup(config.groupId)
+      .then(setAssigneeUsers)
+      .catch(() => setAssigneeUsers([]))
+      .finally(() => setLoadingAssignees(false));
   }, [deckerData.decision]);
+
+  useEffect(() => {
+    const user = getUser();
+    if (user) {
+      onDeckerChange({
+        ...deckerData,
+        deckerName: user.username,
+      });
+    }
+  }, []);
 
   const handleDecisionChange = (decision) => {
     const autoRemark = DOCTRACK_DEFAULTS[decision] || "";
     onDeckerChange({
       ...deckerData,
       decision,
-      evaluator: "",
-      sne: "",
+      assignee: "",
+      assigneeId: null,
       doctrackRemarks: deckerData.doctrackAutoFill
         ? autoRemark
         : deckerData.doctrackRemarks,
@@ -105,124 +96,6 @@ export function DeckerDecisionForm({
   );
 
   const config = DECISION_CONFIG[deckerData.decision];
-  const showEvaluator = config?.fetchEvaluator;
-  const showSne = config?.fetchSne;
-  const isDualAssign = deckerData.decision === "For S&E and Quality Evaluation";
-
-  const UserSelectField = ({
-    label,
-    badge,
-    badgeColor,
-    value,
-    onChange,
-    users,
-    loading,
-  }) => (
-    <div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 7,
-          marginBottom: 6,
-        }}
-      >
-        <label style={{ fontSize: 12, fontWeight: 600, color: t.labelColor }}>
-          {label}
-        </label>
-        <span
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: "2px 7px",
-            borderRadius: 8,
-            background: t.successBg,
-            color: badgeColor || t.successText,
-            border: `1px solid ${t.successBorder}`,
-          }}
-        >
-          {badge}
-        </span>
-        <span style={{ color: t.errorText, fontSize: 12, marginLeft: -4 }}>
-          *
-        </span>
-      </div>
-      {loading ? (
-        <div
-          style={{
-            ...baseInput,
-            color: t.textTertiary,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <span
-            style={{
-              display: "inline-block",
-              width: 12,
-              height: 12,
-              border: "2px solid rgba(100,100,100,0.2)",
-              borderTopColor: t.textTertiary,
-              borderRadius: "50%",
-              animation: "spin 0.6s linear infinite",
-            }}
-          />
-          Loading users...
-        </div>
-      ) : (
-        <div style={{ position: "relative" }}>
-          <select
-            value={value || ""}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={users.length === 0}
-            style={{
-              ...baseInput,
-              padding: "9px 34px 9px 11px",
-              appearance: "none",
-              cursor: users.length === 0 ? "not-allowed" : "pointer",
-              opacity: users.length === 0 ? 0.6 : 1,
-              colorScheme: dm ? "dark" : "light",
-            }}
-          >
-            <option value="">
-              {users.length === 0 ? "No users available" : "Select a user"}
-            </option>
-            {users.map((u) => (
-              <option key={u.id} value={u.username}>
-                {u.username} - {u.first_name} {u.surname}
-              </option>
-            ))}
-          </select>
-          <div
-            style={{
-              position: "absolute",
-              right: 10,
-              top: "50%",
-              transform: "translateY(-50%)",
-              pointerEvents: "none",
-            }}
-          >
-            <svg
-              width="13"
-              height="13"
-              fill="none"
-              stroke={t.textTertiary}
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </div>
-        </div>
-      )}
-      {!loading && users.length === 0 && deckerData.decision && (
-        <div style={{ marginTop: 4, fontSize: 11.5, color: t.errorText }}>
-          ⚠️ No users found in this group.
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <div
@@ -465,47 +338,119 @@ export function DeckerDecisionForm({
             </div>
           </div>
 
-          {/* ← Evaluator — lumalabas lang kapag may fetchEvaluator */}
-          {showEvaluator && (
-            <UserSelectField
-              label={
-                isDualAssign ? "Assign Quality Evaluator" : "Assign Evaluator"
-              }
-              badge="Evaluator Group"
-              value={deckerData.evaluator}
-              onChange={(v) => onDeckerChange({ ...deckerData, evaluator: v })}
-              users={evaluatorUsers}
-              loading={loadingEvaluator}
-            />
-          )}
-
-          {/* ← S&E — lumalabas lang kapag may fetchSne */}
-          {showSne && (
-            <UserSelectField
-              label="Assign S&E"
-              badge="S&E Group"
-              value={deckerData.sne}
-              onChange={(v) => onDeckerChange({ ...deckerData, sne: v })}
-              users={sneUsers}
-              loading={loadingSne}
-            />
-          )}
-
-          {/* Dual assign banner */}
-          {isDualAssign && (
-            <div
-              style={{
-                padding: "10px 12px",
-                background: t.infoBg,
-                border: `1px solid ${t.infoBorder}`,
-                borderRadius: 8,
-                fontSize: 12,
-                color: t.infoText,
-              }}
-            >
-              🔀 This decision will assign{" "}
-              <strong>two users simultaneously</strong> — one from the Evaluator
-              group and one from the S&E group.
+          {/* Assignee — lumalabas lang kapag may decision */}
+          {config && (
+            <div>
+              {lbl(
+                <span>
+                  Assign {config.label}{" "}
+                  <span style={{ color: t.errorText }}>*</span>
+                  <span
+                    style={{
+                      marginLeft: 7,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: "2px 7px",
+                      borderRadius: 8,
+                      background: t.successBg,
+                      color: t.successText,
+                      border: `1px solid ${t.successBorder}`,
+                    }}
+                  >
+                    {config.label} Group
+                  </span>
+                </span>,
+              )}
+              {loadingAssignees ? (
+                <div
+                  style={{
+                    ...baseInput,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    color: t.textTertiary,
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: 12,
+                      height: 12,
+                      border: "2px solid rgba(100,100,100,0.2)",
+                      borderTopColor: t.textTertiary,
+                      borderRadius: "50%",
+                      animation: "spin 0.6s linear infinite",
+                    }}
+                  />
+                  Loading users...
+                </div>
+              ) : (
+                <div style={{ position: "relative" }}>
+                  <select
+                    value={deckerData.assignee || ""}
+                    onChange={(e) => {
+                      const selected = assigneeUsers.find(
+                        (u) => u.username === e.target.value,
+                      );
+                      onDeckerChange({
+                        ...deckerData,
+                        assignee: e.target.value,
+                        assigneeId: selected?.id ?? null, // ✅ itago ang id
+                      });
+                    }}
+                    disabled={assigneeUsers.length === 0}
+                    style={{
+                      ...baseInput,
+                      padding: "9px 34px 9px 11px",
+                      appearance: "none",
+                      cursor:
+                        assigneeUsers.length === 0 ? "not-allowed" : "pointer",
+                      opacity: assigneeUsers.length === 0 ? 0.6 : 1,
+                      colorScheme: dm ? "dark" : "light",
+                    }}
+                  >
+                    <option value="">
+                      {assigneeUsers.length === 0
+                        ? "No users available"
+                        : "Select a user"}
+                    </option>
+                    {assigneeUsers.map((u) => (
+                      <option key={u.id} value={u.username}>
+                        {u.username} - {u.first_name} {u.surname}
+                      </option>
+                    ))}
+                  </select>
+                  <div
+                    style={{
+                      position: "absolute",
+                      right: 10,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <svg
+                      width="13"
+                      height="13"
+                      fill="none"
+                      stroke={t.textTertiary}
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </div>
+                </div>
+              )}
+              {!loadingAssignees &&
+                assigneeUsers.length === 0 &&
+                deckerData.decision && (
+                  <div
+                    style={{ marginTop: 4, fontSize: 11.5, color: t.errorText }}
+                  >
+                    ⚠️ No users found in this group.
+                  </div>
+                )}
             </div>
           )}
 
@@ -537,9 +482,8 @@ export function DeckerDecisionForm({
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
             </svg>
-            {isDualAssign
-              ? `Three activity logs will be created — decker (Completed), Evaluator (In Progress), S&E (In Progress). Total: ${deckerData.selectedApps.length * 3} logs.`
-              : `Two activity logs will be created — decker (Completed) and assigned user (In Progress). Total: ${deckerData.selectedApps.length * 2} logs.`}
+            `Two activity logs will be created — decker (Completed) and assigned
+            user (In Progress).`
           </div>
         </div>
       </div>
