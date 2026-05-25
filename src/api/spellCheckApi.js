@@ -28,7 +28,7 @@ import API from "./axios";
  */
 export const runSpellCheck = async (fields = {}) => {
   try {
-    const response = await API.post("/api/spellcheck", { fields });
+    const response = await API.post("/spellcheck", { fields });
     const data = response.data;
     return Array.isArray(data) ? data : [];
   } catch (error) {
