@@ -13,7 +13,7 @@ function DeckModal({ record, onClose, onSuccess, colors }) {
     sne: "",
     deckerDecision: "",
     deckerRemarks: "",
-    doctackRemarks: "", // ← Auto-filled based on decision; editable by user
+    doctackRemarks: "",
   });
 
   const [loading, setLoading] = useState(false);

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { formatDate } from "./utils";
 import { getTheme } from "./theme";
 import { submitCorrection } from "../../api/cpr-correction";
+import { createDoctrackLogByRsn } from "../../api/doctrack";
 
 export function ReviewStep({
   record,
@@ -11,6 +12,8 @@ export function ReviewStep({
   darkMode,
   onSuccess,
   onError,
+  deckerData,
+  currentUser,
 }) {
   const t = getTheme(darkMode);
   const [loading, setLoading] = useState(false);
@@ -20,6 +23,24 @@ export function ReviewStep({
     setLoading(true);
     setError("");
     try {
+      // 1️⃣ Doctrack log muna bago ang correction
+      if (deckerData?.doctrackAutoFill) {
+        // Toggle is ON — call Doctrack, bail if it fails
+        const doctrackResult = await createDoctrackLogByRsn(
+          String(record.dtn),
+          deckerData?.doctrackRemarks || "",
+          currentUser?.id ?? null,
+          currentUser?.alias || "",
+        );
+
+        if (!doctrackResult) {
+          setError("Failed to insert Doctrack log. Submission cancelled.");
+          onError?.("Doctrack log failed.");
+          return;
+        }
+      }
+
+      // 2️⃣ Ituloy ang correction
       const result = await submitCorrection({
         old_dtn: record.dtn,
         new_dtn: newDtn,
@@ -27,19 +48,22 @@ export function ReviewStep({
         DB_ENTRY_TYPE: entryType,
         ...editedFields,
         DB_APP_STATUS: "ON-PROCESS",
+        doctrack_remarks: deckerData?.doctrackAutoFill
+          ? deckerData?.doctrackRemarks || ""
+          : "",
       });
 
       if (result.success) {
-        onSuccess?.(result); // ✅ parent ang bahala mag-redirect
+        onSuccess?.(result);
       } else {
         setError(result.message);
-        onError?.(result.message); // ✅ stay sa form
+        onError?.(result.message);
       }
     } catch (err) {
       const msg =
         err?.response?.data?.detail || err?.message || "Unexpected error.";
       setError(msg);
-      onError?.(msg); // ✅ stay sa form
+      onError?.(msg);
     } finally {
       setLoading(false);
     }
