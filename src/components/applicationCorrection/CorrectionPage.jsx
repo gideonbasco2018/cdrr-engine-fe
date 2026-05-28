@@ -281,6 +281,8 @@ export function CorrectionPage({
                 entryType={entryType}
                 editedFields={editedFields}
                 darkMode={darkMode}
+                deckerData={deckerData}
+                currentUser={getUser()}
                 onSuccess={async (result) => {
                   try {
                     const currentUser = getUser();
