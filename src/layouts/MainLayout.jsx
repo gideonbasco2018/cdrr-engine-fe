@@ -84,11 +84,12 @@ function MainLayout({ darkMode, setDarkMode }) {
 
     // Profile
     if (path.includes("profile")) return "profile";
+    if (path.includes("monitoring")) return "monitoring";
+    if (path.includes("appCorrection")) return "appCorrection";
 
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
-    if (path.includes("monitoring")) return "monitoring";
-    if (path.includes("appCorrection")) return "appCorrection";
+
     return "dashboard";
   };
 

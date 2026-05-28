@@ -130,6 +130,7 @@ function Sidebar({
       const hasRole = item.roles.includes(userRole);
       if (["access", "users", "settings"].includes(item.id)) return hasRole;
       const allowedGroups = menuPermissions[item.id];
+
       if (
         !allowedGroups ||
         !Array.isArray(allowedGroups) ||
