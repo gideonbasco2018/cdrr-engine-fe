@@ -60,7 +60,6 @@ function UserAvatar({ name, size = 40 }) {
       <span
         style={{
           fontSize: 12,
-          fontWeight: 600,
           color: "var(--color-text-tertiary)",
           fontWeight: 500,
           textAlign: "center",
@@ -166,12 +165,12 @@ function DateBlock({ startDate, accomplishedDate }) {
   const fmt = (d) =>
     d
       ? new Date(d).toLocaleString("en-US", {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        })
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
       : null;
 
   const Row = ({ label, value, color }) => (
@@ -264,13 +263,12 @@ function LogCard({ log, index, isLast }) {
             overflow: "hidden",
             marginLeft: 10,
             boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-            borderLeft: `4px solid ${
-              status === "COMPLETED"
-                ? "#10b981"
-                : status === "IN PROGRESS"
-                  ? "#2196F3"
-                  : "#6b7280"
-            }`,
+            borderLeft: `4px solid ${status === "COMPLETED"
+              ? "#10b981"
+              : status === "IN PROGRESS"
+                ? "#2196F3"
+                : "#6b7280"
+              }`,
             transition: "all 0.15s ease",
             cursor: "default",
           }}
@@ -470,96 +468,96 @@ function LogCard({ log, index, isLast }) {
               {(log.decision_result ||
                 log.decision_authority_name ||
                 log.application_remarks) && (
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    alignItems: "flex-start",
-                  }}
-                >
-                  {log.decision_result && (
-                    <div>
-                      <FieldLabel>Result</FieldLabel>
-                      <span
-                        style={{
-                          display: "inline-flex",
-                          fontSize: 11,
-                          fontWeight: 500,
-                          padding: "3px 8px",
-                          borderRadius: 20,
-                          background: "rgba(8,145,178,0.08)",
-                          color: "#0891b2",
-                          border: "0.5px solid rgba(8,145,178,0.2)",
-                        }}
-                      >
-                        {log.decision_result}
-                      </span>
-                    </div>
-                  )}
-
-                  {log.decision_authority_name && (
-                    <div>
-                      <FieldLabel>Authority</FieldLabel>
-                      <div
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 5,
-                          padding: "3px 8px",
-                          borderRadius: 5,
-                          background: "rgba(245,158,11,0.07)",
-                          border: "0.5px solid rgba(245,158,11,0.2)",
-                          fontSize: 11,
-                          fontWeight: 500,
-                          color: "#b45309",
-                        }}
-                      >
-                        <div
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 8,
+                      flexWrap: "wrap",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    {log.decision_result && (
+                      <div>
+                        <FieldLabel>Result</FieldLabel>
+                        <span
                           style={{
-                            width: 16,
-                            height: 16,
-                            borderRadius: "50%",
-                            background:
-                              "linear-gradient(135deg, #f59e0b, #d97706)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: 8,
-                            fontWeight: 700,
-                            color: "#fff",
-                            flexShrink: 0,
+                            display: "inline-flex",
+                            fontSize: 11,
+                            fontWeight: 500,
+                            padding: "3px 8px",
+                            borderRadius: 20,
+                            background: "rgba(8,145,178,0.08)",
+                            color: "#0891b2",
+                            border: "0.5px solid rgba(8,145,178,0.2)",
                           }}
                         >
-                          {log.decision_authority_name[0].toUpperCase()}
-                        </div>
-                        {log.decision_authority_name}
+                          {log.decision_result}
+                        </span>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {log.application_remarks && (
-                    <div style={{ flex: 1, minWidth: 120 }}>
-                      <FieldLabel>Remarks</FieldLabel>
-                      <div
-                        style={{
-                          padding: "6px 10px",
-                          background: "var(--color-background-secondary)",
-                          borderRadius: "var(--border-radius-md)",
-                          borderLeft: "2px solid var(--color-border-secondary)",
-                          fontSize: 11,
-                          color: "var(--color-text-primary)",
-                          lineHeight: 1.5,
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {log.application_remarks}
+                    {log.decision_authority_name && (
+                      <div>
+                        <FieldLabel>Authority</FieldLabel>
+                        <div
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            padding: "3px 8px",
+                            borderRadius: 5,
+                            background: "rgba(245,158,11,0.07)",
+                            border: "0.5px solid rgba(245,158,11,0.2)",
+                            fontSize: 11,
+                            fontWeight: 500,
+                            color: "#b45309",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 16,
+                              height: 16,
+                              borderRadius: "50%",
+                              background:
+                                "linear-gradient(135deg, #f59e0b, #d97706)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 8,
+                              fontWeight: 700,
+                              color: "#fff",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {log.decision_authority_name[0].toUpperCase()}
+                          </div>
+                          {log.decision_authority_name}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              )}
+                    )}
+
+                    {log.application_remarks && (
+                      <div style={{ flex: 1, minWidth: 120 }}>
+                        <FieldLabel>Remarks</FieldLabel>
+                        <div
+                          style={{
+                            padding: "6px 10px",
+                            background: "var(--color-background-secondary)",
+                            borderRadius: "var(--border-radius-md)",
+                            borderLeft: "2px solid var(--color-border-secondary)",
+                            fontSize: 11,
+                            color: "var(--color-text-primary)",
+                            lineHeight: 1.5,
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {log.application_remarks}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
             </div>
           </div>
         </div>
