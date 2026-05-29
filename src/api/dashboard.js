@@ -53,3 +53,8 @@ export async function getDashboardGlobalAllRecentApplications(params = {}) {
   const { data } = await axios.get("/dashboard/stats/global-recent-applications", { params });
   return data;
 }
+
+export async function getDashboardUploadHistory(params = {}) {
+  const { data } = await axios.get("/main-db/upload-history", { params });
+  return data;
+}
