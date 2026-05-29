@@ -49,7 +49,7 @@ import {
   getImpersonatedUserId,
   stopImpersonation,
 } from "../api/auth";
-
+import UploadHistoryCard from "../components/dashboard/UploadHistoryCard";
 // ─── Impersonation Banner ─────────────────────────────────────────────────────
 function ImpersonationPrompt({ ui, onClose }) {
   const name = getImpersonatedName();
@@ -342,7 +342,7 @@ function RightPanel({
             onClick={() =>
               canGenReport &&
               (setCustomReportDates({ start: reportStart, end: reportEnd }),
-              setShowReport(true))
+                setShowReport(true))
             }
             disabled={!canGenReport}
             style={{
@@ -508,9 +508,9 @@ function DataTable({
                       (e.currentTarget.style.background = ui.hoverBg)
                     }
                     onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = isEven
-                        ? "transparent"
-                        : `${ui.pageBg}88`)
+                    (e.currentTarget.style.background = isEven
+                      ? "transparent"
+                      : `${ui.pageBg}88`)
                     }
                   >
                     <td
@@ -888,6 +888,9 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
       active: true,
     },
   ]);
+
+
+
   const toggleConn = (id) =>
     setDbConnections((prev) =>
       prev.map((c) => (c.id === id ? { ...c, active: !c.active } : c)),
@@ -958,8 +961,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     } catch (err) {
       setChartError(
         err?.response?.data?.detail ||
-          err.message ||
-          "Failed to load chart data",
+        err.message ||
+        "Failed to load chart data",
       );
       setChartData([]);
     } finally {
@@ -1710,6 +1713,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                   ))}
               </Card>
 
+              <UploadHistoryCard ui={ui} />
               {isMobile && <RightPanel {...rightPanelProps} />}
             </div>
 
