@@ -219,7 +219,7 @@ async function generateTransmittalPDF(records) {
         const u = JSON.parse(raw);
         preparedBy = `${u.first_name || ""} ${u.surname || ""}`.trim();
       }
-    } catch (_) {}
+    } catch (_) { }
     if (!preparedBy) preparedBy = "___________________";
 
     doc.setDrawColor(160);
@@ -1363,7 +1363,6 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                       fontWeight: "600",
                       color: colors.textPrimary,
                       marginBottom: "0.5rem",
-                      display: "flex",
                       alignItems: "center",
                       flexWrap: "wrap",
                       gap: "0.4rem",
@@ -1817,28 +1816,28 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 },
                 formData.evaluator
                   ? {
-                      label: "Evaluator",
-                      value: formData.evaluator,
-                      color: "#4CAF50",
-                    }
+                    label: "Evaluator",
+                    value: formData.evaluator,
+                    color: "#4CAF50",
+                  }
                   : null,
                 formData.sne
                   ? { label: "S&E", value: formData.sne, color: "#2196F3" }
                   : null,
                 formData.deckerRemarks
                   ? {
-                      label: "Remarks",
-                      value: formData.deckerRemarks,
-                      color: colors.textSecondary,
-                    }
+                    label: "Remarks",
+                    value: formData.deckerRemarks,
+                    color: colors.textSecondary,
+                  }
                   : null,
                 // Doctrack Remarks row in confirmation summary
                 formData.doctackRemarks
                   ? {
-                      label: "Doctrack Remarks",
-                      value: formData.doctackRemarks,
-                      color: colors.textSecondary,
-                    }
+                    label: "Doctrack Remarks",
+                    value: formData.doctackRemarks,
+                    color: colors.textSecondary,
+                  }
                   : null,
               ]
                 .filter(Boolean)
