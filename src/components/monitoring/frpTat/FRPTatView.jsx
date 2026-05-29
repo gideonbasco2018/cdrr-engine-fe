@@ -1143,7 +1143,7 @@ function ChartPanel({
               color: ui.textPrimary,
             }}
           >
-            Avg TAT by doc type
+            Average TAT by Type of Document Released
           </p>
 
           <p
