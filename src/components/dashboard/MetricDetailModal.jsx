@@ -5,6 +5,7 @@ import { statusBadge, fmtDateTime, formatDateRange } from "./utils";
 import {
   generatePDF,
   generateExcel,
+  generateCorrectionTransmittal,
 } from "../tasks/DataTable/TransmittalGenerator";
 
 const PAGE_SIZE = 10;
@@ -118,7 +119,23 @@ export default function MetricDetailModal({
   // ── Transmittal export ───────────────────────────────────────────────────
   const [transmittalLoading, setTransmittalLoading] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [correctionTransmittalLoading, setCorrectionTransmittalLoading] =
+    useState(false);
 
+  const toCorrectionTransmittalRow = (r) => {
+    // Replace ║ with a clean separator — newline para mag-wrap sa PDF cell
+    const subjectText = r.subject ? r.subject.replace("║", "\n").trim() : "";
+
+    return {
+      dtn: r.dtn ?? "N/A",
+      oldDtn: r.old_rsn ?? "N/A",
+      dateReceived: r.date_received_fdac ?? "N/A",
+      typeOfLetter: r.entry_type ?? "N/A",
+      subject: subjectText,
+      evaluator: r.evaluator || "",
+      remarks: "",
+    };
+  };
   // Map a modal row → transmittal row shape
   const toTransmittalRow = (r) => ({
     dtn: r.dtn ?? "N/A",
@@ -1015,6 +1032,73 @@ export default function MetricDetailModal({
                 ? `${startRow}–${endRow} of ${total.toLocaleString()} records`
                 : ""}
             </span>
+
+            {total > 0 && (
+              <button
+                onClick={async () => {
+                  if (correctionTransmittalLoading) return;
+                  setCorrectionTransmittalLoading(true);
+                  try {
+                    const extraParams = {};
+                    if (appliedFrom)
+                      extraParams.accomplished_date_from = appliedFrom;
+                    if (appliedTo) extraParams.accomplished_date_to = appliedTo;
+                    if (appliedStep) extraParams.app_step = appliedStep;
+                    if (appliedDtn) extraParams.dtn = appliedDtn;
+
+                    const firstRes = await getDashboardDetail({
+                      metric: metricKey,
+                      page: 1,
+                      page_size: 500,
+                      ...dateParams,
+                      ...extraParams,
+                    });
+                    let rows = firstRes.data.map(toCorrectionTransmittalRow);
+
+                    for (let p = 2; p <= firstRes.total_pages; p++) {
+                      const res = await getDashboardDetail({
+                        metric: metricKey,
+                        page: p,
+                        page_size: 500,
+                        ...dateParams,
+                        ...extraParams,
+                      });
+                      rows.push(...res.data.map(toCorrectionTransmittalRow));
+                    }
+
+                    await generateCorrectionTransmittal(rows, metricKey);
+                  } catch (err) {
+                    console.error("Correction transmittal export failed:", err);
+                  } finally {
+                    setCorrectionTransmittalLoading(false);
+                  }
+                }}
+                disabled={correctionTransmittalLoading}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "5px 12px",
+                  borderRadius: 7,
+                  border: `1px solid #7c3aed`,
+                  background: "transparent",
+                  color: "#7c3aed",
+                  fontSize: "0.76rem",
+                  fontWeight: 700,
+                  cursor: correctionTransmittalLoading
+                    ? "not-allowed"
+                    : "pointer",
+                  fontFamily: "inherit",
+                  opacity: correctionTransmittalLoading ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {correctionTransmittalLoading
+                  ? "⏳ Generating…"
+                  : `📝 Correction/Reconstruction Transmittal (${total})`}
+              </button>
+            )}
+
             {total > 0 && (
               <button
                 onClick={async () => {

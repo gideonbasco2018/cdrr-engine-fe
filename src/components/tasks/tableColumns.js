@@ -5,7 +5,10 @@ export const tableColumns = [
   { key: "sentBy",          label: "Sent By",       width: "150px" },
   { key: "lastModified",    label: "Last Modified", width: "120px" },
     { key: "dtn", label: "DTN", width: "140px" },
+    { key: "oldRsn", label: "Old DTN", width: "120px" },
     { key: "entryType", label: "Entry Type", width: "110px" },
+    { key: "appType",               label: "App Type",           width: "120px" },
+    { key: "motherAppType",         label: "Mother App Type",    width: "140px" },
   // { key: "appStatus",             label: "Status",             width: "130px" },
 
   // Compliance-only deadline column (still right after DTN when visible)
@@ -47,9 +50,9 @@ export const tableColumns = [
   { key: "packaging",             label: "Packaging",          width: "140px" },
   { key: "expiryDate",            label: "Expiry Date",        width: "120px" },
   { key: "regNo",                 label: "Reg. No.",           width: "130px" },
-  { key: "appType",               label: "App Type",           width: "120px" },
-  { key: "motherAppType",         label: "Mother App Type",    width: "140px" },
-  { key: "oldRsn",                label: "Old RSN",            width: "120px" },
+  // { key: "appType",               label: "App Type",           width: "120px" },
+  // { key: "motherAppType",         label: "Mother App Type",    width: "140px" },
+  // { key: "oldRsn",                label: "Old RSN",            width: "120px" },
   { key: "ammend1",               label: "Amendment 1",        width: "150px" },
   { key: "ammend2",               label: "Amendment 2",        width: "150px" },
   { key: "ammend3",               label: "Amendment 3",        width: "150px" },
