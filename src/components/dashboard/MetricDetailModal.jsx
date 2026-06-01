@@ -452,6 +452,8 @@ export default function MetricDetailModal({
               <option value="">All Steps</option>
               {[
                 "Quality Evaluation",
+                "Decking",
+                "Decking LRD",
                 "S&E",
                 "S&E Checker",
                 "S&E Supervisor",
