@@ -1,3 +1,4 @@
+// src/components/applicationCorrection/ReviewStep.jsx
 import { useState } from "react";
 import { formatDate } from "./utils";
 import { getTheme } from "./theme";
@@ -8,6 +9,7 @@ export function ReviewStep({
   record,
   newDtn,
   entryType,
+  subject,
   editedFields,
   darkMode,
   onSuccess,
@@ -46,12 +48,13 @@ export function ReviewStep({
         new_dtn: newDtn,
         DB_OLD_RSN: record.dtn,
         DB_ENTRY_TYPE: entryType,
+        subject: subject,
         ...editedFields,
         DB_APP_STATUS: "ON-PROCESS",
-        application_decision: deckerData?.decision || "", // ✅ fix from before
-        application_remarks: deckerData?.remarks || "", // ✅ fix from before
-        assignee: deckerData?.assignee || "", // ✅ fix from before
-        assignee_id: deckerData?.assigneeId ?? null, // ✅ fix from before
+        application_decision: deckerData?.decision || "",
+        application_remarks: deckerData?.remarks || "",
+        assignee: deckerData?.assignee || "",
+        assignee_id: deckerData?.assigneeId ?? null,
         doctrack_remarks: doctrackEnabled
           ? deckerData?.doctrackRemarks || ""
           : "",
@@ -77,6 +80,7 @@ export function ReviewStep({
     { label: "Old DTN", value: record?.dtn },
     { label: "New DTN", value: newDtn || "—" },
     { label: "Entry Type", value: entryType || "—" },
+    { label: "Subject", value: subject || "—" },
     { label: "Company", value: record?.ltoComp },
     { label: "Product", value: record?.prodBrName },
     { label: "Application Type", value: record?.appType },
