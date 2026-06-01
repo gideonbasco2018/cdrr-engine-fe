@@ -45,7 +45,7 @@ const REROUTE_REASONS = [
   "Others",
 ];
 
-// ── Reusable sub-components (same pattern as BulkDeckModal) ───────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function LoadingField({ colors, label = "users" }) {
   return (
@@ -82,34 +82,270 @@ function LoadingField({ colors, label = "users" }) {
 }
 
 function UserSelect({ value, onChange, users, colors, darkMode }) {
+  const [search, setSearch] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      u.username.toLowerCase().includes(q) ||
+      `${u.first_name} ${u.surname}`.toLowerCase().includes(q)
+    );
+  });
+
+  const selectedUser = users.find((u) => u.username === value);
+
+  const handleSelect = (user) => {
+    onChange(user.username);
+    setSearch("");
+    setIsOpen(false);
+  };
+
+  const handleClear = () => {
+    onChange("");
+    setSearch("");
+    setIsOpen(false);
+  };
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={users.length === 0}
-      style={{
-        width: "100%",
-        padding: "0.6rem 0.85rem",
-        background: darkMode ? "#1a1a1a" : "#f5f5f5",
-        border: `1px solid ${colors.cardBorder}`,
-        borderRadius: "8px",
-        color: colors.textPrimary,
-        fontSize: "0.82rem",
-        outline: "none",
-        cursor: users.length === 0 ? "not-allowed" : "pointer",
-        opacity: users.length === 0 ? 0.6 : 1,
-        boxSizing: "border-box",
-      }}
-    >
-      <option value="">
-        {users.length === 0 ? "No users available" : "— Select user —"}
-      </option>
-      {users.map((user) => (
-        <option key={user.id} value={user.username}>
-          {user.username} — {user.first_name} {user.surname}
-        </option>
-      ))}
-    </select>
+    <div style={{ position: "relative", width: "100%" }}>
+      {/* ── Trigger / Search input ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          width: "100%",
+          padding: "0.6rem 0.85rem",
+          background: darkMode ? "#1a1a1a" : "#f5f5f5",
+          border: `1px solid ${isOpen ? "#0891b2" : colors.cardBorder}`,
+          borderRadius: isOpen ? "8px 8px 0 0" : "8px",
+          boxSizing: "border-box",
+          cursor: "text",
+          transition: "border-color 0.15s",
+        }}
+        onClick={() => setIsOpen(true)}
+      >
+        {selectedUser && !isOpen ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flex: 1,
+              gap: "0.5rem",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                color: "#0891b2",
+                background: "rgba(8,145,178,0.08)",
+                border: "1px solid rgba(8,145,178,0.2)",
+                borderRadius: "6px",
+                padding: "0.15rem 0.5rem",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+              }}
+            >
+              👤 {selectedUser.username} — {selectedUser.first_name}{" "}
+              {selectedUser.surname}
+            </span>
+          </div>
+        ) : (
+          <input
+            autoFocus={isOpen}
+            type="text"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            placeholder={
+              users.length === 0
+                ? "No users available"
+                : "Type to search user..."
+            }
+            disabled={users.length === 0}
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: colors.textPrimary,
+              fontSize: "0.82rem",
+              cursor: users.length === 0 ? "not-allowed" : "text",
+            }}
+          />
+        )}
+
+        {/* Right icons */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.3rem",
+            flexShrink: 0,
+          }}
+        >
+          {value && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClear();
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: colors.textTertiary,
+                fontSize: "0.9rem",
+                padding: "0 2px",
+                lineHeight: 1,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              ×
+            </button>
+          )}
+          <span
+            style={{
+              color: colors.textTertiary,
+              fontSize: "0.65rem",
+              transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.15s",
+              display: "inline-block",
+            }}
+          >
+            ▼
+          </span>
+        </div>
+      </div>
+
+      {/* ── Dropdown list ── */}
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 9998 }}
+            onClick={() => {
+              setIsOpen(false);
+              setSearch("");
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              background: darkMode ? "#1a1a1a" : "#fff",
+              border: "1px solid #0891b2",
+              borderTop: "none",
+              borderRadius: "0 0 8px 8px",
+              maxHeight: "220px",
+              overflowY: "auto",
+              zIndex: 9999,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+            }}
+          >
+            {/* Search box inside dropdown (if trigger already has selected) */}
+            {selectedUser && (
+              <div
+                style={{
+                  padding: "0.5rem 0.85rem",
+                  borderBottom: `1px solid ${colors.cardBorder}`,
+                }}
+              >
+                <input
+                  autoFocus
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Type to search user..."
+                  style={{
+                    width: "100%",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: colors.textPrimary,
+                    fontSize: "0.82rem",
+                  }}
+                />
+              </div>
+            )}
+
+            {filtered.length === 0 ? (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  fontSize: "0.78rem",
+                  color: colors.textTertiary,
+                  textAlign: "center",
+                }}
+              >
+                No users match "{search}"
+              </div>
+            ) : (
+              filtered.map((user) => {
+                const isSelected = user.username === value;
+                return (
+                  <div
+                    key={user.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelect(user);
+                    }}
+                    style={{
+                      padding: "0.6rem 1rem",
+                      cursor: "pointer",
+                      background: isSelected
+                        ? "rgba(8,145,178,0.12)"
+                        : "transparent",
+                      borderLeft: isSelected
+                        ? "3px solid #0891b2"
+                        : "3px solid transparent",
+                      transition: "background 0.1s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected)
+                        e.currentTarget.style.background = darkMode
+                          ? "#2a2a2a"
+                          : "#f0f9ff";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected)
+                        e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        color: isSelected ? "#0891b2" : colors.textPrimary,
+                      }}
+                    >
+                      {user.username}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.72rem",
+                        color: colors.textTertiary,
+                        marginTop: "1px",
+                      }}
+                    >
+                      {user.first_name} {user.surname}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -128,21 +364,13 @@ function EmptyWarning({ label }) {
   );
 }
 
-// I-add itong helper sa itaas ng file (bago ang component)
+// ── PHT helper ────────────────────────────────────────────────────────────────
 const nowPHT = () => {
-  // Kumuha ng PHT time gamit ang Intl API — pinaka-reliable
   const now = new Date();
-
-  // Format bilang PHT string
-  const phtString = now.toLocaleString("sv-SE", {
-    timeZone: "Asia/Manila",
-  });
-  // Output: "2026-04-30 16:20:23" — tama na ito (PHT)
-
-  // I-convert sa ISO format na walang Z
+  const phtString = now.toLocaleString("sv-SE", { timeZone: "Asia/Manila" });
   return phtString.replace(" ", "T");
-  // Output: "2026-04-30T16:20:23"
 };
+
 // ── Main RerouteModal ─────────────────────────────────────────────────────────
 
 function RerouteModal({ record, onClose, colors, darkMode }) {
@@ -152,7 +380,6 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Assign To — same pattern as BulkDeckModal
   const [assignedUser, setAssignedUser] = useState("");
   const [availableUsers, setAvailableUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
@@ -166,7 +393,6 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
     (s) => s.key === currentStep,
   );
   const currentAssignee = selectedActiveStep?.user_name ?? null;
-
   const targetStepObj = WORKFLOW_STEPS.find((s) => s.key === targetStep);
 
   // Load current logged-in user
@@ -186,7 +412,6 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
             (l) => l.application_status === "IN PROGRESS",
           );
           setActiveSteps(inProgress);
-          // Auto-select if only one active step
           if (inProgress.length === 1) {
             setSelectedActiveStep(inProgress[0]);
           }
@@ -196,17 +421,15 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
       }
     })();
   }, [record?.dtn]);
+
   // When target step changes → fetch users for that step's group
   useEffect(() => {
-    // Reset assigned user every time target step changes
     setAssignedUser("");
     setAvailableUsers([]);
 
     if (!targetStep) return;
 
     const groupId = targetStepObj?.groupId ?? null;
-
-    // If this step has no group configured, no fetch needed
     if (!groupId) return;
 
     (async () => {
@@ -227,14 +450,10 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
     targetStep &&
     currentStepIndex > -1 &&
     WORKFLOW_STEPS.findIndex((s) => s.key === targetStep) < currentStepIndex;
-  // (no change needed here — now uses state value automatically)
 
   const stepHasGroup = !!targetStepObj?.groupId;
   const isFormComplete =
-    !!targetStep &&
-    !!selectedReason &&
-    // Assign To is only required if the target step has a configured group
-    (!stepHasGroup || !!assignedUser);
+    !!targetStep && !!selectedReason && (!stepHasGroup || !!assignedUser);
 
   const handleSubmit = async () => {
     if (!isFormComplete) return;
@@ -246,10 +465,9 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
       );
 
       await rerouteApplication({
-        main_db_id: record?.id, // DB_ID ng record
+        main_db_id: record?.id,
         action_type: "REROUTE",
         application_step: currentStep,
-        // ── Re-route fields ──
         reroute_from_step: currentStep,
         reroute_target_step: targetStep,
         reroute_reason: selectedReason,
@@ -257,7 +475,6 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
         rerouted_by_user_id: currentUser?.id ?? null,
         rerouted_by_user_name: currentUser?.username ?? null,
         rerouted_at: nowPHT(),
-        // ── Assigned user sa target step ──
         user_name: assignedUser || null,
         user_id: assignedUserObj?.id ?? null,
       });
@@ -395,7 +612,6 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
           {/* ── Body ── */}
           <div style={{ padding: "1.4rem", overflowY: "auto", flex: 1 }}>
             {submitted ? (
-              /* ── Success state ── */
               <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
                 <div style={{ fontSize: "3rem", marginBottom: "0.75rem" }}>
                   ✅
@@ -623,7 +839,6 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
                               transition: "all 0.15s",
                             }}
                           >
-                            {/* Radio indicator */}
                             <div
                               style={{
                                 width: 16,
@@ -821,7 +1036,7 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
                   </select>
                 </div>
 
-                {/* ── Assign To — only shown when a target step is selected ── */}
+                {/* ── Assign To ── */}
                 {targetStep && (
                   <div>
                     <label style={labelStyle}>
@@ -862,7 +1077,6 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
                         )}
                       </>
                     ) : (
-                      /* Step has no groupId — show a free-text input instead */
                       <input
                         type="text"
                         value={assignedUser}

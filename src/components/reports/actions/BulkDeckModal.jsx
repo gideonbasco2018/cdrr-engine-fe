@@ -1,6 +1,6 @@
 // src/components/UploadReports/actions/BulkDeckModal.jsx
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import {
   createApplicationLog,
@@ -219,7 +219,7 @@ async function generateTransmittalPDF(records) {
         const u = JSON.parse(raw);
         preparedBy = `${u.first_name || ""} ${u.surname || ""}`.trim();
       }
-    } catch (_) { }
+    } catch (_) {}
     if (!preparedBy) preparedBy = "___________________";
 
     doc.setDrawColor(160);
@@ -1008,7 +1008,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
           style={{
             position: "relative",
             width: "100%",
-            maxWidth: "700px",
+            maxWidth: "480px",
             maxHeight: "calc(100vh - 2rem)",
             background: colors.cardBg,
             borderRadius: "16px",
@@ -1023,7 +1023,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
           {/* Header */}
           <div
             style={{
-              padding: "1.5rem 2rem",
+              padding: "0.75rem 1.25rem",
               borderBottom: `2px solid ${colors.cardBorder}`,
               display: "flex",
               justifyContent: "space-between",
@@ -1036,7 +1036,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
             <div>
               <h2
                 style={{
-                  fontSize: "1.5rem",
+                  fontSize: "1.1rem",
                   fontWeight: "700",
                   color: colors.textPrimary,
                   marginBottom: "0.25rem",
@@ -1044,7 +1044,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               >
                 🎯 Deck Multiple Applications
               </h2>
-              <p style={{ fontSize: "0.875rem", color: colors.textTertiary }}>
+              <p style={{ fontSize: "0.75rem", color: colors.textTertiary }}>
                 Decking{" "}
                 <strong style={{ color: "#4CAF50" }}>{records.length}</strong>{" "}
                 applications
@@ -1138,7 +1138,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
           >
             <div
               style={{
-                padding: "2rem",
+                padding: "0.875rem 1.25rem",
                 overflowY: "auto",
                 overflowX: "hidden",
                 flex: 1,
@@ -1149,7 +1149,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 <label
                   style={{
                     display: "block",
-                    fontSize: "0.875rem",
+                    fontSize: "0.78rem",
                     fontWeight: "600",
                     color: colors.textPrimary,
                     marginBottom: "0.75rem",
@@ -1159,7 +1159,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 </label>
                 <div
                   style={{
-                    maxHeight: "140px",
+                    maxHeight: "100px",
                     overflowY: "auto",
                     background: colors.badgeBg,
                     border: `1px solid ${colors.cardBorder}`,
@@ -1195,7 +1195,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 <label
                   style={{
                     display: "block",
-                    fontSize: "0.875rem",
+                    fontSize: "0.78rem",
                     fontWeight: "600",
                     color: colors.textPrimary,
                     marginBottom: "0.5rem",
@@ -1240,7 +1240,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 <label
                   style={{
                     display: "block",
-                    fontSize: "0.875rem",
+                    fontSize: "0.78rem",
                     fontWeight: "600",
                     color: colors.textPrimary,
                     marginBottom: "0.5rem",
@@ -1288,7 +1288,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 <label
                   style={{
                     display: "block",
-                    fontSize: "0.875rem",
+                    fontSize: "0.78rem",
                     fontWeight: "600",
                     color: colors.textPrimary,
                     marginBottom: "0.5rem",
@@ -1302,7 +1302,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                     handleChange("deckerRemarks", e.target.value)
                   }
                   placeholder="Enter any remarks or notes..."
-                  rows={4}
+                  rows={3}
                   style={{
                     width: "100%",
                     padding: "0.75rem 1rem",
@@ -1329,7 +1329,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                    changes. User can still manually override the value.
               ──────────────────────────────────────────────────────────────── */}
               {formData.deckerDecision && (
-                <div style={{ marginBottom: "1.5rem" }}>
+                <div style={{ marginBottom: "0.65rem" }}>
                   {/* start changes */}
                   {/* <label
                     style={{
@@ -1359,7 +1359,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                   <label
                     style={{
                       display: "block",
-                      fontSize: "0.875rem",
+                      fontSize: "0.78rem",
                       fontWeight: "600",
                       color: colors.textPrimary,
                       marginBottom: "0.5rem",
@@ -1513,7 +1513,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                   <label
                     style={{
                       display: "block",
-                      fontSize: "0.875rem",
+                      fontSize: "0.78rem",
                       fontWeight: "600",
                       color: colors.textPrimary,
                       marginBottom: "0.5rem",
@@ -1565,7 +1565,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                   <label
                     style={{
                       display: "block",
-                      fontSize: "0.875rem",
+                      fontSize: "0.78rem",
                       fontWeight: "600",
                       color: colors.textPrimary,
                       marginBottom: "0.5rem",
@@ -1639,7 +1639,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
             {/* Footer */}
             <div
               style={{
-                padding: "1.5rem 2rem",
+                padding: "1rem 1.5rem",
                 borderTop: `2px solid ${colors.cardBorder}`,
                 display: "flex",
                 gap: "1rem",
@@ -1816,28 +1816,28 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 },
                 formData.evaluator
                   ? {
-                    label: "Evaluator",
-                    value: formData.evaluator,
-                    color: "#4CAF50",
-                  }
+                      label: "Evaluator",
+                      value: formData.evaluator,
+                      color: "#4CAF50",
+                    }
                   : null,
                 formData.sne
                   ? { label: "S&E", value: formData.sne, color: "#2196F3" }
                   : null,
                 formData.deckerRemarks
                   ? {
-                    label: "Remarks",
-                    value: formData.deckerRemarks,
-                    color: colors.textSecondary,
-                  }
+                      label: "Remarks",
+                      value: formData.deckerRemarks,
+                      color: colors.textSecondary,
+                    }
                   : null,
                 // Doctrack Remarks row in confirmation summary
                 formData.doctackRemarks
                   ? {
-                    label: "Doctrack Remarks",
-                    value: formData.doctackRemarks,
-                    color: colors.textSecondary,
-                  }
+                      label: "Doctrack Remarks",
+                      value: formData.doctackRemarks,
+                      color: colors.textSecondary,
+                    }
                   : null,
               ]
                 .filter(Boolean)
@@ -2006,40 +2006,174 @@ function LoadingField({ colors, label = "users" }) {
 }
 
 function UserSelect({ value, onChange, users, colors }) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      u.username.toLowerCase().includes(q) ||
+      `${u.first_name} ${u.surname}`.toLowerCase().includes(q)
+    );
+  });
+
+  const selected = users.find((u) => u.username === value);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      required
-      disabled={users.length === 0}
-      style={{
-        width: "100%",
-        padding: "0.75rem 1rem",
-        background: colors.inputBg,
-        border: `1px solid ${colors.inputBorder}`,
-        borderRadius: "8px",
-        color: colors.textPrimary,
-        fontSize: "0.95rem",
-        outline: "none",
-        cursor: users.length === 0 ? "not-allowed" : "pointer",
-        opacity: users.length === 0 ? 0.6 : 1,
-        transition: "all 0.2s",
-        boxSizing: "border-box",
-      }}
-      onFocus={(e) => {
-        if (users.length > 0) e.target.style.borderColor = "#4CAF50";
-      }}
-      onBlur={(e) => (e.target.style.borderColor = colors.inputBorder)}
+    <div
+      ref={ref}
+      style={{ position: "relative", width: "100%", boxSizing: "border-box" }}
     >
-      <option value="">
-        {users.length === 0 ? "No users available" : "Select a user"}
-      </option>
-      {users.map((user) => (
-        <option key={user.id} value={user.username}>
-          {user.username} - {user.first_name} {user.surname}
-        </option>
-      ))}
-    </select>
+      {/* Trigger button */}
+      <div
+        onClick={() => {
+          if (users.length > 0) setOpen((o) => !o);
+        }}
+        style={{
+          width: "100%",
+          padding: "0.6rem 1rem",
+          background: colors.inputBg,
+          border: `1px solid ${colors.inputBorder}`,
+          borderRadius: "8px",
+          color: value ? colors.textPrimary : colors.textTertiary,
+          fontSize: "0.9rem",
+          cursor: users.length === 0 ? "not-allowed" : "pointer",
+          opacity: users.length === 0 ? 0.6 : 1,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          boxSizing: "border-box",
+          userSelect: "none",
+        }}
+      >
+        <span>
+          {selected
+            ? `${selected.username} — ${selected.first_name} ${selected.surname}`
+            : users.length === 0
+              ? "No users available"
+              : "Select a user"}
+        </span>
+        <span style={{ fontSize: "0.7rem", color: colors.textTertiary }}>
+          {open ? "▲" : "▼"}
+        </span>
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            bottom: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: "8px",
+            zIndex: 9999,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+            overflow: "hidden",
+          }}
+        >
+          {/* Search input */}
+          <div style={{ padding: "0.5rem" }}>
+            <input
+              autoFocus
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Type to search user..."
+              style={{
+                width: "100%",
+                padding: "0.5rem 0.75rem",
+                background: colors.inputBg,
+                border: `1px solid ${colors.inputBorder}`,
+                borderRadius: "6px",
+                color: colors.textPrimary,
+                fontSize: "0.85rem",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+
+          {/* User list */}
+          <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+            {filtered.length === 0 ? (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  fontSize: "0.82rem",
+                  color: colors.textTertiary,
+                }}
+              >
+                No users found
+              </div>
+            ) : (
+              filtered.map((u) => (
+                <div
+                  key={u.id}
+                  onClick={() => {
+                    onChange(u.username);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                  style={{
+                    padding: "0.55rem 1rem",
+                    cursor: "pointer",
+                    background:
+                      value === u.username
+                        ? "rgba(76,175,80,0.1)"
+                        : "transparent",
+                    borderLeft:
+                      value === u.username
+                        ? "3px solid #4CAF50"
+                        : "3px solid transparent",
+                    transition: "background 0.12s",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (value !== u.username)
+                      e.currentTarget.style.background =
+                        "rgba(255,255,255,0.06)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (value !== u.username)
+                      e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: 700,
+                      color: colors.textPrimary,
+                    }}
+                  >
+                    {u.username}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      color: colors.textTertiary,
+                      marginTop: "1px",
+                    }}
+                  >
+                    {u.first_name} {u.surname}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -65,52 +65,281 @@ function LoadingField({ colors, label = "users" }) {
 }
 
 function UserSelect({ value, onChange, users, colors, darkMode }) {
+  const [search, setSearch] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      u.username.toLowerCase().includes(q) ||
+      `${u.first_name} ${u.surname}`.toLowerCase().includes(q)
+    );
+  });
+
+  const selectedUser = users.find((u) => u.username === value);
+
+  const handleSelect = (user) => {
+    onChange(user.username);
+    setSearch("");
+    setIsOpen(false);
+  };
+
+  const handleClear = () => {
+    onChange("");
+    setSearch("");
+    setIsOpen(false);
+  };
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={users.length === 0}
-      style={{
-        width: "100%",
-        padding: "0.6rem 0.85rem",
-        background: darkMode ? "#1a1a1a" : "#f5f5f5",
-        border: `1px solid ${colors.cardBorder}`,
-        borderRadius: "8px",
-        color: colors.textPrimary,
-        fontSize: "0.82rem",
-        outline: "none",
-        cursor: users.length === 0 ? "not-allowed" : "pointer",
-        opacity: users.length === 0 ? 0.6 : 1,
-        boxSizing: "border-box",
-      }}
-    >
-      <option value="">
-        {users.length === 0 ? "No users available" : "— Select user —"}
-      </option>
-      {users.map((user) => (
-        <option key={user.id} value={user.username}>
-          {user.username} — {user.first_name} {user.surname}
-        </option>
-      ))}
-    </select>
+    <div style={{ position: "relative", width: "100%" }}>
+      {/* ── Trigger / Search input ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          width: "100%",
+          padding: "0.6rem 0.85rem",
+          background: darkMode ? "#1a1a1a" : "#f5f5f5",
+          border: `1px solid ${isOpen ? "#7c3aed" : colors.cardBorder}`,
+          borderRadius: isOpen ? "8px 8px 0 0" : "8px",
+          boxSizing: "border-box",
+          cursor: "text",
+          transition: "border-color 0.15s",
+        }}
+        onClick={() => setIsOpen(true)}
+      >
+        {/* Selected badge or search input */}
+        {selectedUser && !isOpen ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flex: 1,
+              gap: "0.5rem",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                color: "#7c3aed",
+                background: "rgba(124,58,237,0.08)",
+                border: "1px solid rgba(124,58,237,0.2)",
+                borderRadius: "6px",
+                padding: "0.15rem 0.5rem",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+              }}
+            >
+              👤 {selectedUser.username} — {selectedUser.first_name}{" "}
+              {selectedUser.surname}
+            </span>
+          </div>
+        ) : (
+          <input
+            autoFocus={isOpen}
+            type="text"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setIsOpen(true);
+            }}
+            onFocus={() => setIsOpen(true)}
+            placeholder={
+              users.length === 0
+                ? "No users available"
+                : "Type to search user..."
+            }
+            disabled={users.length === 0}
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: colors.textPrimary,
+              fontSize: "0.82rem",
+              cursor: users.length === 0 ? "not-allowed" : "text",
+            }}
+          />
+        )}
+
+        {/* Right icons */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.3rem",
+            flexShrink: 0,
+          }}
+        >
+          {value && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleClear();
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: colors.textTertiary,
+                fontSize: "0.9rem",
+                padding: "0 2px",
+                lineHeight: 1,
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              ×
+            </button>
+          )}
+          <span
+            style={{
+              color: colors.textTertiary,
+              fontSize: "0.65rem",
+              transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+              transition: "transform 0.15s",
+              display: "inline-block",
+            }}
+          >
+            ▼
+          </span>
+        </div>
+      </div>
+
+      {/* ── Dropdown list ── */}
+      {isOpen && (
+        <>
+          {/* Backdrop to close on outside click */}
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 9998 }}
+            onClick={() => {
+              setIsOpen(false);
+              setSearch("");
+            }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              background: darkMode ? "#1a1a1a" : "#fff",
+              border: `1px solid #7c3aed`,
+              borderTop: "none",
+              borderRadius: "0 0 8px 8px",
+              maxHeight: "220px",
+              overflowY: "auto",
+              zIndex: 9999,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+            }}
+          >
+            {/* Search box inside dropdown (if trigger already has selected) */}
+            {selectedUser && (
+              <div
+                style={{
+                  padding: "0.5rem 0.85rem",
+                  borderBottom: `1px solid ${colors.cardBorder}`,
+                }}
+              >
+                <input
+                  autoFocus
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Type to search user..."
+                  style={{
+                    width: "100%",
+                    background: "transparent",
+                    border: "none",
+                    outline: "none",
+                    color: colors.textPrimary,
+                    fontSize: "0.82rem",
+                  }}
+                />
+              </div>
+            )}
+
+            {filtered.length === 0 ? (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  fontSize: "0.78rem",
+                  color: colors.textTertiary,
+                  textAlign: "center",
+                }}
+              >
+                No users match "{search}"
+              </div>
+            ) : (
+              filtered.map((user) => {
+                const isSelected = user.username === value;
+                return (
+                  <div
+                    key={user.id}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSelect(user);
+                    }}
+                    style={{
+                      padding: "0.6rem 1rem",
+                      cursor: "pointer",
+                      background: isSelected
+                        ? "rgba(124,58,237,0.12)"
+                        : "transparent",
+                      borderLeft: isSelected
+                        ? "3px solid #7c3aed"
+                        : "3px solid transparent",
+                      transition: "background 0.1s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected)
+                        e.currentTarget.style.background = darkMode
+                          ? "#2a2a2a"
+                          : "#f5f3ff";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected)
+                        e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.82rem",
+                        fontWeight: 700,
+                        color: isSelected ? "#7c3aed" : colors.textPrimary,
+                      }}
+                    >
+                      {user.username}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.72rem",
+                        color: colors.textTertiary,
+                        marginTop: "1px",
+                      }}
+                    >
+                      {user.first_name} {user.surname}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
-// I-add itong helper sa itaas ng file (bago ang component)
+// ── PHT helper ────────────────────────────────────────────────────────────────
 const nowPHT = () => {
-  // Kumuha ng PHT time gamit ang Intl API — pinaka-reliable
   const now = new Date();
-
-  // Format bilang PHT string
-  const phtString = now.toLocaleString("sv-SE", {
-    timeZone: "Asia/Manila",
-  });
-  // Output: "2026-04-30 16:20:23" — tama na ito (PHT)
-
-  // I-convert sa ISO format na walang Z
+  const phtString = now.toLocaleString("sv-SE", { timeZone: "Asia/Manila" });
   return phtString.replace(" ", "T");
-  // Output: "2026-04-30T16:20:23"
 };
+
 // ── Main ReassignmentModal ────────────────────────────────────────────────────
 
 function ReassignmentModal({ record, onClose, colors, darkMode }) {
@@ -140,7 +369,7 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
     if (user) setCurrentUser(user);
   }, []);
 
-  // Fetch latest step via DTN — same API as ApplicationLogsModal
+  // Fetch latest step via DTN
   useEffect(() => {
     if (!record?.dtn) {
       setLoadingStep(false);
@@ -155,7 +384,6 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
         const logs = await getApplicationLogsByDtn(record.dtn);
 
         if (Array.isArray(logs) && logs.length > 0) {
-          // API orders by del_index DESC → index 0 = latest log
           const latestLog = logs[0];
           setCurrentStep(latestLog.application_step ?? null);
           setCurrentAssignee(latestLog.user_name ?? null);
@@ -200,23 +428,20 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
     !!selectedReason &&
     (stepHasGroup ? !!selectedUser : true);
 
-  // i-replace ang handleSubmit function
   const handleSubmit = async () => {
     if (!isFormComplete) return;
     setIsSubmitting(true);
 
     try {
-      // Hanapin ang selected user object para makuha ang ID
       const selectedUserObj = availableUsers.find(
         (u) => u.username === selectedUser,
       );
 
       await reassignApplication({
-        main_db_id: record?.id, // DB_ID ng record
+        main_db_id: record?.id,
         action_type: "REASSIGNMENT",
         application_step: currentStep,
-        // ── Re-assignment fields ──
-        reassigned_from_user_id: null, // optional kung wala sa API
+        reassigned_from_user_id: null,
         reassigned_from_user_name: currentAssignee,
         reassigned_to_user_id: selectedUserObj?.id ?? null,
         reassigned_to_user_name: selectedUser,
@@ -236,7 +461,7 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
     }
   };
 
-  // ── Styles ──────────────────────────────────────────────────────────────────
+  // ── Styles ───────────────────────────────────────────────────────────────────
 
   const overlayStyle = {
     position: "fixed",
@@ -483,7 +708,8 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
                       {record?.ltoComp ?? "N/A"}
                     </div>
                   </div>
-                  {/* App Step — shows loading state */}
+
+                  {/* App Step */}
                   <div>
                     <div
                       style={{
@@ -543,7 +769,7 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
                     </div>
                   </div>
 
-                  {/* ── Current Assignee ── */}
+                  {/* Current Assignee */}
                   <div>
                     <div
                       style={{
@@ -614,7 +840,6 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
                 <div>
                   <label style={labelStyle}>
                     Assign To{stepHasGroup ? " *" : ""}
-                    {/* Badge showing which step's group */}
                     {!loadingStep && currentStep && (
                       <span
                         style={{
@@ -641,7 +866,6 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
                     )}
                   </label>
 
-                  {/* Priority: step loading → user loading → dropdown/input */}
                   {loadingStep ? (
                     <LoadingField
                       colors={colors}
@@ -673,7 +897,6 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
                       )}
                     </>
                   ) : (
-                    /* No group configured — free text fallback */
                     <>
                       <input
                         type="text"
