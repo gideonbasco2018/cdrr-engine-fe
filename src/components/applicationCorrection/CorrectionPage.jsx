@@ -18,6 +18,7 @@ export function CorrectionPage({
   darkMode,
   newDtn,
   entryType,
+  subject,
 }) {
   const t = getTheme(darkMode);
   const rec = record ?? MOCK_RECORD;
@@ -37,7 +38,7 @@ export function CorrectionPage({
 
   // editedFields will be populated by DeckerDecisionForm or other editable steps
   const [editedFields, setEditedFields] = useState({});
-
+  const [editableSubject, setEditableSubject] = useState(subject || "");
   const showSidebar = step !== 2;
 
   const handleNext = () => {
@@ -279,6 +280,7 @@ export function CorrectionPage({
                 record={rec}
                 newDtn={newDtn}
                 entryType={entryType}
+                subject={editableSubject}
                 editedFields={editedFields}
                 darkMode={darkMode}
                 deckerData={deckerData}
@@ -435,6 +437,78 @@ export function CorrectionPage({
                 </div>
               </div>
             )}
+            {/* Subject Card */}
+            <div
+              style={{
+                background: t.cardBg,
+                border: `1px solid ${t.cardBorder}`,
+                borderRadius: 12,
+                boxShadow: t.cardShadow,
+                overflow: "hidden",
+                marginBottom: "1rem",
+              }}
+            >
+              <div
+                style={{
+                  padding: "11px 16px",
+                  borderBottom: `1px solid ${t.cardBorder}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                }}
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  fill="none"
+                  stroke={t.sectionTitle}
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M4 6h16M4 12h8" />
+                </svg>
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    color: t.sectionTitle,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.7px",
+                  }}
+                >
+                  Subject
+                </span>
+              </div>
+              <div style={{ padding: "12px 16px" }}>
+                <textarea
+                  value={editableSubject}
+                  onChange={(e) => {
+                    setEditableSubject(e.target.value);
+                    setEditedFields((prev) => ({
+                      ...prev,
+                      subject: e.target.value,
+                    }));
+                  }}
+                  rows={3}
+                  placeholder="Enter subject..."
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    fontFamily: "inherit",
+                    fontSize: 13,
+                    fontWeight: 500,
+                    padding: "8px 10px",
+                    border: `1px solid ${t.fieldBorder}`,
+                    borderRadius: 8,
+                    background: t.fieldBg,
+                    color: t.fieldText,
+                    outline: "none",
+                    resize: "vertical",
+                    lineHeight: 1.6,
+                  }}
+                />
+              </div>
+            </div>
 
             <Card title="Fees">
               <div

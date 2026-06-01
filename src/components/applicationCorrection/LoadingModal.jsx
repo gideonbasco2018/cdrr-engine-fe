@@ -1,3 +1,4 @@
+// src/components/applicationCorrection/LoadingModal.jsx
 import { useState } from "react";
 import { Spinner } from "./shared/Spinner";
 import { getTheme } from "./theme";
@@ -20,6 +21,8 @@ export function LoadingModal({
   const [checkingDtn, setCheckingDtn] = useState(false);
   const [entryType, setEntryType] = useState("");
   const [entryTypeTouched, setEntryTypeTouched] = useState(false);
+  const [subject, setSubject] = useState("");
+  const [subjectTouched, setSubjectTouched] = useState(false);
 
   const isLoading = phase === "loading";
   const isSuccess = phase === "success";
@@ -35,6 +38,8 @@ export function LoadingModal({
 
   const handleProceed = async () => {
     setNewDtnTouched(true);
+    setEntryTypeTouched(true);
+    setSubjectTouched(true);
     const trimmed = newDtn.trim();
 
     if (!trimmed) {
@@ -48,6 +53,7 @@ export function LoadingModal({
     }
 
     if (!entryType) return;
+    if (!subject.trim()) return;
 
     setCheckingDtn(true);
     try {
@@ -65,7 +71,7 @@ export function LoadingModal({
     }
 
     setNewDtnError("");
-    onContinue(trimmed, entryType);
+    onContinue(trimmed, entryType, subject.trim());
   };
 
   return (
@@ -638,6 +644,91 @@ export function LoadingModal({
                       <line x1="12" y1="16" x2="12.01" y2="16" />
                     </svg>
                     Please select an entry type.
+                  </div>
+                )}
+              </div>
+              {/* Subject Input */}
+              <div style={{ marginTop: "1rem", textAlign: "left" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: t.textTertiary,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: 7,
+                  }}
+                >
+                  <svg
+                    width="11"
+                    height="11"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M4 6h16M4 12h8" />
+                  </svg>
+                  Subject{" "}
+                  <span style={{ color: t.errorText, marginLeft: 1 }}>*</span>
+                </label>
+                <textarea
+                  value={subject}
+                  onChange={(e) => {
+                    setSubject(e.target.value);
+                  }}
+                  placeholder="Enter subject..."
+                  rows={4}
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "9px 12px",
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    lineHeight: 1.5,
+                    border: `1.5px solid ${
+                      subjectTouched && !subject.trim()
+                        ? t.errorBorder
+                        : subject.trim()
+                          ? t.successBorder
+                          : t.cardBorder
+                    }`,
+                    borderRadius: 9,
+                    background:
+                      subjectTouched && !subject.trim() ? t.errorBg : t.inputBg,
+                    color: t.textPrimary,
+                    outline: "none",
+                  }}
+                />
+                {subjectTouched && !subject.trim() && (
+                  <div
+                    style={{
+                      marginTop: 5,
+                      fontSize: 12,
+                      color: t.errorText,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    Subject is required.
                   </div>
                 )}
               </div>
