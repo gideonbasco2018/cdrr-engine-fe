@@ -72,6 +72,7 @@ export const DECISION_DOCTRACK_MAP = {
 
   // Releasing Officer
   "Released": "Scanned and stamp, Forwarded to AFO Records",
+  "Forwarded to Quality Evaluation": "Forwarded to Quality Evaluation",
 };
 
 export const BULK_DECK_CONFIG = {
@@ -163,6 +164,18 @@ export const BULK_DECK_CONFIG = {
   ],
   decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
+  "LRD Decking": {
+    currentStep: "LRD Decking",
+    nextStep: "Quality Evaluation",
+    nextGroupId: 3,
+    fromLabel: "LRD Decking",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to Quality Evaluation",
+    defaultDoctrack: "Forwarded to Quality Evaluation",
+    availableDecisions: ["Forwarded to Quality Evaluation"],
+    decisionDoctrackMap: DECISION_DOCTRACK_MAP,
+  },
+
 };
 
 export const RECORD_TAB_COLUMNS = [
