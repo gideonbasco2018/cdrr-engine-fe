@@ -1,8 +1,8 @@
-// src/components/reports/actions/DoctrackModal.jsx
+// src/components/tasks/viewdetails/DoctrackPanel.jsx
 import { useState, useEffect, useRef, useCallback } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { getDocumentByRSN, getDocumentLog } from "../../../api/doctrack";
+import { getDocumentByRSN, getDocumentLog } from "../../../../api/doctrack";
 
 // ─────────────────────────────────────────────
 // Code 128B barcode generator (no external lib)
@@ -120,7 +120,6 @@ const CODE128_PATTERNS = [
   "11000111010",
   "11010111000",
 ];
-
 const START_B = 104;
 const STOP_PATTERN = "1100011101011";
 
@@ -143,19 +142,15 @@ function Code128SVG({ value, height = 50, barWidth = 1.5 }) {
   if (!value) return null;
   const encoded = encode128B(value);
   const totalWidth = encoded.length * barWidth;
-
   const rects = [];
   let x = 0;
   for (let i = 0; i < encoded.length; i++) {
     const fill = encoded[i] === "1" ? "#000" : "#fff";
-    if (i === 0 || encoded[i] !== encoded[i - 1]) {
+    if (i === 0 || encoded[i] !== encoded[i - 1])
       rects.push({ x, fill, w: barWidth });
-    } else {
-      rects[rects.length - 1].w += barWidth;
-    }
+    else rects[rects.length - 1].w += barWidth;
     x += barWidth;
   }
-
   return (
     <svg
       width={totalWidth}
@@ -170,23 +165,13 @@ function Code128SVG({ value, height = 50, barWidth = 1.5 }) {
   );
 }
 
-// ─────────────────────────────────────────────
-// Hidden FDA Tracking Slip — matches real PDF exactly
-// ─────────────────────────────────────────────
-function TrackingSlipTemplate({
-  documentData,
-  documentLogs,
-  parsedSubject,
-  slipRef,
-}) {
+// Hidden tracking slip template for PDF
+function TrackingSlipTemplate({ documentData, parsedSubject, slipRef }) {
   const formatDateCreated = (v) => {
     if (!v) return "N/A";
     try {
       const s = v.toString();
       if (s.length === 8) {
-        const year = s.substring(0, 4);
-        const month = s.substring(4, 6);
-        const day = s.substring(6, 8);
         const MONTHS = [
           "January",
           "February",
@@ -201,7 +186,7 @@ function TrackingSlipTemplate({
           "November",
           "December",
         ];
-        return `${parseInt(day, 10)} ${MONTHS[parseInt(month, 10) - 1]} ${year}`;
+        return `${parseInt(s.substring(6, 8), 10)} ${MONTHS[parseInt(s.substring(4, 6), 10) - 1]} ${s.substring(0, 4)}`;
       }
       return new Date(v).toLocaleDateString("en-PH", {
         day: "2-digit",
@@ -220,9 +205,7 @@ function TrackingSlipTemplate({
     documentData?.subject ||
     "N/A";
 
-  // 11 empty rows — matching the real PDF
   const emptyRows = Array(11).fill(null);
-
   const thStyle = {
     border: "1px solid #a7a7a7",
     padding: "5px 6px",
@@ -232,7 +215,6 @@ function TrackingSlipTemplate({
     background: "#fff",
     verticalAlign: "middle",
   };
-
   const tdStyle = {
     border: "1px solid #a7a7a7",
     padding: "4px 6px",
@@ -257,10 +239,8 @@ function TrackingSlipTemplate({
         padding: "48px 60px",
         boxSizing: "border-box",
         zIndex: -1,
-        overflow: "hidden",
       }}
     >
-      {/* ── HEADER ── */}
       <div
         style={{
           display: "flex",
@@ -294,7 +274,6 @@ function TrackingSlipTemplate({
             marginLeft: "6px",
           }}
         />
-
         <div
           style={{
             width: "1.5px",
@@ -304,16 +283,8 @@ function TrackingSlipTemplate({
             flexShrink: 0,
           }}
         />
-
         <div style={{ flex: 1 }}>
-          <div
-            style={{
-              fontSize: "10px",
-              color: "#333",
-              lineHeight: "1.6",
-              margin: 0,
-            }}
-          >
+          <div style={{ fontSize: "10px", color: "#333", lineHeight: "1.6" }}>
             Republic of the Philippines
             <br />
             Department of Health
@@ -329,7 +300,6 @@ function TrackingSlipTemplate({
             FOOD AND DRUG ADMINISTRATION
           </div>
         </div>
-
         <img
           src="/images/bagong_pilipinas.png"
           alt="Bagong Pilipinas"
@@ -343,21 +313,16 @@ function TrackingSlipTemplate({
           }}
         />
       </div>
-
-      {/* ── TITLE ── */}
       <div
         style={{
           textAlign: "center",
           fontSize: "14px",
           fontWeight: "bold",
           marginBottom: "20px",
-          letterSpacing: "0.2px",
         }}
       >
         FDA Document Tracking Slip
       </div>
-
-      {/* ── INFO TABLE ── */}
       <table
         style={{
           width: "100%",
@@ -464,21 +429,18 @@ function TrackingSlipTemplate({
                 fontSize: "10.5px",
               }}
             >
-              {/* {subjectText.split("\n").filter(Boolean)} */}
               {subjectText}
             </td>
           </tr>
         </tbody>
       </table>
-
-      {/* ── INTERNAL ROUTING DETAILS ── */}
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
             <th rowSpan={2} style={{ ...thStyle, width: "16%" }}>
               DATE
             </th>
-            <th colSpan={2} style={{ ...thStyle }}>
+            <th colSpan={2} style={thStyle}>
               OFFICE
             </th>
             <th rowSpan={2} style={{ ...thStyle, width: "38%" }}>
@@ -505,8 +467,6 @@ function TrackingSlipTemplate({
           ))}
         </tbody>
       </table>
-
-      {/* ── WATERMARK ── */}
       <img
         src="/images/FDA.png"
         alt=""
@@ -527,9 +487,9 @@ function TrackingSlipTemplate({
 }
 
 // ─────────────────────────────────────────────
-// DoctrackModal
+// DoctrackPanel — embedded side panel
 // ─────────────────────────────────────────────
-function DoctrackModal({ record, onClose, colors }) {
+function DoctrackPanel({ record, onClose, colors }) {
   const [loading, setLoading] = useState(true);
   const [documentData, setDocumentData] = useState(null);
   const [documentLogs, setDocumentLogs] = useState([]);
@@ -548,6 +508,8 @@ function DoctrackModal({ record, onClose, colors }) {
     try {
       setLoading(true);
       setError(null);
+      setDocumentData(null);
+      setDocumentLogs([]);
       const docResponse = await getDocumentByRSN(record.dtn);
       if (docResponse.count > 0 && docResponse.data.length > 0) {
         const doc = docResponse.data[0];
@@ -558,10 +520,10 @@ function DoctrackModal({ record, onClose, colors }) {
         );
         setDocumentLogs(sorted);
       } else {
-        setError("No document tracking data found for this DTN");
+        setError("No document tracking data found for this DTN.");
       }
     } catch (err) {
-      setError(err.message || "Failed to load document tracking data");
+      setError(err.message || "Failed to load document tracking data.");
     } finally {
       setLoading(false);
     }
@@ -573,7 +535,6 @@ function DoctrackModal({ record, onClose, colors }) {
       setPdfBuilding(true);
       setPdfReady(false);
       pdfCache.current = null;
-
       const images = slipRef.current.querySelectorAll("img");
       await Promise.all(
         Array.from(images).map((img) =>
@@ -585,7 +546,6 @@ function DoctrackModal({ record, onClose, colors }) {
               }),
         ),
       );
-
       const canvas = await html2canvas(slipRef.current, {
         scale: 2,
         useCORS: true,
@@ -595,7 +555,6 @@ function DoctrackModal({ record, onClose, colors }) {
         width: 794,
         windowWidth: 794,
       });
-
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({
         orientation: "portrait",
@@ -605,14 +564,12 @@ function DoctrackModal({ record, onClose, colors }) {
       const pageW = pdf.internal.pageSize.getWidth();
       const pageH = pdf.internal.pageSize.getHeight();
       const imgH = (canvas.height * pageW) / canvas.width;
-
       let yOffset = 0;
       while (yOffset < imgH) {
         if (yOffset > 0) pdf.addPage();
         pdf.addImage(imgData, "PNG", 0, -yOffset, pageW, imgH);
         yOffset += pageH;
       }
-
       pdfCache.current = {
         pdf,
         filename: `FDA_TrackingSlip_${documentData.rsn || record.dtn}.pdf`,
@@ -669,108 +626,125 @@ function DoctrackModal({ record, onClose, colors }) {
 
   const parsedSubject = parseSubject(documentData?.subject);
 
+  const PanelRow = ({ label, value }) => (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "baseline",
+        gap: "0.4rem",
+        padding: "0.2rem 0",
+        borderBottom: `1px solid ${colors.tableBorder}`,
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.55rem",
+          fontWeight: "700",
+          color: colors.textTertiary,
+          textTransform: "uppercase",
+          letterSpacing: "0.07em",
+          whiteSpace: "nowrap",
+          minWidth: "80px",
+          flexShrink: 0,
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: "0.7rem",
+          color: colors.textPrimary,
+          fontWeight: "500",
+          wordBreak: "break-word",
+          lineHeight: "1.3",
+        }}
+      >
+        {value || "N/A"}
+      </span>
+    </div>
+  );
+
   return (
     <>
+      {/* Hidden PDF template */}
       {documentData && (
         <TrackingSlipTemplate
           documentData={documentData}
-          documentLogs={documentLogs}
           parsedSubject={parsedSubject}
           slipRef={slipRef}
         />
       )}
 
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "rgba(0,0,0,0.6)",
-          backdropFilter: "blur(4px)",
-          zIndex: 9998,
-          animation: "fadeIn 0.2s ease-out",
-        }}
-      />
-
+      {/* Panel container */}
       <div
         style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          width: "70%",
-          height: "100vh",
-          background: colors.cardBg,
-          boxShadow: "-4px 0 24px rgba(0,0,0,0.3)",
-          zIndex: 9999,
+          width: "500px",
+          minWidth: "500px",
+          borderLeft: `1px solid ${colors.cardBorder}`,
           display: "flex",
           flexDirection: "column",
-          animation: "slideInRight 0.3s ease-out",
+          minHeight: 0,
+          maxHeight: "100%",
+          background: colors.tableBg,
+          borderRadius: "0 0 12px 0",
+          overflow: "hidden",
         }}
       >
-        {/* Header */}
+        {/* Panel header */}
         <div
           style={{
-            padding: "1.5rem 2rem",
+            padding: "0.7rem 0.9rem",
             borderBottom: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            background: colors.tableBg,
+            flexShrink: 0,
+            background: colors.cardBg,
           }}
         >
           <div>
-            <h2
+            <div
               style={{
-                fontSize: "1.2rem",
+                fontSize: "0.72rem",
                 fontWeight: "700",
                 color: colors.textPrimary,
-                margin: 0,
-                marginBottom: "0.25rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
               }}
             >
-              📋 Document Tracking Details
-            </h2>
-            <p
+              <span>📋</span> Doctrack Details
+            </div>
+            <div
               style={{
-                fontSize: "0.9rem",
+                fontSize: "0.6rem",
                 color: colors.textTertiary,
-                margin: 0,
+                marginTop: "0.1rem",
               }}
             >
-              DTN: {record.dtn}
-            </p>
+              DTN: <strong style={{ color: "#2196F3" }}>{record.dtn}</strong>
+            </div>
           </div>
-          <div
-            style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
             {!loading && !error && documentData && (
               <button
                 onClick={handleDownloadPDF}
                 disabled={!pdfReady}
+                title="Download Tracking Slip PDF"
                 style={{
+                  padding: "0.3rem 0.6rem",
                   background: pdfReady ? "#003580" : "#6b7280",
                   border: "none",
-                  borderRadius: "8px",
-                  padding: "0.5rem 1rem",
-                  cursor: pdfReady ? "pointer" : "not-allowed",
+                  borderRadius: "6px",
                   color: "#fff",
-                  fontSize: "0.82rem",
-                  fontWeight: "600",
+                  fontSize: "0.62rem",
+                  fontWeight: "700",
+                  cursor: pdfReady ? "pointer" : "not-allowed",
+                  opacity: pdfReady ? 1 : 0.7,
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.4rem",
-                  transition: "background 0.2s",
+                  gap: "0.3rem",
                   whiteSpace: "nowrap",
-                  opacity: pdfReady ? 1 : 0.7,
-                }}
-                onMouseEnter={(e) => {
-                  if (pdfReady) e.currentTarget.style.background = "#002060";
-                }}
-                onMouseLeave={(e) => {
-                  if (pdfReady) e.currentTarget.style.background = "#003580";
                 }}
               >
                 {pdfBuilding ? (
@@ -778,52 +752,63 @@ function DoctrackModal({ record, onClose, colors }) {
                     <span
                       style={{
                         display: "inline-block",
-                        width: "13px",
-                        height: "13px",
+                        width: "10px",
+                        height: "10px",
                         border: "2px solid #fff",
                         borderTop: "2px solid transparent",
                         borderRadius: "50%",
                         animation: "spin 0.8s linear infinite",
                       }}
                     />
-                    Preparing PDF...
+                    Preparing…
                   </>
                 ) : (
-                  "📄 Download Tracking Slip"
+                  <>📄 Download Slip</>
                 )}
               </button>
             )}
             <button
               onClick={onClose}
               style={{
-                background: "transparent",
+                width: "24px",
+                height: "24px",
+                borderRadius: "5px",
                 border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "8px",
-                padding: "0.5rem",
+                background: "transparent",
+                color: colors.textSecondary,
                 cursor: "pointer",
-                color: colors.textPrimary,
-                fontSize: "1.25rem",
-                width: "36px",
-                height: "36px",
+                fontSize: "0.8rem",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                transition: "all 0.2s",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = colors.tableRowHover)
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#ef444415";
+                e.currentTarget.style.borderColor = "#ef4444";
+                e.currentTarget.style.color = "#ef4444";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.borderColor = colors.cardBorder;
+                e.currentTarget.style.color = colors.textSecondary;
+              }}
             >
               ✕
             </button>
           </div>
         </div>
 
-        {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "2rem" }}>
+        {/* Panel body */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "0.75rem 0.9rem",
+            maxHeight: "100%",
+            minHeight: 0,
+          }}
+        >
+          {/* Loading */}
           {loading && (
             <div
               style={{
@@ -831,265 +816,221 @@ function DoctrackModal({ record, onClose, colors }) {
                 flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
-                padding: "3rem",
+                padding: "3rem 1rem",
                 color: colors.textTertiary,
               }}
             >
               <div
                 style={{
-                  width: "40px",
-                  height: "40px",
+                  width: "32px",
+                  height: "32px",
                   border: `3px solid ${colors.cardBorder}`,
                   borderTop: "3px solid #4CAF50",
                   borderRadius: "50%",
                   animation: "spin 1s linear infinite",
                 }}
               />
-              <p style={{ marginTop: "1rem", fontSize: "0.9rem" }}>
-                Loading document tracking data...
+              <p style={{ marginTop: "0.75rem", fontSize: "0.75rem" }}>
+                Loading tracking data…
               </p>
             </div>
           )}
+
+          {/* Error */}
           {error && (
             <div
               style={{
-                padding: "1rem",
+                padding: "0.75rem",
                 background: "#ef444410",
                 border: "1px solid #ef4444",
-                borderRadius: "8px",
+                borderRadius: "6px",
                 color: "#ef4444",
-                fontSize: "0.9rem",
+                fontSize: "0.75rem",
               }}
             >
               ⚠️ {error}
             </div>
           )}
+
+          {/* Content */}
           {!loading && !error && documentData && (
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "45% 55%",
-                gap: "1.5rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.4rem",
               }}
             >
-              {/* Left */}
+              {/* Basic Info */}
               <div
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "1rem",
+                  background: colors.cardBg,
+                  borderRadius: "8px",
+                  border: `1px solid ${colors.cardBorder}`,
+                  padding: "0.4rem 0.6rem",
                 }}
               >
-                <h3
+                <div
                   style={{
-                    fontSize: "1rem",
-                    fontWeight: "700",
-                    color: colors.textPrimary,
-                    marginBottom: 0,
+                    fontSize: "0.65rem",
+                    fontWeight: "800",
+                    color: colors.textTertiary,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: "0.1rem",
                   }}
                 >
                   📄 Document Information
-                </h3>
-                <div
-                  style={{
-                    padding: "1rem",
-                    background: colors.tableBg,
-                    borderRadius: "8px",
-                    border: `1px solid ${colors.cardBorder}`,
-                  }}
-                >
-                  <h4
-                    style={{
-                      fontSize: "0.9rem",
-                      fontWeight: "600",
-                      color: colors.textPrimary,
-                      marginBottom: "0.75rem",
-                      marginTop: 0,
-                    }}
-                  >
-                    Basic Information
-                  </h4>
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "0.65rem",
-                    }}
-                  >
-                    <DetailRow
-                      label="RSN"
-                      value={documentData.rsn}
-                      colors={colors}
-                    />
-                    <DetailRow
-                      label="Document Rec ID"
-                      value={documentData.docrecID}
-                      colors={colors}
-                    />
-                    <DetailRow
-                      label="Classification"
-                      value={documentData.docclassName}
-                      colors={colors}
-                    />
-                    <DetailRow
-                      label="Date Received"
-                      value={formatDate(documentData.datereceived)}
-                      colors={colors}
-                    />
-                    <DetailRow
-                      label="Office Source"
-                      value={documentData.officesource}
-                      colors={colors}
-                    />
-                    <DetailRow
-                      label="Status"
-                      value={
-                        documentData.transstatus === 1 ? "Active" : "Inactive"
-                      }
-                      colors={colors}
-                    />
-                  </div>
                 </div>
-                {documentData.subject && (
+                <PanelRow label="RSN" value={documentData.rsn} />
+                <PanelRow
+                  label="Classification"
+                  value={documentData.docclassName}
+                />
+                <PanelRow
+                  label="Date Received"
+                  value={formatDate(documentData.datereceived)}
+                />
+                <PanelRow
+                  label="Originating Office"
+                  value={documentData.officesource}
+                />
+                <PanelRow
+                  label="Status"
+                  value={documentData.transstatus === 1 ? "Active" : "Inactive"}
+                />
+              </div>
+
+              {/* Subject / Application Details */}
+              {documentData.subject &&
+                Object.keys(parsedSubject).length > 0 && (
                   <div
                     style={{
-                      padding: "1rem",
-                      background: colors.tableBg,
+                      background: colors.cardBg,
                       borderRadius: "8px",
                       border: `1px solid ${colors.cardBorder}`,
+                      padding: "0.65rem 0.8rem",
                     }}
                   >
-                    <h4
-                      style={{
-                        fontSize: "0.9rem",
-                        fontWeight: "600",
-                        color: colors.textPrimary,
-                        marginBottom: "0.75rem",
-                        marginTop: 0,
-                      }}
-                    >
-                      Application Details
-                    </h4>
                     <div
                       style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.65rem",
+                        fontSize: "0.65rem",
+                        fontWeight: "800",
+                        color: colors.textTertiary,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        marginBottom: "0.25rem",
                       }}
                     >
-                      {Object.entries(parsedSubject).map(([key, value]) => (
-                        <DetailRow
-                          key={key}
-                          label={key}
-                          value={value}
-                          colors={colors}
-                        />
-                      ))}
+                      📝 Application Details
                     </div>
+                    {Object.entries(parsedSubject).map(([key, value]) => (
+                      <PanelRow key={key} label={key} value={value} />
+                    ))}
                   </div>
                 )}
-                {documentData.remarks && (
+
+              {/* Remarks */}
+              {documentData.remarks && (
+                <div
+                  style={{
+                    background: colors.cardBg,
+                    borderRadius: "8px",
+                    border: `1px solid ${colors.cardBorder}`,
+                    padding: "0.65rem 0.8rem",
+                  }}
+                >
                   <div
                     style={{
-                      padding: "1rem",
-                      background: colors.tableBg,
-                      borderRadius: "8px",
-                      border: `1px solid ${colors.cardBorder}`,
+                      fontSize: "0.65rem",
+                      fontWeight: "800",
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      marginBottom: "0.35rem",
                     }}
                   >
-                    <h4
-                      style={{
-                        fontSize: "0.9rem",
-                        fontWeight: "600",
-                        color: colors.textPrimary,
-                        marginBottom: "0.5rem",
-                        marginTop: 0,
-                      }}
-                    >
-                      Remarks
-                    </h4>
-                    <p
-                      style={{
-                        fontSize: "0.85rem",
-                        color: colors.textSecondary,
-                        lineHeight: "1.5",
-                        margin: 0,
-                      }}
-                    >
-                      {documentData.remarks}
-                    </p>
+                    💬 Remarks
                   </div>
-                )}
-              </div>
-              {/* Right */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "1rem",
-                }}
-              >
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      color: colors.textSecondary,
+                      lineHeight: "1.5",
+                      margin: 0,
+                    }}
+                  >
+                    {documentData.remarks}
+                  </p>
+                </div>
+              )}
+
+              {/* Activity Timeline */}
+              <div>
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.5rem",
+                    gap: "0.4rem",
+                    marginBottom: "0.5rem",
                   }}
                 >
-                  <h3
+                  <span
                     style={{
-                      fontSize: "1rem",
-                      fontWeight: "700",
-                      color: colors.textPrimary,
-                      margin: 0,
+                      fontSize: "0.65rem",
+                      fontWeight: "800",
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
                     }}
                   >
-                    📝 Activity Timeline
-                  </h3>
+                    🕒 Activity Timeline
+                  </span>
                   {documentLogs.length > 0 && (
                     <span
                       style={{
-                        padding: "0.2rem 0.6rem",
+                        padding: "0.1rem 0.4rem",
                         background: colors.badgeBg,
-                        borderRadius: "12px",
-                        fontSize: "0.75rem",
+                        borderRadius: "10px",
+                        fontSize: "0.58rem",
                         color: colors.textTertiary,
-                        fontWeight: "600",
+                        fontWeight: "700",
                       }}
                     >
-                      {documentLogs.length} logs
+                      {documentLogs.length}
                     </span>
                   )}
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.75rem",
-                  }}
-                >
-                  {documentLogs.length === 0 ? (
-                    <div
-                      style={{
-                        padding: "2rem",
-                        textAlign: "center",
-                        color: colors.textTertiary,
-                        fontSize: "0.85rem",
-                        background: colors.tableBg,
-                        borderRadius: "8px",
-                        border: `1px solid ${colors.cardBorder}`,
-                      }}
-                    >
-                      No activity logs found
-                    </div>
-                  ) : (
-                    documentLogs.map((log, index) => (
+
+                {documentLogs.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "1.5rem",
+                      textAlign: "center",
+                      color: colors.textTertiary,
+                      fontSize: "0.72rem",
+                      background: colors.cardBg,
+                      borderRadius: "8px",
+                      border: `1px solid ${colors.cardBorder}`,
+                    }}
+                  >
+                    No activity logs found
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.5rem",
+                    }}
+                  >
+                    {documentLogs.map((log, index) => (
                       <div
                         key={log.logID}
                         style={{
-                          padding: "1rem",
-                          background: colors.tableBg,
-                          borderRadius: "8px",
+                          padding: "0.6rem 0.75rem",
+                          background: colors.cardBg,
+                          borderRadius: "7px",
                           border: `1px solid ${colors.cardBorder}`,
                           position: "relative",
                         }}
@@ -1098,9 +1039,9 @@ function DoctrackModal({ record, onClose, colors }) {
                           <div
                             style={{
                               position: "absolute",
-                              left: "1.5rem",
-                              top: "2.75rem",
-                              bottom: "-0.75rem",
+                              left: "1.15rem",
+                              top: "2.4rem",
+                              bottom: "-0.5rem",
                               width: "2px",
                               background: colors.cardBorder,
                             }}
@@ -1109,32 +1050,32 @@ function DoctrackModal({ record, onClose, colors }) {
                         <div
                           style={{
                             display: "flex",
-                            gap: "0.75rem",
+                            gap: "0.5rem",
                             position: "relative",
                           }}
                         >
                           <div
                             style={{
-                              width: "32px",
-                              height: "32px",
+                              width: "24px",
+                              height: "24px",
                               borderRadius: "50%",
                               background: "#4CAF50",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
                               flexShrink: 0,
-                              fontSize: "0.9rem",
+                              fontSize: "0.65rem",
                               zIndex: 1,
                             }}
                           >
                             📝
                           </div>
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <div
                               style={{
-                                fontSize: "0.8rem",
+                                fontSize: "0.65rem",
                                 color: colors.textTertiary,
-                                marginBottom: "0.35rem",
+                                marginBottom: "0.2rem",
                                 fontWeight: "500",
                               }}
                             >
@@ -1142,10 +1083,11 @@ function DoctrackModal({ record, onClose, colors }) {
                             </div>
                             <p
                               style={{
-                                fontSize: "0.85rem",
+                                fontSize: "0.72rem",
                                 color: colors.textSecondary,
-                                lineHeight: "1.5",
+                                lineHeight: "1.45",
                                 margin: 0,
+                                wordBreak: "break-word",
                               }}
                             >
                               {log.remarks}
@@ -1153,9 +1095,9 @@ function DoctrackModal({ record, onClose, colors }) {
                             {log.userID && (
                               <div
                                 style={{
-                                  fontSize: "0.75rem",
+                                  fontSize: "0.62rem",
                                   color: colors.textTertiary,
-                                  marginTop: "0.35rem",
+                                  marginTop: "0.2rem",
                                 }}
                               >
                                 User ID: {log.userID}
@@ -1164,59 +1106,18 @@ function DoctrackModal({ record, onClose, colors }) {
                           </div>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      <style>{`
-        @keyframes fadeIn       { from { opacity: 0; }                  to { opacity: 1; } }
-        @keyframes slideInRight { from { transform: translateX(100%); } to { transform: translateX(0); } }
-        @keyframes spin         { to   { transform: rotate(360deg); } }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
   );
 }
 
-function DetailRow({ label, value, colors }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: "0.75rem",
-      }}
-    >
-      <span
-        style={{
-          fontSize: "0.9rem",
-          color: colors.textTertiary,
-          fontWeight: "500",
-          width: "50%",
-          flexShrink: 0,
-          wordBreak: "break-word",
-        }}
-      >
-        {label}:
-      </span>
-      <span
-        style={{
-          fontSize: "0.9rem",
-          color: colors.textSecondary,
-          textAlign: "right",
-          width: "50%",
-          wordBreak: "break-word",
-        }}
-      >
-        {value || "N/A"}
-      </span>
-    </div>
-  );
-}
-
-export default DoctrackModal;
+export default DoctrackPanel;

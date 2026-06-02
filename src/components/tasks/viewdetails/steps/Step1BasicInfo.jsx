@@ -21,6 +21,7 @@ export function Step1BasicInfo({
   colors,
   isQAAdmin = false,
   missingFields = [],
+  onOpenDoctrack,
 }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
@@ -606,14 +607,55 @@ export function Step1BasicInfo({
             Document Tracking No.
           </div>
           <div
+            onClick={() => onOpenDoctrack?.(record)}
             style={{
               fontSize: "1.25rem",
               fontWeight: "800",
-              color: colors.textPrimary,
+              color: "#2196F3",
               letterSpacing: "-0.02em",
+              cursor: "pointer",
+              textDecoration: "underline",
             }}
           >
             {cleanValue(record.dtn)}
+          </div>
+        </div>
+
+        <div>
+          <div
+            style={{
+              fontSize: "0.6rem",
+              fontWeight: "700",
+              color: "#258309",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              marginBottom: "0.15rem",
+            }}
+          >
+            Old RSN/ Other DTN
+          </div>
+          <div
+            onClick={() =>
+              record.oldRsn && cleanValue(record.oldRsn) !== "N/A"
+                ? onOpenDoctrack?.({ ...record, dtn: record.oldRsn })
+                : undefined
+            }
+            style={{
+              fontSize: "1.25rem",
+              fontWeight: "400",
+              color: "#5aaa3b",
+              letterSpacing: "-0.02em",
+              cursor:
+                record.oldRsn && cleanValue(record.oldRsn) !== "N/A"
+                  ? "pointer"
+                  : "default",
+              textDecoration:
+                record.oldRsn && cleanValue(record.oldRsn) !== "N/A"
+                  ? "underline"
+                  : "none",
+            }}
+          >
+            {cleanValue(record.oldRsn)}
           </div>
         </div>
         <div
