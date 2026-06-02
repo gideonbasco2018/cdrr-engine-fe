@@ -1022,17 +1022,92 @@ export default function AllRecords({
             className="monitoring-scroll"
           >
             {loading ? (
-              <div
-                style={{
-                  padding: "28px",
-                  textAlign: "center",
-                  color: ui.textMuted,
-                  fontSize: "0.78rem",
-                  fontFamily: font,
-                }}
-              >
-                Loading records...
-              </div>
+              <>
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: GRID,
+                      borderBottom: `1px solid ${ui.divider}`,
+                      height: 42,
+                      alignItems: "center",
+                    }}
+                  >
+                    {/* DTN */}
+                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
+                      <div style={{
+                        height: 9, width: 90, borderRadius: 4, background: ui.progressBg,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06}s infinite`,
+                      }} />
+                    </div>
+
+                    {/* User */}
+                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, padding: "5px 8px" }}>
+                      <div style={{
+                        width: 6, height: 6, borderRadius: "50%", background: ui.progressBg, flexShrink: 0,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.04}s infinite`,
+                      }} />
+                      <div style={{
+                        height: 8, width: 70, borderRadius: 4, background: ui.progressBg,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.04}s infinite`,
+                      }} />
+                    </div>
+
+                    {/* Drug */}
+                    <div style={{ padding: "5px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+                      <div style={{
+                        height: 8, borderRadius: 4, background: ui.progressBg, width: "85%",
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.08}s infinite`,
+                      }} />
+                      <div style={{
+                        height: 7, borderRadius: 4, background: ui.progressBg, width: "55%",
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.1}s infinite`,
+                      }} />
+                    </div>
+
+                    {/* Date */}
+                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
+                      <div style={{
+                        height: 8, width: 64, borderRadius: 4, background: ui.progressBg,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.06}s infinite`,
+                      }} />
+                    </div>
+
+                    {/* Step */}
+                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
+                      <div style={{
+                        height: 18, width: 72, borderRadius: 99, background: ui.progressBg,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.08}s infinite`,
+                      }} />
+                    </div>
+
+                    {/* Timeline */}
+                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
+                      <div style={{
+                        height: 18, width: 56, borderRadius: 99, background: ui.progressBg,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.1}s infinite`,
+                      }} />
+                    </div>
+
+                    {/* Status */}
+                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
+                      <div style={{
+                        height: 18, width: 70, borderRadius: 99, background: ui.progressBg,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.12}s infinite`,
+                      }} />
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
+                      <div style={{
+                        height: 20, width: 24, borderRadius: 4, background: ui.progressBg,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.14}s infinite`,
+                      }} />
+                    </div>
+                  </div>
+                ))}
+              </>
             ) : error ? (
               <div
                 style={{

@@ -15,6 +15,10 @@ function useScrollbarStyles() {
     }
 
     el.textContent = `
+      @keyframes skel-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
       .monitoring-scroll::-webkit-scrollbar {
         width: 3px;
         height: 3px;

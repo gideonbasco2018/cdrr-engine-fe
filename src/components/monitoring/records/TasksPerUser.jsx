@@ -252,16 +252,53 @@ export default function TasksPerUser({
           className="monitoring-scroll"
         >
           {loading ? (
-            <div
-              style={{
-                padding: "20px",
-                textAlign: "center",
-                color: ui.textMuted,
-                fontSize: "0.76rem",
-                fontFamily: font,
-              }}
-            >
-              Loading...
+            <div style={{ padding: "6px 8px" }}>
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 36px 36px 36px",
+                    padding: "7px 0",
+                    gap: 8,
+                    borderBottom: `1px solid ${ui.divider}`,
+                    alignItems: "center",
+                  }}
+                >
+                  {/* Avatar + name/group/bar */}
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                    <div style={{
+                      width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                      background: ui.progressBg,
+                      animation: `skel-pulse 1.4s ease-in-out ${i * 0.08}s infinite`,
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{
+                        height: 8, borderRadius: 4, background: ui.progressBg,
+                        width: `${60 + (i % 3) * 15}%`, marginBottom: 4,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.08 + 0.05}s infinite`,
+                      }} />
+                      <div style={{
+                        height: 6, borderRadius: 4, background: ui.progressBg,
+                        width: "50%", marginBottom: 5,
+                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.08 + 0.1}s infinite`,
+                      }} />
+                      <div style={{
+                        height: 2, borderRadius: 99, background: ui.progressBg, width: "100%",
+                      }} />
+                    </div>
+                  </div>
+
+                  {/* Count placeholders */}
+                  {[0, 1, 2].map((j) => (
+                    <div key={j} style={{
+                      height: 14, width: 20, borderRadius: 3, background: ui.progressBg,
+                      margin: "0 auto",
+                      animation: `skel-pulse 1.4s ease-in-out ${i * 0.08 + j * 0.04}s infinite`,
+                    }} />
+                  ))}
+                </div>
+              ))}
             </div>
           ) : error ? (
             <div

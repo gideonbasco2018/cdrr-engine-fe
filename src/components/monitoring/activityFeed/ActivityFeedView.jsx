@@ -1,8 +1,118 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { getDashboardGlobalAllRecentApplications } from "../../../api/dashboard";
 
 const FB = "#1877F2";
 
+// ── Glassmorphism helpers ─────────────────────────────────────
+function glassCard(darkMode) {
+  return {
+    background: darkMode
+      ? "linear-gradient(135deg, rgba(40,40,50,0.6) 0%, rgba(30,30,40,0.4) 100%)"
+      : "linear-gradient(135deg, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.45) 100%)",
+    backdropFilter: "blur(24px) saturate(200%)",
+    WebkitBackdropFilter: "blur(24px) saturate(200%)",
+    border: darkMode
+      ? "1.5px solid rgba(255,255,255,0.1)"
+      : "1.5px solid rgba(255,255,255,0.8)",
+    boxShadow: darkMode
+      ? "0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)"
+      : "0 8px 32px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.03), inset 0 1px 0 rgba(255,255,255,0.9)",
+  };
+}
+
+function glassInput(darkMode) {
+  return {
+    background: darkMode ? "rgba(50,50,55,0.5)" : "rgba(255,255,255,0.6)",
+    backdropFilter: "blur(12px)",
+    WebkitBackdropFilter: "blur(12px)",
+    border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)"}`,
+    boxShadow: darkMode
+      ? "inset 0 1px 3px rgba(0,0,0,0.2)"
+      : "inset 0 1px 3px rgba(0,0,0,0.03), 0 1px 2px rgba(255,255,255,0.6)",
+  };
+}
+
+function glassPanel(darkMode) {
+  return {
+    background: darkMode
+      ? "rgba(30,30,35,0.45)"
+      : "rgba(255,255,255,0.4)",
+    backdropFilter: "blur(20px) saturate(180%)",
+    WebkitBackdropFilter: "blur(20px) saturate(180%)",
+    border: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.7)"}`,
+    boxShadow: darkMode
+      ? "0 4px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)"
+      : "0 4px 24px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.8)",
+  };
+}
+
+// ── Keyframes injection ───────────────────────────────────────
+const ANIM_ID = "activity-feed-glass-anims";
+if (typeof document !== "undefined" && !document.getElementById(ANIM_ID)) {
+  const style = document.createElement("style");
+  style.id = ANIM_ID;
+  style.textContent = `
+    @keyframes af-shimmer {
+      0% { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    @keyframes af-fade-up {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes af-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// ── Skeleton components ───────────────────────────────────────
+function SkeletonBox({ width = "100%", height = 14, radius = 6, darkMode, style: extra = {} }) {
+  const shimmer = darkMode
+    ? "linear-gradient(90deg, rgba(50,50,60,0.6) 25%, rgba(70,70,80,0.6) 50%, rgba(50,50,60,0.6) 75%)"
+    : "linear-gradient(90deg, rgba(220,225,235,0.6) 25%, rgba(240,243,248,0.8) 50%, rgba(220,225,235,0.6) 75%)";
+  return (
+    <div style={{
+      width, height, borderRadius: radius,
+      background: shimmer,
+      backgroundSize: "800px 100%",
+      animation: "af-shimmer 1.4s infinite linear",
+      flexShrink: 0,
+      ...extra,
+    }} />
+  );
+}
+
+function SkeletonCard({ darkMode, index = 0 }) {
+  return (
+    <div style={{
+      ...glassCard(darkMode),
+      borderRadius: 16,
+      padding: "14px 16px",
+      display: "flex",
+      alignItems: "flex-start",
+      gap: 12,
+      animation: "af-fade-up 0.4s ease both",
+      animationDelay: `${index * 80}ms`,
+    }}>
+      <SkeletonBox width={40} height={40} radius={10} darkMode={darkMode} />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+        <SkeletonBox width="65%" height={12} darkMode={darkMode} />
+        <SkeletonBox width="45%" height={10} darkMode={darkMode} />
+        <SkeletonBox width={90} height={8} darkMode={darkMode} style={{ marginTop: 2 }} />
+        <SkeletonBox width={160} height={26} radius={8} darkMode={darkMode} style={{ marginTop: 4 }} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+        <SkeletonBox width={55} height={10} darkMode={darkMode} />
+        <SkeletonBox width={70} height={9} darkMode={darkMode} />
+      </div>
+    </div>
+  );
+}
+
+// ── Utilities ─────────────────────────────────────────────────
 function relativeTime(dateStr) {
   if (!dateStr) return "recently";
   const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
@@ -30,14 +140,12 @@ function mapActivityItem(app, index) {
   const status = app.application_status || "";
   const appStep = app.app_step || "";
   const user = app.user_name || "Unknown";
-
   const drugName =
     app.brand_name && app.generic_name
       ? `${app.brand_name} (${app.generic_name})`
       : app.brand_name || app.generic_name || app.dtn || "—";
 
-  // ── Icon & colors: use backend values directly ─────────────────────────
-  const icon = app.icon || "📄"; // emoji from backend
+  const icon = app.icon || "📄";
   const statusColor = app.status_color || FB;
   const statusBg = app.status_bg || "#eff6ff";
   const statusLabel = app.status_label || status || "Unknown";
@@ -69,24 +177,25 @@ function mapActivityItem(app, index) {
     time: relativeTime(rawDate),
     rawDate,
     createdDate: formatDate(createdDate),
-    icon, // ← emoji straight from backend
-    statusColor, // ← color straight from backend
-    statusBg, // ← bg straight from backend
-    statusLabel, // ← label straight from backend
+    icon,
+    statusColor,
+    statusBg,
+    statusLabel,
     appStep,
     dtn: app.dtn,
   };
 }
 
-function Card({ children, style = {}, ui }) {
+// ── Glass Card wrapper ────────────────────────────────────────
+function Card({ children, style = {}, darkMode, animIndex = 0 }) {
   return (
     <div
       style={{
-        background: ui.cardBg,
-        border: `1px solid ${ui.cardBorder}`,
-        borderRadius: 10,
+        ...glassCard(darkMode),
+        borderRadius: 16,
         overflow: "hidden",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+        animation: "af-fade-up 0.4s ease both",
+        animationDelay: `${animIndex * 50}ms`,
         ...style,
       }}
     >
@@ -95,6 +204,7 @@ function Card({ children, style = {}, ui }) {
   );
 }
 
+// ── Main Component ────────────────────────────────────────────
 export default function ActivityFeedView({
   ui,
   darkMode,
@@ -102,25 +212,37 @@ export default function ActivityFeedView({
   setActivitySearch,
 }) {
   const font =
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+    "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
+  // ── FIX: local search state so the input doesn't lose focus on parent re-renders
+  const [localSearch, setLocalSearch] = useState(activitySearch || "");
+  const debounceRef = useRef(null);
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setLocalSearch(val);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setActivitySearch(val);
+    }, 150);
+  };
+
   const fetchFeed = useCallback(async () => {
     try {
       setError(null);
       const data = await getDashboardGlobalAllRecentApplications();
-      // backend returns { rows: [...], total, total_pages, page }
       const raw = Array.isArray(data?.rows)
         ? data.rows
         : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-            ? data
-            : [];
+        ? data.data
+        : Array.isArray(data)
+        ? data
+        : [];
       const items = raw.map((app, i) => mapActivityItem(app, i));
       items.sort((a, b) => {
         if (!a.rawDate) return 1;
@@ -140,52 +262,65 @@ export default function ActivityFeedView({
   useEffect(() => {
     fetchFeed();
   }, [fetchFeed]);
+
   useEffect(() => {
     const interval = setInterval(fetchFeed, 30000);
     return () => clearInterval(interval);
   }, [fetchFeed]);
 
   const inputSt = {
-    background: ui.inputBg,
-    border: `1px solid ${ui.cardBorder}`,
-    borderRadius: 7,
-    padding: "7px 10px",
+    ...glassInput(darkMode),
+    borderRadius: 10,
+    padding: "8px 12px",
     fontSize: "0.82rem",
     color: ui.textPrimary,
     outline: "none",
     colorScheme: darkMode ? "dark" : "light",
     fontFamily: font,
+    transition: "all 0.2s ease",
   };
 
-  const filteredAct = activitySearch
+  // ── FIX: filter uses localSearch instead of activitySearch prop
+  const filteredAct = localSearch
     ? feed.filter(
         (a) =>
-          a.user.toLowerCase().includes(activitySearch.toLowerCase()) ||
-          a.target.toLowerCase().includes(activitySearch.toLowerCase()) ||
-          a.action.toLowerCase().includes(activitySearch.toLowerCase()),
+          a.user.toLowerCase().includes(localSearch.toLowerCase()) ||
+          a.target.toLowerCase().includes(localSearch.toLowerCase()) ||
+          a.action.toLowerCase().includes(localSearch.toLowerCase())
       )
     : feed;
 
   return (
-    <div>
+    <div style={{
+      display: "flex", flexDirection: "column", gap: 16, fontFamily: font,
+      background: darkMode
+        ? "#16171f"
+        : "#f4f5f7",
+      padding: 16,
+      borderRadius: 18,
+      minHeight: "100%",
+    }}>
       {/* Header */}
       <div
         style={{
+          ...glassPanel(darkMode),
+          borderRadius: 14,
+          padding: "14px 18px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 14,
           flexWrap: "wrap",
-          gap: 8,
+          gap: 10,
         }}
       >
         <div>
           <p
             style={{
               margin: 0,
-              fontSize: "0.9rem",
+              fontSize: "0.95rem",
               fontWeight: 700,
               color: ui.textPrimary,
+              letterSpacing: "-0.01em",
             }}
           >
             Activity Feed
@@ -195,7 +330,7 @@ export default function ActivityFeedView({
               display: "flex",
               alignItems: "center",
               gap: 8,
-              marginTop: 2,
+              marginTop: 3,
             }}
           >
             <p style={{ margin: 0, fontSize: "0.75rem", color: ui.textMuted }}>
@@ -212,7 +347,6 @@ export default function ActivityFeedView({
             )}
           </div>
         </div>
-
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
             onClick={() => {
@@ -221,10 +355,9 @@ export default function ActivityFeedView({
             }}
             title="Refresh feed"
             style={{
-              padding: "7px 10px",
-              borderRadius: 7,
-              border: `1px solid ${ui.cardBorder}`,
-              background: ui.inputBg,
+              ...glassInput(darkMode),
+              padding: "8px 12px",
+              borderRadius: 10,
               color: ui.textMuted,
               cursor: "pointer",
               fontSize: "0.85rem",
@@ -232,42 +365,52 @@ export default function ActivityFeedView({
               alignItems: "center",
               justifyContent: "center",
               fontFamily: font,
+              transition: "all 0.15s ease",
             }}
           >
-            <i className="ti ti-refresh" aria-hidden="true" />
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="23 4 23 10 17 10" />
+              <polyline points="1 20 1 14 7 14" />
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+            </svg>
           </button>
+          {/* ── FIX: value and onChange now use local state ── */}
           <input
             placeholder="Search activity…"
-            value={activitySearch}
-            onChange={(e) => setActivitySearch(e.target.value)}
+            value={localSearch}
+            onChange={handleSearchChange}
             style={{ ...inputSt, minWidth: 220 }}
           />
         </div>
       </div>
 
-      {/* Loading */}
+      {/* Loading Skeleton */}
       {loading && (
-        <div
-          style={{
-            padding: "40px",
-            textAlign: "center",
-            color: ui.textMuted,
-            fontSize: "0.84rem",
-            fontFamily: font,
-          }}
-        >
-          <i
-            className="ti ti-hourglass"
-            style={{ fontSize: "1.4rem", display: "block", marginBottom: 8 }}
-            aria-hidden="true"
-          />
-          Loading activity feed…
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} darkMode={darkMode} index={i} />
+          ))}
         </div>
       )}
 
       {/* Error */}
       {!loading && error && (
-        <div style={{ padding: "30px", textAlign: "center", fontFamily: font }}>
+        <div style={{
+          ...glassCard(darkMode),
+          borderRadius: 16,
+          padding: "30px",
+          textAlign: "center",
+          fontFamily: font,
+        }}>
           <p
             style={{
               color: "#e02020",
@@ -283,14 +426,14 @@ export default function ActivityFeedView({
               fetchFeed();
             }}
             style={{
-              padding: "6px 16px",
+              ...glassInput(darkMode),
+              padding: "7px 18px",
               fontSize: "0.8rem",
-              borderRadius: 7,
-              border: `1px solid ${ui.cardBorder}`,
-              background: ui.inputBg,
+              borderRadius: 8,
               color: ui.textPrimary,
               cursor: "pointer",
               fontFamily: font,
+              transition: "all 0.15s ease",
             }}
           >
             Retry
@@ -300,19 +443,21 @@ export default function ActivityFeedView({
 
       {/* Activity List */}
       {!loading && !error && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {filteredAct.map((act) => (
-            <Card key={act.id} ui={ui} style={{ padding: "12px 14px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {filteredAct.map((act, idx) => (
+            <Card key={act.id} darkMode={darkMode} style={{ padding: "14px 16px" }} animIndex={idx}>
               <div
                 style={{ display: "flex", alignItems: "flex-start", gap: 12 }}
               >
-                {/* Icon Box — emoji rendered as text, no <i> tag needed */}
+                {/* Icon Box */}
                 <div
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
-                    background: `${act.statusColor}18`,
+                    width: 42,
+                    height: 42,
+                    borderRadius: 12,
+                    background: darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+                    backdropFilter: "blur(8px)",
+                    border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
@@ -367,7 +512,7 @@ export default function ActivityFeedView({
                     </p>
                   )}
 
-                  {/* Application Status Row — inline-flex shrinks to content */}
+                  {/* Application Status Row */}
                   <div style={{ marginTop: 8 }}>
                     <div
                       style={{
@@ -375,14 +520,12 @@ export default function ActivityFeedView({
                         alignItems: "center",
                         gap: 6,
                         padding: "5px 10px",
-                        background: ui.inputBg,
-                        border: `1px solid ${ui.cardBorder}`,
+                        background: darkMode ? "rgba(50,50,55,0.4)" : "rgba(255,255,255,0.5)",
+                        backdropFilter: "blur(8px)",
+                        border: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)"}`,
                         borderRadius: 8,
                       }}
                     >
-                      {/* Emoji icon from backend */}
-                      {/* <span style={{ fontSize: "0.9rem", lineHeight: 1 }}>{act.icon}</span> */}
-
                       <span
                         style={{
                           fontSize: "0.7rem",
@@ -393,8 +536,6 @@ export default function ActivityFeedView({
                       >
                         Application status:
                       </span>
-
-                      {/* Status badge — color & bg from backend */}
                       <span
                         style={{
                           display: "inline-flex",
@@ -404,7 +545,8 @@ export default function ActivityFeedView({
                           fontWeight: 700,
                           padding: "2px 9px",
                           borderRadius: 99,
-                          background: act.statusBg,
+                          background: `${act.statusBg}cc`,
+                          backdropFilter: "blur(6px)",
                           color: act.statusColor,
                           whiteSpace: "nowrap",
                         }}
@@ -478,7 +620,9 @@ export default function ActivityFeedView({
           {filteredAct.length === 0 && (
             <div
               style={{
-                padding: "24px",
+                ...glassCard(darkMode),
+                borderRadius: 16,
+                padding: "28px",
                 textAlign: "center",
                 color: ui.textMuted,
                 fontSize: "0.84rem",

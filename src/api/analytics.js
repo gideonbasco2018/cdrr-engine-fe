@@ -41,3 +41,8 @@ export const getAnalyticsFRPTATTrend = async (params = {}) => {
     const res = await API.get("/analytics/frp-tat-trend", { params });
     return res.data;
 };
+
+export const getDocTypeReleased = async (params = {}) => {
+    const res = await API.get("/doc-type-released/", { params });
+    return res.data;
+};
