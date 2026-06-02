@@ -18,6 +18,8 @@ import { Step3AppLogs } from "./steps/Step3AppLogs";
 import { Step4ActionForm } from "./steps/Step4ActionForm";
 import { StepCPRView } from "./steps/StepCPRView";
 import { SpellCheckButton } from "./steps/SpellCheckButton";
+import DoctrackPanel from "./steps/DoctrackPanel";
+
 const STEPS = ["Basic Info", "Full Details", "App Logs", "Action"];
 
 // ─── View mode toggle icon buttons ───
@@ -84,7 +86,9 @@ export default function ViewDetailsModal({
 }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [editedFields, setEditedFields] = useState({});
-  const [viewMode, setViewMode] = useState("normal"); // "normal" | "cpr"
+  const [viewMode, setViewMode] = useState("normal");
+  const [doctrackOpen, setDoctrackOpen] = useState(false);
+  const [doctrackRecord, setDoctrackRecord] = useState(null);
 
   if (!record) return null;
 
@@ -99,7 +103,6 @@ export default function ViewDetailsModal({
     ([k, v]) => String(v ?? "") !== String(record[k] ?? ""),
   ).length;
 
-  // ─── QA Admin: compute missing required fields per step ───
   const getMissingFields = (fieldKeys) =>
     fieldKeys.filter((key) => {
       const val = key in editedFields ? editedFields[key] : (record[key] ?? "");
@@ -107,7 +110,7 @@ export default function ViewDetailsModal({
     });
 
   const step1Missing = isQAAdmin
-    ? getMissingFields(getStep1RequiredFields(record, editedFields)) // ← ganito na
+    ? getMissingFields(getStep1RequiredFields(record, editedFields))
     : [];
 
   const step2Missing = isQAAdmin
@@ -125,15 +128,26 @@ export default function ViewDetailsModal({
   };
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 1));
 
-  // Switch view mode — reset step to 1 when switching back
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     if (mode === "normal") setCurrentStep(1);
   };
 
-  const isCPR = viewMode === "cpr";
+  // Open doctrack panel
+  const handleOpenDoctrack = (rec) => {
+    setDoctrackRecord(rec);
+    setDoctrackOpen(true);
+  };
 
-  // Header title
+  const handleCloseDoctrack = () => {
+    setDoctrackOpen(false);
+    setDoctrackRecord(null);
+  };
+
+  const isCPR = viewMode === "cpr";
+  const missingCount =
+    currentStep === 1 ? step1Missing.length : step2Missing.length;
+
   const headerTitle = isCPR
     ? "📜 CPR Document View"
     : currentStep === 1
@@ -144,8 +158,8 @@ export default function ViewDetailsModal({
           ? "📋 Application Logs"
           : `✅ ${record.applicationStep}`;
 
-  const missingCount =
-    currentStep === 1 ? step1Missing.length : step2Missing.length;
+  // Modal width expands when doctrack panel is open
+  const modalWidth = doctrackOpen ? "min(1380px, 97vw)" : "min(980px, 95vw)";
 
   return (
     <>
@@ -168,7 +182,7 @@ export default function ViewDetailsModal({
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: "min(980px, 95vw)",
+          width: modalWidth,
           maxHeight: "88vh",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
@@ -178,6 +192,7 @@ export default function ViewDetailsModal({
           display: "flex",
           flexDirection: "column",
           overflow: "visible",
+          transition: "width 0.3s ease",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -225,7 +240,6 @@ export default function ViewDetailsModal({
                     color: "#059669",
                     border: "1px solid rgba(16,185,129,0.3)",
                     borderRadius: "4px",
-                    fontFamily: "sans-serif",
                   }}
                 >
                   ✎ Editable
@@ -241,7 +255,6 @@ export default function ViewDetailsModal({
                     color: colors.textTertiary,
                     border: `1px solid ${colors.cardBorder}`,
                     borderRadius: "4px",
-                    fontFamily: "sans-serif",
                   }}
                 >
                   🔒 View Only
@@ -348,7 +361,7 @@ export default function ViewDetailsModal({
               })()}
           </div>
 
-          {/* Center: step indicator (hidden in CPR mode) OR CPR mode label */}
+          {/* Center: step indicator */}
           <div
             style={{
               flex: 1,
@@ -371,7 +384,6 @@ export default function ViewDetailsModal({
                   border: "1px solid rgba(25,118,210,0.2)",
                   borderRadius: "20px",
                   fontSize: "0.68rem",
-                  fontFamily: "sans-serif",
                   fontWeight: "600",
                   color: "#1976d2",
                 }}
@@ -388,7 +400,6 @@ export default function ViewDetailsModal({
             )}
           </div>
 
-          {/* Right: view toggle + close */}
           {/* Right: spell check + view toggle + close */}
           <div
             style={{
@@ -398,7 +409,6 @@ export default function ViewDetailsModal({
               flexShrink: 0,
             }}
           >
-            {/* Spell Check — Step 1 + normal mode + canEdit lang */}
             {!isCPR && currentStep === 1 && canEdit && (
               <SpellCheckButton
                 record={record}
@@ -407,7 +417,6 @@ export default function ViewDetailsModal({
                 colors={colors}
               />
             )}
-
             <ViewModeToggle
               mode={viewMode}
               onChange={handleViewModeChange}
@@ -444,61 +453,80 @@ export default function ViewDetailsModal({
           </div>
         </div>
 
-        {/* ── Content ── */}
+        {/* ── Body: main content + optional doctrack panel ── */}
         <div
           style={{
             flex: 1,
-            overflowY: "auto",
-            padding: "1.1rem 1.25rem",
+            display: "flex",
+            flexDirection: "row",
             minHeight: 0,
-            overflowX: "visible",
+            overflow: "clip",
+            borderRadius: "0 0 12px 12px",
           }}
         >
-          {/* ── CPR MODE ── */}
-          {isCPR && (
-            <StepCPRView
-              record={record}
-              editedFields={editedFields}
-              onFieldChange={handleFieldChange}
-              canEdit={canEdit}
-              colors={colors}
-            />
-          )}
+          {/* Main content area */}
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "1.1rem 1.25rem",
+              minHeight: 0,
+              overflowX: "visible",
+            }}
+          >
+            {isCPR && (
+              <StepCPRView
+                record={record}
+                editedFields={editedFields}
+                onFieldChange={handleFieldChange}
+                canEdit={canEdit}
+                colors={colors}
+              />
+            )}
+            {!isCPR && currentStep === 1 && (
+              <Step1BasicInfo
+                record={record}
+                editedFields={editedFields}
+                onFieldChange={handleFieldChange}
+                canEdit={canEdit}
+                colors={colors}
+                isQAAdmin={isQAAdmin}
+                missingFields={step1Missing}
+                onOpenDoctrack={handleOpenDoctrack}
+              />
+            )}
+            {!isCPR && currentStep === 2 && (
+              <Step2FullDetails
+                record={record}
+                editedFields={editedFields}
+                onFieldChange={handleFieldChange}
+                canEdit={canEdit}
+                colors={colors}
+                currentStep={record.applicationStep}
+                isQAAdmin={isQAAdmin}
+                missingFields={step2Missing}
+              />
+            )}
+            {!isCPR && currentStep === 3 && (
+              <Step3AppLogs record={record} colors={colors} />
+            )}
+            {!isCPR && currentStep === 4 && (
+              <Step4ActionForm
+                record={record}
+                editedFields={editedFields}
+                colors={colors}
+                onClose={onClose}
+                onSuccess={onSuccess}
+              />
+            )}
+          </div>
 
-          {/* ── NORMAL MODE ── */}
-          {!isCPR && currentStep === 1 && (
-            <Step1BasicInfo
-              record={record}
-              editedFields={editedFields}
-              onFieldChange={handleFieldChange}
-              canEdit={canEdit}
+          {/* Doctrack Panel — slides in on the right */}
+          {doctrackOpen && doctrackRecord && (
+            <DoctrackPanel
+              record={doctrackRecord}
+              onClose={handleCloseDoctrack}
               colors={colors}
-              isQAAdmin={isQAAdmin}
-              missingFields={step1Missing}
-            />
-          )}
-          {!isCPR && currentStep === 2 && (
-            <Step2FullDetails
-              record={record}
-              editedFields={editedFields}
-              onFieldChange={handleFieldChange}
-              canEdit={canEdit}
-              colors={colors}
-              currentStep={record.applicationStep}
-              isQAAdmin={isQAAdmin}
-              missingFields={step2Missing}
-            />
-          )}
-          {!isCPR && currentStep === 3 && (
-            <Step3AppLogs record={record} colors={colors} />
-          )}
-          {!isCPR && currentStep === 4 && (
-            <Step4ActionForm
-              record={record}
-              editedFields={editedFields}
-              colors={colors}
-              onClose={onClose}
-              onSuccess={onSuccess}
             />
           )}
         </div>
@@ -515,7 +543,6 @@ export default function ViewDetailsModal({
             background: colors.cardBg,
           }}
         >
-          {/* Left label */}
           <span
             style={{
               fontSize: "0.7rem",
@@ -556,7 +583,6 @@ export default function ViewDetailsModal({
             )}
           </span>
 
-          {/* Navigation — only shown in normal mode */}
           {!isCPR && (
             <div
               style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
@@ -634,13 +660,11 @@ export default function ViewDetailsModal({
             </div>
           )}
 
-          {/* CPR mode footer hint */}
           {isCPR && (
             <div
               style={{
                 fontSize: "0.68rem",
                 color: colors.textTertiary,
-                fontFamily: "sans-serif",
                 fontStyle: "italic",
               }}
             >

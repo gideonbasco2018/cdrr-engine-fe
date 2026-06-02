@@ -4,11 +4,11 @@ export const tableColumns = [
   // ── From application_logs — mapped from top-level fields in the API response
   { key: "sentBy",          label: "Sent By",       width: "150px" },
   { key: "lastModified",    label: "Last Modified", width: "120px" },
-    { key: "dtn", label: "DTN", width: "140px" },
-    { key: "oldRsn", label: "Old DTN", width: "120px" },
+    { key: "dtn", label: "DTN", width: "110px" },
+    { key: "oldRsn", label: "Old RSN/ Other DTN", width: "120px" },
     { key: "entryType", label: "Entry Type", width: "110px" },
-    { key: "appType",               label: "App Type",           width: "120px" },
-    { key: "motherAppType",         label: "Mother App Type",    width: "140px" },
+    { key: "appType",               label: "App Type",           width: "50px" },
+    { key: "motherAppType",         label: "Mother App Type",    width: "120px" },
   // { key: "appStatus",             label: "Status",             width: "130px" },
 
   // Compliance-only deadline column (still right after DTN when visible)
