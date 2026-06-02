@@ -20,6 +20,8 @@ import EditRecordModal from "../components/reports/actions/EditRecordModal";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
 import UploadErrorModal from "../components/reports/UploadErrorModal";
 
+import BulkReassignmentModal from "../components/reports/actions/BulkReassignmentModal";
+
 function buildFilterParams(filters) {
   const p = {};
   if (filters.category) p.category = filters.category;
@@ -477,6 +479,7 @@ function DeckingPage({ darkMode }) {
   const [sortOrder, setSortOrder] = useState("desc");
   const [failedRecords, setFailedRecords] = useState([]);
   const [showErrorModal, setShowErrorModal] = useState(false);
+  const [showBulkReassign, setShowBulkReassign] = useState(false);
 
   const colors = getColorScheme(darkMode);
 
@@ -1336,41 +1339,82 @@ function DeckingPage({ darkMode }) {
                 borderLeft: `1px solid ${colors.cardBorder}`,
               }}
             >
-              {selectedRows.length > 0 && (
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "3px 10px",
-                    background: "rgba(33,150,243,0.1)",
-                    border: "1px solid rgba(33,150,243,0.35)",
-                    borderRadius: "6px",
-                    fontSize: "11px",
-                    color: "#2196F3",
-                    fontWeight: 600,
-                  }}
-                >
-                  <span>✓ {selectedRows.length} selected</span>
-                  <button
-                    onClick={clearSelections}
+              {selectedRows.length > 0 &&
+                (() => {
+                  const selectedRecords = filteredData.filter((r) =>
+                    selectedRows.includes(r.id),
+                  );
+                  const hasCompleted = selectedRecords.some(
+                    (r) => r.appStatus?.toLowerCase() === "completed",
+                  );
+                  return !hasCompleted;
+                })() && (
+                  <div
                     style={{
-                      background: "none",
-                      border: "none",
-                      cursor: "pointer",
-                      color: "#2196F3",
-                      fontSize: "0.7rem",
-                      padding: 0,
-                      opacity: 0.7,
-                      lineHeight: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.opacity = 1)}
-                    onMouseLeave={(e) => (e.currentTarget.style.opacity = 0.7)}
                   >
-                    ✕
-                  </button>
-                </div>
-              )}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        padding: "3px 10px",
+                        background: "rgba(33,150,243,0.1)",
+                        border: "1px solid rgba(33,150,243,0.35)",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        color: "#2196F3",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <span>✓ {selectedRows.length} selected</span>
+                      <button
+                        onClick={clearSelections}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          color: "#2196F3",
+                          fontSize: "0.7rem",
+                          padding: 0,
+                          opacity: 0.7,
+                          lineHeight: 1,
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.opacity = 1)
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.opacity = 0.7)
+                        }
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => setShowBulkReassign(true)}
+                      style={{
+                        padding: "5px 12px",
+                        background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        height: "30px",
+                        boxShadow: "0 2px 6px rgba(124,58,237,0.3)",
+                      }}
+                    >
+                      🔄 Bulk Re-assign ({selectedRows.length})
+                    </button>
+                  </div>
+                )}
               <button
                 onClick={handleExport}
                 disabled={exporting || totalRecords === 0}
@@ -1543,6 +1587,19 @@ function DeckingPage({ darkMode }) {
           onClose={() => {
             setShowErrorModal(false);
             setFailedRecords([]);
+          }}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+      {showBulkReassign && (
+        <BulkReassignmentModal
+          records={filteredData.filter((r) => selectedRows.includes(r.id))}
+          onClose={() => setShowBulkReassign(false)}
+          onSuccess={() => {
+            setShowBulkReassign(false);
+            clearSelections();
+            refreshData();
           }}
           colors={colors}
           darkMode={darkMode}
