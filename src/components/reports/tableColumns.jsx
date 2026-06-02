@@ -10,6 +10,7 @@ export const tableColumns = [
     label: "DTN",
     width: "150px",
   },
+  { key: "__divider__", label: "", width: "1px" },
 
   { key: "estCat", label: "Est. Category", width: "120px" },
   { key: "ltoComp", label: "LTO Company", width: "200px" },

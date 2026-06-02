@@ -447,10 +447,10 @@ function ReportsPage({ darkMode }) {
   }, []);
 
   useEffect(() => {
-    getProcessingTypes(null)
+    getProcessingTypes(null, subTab, prescriptionTab, appStatusTab)
       .then(setAvailableProcessingTypes)
       .catch(() => setAvailableProcessingTypes([]));
-  }, []);
+  }, [subTab, prescriptionTab, appStatusTab]);
 
   useEffect(() => {
     getAppTypes(null, processingTypeParam)
@@ -770,6 +770,23 @@ function ReportsPage({ darkMode }) {
                   colors={colors}
                   darkMode={darkMode}
                   totalCount={availableAppStatusTypes.reduce(
+                    (s, x) => s + x.count,
+                    0,
+                  )}
+                />
+              )}
+              {availableProcessingTypes.length > 0 && (
+                <SidebarSection
+                  title="Processing Type"
+                  groupColor="#f97316"
+                  items={availableProcessingTypes}
+                  activeItem={processingTypeTab}
+                  onItemClick={(v) =>
+                    handleProcessingTypeTabChange(v === "" ? null : v)
+                  }
+                  colors={colors}
+                  darkMode={darkMode}
+                  totalCount={availableProcessingTypes.reduce(
                     (s, x) => s + x.count,
                     0,
                   )}
