@@ -1,5 +1,6 @@
 // FILE: src/pages/DashboardPage.jsx
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getDashboardSummary,
   getDashboardChart,
@@ -342,7 +343,7 @@ function RightPanel({
             onClick={() =>
               canGenReport &&
               (setCustomReportDates({ start: reportStart, end: reportEnd }),
-                setShowReport(true))
+              setShowReport(true))
             }
             disabled={!canGenReport}
             style={{
@@ -508,9 +509,9 @@ function DataTable({
                       (e.currentTarget.style.background = ui.hoverBg)
                     }
                     onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = isEven
-                      ? "transparent"
-                      : `${ui.pageBg}88`)
+                      (e.currentTarget.style.background = isEven
+                        ? "transparent"
+                        : `${ui.pageBg}88`)
                     }
                   >
                     <td
@@ -813,11 +814,13 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     isImpersonating(),
   );
 
+  const navigate = useNavigate();
+
   const handleStopImpersonation = () => {
     stopImpersonation();
     setImpersonationActive(false);
     setShowImpersonationPrompt(false);
-    window.location.reload();
+    navigate("/admin/monitoring", { state: { tab: "users" } });
   };
 
   // ── Controls ──────────────────────────────────────────────────────────────
@@ -889,8 +892,6 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     },
   ]);
 
-
-
   const toggleConn = (id) =>
     setDbConnections((prev) =>
       prev.map((c) => (c.id === id ? { ...c, active: !c.active } : c)),
@@ -961,8 +962,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     } catch (err) {
       setChartError(
         err?.response?.data?.detail ||
-        err.message ||
-        "Failed to load chart data",
+          err.message ||
+          "Failed to load chart data",
       );
       setChartData([]);
     } finally {
