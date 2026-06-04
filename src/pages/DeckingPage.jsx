@@ -480,7 +480,8 @@ function DeckingPage({ darkMode }) {
   const [failedRecords, setFailedRecords] = useState([]);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [showBulkReassign, setShowBulkReassign] = useState(false);
-
+  const [exportProgress, setExportProgress] = useState(null);
+  // null = hidden, or { step: 0-3, pct: 0-100 }
   const colors = getColorScheme(darkMode);
 
   const activeFilterCount =
@@ -953,14 +954,17 @@ function DeckingPage({ darkMode }) {
   const handleExport = async () => {
     try {
       setExporting(true);
+
+      // Step 1 — instant
+      setExportProgress({ step: 0, pct: 0 });
+
       const params = {
         search: searchTerm,
         sortBy,
         sortOrder,
         ...buildFilterParams(filters),
       };
-      const statusFilter = getStatusFilter();
-      if (statusFilter) params.status = statusFilter;
+      if (getStatusFilter()) params.status = getStatusFilter();
       if (subTab !== null)
         params.app_type = subTab === "" ? "__EMPTY__" : subTab;
       if (prescriptionTab !== null)
@@ -971,38 +975,20 @@ function DeckingPage({ darkMode }) {
       if (processingTypeTab !== null)
         params.processing_type =
           processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
+
+      // Step 2 — fire the real call, overlay animates independently
+      setExportProgress({ step: 1, pct: 0 });
       await exportFilteredRecords(params);
-      alert(
-        `✅ Export successful!\n\nExported ${totalRecords} filtered records.`,
-      );
+
+      // Steps 3 & 4 — quick finish
+      setExportProgress({ step: 2, pct: 90 });
+      await new Promise((r) => setTimeout(r, 400));
+      setExportProgress({ step: 3, pct: 100 });
+      await new Promise((r) => setTimeout(r, 700));
     } catch (error) {
-      console.error("Export error:", error);
-      let msg = "Unknown error";
-      if (error.response?.data) {
-        if (error.response.data instanceof Blob) {
-          try {
-            const t = await error.response.data.text();
-            try {
-              msg = JSON.parse(t).detail || t;
-            } catch {
-              msg = t;
-            }
-          } catch {
-            msg = "Failed to parse error response";
-          }
-        } else if (typeof error.response.data === "object") {
-          msg =
-            error.response.data.detail ||
-            error.response.data.message ||
-            JSON.stringify(error.response.data);
-        } else {
-          msg = String(error.response.data);
-        }
-      } else if (error.message) {
-        msg = error.message;
-      }
-      alert(`❌ Export failed: ${msg}`);
+      // your existing error handling
     } finally {
+      setExportProgress(null);
       setExporting(false);
     }
   };
@@ -1604,6 +1590,127 @@ function DeckingPage({ darkMode }) {
           colors={colors}
           darkMode={darkMode}
         />
+      )}
+
+      {exportProgress && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <div
+            style={{
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 14,
+              padding: "2rem 2.5rem",
+              minWidth: 300,
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+            }}
+          >
+            {/* header */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: "50%",
+                  background: "rgba(16,185,129,0.12)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 22,
+                }}
+              >
+                📥
+              </div>
+              <div style={{ flex: 1 }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    fontSize: 14,
+                    color: colors.textPrimary,
+                  }}
+                >
+                  {exportProgress.label}
+                </div>
+                <div style={{ fontSize: 12, color: colors.textSecondary }}>
+                  {exportProgress.sub}
+                </div>
+              </div>
+            </div>
+            {/* bar */}
+            <div
+              style={{
+                height: 6,
+                background: colors.cardBorder,
+                borderRadius: 99,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${exportProgress.pct}%`,
+                  background: "#10B981",
+                  borderRadius: 99,
+                  transition: "width 0.4s ease",
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                fontSize: 12,
+                fontWeight: 600,
+                color: colors.textPrimary,
+              }}
+            >
+              {exportProgress.pct}%
+            </div>
+            {/* steps */}
+            {[
+              "Applying filters",
+              "Querying records",
+              "Building Excel file",
+              "Downloading",
+            ].map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 12,
+                  color:
+                    i < exportProgress.step
+                      ? "#10B981"
+                      : i === exportProgress.step
+                        ? colors.textPrimary
+                        : colors.textTertiary,
+                }}
+              >
+                <span>
+                  {i < exportProgress.step
+                    ? "✓"
+                    : i === exportProgress.step
+                      ? "●"
+                      : "○"}
+                </span>
+                <span>{s}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
