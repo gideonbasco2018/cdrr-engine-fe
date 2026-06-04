@@ -1,5 +1,6 @@
 // src/components/monitoring/analytics/AnalyticsView.jsx
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   getAnalyticsAvailableYears,
   getAnalyticsSummary,
@@ -8,6 +9,7 @@ import {
   getAnalyticsYearSummary,
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
+  getDocTypeReleased,
   getDocTypeReleased,
 } from "../../../api/analytics";
 
@@ -272,6 +274,7 @@ function useCountUp(target, duration = 900) {
 
 // ── Mini bar chart ────────────────────────────────────────────
 function MiniBar({ value, max, color, darkMode }) {
+function MiniBar({ value, max, color, darkMode }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div
@@ -324,7 +327,10 @@ function TrendChart({ data, ui, darkMode }) {
   const series = [
     { key: "cpr", color: "#36a420", label: "CPR" },
     { key: "lod", color: "#e02020", label: "LOD" },
+    { key: "cpr", color: "#36a420", label: "CPR" },
+    { key: "lod", color: "#e02020", label: "LOD" },
     { key: "on_process", color: "#f59e0b", label: "On Process" },
+    { key: "completed", color: FB, label: "Completed" },
     { key: "completed", color: FB, label: "Completed" },
   ];
   const maxVal =
@@ -1037,6 +1043,7 @@ export default function AnalyticsView({
   const [topDrugsData, setTopDrugsData] = useState([]);
   const [topCountriesData, setTopCountriesData] = useState([]);
   const [docTypeData, setDocTypeData] = useState({ doc_types: [], data: [] });
+  const [docTypeData, setDocTypeData] = useState({ doc_types: [], data: [] });
   const [loading, setLoading] = useState(true);
   const [topCountryTab, setTopCountryTab] = useState("mfr");
   const [topCountryLimit, setTopCountryLimit] = useState(10);
@@ -1083,11 +1090,8 @@ export default function AnalyticsView({
       setTopCountriesData(countries.data ?? []);
       setDocTypeData(docType ?? { doc_types: [], data: [] });
       setLastUpdated(new Date());
-    } catch (err) {
-      console.error("Analytics fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error("Analytics fetch error:", err); }
+    finally { setLoading(false); }
   }, [chartYear, chartMonth, rxFilter, topCountryTab, topCountryLimit]);
 
   useEffect(() => {
@@ -1104,6 +1108,16 @@ export default function AnalyticsView({
 
   // Neumorphic input style
   const inputSt = {
+    background: neuCardBg(darkMode),
+    border: "none",
+    borderRadius: 10,
+    padding: "7px 12px",
+    fontSize: "0.8rem",
+    color: ui.textPrimary,
+    outline: "none",
+    boxShadow: neuInputShadow(darkMode),
+    colorScheme: darkMode ? "dark" : "light",
+    fontFamily: font,
     background: neuCardBg(darkMode),
     border: "none",
     borderRadius: 10,
@@ -1718,6 +1732,7 @@ export default function AnalyticsView({
           )}
         </SectionCard>
       </FadeSlideIn>
+      </FadeSlideIn>
 
       {/* ── Top Drug Applications ── */}
       <FadeSlideIn delay={620}>
@@ -2300,3 +2315,4 @@ export default function AnalyticsView({
     </div>
   );
 }
+

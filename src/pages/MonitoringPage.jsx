@@ -1,4 +1,3 @@
-// FILE: src/pages/MonitoringPage.jsx
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { startImpersonation, stopImpersonation } from "../api/auth";
@@ -22,8 +21,8 @@ const FB = "#1877F2";
 function makeUI(dark) {
   return dark
     ? {
-        pageBg: "#18191a",
-        sidebarBg: "#141414",
+        pageBg: "#0f0f1a",
+        sidebarBg: "rgba(15, 15, 30, 0.4)",
         cardBg: "#242526",
         cardBorder: "#3a3b3c",
         inputBg: "#3a3b3c",
@@ -32,14 +31,14 @@ function makeUI(dark) {
         textMuted: "#65676b",
         divider: "#3a3b3c",
         hoverBg: "#2d2e2f",
-        activeNavBg: "#263951",
+        activeNavBg: "rgba(59, 130, 246, 0.12)",
         gridLine: "#2d2e2f",
         progressBg: "#3a3b3c",
         metricBorder: "#3a3b3c",
       }
     : {
         pageBg: "#f0f2f5",
-        sidebarBg: "#ffffff",
+        sidebarBg: "rgba(255, 255, 255, 0.55)",
         cardBg: "#ffffff",
         cardBorder: "#dddfe2",
         inputBg: "#f0f2f5",
@@ -48,7 +47,7 @@ function makeUI(dark) {
         textMuted: "#8a8d91",
         divider: "#e4e6eb",
         hoverBg: "#f2f3f5",
-        activeNavBg: "#E7F0FD",
+        activeNavBg: "rgba(59, 130, 246, 0.08)",
         gridLine: "#e4e6eb",
         progressBg: "#e4e6eb",
         metricBorder: "#dddfe2",
@@ -65,6 +64,7 @@ const avatarPalette = [
   { bg: "#cffafe", color: "#0e7490" },
   { bg: "#fef9c3", color: "#713f12" },
 ];
+
 const statusColorsDark = {
   Approved: { bg: "#0a2e1a", color: "#4ade80" },
   Disapproved: { bg: "#2e0a0a", color: "#f87171" },
@@ -109,205 +109,57 @@ const rxColorsDark = {
 };
 
 function getInitials(name) {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((n) => n[0].toUpperCase())
-    .join("");
+  return name.split(" ").filter(Boolean).slice(0, 2).map((n) => n[0].toUpperCase()).join("");
 }
 function getAvatarColor(name, list) {
   return avatarPalette[list.indexOf(name) % avatarPalette.length];
 }
 function rxShortLabel(p) {
-  return p === "Over-the-Counter (OTC)"
-    ? "OTC"
-    : p === "Prescription Drug (RX)"
-      ? "RX"
-      : "Vaccine";
+  return p === "Over-the-Counter (OTC)" ? "OTC" : p === "Prescription Drug (RX)" ? "RX" : "Vaccine";
 }
 
 function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
   const [search, setSearch] = useState("");
-  const font =
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const colHdr = darkMode ? ui.sidebarBg : "#f8f9fd";
   const filtered = useMemo(() => {
     if (!search.trim()) return rows;
     const q = search.toLowerCase();
-    return rows.filter(
-      (r) =>
-        r.dtn.toLowerCase().includes(q) ||
-        r.evaluator.toLowerCase().includes(q) ||
-        (r.drugName || "").toLowerCase().includes(q) ||
-        r.status.toLowerCase().includes(q) ||
-        r.prescription.toLowerCase().includes(q) ||
-        r.appStep.toLowerCase().includes(q),
+    return rows.filter((r) =>
+      r.dtn.toLowerCase().includes(q) ||
+      r.evaluator.toLowerCase().includes(q) ||
+      (r.drugName || "").toLowerCase().includes(q) ||
+      r.status.toLowerCase().includes(q) ||
+      r.prescription.toLowerCase().includes(q) ||
+      r.appStep.toLowerCase().includes(q)
     );
   }, [rows, search]);
   const SC = darkMode ? statusColorsDark : statusColors;
   const RXC = darkMode ? rxColorsDark : rxColors;
   const SPC = darkMode ? stepColorsDark : stepColors;
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 3000,
-        backdropFilter: "blur(6px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: ui.cardBg,
-          border: `1px solid ${ui.cardBorder}`,
-          borderRadius: 14,
-          overflow: "hidden",
-          width: 1000,
-          maxWidth: "96vw",
-          boxShadow: "0 24px 64px rgba(0,0,0,0.28)",
-          display: "flex",
-          flexDirection: "column",
-          maxHeight: "82vh",
-        }}
-      >
-        <div
-          style={{
-            padding: "14px 20px",
-            borderBottom: `1px solid ${ui.divider}`,
-            background: colHdr,
-            flexShrink: 0,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3000, backdropFilter: "blur(6px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: ui.cardBg, border: `1px solid ${ui.cardBorder}`, borderRadius: 14, overflow: "hidden", width: 1000, maxWidth: "96vw", boxShadow: "0 24px 64px rgba(0,0,0,0.28)", display: "flex", flexDirection: "column", maxHeight: "82vh" }}>
+        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${ui.divider}`, background: colHdr, flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p
-              style={{
-                margin: 0,
-                fontSize: "0.66rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: ui.textMuted,
-                fontWeight: 700,
-              }}
-            >
-              Chart Details
-            </p>
-            <h3
-              style={{
-                margin: "2px 0 0",
-                fontSize: "1.05rem",
-                fontWeight: 700,
-                color: ui.textPrimary,
-              }}
-            >
-              {title}
-            </h3>
-            {subtitle && (
-              <p
-                style={{
-                  margin: "2px 0 0",
-                  fontSize: "0.74rem",
-                  color: ui.textMuted,
-                }}
-              >
-                {subtitle}
-              </p>
-            )}
+            <p style={{ margin: 0, fontSize: "0.66rem", textTransform: "uppercase", letterSpacing: "0.08em", color: ui.textMuted, fontWeight: 700 }}>Chart Details</p>
+            <h3 style={{ margin: "2px 0 0", fontSize: "1.05rem", fontWeight: 700, color: ui.textPrimary }}>{title}</h3>
+            {subtitle && <p style={{ margin: "2px 0 0", fontSize: "0.74rem", color: ui.textMuted }}>{subtitle}</p>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <input
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                background: ui.inputBg,
-                border: `1px solid ${ui.cardBorder}`,
-                borderRadius: 8,
-                padding: "6px 12px",
-                fontSize: "0.8rem",
-                color: ui.textPrimary,
-                outline: "none",
-                width: 200,
-                colorScheme: darkMode ? "dark" : "light",
-                fontFamily: font,
-              }}
-            />
-            <button
-              onClick={onClose}
-              style={{
-                background: "transparent",
-                border: `1px solid ${ui.cardBorder}`,
-                borderRadius: 6,
-                color: ui.textMuted,
-                cursor: "pointer",
-                width: 30,
-                height: 30,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              ✕
-            </button>
+            <input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} style={{ background: ui.inputBg, border: `1px solid ${ui.cardBorder}`, borderRadius: 8, padding: "6px 12px", fontSize: "0.8rem", color: ui.textPrimary, outline: "none", width: 200, colorScheme: darkMode ? "dark" : "light", fontFamily: font }} />
+            <button onClick={onClose} style={{ background: "transparent", border: `1px solid ${ui.cardBorder}`, borderRadius: 6, color: ui.textMuted, cursor: "pointer", width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
           </div>
         </div>
         <div style={{ overflowY: "auto", overflowX: "auto", flex: 1 }}>
           <div style={{ minWidth: 880 }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1.4fr 1.3fr 2.2fr 0.9fr 1.1fr 0.9fr",
-                background: colHdr,
-                borderBottom: `1px solid ${ui.divider}`,
-                position: "sticky",
-                top: 0,
-                zIndex: 2,
-              }}
-            >
-              {[
-                "DTN",
-                "User",
-                "Drug / Application",
-                "Prescription",
-                "App Step",
-                "Status",
-              ].map((col) => (
-                <span
-                  key={col}
-                  style={{
-                    fontSize: "0.67rem",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    color: ui.textMuted,
-                    padding: "9px 14px",
-                    textAlign: "center",
-                  }}
-                >
-                  {col}
-                </span>
+            <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1.3fr 2.2fr 0.9fr 1.1fr 0.9fr", background: colHdr, borderBottom: `1px solid ${ui.divider}`, position: "sticky", top: 0, zIndex: 2 }}>
+              {["DTN", "User", "Drug / Application", "Prescription", "App Step", "Status"].map((col) => (
+                <span key={col} style={{ fontSize: "0.67rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: ui.textMuted, padding: "9px 14px", textAlign: "center" }}>{col}</span>
               ))}
             </div>
             {filtered.length === 0 ? (
-              <div
-                style={{
-                  padding: "2rem",
-                  textAlign: "center",
-                  color: ui.textMuted,
-                  fontSize: "0.84rem",
-                }}
-              >
-                No records found
-              </div>
+              <div style={{ padding: "2rem", textAlign: "center", color: ui.textMuted, fontSize: "0.84rem" }}>No records found</div>
             ) : (
               filtered.map((row, i) => {
                 const sc = SC[row.status] || {
@@ -324,191 +176,25 @@ function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
                 };
                 const userRole = row.role || "User";
                 return (
-                  <div
-                    key={i}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns:
-                        "1.4fr 1.3fr 2.2fr 0.9fr 1.1fr 0.9fr",
-                      borderBottom:
-                        i < filtered.length - 1
-                          ? `1px solid ${ui.divider}`
-                          : "none",
-                      transition: "background 0.12s",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = ui.hoverBg)
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
-                  >
-                    <span
-                      style={{
-                        padding: "9px 14px",
-                        fontSize: "0.72rem",
-                        color: FB,
-                        textAlign: "center",
-                        fontWeight: 700,
-                        alignSelf: "center",
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      {row.dtn}
+                  <div key={i} style={{ display: "grid", gridTemplateColumns: "1.4fr 1.3fr 2.2fr 0.9fr 1.1fr 0.9fr", borderBottom: i < filtered.length - 1 ? `1px solid ${ui.divider}` : "none", transition: "background 0.12s" }} onMouseEnter={(e) => (e.currentTarget.style.background = ui.hoverBg)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                    <span style={{ padding: "9px 14px", fontSize: "0.72rem", color: FB, textAlign: "center", fontWeight: 700, alignSelf: "center", fontFamily: "monospace" }}>{row.dtn}</span>
+                    <span style={{ padding: "9px 14px", fontSize: "0.8rem", color: ui.textPrimary, textAlign: "center", fontWeight: 500, alignSelf: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <span style={{ width: 7, height: 7, borderRadius: "50%", background: avatarPalette[uniqueEvaluators.indexOf(row.evaluator) % avatarPalette.length].color, flexShrink: 0 }} />
+                      <div><div>{row.evaluator}</div><div style={{ fontSize: "0.65rem", color: ui.textMuted }}>{userRole}</div></div>
                     </span>
-                    <span
-                      style={{
-                        padding: "9px 14px",
-                        fontSize: "0.8rem",
-                        color: ui.textPrimary,
-                        textAlign: "center",
-                        fontWeight: 500,
-                        alignSelf: "center",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 6,
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 7,
-                          height: 7,
-                          borderRadius: "50%",
-                          background:
-                            avatarPalette[
-                              uniqueEvaluators.indexOf(row.evaluator) %
-                                avatarPalette.length
-                            ].color,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <div>
-                        <div>{row.evaluator}</div>
-                        <div
-                          style={{ fontSize: "0.65rem", color: ui.textMuted }}
-                        >
-                          {userRole}
-                        </div>
-                      </div>
-                    </span>
-                    <span
-                      style={{
-                        padding: "9px 14px",
-                        fontSize: "0.77rem",
-                        color: ui.textSub,
-                        alignSelf: "center",
-                      }}
-                    >
-                      {row.drugName || "—"}
-                    </span>
-                    <span
-                      style={{
-                        padding: "9px 14px",
-                        textAlign: "center",
-                        alignSelf: "center",
-                        display: "flex",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          padding: "3px 10px",
-                          borderRadius: 99,
-                          background: rxc.bg,
-                          color: rxc.color,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {rxShortLabel(row.prescription)}
-                      </span>
-                    </span>
-                    <span
-                      style={{
-                        padding: "9px 14px",
-                        textAlign: "center",
-                        alignSelf: "center",
-                        display: "flex",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          padding: "3px 10px",
-                          borderRadius: 99,
-                          background: spc.bg,
-                          color: spc.color,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {row.appStep}
-                      </span>
-                    </span>
-                    <span
-                      style={{
-                        padding: "9px 14px",
-                        textAlign: "center",
-                        alignSelf: "center",
-                        display: "flex",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          padding: "3px 10px",
-                          borderRadius: 99,
-                          background: sc.bg,
-                          color: sc.color,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {row.status}
-                      </span>
-                    </span>
+                    <span style={{ padding: "9px 14px", fontSize: "0.77rem", color: ui.textSub, alignSelf: "center" }}>{row.drugName || "—"}</span>
+                    <span style={{ padding: "9px 14px", textAlign: "center", alignSelf: "center", display: "flex", justifyContent: "center" }}><span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: rxc.bg, color: rxc.color, whiteSpace: "nowrap" }}>{rxShortLabel(row.prescription)}</span></span>
+                    <span style={{ padding: "9px 14px", textAlign: "center", alignSelf: "center", display: "flex", justifyContent: "center" }}><span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: spc.bg, color: spc.color, whiteSpace: "nowrap" }}>{row.appStep}</span></span>
+                    <span style={{ padding: "9px 14px", textAlign: "center", alignSelf: "center", display: "flex", justifyContent: "center" }}><span style={{ fontSize: "0.7rem", fontWeight: 600, padding: "3px 10px", borderRadius: 99, background: sc.bg, color: sc.color, whiteSpace: "nowrap" }}>{row.status}</span></span>
                   </div>
                 );
               })
             )}
           </div>
         </div>
-        <div
-          style={{
-            padding: "9px 20px",
-            borderTop: `1px solid ${ui.divider}`,
-            background: colHdr,
-            flexShrink: 0,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span style={{ fontSize: "0.74rem", color: ui.textMuted }}>
-            {filtered.length !== rows.length
-              ? `${filtered.length} of ${rows.length} records`
-              : `${rows.length} record${rows.length !== 1 ? "s" : ""}`}
-          </span>
-          <button
-            onClick={onClose}
-            style={{
-              padding: "5px 14px",
-              fontSize: "0.8rem",
-              fontWeight: 500,
-              borderRadius: 6,
-              border: `1px solid ${ui.cardBorder}`,
-              background: "transparent",
-              color: ui.textMuted,
-              cursor: "pointer",
-              fontFamily: font,
-            }}
-          >
-            Close
-          </button>
+        <div style={{ padding: "9px 20px", borderTop: `1px solid ${ui.divider}`, background: colHdr, flexShrink: 0, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: "0.74rem", color: ui.textMuted }}>{filtered.length !== rows.length ? `${filtered.length} of ${rows.length} records` : `${rows.length} record${rows.length !== 1 ? "s" : ""}`}</span>
+          <button onClick={onClose} style={{ padding: "5px 14px", fontSize: "0.8rem", fontWeight: 500, borderRadius: 6, border: `1px solid ${ui.cardBorder}`, background: "transparent", color: ui.textMuted, cursor: "pointer", fontFamily: font }}>Close</button>
         </div>
       </div>
     </div>
@@ -518,89 +204,18 @@ function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
 function ActionMenu({ task, darkMode, onReassign, ui }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-  const font =
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   useEffect(() => {
-    const h = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
   return (
-    <div
-      ref={ref}
-      style={{
-        position: "relative",
-        display: "flex",
-        justifyContent: "center",
-      }}
-    >
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setOpen((p) => !p);
-        }}
-        style={{
-          background: "transparent",
-          border: `1px solid ${ui.cardBorder}`,
-          borderRadius: 6,
-          color: ui.textMuted,
-          cursor: "pointer",
-          width: 28,
-          height: 28,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "1rem",
-          letterSpacing: 1,
-          lineHeight: 1,
-        }}
-      >
-        ···
-      </button>
+    <div ref={ref} style={{ position: "relative", display: "flex", justifyContent: "center" }}>
+      <button onClick={(e) => { e.stopPropagation(); setOpen((p) => !p); }} style={{ background: "transparent", border: `1px solid ${ui.cardBorder}`, borderRadius: 6, color: ui.textMuted, cursor: "pointer", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1rem", letterSpacing: 1, lineHeight: 1 }}>···</button>
       {open && (
-        <div
-          style={{
-            position: "absolute",
-            top: 32,
-            right: 0,
-            background: ui.cardBg,
-            border: `1px solid ${ui.cardBorder}`,
-            borderRadius: 8,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-            zIndex: 10,
-            minWidth: 140,
-            overflow: "hidden",
-          }}
-        >
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(false);
-              onReassign(task);
-            }}
-            style={{
-              width: "100%",
-              padding: "8px 14px",
-              background: "transparent",
-              border: "none",
-              textAlign: "left",
-              fontSize: "0.82rem",
-              color: ui.textPrimary,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              fontFamily: font,
-            }}
-            onMouseEnter={(e) =>
-              (e.currentTarget.style.background = ui.hoverBg)
-            }
-            onMouseLeave={(e) =>
-              (e.currentTarget.style.background = "transparent")
-            }
-          >
+        <div style={{ position: "absolute", top: 32, right: 0, background: ui.cardBg, border: `1px solid ${ui.cardBorder}`, borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", zIndex: 10, minWidth: 140, overflow: "hidden" }}>
+          <button onClick={(e) => { e.stopPropagation(); setOpen(false); onReassign(task); }} style={{ width: "100%", padding: "8px 14px", background: "transparent", border: "none", textAlign: "left", fontSize: "0.82rem", color: ui.textPrimary, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: font }} onMouseEnter={(e) => (e.currentTarget.style.background = ui.hoverBg)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
             <span>🔄</span> Re-assign
           </button>
         </div>
@@ -611,86 +226,17 @@ function ActionMenu({ task, darkMode, onReassign, ui }) {
 
 function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
   const [selected, setSelected] = useState("");
-  const font =
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const colHdr = darkMode ? ui.sidebarBg : "#f8f9fd";
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.55)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 2000,
-        backdropFilter: "blur(4px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: ui.cardBg,
-          border: `1px solid ${ui.cardBorder}`,
-          borderRadius: 12,
-          overflow: "hidden",
-          width: 380,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-        }}
-      >
-        <div
-          style={{
-            padding: "14px 20px",
-            borderBottom: `1px solid ${ui.divider}`,
-            background: colHdr,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, backdropFilter: "blur(4px)" }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: ui.cardBg, border: `1px solid ${ui.cardBorder}`, borderRadius: 12, overflow: "hidden", width: 380, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ padding: "14px 20px", borderBottom: `1px solid ${ui.divider}`, background: colHdr, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <p
-              style={{
-                margin: 0,
-                fontSize: "0.7rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: ui.textMuted,
-                fontWeight: 600,
-              }}
-            >
-              Re-assign Task
-            </p>
-            <h3
-              style={{
-                margin: 0,
-                fontSize: "0.84rem",
-                fontWeight: 700,
-                color: FB,
-                fontFamily: "monospace",
-              }}
-            >
-              {task.dtn}
-            </h3>
+            <p style={{ margin: 0, fontSize: "0.7rem", textTransform: "uppercase", letterSpacing: "0.06em", color: ui.textMuted, fontWeight: 600 }}>Re-assign Task</p>
+            <h3 style={{ margin: 0, fontSize: "0.84rem", fontWeight: 700, color: FB, fontFamily: "monospace" }}>{task.dtn}</h3>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: "transparent",
-              border: `1px solid ${ui.cardBorder}`,
-              borderRadius: 6,
-              color: ui.textMuted,
-              cursor: "pointer",
-              width: 28,
-              height: 28,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            ✕
-          </button>
+          <button onClick={onClose} style={{ background: "transparent", border: `1px solid ${ui.cardBorder}`, borderRadius: 6, color: ui.textMuted, cursor: "pointer", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
         <div style={{ padding: "20px" }}>
           <p
@@ -778,49 +324,9 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
               ))}
           </select>
         </div>
-        <div
-          style={{
-            padding: "12px 20px",
-            borderTop: `1px solid ${ui.divider}`,
-            background: colHdr,
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              padding: "6px 14px",
-              fontSize: "0.82rem",
-              borderRadius: 6,
-              border: `1px solid ${ui.cardBorder}`,
-              background: "transparent",
-              color: ui.textMuted,
-              cursor: "pointer",
-              fontFamily: font,
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => selected && onConfirm(task, selected)}
-            disabled={!selected}
-            style={{
-              padding: "6px 16px",
-              fontSize: "0.82rem",
-              fontWeight: 700,
-              borderRadius: 6,
-              border: "none",
-              background: selected ? FB : ui.inputBg,
-              color: selected ? "#fff" : ui.textMuted,
-              cursor: selected ? "pointer" : "not-allowed",
-              transition: "all 0.15s",
-              fontFamily: font,
-            }}
-          >
-            Confirm
-          </button>
+        <div style={{ padding: "12px 20px", borderTop: `1px solid ${ui.divider}`, background: colHdr, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button onClick={onClose} style={{ padding: "6px 14px", fontSize: "0.82rem", borderRadius: 6, border: `1px solid ${ui.cardBorder}`, background: "transparent", color: ui.textMuted, cursor: "pointer", fontFamily: font }}>Cancel</button>
+          <button onClick={() => selected && onConfirm(task, selected)} disabled={!selected} style={{ padding: "6px 16px", fontSize: "0.82rem", fontWeight: 700, borderRadius: 6, border: "none", background: selected ? FB : ui.inputBg, color: selected ? "#fff" : ui.textMuted, cursor: selected ? "pointer" : "not-allowed", transition: "all 0.15s", fontFamily: font }}>Confirm</button>
         </div>
       </div>
     </div>
@@ -925,32 +431,10 @@ function NavItem({
 
 function ComingSoonView({ label, ui }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: 340,
-        gap: 14,
-        color: ui.textMuted,
-        userSelect: "none",
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 340, gap: 14, color: ui.textMuted, userSelect: "none" }}>
       <span style={{ fontSize: "2.8rem" }}>🚧</span>
-      <p
-        style={{
-          margin: 0,
-          fontSize: "1rem",
-          fontWeight: 700,
-          color: ui.textPrimary,
-        }}
-      >
-        {label}
-      </p>
-      <p style={{ margin: 0, fontSize: "0.82rem" }}>
-        This section is coming soon.
-      </p>
+      <p style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: ui.textPrimary }}>{label}</p>
+      <p style={{ margin: 0, fontSize: "0.82rem" }}>This section is coming soon.</p>
     </div>
   );
 }
@@ -1047,9 +531,21 @@ function renderContent(
 function MonitoringPage({ darkMode }) {
   const location = useLocation();
   const ui = makeUI(darkMode);
-  const font =
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   const navigate = useNavigate();
+
+  // SVG icons — colored, clean, scalable, high-contrast for accessibility
+  const NavIcons = {
+    overview: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="#f97316" fill="#fed7aa"/><polyline points="9 22 9 12 15 12 15 22" stroke="#ea580c"/></svg>),
+    records: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="#3b82f6" fill="#dbeafe"/><polyline points="14 2 14 8 20 8" stroke="#2563eb"/><line x1="16" y1="13" x2="8" y2="13" stroke="#60a5fa"/><line x1="16" y1="17" x2="8" y2="17" stroke="#60a5fa"/><polyline points="10 9 9 9 8 9" stroke="#60a5fa"/></svg>),
+    analytics: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" stroke="#10b981"/><line x1="12" y1="20" x2="12" y2="4" stroke="#6366f1"/><line x1="6" y1="20" x2="6" y2="14" stroke="#f59e0b"/><rect x="4" y="14" width="4" height="6" rx="1" fill="#fef3c7" stroke="#f59e0b"/><rect x="10" y="4" width="4" height="16" rx="1" fill="#ede9fe" stroke="#6366f1"/><rect x="16" y="10" width="4" height="10" rx="1" fill="#d1fae5" stroke="#10b981"/></svg>),
+    deadlines: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" stroke="#ec4899" fill="#fce7f3"/><polyline points="12 6 12 12 16 14" stroke="#db2777"/></svg>),
+    compliance: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#14b8a6" fill="#ccfbf1"/><polyline points="9 12 11 14 15 10" stroke="#0d9488"/></svg>),
+    workload: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="#ef4444"/><circle cx="9" cy="12" r="1.5" fill="#fca5a5"/><circle cx="15" cy="12" r="1.5" fill="#fca5a5"/></svg>),
+    activity: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" stroke="#8b5cf6" fill="#ede9fe"/><circle cx="12" cy="12" r="4" stroke="#7c3aed" fill="#c4b5fd"/><circle cx="12" cy="12" r="1.5" fill="#6d28d9"/></svg>),
+    users: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="7" r="4" stroke="#0ea5e9" fill="#e0f2fe"/><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" stroke="#0284c7" fill="#bae6fd"/><circle cx="17" cy="7" r="3" stroke="#06b6d4" fill="#cffafe"/><path d="M21 21v-2a3 3 0 0 0-3-3h-1" stroke="#0891b2"/></svg>),
+    frptat: () => (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" stroke="#f59e0b" fill="#fef3c7"/><polyline points="12 6 12 12 8 14" stroke="#d97706"/><path d="M17 4l2 2" stroke="#f59e0b"/><path d="M19 6l1-3" stroke="#f59e0b"/></svg>),
+  };
 
   const navItems = [
     { key: "overview", label: "Overview", subtitle: "Summary of all activity" },
@@ -1096,7 +592,6 @@ function MonitoringPage({ darkMode }) {
   //     .catch(() => {});
   // }, []);
 
-  // Modal sub-state
   const [modalDateFrom, setModalDateFrom] = useState("");
   const [modalDateTo, setModalDateTo] = useState("");
   const [modalSortCol, setModalSortCol] = useState("date");
@@ -1128,22 +623,16 @@ function MonitoringPage({ darkMode }) {
   );
 
   const handleReassignConfirm = (task, newEval) => {
-    setTableData((prev) =>
-      prev.map((r) => (r.dtn === task.dtn ? { ...r, evaluator: newEval } : r)),
-    );
+    setTableData((prev) => prev.map((r) => (r.dtn === task.dtn ? { ...r, evaluator: newEval } : r)));
     setReassignTask(null);
   };
+
   const handleSliceClick = (statusName) => {
-    setChartModal({
-      title: statusName,
-      subtitle: rxFilter !== "All" ? `Prescription: ${rxFilter}` : undefined,
-      rows: chartFiltered.filter((r) => r.status === statusName),
-    });
+    setChartModal({ title: statusName, subtitle: rxFilter !== "All" ? `Prescription: ${rxFilter}` : undefined, rows: chartFiltered.filter((r) => r.status === statusName) });
   };
 
-  const allModalTasks = modalEval
-    ? tableData.filter((d) => d.evaluator === modalEval)
-    : [];
+  const allModalTasks = modalEval ? tableData.filter((d) => d.evaluator === modalEval) : [];
+
   const modalTasks = useMemo(() => {
     const f = allModalTasks.filter((t) => {
       const d = new Date(t.date + "T00:00:00");
@@ -1153,70 +642,17 @@ function MonitoringPage({ darkMode }) {
       return true;
     });
     return [...f].sort((a, b) => {
-      let av = a[modalSortCol],
-        bv = b[modalSortCol];
-      if (modalSortCol === "date") {
-        av = new Date(av + "T00:00:00");
-        bv = new Date(bv + "T00:00:00");
-      } else {
-        av = String(av).toLowerCase();
-        bv = String(bv).toLowerCase();
-      }
-      return av < bv
-        ? modalSortDir === "asc"
-          ? -1
-          : 1
-        : av > bv
-          ? modalSortDir === "asc"
-            ? 1
-            : -1
-          : 0;
+      let av = a[modalSortCol], bv = b[modalSortCol];
+      if (modalSortCol === "date") { av = new Date(av + "T00:00:00"); bv = new Date(bv + "T00:00:00"); }
+      else { av = String(av).toLowerCase(); bv = String(bv).toLowerCase(); }
+      return av < bv ? (modalSortDir === "asc" ? -1 : 1) : av > bv ? (modalSortDir === "asc" ? 1 : -1) : 0;
     });
-  }, [
-    allModalTasks,
-    modalDateFrom,
-    modalDateTo,
-    modalSortCol,
-    modalSortDir,
-    modalStatusTab,
-  ]);
+  }, [allModalTasks, modalDateFrom, modalDateTo, modalSortCol, modalSortDir, modalStatusTab]);
 
-  const handleModalClose = () => {
-    setModalEval(null);
-    setModalDateFrom("");
-    setModalDateTo("");
-    setModalSortCol("date");
-    setModalSortDir("asc");
-    setModalStatusTab("All");
-  };
-  const toggleModalSort = (col) => {
-    if (modalSortCol === col)
-      setModalSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setModalSortCol(col);
-      setModalSortDir("asc");
-    }
-  };
-  const SortArrow = ({ col }) => {
-    const active = modalSortCol === col;
-    return (
-      <span
-        style={{
-          marginLeft: 3,
-          fontSize: "0.62rem",
-          opacity: active ? 1 : 0.3,
-          color: FB,
-        }}
-      >
-        {active ? (modalSortDir === "asc" ? "▲" : "▼") : "⇅"}
-      </span>
-    );
-  };
-
-  const handleStopImpersonation = () => {
-    setImpersonating(null);
-    stopImpersonation();
-  };
+  const handleModalClose = () => { setModalEval(null); setModalDateFrom(""); setModalDateTo(""); setModalSortCol("date"); setModalSortDir("asc"); setModalStatusTab("All"); };
+  const toggleModalSort = (col) => { if (modalSortCol === col) setModalSortDir((d) => (d === "asc" ? "desc" : "asc")); else { setModalSortCol(col); setModalSortDir("asc"); } };
+  const SortArrow = ({ col }) => { const active = modalSortCol === col; return (<span style={{ marginLeft: 3, fontSize: "0.62rem", opacity: active ? 1 : 0.3, color: FB }}>{active ? (modalSortDir === "asc" ? "▲" : "▼") : "⇅"}</span>); };
+  const handleStopImpersonation = () => { setImpersonating(null); stopImpersonation(); };
 
   const sharedProps = {
     ui,
@@ -1229,27 +665,11 @@ function MonitoringPage({ darkMode }) {
 
   return (
     <>
-      <style>{`.mon-scroll::-webkit-scrollbar{width:7px}.mon-scroll::-webkit-scrollbar-track{background:transparent}.mon-scroll::-webkit-scrollbar-thumb{background:#3a3b3c;border-radius:99px}.mon-scroll::-webkit-scrollbar-thumb:hover{background:#555}.mon-scroll{scrollbar-width:thin;scrollbar-color:#3a3b3c transparent}`}</style>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          width: "100%",
-          height: "100%",
-          overflow: "hidden",
-          fontFamily: font,
-        }}
-      >
-        <div
-          className="mon-scroll"
-          style={{
-            display: "flex",
-            flex: "1 1 0",
-            minHeight: 0,
-            overflowY: "scroll",
-            overflowX: "hidden",
-          }}
-        >
+      <style>{glassCSS}</style>
+      <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", overflow: "hidden", fontFamily: font }}>
+        <div className="mon-scroll" style={{ display: "flex", flex: "1 1 0", minHeight: 0, overflowY: "scroll", overflowX: "hidden" }}>
+
+          {/* ═══ GLASSMORPHISM SIDEBAR ═══ */}
           {!isMobile && (
             <div
               style={{
@@ -1383,128 +803,29 @@ function MonitoringPage({ darkMode }) {
             </div>
           )}
 
-          <div
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: isMobile
-                ? "10px 10px 100px 10px"
-                : "14px 14px 100px 14px",
-              boxSizing: "border-box",
-            }}
-          >
+          {/* ═══ MAIN CONTENT AREA ═══ */}
+          <div style={{ flex: 1, minWidth: 0, padding: isMobile ? "10px 10px 100px 10px" : "14px 14px 100px 14px", boxSizing: "border-box" }}>
+
             {/* Impersonation Banner */}
             {impersonating && (
-              <div
-                style={{
-                  marginBottom: 14,
-                  padding: "10px 16px",
-                  borderRadius: 10,
-                  background: darkMode ? "#1a2744" : "#e7f0fd",
-                  border: `1.5px solid ${FB}`,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    background:
-                      avatarPalette[impersonating.avatar % avatarPalette.length]
-                        .bg,
-                    color:
-                      avatarPalette[impersonating.avatar % avatarPalette.length]
-                        .color,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.8rem",
-                    fontWeight: 700,
-                    border: `2px solid ${avatarPalette[impersonating.avatar % avatarPalette.length].color}40`,
-                    flexShrink: 0,
-                  }}
-                >
+              <div style={{ marginBottom: 14, padding: "10px 16px", borderRadius: 10, background: darkMode ? "#1a2744" : "#e7f0fd", border: `1.5px solid ${FB}`, display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: avatarPalette[impersonating.avatar % avatarPalette.length].bg, color: avatarPalette[impersonating.avatar % avatarPalette.length].color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.8rem", fontWeight: 700, border: `2px solid ${avatarPalette[impersonating.avatar % avatarPalette.length].color}40`, flexShrink: 0 }}>
                   {getInitials(impersonating.name)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.78rem",
-                      fontWeight: 700,
-                      color: FB,
-                    }}
-                  >
-                    👁 Viewing as:{" "}
-                    <span style={{ color: darkMode ? "#e4e6ea" : "#1c1e21" }}>
-                      {impersonating.name}
-                    </span>
-                  </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.7rem",
-                      color: darkMode ? "#b0b3b8" : "#65676b",
-                    }}
-                  >
-                    {impersonating.role} · {impersonating.email}
-                  </p>
+                  <p style={{ margin: 0, fontSize: "0.78rem", fontWeight: 700, color: FB }}>👁 Viewing as: <span style={{ color: darkMode ? "#e4e6ea" : "#1c1e21" }}>{impersonating.name}</span></p>
+                  <p style={{ margin: 0, fontSize: "0.7rem", color: darkMode ? "#b0b3b8" : "#65676b" }}>{impersonating.role} · {impersonating.email}</p>
                 </div>
-                <button
-                  onClick={handleStopImpersonation}
-                  style={{
-                    padding: "5px 12px",
-                    fontSize: "0.75rem",
-                    fontWeight: 700,
-                    borderRadius: 7,
-                    border: "1.5px solid #e02020",
-                    background: darkMode ? "#2e0f0f" : "#fff1f2",
-                    color: "#e02020",
-                    cursor: "pointer",
-                    fontFamily: font,
-                    flexShrink: 0,
-                  }}
-                >
-                  ✕ Stop Impersonation
-                </button>
+                <button onClick={handleStopImpersonation} style={{ padding: "5px 12px", fontSize: "0.75rem", fontWeight: 700, borderRadius: 7, border: "1.5px solid #e02020", background: darkMode ? "#2e0f0f" : "#fff1f2", color: "#e02020", cursor: "pointer", fontFamily: font, flexShrink: 0 }}>✕ Stop Impersonation</button>
               </div>
             )}
 
+            {/* Mobile nav tabs */}
             {isMobile && (
-              <div
-                style={{
-                  display: "flex",
-                  gap: 6,
-                  marginBottom: 14,
-                  overflowX: "auto",
-                  padding: "0 0 2px 0",
-                }}
-              >
+              <div style={{ display: "flex", gap: 6, marginBottom: 14, overflowX: "auto", padding: "0 0 2px 0" }}>
                 {navItems.map((n) => (
-                  <button
-                    key={n.key}
-                    onClick={
-                      n.comingSoon ? undefined : () => setActiveNav(n.key)
-                    }
-                    style={{
-                      padding: "6px 14px",
-                      borderRadius: 99,
-                      border: `1px solid ${activeNav === n.key ? FB : ui.cardBorder}`,
-                      background:
-                        activeNav === n.key ? `${FB}12` : "transparent",
-                      color: activeNav === n.key ? FB : ui.textMuted,
-                      fontSize: "0.78rem",
-                      fontWeight: activeNav === n.key ? 700 : 500,
-                      cursor: n.comingSoon ? "default" : "pointer",
-                      opacity: n.comingSoon ? 0.45 : 1,
-                      whiteSpace: "nowrap",
-                      fontFamily: font,
-                    }}
-                  >
-                    {n.icon} {n.label}
+                  <button key={n.key} onClick={n.comingSoon ? undefined : () => setActiveNav(n.key)} style={{ padding: "6px 14px", borderRadius: 99, border: `1px solid ${activeNav === n.key ? FB : ui.cardBorder}`, background: activeNav === n.key ? `${FB}12` : "transparent", color: activeNav === n.key ? FB : ui.textMuted, fontSize: "0.82rem", fontWeight: activeNav === n.key ? 700 : 500, cursor: n.comingSoon ? "default" : "pointer", opacity: n.comingSoon ? 0.45 : 1, whiteSpace: "nowrap", fontFamily: font, display: "flex", alignItems: "center", gap: 6 }}>
+                    {typeof n.icon === "function" ? n.icon() : n.icon} {n.label}
                   </button>
                 ))}
               </div>
@@ -1538,505 +859,82 @@ function MonitoringPage({ darkMode }) {
 
       {/* Evaluator Detail Modal */}
       {modalEval && (
-        <div
-          onClick={handleModalClose}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            backdropFilter: "blur(4px)",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: ui.cardBg,
-              border: `1px solid ${ui.cardBorder}`,
-              borderRadius: 12,
-              overflow: "hidden",
-              width: 920,
-              maxWidth: "95vw",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-              display: "flex",
-              flexDirection: "column",
-              maxHeight: "85vh",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "14px 20px",
-                borderBottom: `1px solid ${ui.divider}`,
-                background: colHdr,
-                flexShrink: 0,
-              }}
-            >
+        <div onClick={handleModalClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(4px)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: ui.cardBg, border: `1px solid ${ui.cardBorder}`, borderRadius: 12, overflow: "hidden", width: 920, maxWidth: "95vw", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", display: "flex", flexDirection: "column", maxHeight: "85vh" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 20px", borderBottom: `1px solid ${ui.divider}`, background: colHdr, flexShrink: 0 }}>
               {(() => {
                 const av = getAvatarColor(modalEval, uniqueEvaluators);
                 const role =
                   userDatabase.find((u) => u.name === modalEval)?.role ||
                   "User";
                 return (
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 12 }}
-                  >
-                    <div
-                      style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: "50%",
-                        background: av.bg,
-                        color: av.color,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "1.1rem",
-                        fontWeight: 700,
-                        border: `2.5px solid ${av.color}55`,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {getInitials(modalEval)}
-                    </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 52, height: 52, borderRadius: "50%", background: av.bg, color: av.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", fontWeight: 700, border: `2.5px solid ${av.color}55`, flexShrink: 0 }}>{getInitials(modalEval)}</div>
                     <div>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: "0.68rem",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          color: ui.textMuted,
-                        }}
-                      >
-                        Tasks for a
-                      </p>
-                      <h3
-                        style={{
-                          margin: 0,
-                          fontSize: "1rem",
-                          fontWeight: 700,
-                          color: ui.textPrimary,
-                        }}
-                      >
-                        {modalEval}
-                      </h3>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: "0.72rem",
-                          color: ui.textMuted,
-                        }}
-                      >
-                        {role}
-                      </p>
+                      <p style={{ margin: 0, fontSize: "0.68rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: ui.textMuted }}>Tasks for</p>
+                      <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: ui.textPrimary }}>{modalEval}</h3>
+                      <p style={{ margin: 0, fontSize: "0.72rem", color: ui.textMuted }}>{role}</p>
                     </div>
                   </div>
                 );
               })()}
-              <button
-                onClick={handleModalClose}
-                style={{
-                  background: "transparent",
-                  border: `1px solid ${ui.cardBorder}`,
-                  borderRadius: 6,
-                  color: ui.textMuted,
-                  cursor: "pointer",
-                  width: 28,
-                  height: 28,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                ✕
-              </button>
+              <button onClick={handleModalClose} style={{ background: "transparent", border: `1px solid ${ui.cardBorder}`, borderRadius: 6, color: ui.textMuted, cursor: "pointer", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
             </div>
             <div style={{ overflowY: "auto", overflowX: "auto", flex: 1 }}>
               <div style={{ minWidth: 700 }}>
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "flex-end",
-                    padding: "10px 14px",
-                    borderBottom: `1px solid ${ui.divider}`,
-                    background: colHdr,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {[
-                    {
-                      label: "From",
-                      val: modalDateFrom,
-                      set: setModalDateFrom,
-                    },
-                    { label: "To", val: modalDateTo, set: setModalDateTo },
-                  ].map(({ label, val, set }) => (
+                {/* Date filters */}
+                <div style={{ display: "flex", gap: 10, alignItems: "flex-end", padding: "10px 14px", borderBottom: `1px solid ${ui.divider}`, background: colHdr, flexWrap: "wrap" }}>
+                  {[{ label: "From", val: modalDateFrom, set: setModalDateFrom }, { label: "To", val: modalDateTo, set: setModalDateTo }].map(({ label, val, set }) => (
                     <div key={label}>
-                      <label
-                        style={{
-                          fontSize: "0.67rem",
-                          fontWeight: 700,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          color: ui.textMuted,
-                          marginBottom: 4,
-                          display: "block",
-                        }}
-                      >
-                        {label}
-                      </label>
-                      <input
-                        type="date"
-                        value={val}
-                        onChange={(e) => set(e.target.value)}
-                        style={{
-                          background: ui.inputBg,
-                          border: `1px solid ${ui.cardBorder}`,
-                          borderRadius: 7,
-                          padding: "6px 10px",
-                          fontSize: "0.78rem",
-                          color: ui.textPrimary,
-                          outline: "none",
-                          colorScheme: darkMode ? "dark" : "light",
-                          fontFamily: font,
-                        }}
-                      />
+                      <label style={{ fontSize: "0.67rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: ui.textMuted, marginBottom: 4, display: "block" }}>{label}</label>
+                      <input type="date" value={val} onChange={(e) => set(e.target.value)} style={{ background: ui.inputBg, border: `1px solid ${ui.cardBorder}`, borderRadius: 7, padding: "6px 10px", fontSize: "0.78rem", color: ui.textPrimary, outline: "none", colorScheme: darkMode ? "dark" : "light", fontFamily: font }} />
                     </div>
                   ))}
                   {(modalDateFrom || modalDateTo) && (
-                    <button
-                      onClick={() => {
-                        setModalDateFrom("");
-                        setModalDateTo("");
-                      }}
-                      style={{
-                        padding: "6px 12px",
-                        fontSize: "0.78rem",
-                        borderRadius: 6,
-                        border: `1px solid ${ui.cardBorder}`,
-                        background: "transparent",
-                        color: ui.textMuted,
-                        cursor: "pointer",
-                        fontFamily: font,
-                      }}
-                    >
-                      Reset
-                    </button>
+                    <button onClick={() => { setModalDateFrom(""); setModalDateTo(""); }} style={{ padding: "6px 12px", fontSize: "0.78rem", borderRadius: 6, border: `1px solid ${ui.cardBorder}`, background: "transparent", color: ui.textMuted, cursor: "pointer", fontFamily: font }}>Reset</button>
                   )}
                 </div>
-                <div
-                  style={{
-                    padding: "10px 14px",
-                    borderBottom: `1px solid ${ui.divider}`,
-                    background: colHdr,
-                    display: "flex",
-                    gap: 6,
-                    alignItems: "center",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {[
-                    { key: "All", label: "All", color: FB },
-                    {
-                      key: "On Process",
-                      label: "⏳ On Process",
-                      color: "#f59e0b",
-                    },
-                    { key: "Approved", label: "✅ Approved", color: "#36a420" },
-                    {
-                      key: "Disapproved",
-                      label: "❌ Disapproved",
-                      color: "#e02020",
-                    },
-                  ].map(({ key, label, color }) => {
-                    const count = allModalTasks.filter((t) => {
-                      const d = new Date(t.date + "T00:00:00");
-                      if (modalDateFrom && d < new Date(modalDateFrom))
-                        return false;
-                      if (modalDateTo && d > new Date(modalDateTo))
-                        return false;
-                      return key === "All" ? true : t.status === key;
-                    }).length;
+                {/* Status tabs */}
+                <div style={{ padding: "10px 14px", borderBottom: `1px solid ${ui.divider}`, background: colHdr, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                  {[{ key: "All", label: "All", color: FB }, { key: "On Process", label: "⏳ On Process", color: "#f59e0b" }, { key: "Approved", label: "✅ Approved", color: "#36a420" }, { key: "Disapproved", label: "❌ Disapproved", color: "#e02020" }].map(({ key, label, color }) => {
+                    const count = allModalTasks.filter((t) => { const d = new Date(t.date + "T00:00:00"); if (modalDateFrom && d < new Date(modalDateFrom)) return false; if (modalDateTo && d > new Date(modalDateTo)) return false; return key === "All" ? true : t.status === key; }).length;
                     const isAct = modalStatusTab === key;
                     return (
-                      <button
-                        key={key}
-                        onClick={() => setModalStatusTab(key)}
-                        style={{
-                          padding: "5px 14px",
-                          fontSize: "0.76rem",
-                          fontWeight: isAct ? 700 : 500,
-                          borderRadius: 99,
-                          border: `1.5px solid ${isAct ? color : ui.cardBorder}`,
-                          background: isAct ? `${color}15` : "transparent",
-                          color: isAct ? color : ui.textMuted,
-                          cursor: "pointer",
-                          fontFamily: font,
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {label}
-                        <span
-                          style={{
-                            fontSize: "0.68rem",
-                            fontWeight: 800,
-                            padding: "1px 6px",
-                            borderRadius: 99,
-                            background: isAct ? color : ui.inputBg,
-                            color: isAct ? "#fff" : ui.textMuted,
-                            minWidth: 18,
-                            textAlign: "center",
-                          }}
-                        >
-                          {count}
-                        </span>
+                      <button key={key} onClick={() => setModalStatusTab(key)} style={{ padding: "5px 14px", fontSize: "0.76rem", fontWeight: isAct ? 700 : 500, borderRadius: 99, border: `1.5px solid ${isAct ? color : ui.cardBorder}`, background: isAct ? `${color}15` : "transparent", color: isAct ? color : ui.textMuted, cursor: "pointer", fontFamily: font, display: "flex", alignItems: "center", gap: 5, transition: "all 0.15s" }}>
+                        {label}<span style={{ fontSize: "0.68rem", fontWeight: 800, padding: "1px 6px", borderRadius: 99, background: isAct ? color : ui.inputBg, color: isAct ? "#fff" : ui.textMuted, minWidth: 18, textAlign: "center" }}>{count}</span>
                       </button>
                     );
                   })}
                 </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1.5fr 1fr 2fr 1.1fr 1fr 0.9fr 60px",
-                    background: colHdr,
-                    borderBottom: `1px solid ${ui.divider}`,
-                    position: "sticky",
-                    top: 0,
-                    zIndex: 2,
-                  }}
-                >
-                  {[
-                    { label: "DTN", col: "dtn" },
-                    { label: "Date", col: "date" },
-                    { label: "Drug / Application", col: "drugName" },
-                    { label: "App Step", col: "appStep" },
-                    { label: "Timeline", col: "timeline" },
-                    { label: "Status", col: "status" },
-                  ].map(({ label, col }) => (
-                    <span
-                      key={col}
-                      onClick={() => toggleModalSort(col)}
-                      style={{
-                        fontSize: "0.67rem",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.07em",
-                        color: modalSortCol === col ? FB : ui.textMuted,
-                        padding: "8px 14px",
-                        textAlign: "center",
-                        cursor: "pointer",
-                        userSelect: "none",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      {label}
-                      <SortArrow col={col} />
+
+                {/* Table header */}
+                <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 2fr 1.1fr 1fr 0.9fr 60px", background: colHdr, borderBottom: `1px solid ${ui.divider}`, position: "sticky", top: 0, zIndex: 2 }}>
+                  {[{ label: "DTN", col: "dtn" }, { label: "Date", col: "date" }, { label: "Drug / Application", col: "drugName" }, { label: "App Step", col: "appStep" }, { label: "Timeline", col: "timeline" }, { label: "Status", col: "status" }].map(({ label, col }) => (
+                    <span key={col} onClick={() => toggleModalSort(col)} style={{ fontSize: "0.67rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: modalSortCol === col ? FB : ui.textMuted, padding: "8px 14px", textAlign: "center", cursor: "pointer", userSelect: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {label}<SortArrow col={col} />
                     </span>
                   ))}
-                  <span
-                    style={{
-                      fontSize: "0.67rem",
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.07em",
-                      color: ui.textMuted,
-                      padding: "8px 14px",
-                      textAlign: "center",
-                      position: "sticky",
-                      right: 0,
-                      background: colHdr,
-                      borderLeft: `1px solid ${ui.divider}`,
-                    }}
-                  >
-                    Action
-                  </span>
+                  <span style={{ fontSize: "0.67rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: ui.textMuted, padding: "8px 14px", textAlign: "center", position: "sticky", right: 0, background: colHdr, borderLeft: `1px solid ${ui.divider}` }}>Action</span>
                 </div>
+
+                {/* Table rows */}
                 {modalTasks.length === 0 ? (
-                  <div
-                    style={{
-                      padding: "24px",
-                      textAlign: "center",
-                      color: ui.textMuted,
-                      fontSize: "0.84rem",
-                    }}
-                  >
-                    No tasks found
-                  </div>
+                  <div style={{ padding: "24px", textAlign: "center", color: ui.textMuted, fontSize: "0.84rem" }}>No tasks found</div>
                 ) : (
                   modalTasks.map((task, i) => {
-                    const tlStyle = (darkMode
-                      ? timelineColorsDark
-                      : timelineColors)[task.timeline] || {
-                      bg: "#f3f4f6",
-                      color: "#374151",
-                    };
-                    const spc = (darkMode ? stepColorsDark : stepColors)[
-                      task.appStep
-                    ] || { bg: "#f3f4f6", color: "#374151" };
-                    const sc = (darkMode ? statusColorsDark : statusColors)[
-                      task.status
-                    ] || { bg: "#f3f4f6", color: "#374151" };
+                    const tlStyle = (darkMode ? timelineColorsDark : timelineColors)[task.timeline] || { bg: "#f3f4f6", color: "#374151" };
+                    const spc = (darkMode ? stepColorsDark : stepColors)[task.appStep] || { bg: "#f3f4f6", color: "#374151" };
+                    const sc = (darkMode ? statusColorsDark : statusColors)[task.status] || { bg: "#f3f4f6", color: "#374151" };
                     return (
-                      <div
-                        key={i}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns:
-                            "1.5fr 1fr 2fr 1.1fr 1fr 0.9fr 60px",
-                          borderBottom:
-                            i < modalTasks.length - 1
-                              ? `1px solid ${ui.divider}`
-                              : "none",
-                          transition: "background 0.12s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = ui.hoverBg)
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = "transparent")
-                        }
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.72rem",
-                            color: FB,
-                            fontWeight: 700,
-                            textAlign: "center",
-                            padding: "10px 14px",
-                            alignSelf: "center",
-                            fontFamily: "monospace",
-                          }}
-                        >
-                          {task.dtn}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.8rem",
-                            color: ui.textPrimary,
-                            textAlign: "center",
-                            padding: "10px 14px",
-                            alignSelf: "center",
-                          }}
-                        >
-                          {new Date(task.date + "T00:00:00").toLocaleDateString(
-                            "en-PH",
-                            { year: "numeric", month: "short", day: "numeric" },
-                          )}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            color: ui.textSub,
-                            padding: "10px 14px",
-                            alignSelf: "center",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {task.drugName}
-                        </span>
-                        <span
-                          style={{
-                            padding: "10px 14px",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.71rem",
-                              fontWeight: 600,
-                              padding: "3px 9px",
-                              borderRadius: 99,
-                              background: spc.bg,
-                              color: spc.color,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {task.appStep}
-                          </span>
-                        </span>
-                        <span
-                          style={{
-                            padding: "10px 14px",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.71rem",
-                              fontWeight: 600,
-                              padding: "3px 9px",
-                              borderRadius: 99,
-                              background: tlStyle.bg,
-                              color: tlStyle.color,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {task.timeline}
-                          </span>
-                        </span>
-                        <span
-                          style={{
-                            padding: "10px 14px",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.71rem",
-                              fontWeight: 600,
-                              padding: "3px 9px",
-                              borderRadius: 99,
-                              background: sc.bg,
-                              color: sc.color,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {task.status}
-                          </span>
-                        </span>
-                        <div
-                          style={{
-                            padding: "8px 10px",
-                            display: "flex",
-                            justifyContent: "center",
-                            alignItems: "center",
-                            position: "sticky",
-                            right: 0,
-                            background: "inherit",
-                            borderLeft: `1px solid ${ui.divider}`,
-                            zIndex: 1,
-                          }}
-                        >
-                          <ActionMenu
-                            task={task}
-                            darkMode={darkMode}
-                            ui={ui}
-                            onReassign={(t) => {
-                              handleModalClose();
-                              setReassignTask(t);
-                            }}
-                          />
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 2fr 1.1fr 1fr 0.9fr 60px", borderBottom: i < modalTasks.length - 1 ? `1px solid ${ui.divider}` : "none", transition: "background 0.12s" }} onMouseEnter={(e) => (e.currentTarget.style.background = ui.hoverBg)} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                        <span style={{ fontSize: "0.72rem", color: FB, fontWeight: 700, textAlign: "center", padding: "10px 14px", alignSelf: "center", fontFamily: "monospace" }}>{task.dtn}</span>
+                        <span style={{ fontSize: "0.8rem", color: ui.textPrimary, textAlign: "center", padding: "10px 14px", alignSelf: "center" }}>{new Date(task.date + "T00:00:00").toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })}</span>
+                        <span style={{ fontSize: "0.75rem", color: ui.textSub, padding: "10px 14px", alignSelf: "center", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.drugName}</span>
+                        <span style={{ padding: "10px 14px", display: "flex", justifyContent: "center", alignItems: "center" }}><span style={{ fontSize: "0.71rem", fontWeight: 600, padding: "3px 9px", borderRadius: 99, background: spc.bg, color: spc.color, whiteSpace: "nowrap" }}>{task.appStep}</span></span>
+                        <span style={{ padding: "10px 14px", display: "flex", justifyContent: "center", alignItems: "center" }}><span style={{ fontSize: "0.71rem", fontWeight: 600, padding: "3px 9px", borderRadius: 99, background: tlStyle.bg, color: tlStyle.color, whiteSpace: "nowrap" }}>{task.timeline}</span></span>
+                        <span style={{ padding: "10px 14px", display: "flex", justifyContent: "center", alignItems: "center" }}><span style={{ fontSize: "0.71rem", fontWeight: 600, padding: "3px 9px", borderRadius: 99, background: sc.bg, color: sc.color, whiteSpace: "nowrap" }}>{task.status}</span></span>
+                        <div style={{ padding: "8px 10px", display: "flex", justifyContent: "center", alignItems: "center", position: "sticky", right: 0, background: "inherit", borderLeft: `1px solid ${ui.divider}`, zIndex: 1 }}>
+                          <ActionMenu task={task} darkMode={darkMode} ui={ui} onReassign={(t) => { handleModalClose(); setReassignTask(t); }} />
                         </div>
                       </div>
                     );
@@ -2044,19 +942,8 @@ function MonitoringPage({ darkMode }) {
                 )}
               </div>
             </div>
-            <div
-              style={{
-                padding: "8px 20px",
-                borderTop: `1px solid ${ui.divider}`,
-                background: colHdr,
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ fontSize: "0.73rem", color: ui.textMuted }}>
-                {modalTasks.length !== allModalTasks.length
-                  ? `${modalTasks.length} of ${allModalTasks.length} tasks`
-                  : `${allModalTasks.length} task${allModalTasks.length !== 1 ? "s" : ""} assigned`}
-              </span>
+            <div style={{ padding: "8px 20px", borderTop: `1px solid ${ui.divider}`, background: colHdr, flexShrink: 0 }}>
+              <span style={{ fontSize: "0.73rem", color: ui.textMuted }}>{modalTasks.length !== allModalTasks.length ? `${modalTasks.length} of ${allModalTasks.length} tasks` : `${allModalTasks.length} task${allModalTasks.length !== 1 ? "s" : ""} assigned`}</span>
             </div>
           </div>
         </div>
@@ -2064,186 +951,37 @@ function MonitoringPage({ darkMode }) {
 
       {/* Chart Detail Modal */}
       {chartModal && (
-        <ChartDetailModal
-          title={chartModal.title}
-          subtitle={chartModal.subtitle}
-          rows={chartModal.rows}
-          darkMode={darkMode}
-          onClose={() => setChartModal(null)}
-          ui={ui}
-        />
+        <ChartDetailModal title={chartModal.title} subtitle={chartModal.subtitle} rows={chartModal.rows} darkMode={darkMode} onClose={() => setChartModal(null)} ui={ui} />
       )}
 
       {/* Reassign Modal */}
       {reassignTask && (
-        <ReassignModal
-          task={reassignTask}
-          evaluators={uniqueEvaluators}
-          darkMode={darkMode}
-          onClose={() => setReassignTask(null)}
-          onConfirm={handleReassignConfirm}
-          ui={ui}
-        />
+        <ReassignModal task={reassignTask} evaluators={uniqueEvaluators} darkMode={darkMode} onClose={() => setReassignTask(null)} onConfirm={handleReassignConfirm} ui={ui} />
       )}
 
       {/* Impersonate Confirm Modal */}
       {showImpersonateConfirm && (
-        <div
-          onClick={() => setShowImpersonateConfirm(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.6)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 4000,
-            backdropFilter: "blur(6px)",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: ui.cardBg,
-              border: `1px solid ${ui.cardBorder}`,
-              borderRadius: 14,
-              overflow: "hidden",
-              width: 400,
-              maxWidth: "92vw",
-              boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
-            }}
-          >
-            <div
-              style={{
-                padding: "20px 20px 16px",
-                borderBottom: `1px solid ${ui.divider}`,
-                background: darkMode ? ui.sidebarBg : "#f8f9fd",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  marginBottom: 10,
-                }}
-              >
-                <div
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: "50%",
-                    background:
-                      avatarPalette[
-                        showImpersonateConfirm.avatar % avatarPalette.length
-                      ].bg,
-                    color:
-                      avatarPalette[
-                        showImpersonateConfirm.avatar % avatarPalette.length
-                      ].color,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.1rem",
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
+        <div onClick={() => setShowImpersonateConfirm(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 4000, backdropFilter: "blur(6px)" }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: ui.cardBg, border: `1px solid ${ui.cardBorder}`, borderRadius: 14, overflow: "hidden", width: 400, maxWidth: "92vw", boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ padding: "20px 20px 16px", borderBottom: `1px solid ${ui.divider}`, background: darkMode ? ui.sidebarBg : "#f8f9fd" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: avatarPalette[showImpersonateConfirm.avatar % avatarPalette.length].bg, color: avatarPalette[showImpersonateConfirm.avatar % avatarPalette.length].color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", fontWeight: 700, flexShrink: 0 }}>
                   {getInitials(showImpersonateConfirm.name)}
                 </div>
                 <div>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.88rem",
-                      fontWeight: 700,
-                      color: ui.textPrimary,
-                    }}
-                  >
-                    {showImpersonateConfirm.name}
-                  </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.73rem",
-                      color: ui.textMuted,
-                    }}
-                  >
-                    {showImpersonateConfirm.role} ·{" "}
-                    {showImpersonateConfirm.email}
-                  </p>
+                  <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 700, color: ui.textPrimary }}>{showImpersonateConfirm.name}</p>
+                  <p style={{ margin: 0, fontSize: "0.73rem", color: ui.textMuted }}>{showImpersonateConfirm.role} · {showImpersonateConfirm.email}</p>
                 </div>
               </div>
-              <div
-                style={{
-                  padding: "10px 12px",
-                  borderRadius: 8,
-                  background: darkMode ? "#1a2744" : `${FB}0e`,
-                  border: `1px solid ${FB}30`,
-                }}
-              >
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "0.75rem",
-                    color: darkMode ? "#93c5fd" : "#1d4ed8",
-                    lineHeight: 1.5,
-                  }}
-                >
-                  👁 You are about to{" "}
-                  <strong>
-                    view the dashboard as {showImpersonateConfirm.name}
-                  </strong>
-                  . This lets you inspect their data perspective and workload.
-                  No changes will be made.
+              <div style={{ padding: "10px 12px", borderRadius: 8, background: darkMode ? "#1a2744" : `${FB}0e`, border: `1px solid ${FB}30` }}>
+                <p style={{ margin: 0, fontSize: "0.75rem", color: darkMode ? "#93c5fd" : "#1d4ed8", lineHeight: 1.5 }}>
+                  👁 You are about to <strong>view the dashboard as {showImpersonateConfirm.name}</strong>. This lets you inspect their data perspective and workload. No changes will be made.
                 </p>
               </div>
             </div>
-            <div
-              style={{
-                padding: "16px 20px",
-                display: "flex",
-                justifyContent: "flex-end",
-                gap: 8,
-              }}
-            >
-              <button
-                onClick={() => setShowImpersonateConfirm(null)}
-                style={{
-                  padding: "8px 16px",
-                  fontSize: "0.82rem",
-                  borderRadius: 7,
-                  border: `1px solid ${ui.cardBorder}`,
-                  background: "transparent",
-                  color: ui.textMuted,
-                  cursor: "pointer",
-                  fontFamily: font,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  const user = showImpersonateConfirm;
-                  setImpersonating(user);
-                  setShowImpersonateConfirm(null);
-                  startImpersonation(user); // saves username to sessionStorage
-                  navigate("/admin/dashboard"); // redirect to dashboard
-                }}
-                style={{
-                  padding: "8px 18px",
-                  fontSize: "0.82rem",
-                  fontWeight: 700,
-                  borderRadius: 7,
-                  border: "none",
-                  background: FB,
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontFamily: font,
-                }}
-              >
-                👁 View Dashboard
-              </button>
+            <div style={{ padding: "16px 20px", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button onClick={() => setShowImpersonateConfirm(null)} style={{ padding: "8px 16px", fontSize: "0.82rem", borderRadius: 7, border: `1px solid ${ui.cardBorder}`, background: "transparent", color: ui.textMuted, cursor: "pointer", fontFamily: font }}>Cancel</button>
+              <button onClick={() => { const user = showImpersonateConfirm; setImpersonating(user); setShowImpersonateConfirm(null); startImpersonation(user); navigate("/admin/dashboard"); }} style={{ padding: "8px 18px", fontSize: "0.82rem", fontWeight: 700, borderRadius: 7, border: "none", background: FB, color: "#fff", cursor: "pointer", fontFamily: font }}>👁 View Dashboard</button>
             </div>
           </div>
         </div>
