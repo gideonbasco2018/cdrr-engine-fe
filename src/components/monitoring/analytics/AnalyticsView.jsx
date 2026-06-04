@@ -92,7 +92,7 @@ if (
   !document.getElementById(ANIM_STYLE_ID)
 ) {
   const style = document.createElement("style");
-  background: (neuBg(darkMode), (style.id = ANIM_STYLE_ID));
+  style.id = ANIM_STYLE_ID; // ✅ tanggalin yung background: line, typo yan
   style.textContent = `
     @keyframes analytics-shimmer {
       0% { background-position: -400px 0; }
