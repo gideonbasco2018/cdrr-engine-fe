@@ -66,3 +66,36 @@ export const getAllRecords = async (params = {}) => {
     throw new Error(errorMessage);
   }
 };
+
+
+/**
+ * Get monthly trend of received and released CPR drug products.
+ *
+ * @param {Object} params
+ * @param {number|null} [params.year]          - Filter by year
+ * @param {string|null} [params.country_type]  - manufacturer|trader|repacker|importer|distributor
+ * @param {string|null} [params.country]       - Specific country value
+ * @param {string|null} [params.doc_type]      - Filter by document type released
+ *
+ * @returns {Promise<{ data: Array<{ period: string, received_count: number, released_count: number }>, countries: string[], doc_types: string[] }>}
+ */
+export const getCprTrend = async (params = {}) => {
+  try {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(
+        ([, v]) => v !== null && v !== undefined && v !== ""
+      )
+    );
+    const response = await API.get("/monitoring/cpr-trend", {
+      params: cleanParams,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching CPR trend:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch CPR trend";
+    throw new Error(errorMessage);
+  }
+};
