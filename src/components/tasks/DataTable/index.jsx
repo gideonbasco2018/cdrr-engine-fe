@@ -438,8 +438,8 @@ function DataTable({
         try {
           await updateUploadReport(row.mainDbId ?? row.id, {
             DB_APP_STATUS: "COMPLETED",
-            DB_DATE_RELEASED: dateReleased || null,
-            DB_TYPE_DOC_RELEASED: typeDocReleased || null,
+            ...(dateReleased ? { DB_DATE_RELEASED: dateReleased } : {}),
+            ...(typeDocReleased ? { DB_TYPE_DOC_RELEASED: typeDocReleased } : {}),
           });
           success++;
         } catch (e) {
