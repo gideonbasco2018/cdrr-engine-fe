@@ -1276,7 +1276,15 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
   );
 }
 
-function NavItem({ icon, label, active, onClick, ui, comingSoon }) {
+function NavItem({
+  label,
+  subtitle,
+  active,
+  onClick,
+  ui,
+  comingSoon,
+  darkMode,
+}) {
   const [hov, setHov] = useState(false);
   return (
     <div
@@ -1284,58 +1292,80 @@ function NavItem({ icon, label, active, onClick, ui, comingSoon }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "6px 10px",
-        borderRadius: 8,
-        margin: "2px 8px",
-        background: active ? ui.activeNavBg : hov ? ui.hoverBg : "transparent",
+        padding: "7px 10px 7px 12px",
+        borderRadius: "0 6px 6px 0",
+        borderLeft: `3px solid ${active ? (darkMode ? "#6d94ff" : "#6d94ff") : "transparent"}`,
+        background: active
+          ? darkMode
+            ? "#2b2b2b"
+            : "#f1f1f1"
+          : hov
+            ? ui.hoverBg
+            : "transparent",
         cursor: comingSoon ? "default" : "pointer",
-        opacity: comingSoon ? 0.45 : 1,
-        transition: "background 0.12s",
+        opacity: comingSoon ? 0.4 : 1,
+        transition: "all 0.12s",
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        margin: "1px 6px 1px 0",
       }}
     >
-      <span
+      <div
         style={{
-          width: 20,
-          height: 20,
-          borderRadius: "50%",
-          background: active ? FB : ui.inputBg,
           display: "flex",
+          justifyContent: "space-between",
           alignItems: "center",
-          justifyContent: "center",
-          fontSize: "1.1rem",
-          flexShrink: 0,
-          transition: "background 0.15s",
         }}
       >
-        {icon}
-      </span>
-      <span
-        style={{
-          flex: 1,
-          fontSize: "0.75rem",
-          fontWeight: active ? 500 : 400,
-          color: active ? FB : ui.textPrimary,
-        }}
-      >
-        {label}
-      </span>
-      {comingSoon && (
         <span
           style={{
-            fontSize: "0.6rem",
-            fontWeight: 700,
-            padding: "1px 5px",
-            borderRadius: 4,
-            background: "#f3e8ff",
-            color: "#7e22ce",
-            whiteSpace: "nowrap",
-            marginLeft: 2,
+            fontSize: "0.8rem",
+            fontWeight: active ? 600 : 400,
+            color: active
+              ? darkMode
+                ? "#d8d8d8"
+                : "#3d3d3d"
+              : hov
+                ? ui.textPrimary
+                : ui.textSub,
+            lineHeight: 1.2,
+            transition: "color 0.12s",
           }}
         >
-          Soon
+          {label}
+        </span>
+        {comingSoon && (
+          <span
+            style={{
+              fontSize: "0.58rem",
+              fontWeight: 700,
+              padding: "2px 6px",
+              borderRadius: 3,
+              background: "#f3e8ff",
+              color: "#7e22ce",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            Soon
+          </span>
+        )}
+      </div>
+      {!comingSoon && subtitle && (
+        <span
+          style={{
+            fontSize: "0.67rem",
+            color: active
+              ? darkMode
+                ? "rgb(255, 245, 202)"
+                : "#2e2e2e"
+              : ui.textMuted,
+            lineHeight: 1.2,
+            transition: "color 0.12s",
+          }}
+        >
+          {subtitle}
         </span>
       )}
     </div>
@@ -1472,15 +1502,15 @@ function MonitoringPage({ darkMode }) {
   const navigate = useNavigate();
 
   const navItems = [
-    { key: "overview", icon: "🏠", label: "Overview" },
-    { key: "records", icon: "📋", label: "Records" },
-    { key: "analytics", icon: "📊", label: "Analytics" },
-    { key: "deadlines", icon: "⏰", label: "Deadlines", comingSoon: true },
-    { key: "compliance", icon: "🚩", label: "Compliance", comingSoon: true },
-    { key: "workload", icon: "🔥", label: "Workload", comingSoon: true },
-    { key: "activity", icon: "📡", label: "Activity Feed" },
-    { key: "users", icon: "👥", label: "Users" },
-    { key: "frptat", icon: "⏱️", label: "FRP TAT" },
+    { key: "overview", label: "Overview", subtitle: "Summary of all activity" },
+    { key: "records", label: "Records", subtitle: "Browse all applications" },
+    { key: "analytics", label: "Analytics", subtitle: "Charts & breakdowns" },
+    { key: "deadlines", label: "Deadlines", comingSoon: true },
+    { key: "compliance", label: "Compliance", comingSoon: true },
+    { key: "workload", label: "Workload", comingSoon: true },
+    { key: "activity", label: "Activity Feed", subtitle: "Live event stream" },
+    { key: "users", label: "Users", subtitle: "Manage evaluators" },
+    { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
   ];
 
   // const [activeNav, setActiveNav] = useState("overview");
@@ -1682,7 +1712,7 @@ function MonitoringPage({ darkMode }) {
             <div
               style={{
                 flexShrink: 0,
-                width: 200,
+                width: 190,
                 position: "sticky",
                 top: 0,
                 alignSelf: "stretch",
@@ -1701,29 +1731,111 @@ function MonitoringPage({ darkMode }) {
                   flexDirection: "column",
                 }}
               >
-                <div style={{ padding: "16px 10px 10px" }}>
+                <div style={{ padding: "20px 6px 10px 0" }}>
                   <p
                     style={{
-                      fontSize: "0.68rem",
+                      fontSize: "0.7rem",
                       fontWeight: 700,
                       color: ui.textMuted,
                       textTransform: "uppercase",
-                      letterSpacing: "0.07em",
-                      margin: "0 0 10px 6px",
+                      letterSpacing: "0.1em",
+                      margin: "0 0 6px 14px",
                     }}
                   >
                     Monitoring
                   </p>
-                  {navItems.map(({ key, comingSoon, ...rest }) => (
-                    <NavItem
-                      key={key}
-                      {...rest}
-                      active={activeNav === key}
-                      onClick={() => setActiveNav(key)}
-                      ui={ui}
-                      comingSoon={comingSoon}
-                    />
-                  ))}
+                  <div
+                    style={{
+                      height: "0.5px",
+                      background: ui.divider,
+                      margin: "0 8px 10px",
+                    }}
+                  />
+
+                  {/* Core group */}
+                  {navItems
+                    .slice(0, 3)
+                    .map(({ key, comingSoon, icon, ...rest }) => (
+                      <NavItem
+                        key={key}
+                        {...rest}
+                        active={activeNav === key}
+                        onClick={() => setActiveNav(key)}
+                        ui={ui}
+                        comingSoon={comingSoon}
+                        darkMode={darkMode}
+                      />
+                    ))}
+
+                  <div
+                    style={{
+                      height: "0.5px",
+                      background: ui.divider,
+                      margin: "10px 8px",
+                    }}
+                  />
+
+                  {/* Tracking group */}
+                  <p
+                    style={{
+                      fontSize: "0.6rem",
+                      fontWeight: 700,
+                      color: ui.textMuted,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      margin: "0 0 6px 14px",
+                    }}
+                  >
+                    Tracking
+                  </p>
+                  {navItems
+                    .slice(3, 6)
+                    .map(({ key, comingSoon, icon, ...rest }) => (
+                      <NavItem
+                        key={key}
+                        {...rest}
+                        active={activeNav === key}
+                        onClick={() => setActiveNav(key)}
+                        ui={ui}
+                        comingSoon={comingSoon}
+                        darkMode={darkMode}
+                      />
+                    ))}
+
+                  <div
+                    style={{
+                      height: "0.5px",
+                      background: ui.divider,
+                      margin: "10px 8px",
+                    }}
+                  />
+
+                  {/* Admin group */}
+                  <p
+                    style={{
+                      fontSize: "0.6rem",
+                      fontWeight: 700,
+                      color: ui.textMuted,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      margin: "0 0 6px 14px",
+                    }}
+                  >
+                    Admin
+                  </p>
+                  {navItems
+                    .slice(6)
+                    .map(({ key, comingSoon, icon, ...rest }) => (
+                      <NavItem
+                        key={key}
+                        {...rest}
+                        active={activeNav === key}
+                        onClick={() => setActiveNav(key)}
+                        ui={ui}
+                        comingSoon={comingSoon}
+                        darkMode={darkMode}
+                      />
+                    ))}
                 </div>
               </div>
             </div>
