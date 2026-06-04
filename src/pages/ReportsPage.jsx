@@ -355,6 +355,7 @@ function ReportsPage({ darkMode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [exportProgress, setExportProgress] = useState(null);
 
   const colors = getColorScheme(darkMode);
 
@@ -516,7 +517,6 @@ function ReportsPage({ darkMode }) {
     sortBy,
     sortOrder,
   ]);
-
   const handleExport = async () => {
     if (totalRecords === 0) {
       alert("❌ No records to export");
@@ -524,6 +524,13 @@ function ReportsPage({ darkMode }) {
     }
     try {
       setExporting(true);
+      setExportProgress({
+        step: 0,
+        pct: 0,
+        label: "Applying filters...",
+        sub: "Applying filters & sort",
+      });
+
       const params = { search: searchTerm, ...buildFilterParams(filters) };
       if (subTab !== null)
         params.app_type = subTab === "" ? "__EMPTY__" : subTab;
@@ -534,11 +541,30 @@ function ReportsPage({ darkMode }) {
         params.app_status = appStatusTab === "" ? "__EMPTY__" : appStatusTab;
       if (processingTypeTab !== null)
         params.processing_type = processingTypeParam;
-      console.log("Export params:", params);
+
+      setExportProgress({
+        step: 1,
+        pct: 30,
+        label: "Querying records...",
+        sub: `Fetching ${totalRecords.toLocaleString()} records`,
+      });
       await exportFilteredRecords(params);
-      alert(
-        `✅ Export successful!\n\nExported ${totalRecords.toLocaleString()} records.`,
-      );
+
+      setExportProgress({
+        step: 2,
+        pct: 70,
+        label: "Building Excel file...",
+        sub: "Generating .xlsx workbook",
+      });
+      await new Promise((r) => setTimeout(r, 400));
+
+      setExportProgress({
+        step: 3,
+        pct: 100,
+        label: "Export complete",
+        sub: `${totalRecords.toLocaleString()} records downloaded`,
+      });
+      await new Promise((r) => setTimeout(r, 800));
     } catch (error) {
       let msg = "Unknown error";
       if (error.response?.data) {
@@ -566,6 +592,7 @@ function ReportsPage({ darkMode }) {
       }
       alert(`❌ Export failed: ${msg}`);
     } finally {
+      setExportProgress(null);
       setExporting(false);
     }
   };
@@ -1071,6 +1098,138 @@ function ReportsPage({ darkMode }) {
               sortOrder={sortOrder}
               darkMode={darkMode}
             />
+          )}
+
+          {exportProgress && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                background: "rgba(0,0,0,0.55)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 9999,
+              }}
+            >
+              <div
+                style={{
+                  background: colors.cardBg,
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: 14,
+                  padding: "2rem 2.5rem",
+                  minWidth: 300,
+                  maxWidth: 360,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                }}
+              >
+                {/* Header */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      background: "rgba(16,185,129,0.12)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 22,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {exportProgress.pct === 100 ? "✅" : "📥"}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 14,
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      {exportProgress.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                        marginTop: 2,
+                      }}
+                    >
+                      {exportProgress.sub}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Progress bar */}
+                <div
+                  style={{
+                    height: 6,
+                    background: colors.cardBorder,
+                    borderRadius: 99,
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${exportProgress.pct}%`,
+                      background: "#10B981",
+                      borderRadius: 99,
+                      transition: "width 0.4s ease",
+                    }}
+                  />
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: colors.textPrimary,
+                    marginTop: -8,
+                  }}
+                >
+                  {exportProgress.pct}%
+                </div>
+
+                {/* Steps */}
+                {[
+                  "Applying filters",
+                  "Querying records",
+                  "Building Excel file",
+                  "Downloading",
+                ].map((s, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: 12,
+                      color:
+                        i < exportProgress.step
+                          ? "#10B981"
+                          : i === exportProgress.step
+                            ? colors.textPrimary
+                            : colors.textTertiary,
+                    }}
+                  >
+                    <span style={{ fontSize: 14 }}>
+                      {i < exportProgress.step
+                        ? "✓"
+                        : i === exportProgress.step
+                          ? "●"
+                          : "○"}
+                    </span>
+                    <span>{s}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
