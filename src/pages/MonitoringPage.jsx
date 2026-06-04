@@ -1,11 +1,7 @@
 // FILE: src/pages/MonitoringPage.jsx
 import { useState, useMemo, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  startImpersonation,
-  stopImpersonation,
-  getAllUsers,
-} from "../api/auth";
+import { useNavigate, useLocation } from "react-router-dom";
+import { startImpersonation, stopImpersonation } from "../api/auth";
 
 // ── Child Views ───────────────────────────────────────────────────────────────
 import OverviewView from "../components/monitoring/overview/OverviewView";
@@ -58,398 +54,6 @@ function makeUI(dark) {
       };
 }
 
-const evaluatorNames = [
-  "Juan dela Cruz",
-  "Maria Santos",
-  "Pedro Reyes",
-  "Ana Gonzales",
-  "Jose Bautista",
-  "Liza Reyes",
-];
-const USER_ROLE_MAP = {
-  "Juan dela Cruz": "Evaluator",
-  "Maria Santos": "QA Officer",
-  "Pedro Reyes": "Checker",
-  "Ana Gonzales": "Releasing Officer",
-  "Jose Bautista": "Decker",
-  "Liza Reyes": "Supervisor",
-};
-const DRUG_CATALOG = [
-  {
-    name: "Furacef-750",
-    generic: "Cefuroxime Sodium",
-    rx: "Prescription Drug (RX)",
-  },
-  { name: "Amoxil-500", generic: "Amoxicillin", rx: "Prescription Drug (RX)" },
-  { name: "Calpol-250", generic: "Paracetamol", rx: "Over-the-Counter (OTC)" },
-  {
-    name: "Cloxacil-250",
-    generic: "Cloxacillin",
-    rx: "Prescription Drug (RX)",
-  },
-  {
-    name: "Augmentin-625",
-    generic: "Co-Amoxiclav",
-    rx: "Prescription Drug (RX)",
-  },
-  {
-    name: "Mefenamic-500",
-    generic: "Mefenamic Acid",
-    rx: "Over-the-Counter (OTC)",
-  },
-  {
-    name: "Losartan-50",
-    generic: "Losartan Potassium",
-    rx: "Prescription Drug (RX)",
-  },
-  {
-    name: "Amlodipine-10",
-    generic: "Amlodipine Besylate",
-    rx: "Prescription Drug (RX)",
-  },
-  {
-    name: "Metformin-500",
-    generic: "Metformin HCl",
-    rx: "Prescription Drug (RX)",
-  },
-  {
-    name: "Atorva-20",
-    generic: "Atorvastatin Calcium",
-    rx: "Prescription Drug (RX)",
-  },
-  { name: "Omepra-20", generic: "Omeprazole", rx: "Over-the-Counter (OTC)" },
-  {
-    name: "Salbu-4",
-    generic: "Salbutamol Sulfate",
-    rx: "Prescription Drug (RX)",
-  },
-  {
-    name: "Cetirizine-10",
-    generic: "Cetirizine HCl",
-    rx: "Over-the-Counter (OTC)",
-  },
-  {
-    name: "Azithro-500",
-    generic: "Azithromycin",
-    rx: "Prescription Drug (RX)",
-  },
-  {
-    name: "Cipro-500",
-    generic: "Ciprofloxacin HCl",
-    rx: "Prescription Drug (RX)",
-  },
-  { name: "Ibupro-400", generic: "Ibuprofen", rx: "Over-the-Counter (OTC)" },
-  {
-    name: "Doxy-100",
-    generic: "Doxycycline Hyclate",
-    rx: "Prescription Drug (RX)",
-  },
-  { name: "Prevnar-13", generic: "Pneumococcal Vaccine", rx: "Vaccine" },
-  { name: "Fluvax-QIV", generic: "Influenza Vaccine", rx: "Vaccine" },
-  { name: "Engerix-B", generic: "Hepatitis B Vaccine", rx: "Vaccine" },
-  { name: "Typhim-Vi", generic: "Typhoid Vaccine", rx: "Vaccine" },
-  {
-    name: "Prednisone-20",
-    generic: "Prednisone",
-    rx: "Prescription Drug (RX)",
-  },
-  {
-    name: "Levoflox-500",
-    generic: "Levofloxacin",
-    rx: "Prescription Drug (RX)",
-  },
-  { name: "MMR-II", generic: "MMR Vaccine", rx: "Vaccine" },
-];
-const MFR_COUNTRIES = [
-  "India",
-  "China",
-  "USA",
-  "Germany",
-  "Switzerland",
-  "South Korea",
-  "Japan",
-  "UK",
-  "France",
-  "Philippines",
-  "Singapore",
-  "Belgium",
-  "Netherlands",
-  "Italy",
-  "Canada",
-];
-const TRADER_COUNTRIES = [
-  "Philippines",
-  "Singapore",
-  "Hong Kong",
-  "India",
-  "USA",
-  "UK",
-  "Switzerland",
-  "Germany",
-  "Japan",
-  "South Korea",
-  "Thailand",
-  "Malaysia",
-  "Indonesia",
-  "Australia",
-  "China",
-];
-const IMPORTER_COUNTRIES = [
-  "Philippines",
-  "Singapore",
-  "Hong Kong",
-  "India",
-  "USA",
-  "China",
-  "Germany",
-  "Japan",
-  "South Korea",
-  "UK",
-  "France",
-  "Switzerland",
-  "Netherlands",
-  "Belgium",
-  "Australia",
-];
-const DISTRIBUTOR_COUNTRIES = [
-  "Philippines",
-  "India",
-  "China",
-  "USA",
-  "Singapore",
-  "Germany",
-  "UK",
-  "Japan",
-  "South Korea",
-  "Thailand",
-  "Malaysia",
-  "Indonesia",
-  "Australia",
-  "Switzerland",
-  "France",
-];
-const REPACKER_COUNTRIES = [
-  "Philippines",
-  "India",
-  "China",
-  "Indonesia",
-  "Vietnam",
-  "Thailand",
-  "Malaysia",
-  "Singapore",
-  "South Korea",
-  "Japan",
-  "USA",
-  "Germany",
-  "Australia",
-  "UK",
-  "France",
-];
-const appSteps = [
-  "For Evaluation",
-  "For Compliance",
-  "For Checking",
-  "For QA",
-  "For Releasing",
-];
-const timelineOptions = ["Within", "Beyond"];
-const yearlyMix = {
-  2022: { approved: 38, disapproved: 22, onProcess: 15 },
-  2023: { approved: 45, disapproved: 18, onProcess: 20 },
-  2024: { approved: 52, disapproved: 25, onProcess: 18 },
-  2025: { approved: 60, disapproved: 30, onProcess: 25 },
-  2026: { approved: 20, disapproved: 8, onProcess: 30 },
-};
-const ACTIVITY_FEED = [
-  {
-    id: 1,
-    user: "Maria Santos",
-    action: "completed evaluation",
-    target: "Amoxil-500 (Amoxicillin)",
-    time: "2 min ago",
-    icon: "✅",
-    color: "#36a420",
-  },
-  {
-    id: 2,
-    user: "Juan dela Cruz",
-    action: "flagged for compliance",
-    target: "Furacef-750 (Cefuroxime Sodium)",
-    time: "14 min ago",
-    icon: "🚩",
-    color: "#f59e0b",
-  },
-  {
-    id: 3,
-    user: "Pedro Reyes",
-    action: "submitted for QA",
-    target: "Prevnar-13 (Pneumococcal Vaccine)",
-    time: "32 min ago",
-    icon: "🔍",
-    color: FB,
-  },
-  {
-    id: 4,
-    user: "Ana Gonzales",
-    action: "disapproved application",
-    target: "Cipro-500 (Ciprofloxacin HCl)",
-    time: "1 hr ago",
-    icon: "❌",
-    color: "#e02020",
-  },
-  {
-    id: 5,
-    user: "Jose Bautista",
-    action: "started evaluation",
-    target: "Metformin-500 (Metformin HCl)",
-    time: "1 hr ago",
-    icon: "▶️",
-    color: "#9333ea",
-  },
-  {
-    id: 6,
-    user: "Liza Reyes",
-    action: "released document",
-    target: "Calpol-250 (Paracetamol)",
-    time: "2 hr ago",
-    icon: "📤",
-    color: "#36a420",
-  },
-  {
-    id: 7,
-    user: "Maria Santos",
-    action: "started evaluation",
-    target: "Losartan-50 (Losartan Potassium)",
-    time: "3 hr ago",
-    icon: "▶️",
-    color: "#9333ea",
-  },
-  {
-    id: 8,
-    user: "Pedro Reyes",
-    action: "completed evaluation",
-    target: "MMR-II (MMR Vaccine)",
-    time: "4 hr ago",
-    icon: "✅",
-    color: "#36a420",
-  },
-];
-const DEADLINES = [
-  {
-    dtn: "20260308091422",
-    drug: "Furacef-750 (Cefuroxime Sodium)",
-    evaluator: "Maria Santos",
-    deadline: "2026-03-13",
-    step: "For QA",
-    urgency: "critical",
-  },
-  {
-    dtn: "20260308092137",
-    drug: "Augmentin-625 (Co-Amoxiclav)",
-    evaluator: "Juan dela Cruz",
-    deadline: "2026-03-13",
-    step: "For Checking",
-    urgency: "critical",
-  },
-  {
-    dtn: "20260307103045",
-    drug: "Prevnar-13 (Pneumococcal Vaccine)",
-    evaluator: "Pedro Reyes",
-    deadline: "2026-03-14",
-    step: "For Compliance",
-    urgency: "warning",
-  },
-  {
-    dtn: "20260306085512",
-    drug: "Metformin-500 (Metformin HCl)",
-    evaluator: "Jose Bautista",
-    deadline: "2026-03-14",
-    step: "For Evaluation",
-    urgency: "warning",
-  },
-  {
-    dtn: "20260305112233",
-    drug: "Losartan-50 (Losartan Potassium)",
-    evaluator: "Ana Gonzales",
-    deadline: "2026-03-17",
-    step: "For QA",
-    urgency: "normal",
-  },
-  {
-    dtn: "20260304094501",
-    drug: "Amlodipine-10 (Amlodipine Besylate)",
-    evaluator: "Liza Reyes",
-    deadline: "2026-03-18",
-    step: "For Releasing",
-    urgency: "normal",
-  },
-];
-const COMPLIANCE_FLAGS = [
-  {
-    dtn: "20260301091234",
-    drug: "Cipro-500 (Ciprofloxacin HCl)",
-    evaluator: "Ana Gonzales",
-    reason: "Incomplete documentary requirements",
-    severity: "high",
-    flaggedDate: "2026-03-01",
-  },
-  {
-    dtn: "20260302103344",
-    drug: "Doxy-100 (Doxycycline Hyclate)",
-    evaluator: "Juan dela Cruz",
-    reason: "Missing GMP certificate",
-    severity: "high",
-    flaggedDate: "2026-03-02",
-  },
-  {
-    dtn: "20260305084521",
-    drug: "Salbu-4 (Salbutamol Sulfate)",
-    evaluator: "Pedro Reyes",
-    reason: "Label discrepancy noted",
-    severity: "medium",
-    flaggedDate: "2026-03-05",
-  },
-  {
-    dtn: "20260307091100",
-    drug: "Ibupro-400 (Ibuprofen)",
-    evaluator: "Maria Santos",
-    reason: "Clinical data update required",
-    severity: "medium",
-    flaggedDate: "2026-03-07",
-  },
-  {
-    dtn: "20260309095500",
-    drug: "Omepra-20 (Omeprazole)",
-    evaluator: "Liza Reyes",
-    reason: "Bioequivalence study pending",
-    severity: "low",
-    flaggedDate: "2026-03-09",
-  },
-];
-const WORKLOAD_DATA = {
-  "Juan dela Cruz": [
-    2, 7, 4, 0, 6, 5, 8, 1, 6, 7, 0, 5, 8, 3, 4, 7, 1, 8, 5, 0,
-  ],
-  "Maria Santos": [6, 0, 8, 4, 7, 7, 0, 6, 8, 2, 5, 7, 0, 6, 8, 0, 6, 3, 7, 5],
-  "Pedro Reyes": [0, 6, 2, 7, 5, 4, 6, 0, 5, 7, 8, 2, 7, 0, 1, 7, 3, 0, 6, 4],
-  "Ana Gonzales": [5, 0, 6, 8, 2, 6, 2, 7, 0, 8, 1, 6, 0, 7, 5, 3, 7, 6, 0, 6],
-  "Jose Bautista": [7, 1, 0, 6, 2, 0, 7, 5, 2, 6, 7, 0, 6, 3, 1, 0, 5, 7, 6, 2],
-  "Liza Reyes": [2, 6, 0, 5, 7, 6, 0, 5, 7, 1, 3, 7, 2, 6, 0, 6, 0, 5, 2, 7],
-};
-const USER_DATABASE = [
-  {
-    id: 1,
-    name: "Juan dela Cruz",
-    email: "jdelacruz@pba.gov.ph",
-    role: "Evaluator",
-    status: "Active",
-    lastLogin: "Today, 9:14 AM",
-    avatar: 0,
-    tasks: 72,
-    approved: 45,
-    specialization: "Prescription Drug (RX)",
-  },
-];
 const avatarPalette = [
   { bg: "#dbeafe", color: "#1d4ed8" },
   { bg: "#fce7f3", color: "#be185d" },
@@ -521,60 +125,6 @@ function rxShortLabel(p) {
       ? "RX"
       : "Vaccine";
 }
-function makeDTN(year, month, day, seq) {
-  const mm = String(month).padStart(2, "0");
-  const dd = String(day).padStart(2, "0");
-  const hh = String(8 + (seq % 8)).padStart(2, "0");
-  const mi = String((seq * 7) % 60).padStart(2, "0");
-  const ss = String((seq * 13) % 60).padStart(2, "0");
-  return `${year}${mm}${dd}${hh}${mi}${ss}`;
-}
-function generateData() {
-  const rows = [];
-  let seq = 1;
-  const monthDays = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  Object.entries(yearlyMix).forEach(([yearStr, mix]) => {
-    const year = Number(yearStr);
-    const total = mix.approved + mix.disapproved + mix.onProcess;
-    for (let i = 0; i < total; i++) {
-      const month = (i % 12) + 1;
-      const day = ((i * 3 + 1) % monthDays[month - 1]) + 1;
-      const mm = String(month).padStart(2, "0");
-      const dd = String(day).padStart(2, "0");
-      const drug = DRUG_CATALOG[i % DRUG_CATALOG.length];
-      const status =
-        i < mix.approved
-          ? "Approved"
-          : i < mix.approved + mix.disapproved
-            ? "Disapproved"
-            : "On Process";
-      rows.push({
-        date: `${year}-${mm}-${dd}`,
-        evaluator: evaluatorNames[i % evaluatorNames.length],
-        dtn: makeDTN(year, month, day, seq),
-        drugName: `${drug.name} (${drug.generic})`,
-        appStep: appSteps[i % appSteps.length],
-        timeline: timelineOptions[i % 2],
-        status,
-        prescription: drug.rx,
-        mfrCountry: MFR_COUNTRIES[(i * 2 + seq) % MFR_COUNTRIES.length],
-        traderCountry:
-          TRADER_COUNTRIES[(i * 3 + seq) % TRADER_COUNTRIES.length],
-        importerCountry:
-          IMPORTER_COUNTRIES[(i * 5 + seq) % IMPORTER_COUNTRIES.length],
-        distributorCountry:
-          DISTRIBUTOR_COUNTRIES[(i * 7 + seq) % DISTRIBUTOR_COUNTRIES.length],
-        repackerCountry:
-          REPACKER_COUNTRIES[(i * 11 + seq) % REPACKER_COUNTRIES.length],
-      });
-      seq++;
-    }
-  });
-  return rows;
-}
-
-const staticData = generateData();
-const uniqueEvaluators = [...new Set(staticData.map((d) => d.evaluator))];
 
 function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
   const [search, setSearch] = useState("");
@@ -771,7 +321,7 @@ function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
                   bg: "#f3f4f6",
                   color: "#374151",
                 };
-                const userRole = USER_ROLE_MAP[row.evaluator] || "User";
+                const userRole = row.role || "User";
                 return (
                   <div
                     key={i}
@@ -1185,7 +735,7 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
           >
             {task.evaluator}{" "}
             <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-              ({USER_ROLE_MAP[task.evaluator] || "User"})
+              ({task.role || "User"})
             </span>
           </p>
           <label
@@ -1222,7 +772,7 @@ function ReassignModal({ task, evaluators, darkMode, onClose, onConfirm, ui }) {
               .filter((ev) => ev !== task.evaluator)
               .map((ev) => (
                 <option key={ev} value={ev}>
-                  {ev} ({USER_ROLE_MAP[ev] || "User"})
+                  {ev}
                 </option>
               ))}
           </select>
@@ -1439,10 +989,6 @@ function renderContent(
       return (
         <OverviewView
           {...sharedProps}
-          USER_ROLE_MAP={USER_ROLE_MAP}
-          ACTIVITY_FEED={ACTIVITY_FEED}
-          DEADLINES={DEADLINES}
-          COMPLIANCE_FLAGS={COMPLIANCE_FLAGS}
           setActiveNav={setActiveNav}
           setModalEval={setModalEval}
           userDatabase={userDatabase}
@@ -1496,6 +1042,7 @@ function renderContent(
 // MAIN MonitoringPage
 // ══════════════════════════════════════════════════════════════════════════════
 function MonitoringPage({ darkMode }) {
+  const location = useLocation();
   const ui = makeUI(darkMode);
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -1513,8 +1060,7 @@ function MonitoringPage({ darkMode }) {
     { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
   ];
 
-  // const [activeNav, setActiveNav] = useState("overview");
-  const [activeNav, setActiveNav] = useState("overview");
+  const [activeNav, setActiveNav] = useState(location.state?.tab ?? "overview");
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
   );
@@ -1525,7 +1071,7 @@ function MonitoringPage({ darkMode }) {
   }, []);
 
   // ── Shared state passed to children ────────────────────────────────────────
-  const [tableData, setTableData] = useState(staticData);
+  const [tableData, setTableData] = useState([]);
   const [chartYear, setChartYear] = useState("All");
   const [chartMonth, setChartMonth] = useState("All");
   const [rxFilter, setRxFilter] = useState("All");
@@ -1536,17 +1082,15 @@ function MonitoringPage({ darkMode }) {
   const [impersonating, setImpersonating] = useState(null);
   const [showImpersonateConfirm, setShowImpersonateConfirm] = useState(null);
 
-  const [userDatabase, setUserDatabase] = useState(USER_DATABASE);
+  const [userDatabase, setUserDatabase] = useState([]);
 
-  useEffect(() => {
-    getAllUsers()
-      .then((users) => {
-        if (users && users.length > 0) setUserDatabase(users);
-      })
-      .catch(() => {
-        // silently fall back to static USER_DATABASE
-      });
-  }, []);
+  // useEffect(() => {
+  //   getAllUsers()
+  //     .then((users) => {
+  //       if (users && users.length > 0) setUserDatabase(users);
+  //     })
+  //     .catch(() => {});
+  // }, []);
 
   // Modal sub-state
   const [modalDateFrom, setModalDateFrom] = useState("");
@@ -1556,17 +1100,6 @@ function MonitoringPage({ darkMode }) {
   const [modalStatusTab, setModalStatusTab] = useState("All");
   const colHdr = darkMode ? ui.sidebarBg : "#f8f9fd";
 
-  const availableYears = useMemo(
-    () => [
-      "All",
-      ...Array.from(
-        new Set(
-          staticData.map((d) => new Date(d.date + "T00:00:00").getFullYear()),
-        ),
-      ).sort(),
-    ],
-    [],
-  );
   const chartFiltered = useMemo(
     () =>
       tableData.filter((row) => {
@@ -1581,6 +1114,11 @@ function MonitoringPage({ darkMode }) {
     [tableData, chartYear, chartMonth, rxFilter],
   );
   const currentEvaluators = useMemo(
+    () => [...new Set(tableData.map((d) => d.evaluator))],
+    [tableData],
+  );
+
+  const uniqueEvaluators = useMemo(
     () => [...new Set(tableData.map((d) => d.evaluator))],
     [tableData],
   );
@@ -2037,7 +1575,9 @@ function MonitoringPage({ darkMode }) {
             >
               {(() => {
                 const av = getAvatarColor(modalEval, uniqueEvaluators);
-                const role = USER_ROLE_MAP[modalEval] || "User";
+                const role =
+                  userDatabase.find((u) => u.name === modalEval)?.role ||
+                  "User";
                 return (
                   <div
                     style={{ display: "flex", alignItems: "center", gap: 12 }}

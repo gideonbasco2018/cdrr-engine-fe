@@ -4,176 +4,108 @@ import { getAllUsers } from "../../../api/auth";
 
 const FB = "#1877F2";
 
+// ── Unified role color system — works in both light & dark ──
 const ROLE_COLORS = {
-  Evaluator: {
-    bg: "#dbeafe",
-    color: "#1d4ed8",
-    darkBg: "#1e2a4a",
-    darkColor: "#93c5fd",
-  },
-  "QA Officer": {
-    bg: "#d1fae5",
-    color: "#065f46",
-    darkBg: "#0a2e1a",
-    darkColor: "#6ee7b7",
-  },
-  Checker: {
-    bg: "#fce7f3",
-    color: "#be185d",
-    darkBg: "#2e0a1f",
-    darkColor: "#f9a8d4",
-  },
-  "Releasing Officer": {
-    bg: "#ffedd5",
-    color: "#c2410c",
-    darkBg: "#2e1500",
-    darkColor: "#fed7aa",
-  },
-  Decker: {
-    bg: "#f3e8ff",
-    color: "#7e22ce",
-    darkBg: "#2a1a3e",
-    darkColor: "#d8b4fe",
-  },
-  Supervisor: {
-    bg: "#fef3c7",
-    color: "#92400e",
-    darkBg: "#2e1f00",
-    darkColor: "#fde68a",
-  },
-  Director: {
-    bg: "#cffafe",
-    color: "#0e7490",
-    darkBg: "#0c2a3a",
-    darkColor: "#67e8f9",
-  },
-  "Compliance Officer": {
-    bg: "#fef9c3",
-    color: "#92400e",
-    darkBg: "#2e1f00",
-    darkColor: "#fde68a",
-  },
-  Admin: {
-    bg: "#ede9fe",
-    color: "#5b21b6",
-    darkBg: "#2a1a3e",
-    darkColor: "#d8b4fe",
-  },
-  SuperAdmin: {
-    bg: "#ede9fe",
-    color: "#5b21b6",
-    darkBg: "#2a1a3e",
-    darkColor: "#d8b4fe",
-  },
-  User: {
-    bg: "#dbeafe",
-    color: "#1d4ed8",
-    darkBg: "#1e2a4a",
-    darkColor: "#93c5fd",
-  },
+  Evaluator: { bg: "#1e3a5f", color: "#60a5fa", dot: "#3b82f6" },
+  "QA Officer": { bg: "#14532d", color: "#4ade80", dot: "#22c55e" },
+  Checker: { bg: "#4a1942", color: "#e879f9", dot: "#d946ef" },
+  "Releasing Officer": { bg: "#431407", color: "#fb923c", dot: "#f97316" },
+  Decker: { bg: "#2e1065", color: "#c084fc", dot: "#a855f7" },
+  Supervisor: { bg: "#422006", color: "#fbbf24", dot: "#f59e0b" },
+  Director: { bg: "#083344", color: "#22d3ee", dot: "#06b6d4" },
+  "Compliance Officer": { bg: "#1a2e05", color: "#a3e635", dot: "#84cc16" },
+  Admin: { bg: "#1e1b4b", color: "#818cf8", dot: "#6366f1" },
+  SuperAdmin: { bg: "#1e1b4b", color: "#818cf8", dot: "#6366f1" },
+  IT: { bg: "#0c2340", color: "#38bdf8", dot: "#0ea5e9" },
+  Inspector: { bg: "#2d1a06", color: "#f59e0b", dot: "#d97706" },
+  User: { bg: "#1e3a5f", color: "#60a5fa", dot: "#3b82f6" },
 };
 
-const STATUS_COLORS_MAP = {
+// Light mode overrides for role colors
+const ROLE_COLORS_LIGHT = {
+  Evaluator: { bg: "#dbeafe", color: "#1d4ed8", dot: "#3b82f6" },
+  "QA Officer": { bg: "#dcfce7", color: "#15803d", dot: "#22c55e" },
+  Checker: { bg: "#fdf4ff", color: "#a21caf", dot: "#d946ef" },
+  "Releasing Officer": { bg: "#fff7ed", color: "#c2410c", dot: "#f97316" },
+  Decker: { bg: "#f5f3ff", color: "#7c3aed", dot: "#a855f7" },
+  Supervisor: { bg: "#fefce8", color: "#a16207", dot: "#f59e0b" },
+  Director: { bg: "#ecfeff", color: "#0e7490", dot: "#06b6d4" },
+  "Compliance Officer": { bg: "#f7fee7", color: "#4d7c0f", dot: "#84cc16" },
+  Admin: { bg: "#eef2ff", color: "#4338ca", dot: "#6366f1" },
+  SuperAdmin: { bg: "#eef2ff", color: "#4338ca", dot: "#6366f1" },
+  IT: { bg: "#f0f9ff", color: "#0369a1", dot: "#0ea5e9" },
+  Inspector: { bg: "#fffbeb", color: "#b45309", dot: "#d97706" },
+  User: { bg: "#dbeafe", color: "#1d4ed8", dot: "#3b82f6" },
+};
+
+const STATUS_COLORS = {
   Active: {
-    bg: "#dcfce7",
-    color: "#15803d",
-    darkBg: "#0a2e1a",
-    darkColor: "#4ade80",
-    dot: "#36a420",
+    bg: "#052e16",
+    color: "#4ade80",
+    dot: "#22c55e",
+    lightBg: "#f0fdf4",
+    lightColor: "#15803d",
   },
   Inactive: {
-    bg: "#f3f4f6",
-    color: "#6b7280",
-    darkBg: "#2a2a2a",
-    darkColor: "#9ca3af",
-    dot: "#9ca3af",
+    bg: "#1f2937",
+    color: "#9ca3af",
+    dot: "#6b7280",
+    lightBg: "#f9fafb",
+    lightColor: "#6b7280",
   },
   Suspended: {
-    bg: "#fee2e2",
-    color: "#991b1b",
-    darkBg: "#2e0a0a",
-    darkColor: "#f87171",
-    dot: "#e02020",
+    bg: "#2d0a0a",
+    color: "#f87171",
+    dot: "#ef4444",
+    lightBg: "#fff1f2",
+    lightColor: "#be123c",
   },
   Pending: {
-    bg: "#fef9c3",
-    color: "#92400e",
-    darkBg: "#2e1f00",
-    darkColor: "#fde68a",
+    bg: "#2d1f00",
+    color: "#fbbf24",
     dot: "#f59e0b",
+    lightBg: "#fffbeb",
+    lightColor: "#92400e",
   },
 };
 
 const avatarPalette = [
-  { bg: "#dbeafe", color: "#1d4ed8" },
-  { bg: "#fce7f3", color: "#be185d" },
-  { bg: "#d1fae5", color: "#065f46" },
-  { bg: "#fef3c7", color: "#92400e" },
-  { bg: "#ede9fe", color: "#5b21b6" },
-  { bg: "#fee2e2", color: "#991b1b" },
-  { bg: "#cffafe", color: "#0e7490" },
-  { bg: "#fef9c3", color: "#713f12" },
+  { bg: "#1e3a5f", color: "#60a5fa" },
+  { bg: "#2e1065", color: "#c084fc" },
+  { bg: "#14532d", color: "#4ade80" },
+  { bg: "#422006", color: "#fbbf24" },
+  { bg: "#4a1942", color: "#e879f9" },
+  { bg: "#2d0a0a", color: "#f87171" },
+  { bg: "#083344", color: "#22d3ee" },
+  { bg: "#1e1b4b", color: "#818cf8" },
 ];
 
-// ── Glassmorphism helpers (iPhone-style) ──────────────────────
-function glass(darkMode, opacity = 0.55) {
-  return {
-    background: darkMode
-      ? `rgba(30, 30, 32, ${opacity})`
-      : `rgba(255, 255, 255, ${opacity})`,
-    backdropFilter: "blur(20px) saturate(180%)",
-    WebkitBackdropFilter: "blur(20px) saturate(180%)",
-    border: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.7)"}`,
-    boxShadow: darkMode
-      ? "0 4px 30px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04)"
-      : "0 4px 30px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.8)",
-  };
-}
+const avatarPaletteLight = [
+  { bg: "#dbeafe", color: "#1d4ed8" },
+  { bg: "#ede9fe", color: "#7c3aed" },
+  { bg: "#dcfce7", color: "#15803d" },
+  { bg: "#fef9c3", color: "#a16207" },
+  { bg: "#fce7f3", color: "#be185d" },
+  { bg: "#fee2e2", color: "#b91c1c" },
+  { bg: "#cffafe", color: "#0e7490" },
+  { bg: "#eef2ff", color: "#4338ca" },
+];
 
-function glassCard(darkMode) {
-  return {
-    background: darkMode
-      ? "linear-gradient(135deg, rgba(40,40,50,0.6) 0%, rgba(30,30,40,0.4) 100%)"
-      : "linear-gradient(135deg, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.45) 100%)",
-    backdropFilter: "blur(24px) saturate(200%)",
-    WebkitBackdropFilter: "blur(24px) saturate(200%)",
-    border: darkMode
-      ? "1.5px solid rgba(255,255,255,0.12)"
-      : "1.5px solid rgba(255,255,255,0.8)",
-    boxShadow: darkMode
-      ? "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.1)"
-      : "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(0,0,0,0.02)",
-  };
-}
-
-function glassInput(darkMode) {
-  return {
-    background: darkMode ? "rgba(50,50,55,0.5)" : "rgba(255,255,255,0.6)",
-    backdropFilter: "blur(12px)",
-    WebkitBackdropFilter: "blur(12px)",
-    border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`,
-    boxShadow: darkMode
-      ? "inset 0 1px 3px rgba(0,0,0,0.2)"
-      : "inset 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(255,255,255,0.6)",
-  };
-}
-
-function glassSegment(darkMode) {
-  return {
-    background: darkMode ? "rgba(50,50,55,0.4)" : "rgba(240,242,245,0.5)",
-    backdropFilter: "blur(12px)",
-    WebkitBackdropFilter: "blur(12px)",
-    border: `1px solid ${darkMode ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.6)"}`,
-  };
-}
-
-function glassSegmentActive(darkMode) {
-  return {
-    background: darkMode ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.85)",
-    boxShadow: darkMode
-      ? "0 2px 8px rgba(0,0,0,0.3)"
-      : "0 2px 8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)",
-  };
+const ANIM_ID = "users-view-v2-anim";
+if (typeof document !== "undefined" && !document.getElementById(ANIM_ID)) {
+  const s = document.createElement("style");
+  s.id = ANIM_ID;
+  s.textContent = `
+    @keyframes uv2-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes uv2-shimmer { 0%{background-position:-600px 0} 100%{background-position:600px 0} }
+    @keyframes uv2-pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+    @keyframes uv2-spin { to { transform: rotate(360deg); } }
+    .uv2-card { transition: transform 0.18s ease, box-shadow 0.18s ease; }
+    .uv2-card:hover { transform: translateY(-2px); }
+    .uv2-btn-view:hover { opacity: 0.88 !important; }
+    .uv2-chip { transition: background 0.15s, color 0.15s; }
+  `;
+  document.head.appendChild(s);
 }
 
 function getInitials(name) {
@@ -185,310 +117,77 @@ function getInitials(name) {
     .join("");
 }
 
-// ── Keyframes injection ───────────────────────────────────────
-const USERS_ANIM_ID = "users-view-animations";
-if (
-  typeof document !== "undefined" &&
-  !document.getElementById(USERS_ANIM_ID)
-) {
-  const style = document.createElement("style");
-  style.id = USERS_ANIM_ID;
-  style.textContent = `
-    @keyframes uv-shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
-    @keyframes uv-fade-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes uv-pulse-glow { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
-  `;
-  document.head.appendChild(style);
+function mapUser(u, index) {
+  return {
+    id: u.id,
+    name: `${u.first_name || ""} ${u.surname || ""}`.trim() || u.username,
+    email: u.email,
+    username: u.username,
+    role: u.role || "User",
+    position: u.position,
+    status: !u.is_active ? "Inactive" : "Active",
+    avatar: index % avatarPalette.length,
+    groups: u.groups || [],
+  };
 }
 
-// ── Glass Skeleton Primitives ─────────────────────────────────
-function GlassShimmerBox({
-  width = "100%",
-  height = 14,
-  radius = 6,
-  darkMode,
-  style: extra = {},
-}) {
-  const shimmerBg = darkMode
-    ? "linear-gradient(90deg, rgba(50,50,55,0.5) 25%, rgba(70,70,75,0.5) 50%, rgba(50,50,55,0.5) 75%)"
-    : "linear-gradient(90deg, rgba(215,225,240,0.5) 25%, rgba(240,243,250,0.7) 50%, rgba(215,225,240,0.5) 75%)";
+// ── Skeleton ──────────────────────────────────────────────────
+function Shimmer({ w = "100%", h = 14, r = 6, dark }) {
   return (
     <div
       style={{
-        width,
-        height,
-        borderRadius: radius,
-        background: shimmerBg,
-        backgroundSize: "800px 100%",
-        animation: "uv-shimmer 1.4s infinite linear",
+        width: w,
+        height: h,
+        borderRadius: r,
         flexShrink: 0,
-        ...extra,
+        background: dark
+          ? "linear-gradient(90deg,#1e2030 25%,#252836 50%,#1e2030 75%)"
+          : "linear-gradient(90deg,#e8ecf0 25%,#f4f6f8 50%,#e8ecf0 75%)",
+        backgroundSize: "600px 100%",
+        animation: "uv2-shimmer 1.3s infinite linear",
       }}
     />
   );
 }
 
-function UsersViewSkeleton({ ui, darkMode }) {
-  const font =
-    "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-  const kpiColors = [
-    { color: "#1877F2", bg: darkMode ? "#1a2744" : "#EEF4FF" },
-    { color: "#36a420", bg: darkMode ? "#0f2e1a" : "#EDFBF3" },
-    { color: "#9ca3af", bg: darkMode ? "#2a2a2a" : "#f3f4f6" },
-    { color: "#e02020", bg: darkMode ? "#2e0f0f" : "#fff1f2" },
-  ];
-
+function SkeletonCard({ dark }) {
+  const bg = dark ? "rgba(22,24,32,0.8)" : "rgba(255,255,255,0.9)";
+  const border = dark
+    ? "1px solid rgba(255,255,255,0.06)"
+    : "1px solid rgba(0,0,0,0.06)";
   return (
     <div
       style={{
+        background: bg,
+        border,
+        borderRadius: 16,
+        padding: "16px",
         display: "flex",
-        flexDirection: "column",
-        gap: 16,
-        fontFamily: font,
-        background: darkMode ? "#16171f" : "#f4f5f7",
-        padding: 16,
-        borderRadius: 18,
-        minHeight: "100%",
+        gap: 12,
+        animation: "uv2-pulse 2s ease infinite",
       }}
     >
-      {/* Title skeleton */}
-      <div>
-        <GlassShimmerBox
-          width={180}
-          height={16}
-          radius={5}
-          darkMode={darkMode}
-        />
-        <GlassShimmerBox
-          width={320}
-          height={11}
-          radius={4}
-          darkMode={darkMode}
-          style={{ marginTop: 6 }}
-        />
-      </div>
-
-      {/* KPI Cards skeleton */}
+      <Shimmer w={44} h={44} r={999} dark={dark} />
       <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4,1fr)",
-          gap: 10,
-        }}
+        style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}
       >
-        {kpiColors.map((kpi, i) => (
-          <div
-            key={i}
-            style={{
-              background: `${kpi.bg}cc`,
-              backdropFilter: "blur(20px) saturate(180%)",
-              WebkitBackdropFilter: "blur(20px) saturate(180%)",
-              border: `1px solid ${kpi.color}30`,
-              borderRadius: 14,
-              padding: "14px 16px",
-              boxShadow: `0 4px 20px ${kpi.color}10, inset 0 1px 0 rgba(255,255,255,0.3)`,
-              animation: "uv-pulse-glow 2s ease-in-out infinite",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <GlassShimmerBox
-              width={36}
-              height={36}
-              radius={10}
-              darkMode={darkMode}
-            />
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <GlassShimmerBox
-                width={70}
-                height={9}
-                radius={4}
-                darkMode={darkMode}
-              />
-              <GlassShimmerBox
-                width={45}
-                height={22}
-                radius={5}
-                darkMode={darkMode}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filter panel skeleton */}
-      <div
-        style={{
-          ...glass(darkMode, 0.45),
-          borderRadius: 14,
-          padding: "14px 16px",
-          display: "flex",
-          gap: 12,
-          flexWrap: "wrap",
-          alignItems: "flex-end",
-        }}
-      >
-        <div
-          style={{
-            flex: "1 1 200px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 5,
-          }}
-        >
-          <GlassShimmerBox
-            width={50}
-            height={8}
-            radius={3}
-            darkMode={darkMode}
-          />
-          <GlassShimmerBox
-            width="100%"
-            height={34}
-            radius={10}
-            darkMode={darkMode}
-          />
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <Shimmer w="50%" h={11} r={4} dark={dark} />
+          <Shimmer w={68} h={22} r={99} dark={dark} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <GlassShimmerBox
-            width={30}
-            height={8}
-            radius={3}
-            darkMode={darkMode}
-          />
-          <GlassShimmerBox
-            width={200}
-            height={32}
-            radius={10}
-            darkMode={darkMode}
-          />
+        <Shimmer w="65%" h={9} r={4} dark={dark} />
+        <Shimmer w="40%" h={8} r={4} dark={dark} />
+        <div style={{ display: "flex", gap: 5 }}>
+          <Shimmer w={54} h={18} r={99} dark={dark} />
+          <Shimmer w={44} h={18} r={99} dark={dark} />
+          <Shimmer w={60} h={18} r={99} dark={dark} />
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-          <GlassShimmerBox
-            width={40}
-            height={8}
-            radius={3}
-            darkMode={darkMode}
-          />
-          <GlassShimmerBox
-            width={150}
-            height={32}
-            radius={10}
-            darkMode={darkMode}
-          />
-        </div>
-      </div>
-
-      {/* User cards grid skeleton */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-          gap: 12,
-        }}
-      >
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              ...glassCard(darkMode),
-              borderRadius: 16,
-              padding: "14px 16px",
-              display: "flex",
-              gap: 12,
-              alignItems: "flex-start",
-              animation: "uv-pulse-glow 2.2s ease-in-out infinite",
-            }}
-          >
-            {/* Avatar */}
-            <GlassShimmerBox
-              width={46}
-              height={46}
-              radius={999}
-              darkMode={darkMode}
-            />
-            {/* Info */}
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: 7,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <GlassShimmerBox
-                  width="55%"
-                  height={12}
-                  radius={4}
-                  darkMode={darkMode}
-                />
-                <GlassShimmerBox
-                  width={65}
-                  height={22}
-                  radius={8}
-                  darkMode={darkMode}
-                />
-              </div>
-              <GlassShimmerBox
-                width="70%"
-                height={9}
-                radius={4}
-                darkMode={darkMode}
-              />
-              <GlassShimmerBox
-                width="45%"
-                height={8}
-                radius={4}
-                darkMode={darkMode}
-              />
-              <div style={{ display: "flex", gap: 5, marginTop: 3 }}>
-                <GlassShimmerBox
-                  width={60}
-                  height={18}
-                  radius={99}
-                  darkMode={darkMode}
-                />
-                <GlassShimmerBox
-                  width={50}
-                  height={18}
-                  radius={99}
-                  darkMode={darkMode}
-                />
-              </div>
-            </div>
-          </div>
-        ))}
       </div>
     </div>
   );
 }
 
-function mapUser(u, index) {
-  const fullName = `${u.first_name} ${u.surname}`.trim();
-  const status = !u.is_active ? "Inactive" : "Active";
-  return {
-    id: u.id,
-    name: fullName,
-    email: u.email,
-    username: u.username,
-    role: u.role,
-    position: u.position,
-    alias: u.alias,
-    status,
-    avatar: index % avatarPalette.length,
-    groups: u.groups || [],
-    access_request: u.access_request,
-  };
-}
-
+// ── Main Component ────────────────────────────────────────────
 function UsersView({
   ui,
   darkMode,
@@ -497,79 +196,184 @@ function UsersView({
   setShowImpersonateConfirm,
 }) {
   const font =
-    "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [userSearch, setUserSearch] = useState("");
-  const [userRoleFilter, setUserRoleFilter] = useState("All");
-  const [userStatusFilter, setUserStatusFilter] = useState("All");
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+
+  const dark = darkMode;
+
+  // theme tokens
+  const pageBg = "transparent";
+  const cardBg = dark ? "#242526" : "rgba(255,255,255,0.95)";
+  const cardBorder = dark ? "#3a3b3c" : "rgba(0,0,0,0.07)";
+  const inputBg = dark ? "#3a3b3c" : "rgba(255,255,255,0.9)";
+  const inputBorder = dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
+  const panelBg = dark ? "#242526" : "rgba(255,255,255,0.7)";
+  const textP = dark ? "#f1f3f9" : "#0f172a";
+  const textS = dark ? "#94a3b8" : "#64748b";
+  const textM = dark ? "#64748b" : "#94a3b8";
+  const divider = dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)";
+  const hoverBg = dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)";
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    (async () => {
       try {
         setLoading(true);
         const data = await getAllUsers();
-        const mapped = Array.isArray(data)
-          ? data.map((u, i) => mapUser(u, i))
-          : [];
-        setUsers(mapped);
-      } catch (err) {
-        console.error("Failed to fetch users:", err);
-        setError("Failed to load users. Please try again.");
+        setUsers(Array.isArray(data) ? data.map(mapUser) : []);
+      } catch (e) {
+        setError("Failed to load users.");
       } finally {
         setLoading(false);
       }
-    };
-    fetchUsers();
+    })();
   }, []);
 
   const allRoles = ["All", ...Array.from(new Set(users.map((u) => u.role)))];
-  const statuses = ["All", "Active", "Inactive"];
+  const statuses = ["All", "Active", "Inactive", "Suspended"];
 
-  const filteredUsers = users.filter((u) => {
-    const q = userSearch.toLowerCase();
-    const matchSearch =
-      !q ||
-      u.name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q) ||
-      (u.username && u.username.toLowerCase().includes(q));
-    const matchRole = userRoleFilter === "All" || u.role === userRoleFilter;
-    const matchStatus =
-      userStatusFilter === "All" || u.status === userStatusFilter;
-    return matchSearch && matchRole && matchStatus;
+  const filtered = users.filter((u) => {
+    const q = search.toLowerCase();
+    return (
+      (!q ||
+        u.name.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        u.role.toLowerCase().includes(q) ||
+        (u.username || "").toLowerCase().includes(q)) &&
+      (roleFilter === "All" || u.role === roleFilter) &&
+      (statusFilter === "All" || u.status === statusFilter)
+    );
   });
 
-  const activeCount = users.filter((u) => u.status === "Active").length;
-  const inactiveCount = users.filter((u) => u.status === "Inactive").length;
-  const suspendedCount = users.filter((u) => u.status === "Suspended").length;
+  const counts = {
+    total: users.length,
+    active: users.filter((u) => u.status === "Active").length,
+    inactive: users.filter((u) => u.status === "Inactive").length,
+    suspended: users.filter((u) => u.status === "Suspended").length,
+  };
 
-  const inputSt = {
-    ...glassInput(darkMode),
-    borderRadius: 10,
-    padding: "8px 12px",
-    fontSize: "0.82rem",
-    color: ui.textPrimary,
-    outline: "none",
-    colorScheme: darkMode ? "dark" : "light",
+  const kpis = [
+    {
+      label: "Total Users",
+      value: counts.total,
+      accent: "#3b82f6",
+      icon: "👥",
+      glow: "#3b82f620",
+    },
+    {
+      label: "Active",
+      value: counts.active,
+      accent: "#22c55e",
+      icon: "●",
+      glow: "#22c55e20",
+    },
+    {
+      label: "Inactive",
+      value: counts.inactive,
+      accent: "#6b7280",
+      icon: "○",
+      glow: "#6b728015",
+    },
+    {
+      label: "Suspended",
+      value: counts.suspended,
+      accent: "#ef4444",
+      icon: "⊘",
+      glow: "#ef444420",
+    },
+  ];
+
+  // segment button style
+  const seg = (active, accent = FB) => ({
+    padding: "5px 13px",
+    fontSize: "0.72rem",
+    fontWeight: active ? 600 : 400,
+    borderRadius: 7,
+    border: active ? `1px solid ${accent}50` : "1px solid transparent",
+    background: active ? (dark ? `${accent}20` : `${accent}15`) : "transparent",
+    color: active ? accent : textS,
+    cursor: "pointer",
     fontFamily: font,
-    transition: "all 0.2s ease",
-  };
-
-  const labelSt = {
-    fontSize: "0.68rem",
-    fontWeight: 600,
-    textTransform: "uppercase",
-    letterSpacing: "0.06em",
-    color: ui.textMuted,
-    marginBottom: 4,
-    display: "block",
-  };
+    whiteSpace: "nowrap",
+    transition: "all 0.15s",
+  });
 
   if (loading) {
-    return <UsersViewSkeleton ui={ui} darkMode={darkMode} />;
+    return (
+      <div
+        style={{
+          background: pageBg,
+          padding: 16,
+          borderRadius: 18,
+          minHeight: "100%",
+          fontFamily: font,
+        }}
+      >
+        {/* KPI skeletons */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4,1fr)",
+            gap: 10,
+            marginBottom: 14,
+          }}
+        >
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              style={{
+                background: cardBg,
+                border: `1px solid ${cardBorder}`,
+                borderRadius: 14,
+                padding: "14px 16px",
+                display: "flex",
+                gap: 10,
+                animation: "uv2-pulse 2s ease infinite",
+              }}
+            >
+              <Shimmer w={36} h={36} r={10} dark={dark} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <Shimmer w={60} h={8} r={3} dark={dark} />
+                <Shimmer w={40} h={20} r={4} dark={dark} />
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Filter skeleton */}
+        <div
+          style={{
+            background: panelBg,
+            border: `1px solid ${cardBorder}`,
+            borderRadius: 14,
+            padding: "14px 16px",
+            marginBottom: 14,
+            display: "flex",
+            gap: 12,
+          }}
+        >
+          <Shimmer w="40%" h={34} r={10} dark={dark} />
+          <Shimmer w={220} h={34} r={10} dark={dark} />
+          <Shimmer w={160} h={34} r={10} dark={dark} />
+        </div>
+        {/* Cards */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill,minmax(300px,1fr))",
+            gap: 12,
+          }}
+        >
+          {Array.from({ length: 8 }).map((_, i) => (
+            <SkeletonCard key={i} dark={dark} />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -578,12 +382,12 @@ function UsersView({
         style={{
           padding: "60px 40px",
           textAlign: "center",
-          color: "#e02020",
+          color: "#ef4444",
           fontSize: "0.84rem",
           fontFamily: font,
         }}
       >
-        <div style={{ fontSize: "1.5rem", marginBottom: 8 }}>⚠️</div>
+        <div style={{ fontSize: "2rem", marginBottom: 8 }}>⚠️</div>
         {error}
       </div>
     );
@@ -594,40 +398,34 @@ function UsersView({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 16,
+        gap: 14,
         fontFamily: font,
-        background: darkMode ? "#16171f" : "#f4f5f7",
+        background: pageBg,
         padding: 16,
         borderRadius: 18,
         minHeight: "100%",
       }}
     >
-      {/* Title */}
+      {/* ── Header ── */}
       <div>
         <p
           style={{
             margin: 0,
-            fontSize: "0.95rem",
+            fontSize: "1rem",
             fontWeight: 700,
-            color: ui.textPrimary,
+            color: textP,
             letterSpacing: "-0.01em",
           }}
         >
           User Management
         </p>
-        <p
-          style={{
-            margin: "3px 0 0",
-            fontSize: "0.75rem",
-            color: ui.textMuted,
-          }}
-        >
+        <p style={{ margin: "3px 0 0", fontSize: "0.75rem", color: textS }}>
           View and impersonate user accounts to inspect their dashboard
           perspective
         </p>
       </div>
 
-      {/* KPI Cards — colored glass */}
+      {/* ── KPI Cards ── */}
       <div
         style={{
           display: "grid",
@@ -635,47 +433,18 @@ function UsersView({
           gap: 10,
         }}
       >
-        {[
-          {
-            label: "Total Users",
-            value: users.length,
-            color: FB,
-            bg: darkMode ? "#1a2744" : "#EEF4FF",
-            icon: "👥",
-          },
-          {
-            label: "Active",
-            value: activeCount,
-            color: "#36a420",
-            bg: darkMode ? "#0f2e1a" : "#EDFBF3",
-            icon: "🟢",
-          },
-          {
-            label: "Inactive",
-            value: inactiveCount,
-            color: "#9ca3af",
-            bg: darkMode ? "#2a2a2a" : "#f3f4f6",
-            icon: "⚫",
-          },
-          {
-            label: "Suspended",
-            value: suspendedCount,
-            color: "#e02020",
-            bg: darkMode ? "#2e0f0f" : "#fff1f2",
-            icon: "🔴",
-          },
-        ].map((s) => (
+        {kpis.map((k) => (
           <div
-            key={s.label}
+            key={k.label}
             style={{
-              background: `${s.bg}cc`,
-              backdropFilter: "blur(20px) saturate(180%)",
-              WebkitBackdropFilter: "blur(20px) saturate(180%)",
-              border: `1px solid ${s.color}30`,
+              background: dark ? `${k.accent}12` : "#ffffff",
+              border: `1px solid ${dark ? `${k.accent}30` : "#e4e6eb"}`,
+              boxShadow: dark
+                ? `0 4px 20px ${k.glow}`
+                : "0 1px 4px rgba(0,0,0,0.06)",
               borderRadius: 14,
               padding: "14px 16px",
-              boxShadow: `0 4px 20px ${s.color}12, inset 0 1px 0 rgba(255,255,255,0.3)`,
-              transition: "transform 0.2s ease, box-shadow 0.2s ease",
+              animation: "uv2-in 0.4s ease both",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -684,41 +453,46 @@ function UsersView({
                   width: 36,
                   height: 36,
                   borderRadius: 10,
-                  background: `${s.color}18`,
-                  backdropFilter: "blur(8px)",
+                  background: dark ? `${k.accent}18` : `${k.accent}12`,
+                  border: `1px solid ${dark ? `${k.accent}30` : `${k.accent}20`}`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "1rem",
+                  fontSize:
+                    k.icon === "●" || k.icon === "○" || k.icon === "⊘"
+                      ? "1.1rem"
+                      : "1rem",
+                  color: k.accent,
+                  fontWeight: 700,
                 }}
               >
-                {s.icon}
+                {k.icon}
               </div>
               <div>
                 <p
                   style={{
                     margin: 0,
-                    fontSize: "0.62rem",
+                    fontSize: "0.6rem",
                     fontWeight: 700,
                     textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                    color: s.color,
+                    letterSpacing: "0.08em",
+                    color: k.accent,
                     opacity: 0.85,
                   }}
                 >
-                  {s.label}
+                  {k.label}
                 </p>
                 <p
                   style={{
                     margin: 0,
-                    fontSize: "1.4rem",
+                    fontSize: "1.5rem",
                     fontWeight: 800,
-                    color: s.color,
-                    lineHeight: 1.2,
+                    color: k.accent,
+                    lineHeight: 1.1,
                     letterSpacing: "-0.02em",
                   }}
                 >
-                  {s.value}
+                  {k.value}
                 </p>
               </div>
             </div>
@@ -726,101 +500,156 @@ function UsersView({
         ))}
       </div>
 
-      {/* Filters — glass panel */}
+      {/* ── Filters ── */}
       <div
         style={{
-          ...glass(darkMode, 0.45),
+          background: panelBg,
+          border: `1px solid ${cardBorder}`,
           borderRadius: 14,
-          padding: "14px 16px",
+          padding: "12px 16px",
           display: "flex",
           gap: 12,
           flexWrap: "wrap",
           alignItems: "flex-end",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
         }}
       >
+        {/* Search */}
         <div style={{ flex: "1 1 200px" }}>
-          <label style={labelSt}>Search</label>
-          <input
-            type="text"
-            placeholder="Name, email, role…"
-            value={userSearch}
-            onChange={(e) => setUserSearch(e.target.value)}
-            style={{ ...inputSt, width: "100%", boxSizing: "border-box" }}
-          />
+          <label
+            style={{
+              fontSize: "0.63rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+              color: textM,
+              display: "block",
+              marginBottom: 5,
+            }}
+          >
+            Search
+          </label>
+          <div style={{ position: "relative" }}>
+            <span
+              style={{
+                position: "absolute",
+                left: 10,
+                top: "50%",
+                transform: "translateY(-50%)",
+                fontSize: "0.8rem",
+                color: textM,
+                pointerEvents: "none",
+              }}
+            >
+              🔍
+            </span>
+            <input
+              type="text"
+              placeholder="Name, email, role…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: "100%",
+                boxSizing: "border-box",
+                background: inputBg,
+                border: `1px solid ${inputBorder}`,
+                borderRadius: 10,
+                padding: "7px 10px 7px 30px",
+                fontSize: "0.8rem",
+                color: textP,
+                outline: "none",
+                colorScheme: dark ? "dark" : "light",
+                fontFamily: font,
+              }}
+            />
+          </div>
         </div>
+
+        {/* Role filter */}
         <div>
-          <label style={labelSt}>Role</label>
+          <label
+            style={{
+              fontSize: "0.63rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+              color: textM,
+              display: "block",
+              marginBottom: 5,
+            }}
+          >
+            Role
+          </label>
           <div
             style={{
-              ...glassSegment(darkMode),
+              background: dark ? "rgba(15,17,23,0.6)" : "rgba(240,242,245,0.7)",
+              border: `1px solid ${divider}`,
               borderRadius: 10,
-              padding: 3,
+              padding: "3px",
               display: "flex",
               gap: 2,
               flexWrap: "wrap",
             }}
           >
-            {allRoles.map((r) => {
-              const isAct = userRoleFilter === r;
-              return (
-                <button
-                  key={r}
-                  onClick={() => setUserRoleFilter(r)}
-                  style={{
-                    padding: "5px 11px",
-                    fontSize: "0.72rem",
-                    fontWeight: isAct ? 700 : 500,
-                    borderRadius: 7,
-                    border: "none",
-                    ...(isAct
-                      ? glassSegmentActive(darkMode)
-                      : { background: "transparent" }),
-                    color: isAct ? FB : ui.textMuted,
-                    cursor: "pointer",
-                    fontFamily: font,
-                    whiteSpace: "nowrap",
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {r}
-                </button>
-              );
-            })}
+            {allRoles.map((r) => (
+              <button
+                key={r}
+                onClick={() => setRoleFilter(r)}
+                style={seg(roleFilter === r)}
+              >
+                {r}
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* Status filter */}
         <div>
-          <label style={labelSt}>Status</label>
+          <label
+            style={{
+              fontSize: "0.63rem",
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: "0.07em",
+              color: textM,
+              display: "block",
+              marginBottom: 5,
+            }}
+          >
+            Status
+          </label>
           <div
             style={{
-              ...glassSegment(darkMode),
+              background: dark ? "rgba(15,17,23,0.6)" : "rgba(240,242,245,0.7)",
+              border: `1px solid ${divider}`,
               borderRadius: 10,
-              padding: 3,
+              padding: "3px",
               display: "flex",
               gap: 2,
             }}
           >
             {statuses.map((s) => {
-              const isAct = userStatusFilter === s;
+              const sc = STATUS_COLORS[s];
               return (
                 <button
                   key={s}
-                  onClick={() => setUserStatusFilter(s)}
-                  style={{
-                    padding: "5px 11px",
-                    fontSize: "0.72rem",
-                    fontWeight: isAct ? 700 : 500,
-                    borderRadius: 7,
-                    border: "none",
-                    ...(isAct
-                      ? glassSegmentActive(darkMode)
-                      : { background: "transparent" }),
-                    color: isAct ? FB : ui.textMuted,
-                    cursor: "pointer",
-                    fontFamily: font,
-                    whiteSpace: "nowrap",
-                    transition: "all 0.15s ease",
-                  }}
+                  onClick={() => setStatusFilter(s)}
+                  style={seg(statusFilter === s, sc ? sc.accent : FB)}
                 >
+                  {sc && statusFilter === s && (
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        background: sc.dot,
+                        marginRight: 5,
+                        verticalAlign: "middle",
+                      }}
+                    />
+                  )}
                   {s}
                 </button>
               );
@@ -829,7 +658,15 @@ function UsersView({
         </div>
       </div>
 
-      {/* User Cards — glass cards */}
+      {/* ── Results count ── */}
+      {search || roleFilter !== "All" || statusFilter !== "All" ? (
+        <p style={{ margin: 0, fontSize: "0.72rem", color: textS }}>
+          Showing <strong style={{ color: textP }}>{filtered.length}</strong> of{" "}
+          {users.length} users
+        </p>
+      ) : null}
+
+      {/* ── User Cards Grid ── */}
       <div
         style={{
           display: "grid",
@@ -837,37 +674,42 @@ function UsersView({
           gap: 12,
         }}
       >
-        {filteredUsers.map((user) => {
-          const av = avatarPalette[user.avatar % avatarPalette.length];
-          const rc = ROLE_COLORS[user.role] || ROLE_COLORS["User"];
-          const sc =
-            STATUS_COLORS_MAP[user.status] || STATUS_COLORS_MAP["Inactive"];
-          const isCurrentlyImpersonating = impersonating?.id === user.id;
+        {filtered.map((user, idx) => {
+          const av = dark
+            ? avatarPalette[user.avatar]
+            : avatarPaletteLight[user.avatar];
+          const rc = dark
+            ? ROLE_COLORS[user.role] || ROLE_COLORS.User
+            : ROLE_COLORS_LIGHT[user.role] || ROLE_COLORS_LIGHT.User;
+          const sc = STATUS_COLORS[user.status] || STATUS_COLORS.Inactive;
+          const isViewing = impersonating?.id === user.id;
 
           return (
             <div
               key={user.id}
+              className="uv2-card"
               style={{
-                ...glassCard(darkMode),
+                background: isViewing
+                  ? dark
+                    ? "rgba(30,58,100,0.5)"
+                    : "rgba(219,234,254,0.7)"
+                  : cardBg,
+                border: isViewing
+                  ? `1.5px solid ${FB}60`
+                  : `1px solid ${cardBorder}`,
                 borderRadius: 16,
                 overflow: "hidden",
-                border: isCurrentlyImpersonating
-                  ? `2px solid ${FB}`
-                  : darkMode
-                    ? "1.5px solid rgba(255,255,255,0.12)"
-                    : "1.5px solid rgba(255,255,255,0.8)",
-                boxShadow: isCurrentlyImpersonating
-                  ? `0 0 0 3px ${FB}28, 0 8px 32px rgba(0,0,0,0.12)`
-                  : darkMode
-                    ? "0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)"
-                    : "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04), inset 0 1px 0 rgba(255,255,255,0.9)",
-                transition: "border 0.2s, box-shadow 0.2s, transform 0.2s",
+                boxShadow: isViewing
+                  ? `0 0 0 3px ${FB}20, 0 8px 24px rgba(0,0,0,0.15)`
+                  : dark
+                    ? "0 4px 20px rgba(0,0,0,0.3)"
+                    : "0 2px 12px rgba(0,0,0,0.06)",
+                animation: `uv2-in 0.3s ease ${idx * 0.02}s both`,
               }}
             >
-              {/* Top section */}
               <div
                 style={{
-                  padding: "14px 16px 14px",
+                  padding: "14px 16px",
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 12,
@@ -877,23 +719,22 @@ function UsersView({
                 <div style={{ position: "relative", flexShrink: 0 }}>
                   <div
                     style={{
-                      width: 46,
-                      height: 46,
+                      width: 44,
+                      height: 44,
                       borderRadius: "50%",
-                      background: `${av.bg}cc`,
-                      backdropFilter: "blur(8px)",
+                      background: av.bg,
                       color: av.color,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: "1rem",
+                      fontSize: "0.9rem",
                       fontWeight: 700,
                       border: `2px solid ${av.color}40`,
-                      boxShadow: `0 2px 8px ${av.color}20`,
                     }}
                   >
                     {getInitials(user.name)}
                   </div>
+                  {/* Status dot */}
                   <div
                     style={{
                       position: "absolute",
@@ -903,55 +744,55 @@ function UsersView({
                       height: 11,
                       borderRadius: "50%",
                       background: sc.dot,
-                      border: `2px solid ${darkMode ? "rgba(30,30,32,0.8)" : "rgba(255,255,255,0.9)"}`,
-                      boxShadow: `0 0 4px ${sc.dot}60`,
+                      border: `2px solid ${dark ? "#0f1117" : "#f0f2f5"}`,
+                      boxShadow: `0 0 4px ${sc.dot}80`,
                     }}
                   />
                 </div>
 
-                {/* Info + Button */}
+                {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  {/* Name row with View As button */}
+                  {/* Name row */}
                   <div
                     style={{
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
                       gap: 6,
+                      marginBottom: 2,
                     }}
                   >
                     <div
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 6,
+                        gap: 5,
                         minWidth: 0,
-                        flexWrap: "wrap",
                       }}
                     >
                       <p
                         style={{
                           margin: 0,
-                          fontSize: "0.88rem",
+                          fontSize: "0.86rem",
                           fontWeight: 700,
-                          color: ui.textPrimary,
-                          whiteSpace: "nowrap",
+                          color: textP,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
                       >
                         {user.name}
                       </p>
-                      {isCurrentlyImpersonating && (
+                      {isViewing && (
                         <span
                           style={{
-                            fontSize: "0.6rem",
+                            fontSize: "0.57rem",
                             fontWeight: 700,
-                            padding: "1px 6px",
+                            padding: "2px 6px",
                             borderRadius: 99,
                             background: FB,
                             color: "#fff",
-                            letterSpacing: "0.04em",
+                            letterSpacing: "0.05em",
                             flexShrink: 0,
                           }}
                         >
@@ -960,32 +801,32 @@ function UsersView({
                       )}
                     </div>
 
-                    {/* View As / Stop button */}
-                    {isCurrentlyImpersonating ? (
+                    {/* Action button */}
+                    {isViewing ? (
                       <button
+                        className="uv2-btn-view"
                         onClick={() => setImpersonating(null)}
                         style={{
                           padding: "4px 10px",
-                          fontSize: "0.72rem",
+                          fontSize: "0.7rem",
                           fontWeight: 700,
                           borderRadius: 8,
-                          border: `1.5px solid #e02020`,
-                          background: darkMode
-                            ? "rgba(46,15,15,0.6)"
-                            : "rgba(255,241,242,0.7)",
-                          backdropFilter: "blur(8px)",
-                          color: "#e02020",
+                          border: "1.5px solid #ef444460",
+                          background: dark
+                            ? "rgba(239,68,68,0.12)"
+                            : "rgba(255,241,242,0.9)",
+                          color: "#ef4444",
                           cursor: "pointer",
                           fontFamily: font,
                           whiteSpace: "nowrap",
                           flexShrink: 0,
-                          transition: "all 0.15s ease",
                         }}
                       >
                         ✕ Stop
                       </button>
                     ) : (
                       <button
+                        className="uv2-btn-view"
                         onClick={() =>
                           user.status !== "Suspended" &&
                           setShowImpersonateConfirm(user)
@@ -993,15 +834,12 @@ function UsersView({
                         disabled={user.status === "Suspended"}
                         style={{
                           padding: "4px 10px",
-                          fontSize: "0.72rem",
+                          fontSize: "0.7rem",
                           fontWeight: 700,
                           borderRadius: 8,
-                          border: `1.5px solid ${user.status === "Suspended" ? (darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)") : FB}`,
-                          background:
-                            user.status === "Suspended" ? "transparent" : FB,
-                          backdropFilter: "blur(8px)",
-                          color:
-                            user.status === "Suspended" ? ui.textMuted : "#fff",
+                          background: "transparent",
+                          border: `1px solid #e4e6eb`,
+                          color: textS,
                           cursor:
                             user.status === "Suspended"
                               ? "not-allowed"
@@ -1009,8 +847,7 @@ function UsersView({
                           fontFamily: font,
                           whiteSpace: "nowrap",
                           flexShrink: 0,
-                          opacity: user.status === "Suspended" ? 0.5 : 1,
-                          transition: "all 0.15s ease",
+                          opacity: user.status === "Suspended" ? 0.45 : 1,
                         }}
                       >
                         👁 View As
@@ -1021,9 +858,12 @@ function UsersView({
                   {/* Email */}
                   <p
                     style={{
-                      margin: "2px 0 0",
-                      fontSize: "0.72rem",
-                      color: ui.textMuted,
+                      margin: 0,
+                      fontSize: "0.71rem",
+                      color: textS,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
                     }}
                   >
                     {user.email}
@@ -1034,8 +874,8 @@ function UsersView({
                     <p
                       style={{
                         margin: "1px 0 0",
-                        fontSize: "0.70rem",
-                        color: ui.textMuted,
+                        fontSize: "0.69rem",
+                        color: textM,
                         fontStyle: "italic",
                       }}
                     >
@@ -1048,72 +888,60 @@ function UsersView({
                     style={{
                       display: "flex",
                       gap: 5,
-                      marginTop: 6,
+                      marginTop: 7,
                       flexWrap: "wrap",
                     }}
                   >
                     <span
+                      className="uv2-chip"
                       style={{
-                        fontSize: "0.67rem",
+                        fontSize: "0.65rem",
                         fontWeight: 700,
-                        padding: "2px 9px",
+                        padding: "2px 8px",
                         borderRadius: 99,
-                        background: darkMode
-                          ? `${rc?.darkBg || "#1e2a4a"}cc`
-                          : `${rc?.bg || "#dbeafe"}cc`,
-                        backdropFilter: "blur(6px)",
-                        color: darkMode
-                          ? rc?.darkColor || "#93c5fd"
-                          : rc?.color || "#1d4ed8",
+                        background: rc.bg,
+                        color: rc.color,
+                        border: `1px solid ${rc.dot}30`,
                       }}
                     >
                       {user.role}
                     </span>
                     <span
+                      className="uv2-chip"
                       style={{
-                        fontSize: "0.67rem",
+                        fontSize: "0.65rem",
                         fontWeight: 700,
-                        padding: "2px 9px",
+                        padding: "2px 8px",
                         borderRadius: 99,
-                        background: darkMode ? `${sc.darkBg}cc` : `${sc.bg}cc`,
-                        backdropFilter: "blur(6px)",
-                        color: darkMode ? sc.darkColor : sc.color,
+                        background: dark ? sc.bg : sc.lightBg,
+                        color: dark ? sc.color : sc.lightColor,
+                        border: `1px solid ${sc.dot}30`,
                       }}
                     >
                       {user.status}
                     </span>
-                  </div>
 
-                  {/* Group badges */}
-                  {user.groups && user.groups.length > 0 && (
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 4,
-                        marginTop: 5,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      {user.groups.map((g) => (
-                        <span
-                          key={g.id}
-                          style={{
-                            fontSize: "0.62rem",
-                            fontWeight: 600,
-                            padding: "1px 7px",
-                            borderRadius: 99,
-                            background: darkMode
-                              ? "rgba(30,39,68,0.7)"
-                              : "rgba(224,242,254,0.7)",
-                            backdropFilter: "blur(6px)",
-                            color: darkMode ? "#93c5fd" : "#0369a1",
-                          }}
-                        >
-                          {g.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                    {/* Group badges */}
+                    {user.groups?.map((g) => (
+                      <span
+                        key={g.id}
+                        className="uv2-chip"
+                        style={{
+                          fontSize: "0.62rem",
+                          fontWeight: 600,
+                          padding: "2px 7px",
+                          borderRadius: 99,
+                          background: dark
+                            ? "rgba(99,102,241,0.15)"
+                            : "rgba(238,242,255,0.9)",
+                          color: dark ? "#818cf8" : "#4338ca",
+                          border: `1px solid ${dark ? "rgba(99,102,241,0.25)" : "rgba(67,56,202,0.15)"}`,
+                        }}
+                      >
+                        {g.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1121,18 +949,21 @@ function UsersView({
         })}
       </div>
 
-      {filteredUsers.length === 0 && !loading && (
+      {/* Empty state */}
+      {filtered.length === 0 && !loading && (
         <div
           style={{
-            ...glass(darkMode, 0.4),
-            padding: "40px",
-            textAlign: "center",
-            color: ui.textMuted,
-            fontSize: "0.84rem",
+            background: panelBg,
+            border: `1px solid ${cardBorder}`,
             borderRadius: 14,
+            padding: "48px 40px",
+            textAlign: "center",
+            color: textS,
+            fontSize: "0.84rem",
           }}
         >
-          No users found
+          <div style={{ fontSize: "1.8rem", marginBottom: 8 }}>🔍</div>
+          No users found matching your filters.
         </div>
       )}
     </div>

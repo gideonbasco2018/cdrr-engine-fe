@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getDashboardRecentApplications } from "../../../api/dashboard";
+import { getDashboardGlobalAllRecentApplications } from "../../../api/dashboard";
 import axios from "../../../api/axios";
 
 // ── Animated Count-Up Hook ────────────────────────────────────
@@ -699,7 +699,7 @@ export default function OverviewView({
   const fetchFeed = useCallback(async () => {
     try {
       setFeedError(null);
-      const data = await getDashboardRecentApplications();
+      const data = await getDashboardGlobalAllRecentApplications();
       const raw = Array.isArray(data?.rows)
         ? data.rows
         : Array.isArray(data?.data)
