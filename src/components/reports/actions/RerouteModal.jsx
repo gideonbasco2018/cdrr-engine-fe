@@ -9,6 +9,8 @@ import {
 const WORKFLOW_STEPS = [
   { key: "Decking", label: "Decking", icon: "🎯", groupId: 2 },
   { key: "S&E", label: "S&E", icon: "🧪", groupId: 13 },
+  { key: "S&E Supervisor", label: "S&E Supervisor", icon: "🧑‍💼", groupId: 20 },
+  { key: "S&E Checker", label: "S&E Checker", icon: "🔬", groupId: 21 },
   {
     key: "Quality Evaluation",
     label: "Quality Evaluation",
