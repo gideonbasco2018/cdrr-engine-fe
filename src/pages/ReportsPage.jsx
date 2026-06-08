@@ -454,16 +454,16 @@ function ReportsPage({ darkMode }) {
   }, [subTab, prescriptionTab, appStatusTab]);
 
   useEffect(() => {
-    getAppTypes(null, processingTypeParam)
+    getAppTypes(null, processingTypeParam, prescriptionTab, appStatusTab)
       .then(setAvailableAppTypes)
       .catch(() => setAvailableAppTypes([]));
-  }, [processingTypeTab]);
+  }, [processingTypeTab, prescriptionTab, appStatusTab]);
 
   useEffect(() => {
-    getPrescriptionTypes(null, subTab, processingTypeParam)
+    getPrescriptionTypes(null, subTab, processingTypeParam, appStatusTab)
       .then(setAvailablePrescriptionTypes)
       .catch(() => setAvailablePrescriptionTypes([]));
-  }, [subTab, processingTypeTab]);
+  }, [subTab, processingTypeTab, appStatusTab]);
 
   useEffect(() => {
     getAppStatusTypes(null, subTab, prescriptionTab, processingTypeParam)

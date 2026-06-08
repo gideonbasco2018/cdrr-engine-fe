@@ -73,6 +73,10 @@ const ACTION_CONFIG = {
     options: ["Released"],
     warning: "Action is required when releasing.",
   },
+  "OD-Receiving_Returned to Evaluator": {
+    options: ["Returned to Evaluator for Clarification"],
+    warning: "Action is required when returning to evaluator.",
+  },
 };
 
 const RETURN_DECISIONS = new Set([

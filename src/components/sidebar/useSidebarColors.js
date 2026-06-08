@@ -3,15 +3,15 @@
 export const useSidebarColors = (darkMode) => {
   return darkMode
     ? {
-        sidebarBg: "#161616",
-        sidebarBorder: "#252525",
+        sidebarBg: "#202020",
+        sidebarBorder: "#555555",
         textPrimary: "#fff",
         textSecondary: "#999",
         sectionLabel: "#666",
         activeItemBg: "#2b2b2b",
-        hoverBg: "#151515",
-        toggleBg: "#151515",
-        toggleHover: "#1f1f1f",
+        hoverBg: "#666666",
+        toggleBg: "#292929",
+        toggleHover: "#666666",
         badgeBg: "#ef4444",
         badgeText: "#fff",
         comingSoonBg: "#2a2a2a",
