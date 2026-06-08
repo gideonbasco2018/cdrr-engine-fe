@@ -93,10 +93,12 @@ export const getUploadReports = async ({
 };
 
 // ✅ Fetch unique application types with counts
-export const getAppTypes = async (status = null, processingType = null) => {
+export const getAppTypes = async (status = null, processingType = null, prescription = null, appStatus = null) => {
   const params = {};
   if (status) params.status = status;
   if (processingType !== null) params.processing_type = processingType;
+  if (prescription !== null) params.prescription = prescription === "" ? "__EMPTY__" : prescription;
+  if (appStatus !== null) params.app_status = appStatus === "" ? "__EMPTY__" : appStatus;
 
   const response = await API.get("/main-db/app-types", { params });
   return response.data.app_types;
@@ -145,7 +147,8 @@ export const uploadExcelFile = async (file, username = 'system', onProgress = nu
 export const getPrescriptionTypes = async (
   status = null,
   appType = null,
-  processingType = null
+  processingType = null,
+  appStatus = null
 ) => {
   const params = {};
   if (status) params.status = status;
@@ -154,6 +157,9 @@ export const getPrescriptionTypes = async (
   }
   if (processingType !== null) {
     params.processing_type = processingType;
+  }
+  if (appStatus !== null) {
+    params.app_status = appStatus === "" ? "__EMPTY__" : appStatus;
   }
 
   const response = await API.get("/main-db/prescription-types", { params });

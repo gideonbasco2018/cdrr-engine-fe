@@ -42,6 +42,13 @@ export const getAnalyticsFRPTATTrend = async (params = {}) => {
     return res.data;
 };
 
+export const getCountryYearTrend = async (country, entityType = "mfr", prescription = "All") => {
+    const res = await API.get("/analytics/country-year-trend", {
+        params: { country, entity_type: entityType, prescription },
+    });
+    return res.data;
+};
+
 export const getDocTypeReleased = async (params = {}) => {
     const res = await API.get("/doc-type-released/", { params });
     return res.data;

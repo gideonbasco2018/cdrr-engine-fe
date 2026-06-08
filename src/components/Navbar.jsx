@@ -36,20 +36,20 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
 
   const colors = darkMode
     ? {
-        navbarBg: "#111111",
-        navbarBorder: "#2b2b2b",
-        buttonBg: "#1a1a1a",
-        buttonBgHover: "#222",
+        navbarBg: "#292929",
+        navbarBorder: "#555555",
+        buttonBg: "#292929",
+        buttonBgHover: "#666666",
         buttonColor: "#999",
         buttonColorHover: "#fff",
         divider: "#1a1a1a",
         textPrimary: "#fff",
         textSecondary: "#666",
         notificationDot: "#4CAF50",
-        dropdownBg: "#1a1a1a",
-        dropdownBorder: "#2a2a2a",
-        dropdownHover: "#222",
-        dropdownDivider: "#2a2a2a",
+        dropdownBg: "#292929",
+        dropdownBorder: "#555555",
+        dropdownHover: "#666666",
+        dropdownDivider: "#555555",
         // ← para sa NotificationBell
         cardBorder: "#2b2b2b",
         inputBg: "#1a1a1a",

@@ -23,7 +23,7 @@ function makeUI(dark) {
   return dark
     ? {
         pageBg: "#18191a",
-        sidebarBg: "#141414",
+        sidebarBg: "#1d1d1d",
         cardBg: "#242526",
         cardBorder: "#3a3b3c",
         inputBg: "#3a3b3c",

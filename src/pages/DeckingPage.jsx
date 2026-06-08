@@ -610,27 +610,29 @@ function DeckingPage({ darkMode }) {
     const fetch = async () => {
       try {
         const status = getStatusFilter() || null;
-        setAvailableAppTypes(await getAppTypes(status, processingTypeTab));
+        setAvailableAppTypes(
+          await getAppTypes(status, processingTypeTab, prescriptionTab, appStatusTab),
+        );
       } catch {
         setAvailableAppTypes([]);
       }
     };
     fetch();
-  }, [activeTab, processingTypeTab]);
+  }, [activeTab, processingTypeTab, prescriptionTab, appStatusTab]);
 
   useEffect(() => {
     const fetch = async () => {
       try {
         const status = getStatusFilter() || null;
         setAvailablePrescriptionTypes(
-          await getPrescriptionTypes(status, subTab, processingTypeTab),
+          await getPrescriptionTypes(status, subTab, processingTypeTab, appStatusTab),
         );
       } catch {
         setAvailablePrescriptionTypes([]);
       }
     };
     fetch();
-  }, [activeTab, subTab, processingTypeTab]);
+  }, [activeTab, subTab, processingTypeTab, appStatusTab]);
 
   useEffect(() => {
     const fetch = async () => {
@@ -750,8 +752,8 @@ function DeckingPage({ darkMode }) {
       const [processingTypes, appTypes, prescriptionTypes, appStatusTypes] =
         await Promise.all([
           getProcessingTypes(status, subTab, prescriptionTab, appStatusTab),
-          getAppTypes(status, processingTypeTab),
-          getPrescriptionTypes(status, subTab, processingTypeTab),
+          getAppTypes(status, processingTypeTab, prescriptionTab, appStatusTab),
+          getPrescriptionTypes(status, subTab, processingTypeTab, appStatusTab),
           getAppStatusTypes(status, subTab, prescriptionTab, processingTypeTab),
         ]);
       setAvailableProcessingTypes(processingTypes);

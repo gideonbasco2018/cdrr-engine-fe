@@ -1,5 +1,7 @@
 // src/components/monitoring/analytics/AnalyticsView.jsx
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
+
 import {
   getAnalyticsAvailableYears,
   getAnalyticsSummary,
@@ -8,6 +10,7 @@ import {
   getAnalyticsYearSummary,
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
+  getCountryYearTrend,
   getDocTypeReleased,
 } from "../../../api/analytics";
 
@@ -109,6 +112,9 @@ if (
     @keyframes analytics-pulse-soft {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.55; }
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
   `;
   document.head.appendChild(style);
@@ -1007,6 +1013,269 @@ function AnalyticsSkeleton({ ui, darkMode }) {
   );
 }
 
+// ── Country Year Trend Tooltip ────────────────────────────────
+function CountryYearTooltip({
+  country,
+  entityType,
+  rxFilter,
+  darkMode,
+  ui,
+  color,
+  anchorTop,
+  anchorLeft,
+}) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const font =
+    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+  useEffect(() => {
+    setLoading(true);
+    getCountryYearTrend(country, entityType, rxFilter || "All")
+      .then((res) => setData(res.data || []))
+      .catch(() => setData([]))
+      .finally(() => setLoading(false));
+  }, [country, entityType, rxFilter]);
+
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
+  // Position: use pre-computed anchor values from CountryRow's getBoundingClientRect
+  const tooltipW = 260;
+  const left = anchorLeft;
+  const top = anchorTop;
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top,
+        left,
+        background: darkMode ? "#1a1a2e" : "#fff",
+        border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)"}`,
+        borderRadius: 12,
+        padding: "12px 14px",
+        width: tooltipW,
+        zIndex: 999999,
+        pointerEvents: "none",
+        boxShadow: darkMode
+          ? "0 8px 32px rgba(0,0,0,0.7)"
+          : "0 8px 32px rgba(0,0,0,0.18)",
+        fontFamily: font,
+      }}
+    >
+      <p
+        style={{
+          margin: "0 0 8px",
+          fontSize: "0.72rem",
+          fontWeight: 700,
+          color,
+        }}
+      >
+        📅 {country} — Released by Year
+      </p>
+      {loading ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            color: ui.textMuted,
+            fontSize: "0.7rem",
+          }}
+        >
+          <span
+            style={{
+              display: "inline-block",
+              width: 10,
+              height: 10,
+              border: "2px solid currentColor",
+              borderTopColor: "transparent",
+              borderRadius: "50%",
+              animation: "spin 0.7s linear infinite",
+            }}
+          />
+          Loading...
+        </div>
+      ) : data.length === 0 ? (
+        <p style={{ margin: 0, fontSize: "0.7rem", color: ui.textMuted }}>
+          No data available
+        </p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {data.map((d) => (
+            <div
+              key={d.year}
+              style={{ display: "flex", alignItems: "center", gap: 7 }}
+            >
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  color: ui.textMuted,
+                  minWidth: 34,
+                  fontWeight: 600,
+                }}
+              >
+                {d.year}
+              </span>
+              <div
+                style={{
+                  flex: 1,
+                  height: 5,
+                  background: darkMode
+                    ? "rgba(255,255,255,0.07)"
+                    : "rgba(0,0,0,0.07)",
+                  borderRadius: 99,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${(d.count / maxCount) * 100}%`,
+                    height: "100%",
+                    background: color,
+                    borderRadius: 99,
+                    transition: "width 0.3s",
+                  }}
+                />
+              </div>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  color: ui.textPrimary,
+                  minWidth: 28,
+                  textAlign: "right",
+                }}
+              >
+                {d.count}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.65rem",
+                  color: "#36a420",
+                  minWidth: 26,
+                  textAlign: "right",
+                }}
+              >
+                ✅{d.cpr}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.65rem",
+                  color: "#e02020",
+                  minWidth: 26,
+                  textAlign: "right",
+                }}
+              >
+                ❌{d.lod ?? 0}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.65rem",
+                  color: "#f59e0b",
+                  minWidth: 26,
+                  textAlign: "right",
+                }}
+              >
+                ⏳{d.on_process ?? 0}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Country Row with hover tooltip ───────────────────────────
+function CountryRow({
+  d,
+  i,
+  flag,
+  activeEntity,
+  topCountryTab,
+  rxFilter,
+  maxCountry,
+  ui,
+  darkMode,
+  onHover,
+  onLeave,
+}) {
+  const handleMouseEnter = (e) => {
+    const tooltipW = 260;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cx = e.clientX;
+    const cy = e.clientY;
+
+    // 16px to the right of cursor; flip left if near right edge
+    let left = cx + 16;
+    if (left + tooltipW + 8 > vw) left = cx - tooltipW - 16;
+    left = Math.max(8, left);
+
+    // Align top with cursor, clamp to bottom of viewport
+    let top = cy - 8;
+    top = Math.max(8, Math.min(top, vh - 320));
+
+    onHover({
+      country: d.country,
+      entityType: topCountryTab,
+      rxFilter,
+      color: activeEntity?.color || "#1877F2",
+      top,
+      left,
+    });
+  };
+
+  const handleMouseMove = (e) => {
+    const tooltipW = 260;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cx = e.clientX;
+    const cy = e.clientY;
+    let left = cx + 16;
+    if (left + tooltipW + 8 > vw) left = cx - tooltipW - 16;
+    left = Math.max(8, left);
+    let top = cy - 8;
+    top = Math.max(8, Math.min(top, vh - 320));
+    onHover((prev) => prev ? { ...prev, top, left } : prev);
+  };
+
+  return (
+    <div
+      onMouseEnter={handleMouseEnter}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={onLeave}
+      style={{
+        padding: "8px 10px",
+        borderRadius: 10,
+        background: neuCardBg(darkMode),
+        boxShadow: neuShadow(darkMode),
+        cursor: "default",
+        transition: "box-shadow 0.15s",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+        <span style={{ fontSize: "0.62rem", fontWeight: 800, color: i < 3 ? activeEntity?.color : ui.textMuted, minWidth: 20 }}>
+          #{i + 1}
+        </span>
+        <span style={{ fontSize: "1rem" }}>{flag}</span>
+        <span style={{ flex: 1, fontSize: "0.78rem", fontWeight: 600, color: ui.textPrimary }}>
+          {d.country}
+        </span>
+        <span style={{ fontSize: "0.82rem", fontWeight: 800, color: activeEntity?.color }}>
+          {d.count}
+        </span>
+      </div>
+      <MiniBar value={d.count} max={maxCountry} color={activeEntity?.color || "#1877F2"} darkMode={darkMode} />
+      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+        <span style={{ fontSize: "0.62rem", color: "#36a420" }}>✅ {d.cpr}</span>
+        <span style={{ fontSize: "0.62rem", color: "#e02020" }}>❌ {d.lod}</span>
+        <span style={{ fontSize: "0.62rem", color: "#f59e0b" }}>⏳ {d.on_process}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Main AnalyticsView ────────────────────────────────────────
 export default function AnalyticsView({
   ui,
@@ -1038,11 +1307,16 @@ export default function AnalyticsView({
   const [topCountriesData, setTopCountriesData] = useState([]);
   const [docTypeData, setDocTypeData] = useState({ doc_types: [], data: [] });
   const [loading, setLoading] = useState(true);
+  const [loadingCountries, setLoadingCountries] = useState(false);
   const [topCountryTab, setTopCountryTab] = useState("mfr");
   const [topCountryLimit, setTopCountryLimit] = useState(10);
   const [lastUpdated, setLastUpdated] = useState(null);
+  // Tooltip state lifted here to escape FadeSlideIn transform stacking context
+  const [countryTooltip, setCountryTooltip] = useState(null);
+  // { country, entityType, rxFilter, color, top, left }
 
-  const fetchAll = useCallback(async () => {
+  // ── Fetch main analytics data (not countries) ──────────────────────────────
+  const fetchMain = useCallback(async () => {
     setLoading(true);
     try {
       const params = {
@@ -1088,11 +1362,44 @@ export default function AnalyticsView({
     } finally {
       setLoading(false);
     }
+  }, [chartYear, chartMonth, rxFilter]);
+
+  // ── Fetch only top countries (tab/limit change — no full reload) ───────────
+  const fetchCountries = useCallback(async () => {
+    setLoadingCountries(true);
+    try {
+      const params = {
+        year: chartYear,
+        month: chartMonth,
+        prescription: rxFilter,
+        entity_type: topCountryTab,
+        limit: topCountryLimit,
+      };
+      const countries = await getAnalyticsTopCountries(params);
+      setTopCountriesData(countries.data ?? []);
+    } catch (err) {
+      console.error("Top countries fetch error:", err);
+    } finally {
+      setLoadingCountries(false);
+    }
   }, [chartYear, chartMonth, rxFilter, topCountryTab, topCountryLimit]);
 
+  const fetchAll = fetchMain;
+
+  // Initial load + year/month/rx filter changes → full reload
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+    fetchMain();
+  }, [chartYear, chartMonth, rxFilter]);
+
+  // Entity tab or limit change → only reload countries, no full page reload
+  const isFirstCountryRender = useRef(true);
+  useEffect(() => {
+    if (isFirstCountryRender.current) {
+      isFirstCountryRender.current = false;
+      return;
+    }
+    fetchCountries();
+  }, [topCountryTab, topCountryLimit]);
 
   const pieData = [
     { name: "CPR Released", value: summary.cpr },
@@ -1986,7 +2293,32 @@ export default function AnalyticsView({
             })}
           </div>
 
-          {topCountriesData.length === 0 ? (
+          {loadingCountries ? (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: 80,
+                color: ui.textMuted,
+                fontSize: "0.82rem",
+                gap: 8,
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  width: 14,
+                  height: 14,
+                  border: "2px solid currentColor",
+                  borderTopColor: "transparent",
+                  borderRadius: "50%",
+                  animation: "spin 0.7s linear infinite",
+                }}
+              />
+              Loading...
+            </div>
+          ) : topCountriesData.length === 0 ? (
             <div
               style={{
                 textAlign: "center",
@@ -2012,72 +2344,20 @@ export default function AnalyticsView({
                     (et) => et.key === topCountryTab,
                   );
                   return (
-                    <div
+                    <CountryRow
                       key={d.country}
-                      style={{
-                        padding: "8px 10px",
-                        borderRadius: 10,
-                        background: neuCardBg(darkMode),
-                        boxShadow: neuShadow(darkMode),
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          marginBottom: 5,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.62rem",
-                            fontWeight: 800,
-                            color: i < 3 ? activeEntity?.color : ui.textMuted,
-                            minWidth: 20,
-                          }}
-                        >
-                          #{i + 1}
-                        </span>
-                        <span style={{ fontSize: "1rem" }}>{flag}</span>
-                        <span
-                          style={{
-                            flex: 1,
-                            fontSize: "0.78rem",
-                            fontWeight: 600,
-                            color: ui.textPrimary,
-                          }}
-                        >
-                          {d.country}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.82rem",
-                            fontWeight: 800,
-                            color: activeEntity?.color,
-                          }}
-                        >
-                          {d.count}
-                        </span>
-                      </div>
-                      <MiniBar
-                        value={d.count}
-                        max={maxCountry}
-                        color={activeEntity?.color || FB}
-                        darkMode={darkMode}
-                      />
-                      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                        <span style={{ fontSize: "0.62rem", color: "#36a420" }}>
-                          ✅ {d.cpr}
-                        </span>
-                        <span style={{ fontSize: "0.62rem", color: "#e02020" }}>
-                          ❌ {d.lod}
-                        </span>
-                        <span style={{ fontSize: "0.62rem", color: "#f59e0b" }}>
-                          ⏳ {d.on_process}
-                        </span>
-                      </div>
-                    </div>
+                      d={d}
+                      i={i}
+                      flag={flag}
+                      activeEntity={activeEntity}
+                      topCountryTab={topCountryTab}
+                      rxFilter={rxFilter}
+                      maxCountry={maxCountry}
+                      ui={ui}
+                      darkMode={darkMode}
+                      onHover={setCountryTooltip}
+                      onLeave={() => setCountryTooltip(null)}
+                    />
                   );
                 })}
               </div>
@@ -2297,6 +2577,21 @@ export default function AnalyticsView({
           )}
         </SectionCard>
       </FadeSlideIn>
+
+      {/* ── Country Year Trend Tooltip — rendered to document.body via portal ── */}
+      {countryTooltip && typeof document !== "undefined" && createPortal(
+        <CountryYearTooltip
+          country={countryTooltip.country}
+          entityType={countryTooltip.entityType}
+          rxFilter={countryTooltip.rxFilter}
+          darkMode={darkMode}
+          ui={ui}
+          color={countryTooltip.color}
+          anchorTop={countryTooltip.top}
+          anchorLeft={countryTooltip.left}
+        />,
+        document.body
+      )}
     </div>
   );
 }
