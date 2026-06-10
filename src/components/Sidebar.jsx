@@ -183,6 +183,7 @@ function Sidebar({
       users: `${basePath}/users`,
       settings: `${basePath}/settings`,
       "lead-assignments": `${basePath}/lead-assignments`,
+      "document-rename": `${basePath}/document-rename`,
     };
     if (isMobile) setMobileOpen(false);
     navigate(routeMap[itemId] || `${basePath}/dashboard`);

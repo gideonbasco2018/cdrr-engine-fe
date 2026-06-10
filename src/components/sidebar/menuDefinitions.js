@@ -93,6 +93,7 @@ export const menuDefinitions = {
       label: "Releasing",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+
   ],
 
   otherDatabaseItems: [
@@ -118,6 +119,12 @@ export const menuDefinitions = {
       id: "records-report",
       icon: "🗂️", // BEST for records
       label: "Records List", // 👈 recommended change
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
+        {
+      id: "document-rename",
+      icon: "👔",
+      label: "Document Rename",
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],

@@ -1,6 +1,6 @@
 // FILE: src/components/tasks/DataTable/BulkCompleteModal.jsx
-
 import { useState } from "react";
+import { bulkCreateFromDtns } from "../../../api/fdaverifportal";
 
 export function BulkCompleteModal({
   selectedCount,
@@ -10,6 +10,7 @@ export function BulkCompleteModal({
   onClose,
   onConfirm,
   onDone,
+  currentUser,
 }) {
   const [remarks, setRemarks] = useState("");
   const [loading, setLoading] = useState(false);
@@ -18,6 +19,9 @@ export function BulkCompleteModal({
   const [confirmed, setConfirmed] = useState(false);
   const [dateReleased, setDateReleased] = useState("");
   const [typeDocReleased, setTypeDocReleased] = useState("");
+  const [cprApiEnabled, setCprApiEnabled] = useState(true);
+  const [cprError, setCprError] = useState(null);
+  const [cprErrorResolve, setCprErrorResolve] = useState(null);
 
   const TYPE_DOC_OPTIONS = [
     "CPR",
@@ -38,10 +42,34 @@ export function BulkCompleteModal({
     "Other",
   ];
 
+  const confirmCprError = (message) =>
+    new Promise((resolve) => {
+      setCprError(message);
+      setCprErrorResolve(() => resolve);
+    });
+
   const handleConfirm = async () => {
     if (!reason || !confirmed) return;
     setLoading(true);
     try {
+      // ── CPR FIRST: insert to Verification Portal before closing ──
+      if (typeDocReleased === "CPR" && cprApiEnabled) {
+        try {
+          const cprResult = await bulkCreateFromDtns(
+            selectedDtns,
+            currentUser?.username ?? null,
+          );
+          console.log("✅ Bulk CPR insert result:", cprResult);
+        } catch (cprErr) {
+          const proceed = await confirmCprError(cprErr.message);
+          if (!proceed) {
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      // ── THEN close the task ──
       const res = await onConfirm({
         remarks,
         reason,
@@ -709,11 +737,84 @@ export function BulkCompleteModal({
                       color: colors.textTertiary,
                       textTransform: "uppercase",
                       letterSpacing: "0.07em",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
                     }}
                   >
-                    Type of Doc Released{" "}
-                    <span style={{ color: "#ef4444" }}>*</span>
+                    <span>
+                      Type of Doc Released{" "}
+                      <span style={{ color: "#ef4444" }}>*</span>
+                    </span>
+
+                    {typeDocReleased === "CPR" && (
+                      <span
+                        onClick={() => setCprApiEnabled((prev) => !prev)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.35rem",
+                          fontSize: "0.65rem",
+                          fontWeight: 600,
+                          cursor: "pointer",
+                          padding: "0.1rem 0.5rem 0.1rem 0.35rem",
+                          borderRadius: "20px",
+                          border: `1px solid ${cprApiEnabled ? "#4CAF5050" : "#ef444450"}`,
+                          background: cprApiEnabled ? "#4CAF5015" : "#ef444415",
+                          color: cprApiEnabled ? "#4CAF50" : "#ef4444",
+                          userSelect: "none",
+                          transition: "all 0.2s",
+                          textTransform: "none",
+                          letterSpacing: "normal",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 22,
+                            height: 11,
+                            borderRadius: 11,
+                            background: cprApiEnabled ? "#4CAF50" : "#ef4444",
+                            display: "inline-block",
+                            position: "relative",
+                            transition: "background 0.2s",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <span
+                            style={{
+                              position: "absolute",
+                              top: 2,
+                              left: cprApiEnabled ? 13 : 2,
+                              width: 7,
+                              height: 7,
+                              borderRadius: "50%",
+                              background: "#fff",
+                              transition: "left 0.2s",
+                            }}
+                          />
+                        </span>
+                        CPR API {cprApiEnabled ? "ON" : "OFF"}
+                      </span>
+                    )}
                   </label>
+                  {typeDocReleased === "CPR" && (
+                    <p
+                      style={{
+                        margin: "0.35rem 0 0",
+                        fontSize: "0.65rem",
+                        color: cprApiEnabled ? "#4CAF50" : colors.textTertiary,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: "0.3rem",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      <span>{cprApiEnabled ? "ℹ️" : "⚠️"}</span>
+                      {cprApiEnabled
+                        ? "CPR API is ON — a record will be automatically inserted into the Verification Portal upon closing."
+                        : "CPR API is OFF — no data will be inserted into the Verification Portal."}
+                    </p>
+                  )}
                   <select
                     value={typeDocReleased}
                     onChange={(e) => setTypeDocReleased(e.target.value)}
@@ -884,6 +985,175 @@ export function BulkCompleteModal({
                     )}
                   </button>
                 </div>
+
+                {/* ── CPR Error Confirm Modal ── */}
+                {cprError && (
+                  <>
+                    <div
+                      style={{
+                        position: "fixed",
+                        inset: 0,
+                        zIndex: 10001,
+                        background: "rgba(0,0,0,0.6)",
+                        backdropFilter: "blur(4px)",
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: "fixed",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        zIndex: 10002,
+                        background: "#1a1a1a",
+                        border: "2px solid rgba(239,68,68,0.4)",
+                        borderRadius: 16,
+                        boxShadow:
+                          "0 24px 80px rgba(239,68,68,0.2), 0 8px 32px rgba(0,0,0,0.5)",
+                        width: "min(440px, 90vw)",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {/* Header */}
+                      <div
+                        style={{
+                          padding: "1.1rem 1.5rem",
+                          background:
+                            "linear-gradient(135deg, #b91c1c, #991b1b)",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.75rem",
+                        }}
+                      >
+                        <span style={{ fontSize: "1.4rem" }}>⚠️</span>
+                        <div>
+                          <h3
+                            style={{
+                              margin: 0,
+                              fontSize: "0.95rem",
+                              fontWeight: 700,
+                              color: "#fff",
+                            }}
+                          >
+                            CPR Verification Portal Failed
+                          </h3>
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.7rem",
+                              color: "rgba(255,255,255,0.7)",
+                            }}
+                          >
+                            An error occurred while inserting data
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Body */}
+                      <div style={{ padding: "1.25rem 1.5rem" }}>
+                        <div
+                          style={{
+                            padding: "0.75rem 1rem",
+                            background: "rgba(239,68,68,0.08)",
+                            border: "1px solid rgba(239,68,68,0.25)",
+                            borderRadius: 8,
+                            marginBottom: "1rem",
+                          }}
+                        >
+                          <p
+                            style={{
+                              margin: 0,
+                              fontSize: "0.72rem",
+                              color: "#f87171",
+                              fontFamily: "monospace",
+                            }}
+                          >
+                            {cprError}
+                          </p>
+                        </div>
+                        <p
+                          style={{
+                            margin: "0 0 1.25rem",
+                            fontSize: "0.8rem",
+                            color: colors.textSecondary,
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          The data was{" "}
+                          <strong style={{ color: "#ef4444" }}>
+                            not inserted
+                          </strong>{" "}
+                          into the Verification Portal. Do you still want to{" "}
+                          <strong style={{ color: "#fff" }}>
+                            close the task
+                          </strong>{" "}
+                          anyway?
+                        </p>
+
+                        {/* Buttons */}
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "0.75rem",
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          <button
+                            onClick={() => {
+                              setCprError(null);
+                              cprErrorResolve?.(false);
+                              setCprErrorResolve(null);
+                            }}
+                            style={{
+                              padding: "0.6rem 1.25rem",
+                              background: "transparent",
+                              border: "1px solid rgba(255,255,255,0.15)",
+                              borderRadius: 8,
+                              color: colors.textSecondary,
+                              fontSize: "0.82rem",
+                              cursor: "pointer",
+                              fontWeight: 500,
+                            }}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              setCprError(null);
+                              cprErrorResolve?.(true);
+                              setCprErrorResolve(null);
+                            }}
+                            style={{
+                              padding: "0.6rem 1.5rem",
+                              background:
+                                "linear-gradient(135deg, #dc2626, #b91c1c)",
+                              border: "none",
+                              borderRadius: 8,
+                              color: "#fff",
+                              fontSize: "0.82rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              boxShadow: "0 2px 10px rgba(220,38,38,0.4)",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.4rem",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.boxShadow =
+                                "0 4px 14px rgba(220,38,38,0.55)")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.boxShadow =
+                                "0 2px 10px rgba(220,38,38,0.4)")
+                            }
+                          >
+                            🔒 Close anyway
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
