@@ -24,17 +24,22 @@ export function getCurrentUser() {
 
 // ══════════════════════════════════════════════════════════════════════
 //  POST /api/closed-tasks/bulk
-//  Permanently close multiple tasks in one request.
 // ══════════════════════════════════════════════════════════════════════
 
 /**
  * @param {object}   payload
- * @param {number[]} payload.main_db_ids          - IDs of records to close
- * @param {string}   payload.reason_for_closing    - selected reason (required)
- * @param {string}  [payload.remarks]              - optional textarea value
+ * @param {number[]} payload.main_db_ids
+ * @param {string}   payload.reason_for_closing
+ * @param {string}  [payload.remarks]               - pure user remarks, walang CPR notes
+ * @param {string}  [payload.date_released]         - ISO date string
+ * @param {string}  [payload.type_doc_released]     - e.g. "CPR", "LOD", "Certificate"
  * @param {number}   payload.closed_by_user_id
  * @param {string}   payload.closed_by_user_name
- * @param {string}  [payload.closed_at]            - ISO string (defaults to server now)
+ * @param {string}  [payload.closed_at]             - ISO string (defaults to server now)
+ * @param {boolean} [payload.cpr_api_enabled]       - true=ON, false=OFF, null=not CPR
+ * @param {boolean} [payload.cpr_insert_success]    - true=ok, false=failed, null=not attempted
+ * @param {string}  [payload.cpr_insert_error]      - error message kung nag-fail
+ * @param {boolean} [payload.cpr_skipped_by_user]   - true kung sinadyang i-OFF ang toggle
  * @returns {Promise<Array>} list of created closed_task records
  */
 export const closeTasksBulk = async (payload) => {
@@ -55,7 +60,6 @@ export const closeTasksBulk = async (payload) => {
 
 // ══════════════════════════════════════════════════════════════════════
 //  POST /api/closed-tasks/
-//  Permanently close a single task.
 // ══════════════════════════════════════════════════════════════════════
 
 /**
@@ -64,9 +68,15 @@ export const closeTasksBulk = async (payload) => {
  * @param {number} [payload.app_log_id]
  * @param {string}  payload.reason_for_closing
  * @param {string} [payload.remarks]
+ * @param {string} [payload.date_released]
+ * @param {string} [payload.type_doc_released]
  * @param {number}  payload.closed_by_user_id
  * @param {string}  payload.closed_by_user_name
  * @param {string} [payload.closed_at]
+ * @param {boolean} [payload.cpr_api_enabled]
+ * @param {boolean} [payload.cpr_insert_success]
+ * @param {string}  [payload.cpr_insert_error]
+ * @param {boolean} [payload.cpr_skipped_by_user]
  * @returns {Promise<object>} created closed_task record
  */
 export const closeTask = async (payload) => {
@@ -87,7 +97,6 @@ export const closeTask = async (payload) => {
 
 // ══════════════════════════════════════════════════════════════════════
 //  GET /api/closed-tasks/check/{main_db_id}
-//  Quick boolean check — use this before showing the Close modal.
 // ══════════════════════════════════════════════════════════════════════
 
 /**
@@ -111,7 +120,6 @@ export const checkIsTaskClosed = async (mainDbId) => {
 
 // ══════════════════════════════════════════════════════════════════════
 //  GET /api/closed-tasks/main-db/{main_db_id}
-//  Fetch the audit record for a specific application.
 // ══════════════════════════════════════════════════════════════════════
 
 /**
@@ -136,7 +144,6 @@ export const getClosedTaskByMainDbId = async (mainDbId) => {
 
 // ══════════════════════════════════════════════════════════════════════
 //  GET /api/closed-tasks/{closed_task_id}
-//  Fetch a specific closed-task audit record by its own PK.
 // ══════════════════════════════════════════════════════════════════════
 
 /**
@@ -160,7 +167,6 @@ export const getClosedTaskById = async (closedTaskId) => {
 
 // ══════════════════════════════════════════════════════════════════════
 //  GET /api/closed-tasks/?skip=0&limit=100
-//  List all closed tasks (paginated).
 // ══════════════════════════════════════════════════════════════════════
 
 /**
@@ -181,6 +187,62 @@ export const getAllClosedTasks = async ({ skip = 0, limit = 100 } = {}) => {
       error.response?.data?.detail ||
       error.message ||
       "Failed to fetch closed tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  GET /api/closed-tasks/cpr-failed
+//  Lahat ng tasks na nag-fail ang CPR Verification Portal insert
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * @param {object} [params]
+ * @param {number} [params.skip=0]
+ * @param {number} [params.limit=100]
+ * @returns {Promise<{ total: number, items: Array }>}
+ */
+export const getCprFailedTasks = async ({ skip = 0, limit = 100 } = {}) => {
+  try {
+    const response = await API.get("/closed-tasks/cpr-failed", {
+      params: { skip, limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching CPR failed tasks:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch CPR failed tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+
+// ══════════════════════════════════════════════════════════════════════
+//  GET /api/closed-tasks/cpr-skipped
+//  Lahat ng tasks na sinadyang i-OFF ang CPR API bago mag-close
+// ══════════════════════════════════════════════════════════════════════
+
+/**
+ * @param {object} [params]
+ * @param {number} [params.skip=0]
+ * @param {number} [params.limit=100]
+ * @returns {Promise<{ total: number, items: Array }>}
+ */
+export const getCprSkippedTasks = async ({ skip = 0, limit = 100 } = {}) => {
+  try {
+    const response = await API.get("/closed-tasks/cpr-skipped", {
+      params: { skip, limit },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching CPR skipped tasks:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch CPR skipped tasks";
     throw new Error(errorMessage);
   }
 };
