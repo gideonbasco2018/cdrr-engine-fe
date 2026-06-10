@@ -1926,7 +1926,12 @@ function DataTable({
           colors={colors}
           darkMode={darkMode}
           onClose={() => setBulkCompleteModalRecords(null)}
-          onConfirm={async ({ remarks, reason, dateReleased, typeDocReleased }) => {
+          onConfirm={async ({
+            remarks,
+            reason,
+            dateReleased,
+            typeDocReleased,
+          }) => {
             // ── 1. Get the logged-in user ────────────────────────────────────
             const me = getCurrentUser();
             if (!me?.id) throw new Error("No logged-in user found.");
@@ -1969,7 +1974,9 @@ function DataTable({
                   await updateReport(row.mainDbId ?? row.id, {
                     DB_APP_STATUS: "COMPLETED",
                     ...(dateReleased ? { DB_DATE_RELEASED: dateReleased } : {}),
-                    ...(typeDocReleased ? { DB_TYPE_DOC_RELEASED: typeDocReleased } : {}),
+                    ...(typeDocReleased
+                      ? { DB_TYPE_DOC_RELEASED: typeDocReleased }
+                      : {}),
                   });
                   success++;
                 } catch (e) {
@@ -1986,6 +1993,7 @@ function DataTable({
             if (onClearSelections) onClearSelections();
             if (onRefresh) await onRefresh();
           }}
+          currentUser={getCurrentUser()}
         />
       )}
     </>

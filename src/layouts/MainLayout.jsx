@@ -19,6 +19,7 @@ import DoctrackMagicPage from "../pages/DoctrackMagicPage";
 import RecordSectionPage from "../pages/RecordSectionPage";
 import LeadAssignmentsPage from "../pages/LeadAssignmentsPage";
 import ApplicationCorrectionPage from "../pages/ApplicationCorrectionPage";
+import DocumentRenamePage from "../pages/DocumentRenamePage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -86,7 +87,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("profile")) return "profile";
     if (path.includes("monitoring")) return "monitoring";
     if (path.includes("appCorrection")) return "appCorrection";
-
+    if (path.includes("document-rename")) return "document-rename";
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
 
@@ -220,6 +221,8 @@ function MainLayout({ darkMode, setDarkMode }) {
         return (
           <ApplicationCorrectionPage darkMode={darkMode} userRole={userRole} />
         );
+      case "document-rename":
+        return <DocumentRenamePage darkMode={darkMode} userRole={userRole} />;
       case "dashboard":
 
       default:

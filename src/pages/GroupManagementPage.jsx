@@ -113,6 +113,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       announcements: "Platform",
       support: "Platform",
       "lead-assignments": "Other Database",
+      "document-rename": "Other Database",
       appCorrection: "Workflow",
     };
     return categoryMap[menuId] || "Other";
