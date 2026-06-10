@@ -51,30 +51,51 @@ export function BulkCompleteModal({
   const handleConfirm = async () => {
     if (!reason || !confirmed) return;
     setLoading(true);
+
+    // ── CPR audit fields — itatawid sa onConfirm payload ──
+    let cprApiEnabled_out = null; // null = not a CPR doc
+    let cprInsertSuccess = null;
+    let cprInsertError = null;
+    let cprSkippedByUser = false;
+
     try {
       // ── CPR FIRST: insert to Verification Portal before closing ──
-      if (typeDocReleased === "CPR" && cprApiEnabled) {
-        try {
-          const cprResult = await bulkCreateFromDtns(
-            selectedDtns,
-            currentUser?.username ?? null,
-          );
-          console.log("✅ Bulk CPR insert result:", cprResult);
-        } catch (cprErr) {
-          const proceed = await confirmCprError(cprErr.message);
-          if (!proceed) {
-            setLoading(false);
-            return;
+      if (typeDocReleased === "CPR") {
+        cprApiEnabled_out = cprApiEnabled;
+
+        if (cprApiEnabled) {
+          try {
+            const cprResult = await bulkCreateFromDtns(
+              selectedDtns,
+              currentUser?.username ?? null,
+            );
+            console.log("✅ Bulk CPR insert result:", cprResult);
+            cprInsertSuccess = true;
+          } catch (cprErr) {
+            const proceed = await confirmCprError(cprErr.message);
+            if (!proceed) {
+              setLoading(false);
+              return;
+            }
+            cprInsertSuccess = false;
+            cprInsertError = cprErr.message;
           }
+        } else {
+          // Toggle is OFF — sinadyang hindi mag-insert
+          cprSkippedByUser = true;
         }
       }
 
-      // ── THEN close the task ──
+      // ── THEN close the task — remarks is pure user input na lang ──
       const res = await onConfirm({
-        remarks,
+        remarks: remarks || null,
         reason,
         dateReleased,
         typeDocReleased,
+        cprApiEnabled: cprApiEnabled_out,
+        cprInsertSuccess,
+        cprInsertError,
+        cprSkippedByUser,
       });
       setResult(res);
     } catch (e) {
