@@ -14,6 +14,7 @@ import ActivityFeedView from "../components/monitoring/activityFeed/ActivityFeed
 import UsersView from "../components/monitoring/users/UsersView";
 import FRPTatView from "../components/monitoring/frpTat/FRPTatView";
 import CprTrendView from "../components/monitoring/cprTrend/CprTrendView";
+import ProcessingTrendView from "../components/monitoring/processingTrend/ProcessingTrendView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1036,6 +1037,8 @@ function renderContent(
       return <FRPTatView ui={ui} darkMode={darkMode} />;
     case "cprtrend":
       return <CprTrendView ui={ui} darkMode={darkMode} />;
+    case "processingtrend":
+      return <ProcessingTrendView ui={ui} darkMode={darkMode} />;
     default:
       return null;
   }
@@ -1062,6 +1065,11 @@ function MonitoringPage({ darkMode }) {
     { key: "users", label: "Users", subtitle: "Manage evaluators" },
     { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
     { key: "cprtrend", label: "CPR Trend", subtitle: "Received & Released" },
+    {
+      key: "processingtrend",
+      label: "Processing Trend",
+      subtitle: "App trend & breakdown",
+    },
   ];
 
   const [activeNav, setActiveNav] = useState(location.state?.tab ?? "overview");
