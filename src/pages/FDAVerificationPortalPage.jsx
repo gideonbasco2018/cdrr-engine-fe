@@ -36,6 +36,7 @@ function FDAVerificationPortalPage({ darkMode }) {
   const [drugsData, setDrugsData] = useState([]);
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [error, setError] = useState(null);
   const [stats, setStats] = useState({
     totalProducts: 0,
@@ -543,38 +544,62 @@ function FDAVerificationPortalPage({ darkMode }) {
 
   const filteredData = getFilteredData();
   const duplicateRegNums = [];
-
   if (userLoading) {
     return (
       <div
         style={{
           flex: 1,
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
           background: colors.pageBg,
+          gap: "0.75rem",
         }}
       >
-        <div style={{ textAlign: "center" }}>
+        <style>{`
+          @keyframes fda-bar-slide {
+            0%   { transform: translateX(-200%); width: 40%; }
+            50%  { width: 60%; }
+            100% { transform: translateX(350%); width: 40%; }
+          }
+        `}</style>
+        <p
+          style={{
+            fontSize: "0.72rem",
+            fontWeight: 600,
+            color: colors.textTertiary,
+            margin: 0,
+            letterSpacing: "0.04em",
+          }}
+        >
+          Loading FDA Verification data…
+        </p>
+        <div
+          style={{
+            width: 160,
+            height: 2,
+            background: darkMode
+              ? "rgba(76,175,80,0.15)"
+              : "rgba(76,175,80,0.12)",
+            borderRadius: 2,
+            overflow: "hidden",
+          }}
+        >
           <div
             style={{
-              width: "50px",
-              height: "50px",
-              border: "4px solid #4CAF50",
-              borderTopColor: "transparent",
-              borderRadius: "50%",
-              animation: "spin 1s linear infinite",
-              margin: "0 auto 1rem",
+              height: "100%",
+              width: "40%",
+              background: "#4CAF50",
+              borderRadius: 2,
+              animation:
+                "fda-bar-slide 1.6s cubic-bezier(0.4,0,0.2,1) infinite",
             }}
           />
-          <p style={{ color: colors.textPrimary }}>
-            Loading user information...
-          </p>
         </div>
       </div>
     );
   }
-
   // ── Sidebar tab config ──────────────────────────────────────────────
   const sidebarTabs = [
     {
@@ -640,12 +665,17 @@ function FDAVerificationPortalPage({ darkMode }) {
     >
       <style>{`
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes fda-bar-slide {
+          0%   { transform: translateX(-200%); width: 40%; }
+          50%  { width: 60%; }
+          100% { transform: translateX(350%); width: 40%; }
+        }
         .fda-sidebar-item:hover { background: rgba(76,175,80,0.08) !important; }
         .fda-input:focus { border-color: #4CAF50 !important; outline: none; }
         .fda-clear-btn:hover { background: rgba(239,68,68,0.12) !important; color: #ef4444 !important; border-color: #ef4444 !important; }
       `}</style>
 
-      {/* Loading Overlay */}
+      {/* Loading bar — top of page */}
       {loading && (
         <div
           style={{
@@ -653,35 +683,24 @@ function FDAVerificationPortalPage({ darkMode }) {
             top: 0,
             left: 0,
             right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
             zIndex: 9999,
+            height: 2,
+            background: darkMode
+              ? "rgba(76,175,80,0.15)"
+              : "rgba(76,175,80,0.12)",
+            overflow: "hidden",
           }}
         >
           <div
             style={{
-              background: colors.cardBg,
-              padding: "2rem",
-              borderRadius: "12px",
-              textAlign: "center",
+              height: "100%",
+              width: "40%",
+              background: "#4CAF50",
+              borderRadius: 2,
+              animation:
+                "fda-bar-slide 1.6s cubic-bezier(0.4,0,0.2,1) infinite",
             }}
-          >
-            <div
-              style={{
-                width: "50px",
-                height: "50px",
-                border: "4px solid #4CAF50",
-                borderTopColor: "transparent",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-                margin: "0 auto 1rem",
-              }}
-            />
-            <p style={{ color: colors.textPrimary }}>Loading...</p>
-          </div>
+          />
         </div>
       )}
 
