@@ -8,7 +8,7 @@ import { getMenuPermissions } from "../api/menuPermissions";
 import { useSidebarColors } from "./sidebar/useSidebarColors";
 import { menuDefinitions } from "./sidebar/menuDefinitions";
 import MenuItem from "./sidebar/MenuItem";
-
+import { getMyTaskCount } from "../api/workflow-tasks";
 // ── RESPONSIVE HOOK ───────────────────────────────────────────────────────────
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
@@ -35,6 +35,7 @@ function Sidebar({
   const [userGroups, setUserGroups] = useState([]);
   const [menuPermissions, setMenuPermissions] = useState({});
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [taskCount, setTaskCount] = useState(0);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -145,11 +146,24 @@ function Sidebar({
     });
   };
 
+  useEffect(() => {
+    const fetchTaskCount = async () => {
+      const data = await getMyTaskCount();
+      setTaskCount(data.count || 0);
+    };
+
+    fetchTaskCount();
+    const interval = setInterval(fetchTaskCount, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
   const visibleMainMenu = filterByRoleAndGroup(menuDefinitions.mainMenuItems);
   const visibleCdrReports = filterByRoleAndGroup(
     menuDefinitions.cdrReportsItems,
   );
-  const visibleWorkflow = filterByRoleAndGroup(menuDefinitions.workflowItems);
+  const visibleWorkflow = filterByRoleAndGroup(
+    menuDefinitions.workflowItems,
+  ).map((item) => (item.id === "task" ? { ...item, badge: taskCount } : item));
   const visibleOtherDatabase = filterByRoleAndGroup(
     menuDefinitions.otherDatabaseItems,
   );
@@ -211,6 +225,7 @@ function Sidebar({
           <MenuItem
             key={item.id}
             item={item}
+            badge={item.id === "task" ? taskCount : undefined}
             activeMenu={activeMenu}
             collapsed={isCollapsed}
             colors={colors}
