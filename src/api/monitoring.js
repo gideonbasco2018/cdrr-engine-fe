@@ -184,3 +184,34 @@ export const getSummary = async (params = {}) => {
     );
   }
 };
+
+
+/**
+ * Get IN PROGRESS application count grouped by step.
+ *
+ * @param {Object} params
+ * @param {number|null} [params.user_id]   - Filter by specific user
+ * @param {number|null} [params.group_id]  - Filter by group
+ *
+ * @returns {Promise<{ total_in_progress: number, data: Array<{ step: string, count: number }> }>}
+ */
+export const getApplicationStatus = async (params = {}) => {
+  try {
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(
+        ([, v]) => v !== null && v !== undefined && v !== ""
+      )
+    );
+    const response = await API.get("/monitoring/application-status", {
+      params: cleanParams,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching application status:", error);
+    throw new Error(
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch application status"
+    );
+  }
+};

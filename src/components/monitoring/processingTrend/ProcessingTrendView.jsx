@@ -7,6 +7,7 @@ import {
   getProcessingTrend,
   getProcessingBreakdown,
   getSummary,
+  getApplicationStatus,
 } from "../../../api/monitoring";
 
 Chart.register(...registerables);
@@ -44,42 +45,17 @@ const BAR_COLORS = [
   "#84cc16",
 ];
 
-// ── Static weekly data — swap with API call later ─────────────────────────────
-const STATIC_WEEKLY_DATA = {
-  periodLabel: "Week 11 (18 – 22 May 2026)",
-  carryOverCutoff: "22 May 2026",
-  rows: [
-    {
-      appType: "Monitored Release",
-      carryOver: 52,
-      received: 4,
-      processed: 3,
-      totalPending: 53,
-    },
-    {
-      appType: "Initial",
-      carryOver: 42,
-      received: 1,
-      processed: 0,
-      totalPending: 43,
-    },
-    {
-      appType: "Variation",
-      carryOver: 168,
-      received: 14,
-      processed: 2,
-      totalPending: 180,
-    },
-  ],
-  overallStatus: [
-    { label: "Ongoing Evaluation", highlight: true, count: 276 },
-    { label: "Ongoing Safety & Efficacy Evaluation", count: 42 },
-    { label: "Ongoing Quality Evaluation", count: 41 },
-    { label: "For Checking of Senior Evaluator", count: 102 },
-    { label: "Issued Notice of Deficiency (eNOD)", count: 29 },
-    { label: "Decked (pending)", rightAlign: true, count: 62 },
-  ],
-};
+// Step color palette for app status bars
+const STEP_COLORS = [
+  { bg: "rgba(37,99,235,0.15)", border: "#2563eb", text: "#2563eb" },
+  { bg: "rgba(16,185,129,0.15)", border: "#10b981", text: "#10b981" },
+  { bg: "rgba(245,158,11,0.15)", border: "#f59e0b", text: "#f59e0b" },
+  { bg: "rgba(139,92,246,0.15)", border: "#8b5cf6", text: "#8b5cf6" },
+  { bg: "rgba(239,68,68,0.15)", border: "#ef4444", text: "#ef4444" },
+  { bg: "rgba(6,182,212,0.15)", border: "#06b6d4", text: "#06b6d4" },
+  { bg: "rgba(236,72,153,0.15)", border: "#ec4899", text: "#ec4899" },
+  { bg: "rgba(132,204,22,0.15)", border: "#84cc16", text: "#84cc16" },
+];
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 function toISODate(d) {
@@ -124,8 +100,8 @@ function SkeletonBox({ height = 74, borderRadius = 10, ui }) {
     </div>
   );
 }
-// ── Trend Donut Chart ─────────────────────────────────────────────────────────
 
+// ── Trend Donut Chart ─────────────────────────────────────────────────────────
 function TrendDonutChart({ totalReceived, totalReleased, darkMode, font, ui }) {
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -183,10 +159,8 @@ function TrendDonutChart({ totalReceived, totalReleased, darkMode, font, ui }) {
         gap: 20,
       }}
     >
-      {/* Donut */}
       <div style={{ position: "relative", width: 200, height: 200 }}>
         <canvas ref={canvasRef} />
-        {/* Center label */}
         <div
           style={{
             position: "absolute",
@@ -222,8 +196,6 @@ function TrendDonutChart({ totalReceived, totalReleased, darkMode, font, ui }) {
           </span>
         </div>
       </div>
-
-      {/* Legend */}
       <div style={{ display: "flex", gap: 24 }}>
         {[
           {
@@ -339,20 +311,20 @@ export default function ProcessingTrendView({ ui, darkMode }) {
   // ── Active tab ────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("trend");
 
-  // ── Weekly data (static — replace with API call later) ───────────────────
+  // ── Weekly / Summary state ────────────────────────────────────────────────
   const [weeklyData, setWeeklyData] = useState(null);
   const [weeklyLoading, setWeeklyLoading] = useState(true);
 
-  const weeklyTotals = useMemo(() => {
-    if (!weeklyData?.rows) {
-      return {
-        carryOver: 0,
-        received: 0,
-        processed: 0,
-        totalPending: 0,
-      };
-    }
+  // ── App Status (Table 2 inside Summary tab) ───────────────────────────────
+  const [statusData, setStatusData] = useState([]);
+  const [totalInProgress, setTotalInProgress] = useState(0);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const statusChartRef = useRef(null);
+  const statusChartInstance = useRef(null);
 
+  const weeklyTotals = useMemo(() => {
+    if (!weeklyData?.rows)
+      return { carryOver: 0, received: 0, processed: 0, totalPending: 0 };
     return weeklyData.rows.reduce(
       (acc, r) => ({
         carryOver: acc.carryOver + r.carryOver,
@@ -360,16 +332,11 @@ export default function ProcessingTrendView({ ui, darkMode }) {
         processed: acc.processed + r.processed,
         totalPending: acc.totalPending + r.totalPending,
       }),
-      {
-        carryOver: 0,
-        received: 0,
-        processed: 0,
-        totalPending: 0,
-      },
+      { carryOver: 0, received: 0, processed: 0, totalPending: 0 },
     );
   }, [weeklyData]);
 
-  // ── Shared filter params — date mode drives year/date_from/date_to ────────
+  // ── Shared filter params ──────────────────────────────────────────────────
   const sharedParams = useMemo(() => {
     const base = {
       doc_type: docType || null,
@@ -392,7 +359,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
         base.date_to = `${monthTo}-${String(lastDay).padStart(2, "0")}`;
       }
     } else {
-      // day
       base.date_from = dateFrom || null;
       base.date_to = dateTo || null;
     }
@@ -456,11 +422,10 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     };
   }, [dimension, sharedParams]);
 
+  // ── Fetch summary ─────────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-
     setWeeklyLoading(true);
-
     getSummary(sharedParams)
       .then((res) => {
         if (!cancelled) {
@@ -478,21 +443,119 @@ export default function ProcessingTrendView({ ui, darkMode }) {
       })
       .catch((err) => {
         console.error("Summary Error:", err);
-
-        if (!cancelled) {
-          setWeeklyData(null);
-        }
+        if (!cancelled) setWeeklyData(null);
       })
       .finally(() => {
-        if (!cancelled) {
-          setWeeklyLoading(false);
-        }
+        if (!cancelled) setWeeklyLoading(false);
       });
-
     return () => {
       cancelled = true;
     };
   }, [sharedParams]);
+
+  // ── Fetch app status (for Summary Table 2) ───────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    setStatusLoading(true);
+    getApplicationStatus(sharedParams)
+      .then((res) => {
+        if (cancelled) return;
+        setStatusData(res.data || []);
+        setTotalInProgress(res.total_in_progress || 0);
+      })
+      .catch(() => {
+        if (!cancelled) setStatusData([]);
+      })
+      .finally(() => {
+        if (!cancelled) setStatusLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sharedParams]);
+
+  // ── App Status chart (renders when Summary tab is active) ─────────────────
+  useEffect(() => {
+    if (
+      statusLoading ||
+      !statusChartRef.current ||
+      activeTab !== "weekly" ||
+      statusData.length === 0
+    )
+      return;
+    statusChartInstance.current?.destroy();
+    const gridCol = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)";
+    const tickCol = darkMode ? "#b0b3b8" : "#65676b";
+    statusChartInstance.current = new Chart(statusChartRef.current, {
+      type: "bar",
+      data: {
+        labels: statusData.map((d) => d.step),
+        datasets: [
+          {
+            label: "IN PROGRESS",
+            data: statusData.map((d) => d.count),
+            backgroundColor: statusData.map(
+              (_, i) => BAR_COLORS[i % BAR_COLORS.length] + "cc",
+            ),
+            borderColor: statusData.map(
+              (_, i) => BAR_COLORS[i % BAR_COLORS.length],
+            ),
+            borderWidth: 1.5,
+            borderRadius: 5,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const pct =
+                  totalInProgress > 0
+                    ? ((ctx.raw / totalInProgress) * 100).toFixed(1)
+                    : 0;
+                return ` ${ctx.raw.toLocaleString()} (${pct}%)`;
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: tickCol, font: { size: 11 } },
+            grid: { color: gridCol },
+            border: { display: false },
+            beginAtZero: true,
+          },
+          y: {
+            ticks: {
+              color: tickCol,
+              font: { size: 11 },
+              callback: (val, i) => {
+                const lbl = statusData[i]?.step || "";
+                return lbl.length > 32 ? lbl.slice(0, 30) + "…" : lbl;
+              },
+            },
+            grid: { display: false },
+            border: { display: false },
+          },
+        },
+      },
+    });
+    return () => {
+      statusChartInstance.current?.destroy();
+    };
+  }, [
+    statusData,
+    darkMode,
+    statusLoading,
+    activeTab,
+    totalInProgress,
+    sharedParams,
+  ]);
 
   // ── Trend chart ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -668,7 +731,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     setDateTo(DEFAULT_DATE_TO);
   }
 
-  // Quick date presets (day mode only)
   const PRESETS = [
     {
       label: "This Week",
@@ -817,9 +879,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          SHARED FILTER BAR — applies to ALL tabs
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ── Shared filter bar ── */}
       <div
         style={{
           background: darkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
@@ -918,12 +978,11 @@ export default function ProcessingTrendView({ ui, darkMode }) {
           </div>
         </div>
 
-        {/* Divider */}
         <div
           style={{ height: 1, background: ui.cardBorder, margin: "0 -14px" }}
         />
 
-        {/* Row 2 — Date mode toggle + dynamic inputs */}
+        {/* Row 2 — Date mode */}
         <div
           style={{
             display: "flex",
@@ -932,7 +991,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
             alignItems: "flex-end",
           }}
         >
-          {/* Mode selector */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={labelStyle}>📅 Filter By</label>
             <div style={{ display: "flex", gap: 4 }}>
@@ -946,9 +1004,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                     fontSize: "0.75rem",
                     background: dateMode === m.value ? "#2563eb" : ui.inputBg,
                     color: dateMode === m.value ? "#fff" : ui.textMuted,
-                    border: `1px solid ${
-                      dateMode === m.value ? "#2563eb" : ui.cardBorder
-                    }`,
+                    border: `1px solid ${dateMode === m.value ? "#2563eb" : ui.cardBorder}`,
                   }}
                 >
                   {m.label}
@@ -957,7 +1013,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
             </div>
           </div>
 
-          {/* ── By Year ── */}
           {dateMode === "year" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <label style={labelStyle}>Year</label>
@@ -975,7 +1030,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
             </div>
           )}
 
-          {/* ── Month Range ── */}
           {dateMode === "month" && (
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1010,7 +1064,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
             </>
           )}
 
-          {/* ── Day Range ── */}
           {dateMode === "day" && (
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1042,7 +1095,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                   style={selectStyle}
                 />
               </div>
-              {/* Quick presets — day mode only */}
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 <label style={labelStyle}>Quick Select</label>
                 <div style={{ display: "flex", gap: 5 }}>
@@ -1067,7 +1119,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
             </>
           )}
 
-          {/* Reset all */}
           {hasAnyFilter && (
             <button
               onClick={resetAll}
@@ -1123,12 +1174,11 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                 lbl: `App Type: ${appType}`,
                 clear: () => setAppType(""),
               },
-              // Date chip — label changes per mode
               hasDateFilter &&
                 dateMode === "year" && {
                   k: "dr",
                   lbl: `Year: ${yearValue}`,
-                  clear: () => setYearValue(""), // ← "" = All Years
+                  clear: () => setYearValue(""),
                 },
               hasDateFilter &&
                 dateMode === "month" && {
@@ -1189,9 +1239,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
         )}
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB: Trend
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ════════════════════ TAB: Trend ════════════════════ */}
       {activeTab === "trend" && (
         <>
           <div
@@ -1303,7 +1351,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
             )}
           </div>
 
-          {/* ── Period Table + Donut Chart ── */}
           {!trendLoading && trendData.length > 0 && (
             <>
               <div
@@ -1331,7 +1378,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
               <div
                 style={{ display: "flex", gap: 16, alignItems: "flex-start" }}
               >
-                {/* Table — 50% */}
                 <div
                   style={{
                     flex: "0 0 50%",
@@ -1437,8 +1483,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                     </table>
                   </div>
                 </div>
-
-                {/* Donut Chart — remaining 50% */}
                 <div
                   style={{
                     flex: 1,
@@ -1468,9 +1512,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
         </>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB: Breakdown
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ════════════════════ TAB: Breakdown ════════════════════ */}
       {activeTab === "breakdown" && (
         <>
           <div
@@ -1584,12 +1626,9 @@ export default function ProcessingTrendView({ ui, darkMode }) {
         </>
       )}
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          TAB: Weekly Status  (static — wire getWeeklyStatus() later)
-      ══════════════════════════════════════════════════════════════════════ */}
+      {/* ════════════════════ TAB: Summary ════════════════════ */}
       {activeTab === "weekly" && (
-        <>
-          {/* Table 1 */}
+        <div style={{ paddingBottom: 80 }}>
           <div style={{ marginBottom: 28 }}>
             <div
               style={{
@@ -1764,89 +1803,316 @@ export default function ProcessingTrendView({ ui, darkMode }) {
             </div>
           </div>
 
-          {/* Table 2 */}
           <div>
-            <p
+            {/* Table 2 header */}
+            <div
               style={{
-                margin: "0 0 10px",
-                fontSize: "0.78rem",
-                fontWeight: 700,
-                color: ui.textMuted,
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 10,
               }}
             >
-              Table 2 &nbsp;·&nbsp; Overall Status of Applications
-            </p>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  color: ui.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
+                Table 2 &nbsp;·&nbsp; Overall Status of Applications
+              </p>
+              <div style={{ display: "flex", gap: 12 }}>
+                {[
+                  {
+                    label: "Total IN PROGRESS",
+                    value: totalInProgress,
+                    color: "#f59e0b",
+                  },
+                  {
+                    label: "Steps / Stages",
+                    value: statusData.length,
+                    color: ui.textPrimary,
+                  },
+                ].map((c) => (
+                  <div
+                    key={c.label}
+                    style={{
+                      background: ui.inputBg,
+                      borderRadius: 8,
+                      padding: "6px 14px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
+                      {c.label}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "1rem",
+                        fontWeight: 700,
+                        color: c.color,
+                      }}
+                    >
+                      {statusLoading ? "…" : c.value.toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Bar chart */}
             <div
               style={{
                 background: ui.cardBg,
                 border: `1px solid ${ui.cardBorder}`,
                 borderRadius: 12,
-                overflow: "hidden",
-                maxWidth: 580,
+                padding: "16px 18px",
+                marginBottom: 16,
               }}
             >
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <tbody>
-                  {weeklyData?.overallStatus?.map((row, i) => (
+              {statusLoading ? (
+                <SkeletonBox
+                  height={Math.max(160, statusData.length * 46 || 200)}
+                  borderRadius={10}
+                  ui={ui}
+                />
+              ) : statusData.length === 0 ? (
+                <div
+                  style={{
+                    height: 160,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: ui.textMuted,
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  No IN PROGRESS applications found.
+                </div>
+              ) : (
+                <div style={{ height: Math.max(160, statusData.length * 46) }}>
+                  <canvas ref={statusChartRef} />
+                </div>
+              )}
+            </div>
+
+            {/* Step breakdown table */}
+            {!statusLoading && statusData.length > 0 && (
+              <div
+                style={{
+                  background: ui.cardBg,
+                  border: `1px solid ${ui.cardBorder}`,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  marginBottom: 80,
+                }}
+              >
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
                     <tr
-                      key={i}
                       style={{
-                        background: row.highlight
-                          ? darkMode
-                            ? "rgba(37,99,235,0.18)"
-                            : "rgba(37,99,235,0.07)"
-                          : "transparent",
-                        transition: "background 0.1s",
+                        background: darkMode
+                          ? "rgba(255,255,255,0.04)"
+                          : "rgba(0,0,0,0.03)",
                       }}
-                      onMouseEnter={(e) =>
-                        !row.highlight &&
-                        (e.currentTarget.style.background = darkMode
-                          ? "rgba(255,255,255,0.03)"
-                          : "rgba(0,0,0,0.02)")
-                      }
-                      onMouseLeave={(e) =>
-                        !row.highlight &&
-                        (e.currentTarget.style.background = "transparent")
-                      }
+                    >
+                      {["#", "Step / Stage", "Count", "% of Total"].map(
+                        (h, i) => (
+                          <th
+                            key={h}
+                            style={{
+                              padding: "9px 14px",
+                              fontSize: "0.72rem",
+                              fontWeight: 700,
+                              color: ui.textMuted,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.04em",
+                              borderBottom: `2px solid ${ui.cardBorder}`,
+                              textAlign: i <= 1 ? "left" : "center",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ),
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statusData.map((row, i) => {
+                      const pct =
+                        totalInProgress > 0
+                          ? ((row.count / totalInProgress) * 100).toFixed(1)
+                          : "0.0";
+                      const palette = STEP_COLORS[i % STEP_COLORS.length];
+                      return (
+                        <tr
+                          key={row.step}
+                          style={{ transition: "background 0.1s" }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = darkMode
+                              ? "rgba(255,255,255,0.03)"
+                              : "rgba(0,0,0,0.02)")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "transparent")
+                          }
+                        >
+                          <td
+                            style={{
+                              padding: "10px 14px",
+                              fontSize: "0.78rem",
+                              color: ui.textMuted,
+                              borderBottom: `1px solid ${ui.cardBorder}`,
+                              width: 36,
+                            }}
+                          >
+                            {i + 1}
+                          </td>
+                          <td
+                            style={{
+                              padding: "10px 14px",
+                              fontSize: "0.85rem",
+                              fontWeight: 600,
+                              color: ui.textPrimary,
+                              borderBottom: `1px solid ${ui.cardBorder}`,
+                            }}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                padding: "2px 8px",
+                                borderRadius: 5,
+                                background: palette.bg,
+                                border: `1px solid ${palette.border}`,
+                                color: palette.text,
+                                fontSize: "0.78rem",
+                                fontWeight: 600,
+                              }}
+                            >
+                              {row.step}
+                            </span>
+                          </td>
+                          <td
+                            style={{
+                              padding: "10px 14px",
+                              fontSize: "0.88rem",
+                              fontWeight: 700,
+                              color: palette.text,
+                              borderBottom: `1px solid ${ui.cardBorder}`,
+                              textAlign: "center",
+                            }}
+                          >
+                            {row.count.toLocaleString()}
+                          </td>
+                          <td
+                            style={{
+                              padding: "10px 14px",
+                              borderBottom: `1px solid ${ui.cardBorder}`,
+                              textAlign: "center",
+                            }}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                justifyContent: "center",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  flex: 1,
+                                  maxWidth: 100,
+                                  height: 6,
+                                  borderRadius: 3,
+                                  background: darkMode
+                                    ? "rgba(255,255,255,0.08)"
+                                    : "rgba(0,0,0,0.07)",
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    height: "100%",
+                                    width: `${pct}%`,
+                                    background: palette.border,
+                                    borderRadius: 3,
+                                    transition: "width 0.4s",
+                                  }}
+                                />
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: "0.78rem",
+                                  fontWeight: 600,
+                                  color: ui.textMuted,
+                                  minWidth: 38,
+                                }}
+                              >
+                                {pct}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr
+                      style={{
+                        background: darkMode
+                          ? "rgba(245,158,11,0.1)"
+                          : "rgba(245,158,11,0.06)",
+                      }}
                     >
                       <td
+                        colSpan={2}
                         style={{
-                          ...tdStyle,
-                          textAlign: row.rightAlign ? "right" : "left",
-                          fontWeight: row.highlight ? 700 : 400,
-                          paddingLeft: row.rightAlign ? 12 : 16,
-                          borderBottom:
-                            i === weeklyData.overallStatus.length - 1
-                              ? "none"
-                              : `1px solid ${ui.cardBorder}`,
+                          padding: "11px 14px",
+                          fontSize: "0.88rem",
+                          fontWeight: 700,
+                          color: ui.textPrimary,
+                          borderTop: `2px solid ${ui.cardBorder}`,
                         }}
                       >
-                        {row.label}
+                        Total
                       </td>
                       <td
                         style={{
-                          ...tdStyle,
-                          width: 90,
-                          fontWeight: row.highlight ? 700 : 500,
-                          fontSize: row.highlight ? "1rem" : "0.85rem",
-                          color: row.highlight ? "#2563eb" : ui.textPrimary,
-                          borderBottom:
-                            i === weeklyData.overallStatus.length - 1
-                              ? "none"
-                              : `1px solid ${ui.cardBorder}`,
+                          padding: "11px 14px",
+                          fontSize: "1rem",
+                          fontWeight: 800,
+                          color: "#f59e0b",
+                          borderTop: `2px solid ${ui.cardBorder}`,
+                          textAlign: "center",
                         }}
                       >
-                        {(row.count ?? 0).toLocaleString()}
+                        {totalInProgress.toLocaleString()}
+                      </td>
+                      <td
+                        style={{
+                          padding: "11px 14px",
+                          fontSize: "0.85rem",
+                          fontWeight: 700,
+                          color: "#f59e0b",
+                          borderTop: `2px solid ${ui.cardBorder}`,
+                          textAlign: "center",
+                        }}
+                      >
+                        100%
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
