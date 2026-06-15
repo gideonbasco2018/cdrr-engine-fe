@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   getWorkflowTasks,
   markWorkflowTaskAsRead,
@@ -147,6 +147,82 @@ function SubTabBar({
   );
 }
 
+// IPAPALIT:
+function LoadingSpinner({ darkMode, colors, progress }) {
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "progress-bar-anim";
+    style.textContent = `
+      @keyframes bar-transition { from { width: 0% } }
+    `;
+    if (!document.getElementById("progress-bar-anim"))
+      document.head.appendChild(style);
+  }, []);
+
+  const label =
+    progress < 50
+      ? "Fetching your tasks…"
+      : progress < 100
+        ? "Almost done…"
+        : "Done!";
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "0.75rem",
+      }}
+    >
+      <p
+        style={{
+          fontSize: "0.72rem",
+          fontWeight: 600,
+          color: colors.textTertiary,
+          margin: 0,
+          letterSpacing: "0.04em",
+          transition: "opacity 0.3s",
+        }}
+      >
+        {label}
+      </p>
+      <div
+        style={{
+          width: 160,
+          height: 2,
+          background: darkMode
+            ? "rgba(33,150,243,0.15)"
+            : "rgba(33,150,243,0.12)",
+          borderRadius: 2,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${progress}%`,
+            background: "#2196F3",
+            borderRadius: 2,
+            transition: "width 0.5s cubic-bezier(0.4,0,0.2,1)",
+          }}
+        />
+      </div>
+      <p
+        style={{
+          fontSize: "0.65rem",
+          color: colors.textTertiary,
+          margin: 0,
+          opacity: 0.6,
+        }}
+      >
+        {progress}%
+      </p>
+    </div>
+  );
+}
 /* ================================================================== */
 /*  TaskPage                                                            */
 /* ================================================================== */
@@ -156,6 +232,7 @@ function TaskPage({ darkMode }) {
   const [activeSubTab, setActiveSubTab] = useState("not_yet");
   const [selectedRows, setSelectedRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [currentUser, setCurrentUser] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -191,8 +268,11 @@ function TaskPage({ darkMode }) {
   }, [filters, activeSubTab, activeTab]);
 
   // ✅ Fetch 1 — para sa tabs at counts (walang application_step filter)
+  // IPAPALIT:
   const fetchAllSteps = useCallback(async () => {
     if (!currentUser?.id) return;
+    setLoading(true);
+    setLoadProgress(0);
     try {
       const res = await getWorkflowTasks({
         page: 1,
@@ -205,13 +285,63 @@ function TaskPage({ darkMode }) {
       const mapped = (res.data || []).map((t, i) => mapWorkflowTask(t, i));
       setAllStepsData(mapped);
 
-      // ✅ Set initial active tab
-      if (!activeTab && mapped.length) setActiveTab(mapped[0].applicationStep);
+      const initialTab =
+        !activeTab && mapped.length ? mapped[0].applicationStep : activeTab;
+      if (!activeTab && mapped.length) setActiveTab(initialTab);
+
+      setLoadProgress(50);
+
+      // ✅ manually trigger fetchTasks with the resolved tab
+      if (initialTab && currentUser?.id) {
+        const isFrontendSort =
+          sortBy === "log_sent_by" || sortBy === "log_last_modified";
+        const res2 = await getWorkflowTasks({
+          page: 1,
+          page_size: 10000,
+          sort_by: isFrontendSort ? "created_at" : sortBy,
+          sort_order: isFrontendSort ? "desc" : sortOrder,
+          user_id: currentUser.id,
+          only_latest_per_thread: false,
+          del_last_index: 1,
+          del_thread: "Open",
+          application_step: initialTab,
+          ...(filters.appType && { app_type: filters.appType }),
+          ...(filters.prescription && { prescription: filters.prescription }),
+          ...(filters.appStatus && { application_status: filters.appStatus }),
+          ...(filters.processingType && {
+            processing_type: filters.processingType,
+          }),
+          ...(filters.estCat && { est_cat: filters.estCat }),
+          ...(filters.dtn && { dtn: filters.dtn }),
+        });
+
+        const mapped2 = (res2.data || []).map((t, i) => mapWorkflowTask(t, i));
+        setData(mapped2);
+
+        if (filters.dtn && mapped2.length > 0) {
+          const found = mapped2[0];
+          setActiveSubTab(found.is_received === 1 ? "received" : "not_yet");
+        } else {
+          // ✅ auto-switch subtab based on available data
+          const hasNotYet = mapped2.some((d) => d.is_received !== 1);
+          const hasReceived = mapped2.some((d) => d.is_received === 1);
+          if (!hasNotYet && hasReceived) setActiveSubTab("received");
+          else setActiveSubTab("not_yet");
+        }
+        const alreadyRead = new Set(
+          (res2.data || []).filter((t) => t.is_read === 1).map((t) => t.id),
+        );
+        setReadIds(alreadyRead);
+      }
     } catch (e) {
       console.error(e);
       setAllStepsData([]);
+      setData([]);
+    } finally {
+      setLoadProgress(100);
+      setTimeout(() => setLoading(false), 400);
     }
-  }, [currentUser]); // ✅ activeTab wala dito — isang beses lang mag-fetch ng tabs
+  }, [currentUser, sortBy, sortOrder, filters]);
 
   // ✅ Fetch 2 — para sa actual table data (may application_step + filters)
   const fetchTasks = useCallback(async () => {
@@ -258,7 +388,8 @@ function TaskPage({ darkMode }) {
       console.error(e);
       setData([]);
     } finally {
-      setLoading(false);
+      setLoadProgress(100);
+      setTimeout(() => setLoading(false), 400);
     }
   }, [currentUser, sortBy, sortOrder, activeTab, filters]);
 
@@ -266,7 +397,13 @@ function TaskPage({ darkMode }) {
     fetchAllSteps();
   }, [fetchAllSteps]);
 
+  const isInitialLoad = useRef(true);
+
   useEffect(() => {
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      return;
+    }
     if (activeTab) fetchTasks();
   }, [fetchTasks]);
 
@@ -495,8 +632,15 @@ function TaskPage({ darkMode }) {
           overflow: "hidden",
         }}
       >
+        {loading && (
+          <LoadingSpinner
+            darkMode={darkMode}
+            colors={colors}
+            progress={loadProgress}
+          />
+        )}
         {/* ── Main step tabs ── */}
-        {steps.length > 0 && (
+        {!loading && steps.length > 0 && (
           <div
             style={{
               display: "flex",
@@ -575,227 +719,241 @@ function TaskPage({ darkMode }) {
             })}
           </div>
         )}
-
         {/* ── SubTab + Filters + Selection — iisang row ── */}
-        {steps.length > 0 && (receivedCount > 0 || notYetReceivedCount > 0) && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              flexWrap: "wrap",
-              flexShrink: 0,
-            }}
-          >
-            {/* SubTabBar */}
-            <SubTabBar
-              activeSubTab={activeSubTab}
-              setActiveSubTab={handleSubTabChange}
-              receivedCount={receivedCount}
-              notYetCount={notYetReceivedCount}
-              colors={colors}
-              darkMode={darkMode}
-            />
-
-            <div style={dividerStyle} />
-
-            {/* Sent By */}
+        {!loading &&
+          steps.length > 0 &&
+          (receivedCount > 0 || notYetReceivedCount > 0) && (
             <div
-              style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                flexWrap: "wrap",
+                flexShrink: 0,
+              }}
             >
-              <span style={labelStyle}>👤 Sent By</span>
-              <div style={{ position: "relative" }}>
-                <input
-                  type="text"
-                  placeholder="Search sender..."
-                  value={filters.sentBy}
-                  onChange={(e) =>
-                    setFilters({ ...filters, sentBy: e.target.value })
-                  }
-                  style={{
-                    ...inputStyle(filters.sentBy),
-                    width: 110,
-                    paddingRight: filters.sentBy ? "1.4rem" : "0.5rem",
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
-                  onBlur={(e) =>
-                    (e.target.style.borderColor = filters.sentBy
-                      ? "#4CAF50"
-                      : colors.inputBorder)
-                  }
-                />
-                {filters.sentBy && (
-                  <button
-                    onClick={() => setFilters({ ...filters, sentBy: "" })}
+              {/* SubTabBar */}
+              <SubTabBar
+                activeSubTab={activeSubTab}
+                setActiveSubTab={handleSubTabChange}
+                receivedCount={receivedCount}
+                notYetCount={notYetReceivedCount}
+                colors={colors}
+                darkMode={darkMode}
+              />
+
+              <div style={dividerStyle} />
+
+              {/* Sent By */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <span style={labelStyle}>👤 Sent By</span>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="text"
+                    placeholder="Search sender..."
+                    value={filters.sentBy}
+                    onChange={(e) =>
+                      setFilters({ ...filters, sentBy: e.target.value })
+                    }
                     style={{
-                      position: "absolute",
-                      right: "0.35rem",
-                      top: "50%",
-                      transform: "translateY(-50%)",
+                      ...inputStyle(filters.sentBy),
+                      width: 110,
+                      paddingRight: filters.sentBy ? "1.4rem" : "0.5rem",
+                    }}
+                    onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                    onBlur={(e) =>
+                      (e.target.style.borderColor = filters.sentBy
+                        ? "#4CAF50"
+                        : colors.inputBorder)
+                    }
+                  />
+                  {filters.sentBy && (
+                    <button
+                      onClick={() => setFilters({ ...filters, sentBy: "" })}
+                      style={{
+                        position: "absolute",
+                        right: "0.35rem",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        background: "none",
+                        border: "none",
+                        color: colors.textTertiary,
+                        cursor: "pointer",
+                        fontSize: "0.65rem",
+                        padding: 0,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div style={dividerStyle} />
+
+              {/* Last Modified */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <span style={labelStyle}>🕓 Last Modified</span>
+                <input
+                  type="date"
+                  value={filters.lastModifiedFrom}
+                  onChange={(e) =>
+                    setFilters({ ...filters, lastModifiedFrom: e.target.value })
+                  }
+                  style={inputStyle(filters.lastModifiedFrom)}
+                />
+                <span
+                  style={{ fontSize: "0.65rem", color: colors.textTertiary }}
+                >
+                  to
+                </span>
+                <input
+                  type="date"
+                  value={filters.lastModifiedTo}
+                  onChange={(e) =>
+                    setFilters({ ...filters, lastModifiedTo: e.target.value })
+                  }
+                  style={inputStyle(filters.lastModifiedTo)}
+                />
+                {(filters.lastModifiedFrom || filters.lastModifiedTo) && (
+                  <button
+                    onClick={() =>
+                      setFilters({
+                        ...filters,
+                        lastModifiedFrom: "",
+                        lastModifiedTo: "",
+                      })
+                    }
+                    style={{
                       background: "none",
                       border: "none",
-                      color: colors.textTertiary,
+                      color: "#ef4444",
                       cursor: "pointer",
                       fontSize: "0.65rem",
                       padding: 0,
+                      fontWeight: 600,
                     }}
                   >
                     ✕
                   </button>
                 )}
               </div>
-            </div>
 
-            <div style={dividerStyle} />
+              <div style={dividerStyle} />
 
-            {/* Last Modified */}
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
-            >
-              <span style={labelStyle}>🕓 Last Modified</span>
-              <input
-                type="date"
-                value={filters.lastModifiedFrom}
-                onChange={(e) =>
-                  setFilters({ ...filters, lastModifiedFrom: e.target.value })
-                }
-                style={inputStyle(filters.lastModifiedFrom)}
-              />
-              <span style={{ fontSize: "0.65rem", color: colors.textTertiary }}>
-                to
-              </span>
-              <input
-                type="date"
-                value={filters.lastModifiedTo}
-                onChange={(e) =>
-                  setFilters({ ...filters, lastModifiedTo: e.target.value })
-                }
-                style={inputStyle(filters.lastModifiedTo)}
-              />
-              {(filters.lastModifiedFrom || filters.lastModifiedTo) && (
-                <button
-                  onClick={() =>
-                    setFilters({
-                      ...filters,
-                      lastModifiedFrom: "",
-                      lastModifiedTo: "",
-                    })
-                  }
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: "#ef4444",
-                    cursor: "pointer",
-                    fontSize: "0.65rem",
-                    padding: 0,
-                    fontWeight: 600,
-                  }}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            <div style={dividerStyle} />
-
-            {/* Category */}
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
-            >
-              <span style={labelStyle}>🗂️ Category</span>
-              <select
-                value={filters.estCat}
-                onChange={(e) =>
-                  setFilters({ ...filters, estCat: e.target.value })
-                }
+              {/* Category */}
+              <div
                 style={{
-                  ...inputStyle(filters.estCat),
-                  cursor: "pointer",
-                  color: filters.estCat
-                    ? colors.textPrimary
-                    : colors.textTertiary,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
                 }}
               >
-                <option value="">All</option>
-                {Array.from(
-                  new Set(
-                    data.map((r) => r.estCat).filter((v) => v && v !== "N/A"),
-                  ),
-                )
-                  .sort()
-                  .map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-              </select>
-              {filters.estCat && (
-                <button
-                  onClick={() => setFilters({ ...filters, estCat: "" })}
+                <span style={labelStyle}>🗂️ Category</span>
+                <select
+                  value={filters.estCat}
+                  onChange={(e) =>
+                    setFilters({ ...filters, estCat: e.target.value })
+                  }
                   style={{
-                    background: "none",
-                    border: "none",
-                    color: "#ef4444",
+                    ...inputStyle(filters.estCat),
                     cursor: "pointer",
-                    fontSize: "0.65rem",
-                    padding: 0,
-                    fontWeight: 600,
+                    color: filters.estCat
+                      ? colors.textPrimary
+                      : colors.textTertiary,
                   }}
                 >
-                  ✕
-                </button>
-              )}
-            </div>
-
-            {/* Selection indicator */}
-            {selectedRows.length > 0 && (
-              <>
-                <div style={dividerStyle} />
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.4rem",
-                    padding: "0.2rem 0.6rem",
-                    background: darkMode
-                      ? "rgba(33,150,243,0.12)"
-                      : "rgba(33,150,243,0.08)",
-                    border: "1px solid rgba(33,150,243,0.3)",
-                    borderRadius: 6,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.68rem",
-                      color: "#2196F3",
-                      fontWeight: 700,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    ✔ {selectedRows.length} record
-                    {selectedRows.length > 1 ? "s" : ""} selected
-                  </span>
+                  <option value="">All</option>
+                  {Array.from(
+                    new Set(
+                      data.map((r) => r.estCat).filter((v) => v && v !== "N/A"),
+                    ),
+                  )
+                    .sort()
+                    .map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                </select>
+                {filters.estCat && (
                   <button
-                    onClick={() => setSelectedRows([])}
+                    onClick={() => setFilters({ ...filters, estCat: "" })}
                     style={{
-                      fontSize: "0.65rem",
-                      color: "#ef4444",
-                      background: "transparent",
+                      background: "none",
                       border: "none",
+                      color: "#ef4444",
                       cursor: "pointer",
+                      fontSize: "0.65rem",
                       padding: 0,
                       fontWeight: 600,
-                      whiteSpace: "nowrap",
                     }}
                   >
-                    ✕ Clear
+                    ✕
                   </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                )}
+              </div>
 
+              {/* Selection indicator */}
+              {selectedRows.length > 0 && (
+                <>
+                  <div style={dividerStyle} />
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      padding: "0.2rem 0.6rem",
+                      background: darkMode
+                        ? "rgba(33,150,243,0.12)"
+                        : "rgba(33,150,243,0.08)",
+                      border: "1px solid rgba(33,150,243,0.3)",
+                      borderRadius: 6,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.68rem",
+                        color: "#2196F3",
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      ✔ {selectedRows.length} record
+                      {selectedRows.length > 1 ? "s" : ""} selected
+                    </span>
+                    <button
+                      onClick={() => setSelectedRows([])}
+                      style={{
+                        fontSize: "0.65rem",
+                        color: "#ef4444",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      ✕ Clear
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         {/* ── Active filter chips ── */}
         {hasActiveFilters && (
           <div
@@ -900,19 +1058,6 @@ function TaskPage({ darkMode }) {
           </div>
         )}
 
-        {loading && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              color: colors.textSecondary,
-            }}
-          >
-            <span>⏳</span> Loading…
-          </div>
-        )}
-
         {!loading && filteredData.length === 0 && (
           <div
             style={{
@@ -947,7 +1092,6 @@ function TaskPage({ darkMode }) {
             )}
           </div>
         )}
-
         {!loading && filteredData.length > 0 && (
           <div style={{ flex: 1, minHeight: 0 }}>
             <DataTable
