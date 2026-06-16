@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getDashboardGlobalAllRecentApplications } from "../../../api/dashboard";
-import axios from "../../../api/axios";
+import { getUsersTaskSummary, getSummary } from "../../../api/monitoring";
 
 // ── Animated Count-Up Hook ────────────────────────────────────
 function useCountUp(target, duration = 1200, delay = 0) {
@@ -688,8 +688,8 @@ export default function OverviewView({
 
   const fetchUserLoad = useCallback(async () => {
     try {
-      const res = await axios.get("/monitoring/users-tasks");
-      setUserLoadData(res.data?.data ?? []);
+      const res = await getUsersTaskSummary();
+      setUserLoadData(res?.data ?? []);
     } catch (err) {
     } finally {
       setUserLoadLoading(false);
@@ -764,10 +764,9 @@ export default function OverviewView({
   }, [fetchUserLoad]);
 
   useEffect(() => {
-    axios
-      .get("/monitoring/overview-summary")
-      .then((r) => {
-        setKpiData(r.data);
+    getSummary()
+      .then((data) => {
+        setKpiData(data);
         setKpiLoaded(true);
       })
       .catch(() => {
