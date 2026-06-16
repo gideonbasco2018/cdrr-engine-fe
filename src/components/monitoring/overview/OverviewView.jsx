@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getDashboardGlobalAllRecentApplications } from "../../../api/dashboard";
-import { getUsersTaskSummary, getSummary } from "../../../api/monitoring";
+import {
+  getUsersTaskSummary,
+  getOverviewSummary,
+} from "../../../api/monitoring";
 
 // ── Animated Count-Up Hook ────────────────────────────────────
 function useCountUp(target, duration = 1200, delay = 0) {
@@ -751,9 +754,11 @@ export default function OverviewView({
   useEffect(() => {
     fetchFeed();
   }, [fetchFeed]);
+
   useEffect(() => {
     fetchUserLoad();
   }, [fetchUserLoad]);
+
   useEffect(() => {
     const id = setInterval(fetchFeed, 30_000);
     return () => clearInterval(id);
@@ -764,7 +769,7 @@ export default function OverviewView({
   }, [fetchUserLoad]);
 
   useEffect(() => {
-    getSummary()
+    getOverviewSummary()
       .then((data) => {
         setKpiData(data);
         setKpiLoaded(true);

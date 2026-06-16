@@ -215,3 +215,14 @@ export const getApplicationStatus = async (params = {}) => {
     );
   }
 };
+
+export const getOverviewSummary = async () => {
+  try {
+    const response = await API.get("/monitoring/overview-summary");
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail || error.message || "Failed to fetch overview summary"
+    );
+  }
+};
