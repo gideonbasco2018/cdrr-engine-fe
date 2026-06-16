@@ -323,16 +323,13 @@ export default function ProcessingTrendView({ ui, darkMode }) {
   const statusChartInstance = useRef(null);
 
   const weeklyTotals = useMemo(() => {
-    if (!weeklyData?.rows)
-      return { carryOver: 0, received: 0, processed: 0, totalPending: 0 };
+    if (!weeklyData?.rows) return { received: 0, processed: 0 };
     return weeklyData.rows.reduce(
       (acc, r) => ({
-        carryOver: acc.carryOver + r.carryOver,
         received: acc.received + r.received,
         processed: acc.processed + r.processed,
-        totalPending: acc.totalPending + r.totalPending,
       }),
-      { carryOver: 0, received: 0, processed: 0, totalPending: 0 },
+      { received: 0, processed: 0 },
     );
   }, [weeklyData]);
 
@@ -1676,7 +1673,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                     >
                       Application Type
                     </th>
-                    <th style={thStyle}>Carry Over</th>
+
                     <th style={thStyle}>Received</th>
                     <th style={thStyle}>Processed</th>
                     <th style={{ ...thStyle, color: ui.textPrimary }}>
@@ -1707,9 +1704,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                       >
                         {row.appType}
                       </td>
-                      <td style={tdStyle}>
-                        {(row.carryOver ?? 0).toLocaleString()}
-                      </td>
+
                       <td
                         style={{
                           ...tdStyle,
@@ -1735,7 +1730,9 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                           color: "#2563eb",
                         }}
                       >
-                        {(row.totalPending ?? 0).toLocaleString()}
+                        {(
+                          (row.received ?? 0) - (row.processed ?? 0)
+                        ).toLocaleString()}
                       </td>
                     </tr>
                   ))}
@@ -1756,15 +1753,6 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                       }}
                     >
                       Total
-                    </td>
-                    <td
-                      style={{
-                        ...tdStyle,
-                        fontWeight: 700,
-                        borderBottom: "none",
-                      }}
-                    >
-                      {weeklyTotals.carryOver.toLocaleString()}
                     </td>
                     <td
                       style={{
@@ -1795,7 +1783,9 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                         fontSize: "1.05rem",
                       }}
                     >
-                      {weeklyTotals.totalPending.toLocaleString()}
+                      {(
+                        weeklyTotals.received - weeklyTotals.processed
+                      ).toLocaleString()}{" "}
                     </td>
                   </tr>
                 </tbody>
