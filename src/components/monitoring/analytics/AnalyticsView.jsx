@@ -416,6 +416,16 @@ export default function AnalyticsView({
     boxShadow: neuInputShadow(darkMode),
     colorScheme: darkMode ? "dark" : "light",
     fontFamily: font,
+    background: neuCardBg(darkMode),
+    border: "none",
+    borderRadius: 10,
+    padding: "7px 12px",
+    fontSize: "0.8rem",
+    color: ui.textPrimary,
+    outline: "none",
+    boxShadow: neuInputShadow(darkMode),
+    colorScheme: darkMode ? "dark" : "light",
+    fontFamily: font,
   };
 
   const neuBtnStyle = (isActive) => ({
@@ -1631,3 +1641,4 @@ export default function AnalyticsView({
     </div>
   );
 }
+

@@ -190,6 +190,10 @@ function mapActivityItem(app, index) {
     statusColor,
     statusBg,
     statusLabel,
+    icon,
+    statusColor,
+    statusBg,
+    statusLabel,
     appStep,
     dtn: app.dtn,
   };
@@ -466,6 +470,7 @@ function Pagination({ current, total, onChange, darkMode, ui }) {
 }
 
 // ── Main Component ────────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────────
 export default function ActivityFeedView({
   ui,
   darkMode,
@@ -473,6 +478,7 @@ export default function ActivityFeedView({
   setActivitySearch,
 }) {
   const font =
+    "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
     "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
   const [feed, setFeed] = useState([]);
@@ -504,10 +510,10 @@ export default function ActivityFeedView({
       const raw = Array.isArray(data?.rows)
         ? data.rows
         : Array.isArray(data?.data)
-          ? data.data
-          : Array.isArray(data)
-            ? data
-            : [];
+        ? data.data
+        : Array.isArray(data)
+        ? data
+        : [];
       const items = raw.map((app, i) => mapActivityItem(app, i));
       items.sort((a, b) => {
         if (!a.rawDate) return 1;
@@ -527,6 +533,7 @@ export default function ActivityFeedView({
   useEffect(() => {
     fetchFeed();
   }, [fetchFeed]);
+
   useEffect(() => {
     const id = setInterval(fetchFeed, 30000);
     return () => clearInterval(id);

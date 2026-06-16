@@ -1,4 +1,5 @@
 // FILE: src/components/monitoring/users/UsersView.jsx
+// FILE: src/components/monitoring/users/UsersView.jsx
 import { useState, useEffect } from "react";
 import { getAllUsers } from "../../../api/auth";
 
@@ -730,6 +731,7 @@ function UsersView({
                       fontSize: "0.9rem",
                       fontWeight: 700,
                       border: `2px solid ${av.color}40`,
+                      boxShadow: `0 2px 8px ${av.color}20`,
                     }}
                   >
                     {getInitials(user.name)}
@@ -971,3 +973,4 @@ function UsersView({
 }
 
 export default UsersView;
+
