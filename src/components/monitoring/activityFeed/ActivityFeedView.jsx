@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useState, useEffect, useCallback, useRef } from "react";
 import { getDashboardGlobalAllRecentApplications } from "../../../api/dashboard";
 
 const FB = "#1877F2";

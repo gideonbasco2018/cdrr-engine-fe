@@ -13,6 +13,8 @@ import ActivityFeedView from "../components/monitoring/activityFeed/ActivityFeed
 import UsersView from "../components/monitoring/users/UsersView";
 import FRPTatView from "../components/monitoring/frpTat/FRPTatView";
 import CprTrendView from "../components/monitoring/cprTrend/CprTrendView";
+import ProcessingTrendView from "../components/monitoring/processingTrend/ProcessingTrendView";
+import FRPMonitoringView from "../components/monitoring/frpMonitoring/FRPMonitoringView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -21,6 +23,8 @@ const FB = "#1877F2";
 function makeUI(dark) {
   return dark
     ? {
+        pageBg: "#18191a",
+        sidebarBg: "#1d1d1d",
         pageBg: "#0f0f1a",
         sidebarBg: "rgba(15, 15, 30, 0.4)",
         cardBg: "#242526",
@@ -520,6 +524,10 @@ function renderContent(
       return <FRPTatView ui={ui} darkMode={darkMode} />;
     case "cprtrend":
       return <CprTrendView ui={ui} darkMode={darkMode} />;
+    case "frpmonitoring":
+      return <FRPMonitoringView ui={ui} darkMode={darkMode} />;
+    case "processingtrend":
+      return <ProcessingTrendView ui={ui} darkMode={darkMode} />; 
     default:
       return null;
   }
@@ -558,6 +566,12 @@ function MonitoringPage({ darkMode }) {
     { key: "users", label: "Users", subtitle: "Manage evaluators" },
     { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
     { key: "cprtrend", label: "CPR Trend", subtitle: "Received & Released" },
+    { key: "frpmonitoring", label: "FRP and CRP Monitoring", subtitle: "Overview & Breakdowns" },
+    {
+      key: "processingtrend",
+      label: "Processing Trend",
+      subtitle: "App trend & breakdown",
+    },
   ];
 
   const [activeNav, setActiveNav] = useState(location.state?.tab ?? "overview");
@@ -665,7 +679,7 @@ function MonitoringPage({ darkMode }) {
 
   return (
     <>
-      <style>{glassCSS}</style>
+      
       <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", overflow: "hidden", fontFamily: font }}>
         <div className="mon-scroll" style={{ display: "flex", flex: "1 1 0", minHeight: 0, overflowY: "scroll", overflowX: "hidden" }}>
 

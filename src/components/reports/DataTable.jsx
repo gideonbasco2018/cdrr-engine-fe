@@ -1918,7 +1918,6 @@ function DataTable({
           updateUploadReport={updateUploadReport}
         />
       )}
-
       {bulkCompleteModalRecords && (
         <BulkCompleteModal
           selectedCount={bulkCompleteModalRecords.length}
@@ -1926,21 +1925,23 @@ function DataTable({
           colors={colors}
           darkMode={darkMode}
           onClose={() => setBulkCompleteModalRecords(null)}
-          onConfirm={async ({ remarks, reason }) => {
-            // ── 1. Get the logged-in user ────────────────────────────────────
+          onConfirm={async ({
+            remarks,
+            reason,
+            dateReleased,
+            typeDocReleased,
+            cprApiEnabled,
+            cprInsertSuccess,
+            cprInsertError,
+            cprSkippedByUser,
+          }) => {
             const me = getCurrentUser();
             if (!me?.id) throw new Error("No logged-in user found.");
 
-            // ── 2. Build the PHT timestamp (UTC+8) ───────────────────────────
             const closedAt = new Date(
               Date.now() + 8 * 60 * 60 * 1000,
             ).toISOString();
 
-            // ── 3. Call POST /api/closed-tasks/bulk ──────────────────────────
-            //    Backend will:
-            //      a) find each record's IN PROGRESS log
-            //      b) mark it COMPLETED (action_type = PERMANENT_CLOSE)
-            //      c) insert a row in closed_tasks for audit
             const mainDbIds = bulkCompleteModalRecords.map(
               (r) => r.mainDbId ?? r.id,
             );
@@ -1949,14 +1950,18 @@ function DataTable({
               main_db_ids: mainDbIds,
               reason_for_closing: reason,
               remarks: remarks || null,
+              date_released: dateReleased || null,
+              type_doc_released: typeDocReleased || null,
               closed_by_user_id: me.id,
               closed_by_user_name: me.username,
               closed_at: closedAt,
+              // ── CPR audit fields ──
+              cpr_api_enabled: cprApiEnabled ?? null,
+              cpr_insert_success: cprInsertSuccess ?? null,
+              cpr_insert_error: cprInsertError ?? null,
+              cpr_skipped_by_user: cprSkippedByUser ?? false,
             });
-            // ↑ throws on HTTP error → caught by BulkCompleteModal → result.failed
 
-            // ── 4. Sync DB_APP_STATUS on main_db per row ─────────────────────
-            //    (closed-tasks backend doesn't touch main_db table)
             const { updateUploadReport: updateReport } =
               await import("../../api/reports");
 
@@ -1968,6 +1973,10 @@ function DataTable({
                 try {
                   await updateReport(row.mainDbId ?? row.id, {
                     DB_APP_STATUS: "COMPLETED",
+                    ...(dateReleased ? { DB_DATE_RELEASED: dateReleased } : {}),
+                    ...(typeDocReleased
+                      ? { DB_TYPE_DOC_RELEASED: typeDocReleased }
+                      : {}),
                   });
                   success++;
                 } catch (e) {
@@ -1984,6 +1993,7 @@ function DataTable({
             if (onClearSelections) onClearSelections();
             if (onRefresh) await onRefresh();
           }}
+          currentUser={getCurrentUser()}
         />
       )}
     </>

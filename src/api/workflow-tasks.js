@@ -109,3 +109,19 @@ export const markWorkflowTasksAsReceived = async (ids = []) => {
     throw new Error(errorMessage);
   }
 };
+
+/**
+ * Get the count of active tasks for the currently logged-in user.
+ * Used by the sidebar badge.
+ *
+ * @returns {Promise<{count: number}>}
+ */
+export const getMyTaskCount = async () => {
+  try {
+    const response = await API.get("/workflow_tasks/my-task-count");
+    return response.data;
+  } catch (error) {
+    console.warn("Failed to fetch task count:", error);
+    return { count: 0 };
+  }
+};

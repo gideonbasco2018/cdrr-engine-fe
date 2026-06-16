@@ -15,13 +15,15 @@ function MenuItem({
 
   return (
     <div
-      onClick={() => !isDisabled && !isImpersonationLocked && handleNavigation(item.id)} // 👈 ADD !isImpersonationLocked
+      onClick={() =>
+        !isDisabled && !isImpersonationLocked && handleNavigation(item.id)
+      } // 👈 ADD !isImpersonationLocked
       title={
         collapsed
           ? item.label
           : isImpersonationLocked
-          ? "Not accessible during impersonation" // 👈 ADD THIS
-          : ""
+            ? "Not accessible during impersonation" // 👈 ADD THIS
+            : ""
       }
       style={{
         display: "flex",
@@ -34,11 +36,11 @@ function MenuItem({
           activeMenu === item.id ? colors.activeItemBg : "transparent",
         color: isDisabled
           ? colors.comingSoonText
-          : isImpersonationLocked        // 👈 ADD THIS BLOCK
-          ? "#9ca3af"
-          : activeMenu === item.id
-            ? colors.textPrimary
-            : colors.textSecondary,
+          : isImpersonationLocked // 👈 ADD THIS BLOCK
+            ? "#9ca3af"
+            : activeMenu === item.id
+              ? colors.textPrimary
+              : colors.textSecondary,
         transition: "all 0.2s ease",
         borderLeft:
           activeMenu === item.id && !collapsed
@@ -50,13 +52,15 @@ function MenuItem({
         pointerEvents: isImpersonationLocked ? "none" : "auto", // 👈 ADD THIS (extra safety)
       }}
       onMouseEnter={(e) => {
-        if (activeMenu !== item.id && !isDisabled && !isImpersonationLocked) { // 👈 ADD !isImpersonationLocked
+        if (activeMenu !== item.id && !isDisabled && !isImpersonationLocked) {
+          // 👈 ADD !isImpersonationLocked
           e.currentTarget.style.background = colors.hoverBg;
           e.currentTarget.style.color = colors.textPrimary;
         }
       }}
       onMouseLeave={(e) => {
-        if (activeMenu !== item.id && !isDisabled && !isImpersonationLocked) { // 👈 ADD !isImpersonationLocked
+        if (activeMenu !== item.id && !isDisabled && !isImpersonationLocked) {
+          // 👈 ADD !isImpersonationLocked
           e.currentTarget.style.background = "transparent";
           e.currentTarget.style.color = isDisabled
             ? colors.comingSoonText

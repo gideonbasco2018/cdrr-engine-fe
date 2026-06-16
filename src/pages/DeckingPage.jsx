@@ -76,6 +76,84 @@ const ITEM_DOT_COLORS = [
   "#14b8a6",
 ];
 
+function LoadingSpinner({ darkMode, colors, progress }) {
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.id = "progress-bar-anim";
+    style.textContent = `
+      @keyframes bar-transition { from { width: 0% } }
+    `;
+    if (!document.getElementById("progress-bar-anim"))
+      document.head.appendChild(style);
+  }, []);
+
+  const label =
+    progress < 50
+      ? "Fetching reports…"
+      : progress < 100
+        ? "Almost done…"
+        : "Done!";
+
+  return (
+    <div
+      style={{
+        background: colors.cardBg,
+        border: `1px solid ${colors.cardBorder}`,
+        borderRadius: "12px",
+        padding: "3rem",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "0.75rem",
+      }}
+    >
+      <p
+        style={{
+          fontSize: "0.72rem",
+          fontWeight: 600,
+          color: colors.textTertiary,
+          margin: 0,
+          letterSpacing: "0.04em",
+        }}
+      >
+        {label}
+      </p>
+      <div
+        style={{
+          width: 160,
+          height: 2,
+          background: darkMode
+            ? "rgba(16,185,129,0.15)"
+            : "rgba(16,185,129,0.12)",
+          borderRadius: 2,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${progress}%`,
+            background: "#10B981",
+            borderRadius: 2,
+            transition: "width 0.5s cubic-bezier(0.4,0,0.2,1)",
+          }}
+        />
+      </div>
+      <p
+        style={{
+          fontSize: "0.65rem",
+          color: colors.textTertiary,
+          margin: 0,
+          opacity: 0.6,
+        }}
+      >
+        {progress}%
+      </p>
+    </div>
+  );
+}
+
 function SidebarSection({
   title,
   groupColor,
@@ -458,6 +536,7 @@ function DeckingPage({ darkMode }) {
     decked: 0,
   });
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
@@ -610,27 +689,39 @@ function DeckingPage({ darkMode }) {
     const fetch = async () => {
       try {
         const status = getStatusFilter() || null;
-        setAvailableAppTypes(await getAppTypes(status, processingTypeTab));
+        setAvailableAppTypes(
+          await getAppTypes(
+            status,
+            processingTypeTab,
+            prescriptionTab,
+            appStatusTab,
+          ),
+        );
       } catch {
         setAvailableAppTypes([]);
       }
     };
     fetch();
-  }, [activeTab, processingTypeTab]);
+  }, [activeTab, processingTypeTab, prescriptionTab, appStatusTab]);
 
   useEffect(() => {
     const fetch = async () => {
       try {
         const status = getStatusFilter() || null;
         setAvailablePrescriptionTypes(
-          await getPrescriptionTypes(status, subTab, processingTypeTab),
+          await getPrescriptionTypes(
+            status,
+            subTab,
+            processingTypeTab,
+            appStatusTab,
+          ),
         );
       } catch {
         setAvailablePrescriptionTypes([]);
       }
     };
     fetch();
-  }, [activeTab, subTab, processingTypeTab]);
+  }, [activeTab, subTab, processingTypeTab, appStatusTab]);
 
   useEffect(() => {
     const fetch = async () => {
@@ -655,6 +746,8 @@ function DeckingPage({ darkMode }) {
     const fetchData = async () => {
       try {
         setLoading(true);
+        setLoadProgress(0);
+        setTimeout(() => setLoadProgress(50), 100);
         const params = {
           page: currentPage,
           pageSize: rowsPerPage,
@@ -686,7 +779,10 @@ function DeckingPage({ darkMode }) {
         setUploadReportsData(mappedData);
         setFilteredData(mappedData);
         setTotalRecords(json.total);
+
         setTotalPages(json.total_pages);
+        setLoadProgress(100);
+        await new Promise((r) => setTimeout(r, 400));
       } catch (err) {
         console.error("Failed to fetch reports:", err);
         setUploadReportsData([]);
@@ -750,8 +846,8 @@ function DeckingPage({ darkMode }) {
       const [processingTypes, appTypes, prescriptionTypes, appStatusTypes] =
         await Promise.all([
           getProcessingTypes(status, subTab, prescriptionTab, appStatusTab),
-          getAppTypes(status, processingTypeTab),
-          getPrescriptionTypes(status, subTab, processingTypeTab),
+          getAppTypes(status, processingTypeTab, prescriptionTab, appStatusTab),
+          getPrescriptionTypes(status, subTab, processingTypeTab, appStatusTab),
           getAppStatusTypes(status, subTab, prescriptionTab, processingTypeTab),
         ]);
       setAvailableProcessingTypes(processingTypes);
@@ -1471,32 +1567,11 @@ function DeckingPage({ darkMode }) {
           />
 
           {loading && (
-            <div
-              style={{
-                background: colors.cardBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "12px",
-                padding: "3rem",
-                textAlign: "center",
-                color: colors.textSecondary,
-              }}
-            >
-              <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
-                ⏳
-              </div>
-              <div
-                style={{
-                  fontSize: "0.88rem",
-                  fontWeight: 600,
-                  marginBottom: "0.35rem",
-                }}
-              >
-                Loading reports...
-              </div>
-              <div style={{ fontSize: "0.75rem" }}>
-                Page {currentPage} of {totalPages}
-              </div>
-            </div>
+            <LoadingSpinner
+              darkMode={darkMode}
+              colors={colors}
+              progress={loadProgress}
+            />
           )}
 
           {!loading && filteredData.length === 0 && (

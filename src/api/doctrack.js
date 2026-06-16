@@ -1,10 +1,7 @@
 // src/api/doctrack.js
-
 import API from "./axios";
 
-// ─────────────────────────────────────────────
 // Existing endpoints (unchanged)
-// ─────────────────────────────────────────────
 
 export const getDocumentByRSN = async (rsn) => {
   try {
@@ -66,10 +63,9 @@ export const getDocrecIDsByRSNs = async (rsns) => {
   }
 };
 
-// ─────────────────────────────────────────────
+
 // NEW: Download Excel template
 // GET /api/doctrack/download-template
-// ─────────────────────────────────────────────
 
 export const downloadDoctrackTemplate = async () => {
   try {

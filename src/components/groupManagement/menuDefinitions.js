@@ -12,6 +12,8 @@ export const allMenuItems = [
   // Workflow
   { id: "for-decking", label: "Assignment / Queue", icon: "📥", category: "Workflow" },
   { id: "task", label: "Tasks", icon: "📝", category: "Workflow" },
+
+
   { id: "for-evaluation", label: "Evaluation", icon: "📊", category: "Workflow" },
   { id: "for-compliance", label: "For Compliance", icon: "⚠️", category: "Workflow" },
   { id: "for-checking", label: "Checking", icon: "🔍", category: "Workflow" },
@@ -25,7 +27,7 @@ export const allMenuItems = [
   { id: "cdrr-inspector-reports", label: "CDRR Inspection Reports", icon: "📑", category: "Other Database" },
   { id: "doctrack-magic", label: "Doctrack (Bulk Upload)", icon: "📦", category: "Other Database" },
   { id: "records-report", label: "Records List", icon: "🗂️", category: "Other Database" },
-
+  { id: "document-rename", label: "Document Rename", icon: "👔", category: "Workflow" },
 
   // Platform
   { id: "announcements", label: "Announcements", icon: "📢", category: "Platform" },

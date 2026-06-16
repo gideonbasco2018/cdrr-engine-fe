@@ -416,7 +416,9 @@ function PageSizeSelector({ value, onChange, darkMode }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
-    function handleClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    function handleClickOutside(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
     if (open) document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
@@ -543,7 +545,6 @@ function PanelCard({
 }) {
   const ref = useRef(null);
   useEffect(() => {
-  useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const handler = (e) => {
@@ -556,6 +557,7 @@ function PanelCard({
     el.addEventListener("wheel", handler, { passive: true });
     return () => el.removeEventListener("wheel", handler);
   }, []);
+
   return (
     <div
       style={{
@@ -677,8 +679,6 @@ export default function OverviewView({
   const prevIdsRef = useRef(new Set());
 
   const [kpiData, setKpiData] = useState(null);
-  const [kpiLoaded, setKpiLoaded] = useState(false);
-
   const [kpiLoaded, setKpiLoaded] = useState(false);
 
   const [userLoadData, setUserLoadData] = useState([]);
@@ -1270,4 +1270,3 @@ export default function OverviewView({
     </div>
   );
 }
-

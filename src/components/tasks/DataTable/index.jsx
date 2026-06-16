@@ -404,6 +404,10 @@ function DataTable({
     reason,
     dateReleased,
     typeDocReleased,
+    cprApiEnabled,
+    cprInsertSuccess,
+    cprInsertError,
+    cprSkippedByUser,
   }) => {
     const me = getCurrentUser();
     if (!me?.id) throw new Error("No logged-in user found.");
@@ -425,9 +429,16 @@ function DataTable({
       main_db_ids: mainDbIds,
       reason_for_closing: reason,
       remarks: remarks || null,
+      date_released: dateReleased || null,
+      type_doc_released: typeDocReleased || null,
       closed_by_user_id: me.id,
       closed_by_user_name: me.username,
       closed_at: closedAt,
+      // ── CPR audit fields ──
+      cpr_api_enabled: cprApiEnabled ?? null,
+      cpr_insert_success: cprInsertSuccess ?? null,
+      cpr_insert_error: cprInsertError ?? null,
+      cpr_skipped_by_user: cprSkippedByUser ?? false,
     });
 
     let success = 0;
@@ -438,8 +449,10 @@ function DataTable({
         try {
           await updateUploadReport(row.mainDbId ?? row.id, {
             DB_APP_STATUS: "COMPLETED",
-            DB_DATE_RELEASED: dateReleased || null,
-            DB_TYPE_DOC_RELEASED: typeDocReleased || null,
+            ...(dateReleased ? { DB_DATE_RELEASED: dateReleased } : {}),
+            ...(typeDocReleased
+              ? { DB_TYPE_DOC_RELEASED: typeDocReleased }
+              : {}),
           });
           success++;
         } catch (e) {
