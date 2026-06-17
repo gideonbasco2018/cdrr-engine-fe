@@ -253,6 +253,7 @@ function TaskPage({ darkMode }) {
     lastModifiedFrom: "",
     lastModifiedTo: "",
     estCat: "",
+    starredOnly: false,
   });
 
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(null);
@@ -482,6 +483,7 @@ function TaskPage({ darkMode }) {
   //    processingType, estCat, at search — frontend lang ang natitira
   const filteredData = useMemo(() => {
     const filtered = subTabData.filter((r) => {
+      const mstar = !filters.starredOnly || r.is_starred === 1;
       // sentBy — frontend lang kasi walang param sa backend
       const msb =
         !filters.sentBy ||
@@ -501,7 +503,7 @@ function TaskPage({ darkMode }) {
       const mfrom = !from || (lm && lm >= from);
       const mto = !to || (lm && lm <= to);
 
-      return msb && mfrom && mto;
+      return mstar && msb && mfrom && mto;
     });
 
     // Frontend sort para sa fields na hindi kaya ng backend
@@ -906,6 +908,31 @@ function TaskPage({ darkMode }) {
                 )}
               </div>
 
+              {/* Starred filter */}
+              <button
+                onClick={() =>
+                  setFilters({ ...filters, starredOnly: !filters.starredOnly })
+                }
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.3rem",
+                  padding: "0.22rem 0.6rem",
+                  borderRadius: 5,
+                  border: `1px solid ${filters.starredOnly ? "#f59e0b" : colors.cardBorder}`,
+                  background: filters.starredOnly
+                    ? "rgba(245,158,11,0.15)"
+                    : "transparent",
+                  color: filters.starredOnly ? "#f59e0b" : colors.textTertiary,
+                  fontSize: "0.62rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all .15s",
+                }}
+              >
+                ★ Starred Only
+              </button>
+
               {/* Selection indicator */}
               {selectedRows.length > 0 && (
                 <>
@@ -1022,6 +1049,7 @@ function TaskPage({ darkMode }) {
                 colors={colors}
               />
             )}
+
             {filters.lastModifiedTo && (
               <Chip
                 label={`To: ${filters.lastModifiedTo}`}
@@ -1029,6 +1057,14 @@ function TaskPage({ darkMode }) {
                 colors={colors}
               />
             )}
+            {filters.starredOnly && (
+              <Chip
+                label="⭐ Starred Only"
+                onRemove={() => setFilters({ ...filters, starredOnly: false })}
+                colors={colors}
+              />
+            )}
+
             <button
               onClick={() => {
                 setSearchInput("");
@@ -1042,6 +1078,7 @@ function TaskPage({ darkMode }) {
                   lastModifiedFrom: "",
                   lastModifiedTo: "",
                   estCat: "",
+                  starredOnly: false,
                 });
               }}
               style={{

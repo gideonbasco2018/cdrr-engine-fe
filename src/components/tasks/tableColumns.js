@@ -2,6 +2,13 @@
 export const tableColumns = [
 
   // ── From application_logs — mapped from top-level fields in the API response
+  {
+  key: "isStarred",
+  label: "★",
+  width: "36px",
+  frozen: true,
+  frozenLeft: "80px",  // after checkbox (40px) + # (40px)
+  },
   { key: "sentBy",          label: "Sent By",       width: "150px" },
   { key: "lastModified",    label: "Last Modified", width: "120px" },
     { key: "dtn", label: "DTN", width: "110px" },

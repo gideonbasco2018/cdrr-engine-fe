@@ -171,7 +171,7 @@ export function DTNEntryScreen({ onVerify, darkMode }) {
           >
             Manual CPR{" "}
             <span style={{ color: "#2C5F8A" }}>
-              Correction & Reconstruction
+              Correction, Reconstruction, and Validity Extension
             </span>
           </h1>
 
@@ -186,7 +186,7 @@ export function DTNEntryScreen({ onVerify, darkMode }) {
             }}
           >
             Enter your Document Tracking Number to retrieve your application and
-            begin the correction or reconstruction process.
+            begin the correction, reconstruction or validity extension process.
           </p>
         </div>
 
@@ -243,7 +243,7 @@ export function DTNEntryScreen({ onVerify, darkMode }) {
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            Document Tracking Number (DTN)
+            Enter OLD Document Tracking Number (DTN)
           </label>
 
           <div style={{ position: "relative" }}>

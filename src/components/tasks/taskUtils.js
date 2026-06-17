@@ -127,6 +127,9 @@ export const mapWorkflowTask = (task, index) => {
     received_at: task.received_at ?? null,
     received_by: task.received_by ?? null,
     entryType: m.DB_ENTRY_TYPE ?? null,
+    // ── Starred tracking ──────────────────────────────────────────
+    is_starred: task.is_starred ?? 0,
+    starred_at: task.starred_at ?? null,
   };
 };
 
