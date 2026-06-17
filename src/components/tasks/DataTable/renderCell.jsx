@@ -665,7 +665,8 @@ export const renderCell = (col, row, colors) => {
     case "lastModified":
       return renderLastModified(v, colors); // row["lastModified"]
     // ─────────────────────────────────────────────────────────────────────
-
+    case "isStarred":
+      return null;
     default:
       return plainCell(v, colors);
   }

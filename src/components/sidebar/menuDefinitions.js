@@ -48,7 +48,7 @@ export const menuDefinitions = {
     {
       id: "appCorrection",
       icon: "✍️",
-      label: "Manual CPR Correction",
+      label: "CPR Modification Services",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {

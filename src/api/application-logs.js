@@ -231,3 +231,24 @@ export const rerouteApplication = async (logData) => {
     throw new Error(errorMessage);
   }
 };
+
+/**Toggle starred state of an application log*/
+export const toggleStarApplicationLog = async (logId, starred) => {
+  try {
+    const response = await API.patch(
+      `/application-logs/${logId}/star`,
+      null,
+      {
+        params: { starred: starred === true || starred === 1 ? true : false },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error toggling star:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to toggle star";
+    throw new Error(errorMessage);
+  }
+};

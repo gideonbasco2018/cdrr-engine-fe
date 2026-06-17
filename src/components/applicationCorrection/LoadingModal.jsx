@@ -618,6 +618,9 @@ export function LoadingModal({
                   </option>
                   <option value="CORRECTION">Correction</option>
                   <option value="RECONSTRUCTION">Reconstruction</option>
+                  <option value="RECONSTRUCTION">Validity Extension</option>
+                  <option value="RECONSTRUCTION">Cancellation of CPR</option>
+                  <option value="RECONSTRUCTION">Surrender due to PAC</option>
                 </select>
 
                 {entryTypeTouched && !entryType && (

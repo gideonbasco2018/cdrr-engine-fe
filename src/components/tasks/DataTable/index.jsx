@@ -1,7 +1,7 @@
 /* ================================================================== */
 /*  DataTable — index.jsx                                              */
 /* ================================================================== */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { tableColumns, COLUMN_DB_KEY_MAP } from "../tableColumns";
 import TablePagination from "../TablePagination";
 import ViewDetailsModal from "../viewdetails/ViewDetailsModal";
@@ -14,7 +14,9 @@ import {
   updateApplicationLog,
   createApplicationLog,
   getApplicationLogs,
+  toggleStarApplicationLog,
 } from "../../../api/application-logs";
+
 import { updateUploadReport } from "../../../api/reports";
 
 import { BulkDeckModal } from "./BulkDeckModal";
@@ -82,6 +84,14 @@ function DataTable({
   const showBulkDeckBtn =
     !!bulkDeckConfig && isReceivedSubTab && selectedRows.length > 0;
 
+  const [starredIds, setStarredIds] = useState(
+    () => new Set(data.filter((r) => r.is_starred === 1).map((r) => r.id)),
+  );
+  useEffect(() => {
+    setStarredIds(
+      new Set(data.filter((r) => r.is_starred === 1).map((r) => r.id)),
+    );
+  }, [data]);
   /* ── Visible columns ── */
   const allColumns = isRecordTab
     ? RECORD_TAB_COLUMNS.map((key) =>
@@ -1021,6 +1031,25 @@ function DataTable({
                 >
                   #
                 </th>
+                <th
+                  style={{
+                    padding: "0.45rem 0.3rem",
+                    textAlign: "center",
+                    fontSize: "0.75rem",
+                    color: "#f59e0b",
+                    borderBottom: `1px solid ${colors.tableBorder}`,
+                    background: colors.tableBg,
+                    position: "sticky",
+                    left: "80px",
+                    zIndex: 21,
+                    width: "36px",
+                    minWidth: "36px",
+                    cursor: "default", // ← no pointer
+                    userSelect: "none",
+                  }}
+                >
+                  ★ {/* ← NO SortIcon here */}
+                </th>
 
                 {visibleColumns.map((col) =>
                   col.key === "__divider__" ? (
@@ -1247,6 +1276,85 @@ function DataTable({
                       {(indexOfFirstRow || 0) + idx + 1}
                     </td>
 
+                    {/* ⭐ Star column */}
+                    <td
+                      style={{
+                        padding: "0.4rem 0.3rem",
+                        borderBottom: `1px solid ${colors.tableBorder}`,
+                        textAlign: "center",
+                        position: "sticky",
+                        left: "80px",
+                        background: solidStickyBg,
+                        zIndex: 9,
+                        width: "36px",
+                        minWidth: "36px",
+                        transition: "background .2s",
+                      }}
+                    >
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const currentlyStarred = starredIds.has(row.id);
+                          const newStarred = !currentlyStarred;
+
+                          // ── Optimistic update — walang onRefresh ──
+                          setStarredIds((prev) => {
+                            const next = new Set(prev);
+                            if (newStarred) next.add(row.id);
+                            else next.delete(row.id);
+                            return next;
+                          });
+
+                          try {
+                            await toggleStarApplicationLog(row.id, newStarred);
+                            // ── TANGGALIN ang onRefresh dito — nagre-reset kasi ng starredIds ──
+                          } catch (err) {
+                            console.error("Star toggle failed:", err);
+                            // ── Revert lang kung may error ──
+                            setStarredIds((prev) => {
+                              const next = new Set(prev);
+                              if (currentlyStarred) next.add(row.id);
+                              else next.delete(row.id);
+                              return next;
+                            });
+                          }
+                        }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: "0.9rem",
+                          lineHeight: 1,
+                          padding: "2px",
+                          color: starredIds.has(row.id)
+                            ? "#f59e0b"
+                            : "transparent",
+                          WebkitTextStroke: starredIds.has(row.id)
+                            ? "0"
+                            : `1px ${colors.textTertiary}`,
+                          transition: "color .15s, opacity .15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.color = "#f59e0b";
+                          e.currentTarget.style.WebkitTextStroke = "0";
+                        }}
+                        onMouseLeave={(e) => {
+                          const isStarred = starredIds.has(row.id);
+                          e.currentTarget.style.color = isStarred
+                            ? "#f59e0b"
+                            : "transparent";
+                          e.currentTarget.style.WebkitTextStroke = isStarred
+                            ? "0"
+                            : `1px ${colors.textTertiary}`;
+                        }}
+                        title={
+                          starredIds.has(row.id) ? "Unstar" : "Star this task"
+                        }
+                      >
+                        ★
+                      </button>
+                    </td>
+
                     {visibleColumns.map((col) =>
                       col.key === "__divider__" ? (
                         <td
@@ -1359,6 +1467,7 @@ function DataTable({
                             />
                           )}
                         </button>
+
                         {openMenuId === row.id && (
                           <>
                             <div

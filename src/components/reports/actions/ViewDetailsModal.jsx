@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Step3AppLogs } from "../../tasks/viewdetails/steps/Step3AppLogs";
 
 /* ================================================================== */
-/*  Helpers                                                             */
+/*  Helpers (unchanged)                                                 */
 /* ================================================================== */
 const formatDate = (dateString) => {
   if (!dateString || dateString === "N/A" || dateString === null) return "N/A";
@@ -53,7 +53,271 @@ const calculateStatusTimeline = (record) => {
 };
 
 /* ================================================================== */
-/*  Shared Sub-components                                               */
+/*  Static App History Panel                                            */
+/* ================================================================== */
+const STATIC_HISTORY = [
+  {
+    step: "OD Receiving",
+    status: "Completed",
+    user: "Juan dela Cruz",
+    date: "Jan 10, 2025",
+    remarks: "Documents received and verified.",
+  },
+  {
+    step: "For Evaluation",
+    status: "Completed",
+    user: "Maria Santos",
+    date: "Jan 15, 2025",
+    remarks: "Initial evaluation done.",
+  },
+  {
+    step: "For Checking",
+    status: "Completed",
+    user: "Pedro Reyes",
+    date: "Feb 3, 2025",
+    remarks: "Checked and endorsed.",
+  },
+  {
+    step: "For QA",
+    status: "Completed",
+    user: "Ana Gomez",
+    date: "Feb 20, 2025",
+    remarks: "QA review passed.",
+  },
+  {
+    step: "For Releasing",
+    status: "In Progress",
+    user: "Jose Bautista",
+    date: "Mar 5, 2025",
+    remarks: "Pending final release.",
+  },
+];
+
+const STEP_COLORS = {
+  Completed: { bg: "#10b98115", color: "#10b981", border: "#10b98130" },
+  "In Progress": { bg: "#f59e0b15", color: "#f59e0b", border: "#f59e0b30" },
+  Pending: { bg: "#6b728015", color: "#6b7280", border: "#6b728030" },
+};
+
+function AppHistoryPanel({ onClose, colors, darkMode, dtn }) {
+  return (
+    <div
+      style={{
+        width: 300,
+        minWidth: 300,
+        borderLeft: `1px solid ${colors.cardBorder}`,
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: darkMode ? "#0f0f0f" : "#fafafa",
+      }}
+    >
+      {/* Panel Header */}
+      <div
+        style={{
+          padding: "0.75rem 1rem",
+          borderBottom: `1px solid ${colors.cardBorder}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexShrink: 0,
+        }}
+      >
+        <div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              color: colors.textPrimary,
+            }}
+          >
+            📋 Application History
+          </p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.6rem",
+              color: colors.textTertiary,
+            }}
+          >
+            DTN:{" "}
+            <span style={{ color: "#2196F3", fontWeight: 600 }}>{dtn}</span>
+          </p>
+        </div>
+        <button
+          onClick={onClose}
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 5,
+            border: `1px solid ${colors.cardBorder}`,
+            background: "transparent",
+            color: colors.textSecondary,
+            cursor: "pointer",
+            fontSize: "0.8rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#ef444415";
+            e.currentTarget.style.borderColor = "#ef4444";
+            e.currentTarget.style.color = "#ef4444";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.borderColor = colors.cardBorder;
+            e.currentTarget.style.color = colors.textSecondary;
+          }}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* Timeline */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "0.85rem 1rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: 0,
+        }}
+      >
+        {STATIC_HISTORY.map((item, idx) => {
+          const sc = STEP_COLORS[item.status] ?? STEP_COLORS["Pending"];
+          const isLast = idx === STATIC_HISTORY.length - 1;
+          return (
+            <div key={idx} style={{ display: "flex", gap: "0.65rem" }}>
+              {/* Timeline line + dot */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: sc.color,
+                    border: `2px solid ${sc.border}`,
+                    flexShrink: 0,
+                    marginTop: 3,
+                  }}
+                />
+                {!isLast && (
+                  <div
+                    style={{
+                      width: 1.5,
+                      flex: 1,
+                      background: colors.cardBorder,
+                      minHeight: 24,
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Content */}
+              <div style={{ flex: 1, paddingBottom: isLast ? 0 : "0.85rem" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 3,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      color: colors.textPrimary,
+                    }}
+                  >
+                    {item.step}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.56rem",
+                      fontWeight: 700,
+                      padding: "1px 7px",
+                      borderRadius: 99,
+                      background: sc.bg,
+                      color: sc.color,
+                      border: `1px solid ${sc.border}`,
+                    }}
+                  >
+                    {item.status}
+                  </span>
+                </div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.62rem",
+                    color: colors.textSecondary,
+                    marginBottom: 2,
+                  }}
+                >
+                  👤 {item.user}
+                </p>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.6rem",
+                    color: colors.textTertiary,
+                    marginBottom: 4,
+                  }}
+                >
+                  📅 {item.date}
+                </p>
+                {item.remarks && (
+                  <div
+                    style={{
+                      padding: "0.3rem 0.5rem",
+                      background:
+                        colors.inputBg ?? (darkMode ? "#1a1a1a" : "#f3f4f6"),
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: 5,
+                      fontSize: "0.6rem",
+                      color: colors.textSecondary,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {item.remarks}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer note */}
+      <div
+        style={{
+          padding: "0.5rem 1rem",
+          borderTop: `1px solid ${colors.cardBorder}`,
+          fontSize: "0.58rem",
+          color: colors.textTertiary,
+          textAlign: "center",
+          fontStyle: "italic",
+        }}
+      >
+        Static data — backend integration coming soon
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Shared Sub-components (unchanged)                                   */
 /* ================================================================== */
 function VDSection({ title, children, colors }) {
   return (
@@ -291,7 +555,7 @@ function StepTabBar({ currentStep, setCurrentStep, colors }) {
 }
 
 /* ================================================================== */
-/*  All Details (Step 1)                                               */
+/*  All Details (Step 1) — unchanged                                    */
 /* ================================================================== */
 function AllDetails({ record, colors }) {
   const { status, days } = calculateStatusTimeline(record);
@@ -910,10 +1174,13 @@ function ViewDetailsModal({
   loading = false,
 }) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [showHistory, setShowHistory] = useState(false);
+
   if (!record) return null;
 
   return (
     <>
+      {/* Backdrop */}
       <div
         style={{
           position: "fixed",
@@ -927,13 +1194,15 @@ function ViewDetailsModal({
         }}
         onClick={onClose}
       />
+
+      {/* Modal — expands width when panel is open */}
       <div
         style={{
           position: "fixed",
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: "min(1100px, 95vw)",
+          width: showHistory ? "min(1400px, 97vw)" : "min(1100px, 95vw)",
           maxHeight: "94vh",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
@@ -943,6 +1212,7 @@ function ViewDetailsModal({
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
+          transition: "width 0.3s ease",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -988,36 +1258,86 @@ function ViewDetailsModal({
               {cleanValue(record.prodBrName)}
             </p>
           </div>
-          <button
-            onClick={onClose}
+
+          {/* Right side buttons */}
+          <div
             style={{
-              width: "28px",
-              height: "28px",
-              borderRadius: "6px",
-              border: `1px solid ${colors.cardBorder}`,
-              background: "transparent",
-              color: colors.textSecondary,
-              cursor: "pointer",
-              fontSize: "0.9rem",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              gap: "0.5rem",
               flexShrink: 0,
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#ef444415";
-              e.currentTarget.style.borderColor = "#ef4444";
-              e.currentTarget.style.color = "#ef4444";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.borderColor = colors.cardBorder;
-              e.currentTarget.style.color = colors.textSecondary;
             }}
           >
-            ✕
-          </button>
+            {/* History toggle button */}
+            <button
+              onClick={() => setShowHistory((v) => !v)}
+              title="Application History"
+              style={{
+                padding: "0.3rem 0.75rem",
+                borderRadius: "6px",
+                border: `1px solid ${showHistory ? "#2196F3" : colors.cardBorder}`,
+                background: showHistory
+                  ? "rgba(33,150,243,0.1)"
+                  : "transparent",
+                color: showHistory ? "#2196F3" : colors.textSecondary,
+                fontSize: "0.7rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!showHistory) {
+                  e.currentTarget.style.background = "rgba(33,150,243,0.07)";
+                  e.currentTarget.style.borderColor = "#2196F3";
+                  e.currentTarget.style.color = "#2196F3";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!showHistory) {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.borderColor = colors.cardBorder;
+                  e.currentTarget.style.color = colors.textSecondary;
+                }
+              }}
+            >
+              📋 {showHistory ? "Hide History" : "App History"}
+            </button>
+
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              style={{
+                width: "28px",
+                height: "28px",
+                borderRadius: "6px",
+                border: `1px solid ${colors.cardBorder}`,
+                background: "transparent",
+                color: colors.textSecondary,
+                cursor: "pointer",
+                fontSize: "0.9rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#ef444415";
+                e.currentTarget.style.borderColor = "#ef4444";
+                e.currentTarget.style.color = "#ef4444";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.borderColor = colors.cardBorder;
+                e.currentTarget.style.color = colors.textSecondary;
+              }}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* ── Step Tab Bar ── */}
@@ -1027,43 +1347,58 @@ function ViewDetailsModal({
           colors={colors}
         />
 
-        {/* ── Scrollable Content ── */}
+        {/* ── Body: main content + side panel ── */}
         <div
-          style={{
-            flex: 1,
-            minHeight: 0,
-            overflowY: "auto",
-            padding: "1rem 1.25rem",
-          }}
+          style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}
         >
-          {currentStep === 1 &&
-            (loading ? (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  height: "300px",
-                  gap: "0.75rem",
-                  color: colors.textTertiary,
-                }}
-              >
-                <div style={{ fontSize: "2rem" }}>⏳</div>
-                <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>
-                  Loading details...
-                </span>
-                <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
-                  DTN: {record?.dtn}
-                </span>
-              </div>
-            ) : (
-              <AllDetails record={record} colors={colors} />
-            ))}
-          {currentStep === 2 && (
-            <Step3AppLogs
-              record={{ ...record, mainDbId: record.mainDbId ?? record.id }}
+          {/* Main scrollable content */}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              padding: "1rem 1.25rem",
+            }}
+          >
+            {currentStep === 1 &&
+              (loading ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "300px",
+                    gap: "0.75rem",
+                    color: colors.textTertiary,
+                  }}
+                >
+                  <div style={{ fontSize: "2rem" }}>⏳</div>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>
+                    Loading details...
+                  </span>
+                  <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
+                    DTN: {record?.dtn}
+                  </span>
+                </div>
+              ) : (
+                <AllDetails record={record} colors={colors} />
+              ))}
+            {currentStep === 2 && (
+              <Step3AppLogs
+                record={{ ...record, mainDbId: record.mainDbId ?? record.id }}
+                colors={colors}
+              />
+            )}
+          </div>
+
+          {/* Side Panel */}
+          {showHistory && (
+            <AppHistoryPanel
+              onClose={() => setShowHistory(false)}
               colors={colors}
+              darkMode={darkMode}
+              dtn={cleanValue(record.dtn)}
             />
           )}
         </div>
