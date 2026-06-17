@@ -930,7 +930,34 @@ function TaskPage({ darkMode }) {
                   transition: "all .15s",
                 }}
               >
-                ★ Starred Only
+                ★{/* ── starred count badge ── */}
+                {(() => {
+                  const count = tabData.filter(
+                    (r) => r.is_starred === 1,
+                  ).length;
+                  return count > 0 ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "0.9rem",
+                        height: "0.9rem",
+                        padding: "0 0.2rem",
+                        background: filters.starredOnly
+                          ? "#f59e0b"
+                          : "rgba(245,158,11,0.3)",
+                        borderRadius: 999,
+                        fontSize: "0.55rem",
+                        fontWeight: 800,
+                        color: filters.starredOnly ? "#000" : "#f59e0b",
+                      }}
+                    >
+                      {count}
+                    </span>
+                  ) : null;
+                })()}
+                Starred Only
               </button>
 
               {/* Selection indicator */}
