@@ -25,7 +25,7 @@ export function LoadingModal({
   const [subject, setSubject] = useState("");
   const [subjectTouched, setSubjectTouched] = useState(false);
   const [showDoctrack, setShowDoctrack] = useState(false);
-
+  const [copied, setCopied] = useState(false);
   const isLoading = phase === "loading";
   const isSuccess = phase === "success";
   const isNotFound = phase === "not_found";
@@ -730,20 +730,58 @@ export function LoadingModal({
                       textTransform: "uppercase",
                       letterSpacing: "0.08em",
                       marginBottom: 7,
+                      width: "100%",
+                      justifyContent: "space-between",
                     }}
                   >
-                    <svg
-                      width="11"
-                      height="11"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      viewBox="0 0 24 24"
+                    <span
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
                     >
-                      <path d="M4 6h16M4 12h8" />
-                    </svg>
-                    Subject{" "}
-                    <span style={{ color: t.errorText, marginLeft: 1 }}>*</span>
+                      <svg
+                        width="11"
+                        height="11"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                      >
+                        <path d="M4 6h16M4 12h8" />
+                      </svg>
+                      Subject{" "}
+                      <span style={{ color: t.errorText, marginLeft: 1 }}>
+                        *
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (record?.appDetails) {
+                          setSubject(record.appDetails);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1500);
+                        }
+                      }}
+                      title="Copy from Application Details"
+                      style={{
+                        padding: "2px 8px",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: "transparent",
+                        border: `1px solid ${t.cardBorder}`,
+                        borderRadius: 6,
+                        color: copied ? t.successText : t.textSecondary,
+                        cursor: record?.appDetails ? "pointer" : "not-allowed",
+                        opacity: record?.appDetails ? 1 : 0.4,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        textTransform: "none",
+                        letterSpacing: 0,
+                        transition: "color 0.2s",
+                      }}
+                    >
+                      {copied ? "✓ Copied!" : "📋 Copy App Details"}
+                    </button>
                   </label>
                   <textarea
                     value={subject}
