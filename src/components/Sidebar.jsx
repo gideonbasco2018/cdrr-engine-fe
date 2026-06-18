@@ -69,9 +69,12 @@ function Sidebar({
         const permissionsMap = {};
         if (Array.isArray(rawPermissions)) {
           rawPermissions.forEach((item) => {
-            permissionsMap[item.menu_id] = Array.isArray(item.group_ids)
-              ? item.group_ids.filter((id) => id !== null && id !== undefined)
-              : [];
+            permissionsMap[item.menu_id] = {
+              group_ids: Array.isArray(item.group_ids)
+                ? item.group_ids.filter((id) => id !== null && id !== undefined)
+                : [],
+              order: item.order ?? 999,
+            };
           });
         }
         setMenuPermissions(permissionsMap);
@@ -130,7 +133,8 @@ function Sidebar({
     return items.filter((item) => {
       const hasRole = item.roles.includes(userRole);
       if (["access", "users", "settings"].includes(item.id)) return hasRole;
-      const allowedGroups = menuPermissions[item.id];
+      const menuData = menuPermissions[item.id];
+      const allowedGroups = menuData?.group_ids;
 
       if (
         !allowedGroups ||
@@ -146,6 +150,14 @@ function Sidebar({
     });
   };
 
+  // ── SORT BY DB ORDER ──────────────────────────────────────────────────────────
+  const sortByDbOrder = (items) =>
+    [...items].sort(
+      (a, b) =>
+        (menuPermissions[a.id]?.order ?? 999) -
+        (menuPermissions[b.id]?.order ?? 999),
+    );
+
   useEffect(() => {
     const fetchTaskCount = async () => {
       const data = await getMyTaskCount();
@@ -157,17 +169,21 @@ function Sidebar({
     return () => clearInterval(interval);
   }, []);
 
-  const visibleMainMenu = filterByRoleAndGroup(menuDefinitions.mainMenuItems);
-  const visibleCdrReports = filterByRoleAndGroup(
-    menuDefinitions.cdrReportsItems,
+  const visibleMainMenu = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.mainMenuItems),
   );
-  const visibleWorkflow = filterByRoleAndGroup(
-    menuDefinitions.workflowItems,
+  const visibleCdrReports = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.cdrReportsItems),
+  );
+  const visibleWorkflow = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.workflowItems),
   ).map((item) => (item.id === "task" ? { ...item, badge: taskCount } : item));
-  const visibleOtherDatabase = filterByRoleAndGroup(
-    menuDefinitions.otherDatabaseItems,
+  const visibleOtherDatabase = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.otherDatabaseItems),
   );
-  const visiblePlatform = filterByRoleAndGroup(menuDefinitions.platformItems);
+  const visiblePlatform = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.platformItems),
+  );
 
   const handleNavigation = (itemId) => {
     if (impersonating && itemId !== "dashboard") return;

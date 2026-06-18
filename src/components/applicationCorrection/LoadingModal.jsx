@@ -859,11 +859,19 @@ export function LoadingModal({
 
         {/* ── Right column — DoctrackPanel ── */}
         {showDoctrack && newDtn.trim() && (
-          <DoctrackPanel
-            record={{ dtn: newDtn.trim() }}
-            onClose={() => setShowDoctrack(false)}
-            colors={doctrackColors}
-          />
+          <div
+            style={{
+              maxHeight: 600,
+              overflowY: "auto",
+              borderLeft: `1px solid ${t.cardBorder}`,
+            }}
+          >
+            <DoctrackPanel
+              record={{ dtn: newDtn.trim() }}
+              onClose={() => setShowDoctrack(false)}
+              colors={doctrackColors}
+            />
+          </div>
         )}
       </div>
     </div>
