@@ -1,9 +1,10 @@
 // src/components/applicationCorrection/LoadingModal.jsx
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Spinner } from "./shared/Spinner";
 import { getTheme } from "./theme";
 import { verifyDTN } from "../../api/cpr-correction";
 import DoctrackPanel from "../tasks/viewdetails/steps/DoctrackPanel";
+import { getDocumentByRSN } from "../../api/doctrack";
 
 export function LoadingModal({
   phase,
@@ -31,12 +32,25 @@ export function LoadingModal({
   const isNotFound = phase === "not_found";
   const isNotEligible = phase === "not_eligible";
   const isError = isNotFound || isNotEligible;
-
+  const [doctrackSubject, setDoctrackSubject] = useState("");
   const barColor = isSuccess
     ? "linear-gradient(90deg,#3B6D11,#6BAA3A)"
     : isError
       ? "linear-gradient(90deg,#B91C1C,#EF4444)"
       : "linear-gradient(90deg,#2C5F8A,#5B9BD5,#2C5F8A)";
+
+  useEffect(() => {
+    if (!newDtn.trim()) {
+      setDoctrackSubject("");
+      return;
+    }
+    getDocumentByRSN(newDtn.trim())
+      .then((res) => {
+        const subject = res?.data?.[0]?.subject ?? "";
+        setDoctrackSubject(subject);
+      })
+      .catch(() => setDoctrackSubject(""));
+  }, [newDtn]);
 
   const doctrackColors = {
     cardBg: t.cardBg,
@@ -755,8 +769,8 @@ export function LoadingModal({
                     <button
                       type="button"
                       onClick={() => {
-                        if (record?.appDetails) {
-                          setSubject(record.appDetails);
+                        if (doctrackSubject) {
+                          setSubject(doctrackSubject);
                           setCopied(true);
                           setTimeout(() => setCopied(false), 1500);
                         }
@@ -770,8 +784,8 @@ export function LoadingModal({
                         border: `1px solid ${t.cardBorder}`,
                         borderRadius: 6,
                         color: copied ? t.successText : t.textSecondary,
-                        cursor: record?.appDetails ? "pointer" : "not-allowed",
-                        opacity: record?.appDetails ? 1 : 0.4,
+                        cursor: doctrackSubject ? "pointer" : "not-allowed",
+                        opacity: doctrackSubject ? 1 : 0.4,
                         display: "flex",
                         alignItems: "center",
                         gap: 4,
