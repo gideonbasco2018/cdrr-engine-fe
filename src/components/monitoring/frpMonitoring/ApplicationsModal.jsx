@@ -63,7 +63,7 @@ const FILTER_LABELS = {
 const FILTER_ICONS = { all: "📦", released_this_month: "📅", pending_compliance: "⚠️", overdue: "🚫" };
 
 const DEFAULT_ADVANCED = {
-  est_cat: "", app_type: "", lto_company: "", brand_name: "", generic_name: "",
+  app_status: "", est_cat: "", app_type: "", lto_company: "", brand_name: "", generic_name: "",
   dosage_form: "", doc_type: "", uploaded_by: "",
   upload_date_from: "", upload_date_to: "",
   date_received_from: "", date_received_to: "",
@@ -165,6 +165,7 @@ function AdvancedFilterPanel({ draft, setDraft, filterOptions, onApply, onClear,
     <div style={{ padding: "14px 20px 0" }}>
       {sec("General Filters")}
       <div style={grid}>
+        <FilterSelect label="Application Status"  icon="🚦" value={draft.app_status}       onChange={(v) => setDraft(f => ({ ...f, app_status: v }))}       options={[{ value: "", label: "All Statuses" },    ...(filterOptions.app_statuses ?? []).map(s => ({ value: s, label: s }))]} {...fp} />
         <FilterSelect label="Est. Category"       icon="📋" value={draft.est_cat}          onChange={(v) => setDraft(f => ({ ...f, est_cat: v }))}          options={[{ value: "", label: "All Categories" }, ...(filterOptions.est_cats ?? []).map(c => ({ value: c, label: c }))]}     {...fp} />
         <FilterSelect label="Application Type"    icon="🗂️" value={draft.app_type}         onChange={(v) => setDraft(f => ({ ...f, app_type: v }))}         options={[{ value: "", label: "All Types" },       ...(filterOptions.app_types ?? []).map(t => ({ value: t, label: t }))]} {...fp} />
         <AutocompleteInput label="LTO Company"    icon="🏢" field="lto_company"   value={draft.lto_company}   placeholder="Search LTO company"   onChange={(v) => setDraft(f => ({ ...f, lto_company: v }))}   {...acp} />

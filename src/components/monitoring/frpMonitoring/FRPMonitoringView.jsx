@@ -131,9 +131,10 @@ function CardShell({ children, ui, darkMode, style = {} }) {
       WebkitBackdropFilter: "blur(12px)",
       border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`,
       borderRadius: 14,
-      padding: "14px 16px",
+      padding: "16px 18px",
       boxShadow: darkMode ? "0 4px 20px rgba(0,0,0,0.4)" : "0 4px 20px rgba(0,0,0,0.08)",
       height: "100%",
+      width: "100%",
       boxSizing: "border-box",
       ...style,
     }}>
@@ -200,6 +201,7 @@ function EmptyState({ icon = "📭", message = "No data available", ui }) {
 function DonutChart({ slices, darkMode, ui }) {
   const [hovered, setHovered] = useState(null);
   const cx = 110, cy = 110, outerR = 90, innerR = 54;
+  const SVG_SIZE = 220;
   const total = slices.reduce((s, d) => s + d.value, 0);
 
   if (total === 0)
@@ -223,8 +225,8 @@ function DonutChart({ slices, darkMode, ui }) {
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-      <div style={{ position: "relative", flexShrink: 0 }}>
-        <svg width={220} height={220} style={{ overflow: "visible" }}>
+      <div style={{ position: "relative", flexShrink: 0, width: SVG_SIZE, maxWidth: "100%" }}>
+        <svg viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`} style={{ width: "100%", height: "auto", overflow: "visible" }}>
           {arcs.map((arc, i) => {
             const isHov = hovered === i;
             return (
@@ -358,7 +360,7 @@ function KpiSection({ summary, statusData, loading, ui, darkMode, onOpenModal })
     { label: "Overdue",              value: formatNumber(summary?.overdue), sub: "Exceeding SLA target",          icon: "🚫", accent: "#ef4444", filterType: "overdue" },
   ];
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 16, position: "relative", zIndex: 100, overflow: "visible" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 16, position: "relative", zIndex: 100, overflow: "visible" }}>
       {items.map((item) =>
         loading
           ? <KpiSkeletonCard key={item.label} ui={ui} darkMode={darkMode} />
@@ -447,7 +449,7 @@ const ENTITY_TABS = [
   { key: "repacker",     label: "Repacker",      icon: "📫", color: "#ec4899" },
 ];
 
-function TopCountriesSection({ loading, ui, darkMode }) {
+function TopCountriesSection({ loading, ui, darkMode, isMobile }) {
   const [page, setPage]             = useState(1);
   const [activeTab, setActiveTab]   = useState("manufacturer");
   const [tabData, setTabData]       = useState({});
@@ -501,7 +503,7 @@ function TopCountriesSection({ loading, ui, darkMode }) {
         <p style={{ margin: 0, fontSize: "0.7rem", color: ui.textMuted, fontFamily: FONT }}>Country of origin per application role</p>
       </div>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14, overflowX: isMobile ? "auto" : "visible" }}>
         {ENTITY_TABS.map((tab) => {
           const isActive = activeTab === tab.key;
           return (
@@ -516,7 +518,7 @@ function TopCountriesSection({ loading, ui, darkMode }) {
       {!tabLoading && !countryData.length && <EmptyState icon="🌍" message={`No country data for ${activeTabConfig?.label ?? activeTab}`} ui={ui} />}
 
       {!tabLoading && countryData.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, alignItems: "start" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, alignItems: "start" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {paginated.map((a, i) => {
               const globalIdx = (page - 1) * PAGE_SIZE + i;
@@ -559,7 +561,7 @@ function TopCountriesSection({ loading, ui, darkMode }) {
             {top3.length >= 2 && (
               <div style={{ background: cardBg, border: `1px solid ${darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)"}`, borderRadius: 14, padding: "14px 12px 0", boxShadow: cardShadow }}>
                 <p style={{ margin: "0 0 14px", fontSize: "0.65rem", fontWeight: 700, color: ui.textMuted, textAlign: "center", textTransform: "uppercase", letterSpacing: "0.08em" }}>🏆 TOP 3 PODIUM</p>
-                <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: 4, height: 190 }}>
+                <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "center", gap: isMobile ? 2 : 4, height: isMobile ? 150 : 190 }}>
                   {[
                     { data: top3[1], rank: 2, height: 90,  medal: "🥈", color: "#94a3b8" },
                     { data: top3[0], rank: 1, height: 130, medal: "🥇", color: themeColor },
@@ -671,7 +673,21 @@ function TrendChartSection({ cprTrend, loading, ui, darkMode, isMobile, onPointC
 
   const PX_PER_MONTH = isMobile ? 48 : 72;
   const chartHeight  = isMobile ? 160 : 220;
-  const chartWidth   = Math.max((scrollRef.current?.clientWidth ?? 600), months.length * PX_PER_MONTH);
+  const [containerWidth, setContainerWidth] = useState(600);
+
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const el = scrollRef.current;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const chartWidth = Math.max(containerWidth, months.length * PX_PER_MONTH);
 
   useEffect(() => {
     chartRef.current?.destroy();
@@ -706,7 +722,8 @@ function TrendChartSection({ cprTrend, loading, ui, darkMode, isMobile, onPointC
     } else {
       scrollRef.current.scrollTo({ left: scrollRef.current.scrollWidth, behavior: "smooth" });
     }
-  }, [selectedYear, months, chartWidth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear, months.length, chartWidth]);
 
   if (loading) return <CardShell ui={ui} darkMode={darkMode}><SectionTitle icon="📈" title="Received vs Released Trend" ui={ui} /><SkeletonBox height={chartHeight} ui={ui} darkMode={darkMode} /></CardShell>;
   if (!months.length) return <CardShell ui={ui} darkMode={darkMode}><SectionTitle icon="📈" title="Received vs Released Trend" ui={ui} /><EmptyState icon="📈" message="No trend data available yet" ui={ui} /></CardShell>;
@@ -741,7 +758,7 @@ function TrendChartSection({ cprTrend, loading, ui, darkMode, isMobile, onPointC
         ))}
       </div>
 
-      <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", scrollbarWidth: "thin", scrollbarColor: `${scrollThumbColor} ${scrollTrackColor}`, paddingBottom: 6 }}>
+      <div ref={scrollRef} style={{ overflowX: "auto", overflowY: "hidden", scrollbarWidth: "thin", scrollbarColor: `${scrollThumbColor} ${scrollTrackColor}`, paddingBottom: 6, width: "100%" }}>
         <style>{`.trend-scroll::-webkit-scrollbar{height:6px}.trend-scroll::-webkit-scrollbar-track{background:${scrollTrackColor};border-radius:99px}.trend-scroll::-webkit-scrollbar-thumb{background:${scrollThumbColor};border-radius:99px}`}</style>
         <div className="trend-scroll" style={{ position: "relative", height: chartHeight, width: chartWidth, minWidth: "100%" }}>
           <canvas ref={canvasRef} width={chartWidth} height={chartHeight} style={{ display: "block", cursor: "pointer" }} />
@@ -1007,13 +1024,12 @@ export default function FRPMonitoringView({ ui, darkMode }) {
   }, [fetchAll]);
 
   return (
-    <div style={{ fontFamily: FONT, maxWidth: 1400 }}>
+    <div style={{ fontFamily: FONT, width: "100%" }}>
       {/* Header */}
-      <div style={{ marginBottom: 18, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ marginBottom: 18, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: isMobile ? "wrap" : "nowrap" }}>
         <div>
-          <h2 style={{ margin: "0 0 4px", fontSize: isMobile ? "1rem" : "1.1rem", fontWeight: 700, color: ui.textPrimary, fontFamily: FONT, display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 30, height: 30, borderRadius: 8, background: darkMode ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.08)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.95rem" }}>🔍</span>
-            FRP and CRP Monitoring
+          <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: ui.textPrimary, fontFamily: FONT, display: "flex", alignItems: "center", gap: 6 }}>
+            🔍 FRP and CRP Monitoring
           </h2>
           <p style={{ margin: 0, fontSize: "0.74rem", color: ui.textMuted, lineHeight: 1.4 }}>Facilitated Review Pathway and Collaborative Registration Procedure Monitoring</p>
         </div>
@@ -1035,7 +1051,7 @@ export default function FRPMonitoringView({ ui, darkMode }) {
       <KpiSection summary={summary} statusData={appStatusData} loading={loadingKpi} ui={ui} darkMode={darkMode} onOpenModal={openModal} />
 
       {/* 2 — Status + Doc Type */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14, marginBottom: 14 }}>
         <TileFadeIn ready={!loadingStatus} delay={0}><StatusDonutSection statusData={statusData} loading={loadingStatus} ui={ui} darkMode={darkMode} /></TileFadeIn>
         <TileFadeIn ready={!loadingDocTypes} delay={80}><DocTypeDonutSection docTypeData={docTypeData} loading={loadingDocTypes} ui={ui} darkMode={darkMode} /></TileFadeIn>
       </div>
@@ -1049,7 +1065,7 @@ export default function FRPMonitoringView({ ui, darkMode }) {
 
       {/* 4 — Countries + Category */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12, marginBottom: 12 }}>
-        <TileFadeIn ready={true} delay={160}><TopCountriesSection loading={false} ui={ui} darkMode={darkMode} /></TileFadeIn>
+        <TileFadeIn ready={true} delay={160}><TopCountriesSection loading={false} ui={ui} darkMode={darkMode} isMobile={isMobile} /></TileFadeIn>
         <TileFadeIn ready={!loadingCategories} delay={200}><ProductCategorySection categoryData={categoryData} loading={loadingCategories} ui={ui} darkMode={darkMode} isMobile={isMobile} /></TileFadeIn>
       </div>
 
