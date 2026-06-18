@@ -11,11 +11,13 @@ export const COLORS = {
 export const DECKER_DECISIONS = [
   "For Quality Evaluation",
   "For LRD Decking",
+  "For OD Review",
 ];
 
 export const DOCTRACK_DEFAULTS = {
   "For Quality Evaluation": "Forwarded to evaluator",
   "For LRD Decking": "Forwarded to LRD Decker",  
+  "For OD Review": "Forwarded to OD Review Staff",
 };
 
 export const MOCK_RECORD = {

@@ -144,24 +144,6 @@ export function CorrectionPage({
           }}
         >
           <div>
-            <button
-              onClick={handleBack}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: t.textTertiary,
-                fontSize: 12.5,
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                padding: 0,
-                marginBottom: 6,
-                fontFamily: "inherit",
-              }}
-            >
-              ← {step === 1 ? "Back to DTN lookup" : `Back to Step ${step - 1}`}
-            </button>
             <h1
               style={{
                 fontSize: 23,
@@ -173,7 +155,13 @@ export function CorrectionPage({
             >
               {entryType === "RECONSTRUCTION"
                 ? "Manual CPR Reconstruction"
-                : "Manual CPR Correction"}
+                : entryType === "VALIDITY_EXTENSION"
+                  ? "Manual CPR Validity Extension"
+                  : entryType === "CANCELLATION_OF_CPR"
+                    ? "Manual CPR Cancellation of CPR"
+                    : entryType === "SURRENDER_DUE_TO_PAC"
+                      ? "Manual CPR Surrender due to PAC"
+                      : "Manual CPR Correction"}
             </h1>
             <p style={{ fontSize: 13, color: t.textSecondary, marginTop: 3 }}>
               Document Tracking No.{" "}
@@ -193,6 +181,18 @@ export function CorrectionPage({
               }}
             >
               Cancel
+            </button>
+
+            <button
+              onClick={handleBack}
+              style={{
+                ...btnBase,
+                background: "transparent",
+                border: `1px solid ${t.cardBorder}`,
+                color: t.textSecondary,
+              }}
+            >
+              ← {step === 1 ? "Back to DTN Lookup" : `Back to Step ${step - 1}`}
             </button>
             {!isStep3 && (
               <button
@@ -323,7 +323,9 @@ export function CorrectionPage({
                     const nextStep =
                       deckerData.decision === "For Quality Evaluation"
                         ? "Quality Evaluation"
-                        : "LRD Decking";
+                        : deckerData.decision === "For OD Review"
+                          ? "OD Review"
+                          : "LRD Decking";
 
                     await createApplicationLog({
                       main_db_id: result.main_db_id,

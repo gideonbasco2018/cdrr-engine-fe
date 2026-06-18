@@ -7,6 +7,7 @@ import { getUser, getUsersByGroup } from "../../api/auth";
 const DECISION_CONFIG = {
   "For Quality Evaluation": { groupId: 3, label: "Evaluator" },
   "For LRD Decking": { groupId: 2, label: "Decker" },
+  "For OD Review": { groupId: 22, label: "OD Review Staff" },
 };
 
 export function DeckerDecisionForm({
