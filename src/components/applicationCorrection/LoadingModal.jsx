@@ -852,6 +852,24 @@ export function LoadingModal({
                     "Proceed to Correction Form →"
                   )}
                 </button>
+
+                <button
+                  onClick={onBack}
+                  style={{
+                    marginTop: "0.6rem",
+                    width: "100%",
+                    padding: "9px 0",
+                    background: "transparent",
+                    color: t.textSecondary,
+                    border: `1px solid ${t.cardBorder}`,
+                    borderRadius: 9,
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  ← Cancel
+                </button>
               </>
             )}
           </div>
