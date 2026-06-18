@@ -20,7 +20,9 @@ export function ReviewStep({
   const t = getTheme(darkMode);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [doctrackEnabled, setDoctrackEnabled] = useState(true); // ✅ same as Step4
+  const [doctrackEnabled, setDoctrackEnabled] = useState(
+    deckerData?.doctrackAutoFill ?? true,
+  );
 
   const handleConfirm = async () => {
     setLoading(true);

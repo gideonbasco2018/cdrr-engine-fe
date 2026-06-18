@@ -12,124 +12,55 @@ const STATUS_LABEL = {
   dtn_not_found: "DTN Not Found",
 };
 
-const STEPS = [
-  { label: "Reading PDF contents...", icon: "📖" },
-  { label: "Extracting Doctrack Numbers...", icon: "🔍" },
-  { label: "Matching DTNs to filenames...", icon: "🔗" },
-  { label: "Preparing results...", icon: "✅" },
-];
-
-// ── Step Tracker with live counter ──────────────────────────────────────────
-function StepTracker({ activeStep, processed, total }) {
+// ── Progress Header ───────────────────────────────────────────────────────────
+function ProgressBar({ processed, total }) {
   const pct = total > 0 ? Math.round((processed / total) * 100) : 0;
   const isDone = processed > 0 && processed >= total;
 
   return (
-    <div className="mb-4 space-y-3">
-      {/* Step dots */}
-      <div className="flex items-center">
-        {STEPS.map((step, i) => {
-          const done = i < activeStep;
-          const active = i === activeStep;
-          return (
-            <div key={i} className="flex items-center flex-1">
-              <div className="flex flex-col items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all duration-300
-                    ${
-                      done
-                        ? "bg-blue-600 border-blue-600"
-                        : active
-                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30"
-                          : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
-                    }`}
-                >
-                  {done ? (
-                    <span className="text-white text-xs">✓</span>
-                  ) : active ? (
-                    <span className="text-blue-500 text-sm animate-spin inline-block">
-                      ⟳
-                    </span>
-                  ) : (
-                    <span className="text-gray-400 dark:text-gray-500 text-xs">
-                      {i + 1}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div
-                  className={`flex-1 h-0.5 mx-1 transition-all duration-300 ${
-                    done ? "bg-blue-500" : "bg-gray-200 dark:bg-gray-700"
-                  }`}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="text-center text-sm text-gray-500 dark:text-gray-400">
-        {STEPS[activeStep]?.label}
-      </p>
-
-      {/* Live counter + progress bar */}
-      {total > 0 && (
-        <div className="space-y-1.5">
-          <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>
-              {isDone ? (
-                <span className="font-semibold text-green-600 dark:text-green-400">
-                  ✅ All {total} files processed
-                </span>
-              ) : (
-                <>
-                  Processing files...{" "}
-                  <span className="font-semibold text-blue-600 dark:text-blue-400">
-                    {processed} / {total}
-                  </span>
-                </>
-              )}
+    <div className="space-y-1.5">
+      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+        <span>
+          {isDone ? (
+            <span className="font-semibold text-green-600 dark:text-green-400">
+              ✅ All {total} files processed
             </span>
-            <span
-              className={`font-medium ${
-                isDone
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-blue-600 dark:text-blue-400"
-              }`}
-            >
-              {pct}%
-            </span>
-          </div>
-
-          {/* Progress bar */}
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-            <div
-              className={`h-2 rounded-full transition-all duration-300 ${
-                isDone ? "bg-green-500" : "bg-blue-600"
-              }`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-
-          {/* Done / remaining chips */}
-          {!isDone && processed > 0 && (
-            <div className="flex gap-3 text-xs">
-              <span className="text-green-600 dark:text-green-400 font-medium">
-                ✅ {processed} done
+          ) : (
+            <>
+              Processing files...{" "}
+              <span className="font-semibold text-blue-600 dark:text-blue-400">
+                {processed} / {total}
               </span>
-              <span className="text-gray-400 dark:text-gray-500">
-                ⏳ {total - processed} remaining
-              </span>
-            </div>
+            </>
           )}
+        </span>
+        <span
+          className={`font-medium ${isDone ? "text-green-600 dark:text-green-400" : "text-blue-600 dark:text-blue-400"}`}
+        >
+          {pct}%
+        </span>
+      </div>
+      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+        <div
+          className={`h-2 rounded-full transition-all duration-300 ${isDone ? "bg-green-500" : "bg-blue-600"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {!isDone && processed > 0 && (
+        <div className="flex gap-3 text-xs">
+          <span className="text-green-600 dark:text-green-400 font-medium">
+            ✅ {processed} done
+          </span>
+          <span className="text-gray-400 dark:text-gray-500">
+            ⏳ {total - processed} remaining
+          </span>
         </div>
       )}
     </div>
   );
 }
 
-// ── Skeleton row ─────────────────────────────────────────────────────────────
+// ── Skeleton row ──────────────────────────────────────────────────────────────
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
@@ -149,44 +80,25 @@ function SkeletonRow() {
   );
 }
 
-// ── Step animation hook ───────────────────────────────────────────────────────
-function useStepAnimation() {
-  const [activeStep, setActiveStep] = useState(null);
-  const timerRef = useRef(null);
-
-  const start = useCallback(() => {
-    setActiveStep(0);
-    let step = 0;
-    timerRef.current = setInterval(() => {
-      step += 1;
-      if (step >= STEPS.length) {
-        clearInterval(timerRef.current);
-      } else {
-        setActiveStep(step);
-      }
-    }, 700);
-  }, []);
-
-  const stop = useCallback(() => {
-    clearInterval(timerRef.current);
-    setActiveStep(null);
-  }, []);
-
-  return { activeStep, start, stop };
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function DocumentRenamePage() {
   const [files, setFiles] = useState([]);
-  const [preview, setPreview] = useState(null);
+  const [results, setResults] = useState([]); // real-time results
+  const [total, setTotal] = useState(0);
+  const [processed, setProcessed] = useState(0);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [processed, setProcessed] = useState(0); // ← new
   const [error, setError] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
-  const { activeStep, start: startSteps, stop: stopSteps } = useStepAnimation();
+
+  const isBusy = loading || downloading;
+  const isDone = processed > 0 && processed >= total;
+  const renamedCount = results.filter((r) => r.status === "renamed").length;
+  const notFoundCount = results.filter(
+    (r) => r.status === "dtn_not_found",
+  ).length;
 
   const handleFiles = (incoming) => {
     const pdfs = Array.from(incoming).filter(
@@ -199,10 +111,11 @@ export default function DocumentRenamePage() {
     }
     setFiles((prev) => {
       const existing = new Set(prev.map((f) => f.name));
-      const newFiles = pdfs.filter((f) => !existing.has(f.name));
-      return [...prev, ...newFiles];
+      return [...prev, ...pdfs.filter((f) => !existing.has(f.name))];
     });
-    setPreview(null);
+    setResults([]);
+    setProcessed(0);
+    setTotal(0);
   };
 
   const handleDrop = useCallback((e) => {
@@ -211,32 +124,33 @@ export default function DocumentRenamePage() {
     handleFiles(e.dataTransfer.files);
   }, []);
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setDragOver(true);
-  };
-
   const removeFile = (name) => {
     setFiles((prev) => prev.filter((f) => f.name !== name));
-    setPreview(null);
+    setResults([]);
+    setProcessed(0);
+    setTotal(0);
+  };
+
+  const resetProgress = () => {
+    setResults([]);
+    setProcessed(0);
+    setTotal(files.length);
+    setError(null);
   };
 
   const handlePreview = async () => {
     if (!files.length) return;
     setLoading(true);
-    setError(null);
-    setPreview(null);
-    setProcessed(0);
-    startSteps();
+    resetProgress();
     try {
-      const result = await previewRenamePdfs(files, setProcessed);
-      setPreview(result);
+      await previewRenamePdfs(files, (result, done, tot) => {
+        setResults((prev) => [...prev, result]);
+        setProcessed(done);
+        setTotal(tot);
+      });
     } catch (err) {
-      setError(
-        err?.response?.data?.detail ?? "Preview failed. Please try again.",
-      );
+      setError(err?.message ?? "Preview failed. Please try again.");
     } finally {
-      stopSteps();
       setLoading(false);
     }
   };
@@ -245,14 +159,16 @@ export default function DocumentRenamePage() {
     if (!files.length) return;
     setDownloading(true);
     setUploadProgress(0);
-    setProcessed(0);
-    setError(null);
-    startSteps();
+    resetProgress();
     try {
-      const { blob, summary } = await downloadRenamedPdfs(
+      const { blob } = await downloadRenamedPdfs(
         files,
         setUploadProgress,
-        setProcessed,
+        (result, done, tot) => {
+          setResults((prev) => [...prev, result]);
+          setProcessed(done);
+          setTotal(tot);
+        },
       );
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -260,24 +176,13 @@ export default function DocumentRenamePage() {
       a.download = "renamed_pdfs.zip";
       a.click();
       URL.revokeObjectURL(url);
-      if (summary.length)
-        setPreview({ results: summary, total: summary.length });
     } catch (err) {
-      setError(
-        err?.response?.data?.detail ?? "Download failed. Please try again.",
-      );
+      setError(err?.message ?? "Download failed. Please try again.");
     } finally {
-      stopSteps();
       setDownloading(false);
       setUploadProgress(0);
     }
   };
-
-  const isBusy = loading || downloading;
-  const renamedCount =
-    preview?.results?.filter((r) => r.status === "renamed").length ?? 0;
-  const notFoundCount =
-    preview?.results?.filter((r) => r.status === "dtn_not_found").length ?? 0;
 
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -295,7 +200,10 @@ export default function DocumentRenamePage() {
       {/* Drop Zone */}
       <div
         onDrop={handleDrop}
-        onDragOver={handleDragOver}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
         onDragLeave={() => setDragOver(false)}
         onClick={() => inputRef.current?.click()}
         className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors
@@ -342,7 +250,9 @@ export default function DocumentRenamePage() {
             <button
               onClick={() => {
                 setFiles([]);
-                setPreview(null);
+                setResults([]);
+                setProcessed(0);
+                setTotal(0);
               }}
               className="text-xs text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
             >
@@ -381,15 +291,6 @@ export default function DocumentRenamePage() {
         </div>
       )}
 
-      {/* Step Tracker — now with live counter */}
-      {activeStep !== null && (
-        <StepTracker
-          activeStep={activeStep}
-          processed={processed}
-          total={files.length}
-        />
-      )}
-
       {/* Action Buttons */}
       <div className="flex gap-3">
         <button
@@ -425,7 +326,7 @@ export default function DocumentRenamePage() {
         </button>
       </div>
 
-      {/* Upload Progress Bar */}
+      {/* Upload Progress Bar (download only) */}
       {downloading && uploadProgress > 0 && (
         <div className="space-y-1">
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
@@ -443,48 +344,29 @@ export default function DocumentRenamePage() {
         </div>
       )}
 
-      {/* Skeleton Loader */}
-      {isBusy && activeStep !== null && (
+      {/* Real-time Results Table */}
+      {(isBusy || results.length > 0) && total > 0 && (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80">
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32 animate-pulse" />
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-700">
-                <th className="text-left px-4 py-2 font-medium">
-                  Original Filename
-                </th>
-                <th className="text-left px-4 py-2 font-medium">Renamed To</th>
-                <th className="text-left px-4 py-2 font-medium">DTN</th>
-                <th className="text-left px-4 py-2 font-medium">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {files.map((_, i) => (
-                <SkeletonRow key={i} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Preview Results */}
-      {preview && !isBusy && (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 flex items-center gap-4">
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
-              Results ({preview.total} files)
-            </span>
-            <span className="text-xs text-green-600 dark:text-green-400 font-medium">
-              ✓ {renamedCount} renamed
-            </span>
-            {notFoundCount > 0 && (
-              <span className="text-xs text-red-600 dark:text-red-400 font-medium">
-                ✗ {notFoundCount} DTN not found
+          {/* Header */}
+          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/80 space-y-3">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                Results ({total} files)
               </span>
-            )}
+              {renamedCount > 0 && (
+                <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                  ✓ {renamedCount} renamed
+                </span>
+              )}
+              {notFoundCount > 0 && (
+                <span className="text-xs text-red-600 dark:text-red-400 font-medium">
+                  ✗ {notFoundCount} DTN not found
+                </span>
+              )}
+            </div>
+            <ProgressBar processed={processed} total={total} />
           </div>
+
           <table className="w-full text-sm">
             <thead>
               <tr className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-800/80 border-b border-gray-100 dark:border-gray-700">
@@ -497,7 +379,8 @@ export default function DocumentRenamePage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {preview.results.map((r, i) => (
+              {/* Real results so far */}
+              {results.map((r, i) => (
                 <tr
                   key={i}
                   className="hover:bg-gray-50 dark:hover:bg-gray-700/50"
@@ -520,6 +403,11 @@ export default function DocumentRenamePage() {
                   </td>
                 </tr>
               ))}
+              {/* Skeleton rows for remaining files */}
+              {isBusy &&
+                Array.from({ length: total - results.length }).map((_, i) => (
+                  <SkeletonRow key={`sk-${i}`} />
+                ))}
             </tbody>
           </table>
         </div>
