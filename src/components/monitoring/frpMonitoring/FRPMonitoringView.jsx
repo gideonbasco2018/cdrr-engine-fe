@@ -320,9 +320,6 @@ function KpiCard({ item, statusData, ui, darkMode, onOpenModal }) {
           <p style={{ margin: "3px 0 0", fontSize: "0.62rem", color: ui.textMuted, fontFamily: FONT }}>{item.sub}</p>
         </div>
       </div>
-      {statusEntries.length > 0 && (
-        <span style={{ position: "absolute", top: 7, right: 9, fontSize: "0.58rem", color: ui.textMuted, opacity: 0.55 }}>hover ↑</span>
-      )}
       {hovered && statusEntries.length > 0 && (
         <div style={{ position: "absolute", top: "calc(100% + 8px)", left: 0, minWidth: 220, background: darkMode ? "rgba(28,28,30,0.97)" : "rgba(255,255,255,0.98)", border: `1px solid ${darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.1)"}`, borderRadius: 12, padding: "12px 14px", boxShadow: darkMode ? "0 8px 32px rgba(0,0,0,0.5)" : "0 8px 32px rgba(0,0,0,0.12)", zIndex: 9999 }}>
           <p style={{ margin: "0 0 10px", fontSize: "0.65rem", fontWeight: 700, color: ui.textMuted, textTransform: "uppercase", letterSpacing: "0.07em" }}>Application Breakdown</p>
@@ -355,9 +352,8 @@ function KpiSection({ summary, statusData, loading, ui, darkMode, onOpenModal })
   const items = [
     { label: "Total Applications",   value: formatNumber(summary?.total_applications ?? summary?.total), sub: "All FRP submissions",           icon: "📦", accent: null,      filterType: "all" },
     { label: "Released This Month",  value: formatNumber(summary?.released_this_month ?? summary?.due_this_month), sub: "Released in current month",  icon: "📅", accent: "#6366f1", filterType: "released_this_month" },
-    { label: "Avg Processing Time",  value: summary?.avg_tat_days != null ? `${summary.avg_tat_days}d` : summary?.avg_processing_days != null ? `${summary.avg_processing_days}d` : "—", sub: "Mean turnaround", icon: "⏱️", accent: null, filterType: null },
     { label: "Pending Compliance",   value: formatNumber(summary?.pending), sub: "Awaiting client compliance",   icon: "⚠️", accent: "#f59e0b", filterType: "pending_compliance" },
-    { label: "Overdue",              value: formatNumber(summary?.overdue), sub: "Exceeding SLA target",          icon: "🚫", accent: "#ef4444", filterType: "overdue" },
+    { label: "Overdue",              value: formatNumber(summary?.overdue), sub: "Exceeded processing timeline",          icon: "🚫", accent: "#ef4444", filterType: "overdue" },
   ];
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 14, marginBottom: 16, position: "relative", zIndex: 100, overflow: "visible" }}>
@@ -811,7 +807,7 @@ function AlertsSection({ summary, alertsData, loading, ui, darkMode }) {
       else if (a.level === "warning") warning.push(a.message);
       else info.push(a.message);
     });
-    if (summary?.overdue > 0) critical.push(`${summary.overdue} application${summary.overdue !== 1 ? "s" : ""} exceeding SLA`);
+    if (summary?.overdue > 0) critical.push(`${summary.overdue} application${summary.overdue !== 1 ? "s" : ""} exceeded the prescribed processing timeline`);
     return { critical, warning, info };
   }, [alertsData, summary]);
 
