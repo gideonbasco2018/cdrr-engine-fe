@@ -323,16 +323,16 @@ export default function ProcessingTrendView({ ui, darkMode }) {
   const statusChartInstance = useRef(null);
 
   const weeklyTotals = useMemo(() => {
-    if (!weeklyData?.rows) return { received: 0, processed: 0 };
+    if (!weeklyData?.rows) return { carryOver: 0, received: 0, processed: 0 };
     return weeklyData.rows.reduce(
       (acc, r) => ({
+        carryOver: acc.carryOver + (r.carryOver ?? 0),
         received: acc.received + r.received,
         processed: acc.processed + r.processed,
       }),
-      { received: 0, processed: 0 },
+      { carryOver: 0, received: 0, processed: 0 },
     );
   }, [weeklyData]);
-
   // ── Shared filter params ──────────────────────────────────────────────────
   const sharedParams = useMemo(() => {
     const base = {
@@ -823,6 +823,12 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     { value: "month", label: "Month Range" },
     { value: "year", label: "By Year" },
   ];
+
+  const showCarryOver = !!(
+    (dateMode === "year" && yearValue) ||
+    dateMode === "month" ||
+    dateMode === "day"
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -1674,6 +1680,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                       Application Type
                     </th>
 
+                    {showCarryOver && <th style={thStyle}>Carry Over</th>}
                     <th style={thStyle}>Received</th>
                     <th style={thStyle}>Processed</th>
                     <th style={{ ...thStyle, color: ui.textPrimary }}>
@@ -1705,6 +1712,17 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                         {row.appType}
                       </td>
 
+                      {showCarryOver && (
+                        <td
+                          style={{
+                            ...tdStyle,
+                            color: "#f59e0b",
+                            fontWeight: 600,
+                          }}
+                        >
+                          {(row.carryOver ?? 0).toLocaleString()}
+                        </td>
+                      )}
                       <td
                         style={{
                           ...tdStyle,
@@ -1731,7 +1749,9 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                         }}
                       >
                         {(
-                          (row.received ?? 0) - (row.processed ?? 0)
+                          (showCarryOver ? (row.carryOver ?? 0) : 0) +
+                          (row.received ?? 0) -
+                          (row.processed ?? 0)
                         ).toLocaleString()}
                       </td>
                     </tr>
@@ -1754,6 +1774,18 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                     >
                       Total
                     </td>
+                    {showCarryOver && (
+                      <td
+                        style={{
+                          ...tdStyle,
+                          fontWeight: 700,
+                          borderBottom: "none",
+                          color: "#f59e0b",
+                        }}
+                      >
+                        {weeklyTotals.carryOver.toLocaleString()}
+                      </td>
+                    )}
                     <td
                       style={{
                         ...tdStyle,
@@ -1784,8 +1816,10 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                       }}
                     >
                       {(
-                        weeklyTotals.received - weeklyTotals.processed
-                      ).toLocaleString()}{" "}
+                        (showCarryOver ? weeklyTotals.carryOver : 0) +
+                        weeklyTotals.received -
+                        weeklyTotals.processed
+                      ).toLocaleString()}
                     </td>
                   </tr>
                 </tbody>

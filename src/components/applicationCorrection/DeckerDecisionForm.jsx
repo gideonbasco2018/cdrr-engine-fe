@@ -8,6 +8,7 @@ const DECISION_CONFIG = {
   "For Quality Evaluation": { groupId: 3, label: "Evaluator" },
   "For LRD Decking": { groupId: 2, label: "Decker" },
   "For OD Review": { groupId: 22, label: "OD Review Staff" },
+  "For PRSDD PMS SEC to MSU": { groupId: 23, label: "PRSDD Staff" },
 };
 
 export function DeckerDecisionForm({
