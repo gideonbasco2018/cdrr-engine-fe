@@ -63,7 +63,7 @@ const FILTER_LABELS = {
 const FILTER_ICONS = { all: "📦", released_this_month: "📅", pending_compliance: "⚠️", overdue: "🚫" };
 
 const DEFAULT_ADVANCED = {
-  est_cat: "", app_type: "", lto_company: "", brand_name: "", generic_name: "",
+  app_status: "", est_cat: "", app_type: "", lto_company: "", brand_name: "", generic_name: "",
   dosage_form: "", doc_type: "", uploaded_by: "",
   upload_date_from: "", upload_date_to: "",
   date_received_from: "", date_received_to: "",
@@ -165,6 +165,7 @@ function AdvancedFilterPanel({ draft, setDraft, filterOptions, onApply, onClear,
     <div style={{ padding: "14px 20px 0" }}>
       {sec("General Filters")}
       <div style={grid}>
+        <FilterSelect label="Application Status"  icon="🚦" value={draft.app_status}       onChange={(v) => setDraft(f => ({ ...f, app_status: v }))}       options={[{ value: "", label: "All Statuses" },    ...(filterOptions.app_statuses ?? []).map(s => ({ value: s, label: s }))]} {...fp} />
         <FilterSelect label="Est. Category"       icon="📋" value={draft.est_cat}          onChange={(v) => setDraft(f => ({ ...f, est_cat: v }))}          options={[{ value: "", label: "All Categories" }, ...(filterOptions.est_cats ?? []).map(c => ({ value: c, label: c }))]}     {...fp} />
         <FilterSelect label="Application Type"    icon="🗂️" value={draft.app_type}         onChange={(v) => setDraft(f => ({ ...f, app_type: v }))}         options={[{ value: "", label: "All Types" },       ...(filterOptions.app_types ?? []).map(t => ({ value: t, label: t }))]} {...fp} />
         <AutocompleteInput label="LTO Company"    icon="🏢" field="lto_company"   value={draft.lto_company}   placeholder="Search LTO company"   onChange={(v) => setDraft(f => ({ ...f, lto_company: v }))}   {...acp} />
@@ -211,7 +212,7 @@ function PeriodTab({ period, periodType, applied, search, cardBg, border, subBg,
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(null);
-  const PAGE_SIZE = 50;
+  const PAGE_SIZE = 100;
 
   const fetchData = useCallback(() => {
     setLoading(true); setError(null);
@@ -346,7 +347,7 @@ export default function ApplicationsModal({ open, onClose, initialFilter = "all"
   const [applied, setApplied]               = useState(DEFAULT_ADVANCED);
   const [period, setPeriod]                 = useState(initialPeriod);
 
-  const PAGE_SIZE    = 50;
+  const PAGE_SIZE    = 100;
   const activeCount  = countActive(applied);
   const isPeriodView = !!period;
 
@@ -426,7 +427,7 @@ export default function ApplicationsModal({ open, onClose, initialFilter = "all"
               {isPeriodView
                 ? `FRP and CRP applications received or released in ${period}`
                 : filterType === "overdue"
-                ? `Applications exceeding Citizen's Charter deadline · ${total.toLocaleString()} overdue`
+                ? `On-process applications that have exceeded their Citizen's Charter processing deadline · ${total.toLocaleString()} overdue`
                 : `FRP and CRP applications · ${total.toLocaleString()} total record${total !== 1 ? "s" : ""}`}
               {activeCount > 0 && (
                 <span style={{ marginLeft: 8, fontSize: "0.68rem", fontWeight: 700, padding: "1px 8px", borderRadius: 99, background: `${ACCENT}18`, color: ACCENT }}>
@@ -513,6 +514,14 @@ export default function ApplicationsModal({ open, onClose, initialFilter = "all"
                       <Th ui={ui} divider={divider} bg={cardBg}>DTN</Th>
                       <Th ui={ui} divider={divider} bg={cardBg}>App Type</Th>
                       <Th ui={ui} divider={divider} bg={cardBg}>App Status</Th>
+                      {filterType === "overdue" && (
+                        <>
+                          <ThGroup ui={ui} divider={divider} color="#ef4444" bg={cardBg}>Date Received</ThGroup>
+                          <ThGroup ui={ui} divider={divider} color="#ef4444" bg={cardBg}>Charter Days</ThGroup>
+                          <ThGroup ui={ui} divider={divider} color="#ef4444" bg={cardBg}>Days Elapsed</ThGroup>
+                          <ThGroup ui={ui} divider={divider} color="#ef4444" bg={cardBg}>Over By</ThGroup>
+                        </>
+                      )}
                       <Th ui={ui} divider={divider} bg={cardBg}>Doc Type</Th>
                       <Th ui={ui} divider={divider} bg={cardBg}>Category</Th>
                       <ThGroup ui={ui} divider={divider} color="#6366f1" bg={cardBg}>Brand Name</ThGroup>
@@ -530,17 +539,8 @@ export default function ApplicationsModal({ open, onClose, initialFilter = "all"
                       <ThGroup ui={ui} divider={divider} color="#10b981" bg={cardBg}>Distri. Country</ThGroup>
                       <ThGroup ui={ui} divider={divider} color="#ec4899" bg={cardBg}>Repacker</ThGroup>
                       <ThGroup ui={ui} divider={divider} color="#ec4899" bg={cardBg}>Repacker Country</ThGroup>
-                      <Th ui={ui} divider={divider} bg={cardBg}>Date Received</Th>
-                      <Th ui={ui} divider={divider} bg={cardBg}>Date Released</Th>
-                      <Th ui={ui} divider={divider} bg={cardBg}>Upload Date</Th>
-                      <Th ui={ui} divider={divider} bg={cardBg}>Uploaded By</Th>
-                      {filterType === "overdue" && (
-                        <>
-                          <ThGroup ui={ui} divider={divider} color="#ef4444" bg={cardBg}>Charter Days</ThGroup>
-                          <ThGroup ui={ui} divider={divider} color="#ef4444" bg={cardBg}>Days Elapsed</ThGroup>
-                          <ThGroup ui={ui} divider={divider} color="#ef4444" bg={cardBg}>Over By</ThGroup>
-                        </>
-                      )}
+                      {filterType !== "overdue" && <Th ui={ui} divider={divider} bg={cardBg}>Date Received</Th>}
+                      {filterType !== "overdue" && <Th ui={ui} divider={divider} bg={cardBg}>Date Released</Th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -566,6 +566,23 @@ export default function ApplicationsModal({ open, onClose, initialFilter = "all"
                           <td style={{ padding: "9px 12px", borderBottom: `1px solid ${divider}`, verticalAlign: "middle" }}>
                             {r.app_status ? <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "2px 8px", borderRadius: 99, background: badge.bg, color: badge.color }}>{r.app_status}</span> : <span style={{ color: ui.textMuted }}>—</span>}
                           </td>
+                          {filterType === "overdue" && (() => {
+                            const charter = r.timeline;
+                            const elapsed = r.days_elapsed;
+                            const overBy  = charter != null && elapsed != null ? elapsed - charter : null;
+                            return (
+                              <>
+                                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${divider}`, verticalAlign: "middle", color: "#ef4444", fontWeight: 700, whiteSpace: "nowrap" }}>{r.date_received || "—"}</td>
+                                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${divider}`, verticalAlign: "middle", color: "#ef4444", fontWeight: 700, whiteSpace: "nowrap" }}>{charter != null ? `${charter}d` : "—"}</td>
+                                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${divider}`, verticalAlign: "middle", fontWeight: 700, whiteSpace: "nowrap", color: elapsed != null && overBy > 0 ? "#ef4444" : "#10b981" }}>{elapsed != null ? `${elapsed}d` : "—"}</td>
+                                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${divider}`, verticalAlign: "middle", whiteSpace: "nowrap" }}>
+                                  {overBy != null ? (
+                                    <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "3px 9px", borderRadius: 99, background: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}>+{overBy}d overdue</span>
+                                  ) : "—"}
+                                </td>
+                              </>
+                            );
+                          })()}
                           {td(r.doc_type || "Not Yet Assigned", { muted: !r.doc_type })}
                           {td(r.category)}
                           {td(r.brand_name, { wide: true })}
@@ -583,26 +600,8 @@ export default function ApplicationsModal({ open, onClose, initialFilter = "all"
                           {td(r.distributor_country)}
                           {td(r.repacker, { wide: true })}
                           {td(r.repacker_country)}
-                          {td(r.date_received, { muted: true, narrow: true })}
-                          {td(r.date_released, { muted: true, narrow: true })}
-                          {td(r.upload_date ? r.upload_date.slice(0, 10) : null, { muted: true, narrow: true })}
-                          {td(r.uploaded_by, { muted: true })}
-                          {filterType === "overdue" && (() => {
-                            const charter = r.timeline;
-                            const elapsed = r.days_elapsed;
-                            const overBy  = charter != null && elapsed != null ? elapsed - charter : null;
-                            return (
-                              <>
-                                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${divider}`, verticalAlign: "middle", color: "#ef4444", fontWeight: 700, whiteSpace: "nowrap" }}>{charter != null ? `${charter}d` : "—"}</td>
-                                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${divider}`, verticalAlign: "middle", fontWeight: 700, whiteSpace: "nowrap", color: elapsed != null && overBy > 0 ? "#ef4444" : "#10b981" }}>{elapsed != null ? `${elapsed}d` : "—"}</td>
-                                <td style={{ padding: "9px 12px", borderBottom: `1px solid ${divider}`, verticalAlign: "middle", whiteSpace: "nowrap" }}>
-                                  {overBy != null ? (
-                                    <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "3px 9px", borderRadius: 99, background: "rgba(239,68,68,0.12)", color: "#ef4444", border: "1px solid rgba(239,68,68,0.25)" }}>+{overBy}d overdue</span>
-                                  ) : "—"}
-                                </td>
-                              </>
-                            );
-                          })()}
+                          {filterType !== "overdue" && td(r.date_received, { muted: true, narrow: true })}
+                          {filterType !== "overdue" && td(r.date_released, { muted: true, narrow: true })}
                         </tr>
                       );
                     })}
