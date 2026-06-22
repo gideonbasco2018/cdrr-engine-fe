@@ -53,6 +53,10 @@ export const WORKFLOW = {
   "LRD Decking": {
     "For Decking": "Quality Evaluation", 
   },
+  "OD Review": {
+    "Approved OD": null,
+    "Disapproved OD": null,
+  },
   
 };
 
@@ -71,6 +75,7 @@ export const STEP_GROUP_MAP = {
   Record: 15,
   "S&E Supervisor": 20,
   "S&E Checker": 21,
+  "OD Review": 22,
 };
 
 export const STEP_DECISIONS = {
@@ -107,6 +112,10 @@ export const STEP_DECISIONS = {
   "OD-Releasing": ["Scanned and Endorsed to Releasing Officer"],
   "Releasing Officer": ["Released"],
   "LRD Decking": ["For Decking"], 
+  "OD Review": [
+    "Approved OD",
+    "Disapproved OD",
+  ],
 };
 
 export const DECISION_DOCTRACK = {
@@ -132,6 +141,8 @@ export const DECISION_DOCTRACK = {
   "Forwarded to Supervisor": "Forwarded to Supervisor for review and signing of the final recommendation",
   "For Cancellation": "Application cancelled",
   "For Decking": "Forwarded to Evaluator",
+  "Approved OD": "Approved by CDRR Director",
+  "Disapproved OD": "Disapproved by CDRR Director",
 };
 
 export const EDITABLE_STEPS = [
@@ -144,6 +155,7 @@ export const EDITABLE_STEPS = [
   "S&E",             
   "S&E Supervisor",
   "S&E Checker",
+  "OD Review",
 ];
 
 export const DEFAULT_WORKING_DAYS = 20;

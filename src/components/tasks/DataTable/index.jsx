@@ -1568,7 +1568,6 @@ function DataTable({
           />
         </div>
       </div>
-
       {/* ── Modals ── */}
       {selectedRowDetails && (
         <ViewDetailsModal
@@ -1604,7 +1603,6 @@ function DataTable({
           darkMode={darkMode}
         />
       )}
-
       {/* ── Confirm Receive modal ── */}
       {confirmReceive && (
         <div
@@ -1774,7 +1772,6 @@ function DataTable({
           </div>
         </div>
       )}
-
       {showGuide && (
         <HowToUseModal
           colors={colors}
@@ -1782,7 +1779,6 @@ function DataTable({
           onClose={closeGuide}
         />
       )}
-
       {showBulkDeck && bulkDeckConfig && (
         <BulkDeckModal
           selectedCount={selectedRows.length}
@@ -1814,6 +1810,7 @@ function DataTable({
           darkMode={darkMode}
           onClose={() => setShowBulkComplete(false)}
           onConfirm={handleBulkComplete}
+          currentUser={getCurrentUser()}
           onDone={async () => {
             if (onClearSelections) onClearSelections();
             if (onRefresh) await onRefresh();
@@ -1821,7 +1818,6 @@ function DataTable({
           }}
         />
       )}
-
       <style>{"@keyframes spin { to { transform: rotate(360deg); } }"}</style>
     </>
   );

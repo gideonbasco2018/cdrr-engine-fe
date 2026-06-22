@@ -12,12 +12,15 @@ export const DECKER_DECISIONS = [
   "For Quality Evaluation",
   "For LRD Decking",
   "For OD Review",
+  "For PRSDD PMS SEC to MSU", 
 ];
 
 export const DOCTRACK_DEFAULTS = {
   "For Quality Evaluation": "Forwarded to evaluator",
   "For LRD Decking": "Forwarded to LRD Decker",  
   "For OD Review": "Forwarded to OD Review Staff",
+  "For PRSDD PMS SEC to MSU":
+    "Forwarded to PRSDD PMS SEC to MSU",
 };
 
 export const MOCK_RECORD = {
