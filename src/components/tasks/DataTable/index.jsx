@@ -324,9 +324,37 @@ function DataTable({
           });
           const phtDate = new Date(now.getTime() + 8 * 60 * 60 * 1000);
           const dateReleasedStr = phtDate.toISOString().slice(0, 10);
+          const odReleasingDocType =
+            isODReleasing && decisionResult
+              ? ({
+                  "For issuance of CPR": "CPR",
+                  "For issuance of LOD": "LOD",
+                  "For issuance of Certificate": "Certificate",
+                  "For issuance of Letter": "Letter",
+                  "For issuance of COPP": "COPP",
+                  "For issuance of CFS": "CFS",
+                  "For issuance of GLE": "GLE",
+                  "For issuance of Letter for non acceptance":
+                    "Letter for non acceptance",
+                  "For issuance of Product classification":
+                    "Product classification",
+                  "Letter (Withdrawal)": "Letter (Withdrawal)",
+                  "Letter (Re-routed)": "Letter (Re-routed)",
+                }[decisionResult] ?? null)
+              : null;
           await updateUploadReport(mainDbId, {
             DB_APP_STATUS: "COMPLETED",
             DB_DATE_RELEASED: dateReleasedStr,
+            ...(isODReleasing && decisionResult
+              ? {
+                  DB_DECISION_RESULT: decisionResult,
+                  DB_DECISION_AUTHORITY: decisionAuthorityName || "",
+                  DB_DECISION_SIGNED_DATE: signedDate || null,
+                  ...(odReleasingDocType != null
+                    ? { DB_TYPE_DOC_RELEASED: odReleasingDocType }
+                    : {}),
+                }
+              : {}),
           });
         } else {
           const indexData = await getLastApplicationLogIndex(mainDbId);
@@ -854,7 +882,7 @@ function DataTable({
               </button>
             )}
 
-            {/* Close Task (Final) */}
+            {/* Close Task (Final)
             {selectedRows.length > 0 && (
               <button
                 onClick={() => setShowBulkComplete(true)}
@@ -871,6 +899,23 @@ function DataTable({
                   (e.currentTarget.style.boxShadow =
                     "0 1px 4px rgba(220,38,38,0.3)")
                 }
+              >
+                <span>🔒</span>Close Task (Final)
+                <span style={smallBadge}>{selectedRows.length}</span>
+              </button>
+            )} */}
+
+            {/* Close Task (Final) — temporarily disabled */}
+            {selectedRows.length > 0 && (
+              <button
+                disabled
+                style={smallBtn({
+                  background: "rgba(150,150,150,0.3)",
+                  border: "1px solid rgba(150,150,150,0.2)",
+                  boxShadow: "none",
+                  cursor: "not-allowed",
+                  opacity: 0.5,
+                })}
               >
                 <span>🔒</span>Close Task (Final)
                 <span style={smallBadge}>{selectedRows.length}</span>

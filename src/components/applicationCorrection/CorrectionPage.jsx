@@ -157,9 +157,9 @@ export function CorrectionPage({
                 ? "Manual CPR Reconstruction"
                 : entryType === "VALIDITY_EXTENSION"
                   ? "Manual CPR Validity Extension"
-                  : entryType === "CANCELLATION_OF_CPR"
+                  : entryType === "CANCELLATION OF CPR"
                     ? "Manual CPR Cancellation of CPR"
-                    : entryType === "SURRENDER_DUE_TO_PAC"
+                    : entryType === "SURRENDER DUE TO PAC"
                       ? "Manual CPR Surrender due to PAC"
                       : "Manual CPR Correction"}
             </h1>

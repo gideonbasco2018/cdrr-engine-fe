@@ -693,13 +693,13 @@ export function LoadingModal({
                     </option>
                     <option value="CORRECTION">Correction</option>
                     <option value="RECONSTRUCTION">Reconstruction</option>
-                    <option value="VALIDITY_EXTENSION">
+                    <option value="VALIDITY EXTENSION">
                       Validity Extension
                     </option>
-                    <option value="CANCELLATION_OF_CPR">
+                    <option value="CANCELLATION OF CPR">
                       Cancellation of CPR
                     </option>
-                    <option value="SURRENDER_DUE_TO_PAC">
+                    <option value="SURRENDER DUE TO PAC">
                       Surrender due to PAC
                     </option>
                   </select>

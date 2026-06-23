@@ -68,10 +68,10 @@ export const DECISION_DOCTRACK_MAP = {
    "Endorsed to OD-Releasing": "Received by CDRR-OD",
 
   // OD-Releasing — built dynamically from signed date (see BulkDeckModal)
-  "Scanned and Endorsed to Releasing Officer": "",
+  "Stamped and Scanned, forwarded to AFO Records": "",
 
   // Releasing Officer
-  "Released": "Scanned and stamp, Forwarded to AFO Records",
+  "Released": "Stamped and Scanned, forwarded to AFO Records",
   "Forwarded to Quality Evaluation": "Forwarded to Quality Evaluation",
 };
 
@@ -104,20 +104,21 @@ export const BULK_DECK_CONFIG = {
     ],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
-  "QA Admin": {
-    currentStep: "QA Admin",
-    nextStep: "LRD Chief Admin",
-    nextGroupId: 17,
-    fromLabel: "QA Admin",
-    buttonLabel: "Endorse Selected Applications",
-    modalTitle: "Endorse Selected Applications to LRD Chief Admin",
-    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to LRD Chief Admin"],
-    availableDecisions: [
-      "Endorsed to LRD Chief Admin",
-      "Returned to Evaluator",
-    ],
-    decisionDoctrackMap: DECISION_DOCTRACK_MAP,
-  },
+    // "QA Admin": disabled — button hidden
+  // "QA Admin": {
+  //   currentStep: "QA Admin",
+  //   nextStep: "LRD Chief Admin",
+  //   nextGroupId: 17,
+  //   fromLabel: "QA Admin",
+  //   buttonLabel: "Endorse Selected Applications",
+  //   modalTitle: "Endorse Selected Applications to LRD Chief Admin",
+  //   defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to LRD Chief Admin"],
+  //   availableDecisions: [
+  //     "Endorsed to LRD Chief Admin",
+  //     "Returned to Evaluator",
+  //   ],
+  //   decisionDoctrackMap: DECISION_DOCTRACK_MAP,
+  // },
   "LRD Chief Admin": {
     currentStep: "LRD Chief Admin",
     nextStep: "OD-Receiving",
@@ -142,14 +143,15 @@ export const BULK_DECK_CONFIG = {
   },
   "OD-Releasing": {
     currentStep: "OD-Releasing",
-    nextStep: "Releasing Officer",
-    nextGroupId: 8,
+    nextStep: null,
+    nextGroupId: null,
     fromLabel: "OD-Releasing",
-    buttonLabel: "Endorse Selected Applications",
-    modalTitle: "Endorse Selected Applications to Releasing Officer",
+    isEndTask: true,
+    buttonLabel: "End Task",
+    modalTitle: "OD-Releasing — End Task",
     defaultDoctrack: "", // built dynamically from signed date
     requiresSignedDate: true,
-    availableDecisions: ["Scanned and Endorsed to Releasing Officer"],
+    availableDecisions: ["Stamped and Scanned, forwarded to AFO Records"],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
   "Releasing Officer": {
