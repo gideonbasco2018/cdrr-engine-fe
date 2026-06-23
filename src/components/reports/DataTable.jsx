@@ -104,6 +104,7 @@ const COLUMN_DB_KEY_MAP = {
   dbTimelineCitizenCharter: "DB_TIMELINE_CITIZEN_CHARTER",
   userUploader: "DB_USER_UPLOADER",
   dateExcelUpload: "DB_DATE_EXCEL_UPLOAD",
+  entryType: "DB_ENTRY_TYPE",
 };
 
 export const TAB_ORDER = [
@@ -1020,7 +1021,6 @@ function DataTable({
                 <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
               </span>
             )}
-
             {/* ── Double-click config button ── */}
             <div style={{ position: "relative" }}>
               <button

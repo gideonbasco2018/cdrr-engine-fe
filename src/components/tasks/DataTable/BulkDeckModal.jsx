@@ -65,9 +65,9 @@ const ACTION_CONFIG = {
     options: ["For signature"],
     warning: "Action is required when endorsing to OD-Releasing.",
   },
-  "OD-Releasing_Scanned and Endorsed to Releasing Officer": {
-    options: ["Signed"],
-    warning: "Action is required when endorsing to Releasing Officer.",
+  "OD-Releasing_Stamped and Scanned, forwarded to AFO Records": {
+    options: ["Stamped and Scanned, forwarded to AFO Records"],
+    warning: "Action is required.",
   },
   "Releasing Officer_Released": {
     options: ["Released"],
@@ -109,7 +109,7 @@ const formatSignedDate = (dateStr) => {
 };
 
 const buildODReleasingDoctrack = (dateStr) =>
-  `Signed (${formatSignedDate(dateStr)}) by CDRR-OIC Director, for scanning`;
+  `Signed (${formatSignedDate(dateStr)}) by CDRR-OIC Director, stamped and scanned, forwarded to AFO Records`;
 
 const Spinner = ({ size = 13 }) => (
   <span
@@ -193,7 +193,7 @@ export function BulkDeckModal({
     if (!dec) return config.defaultDoctrack ?? "";
     if (
       config.requiresSignedDate &&
-      dec === "Scanned and Endorsed to Releasing Officer"
+      dec === "Stamped and Scanned, forwarded to AFO Records"
     ) {
       return buildODReleasingDoctrack(signedDate);
     }
@@ -289,7 +289,36 @@ export function BulkDeckModal({
     submittingRef.current = true;
     setSubmitting(true);
     try {
-      // ── STEP 1: Doctrack ──
+      // ── STEP 1: CPR API — OD-Releasing & Releasing Officer ──
+      let aborted = false;
+      const isCPRStep =
+        (config.currentStep === "Releasing Officer" &&
+          decision === "Released") ||
+        (config.currentStep === "OD-Releasing" &&
+          decision === "Stamped and Scanned, forwarded to AFO Records");
+
+      if (isCPRStep && decisionResult === "For issuance of CPR") {
+        const dtnList = (selectedRecords ?? []).map((r) => r.dtn);
+        console.log("🚀 CPR API running for DTNs:", dtnList);
+        try {
+          const cprResult = await bulkCreateFromDtns(
+            dtnList,
+            currentUser?.username ?? null,
+          );
+          console.log("✅ CPR insert result:", cprResult);
+        } catch (cprErr) {
+          console.error("❌ CPR API failed:", cprErr.message);
+          setAlertModal({
+            title: "CPR Verif Portal",
+            message: `Failed to insert CPR records to Verif Portal. Reason: ${cprErr.message}`,
+            detail:
+              "Please check your internet connection and try again. The process has been stopped to prevent data inconsistency.",
+          });
+          aborted = true;
+        }
+      }
+      // ── STEP 2: Doctrack ──
+      if (aborted) return;
       if (doctrackEnabled) {
         try {
           const doctrackEntries = selectedDtns.map((dtn) => ({
@@ -321,7 +350,7 @@ export function BulkDeckModal({
         }
       }
 
-      // ── STEP 2: Main DB ──
+      // ── STEP 3: Main DB ──
       let res;
       try {
         const docTypeReleased =
@@ -341,51 +370,6 @@ export function BulkDeckModal({
         console.error("❌ onConfirm failed:", confirmErr.message);
         alert(`❌ Failed to process records: ${confirmErr.message}`);
         return;
-      }
-
-      // ── STEP 3: CPR API — Releasing Officer only ──
-      if (
-        config.currentStep === "Releasing Officer" &&
-        decision === "Released"
-      ) {
-        const cprRecords = [];
-        for (const r of selectedRecords ?? []) {
-          try {
-            const fresh = await getUploadReport(r.mainDbId);
-            console.log(
-              "🔍 Fresh DB_DECISION_RESULT:",
-              fresh?.DB_DECISION_RESULT,
-            );
-            if (fresh?.DB_DECISION_RESULT === "For issuance of CPR") {
-              cprRecords.push({
-                ...r,
-                decisionResult: fresh.DB_DECISION_RESULT,
-              });
-            }
-          } catch (e) {
-            console.warn(
-              "⚠️ Could not fetch fresh record:",
-              r.mainDbId,
-              e.message,
-            );
-          }
-        }
-
-        console.log("✅ CPR records found:", cprRecords.length);
-        if (cprRecords.length > 0) {
-          try {
-            const dtnList = cprRecords.map((r) => r.dtn);
-            console.log("🚀 CPR API running for DTNs:", dtnList);
-
-            const cprResult = await bulkCreateFromDtns(
-              dtnList,
-              currentUser?.username ?? null,
-            );
-            console.log("✅ CPR insert result:", cprResult);
-          } catch (cprErr) {
-            console.warn("⚠️ CPR API failed (non-fatal):", cprErr.message);
-          }
-        }
       }
 
       setResult(res);

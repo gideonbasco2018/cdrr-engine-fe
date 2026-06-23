@@ -92,6 +92,7 @@ export const mapDataItem = (item, index) => ({
   pharmaProdCat: item.DB_PHARMA_PROD_CAT ?? "N/A",
   pharmaProdCatLabel: item.DB_PHARMA_PROD_CAT_LABEL ?? "N/A",
   isInPm: item.DB_IS_IN_PM ?? "N/A",
+  entryType: item.DB_ENTRY_TYPE ?? null,
 
   // ✅ NEW: Timeline Citizen Charter field
   dbTimelineCitizenCharter: item.DB_TIMELINE_CITIZEN_CHARTER ?? null,
@@ -138,6 +139,7 @@ export const mapDataItem = (item, index) => ({
     item.application_delegation?.DB_RELEASING_OFFICER_REMARKS ?? "N/A",
   dateReleasingOfficerEnd:
     item.application_delegation?.DB_RELEASING_OFFICER_END ?? "N/A",
+    
 });
 
 export const getColorScheme = (darkMode) => {

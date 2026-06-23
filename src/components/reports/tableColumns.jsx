@@ -4,12 +4,15 @@ export const tableColumns = [
     label: "Processing Type",
     width: "100px",
   },
+
   { key: "appStatus", label: "App Status", width: "120px" },
   {
     key: "dtn",
     label: "DTN",
     width: "150px",
   },
+  { key: "oldRsn", label: "Old RSN", width: "120px" },
+  { key: "entryType", label: "Entry Type", width: "110px" },
   { key: "__divider__", label: "", width: "1px" },
 
   { key: "estCat", label: "Est. Category", width: "120px" },
@@ -62,7 +65,7 @@ export const tableColumns = [
   { key: "regNo", label: "Registration No.", width: "150px" },
   { key: "appType", label: "Application Type", width: "120px" },
   { key: "motherAppType", label: "Mother App Type", width: "150px" },
-  { key: "oldRsn", label: "Old RSN", width: "120px" },
+
   { key: "ammend1", label: "Amendment 1", width: "150px" },
   { key: "ammend2", label: "Amendment 2", width: "150px" },
   { key: "ammend3", label: "Amendment 3", width: "150px" },
