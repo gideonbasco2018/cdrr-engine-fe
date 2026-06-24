@@ -42,10 +42,12 @@ const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
   decision === "Checked and returned to evaluator" ||
   decision === "Returned to S&E Evaluator" ||
   decision === "Checked and Returned to S&E Evaluator" ||
-  decision === "Signed and Returned to S&E Evaluator";
+  decision === "Signed and Returned to S&E Evaluator" ||
+  decision === "Returned to Quality Evaluation";
 
 /* Group ID for Decision Authority options (QA) */
 const LRD_AUTHORITY_GROUP_ID = 6;
+const PRSDD_AUTHORITY_GROUP_ID = 29;
 
 /* Group ID for Decision Authority options (OD-Releasing / Director) */
 const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
@@ -148,6 +150,36 @@ const ACTION_CONFIG = {
     ],
     warning: "Action is required when endorsing to supervisor.",
   },
+
+  "PRSDD Quality Evaluation_Endorsed to Checker": {
+    options: ["For Approval", "For Disapproval"],
+    warning: "Action is required when endorsing to checker.",
+  },
+  "PRSDD Checking_Endorsed to Supervisor": {
+    options: ["For Approval", "For Disapproval"],
+    warning: "Action is required when endorsing to supervisor.",
+  },
+  "PRSDD Checking_Returned to Quality Evaluation": {
+    options: ["Return to Evaluator for Clarification"],
+    warning: "Action is required when returning to Quality Evaluation.",
+  },
+  "PRSDD Supervisor_Endorsed to QA Admin": {
+    options: ["Signed and forwarded to QA Admin"],
+    warning: "Action is required when endorsing to QA Admin.",
+  },
+  "PRSDD Supervisor_Returned to Evaluator": {
+    options: ["Return to Evaluator for Clarification"],
+    warning: "Action is required when returning to evaluator.",
+  },
+
+  "PRSDD QA Admin_Endorsed to PRSDD Chief Admin": {
+    options: ["Checked and Forwarded to PRSDD Admin"],
+    warning: "Action is required when endorsing to PRSDD Chief Admin.",
+  },
+  "PRSDD QA Admin_Returned to Evaluator": {
+    options: ["Return to Evaluator for Clarification"],
+    warning: "Action is required when returning to evaluator.",
+  },
 };
 
 /* Fields shown in Step 4  "For Approval" action */
@@ -226,6 +258,7 @@ export function Step4ActionForm({
   colors,
   onClose,
   onSuccess,
+  entryType = "",
 }) {
   const [formData, setFormData] = useState({
     currentUserDisplay: "",
@@ -303,6 +336,7 @@ export function Step4ActionForm({
   const needsAssignee =
     nextStep !== null && !isForCompliance && !nextStepActive;
   const isLRDChiefAdmin = currentStep === "LRD Chief Admin";
+  const isPRSDDChiefAdmin = currentStep === "PRSDD Chief Admin";
   const isODReleasing = currentStep === "OD-Releasing";
   const isODReleasingDecision =
     isODReleasing &&
@@ -319,7 +353,34 @@ export function Step4ActionForm({
 
   // Action dropdown key
   const actionKey = `${currentStep}_${formData.decision}`;
-  const actionConfig = ACTION_CONFIG[actionKey] ?? null;
+  const baseActionConfig = ACTION_CONFIG[actionKey] ?? null;
+  const actionConfig = (() => {
+    if (!baseActionConfig) return null;
+    if (
+      actionKey === "Quality Evaluation_Endorsed to Checker" &&
+      entryType === "CANCELLATION OF CPR"
+    ) {
+      return {
+        ...baseActionConfig,
+        options: ["For Approval", "For Disapproval"],
+      };
+    }
+    return baseActionConfig;
+  })();
+
+  console.log("🔍 actionConfig final:", actionConfig?.options);
+  console.log(
+    "🔍 condition check:",
+    actionKey === "Quality Evaluation_Endorsed to Checker",
+    "&&",
+    entryType === "CANCELLATION OF CPR",
+  );
+  console.log(
+    "🔍 entryType length:",
+    entryType?.length,
+    "| expected:",
+    "CANCELLATION OF CPR".length,
+  );
 
   const availableDecisions = (
     STEP_DECISIONS[currentStep] ?? ["Approved", "Rejected"]
@@ -436,7 +497,13 @@ export function Step4ActionForm({
           formData.decision === "Checked and Returned to S&E Evaluator" ||
           formData.decision === "Signed and Returned to S&E Evaluator"
             ? "S&E"
-            : "Quality Evaluation";
+            : formData.decision === "Returned to Quality Evaluation" ||
+                (currentStep === "PRSDD Supervisor" &&
+                  formData.decision === "Returned to Evaluator") ||
+                (currentStep === "PRSDD QA Admin" &&
+                  formData.decision === "Returned to Evaluator") // ← dagdag
+              ? "PRSDD Quality Evaluation"
+              : "Quality Evaluation";
 
         const prevEval = findPreviousEvaluator(logs, currentStep, targetStep);
         console.log("🔍 prevEval object:", prevEval); // ← tingnan sa browser console
@@ -480,7 +547,7 @@ export function Step4ActionForm({
 
   /* ── Load Decision Authority users (LRD Chief Admin or OD-Releasing) ── */
   useEffect(() => {
-    if (!isLRDChiefAdmin && !isODReleasing) {
+    if (!isLRDChiefAdmin && !isPRSDDChiefAdmin && !isODReleasing) {
       setAuthorityOptions([]);
       return;
     }
@@ -489,7 +556,9 @@ export function Step4ActionForm({
         setLoadingAuthority(true);
         const groupId = isODReleasing
           ? OD_RELEASING_AUTHORITY_GROUP_ID
-          : LRD_AUTHORITY_GROUP_ID;
+          : isPRSDDChiefAdmin
+            ? PRSDD_AUTHORITY_GROUP_ID
+            : LRD_AUTHORITY_GROUP_ID;
         const users = await getUsersByGroup(groupId);
         setAuthorityOptions(users);
       } catch {
@@ -556,8 +625,10 @@ export function Step4ActionForm({
     !formData.doctrackRemarks.trim() ||
     (isForCompliance && !deadlineDate) ||
     (actionConfig && !formData.action) ||
-    ((isLRDChiefAdmin || isODReleasing) && !formData.decisionResult) ||
-    ((isLRDChiefAdmin || isODReleasing) && !formData.decisionAuthorityId) ||
+    ((isLRDChiefAdmin || isPRSDDChiefAdmin || isODReleasing) &&
+      !formData.decisionResult) ||
+    ((isLRDChiefAdmin || isPRSDDChiefAdmin || isODReleasing) &&
+      !formData.decisionAuthorityId) ||
     (needsAssignee &&
       !isReturnToEvaluator &&
       (loadingUsers || assigneeOptions.length === 0 || !formData.assignee)) ||
@@ -578,6 +649,15 @@ export function Step4ActionForm({
             ? `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
             : "Your log will be completed. This is the final step — no further assignment needed.";
 
+  console.log("🔍 entryType received:", entryType);
+  console.log("🔍 record.entryType:", record.entryType);
+  console.log("🔍 actionKey:", actionKey);
+  console.log("🔍 baseActionConfig:", baseActionConfig);
+  console.log("🔍 currentStep:", currentStep);
+  console.log("🔍 formData.decision:", formData.decision);
+  console.log("🔍 availableDecisions:", availableDecisions);
+  console.log("🔍 STEP_DECISIONS[currentStep]:", STEP_DECISIONS[currentStep]);
+  console.log("🔍 actionConfig final options:", actionConfig?.options);
   const inp = {
     width: "100%",
     padding: "0.55rem 0.75rem",
@@ -605,11 +685,17 @@ export function Step4ActionForm({
       alert("⚠️ Please assign a next user.");
       return;
     }
-    if ((isLRDChiefAdmin || isODReleasing) && !formData.decisionResult) {
+    if (
+      (isLRDChiefAdmin || isPRSDDChiefAdmin || isODReleasing) &&
+      !formData.decisionResult
+    ) {
       alert("⚠️ Please select a Decision Result.");
       return;
     }
-    if ((isLRDChiefAdmin || isODReleasing) && !formData.decisionAuthorityId) {
+    if (
+      (isLRDChiefAdmin || isPRSDDChiefAdmin || isODReleasing) &&
+      !formData.decisionAuthorityId
+    ) {
       alert("⚠️ Please select a Decision Authority.");
       return;
     }
@@ -1256,7 +1342,7 @@ export function Step4ActionForm({
       )}
 
       {/* Decision Result — LRD Chief Admin or OD-Releasing */}
-      {(isLRDChiefAdmin || isODReleasing) && (
+      {(isLRDChiefAdmin || isPRSDDChiefAdmin || isODReleasing) && (
         <div>
           <label style={labelStyle}>
             Decision Result <span style={{ color: "#ef4444" }}>*</span>
@@ -1273,7 +1359,9 @@ export function Step4ActionForm({
             }}
           >
             <option value="">Select result...</option>
-            {isLRDChiefAdmin && <option value="Signed">Signed</option>}
+            {(isLRDChiefAdmin || isPRSDDChiefAdmin) && (
+              <option value="Signed">Signed</option>
+            )}
             {isODReleasing && (
               <>
                 <option value="For issuance of CPR">For issuance of CPR</option>
@@ -1314,7 +1402,7 @@ export function Step4ActionForm({
       )}
 
       {/* Decision Authority — LRD Chief Admin or OD-Releasing */}
-      {(isLRDChiefAdmin || isODReleasing) && (
+      {(isLRDChiefAdmin || isPRSDDChiefAdmin || isODReleasing) && (
         <div>
           <label style={labelStyle}>
             Decision Authority <span style={{ color: "#ef4444" }}>*</span>
@@ -1360,11 +1448,13 @@ export function Step4ActionForm({
                   const isMMZamudio = fullName
                     ?.toLowerCase()
                     .includes("zamudio");
-                  const lrdDoctrack = isLRDChiefAdmin
-                    ? isMMZamudio
-                      ? "Signed by LRD Chief and forwarded to CDRR Director for signing"
-                      : "Signed by LRD (OIC) Chief and forwarded to CDRR Director for signing"
-                    : null;
+                  const lrdDoctrack = isPRSDDChiefAdmin
+                    ? "Signed by PRSDD Chief and forwarded to CDRR Director for signing"
+                    : isLRDChiefAdmin
+                      ? isMMZamudio
+                        ? "Signed by LRD Chief and forwarded to CDRR Director for signing"
+                        : "Signed by LRD (OIC) Chief and forwarded to CDRR Director for signing"
+                      : null;
 
                   setFormData((p) => ({
                     ...p,

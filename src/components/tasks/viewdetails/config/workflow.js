@@ -57,7 +57,25 @@ export const WORKFLOW = {
     "Approved OD": null,
     "Disapproved OD": null,
   },
-  
+  "PRSDD Quality Evaluation": {
+    "Endorsed to Checker": "PRSDD Checking",
+  },
+  "PRSDD Checking": {
+    "Endorsed to Supervisor": "PRSDD Supervisor",     
+    "Returned to Quality Evaluation": "PRSDD Quality Evaluation",
+  },
+  "PRSDD Supervisor": {
+    "Endorsed to QA Admin": "PRSDD QA Admin",
+    "Returned to Evaluator": "PRSDD Quality Evaluation",
+  },
+  "PRSDD QA Admin": {
+    "Endorsed to PRSDD Chief Admin": "PRSDD Chief Admin",
+    "Returned to Evaluator": "PRSDD Quality Evaluation",
+  },
+  "PRSDD Chief Admin": {
+    "Endorsed to OD-Receiving": "OD-Receiving",
+  },
+    
 };
 
 export const STEP_GROUP_MAP = {
@@ -76,6 +94,11 @@ export const STEP_GROUP_MAP = {
   "S&E Supervisor": 20,
   "S&E Checker": 21,
   "OD Review": 22,
+  "PRSDD PMS SEC & MSU": 23,
+  "PRSDD Checking": 25,
+  "PRSDD Supervisor": 26,
+  "PRSDD QA Admin": 27,
+  "PRSDD Chief Admin":28
 };
 
 export const STEP_DECISIONS = {
@@ -115,6 +138,24 @@ export const STEP_DECISIONS = {
   "OD Review": [
     "Approved OD",
     "Disapproved OD",
+  ],
+  "PRSDD Quality Evaluation": [
+    "Endorsed to Checker",
+  ],
+  "PRSDD Checking": [
+    "Endorsed to Supervisor",
+    "Returned to Quality Evaluation",
+  ],
+  "PRSDD Supervisor": [
+    "Endorsed to QA Admin",
+    "Returned to Evaluator",
+  ],
+  "PRSDD QA Admin": [
+    "Endorsed to PRSDD Chief Admin",
+    "Returned to Evaluator",
+  ],
+  "PRSDD Chief Admin": [
+    "Endorsed to OD-Receiving",
   ],
 };
 
@@ -172,5 +213,20 @@ export const STEP_DECISION_DOCTRACK = {
       "Checked by S&E Checker and returned to S&E Evaluator for processing",
     "Signed and Returned to S&E Evaluator":
       "Reviewed and signed by S&E Checker. Returned to S&E Evaluator for further processing.",
+  },
+  "PRSDD Quality Evaluation": {
+    "Endorsed to Checker": "Forwarded to Senior Evaluator for checking",
+  },
+  "PRSDD Checking": {
+    "Endorsed to Supervisor": "Forwarded to Supervisor for review and signing of the final recommendation",
+    "Returned to Quality Evaluation": "Returned to evaluator for correction/clarification",
+  },
+  "PRSDD Supervisor": {
+    "Endorsed to QA Admin": "Forwarded to LRD Chief for signing",
+    "Returned to Evaluator": "Returned to evaluator for correction/clarification",
+  },
+  "PRSDD QA Admin": {
+    "Endorsed to PRSDD Chief Admin": "Checked and Forwarded to PRSDD Admin",
+    "Returned to Evaluator": "Returned to evaluator for correction/clarification",
   },
 };

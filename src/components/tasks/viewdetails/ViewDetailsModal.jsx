@@ -517,6 +517,7 @@ export default function ViewDetailsModal({
                 colors={colors}
                 onClose={onClose}
                 onSuccess={onSuccess}
+                entryType={record.entryType ?? ""}
               />
             )}
           </div>

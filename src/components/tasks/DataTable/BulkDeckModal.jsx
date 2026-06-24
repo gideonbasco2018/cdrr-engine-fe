@@ -355,6 +355,14 @@ export function BulkDeckModal({
       try {
         const docTypeReleased =
           DECISION_RESULT_TO_DOC_TYPE[decisionResult] ?? null;
+        const returnTargetStep = [
+          "PRSDD Checking",
+          "PRSDD Supervisor",
+          "PRSDD QA Admin",
+        ].includes(config.currentStep)
+          ? "PRSDD Quality Evaluation"
+          : "Quality Evaluation";
+
         res = await onConfirm(isReturnDecision ? null : assignee, {
           decision,
           action,
@@ -365,6 +373,7 @@ export function BulkDeckModal({
           decisionAuthorityName,
           signedDate,
           docTypeReleased,
+          returnTargetStep, // ← dagdag
         });
       } catch (confirmErr) {
         console.error("❌ onConfirm failed:", confirmErr.message);

@@ -1,3 +1,4 @@
+// src/components/tasks/DataTable/index.jsx
 /* ================================================================== */
 /*  DataTable — index.jsx                                              */
 /* ================================================================== */
@@ -234,9 +235,18 @@ function DataTable({
       decision === "Returned to Evaluator" ||
       decision === "Checked and returned to evaluator";
 
-    const resolvedNextStep = isReturnDecision
-      ? "Quality Evaluation"
+    const returnTargetStep = [
+      "PRSDD Checking",
+      "PRSDD Supervisor",
+      "PRSDD QA Admin",
+    ].includes(bulkDeckConfig.currentStep)
+      ? "PRSDD Quality Evaluation"
+      : "Quality Evaluation";
+
+    let resolvedNextStep = isReturnDecision
+      ? returnTargetStep
       : (bulkDeckConfig.nextStep ?? null);
+
     const isEndTask = bulkDeckConfig.isEndTask || resolvedNextStep === null;
     const finalDecision = decision || "";
 
@@ -265,6 +275,7 @@ function DataTable({
         const { id: logId, mainDbId } = row;
         let resolvedAssignee = assigneeUsername;
         let resolvedAssigneeId = resolveUserId(assigneeUsername);
+        let perRowNextStep = resolvedNextStep;
 
         if (isReturnDecision) {
           try {
@@ -274,16 +285,37 @@ function DataTable({
                   (a, b) => (a.del_index ?? 0) - (b.del_index ?? 0),
                 )
               : [];
+
+            console.log(
+              "🔍 All logs:",
+              sorted.map((l) => ({
+                step: l.application_step,
+                thread: l.del_thread,
+                status: l.application_status,
+                user: l.user_name,
+              })),
+            );
             const currentLogIdx = sorted.findIndex(
               (l) =>
                 l.application_step === bulkDeckConfig.currentStep &&
                 l.del_thread === "Open",
             );
+            console.log("🔍 currentLogIdx:", currentLogIdx);
+            console.log("🔍 returnTargetStep:", returnTargetStep);
+
             let prevEval = null,
               prevEvalId = null;
+
+            const hasPRSDD = sorted.some(
+              (l) => l.application_step === "PRSDD Quality Evaluation",
+            );
+            const effectiveTargetStep = hasPRSDD
+              ? "PRSDD Quality Evaluation"
+              : "Quality Evaluation";
+
             if (currentLogIdx > 0) {
               for (let i = currentLogIdx - 1; i >= 0; i--) {
-                if (sorted[i].application_step === "Quality Evaluation") {
+                if (sorted[i].application_step === effectiveTargetStep) {
                   prevEval = sorted[i].user_name ?? null;
                   prevEvalId = sorted[i].user_id ?? null;
                   break;
@@ -292,6 +324,8 @@ function DataTable({
             }
             resolvedAssignee = prevEval;
             resolvedAssigneeId = prevEvalId;
+            perRowNextStep = effectiveTargetStep;
+
             console.log(
               "🔍 BulkDeck return — resolvedAssignee:",
               resolvedAssignee,
@@ -415,7 +449,7 @@ function DataTable({
           );
           await createApplicationLog({
             main_db_id: mainDbId,
-            application_step: resolvedNextStep,
+            application_step: perRowNextStep,
             user_name: resolvedAssignee,
             user_id: resolvedAssigneeId,
             application_status: "IN PROGRESS",
@@ -1045,7 +1079,8 @@ function DataTable({
                   <input
                     type="checkbox"
                     checked={
-                      selectedRows.length === data.length && data.length > 0
+                      data.length > 0 &&
+                      data.every((r) => selectedRows.includes(r.id))
                     }
                     onChange={onSelectAll}
                     style={{
