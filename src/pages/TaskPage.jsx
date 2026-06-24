@@ -306,7 +306,7 @@ function TaskPage({ darkMode }) {
           only_latest_per_thread: false,
           del_last_index: 1,
           del_thread: "Open",
-          application_step: initialTab,
+          ...(filters.dtn ? {} : { application_step: initialTab }),
           ...(filters.appType && { app_type: filters.appType }),
           ...(filters.prescription && { prescription: filters.prescription }),
           ...(filters.appStatus && { application_status: filters.appStatus }),
@@ -363,7 +363,7 @@ function TaskPage({ darkMode }) {
         only_latest_per_thread: false,
         del_last_index: 1,
         del_thread: "Open",
-        application_step: activeTab, // ✅ laging may step filter dito
+        ...(filters.dtn ? {} : { application_step: activeTab }),
         ...(filters.appType && { app_type: filters.appType }),
         ...(filters.prescription && { prescription: filters.prescription }),
         ...(filters.appStatus && { application_status: filters.appStatus }),
@@ -382,6 +382,9 @@ function TaskPage({ darkMode }) {
       if (filters.dtn && mapped.length > 0) {
         const found = mapped[0];
         setActiveSubTab(found.is_received === 1 ? "received" : "not_yet");
+        if (found.applicationStep && found.applicationStep !== activeTab) {
+          setActiveTab(found.applicationStep);
+        }
       }
 
       const alreadyRead = new Set(
@@ -424,7 +427,8 @@ function TaskPage({ darkMode }) {
   const handleTabChange = (step) => {
     setActiveTab(step);
     setSelectedRows([]);
-    const stepRows = data.filter((d) => d.applicationStep === step);
+    // ✅ gamitin ang allStepsData para malaman kung anong subtab ang may data
+    const stepRows = allStepsData.filter((d) => d.applicationStep === step);
     const hasNotYet = stepRows.some((d) => d.is_received !== 1);
     const hasReceived = stepRows.some((d) => d.is_received === 1);
     if (!hasNotYet && hasReceived) setActiveSubTab("received");
@@ -463,7 +467,11 @@ function TaskPage({ darkMode }) {
   );
 
   // ✅ tabData — data na lang (already filtered by step sa backend)
-  const tabData = useMemo(() => data, [data]);
+  const tabData = useMemo(
+    () =>
+      filters.dtn ? data : data.filter((d) => d.applicationStep === activeTab),
+    [data, activeTab, filters.dtn],
+  );
 
   const receivedCount = useMemo(
     () => tabData.filter((d) => d.is_received === 1).length,

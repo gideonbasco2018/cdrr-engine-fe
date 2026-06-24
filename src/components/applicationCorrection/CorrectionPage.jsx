@@ -325,8 +325,9 @@ export function CorrectionPage({
                         ? "Quality Evaluation"
                         : deckerData.decision === "For OD Review"
                           ? "OD Review"
-                          : deckerData.decision === "For PRSDD Decking"
-                            ? "PRSDD Decking"
+                          : deckerData.decision ===
+                              "For PRSDD Quality Evaluation"
+                            ? "PRSDD Quality Evaluation"
                             : "LRD Decking";
                     await createApplicationLog({
                       main_db_id: result.main_db_id,

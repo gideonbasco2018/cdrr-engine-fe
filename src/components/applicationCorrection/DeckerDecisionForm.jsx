@@ -8,7 +8,7 @@ const DECISION_CONFIG = {
   "For Quality Evaluation": { groupId: 3, label: "Evaluator" },
   "For LRD Decking": { groupId: 2, label: "Decker" },
   "For OD Review": { groupId: 22, label: "OD Review Staff" },
-  "For PRSDD Decking": { groupId: 24, label: "PRSDD Decker" },
+  "For PRSDD Quality Evaluation": { groupId: 23, label: "PRSDD Evaluator" },
 };
 
 export function DeckerDecisionForm({
@@ -30,7 +30,19 @@ export function DeckerDecisionForm({
 
     setLoadingAssignees(true);
     getUsersByGroup(config.groupId)
-      .then(setAssigneeUsers)
+      .then((users) => {
+        setAssigneeUsers(users);
+        // ── Auto-assign pagkatapos ma-load ang users ──
+        if (users.length > 0) {
+          const randomUser = users[Math.floor(Math.random() * users.length)];
+          onDeckerChange({
+            ...deckerData,
+            autoAssign: true,
+            assignee: randomUser.username,
+            assigneeId: randomUser.id,
+          });
+        }
+      })
       .catch(() => setAssigneeUsers([]))
       .finally(() => setLoadingAssignees(false));
   }, [deckerData.decision]);
@@ -47,11 +59,17 @@ export function DeckerDecisionForm({
 
   const handleDecisionChange = (decision) => {
     const autoRemark = DOCTRACK_DEFAULTS[decision] || "";
+    // ── Auto-assign agad kapag may decision at may users na loaded ──
+    const randomUser =
+      assigneeUsers.length > 0
+        ? assigneeUsers[Math.floor(Math.random() * assigneeUsers.length)]
+        : null;
     onDeckerChange({
       ...deckerData,
       decision,
-      assignee: "",
-      assigneeId: null,
+      assignee: randomUser?.username ?? "",
+      assigneeId: randomUser?.id ?? null,
+      autoAssign: true,
       doctrackRemarks: deckerData.doctrackAutoFill
         ? autoRemark
         : deckerData.doctrackRemarks,
@@ -341,10 +359,20 @@ export function DeckerDecisionForm({
           </div>
 
           {/* Assignee — lumalabas lang kapag may decision */}
+
           {config && (
             <div>
-              {lbl(
-                <span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 6,
+                }}
+              >
+                <label
+                  style={{ fontSize: 12, fontWeight: 600, color: t.labelColor }}
+                >
                   Assign {config.label}{" "}
                   <span style={{ color: t.errorText }}>*</span>
                   <span
@@ -361,8 +389,36 @@ export function DeckerDecisionForm({
                   >
                     {config.label} Group
                   </span>
-                </span>,
-              )}
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: 600,
+                      color: t.textTertiary,
+                    }}
+                  >
+                    Auto-assign
+                  </span>
+                  <ToggleSwitch
+                    checked={deckerData.autoAssign ?? false}
+                    onChange={(val) => {
+                      const randomUser =
+                        val && assigneeUsers.length > 0
+                          ? assigneeUsers[
+                              Math.floor(Math.random() * assigneeUsers.length)
+                            ]
+                          : null;
+                      onDeckerChange({
+                        ...deckerData,
+                        autoAssign: val,
+                        assignee: randomUser?.username ?? "",
+                        assigneeId: randomUser?.id ?? null,
+                      });
+                    }}
+                  />
+                </div>
+              </div>
               {loadingAssignees ? (
                 <div
                   style={{
@@ -397,17 +453,24 @@ export function DeckerDecisionForm({
                       onDeckerChange({
                         ...deckerData,
                         assignee: e.target.value,
-                        assigneeId: selected?.id ?? null, // ✅ itago ang id
+                        assigneeId: selected?.id ?? null,
                       });
                     }}
-                    disabled={assigneeUsers.length === 0}
+                    disabled={
+                      assigneeUsers.length === 0 || !!deckerData.autoAssign
+                    }
                     style={{
                       ...baseInput,
                       padding: "9px 34px 9px 11px",
                       appearance: "none",
                       cursor:
-                        assigneeUsers.length === 0 ? "not-allowed" : "pointer",
-                      opacity: assigneeUsers.length === 0 ? 0.6 : 1,
+                        assigneeUsers.length === 0 || deckerData.autoAssign
+                          ? "not-allowed"
+                          : "pointer",
+                      opacity:
+                        assigneeUsers.length === 0 || deckerData.autoAssign
+                          ? 0.6
+                          : 1,
                       colorScheme: dm ? "dark" : "light",
                     }}
                   >
