@@ -155,14 +155,15 @@ const ACTION_CONFIG = {
     options: ["For Approval", "For Disapproval"],
     warning: "Action is required when endorsing to checker.",
   },
-  "PRSDD Checking_Endorsed to Supervisor": {
+  "PRSDD Checking_Endorsed to PRSDD Chief Admin": {
     options: ["For Approval", "For Disapproval"],
-    warning: "Action is required when endorsing to supervisor.",
+    warning: "Action is required when endorsing to PRSDD Chief Admin.",
   },
   "PRSDD Checking_Returned to Quality Evaluation": {
     options: ["Return to Evaluator for Clarification"],
     warning: "Action is required when returning to Quality Evaluation.",
   },
+
   "PRSDD Supervisor_Endorsed to QA Admin": {
     options: ["Signed and forwarded to QA Admin"],
     warning: "Action is required when endorsing to QA Admin.",

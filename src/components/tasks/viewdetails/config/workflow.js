@@ -61,7 +61,7 @@ export const WORKFLOW = {
     "Endorsed to Checker": "PRSDD Checking",
   },
   "PRSDD Checking": {
-    "Endorsed to Supervisor": "PRSDD Supervisor",     
+    "Endorsed to PRSDD Chief Admin": "PRSDD Chief Admin",    
     "Returned to Quality Evaluation": "PRSDD Quality Evaluation",
   },
   "PRSDD Supervisor": {
@@ -143,12 +143,8 @@ export const STEP_DECISIONS = {
     "Endorsed to Checker",
   ],
   "PRSDD Checking": [
-    "Endorsed to Supervisor",
+    "Endorsed to PRSDD Chief Admin", 
     "Returned to Quality Evaluation",
-  ],
-  "PRSDD Supervisor": [
-    "Endorsed to QA Admin",
-    "Returned to Evaluator",
   ],
   "PRSDD QA Admin": [
     "Endorsed to PRSDD Chief Admin",
@@ -218,7 +214,7 @@ export const STEP_DECISION_DOCTRACK = {
     "Endorsed to Checker": "Forwarded to Senior Evaluator for checking",
   },
   "PRSDD Checking": {
-    "Endorsed to Supervisor": "Forwarded to Supervisor for review and signing of the final recommendation",
+    "Endorsed to PRSDD Chief Admin": "Checked and Forwarded to PRSDD Admin", 
     "Returned to Quality Evaluation": "Returned to evaluator for correction/clarification",
   },
   "PRSDD Supervisor": {
