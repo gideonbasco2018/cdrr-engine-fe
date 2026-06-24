@@ -1,3 +1,4 @@
+// src/components/tasks/DataTable/Constant.js
 /* ================================================================== */
 /*  DataTable — constants.js                                           */
 /* ================================================================== */
@@ -152,7 +153,7 @@ export const BULK_DECK_CONFIG = {
     modalTitle: "OD-Releasing — End Task",
     defaultDoctrack: "", // built dynamically from signed date
     requiresSignedDate: true,
-    availableDecisions: ["Stamped and Scanned, forwarded to AFO Records"],
+    availableDecisions: ["Stamped and Scanned, forwarded to AFO Records", "Signed and Scanned, forwarded to AFO Records",],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
   "Releasing Officer": {

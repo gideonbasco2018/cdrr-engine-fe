@@ -77,6 +77,10 @@ const ACTION_CONFIG = {
     options: ["Returned to Evaluator for Clarification"],
     warning: "Action is required when returning to evaluator.",
   },
+  "OD-Releasing_Signed and Scanned, forwarded to AFO Records": {
+    options: ["Signed and Scanned, forwarded to AFO Records"],
+    warning: "Action is required.",
+  },
 };
 
 const RETURN_DECISIONS = new Set([
@@ -108,9 +112,13 @@ const formatSignedDate = (dateStr) => {
   });
 };
 
-const buildODReleasingDoctrack = (dateStr) =>
-  `Signed (${formatSignedDate(dateStr)}) by CDRR-OIC Director, stamped and scanned, forwarded to AFO Records`;
-
+const buildODReleasingDoctrack = (dateStr, decision = "") => {
+  const formatted = formatSignedDate(dateStr);
+  if (decision === "Signed and Scanned, forwarded to AFO Records") {
+    return `Signed (${formatted}) by CDRR-OIC Director and scanned, forwarded to AFO Records`;
+  }
+  return `Signed (${formatted}) by CDRR-OIC Director, stamped and scanned, forwarded to AFO Records`;
+};
 const Spinner = ({ size = 13 }) => (
   <span
     style={{
@@ -191,11 +199,8 @@ export function BulkDeckModal({
 
   const getDefaultDoctrack = (dec) => {
     if (!dec) return config.defaultDoctrack ?? "";
-    if (
-      config.requiresSignedDate &&
-      dec === "Stamped and Scanned, forwarded to AFO Records"
-    ) {
-      return buildODReleasingDoctrack(signedDate);
+    if (config.requiresSignedDate) {
+      return buildODReleasingDoctrack(signedDate, dec);
     }
     return config.decisionDoctrackMap?.[dec] ?? config.defaultDoctrack ?? "";
   };
@@ -205,19 +210,26 @@ export function BulkDeckModal({
   const [doctrackEnabled, setDoctrackEnabled] = useState(true);
   const [doctrackRemarks, setDoctrackRemarks] = useState(() =>
     config.requiresSignedDate
-      ? buildODReleasingDoctrack(todayStr())
+      ? buildODReleasingDoctrack(
+          todayStr(),
+          availableDecisions.length === 1 ? availableDecisions[0] : "",
+        )
       : (config.defaultDoctrack ?? ""),
   );
 
   const handleSignedDateChange = (dateStr) => {
     setSignedDate(dateStr);
-    setDoctrackRemarks(buildODReleasingDoctrack(dateStr));
+    setDoctrackRemarks(buildODReleasingDoctrack(dateStr, decision));
   };
 
   const handleDecisionChange = (val) => {
     setDecision(val);
     setAction("");
-    setDoctrackRemarks(getDefaultDoctrack(val));
+    if (config.requiresSignedDate) {
+      setDoctrackRemarks(buildODReleasingDoctrack(signedDate, val));
+    } else {
+      setDoctrackRemarks(getDefaultDoctrack(val));
+    }
   };
 
   const [decisionResult, setDecisionResult] = useState("");
