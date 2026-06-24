@@ -73,6 +73,7 @@ export const DECISION_DOCTRACK_MAP = {
   // Releasing Officer
   "Released": "Stamped and Scanned, forwarded to AFO Records",
   "Forwarded to Quality Evaluation": "Forwarded to Quality Evaluation",
+  "For PRSDD Quality Evaluation": "Forwarded to PRSDD Decker",
 };
 
 export const BULK_DECK_CONFIG = {
@@ -177,6 +178,18 @@ export const BULK_DECK_CONFIG = {
     availableDecisions: ["Forwarded to Quality Evaluation"],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
+  "PRSDD Decking": {
+    currentStep: "PRSDD Decking",
+    nextStep: "PRSDD Quality Evaluation",
+    nextGroupId: 23,
+    fromLabel: "PRSDD Decking",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to PRSDD Quality Evaluation", 
+    defaultDoctrack: "Forwarded to Quality Evaluation",
+    availableDecisions: ["For PRSDD Quality Evaluation"],
+    decisionDoctrackMap: DECISION_DOCTRACK_MAP,
+  },
+
 
 };
 

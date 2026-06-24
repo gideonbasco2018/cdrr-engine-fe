@@ -1,3 +1,4 @@
+// src/pages/TaskPage.jsx
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   getWorkflowTasks,
@@ -318,6 +319,7 @@ function TaskPage({ darkMode }) {
 
         const mapped2 = (res2.data || []).map((t, i) => mapWorkflowTask(t, i));
         setData(mapped2);
+        setSelectedRows([]);
 
         if (filters.dtn && mapped2.length > 0) {
           const found = mapped2[0];
@@ -374,6 +376,7 @@ function TaskPage({ darkMode }) {
 
       const mapped = (res.data || []).map((t, i) => mapWorkflowTask(t, i));
       setData(mapped);
+      setSelectedRows([]);
 
       // ✅ Auto-switch subtab kapag nag-search ng DTN
       if (filters.dtn && mapped.length > 0) {
