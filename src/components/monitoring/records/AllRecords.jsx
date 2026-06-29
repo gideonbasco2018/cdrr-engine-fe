@@ -453,6 +453,7 @@ export default function AllRecords({
   const [modalLoading, setModalLoading] = useState(false);
   const [activeModal, setActiveModal] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDtnSearch(dtnInput), 400);
@@ -633,6 +634,80 @@ export default function AllRecords({
     );
   };
 
+  // PALITAN NG:
+  const handleGenerateReport = async () => {
+    if (total === 0 || loading || reportLoading) return;
+
+    setReportLoading(true);
+    try {
+      const BATCH = 500;
+      const totalBatches = Math.ceil(total / BATCH);
+      let allRows = [];
+
+      for (let p = 1; p <= totalBatches; p++) {
+        const params = {
+          page: p,
+          page_size: BATCH,
+          sort_col: sortCol,
+          sort_dir: sortDir,
+        };
+        if (filterUserId) params.user_id = filterUserId;
+        if (dateFrom) params.date_from = dateFrom;
+        if (dateTo) params.date_to = dateTo;
+        if (dtnSearch) params.dtn = dtnSearch;
+        if (stepFilter) params.app_step = stepFilter;
+        if (localStatusFilter) params.application_status = localStatusFilter;
+        if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
+        if (dtnDateTo) params.dtn_date_to = dtnDateTo;
+
+        const data = await getAllRecords(params);
+        allRows = allRows.concat(data.data || []);
+      }
+
+      const headers = [
+        "DTN",
+        "Username",
+        "Full Name",
+        "Drug / Application",
+        "Date Received",
+        "Step",
+        "Timeline",
+        "Status",
+      ];
+      const csvRows = allRows.map((r) => [
+        r.dtn || "",
+        r.user_name || "",
+        r.full_name || "",
+        r.drug_name || "",
+        r.date_received_cent || "",
+        r.app_step || "",
+        r.timeline || "",
+        r.app_status || "",
+      ]);
+
+      const csvContent = [headers, ...csvRows]
+        .map((row) =>
+          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+        )
+        .join("\n");
+
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      link.download = `records_report_${dateStr}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to generate report:", err);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   const handleReset = () => {
     setDateFrom("");
     setDateTo("");
@@ -807,15 +882,50 @@ export default function AllRecords({
                 fontSize: "0.66rem",
                 fontWeight: 500,
                 borderRadius: 6,
-                border: `1px solid ${ui.cardBorder}`,   // ← gray border
-                background: ui.progressBg,              // ← light gray background
-                color: ui.textMuted,                    // ← gray text
+                border: `1px solid ${ui.cardBorder}`, // ← gray border
+                background: ui.progressBg, // ← light gray background
+                color: ui.textMuted, // ← gray text
                 cursor: "pointer",
                 fontFamily: font,
                 alignSelf: "flex-end",
               }}
             >
               Reset
+            </button>
+
+            <button
+              onClick={handleGenerateReport}
+              disabled={total === 0 || loading || reportLoading}
+              style={{
+                padding: "5px 12px",
+                fontSize: "0.66rem",
+                fontWeight: 600,
+                borderRadius: 6,
+                border: `1px solid ${total === 0 || loading || reportLoading ? ui.cardBorder : FB}`,
+                background:
+                  total === 0 || loading || reportLoading ? ui.progressBg : FB,
+                color:
+                  total === 0 || loading || reportLoading
+                    ? ui.textMuted
+                    : "#fff",
+                cursor:
+                  total === 0 || loading || reportLoading
+                    ? "not-allowed"
+                    : "pointer",
+                fontFamily: font,
+                alignSelf: "flex-end",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                opacity: total === 0 || loading || reportLoading ? 0.6 : 1,
+                transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+              title={`Export all ${total.toLocaleString()} filtered records as CSV`}
+            >
+              {reportLoading
+                ? `⏳ Generating…`
+                : `⬇ Generate Report (${total.toLocaleString()})`}
             </button>
           </div>
 
@@ -1035,75 +1145,177 @@ export default function AllRecords({
                     }}
                   >
                     {/* DTN */}
-                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
-                      <div style={{
-                        height: 9, width: 90, borderRadius: 4, background: ui.progressBg,
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06}s infinite`,
-                      }} />
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 9,
+                          width: 90,
+                          borderRadius: 4,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06}s infinite`,
+                        }}
+                      />
                     </div>
 
                     {/* User */}
-                    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 5, padding: "5px 8px" }}>
-                      <div style={{
-                        width: 6, height: 6, borderRadius: "50%", background: ui.progressBg, flexShrink: 0,
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.04}s infinite`,
-                      }} />
-                      <div style={{
-                        height: 8, width: 70, borderRadius: 4, background: ui.progressBg,
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.04}s infinite`,
-                      }} />
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        gap: 5,
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: "50%",
+                          background: ui.progressBg,
+                          flexShrink: 0,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.04}s infinite`,
+                        }}
+                      />
+                      <div
+                        style={{
+                          height: 8,
+                          width: 70,
+                          borderRadius: 4,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.04}s infinite`,
+                        }}
+                      />
                     </div>
 
                     {/* Drug */}
-                    <div style={{ padding: "5px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
-                      <div style={{
-                        height: 8, borderRadius: 4, background: ui.progressBg, width: "85%",
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.08}s infinite`,
-                      }} />
-                      <div style={{
-                        height: 7, borderRadius: 4, background: ui.progressBg, width: "55%",
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.1}s infinite`,
-                      }} />
+                    <div
+                      style={{
+                        padding: "5px 8px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 8,
+                          borderRadius: 4,
+                          background: ui.progressBg,
+                          width: "85%",
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.08}s infinite`,
+                        }}
+                      />
+                      <div
+                        style={{
+                          height: 7,
+                          borderRadius: 4,
+                          background: ui.progressBg,
+                          width: "55%",
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.1}s infinite`,
+                        }}
+                      />
                     </div>
 
                     {/* Date */}
-                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
-                      <div style={{
-                        height: 8, width: 64, borderRadius: 4, background: ui.progressBg,
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.06}s infinite`,
-                      }} />
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 8,
+                          width: 64,
+                          borderRadius: 4,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.06}s infinite`,
+                        }}
+                      />
                     </div>
 
                     {/* Step */}
-                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
-                      <div style={{
-                        height: 18, width: 72, borderRadius: 99, background: ui.progressBg,
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.08}s infinite`,
-                      }} />
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 18,
+                          width: 72,
+                          borderRadius: 99,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.08}s infinite`,
+                        }}
+                      />
                     </div>
 
                     {/* Timeline */}
-                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
-                      <div style={{
-                        height: 18, width: 56, borderRadius: 99, background: ui.progressBg,
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.1}s infinite`,
-                      }} />
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 18,
+                          width: 56,
+                          borderRadius: 99,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.1}s infinite`,
+                        }}
+                      />
                     </div>
 
                     {/* Status */}
-                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
-                      <div style={{
-                        height: 18, width: 70, borderRadius: 99, background: ui.progressBg,
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.12}s infinite`,
-                      }} />
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 18,
+                          width: 70,
+                          borderRadius: 99,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.12}s infinite`,
+                        }}
+                      />
                     </div>
 
                     {/* Actions */}
-                    <div style={{ display: "flex", justifyContent: "center", padding: "5px 8px" }}>
-                      <div style={{
-                        height: 20, width: 24, borderRadius: 4, background: ui.progressBg,
-                        animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.14}s infinite`,
-                      }} />
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 20,
+                          width: 24,
+                          borderRadius: 4,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.14}s infinite`,
+                        }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -1205,7 +1417,7 @@ export default function AllRecords({
                         flexDirection: "column",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: 1,
+                        gap: 2,
                         padding: "5px 8px",
                       }}
                     >
@@ -1231,11 +1443,28 @@ export default function AllRecords({
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             maxWidth: 90,
+                            fontWeight: 700,
                           }}
                         >
                           {row.user_name || "—"}
                         </span>
                       </span>
+                      {row.full_name && (
+                        <span
+                          style={{
+                            fontSize: "0.56rem",
+                            color: ui.textMuted,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            maxWidth: 100,
+                            fontWeight: 400,
+                            lineHeight: 1.2,
+                          }}
+                        >
+                          {row.full_name}
+                        </span>
+                      )}
                     </span>
 
                     {/* Drug */}
