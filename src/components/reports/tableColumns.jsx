@@ -14,7 +14,8 @@ export const tableColumns = [
   { key: "oldRsn", label: "Old RSN", width: "120px" },
   { key: "entryType", label: "Entry Type", width: "110px" },
   { key: "__divider__", label: "", width: "1px" },
-
+  { key: "regNo", label: "Registration No.", width: "150px" },
+  { key: "__divider__", label: "", width: "1px" },
   { key: "estCat", label: "Est. Category", width: "120px" },
   { key: "ltoComp", label: "LTO Company", width: "200px" },
   { key: "ltoAdd", label: "LTO Address", width: "450px" },

@@ -634,7 +634,6 @@ export default function AllRecords({
     );
   };
 
-  // PALITAN NG:
   const handleGenerateReport = async () => {
     if (total === 0 || loading || reportLoading) return;
 
@@ -664,6 +663,30 @@ export default function AllRecords({
         allRows = allRows.concat(data.data || []);
       }
 
+      // Helper: format date nicely (e.g. "Jul 4, 2025")
+      const formatDate = (raw) => {
+        if (!raw) return "";
+        try {
+          return new Date(raw + "T00:00:00").toLocaleDateString("en-PH", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+        } catch {
+          return raw;
+        }
+      };
+
+      // Helper: escape CSV cell; prefix numbers-only strings with tab to prevent
+      // Excel from converting them to scientific notation
+      const csvCell = (val) => {
+        const str = String(val ?? "");
+        // If the value is purely numeric and long (like DTN), force text in Excel
+        const forceText = /^\d{10,}$/.test(str);
+        const escaped = (forceText ? "\t" + str : str).replace(/"/g, '""');
+        return `"${escaped}"`;
+      };
+
       const headers = [
         "DTN",
         "Username",
@@ -674,24 +697,27 @@ export default function AllRecords({
         "Timeline",
         "Status",
       ];
+
       const csvRows = allRows.map((r) => [
-        r.dtn || "",
-        r.user_name || "",
-        r.full_name || "",
-        r.drug_name || "",
-        r.date_received_cent || "",
-        r.app_step || "",
-        r.timeline || "",
-        r.app_status || "",
+        csvCell(r.dtn || ""),
+        csvCell(r.user_name || ""),
+        csvCell(r.full_name || ""),
+        csvCell(r.drug_name || ""),
+        csvCell(formatDate(r.date_received_cent)),
+        csvCell(r.app_step || ""),
+        csvCell(r.timeline || ""),
+        csvCell(r.app_status || ""),
       ]);
 
-      const csvContent = [headers, ...csvRows]
-        .map((row) =>
-          row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
-        )
-        .join("\n");
+      const headerRow = headers.map((h) => `"${h}"`).join(",");
+      const dataRows = csvRows.map((row) => row.join(","));
+      const csvContent = [headerRow, ...dataRows].join("\n");
 
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      // UTF-8 BOM so Excel opens it correctly without encoding issues
+      const BOM = "\uFEFF";
+      const blob = new Blob([BOM + csvContent], {
+        type: "text/csv;charset=utf-8;",
+      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
