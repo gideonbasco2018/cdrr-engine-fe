@@ -59,6 +59,11 @@ export const WORKFLOW = {
   },
   "PRSDD Quality Evaluation": {
     "Endorsed to Checker": "PRSDD Checking",
+    "For Compliance": "PRSDD Compliance",
+  },
+  "PRSDD Compliance": {
+    "For Compliance": "PRSDD Compliance",
+    "Endorsed to Checker": "PRSDD Checking",
   },
   "PRSDD Checking": {
     "Endorsed to PRSDD Chief Admin": "PRSDD Chief Admin",    
@@ -98,7 +103,8 @@ export const STEP_GROUP_MAP = {
   "PRSDD Checking": 25,
   "PRSDD Supervisor": 26,
   "PRSDD QA Admin": 27,
-  "PRSDD Chief Admin":28
+  "PRSDD Chief Admin":28,
+  "PRSDD Compliance": 4,
 };
 
 export const STEP_DECISIONS = {
@@ -141,6 +147,7 @@ export const STEP_DECISIONS = {
   ],
   "PRSDD Quality Evaluation": [
     "Endorsed to Checker",
+    "For Compliance",
   ],
   "PRSDD Checking": [
     "Endorsed to PRSDD Chief Admin", 
@@ -152,6 +159,10 @@ export const STEP_DECISIONS = {
   ],
   "PRSDD Chief Admin": [
     "Endorsed to OD-Receiving",
+  ],
+  "PRSDD Compliance": [
+    "Endorsed to Checker",
+    "For Compliance",
   ],
 };
 

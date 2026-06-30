@@ -76,7 +76,8 @@ function DataTable({
   const { showGuide, openGuide, closeGuide } = useHowToUseGuide();
   const [showColPicker, setShowColPicker] = useState(false);
 
-  const isComplianceTab = activeTab === "Compliance";
+  const isComplianceTab =
+    activeTab === "Compliance" || activeTab === "PRSDD Compliance";
   const isRecordTab = activeTab === "Record";
   const isReceivedSubTab = activeSubTab === "received";
   const showMarkAsReceived = activeSubTab !== "received";
