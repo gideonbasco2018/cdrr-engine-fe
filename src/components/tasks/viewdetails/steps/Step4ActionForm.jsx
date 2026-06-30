@@ -181,6 +181,10 @@ const ACTION_CONFIG = {
     options: ["Return to Evaluator for Clarification"],
     warning: "Action is required when returning to evaluator.",
   },
+  "PRSDD Compliance_Endorsed to Checker": {
+    options: ["For ENOD", "For Approval", "For Disapproval"],
+    warning: "Action is required when endorsing to checker.",
+  },
 };
 
 /* Fields shown in Step 4  "For Approval" action */
@@ -825,10 +829,8 @@ export function Step4ActionForm({
         }
       }
 
-      // Create next log
-      const effectiveNextStep = isForCompliance
-        ? (nextStep ?? "Compliance")
-        : nextStep;
+      const effectiveNextStep =
+        nextStep ?? (isForCompliance ? "Compliance" : null);
 
       if (effectiveNextStep) {
         let assignedUser, assignedUserId;
