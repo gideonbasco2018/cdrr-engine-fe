@@ -9,6 +9,7 @@ const DECISION_CONFIG = {
   "For LRD Decking": { groupId: 2, label: "Decker" },
   "For OD Review": { groupId: 22, label: "OD Review Staff" },
   "For PRSDD Quality Evaluation": { groupId: 23, label: "PRSDD Evaluator" },
+  "For LRD Chief Admin": { groupId: 17, label: "LRD Chief Admin" },
 };
 
 export function DeckerDecisionForm({

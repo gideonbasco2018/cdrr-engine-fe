@@ -1450,11 +1450,6 @@ function DataTable({
                       ) : (
                         <td
                           key={col.key}
-                          onClick={
-                            col.key === "dtn"
-                              ? () => openDoctrack(row)
-                              : undefined
-                          }
                           style={{
                             padding: "0.4rem 0.6rem",
                             fontSize: "0.68rem",
@@ -1487,10 +1482,16 @@ function DataTable({
                                       : "rgba(245,158,11,0.02)"
                                     : undefined,
                                 }),
-                            cursor: col.key === "dtn" ? "pointer" : undefined,
                           }}
                         >
-                          {renderCell(col, row, colors)}
+                          {renderCell(
+                            col,
+                            row,
+                            colors,
+                            col.key === "dtn"
+                              ? () => openDoctrack(row)
+                              : undefined,
+                          )}
                         </td>
                       ),
                     )}
