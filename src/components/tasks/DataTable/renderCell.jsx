@@ -89,31 +89,76 @@ const numCell = (v, colors) =>
     </span>
   );
 
-export const renderDTN = (v, colors) => {
-  return v != null && v !== "" ? (
+export const renderDTN = (v, colors, onOpenDoctrack) => {
+  if (v == null || v === "") {
+    return (
+      <span
+        style={{
+          color: colors?.textTertiary,
+          fontSize: "0.78rem",
+          fontStyle: "italic",
+        }}
+      >
+        N/A
+      </span>
+    );
+  }
+
+  return (
     <span
       style={{
-        fontSize: "0.78rem",
-        fontWeight: 600,
-        color: colors?.tableText,
-        fontFamily: "monospace",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.35rem",
       }}
     >
-      {v}
-    </span>
-  ) : (
-    <span
-      style={{
-        color: colors?.textTertiary,
-        fontSize: "0.78rem",
-        fontStyle: "italic",
-      }}
-    >
-      N/A
+      <span
+        style={{
+          fontSize: "0.78rem",
+          fontWeight: 600,
+          color: colors?.tableText,
+          fontFamily: "monospace",
+        }}
+      >
+        {v}
+      </span>
+      {onOpenDoctrack && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenDoctrack();
+          }}
+          title="View Doctrack Details"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 18,
+            height: 18,
+            padding: 0,
+            background: "transparent",
+            border: "none",
+            borderRadius: 4,
+            color: "#0891b2",
+            cursor: "pointer",
+            fontSize: "0.75rem",
+            lineHeight: 1,
+            flexShrink: 0,
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.background = "rgba(8,145,178,0.12)")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.background = "transparent")
+          }
+        >
+          📋
+        </button>
+      )}
     </span>
   );
 };
-
 export const renderGenericName = (v) =>
   pill("linear-gradient(135deg,#06b6d4,#0891b2)", "rgba(6,182,212,.3)", v);
 
@@ -556,11 +601,11 @@ export const renderEntryType = (v, colors) => {
   );
 };
 // ── Main cell dispatcher ──────────────────────────────────────────────────────
-export const renderCell = (col, row, colors) => {
+export const renderCell = (col, row, colors, onOpenDoctrack) => {
   const v = row[col.key]; // col.key is the exact field name from the API response
   switch (col.key) {
     case "dtn":
-      return renderDTN(v, colors);
+      return renderDTN(v, colors, onOpenDoctrack);
     case "entryType":
       return renderEntryType(v, colors);
     case "prodGenName":

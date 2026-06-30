@@ -195,7 +195,6 @@ function DataTable({
     }
   }, [dupeMode, fetchDuplicates]);
 
-  // Set ng DB_ID
   const duplicateIds = useMemo(() => {
     if (!dupeData?.records) return new Set();
     return new Set(dupeData.records.map((r) => r.DB_ID));
@@ -203,21 +202,134 @@ function DataTable({
 
   const dupeCount = dupeData?.duplicate_count ?? 0;
 
-  // Kapag naka-"show duplicates only", gamitin ang backend duplicate records
-  // (totoong global dupes) imbes na yung current paginated `data` prop.
   const displayData = useMemo(() => {
     if (showDupesOnly && dupeData?.records) {
       return dupeData.records.map((r) => ({
         id: r.DB_ID,
         mainDbId: r.DB_ID,
+
+        // Processing / Status / DTN
+        processingType: r.DB_PROCESSING_TYPE,
+        appStatus: r.DB_APP_STATUS,
         dtn: r.DB_DTN,
+        oldRsn: r.DB_OLD_RSN,
+        entryType: r.DB_ENTRY_TYPE,
+
+        // Registration
         regNo: r.DB_REG_NO,
+
+        // Establishment Info
+        estCat: r.DB_EST_CAT,
+        ltoComp: r.DB_EST_LTO_COMP,
+        ltoAdd: r.DB_EST_LTO_ADD,
+        eadd: r.DB_EST_EADD,
+        tin: r.DB_EST_TIN,
+        contactNo: r.DB_EST_CONTACT_NO,
+        ltoNo: r.DB_EST_LTO_NO,
+        validity: r.DB_EST_VALIDITY,
+
+        // Product Info
         prodBrName: r.DB_PROD_BR_NAME,
         prodGenName: r.DB_PROD_GEN_NAME,
-        ltoComp: r.DB_EST_LTO_COMP,
-        appStatus: r.DB_APP_STATUS,
+        prodDosStr: r.DB_PROD_DOS_STR,
+        prodDosForm: r.DB_PROD_DOS_FORM,
+        prodClassPrescript: r.DB_PROD_CLASS_PRESCRIP,
+        prodEssDrugList: r.DB_PROD_ESS_DRUG_LIST,
+        prodPharmaCat: r.DB_PROD_PHARMA_CAT,
+
+        // Manufacturer
+        prodManu: r.DB_PROD_MANU,
+        prodManuAdd: r.DB_PROD_MANU_ADD,
+        prodManuTin: r.DB_PROD_MANU_TIN,
+        prodManuLtoNo: r.DB_PROD_MANU_LTO_NO,
+        prodManuCountry: r.DB_PROD_MANU_COUNTRY,
+
+        // Trader
+        prodTrader: r.DB_PROD_TRADER,
+        prodTraderAdd: r.DB_PROD_TRADER_ADD,
+        prodTraderTin: r.DB_PROD_TRADER_TIN,
+        prodTraderLtoNo: r.DB_PROD_TRADER_LTO_NO,
+        prodTraderCountry: r.DB_PROD_TRADER_COUNTRY,
+
+        // Repacker
+        prodRepacker: r.DB_PROD_REPACKER,
+        prodRepackerAdd: r.DB_PROD_REPACKER_ADD,
+        prodRepackerTin: r.DB_PROD_REPACKER_TIN,
+        prodRepackerLtoNo: r.DB_PROD_REPACKER_LTO_NO,
+        prodRepackerCountry: r.DB_PROD_REPACKER_COUNTRY,
+
+        // Importer
+        prodImporter: r.DB_PROD_IMPORTER,
+        prodImporterAdd: r.DB_PROD_IMPORTER_ADD,
+        prodImporterTin: r.DB_PROD_IMPORTER_TIN,
+        prodImporterLtoNo: r.DB_PROD_IMPORTER_LTO_NO,
+        prodImporterCountry: r.DB_PROD_IMPORTER_COUNTRY,
+
+        // Distributor
+        prodDistri: r.DB_PROD_DISTRI,
+        prodDistriAdd: r.DB_PROD_DISTRI_ADD,
+        prodDistriTin: r.DB_PROD_DISTRI_TIN,
+        prodDistriLtoNo: r.DB_PROD_DISTRI_LTO_NO,
+        prodDistriCountry: r.DB_PROD_DISTRI_COUNTRY,
+        prodDistriShelfLife: r.DB_PROD_DISTRI_SHELF_LIFE,
+
+        // Storage & Packaging
+        storageCond: r.DB_STORAGE_COND,
+        packaging: r.DB_PACKAGING,
+        suggRp: r.DB_SUGG_RP,
+
+        // Application Type
+        appType: r.DB_APP_TYPE,
+        motherAppType: r.DB_MOTHER_APP_TYPE,
+
+        // Amendments
+        ammend1: r.DB_AMMEND1,
+        ammend2: r.DB_AMMEND2,
+        ammend3: r.DB_AMMEND3,
+
+        // Category / Certification
+        prodCat: r.DB_PROD_CAT,
+        certification: r.DB_CERTIFICATION,
+
+        // Financial
+        fee: r.DB_FEE,
+        lrf: r.DB_LRF,
+        surc: r.DB_SURC,
+        total: r.DB_TOTAL,
+        orNo: r.DB_OR_NO,
+        dateIssued: r.DB_DATE_ISSUED,
+
+        // Dates Received
+        dateReceivedFdac: r.DB_DATE_RECEIVED_FDAC,
         dateReceivedCent: r.DB_DATE_RECEIVED_CENT,
-        processingType: r.DB_PROCESSING_TYPE,
+        mo: r.DB_MO,
+
+        // File
+        file: r.DB_FILE,
+
+        // SECPA
+        secpa: r.DB_SECPA,
+        secpaExpDate: r.DB_SECPA_EXP_DATE,
+        secpaIssuedOn: r.DB_SECPA_ISSUED_ON,
+
+        // Remarks
+        remarks1: r.DB_REMARKS_1,
+        dateRemarks: r.DB_DATE_REMARKS,
+
+        // Classification / Release
+        class: r.DB_CLASS,
+        dateReleased: r.DB_DATE_RELEASED,
+        typeDocReleased: r.DB_TYPE_DOC_RELEASED,
+        attaReleased: r.DB_ATTA_RELEASED,
+
+        // CPR Conditions
+        cprCond: r.DB_CPR_COND,
+        cprCondRemarks: r.DB_CPR_COND_REMARKS,
+        cprCondAddRemarks: r.DB_CPR_COND_ADD_REMARKS,
+
+        // Status / Tracking
+        appRemarks: r.DB_APP_REMARKS,
+        dbTimelineCitizenCharter: r.DB_TIMELINE_CITIZEN_CHARTER,
       }));
     }
     return data;
