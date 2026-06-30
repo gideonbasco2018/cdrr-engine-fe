@@ -1,5 +1,5 @@
 // src/components/reports/DataTable.jsx
-import { useState } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import DeckModal from "./actions/DeckModal";
@@ -14,6 +14,7 @@ import RerouteModal from "./actions/RerouteModal";
 import UpdateCPRModal from "./actions/UpdateCPRModal";
 import { BulkCompleteModal } from "../tasks/DataTable/BulkCompleteModal";
 import { closeTasksBulk, getCurrentUser } from "../../api/closed-tasks";
+import { getDuplicateRecords } from "../../api/duplicate-records";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -152,12 +153,75 @@ function DataTable({
   const [rerouteRecord, setRerouteRecord] = useState(null);
   const [cprUpdateRecord, setCprUpdateRecord] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
+
   const [bulkCompleteModalRecords, setBulkCompleteModalRecords] =
     useState(null);
   const [dblClickAction, setDblClickAction] = useState(
     () => localStorage.getItem("dblClickAction") || "viewDetails",
   );
   const [showDblClickConfig, setShowDblClickConfig] = useState(false);
+
+  const [dupeMode, setDupeMode] = useState(null);
+  const [showDupesOnly, setShowDupesOnly] = useState(false);
+  const [dupeLoading, setDupeLoading] = useState(false);
+  const [dupeError, setDupeError] = useState(null);
+  const [dupeData, setDupeData] = useState(null);
+  const [dupePage, setDupePage] = useState(1);
+
+  // ── Backend-powered duplicate detection
+  const fetchDuplicates = useCallback(async (mode, page = 1) => {
+    if (!mode) return;
+    setDupeLoading(true);
+    setDupeError(null);
+    try {
+      const by = mode === "dtn" ? "dtn" : "reg_no";
+      const result = await getDuplicateRecords({ by, page, page_size: 50 });
+      setDupeData(result);
+      setDupePage(page);
+    } catch (err) {
+      setDupeError(err.message || "Failed to fetch duplicates");
+      setDupeData(null);
+    } finally {
+      setDupeLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (dupeMode) {
+      fetchDuplicates(dupeMode, 1);
+    } else {
+      setDupeData(null);
+      setDupeError(null);
+    }
+  }, [dupeMode, fetchDuplicates]);
+
+  // Set ng DB_ID
+  const duplicateIds = useMemo(() => {
+    if (!dupeData?.records) return new Set();
+    return new Set(dupeData.records.map((r) => r.DB_ID));
+  }, [dupeData]);
+
+  const dupeCount = dupeData?.duplicate_count ?? 0;
+
+  // Kapag naka-"show duplicates only", gamitin ang backend duplicate records
+  // (totoong global dupes) imbes na yung current paginated `data` prop.
+  const displayData = useMemo(() => {
+    if (showDupesOnly && dupeData?.records) {
+      return dupeData.records.map((r) => ({
+        id: r.DB_ID,
+        mainDbId: r.DB_ID,
+        dtn: r.DB_DTN,
+        regNo: r.DB_REG_NO,
+        prodBrName: r.DB_PROD_BR_NAME,
+        prodGenName: r.DB_PROD_GEN_NAME,
+        ltoComp: r.DB_EST_LTO_COMP,
+        appStatus: r.DB_APP_STATUS,
+        dateReceivedCent: r.DB_DATE_RECEIVED_CENT,
+        processingType: r.DB_PROCESSING_TYPE,
+      }));
+    }
+    return data;
+  }, [showDupesOnly, dupeData, data]);
 
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
@@ -1021,6 +1085,237 @@ function DataTable({
                 <span>{sortOrder === "asc" ? "▲" : "▼"}</span>
               </span>
             )}
+
+            {/* ── Duplicate Finder (backend-powered, totoong global dupes) ── */}
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => {
+                  // cycle: null → dtn → regNo → null
+                  setDupeMode((prev) =>
+                    prev === null ? "dtn" : prev === "dtn" ? "regNo" : null,
+                  );
+                  setShowDupesOnly(false);
+                }}
+                title="Find duplicate records (buong dataset, hindi lang current page)"
+                style={{
+                  padding: "0.2rem 0.55rem",
+                  background: dupeMode
+                    ? "linear-gradient(135deg,#f59e0b,#d97706)"
+                    : colors.inputBg || colors.badgeBg,
+                  border: `1px solid ${dupeMode ? "#d97706" : colors.cardBorder}`,
+                  borderRadius: "6px",
+                  color: dupeMode ? "#fff" : colors.textTertiary,
+                  fontSize: "0.65rem",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  transition: "all 0.2s",
+                }}
+              >
+                <span>{dupeLoading ? "⏳" : "🔍"}</span>
+                <span style={{ fontSize: "0.6rem" }}>
+                  {dupeMode === null && "Find Duplicates"}
+                  {dupeMode === "dtn" && (
+                    <>
+                      Dupes by <strong>DTN</strong>
+                    </>
+                  )}
+                  {dupeMode === "regNo" && (
+                    <>
+                      Dupes by <strong>Reg No.</strong>
+                    </>
+                  )}
+                </span>
+                {dupeMode && !dupeLoading && dupeCount > 0 && (
+                  <span
+                    style={{
+                      padding: "0.1rem 0.4rem",
+                      background: "rgba(255,255,255,0.25)",
+                      borderRadius: 999,
+                      fontSize: "0.6rem",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {dupeCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Sub-menu: show only dupes toggle + close */}
+              {dupeMode && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 6px)",
+                    right: 0,
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: "10px",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+                    minWidth: "220px",
+                    zIndex: 9998,
+                    overflow: "hidden",
+                    padding: "0.5rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.4rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      color: dupeError ? "#ef4444" : colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                    }}
+                  >
+                    {dupeLoading
+                      ? "Loading duplicates..."
+                      : dupeError
+                        ? `Error: ${dupeError}`
+                        : `${dupeCount} duplicate records found (buong dataset)`}
+                  </span>
+
+                  {/* Toggle: DTN / Reg No */}
+                  <div style={{ display: "flex", gap: "0.3rem" }}>
+                    {[
+                      { value: "dtn", label: "By DTN" },
+                      { value: "regNo", label: "By Reg No." },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setDupeMode(opt.value);
+                          setShowDupesOnly(false);
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "0.3rem",
+                          fontSize: "0.65rem",
+                          fontWeight: dupeMode === opt.value ? 700 : 400,
+                          background:
+                            dupeMode === opt.value
+                              ? "linear-gradient(135deg,#f59e0b,#d97706)"
+                              : colors.badgeBg,
+                          color:
+                            dupeMode === opt.value
+                              ? "#fff"
+                              : colors.textPrimary,
+                          border: "none",
+                          borderRadius: "6px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Show dupes only checkbox — kapag naka-check, kukunin lahat ng duplicate
+                      records mula backend at ipapakita imbes na yung current page */}
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.4rem",
+                      fontSize: "0.68rem",
+                      color: colors.textPrimary,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={showDupesOnly}
+                      onChange={(e) => setShowDupesOnly(e.target.checked)}
+                      style={{ accentColor: "#f59e0b", width: 14, height: 14 }}
+                    />
+                    Show duplicates only
+                  </label>
+
+                  {/* Pagination ng duplicate results galing backend */}
+                  {dupeData && dupeData.total_pages > 1 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        fontSize: "0.6rem",
+                        color: colors.textTertiary,
+                      }}
+                    >
+                      <button
+                        onClick={() =>
+                          fetchDuplicates(dupeMode, Math.max(1, dupePage - 1))
+                        }
+                        disabled={dupePage <= 1 || dupeLoading}
+                        style={{
+                          padding: "0.15rem 0.4rem",
+                          background: "transparent",
+                          border: `1px solid ${colors.cardBorder}`,
+                          borderRadius: "4px",
+                          cursor: dupePage <= 1 ? "not-allowed" : "pointer",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        ‹
+                      </button>
+                      <span>
+                        Page {dupePage} / {dupeData.total_pages}
+                      </span>
+                      <button
+                        onClick={() =>
+                          fetchDuplicates(
+                            dupeMode,
+                            Math.min(dupeData.total_pages, dupePage + 1),
+                          )
+                        }
+                        disabled={
+                          dupePage >= dupeData.total_pages || dupeLoading
+                        }
+                        style={{
+                          padding: "0.15rem 0.4rem",
+                          background: "transparent",
+                          border: `1px solid ${colors.cardBorder}`,
+                          borderRadius: "4px",
+                          cursor:
+                            dupePage >= dupeData.total_pages
+                              ? "not-allowed"
+                              : "pointer",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        ›
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Clear */}
+                  <button
+                    onClick={() => {
+                      setDupeMode(null);
+                      setShowDupesOnly(false);
+                      setDupeData(null);
+                      setDupeError(null);
+                      setDupePage(1);
+                    }}
+                    style={{
+                      padding: "0.3rem",
+                      fontSize: "0.65rem",
+                      background: "transparent",
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: "6px",
+                      color: colors.textTertiary,
+                      cursor: "pointer",
+                    }}
+                  >
+                    ✕ Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* ── Double-click config button ── */}
             <div style={{ position: "relative" }}>
               <button
@@ -1360,15 +1655,56 @@ function DataTable({
           </div>
         )}
 
-        {/* Scrollable Table */}
         <div
           style={{
             flex: 1,
             minHeight: 0,
             overflowX: "auto",
             overflowY: "auto",
+            position: "relative",
           }}
         >
+          {showDupesOnly && dupeLoading && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                background: darkMode
+                  ? "rgba(0,0,0,0.55)"
+                  : "rgba(255,255,255,0.75)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.6rem",
+                zIndex: 50,
+              }}
+            >
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  border: `3px solid ${colors.cardBorder}`,
+                  borderTopColor: "#f59e0b",
+                  borderRadius: "50%",
+                  animation: "dupe-spin 0.8s linear infinite",
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: 600,
+                  color: colors.textTertiary,
+                }}
+              >
+                Loading duplicate records...
+              </span>
+              <style>
+                {`@keyframes dupe-spin { to { transform: rotate(360deg); } }`}
+              </style>
+            </div>
+          )}
+
           <table
             style={{
               width: "100%",
@@ -1474,334 +1810,364 @@ function DataTable({
                 </th>
               </tr>
             </thead>
-
             <tbody>
-              {data.map((row, index) => {
-                const isSelected = selectedRows.includes(row.id);
-                const rowBg = isSelected
-                  ? "#4CAF5015"
-                  : index % 2 === 0
-                    ? colors.tableRowEven
-                    : colors.tableRowOdd;
-
-                return (
-                  <tr
-                    key={row.id}
-                    onDoubleClick={() => handleRowDoubleClick(row)}
+              {showDupesOnly && dupeLoading ? null : displayData.length ===
+                0 ? (
+                <tr>
+                  <td
+                    colSpan={tableColumns.length + 3}
                     style={{
-                      cursor: "pointer",
-                      background: rowBg,
-                      transition: "background 0.2s",
-                      borderLeft: isSelected
-                        ? "3px solid #4CAF50"
-                        : "3px solid transparent",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected)
-                        e.currentTarget.style.background = colors.tableRowHover;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = rowBg;
+                      padding: "2rem",
+                      textAlign: "center",
+                      color: colors.textTertiary,
+                      fontSize: "0.75rem",
                     }}
                   >
-                    <td
+                    {showDupesOnly
+                      ? "Walang duplicate records na nakita."
+                      : "Walang records."}
+                  </td>
+                </tr>
+              ) : (
+                displayData.map((row, index) => {
+                  const isSelected = selectedRows.includes(row.id);
+                  // duplicateIds galing backend ay gamit DB_ID — i-match natin sa row.mainDbId
+                  // (fallback sa row.id kung walang mainDbId)
+                  const isDupe = duplicateIds.has(row.mainDbId ?? row.id);
+
+                  const rowBg = isSelected
+                    ? "#4CAF5015"
+                    : isDupe
+                      ? darkMode
+                        ? "#2d1a00"
+                        : "#fff8e1"
+                      : index % 2 === 0
+                        ? colors.tableRowEven
+                        : colors.tableRowOdd;
+
+                  return (
+                    <tr
+                      key={row.id}
+                      onDoubleClick={() => handleRowDoubleClick(row)}
                       style={{
-                        padding: "0.65rem 0.85rem",
-                        borderBottom: `1px solid ${colors.tableBorder}`,
-                        position: "sticky",
-                        left: 0,
+                        cursor: "pointer",
                         background: rowBg,
-                        zIndex: 10,
-                        boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
+                        transition: "background 0.2s",
+                        borderLeft: isSelected
+                          ? "3px solid #4CAF50"
+                          : isDupe
+                            ? "3px solid #f59e0b"
+                            : "3px solid transparent",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected)
+                          e.currentTarget.style.background =
+                            colors.tableRowHover;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = rowBg;
                       }}
                     >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onSelectRow(row.id)}
-                        style={{
-                          width: "16px",
-                          height: "16px",
-                          cursor: "pointer",
-                          accentColor: "#4CAF50",
-                        }}
-                      />
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.4rem 0.6rem",
-                        fontSize: "0.65rem",
-                        fontWeight: "700",
-                        color: colors.textTertiary,
-                        borderBottom: `1px solid ${colors.tableBorder}`,
-                        textAlign: "center",
-                        position: "sticky",
-                        left: "50px",
-                        background: rowBg,
-                        zIndex: 10,
-                        boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
-                      }}
-                    >
-                      {indexOfFirstRow + index}
-                    </td>
-                    {tableColumns.map((col) => (
                       <td
-                        key={col.key}
                         style={{
-                          ...tdStyle,
-                          minWidth: col.width,
-                          ...getFrozenTdStyle(col, rowBg),
+                          padding: "0.65rem 0.85rem",
+                          borderBottom: `1px solid ${colors.tableBorder}`,
+                          position: "sticky",
+                          left: 0,
+                          background: rowBg,
+                          zIndex: 10,
+                          boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
                         }}
                       >
-                        {renderCell(col, row)}
-                      </td>
-                    ))}
-                    <td
-                      style={{
-                        padding: "0.65rem 0.85rem",
-                        borderBottom: `1px solid ${colors.tableBorder}`,
-                        textAlign: "center",
-                        position: "sticky",
-                        right: 0,
-                        background: rowBg,
-                        zIndex: openMenuId === row.id ? 9999 : 9,
-                        boxShadow: "-4px 0 8px rgba(0,0,0,0.15)",
-                      }}
-                    >
-                      <div
-                        style={{
-                          position: "relative",
-                          display: "inline-block",
-                        }}
-                      >
-                        <button
-                          onClick={(e) => handleMenuToggle(e, row.id)}
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => onSelectRow(row.id)}
                           style={{
-                            padding: "0.4rem",
-                            background: "transparent",
-                            border: `1px solid ${colors.cardBorder}`,
-                            borderRadius: "6px",
-                            color: colors.textPrimary,
+                            width: "16px",
+                            height: "16px",
                             cursor: "pointer",
-                            width: "28px",
-                            height: "28px",
-                            transition: "all 0.2s ease",
+                            accentColor: "#4CAF50",
+                          }}
+                        />
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.4rem 0.6rem",
+                          fontSize: "0.65rem",
+                          fontWeight: "700",
+                          color: colors.textTertiary,
+                          borderBottom: `1px solid ${colors.tableBorder}`,
+                          textAlign: "center",
+                          position: "sticky",
+                          left: "50px",
+                          background: rowBg,
+                          zIndex: 10,
+                          boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
+                        }}
+                      >
+                        {indexOfFirstRow + index}
+                      </td>
+                      {tableColumns.map((col) => (
+                        <td
+                          key={col.key}
+                          style={{
+                            ...tdStyle,
+                            minWidth: col.width,
+                            ...getFrozenTdStyle(col, rowBg),
                           }}
                         >
-                          ⋮
-                        </button>
+                          {renderCell(col, row)}
+                        </td>
+                      ))}
+                      <td
+                        style={{
+                          padding: "0.65rem 0.85rem",
+                          borderBottom: `1px solid ${colors.tableBorder}`,
+                          textAlign: "center",
+                          position: "sticky",
+                          right: 0,
+                          background: rowBg,
+                          zIndex: openMenuId === row.id ? 9999 : 9,
+                          boxShadow: "-4px 0 8px rgba(0,0,0,0.15)",
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: "relative",
+                            display: "inline-block",
+                          }}
+                        >
+                          <button
+                            onClick={(e) => handleMenuToggle(e, row.id)}
+                            style={{
+                              padding: "0.4rem",
+                              background: "transparent",
+                              border: `1px solid ${colors.cardBorder}`,
+                              borderRadius: "6px",
+                              color: colors.textPrimary,
+                              cursor: "pointer",
+                              width: "28px",
+                              height: "28px",
+                              transition: "all 0.2s ease",
+                            }}
+                          >
+                            ⋮
+                          </button>
 
-                        {openMenuId === row.id && (
-                          <>
-                            <div
-                              onClick={() => setOpenMenuId(null)}
-                              style={{
-                                position: "fixed",
-                                top: 0,
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                zIndex: 9998,
-                              }}
-                            />
-                            <div
-                              style={{
-                                position: "fixed",
-                                top: `${menuPosition.top}px`,
-                                right: `${menuPosition.right}px`,
-                                left: "auto",
-                                background: colors.cardBg,
-                                border: `1px solid ${colors.cardBorder}`,
-                                borderRadius: "8px",
-                                boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                                minWidth: "190px",
-                                zIndex: 9999,
-                                overflow: "visible",
-                              }}
-                            >
-                              {isNotYetDeckedTab && (
-                                <button
-                                  onClick={() => handleOpenDeckModal(row)}
-                                  style={{
-                                    width: "100%",
-                                    padding: "0.6rem 0.85rem",
-                                    background: "transparent",
-                                    border: "none",
+                          {openMenuId === row.id && (
+                            <>
+                              <div
+                                onClick={() => setOpenMenuId(null)}
+                                style={{
+                                  position: "fixed",
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 0,
+                                  zIndex: 9998,
+                                }}
+                              />
+                              <div
+                                style={{
+                                  position: "fixed",
+                                  top: `${menuPosition.top}px`,
+                                  right: `${menuPosition.right}px`,
+                                  left: "auto",
+                                  background: colors.cardBg,
+                                  border: `1px solid ${colors.cardBorder}`,
+                                  borderRadius: "8px",
+                                  boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                                  minWidth: "190px",
+                                  zIndex: 9999,
+                                  overflow: "visible",
+                                }}
+                              >
+                                {isNotYetDeckedTab && (
+                                  <button
+                                    onClick={() => handleOpenDeckModal(row)}
+                                    style={{
+                                      width: "100%",
+                                      padding: "0.6rem 0.85rem",
+                                      background: "transparent",
+                                      border: "none",
+                                      color: colors.textPrimary,
+                                      fontSize: "0.78rem",
+                                      textAlign: "left",
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "0.5rem",
+                                      transition: "background 0.2s",
+                                    }}
+                                    onMouseEnter={(e) =>
+                                      (e.currentTarget.style.background =
+                                        colors.tableRowHover)
+                                    }
+                                    onMouseLeave={(e) =>
+                                      (e.currentTarget.style.background =
+                                        "transparent")
+                                    }
+                                  >
+                                    <span>🎯</span>
+                                    <span>Deck Application</span>
+                                  </button>
+                                )}
+                                {showAppLogs && (
+                                  <button
+                                    onClick={() => handleOpenAppLogs(row)}
+                                    style={{
+                                      width: "100%",
+                                      padding: "0.6rem 0.85rem",
+                                      background: "transparent",
+                                      border: "none",
+                                      color: colors.textPrimary,
+                                      fontSize: "0.78rem",
+                                      textAlign: "left",
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "0.5rem",
+                                      transition: "background 0.2s",
+                                    }}
+                                    onMouseEnter={(e) =>
+                                      (e.currentTarget.style.background =
+                                        colors.tableRowHover)
+                                    }
+                                    onMouseLeave={(e) =>
+                                      (e.currentTarget.style.background =
+                                        "transparent")
+                                    }
+                                  >
+                                    <span>📦</span>
+                                    <span>Application Log</span>
+                                  </button>
+                                )}
+                                {[
+                                  {
+                                    label: "Change Log",
+                                    icon: "🕓",
+                                    handler: () => handleOpenChangeLog(row),
                                     color: colors.textPrimary,
-                                    fontSize: "0.78rem",
-                                    textAlign: "left",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.5rem",
-                                    transition: "background 0.2s",
-                                  }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background =
-                                      colors.tableRowHover)
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "transparent")
-                                  }
-                                >
-                                  <span>🎯</span>
-                                  <span>Deck Application</span>
-                                </button>
-                              )}
-                              {showAppLogs && (
-                                <button
-                                  onClick={() => handleOpenAppLogs(row)}
-                                  style={{
-                                    width: "100%",
-                                    padding: "0.6rem 0.85rem",
-                                    background: "transparent",
-                                    border: "none",
-                                    color: colors.textPrimary,
-                                    fontSize: "0.78rem",
-                                    textAlign: "left",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.5rem",
-                                    transition: "background 0.2s",
-                                  }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background =
-                                      colors.tableRowHover)
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "transparent")
-                                  }
-                                >
-                                  <span>📦</span>
-                                  <span>Application Log</span>
-                                </button>
-                              )}
-                              {[
-                                {
-                                  label: "Change Log",
-                                  icon: "🕓",
-                                  handler: () => handleOpenChangeLog(row),
-                                  color: colors.textPrimary,
-                                  hoverBg: colors.tableRowHover,
-                                },
-                                {
-                                  label: "Application Information",
-                                  icon: "👁️",
-                                  handler: () => handleViewDetails(row),
-                                  color: colors.textPrimary,
-                                  hoverBg: colors.tableRowHover,
-                                },
-                                {
-                                  label: "Doctrack Details",
-                                  icon: "📋",
-                                  handler: () => handleOpenDoctrackModal(row),
-                                  color: colors.textPrimary,
-                                  hoverBg: colors.tableRowHover,
-                                },
-
-                                {
-                                  label: "Update Application Info",
-                                  icon: "✏️",
-                                  handler: () => handleEditClick(row),
-                                  color: "#2196F3",
-                                  hoverBg: "rgba(33,150,243,0.1)",
-                                },
-                                {
-                                  label: "Update based on CPR",
-                                  icon: "📜",
-                                  handler: () => {
-                                    setOpenMenuId(null);
-                                    setCprUpdateRecord(row);
+                                    hoverBg: colors.tableRowHover,
                                   },
-                                  color: "#1976d2",
-                                  hoverBg: "rgba(25,118,210,0.1)",
-                                },
+                                  {
+                                    label: "Application Information",
+                                    icon: "👁️",
+                                    handler: () => handleViewDetails(row),
+                                    color: colors.textPrimary,
+                                    hoverBg: colors.tableRowHover,
+                                  },
+                                  {
+                                    label: "Doctrack Details",
+                                    icon: "📋",
+                                    handler: () => handleOpenDoctrackModal(row),
+                                    color: colors.textPrimary,
+                                    hoverBg: colors.tableRowHover,
+                                  },
 
-                                ...(row.appStatus?.toUpperCase() !== "COMPLETED"
-                                  ? [
-                                      {
-                                        label: "Application Re-assignment",
-                                        icon: "🔄",
-                                        handler: () => {
-                                          setOpenMenuId(null);
-                                          setReassignmentRecord(row);
-                                        },
-                                        color: "#7c3aed",
-                                        hoverBg: "rgba(124,58,237,0.1)",
-                                      },
-                                      {
-                                        label: "Application Re-route",
-                                        icon: "🔀",
-                                        handler: () => {
-                                          setOpenMenuId(null);
-                                          setRerouteRecord(row);
-                                        },
-                                        color: "#0891b2",
-                                        hoverBg: "rgba(8,145,178,0.1)",
-                                      },
-                                    ]
-                                  : []),
+                                  {
+                                    label: "Update Application Info",
+                                    icon: "✏️",
+                                    handler: () => handleEditClick(row),
+                                    color: "#2196F3",
+                                    hoverBg: "rgba(33,150,243,0.1)",
+                                  },
+                                  {
+                                    label: "Update based on CPR",
+                                    icon: "📜",
+                                    handler: () => {
+                                      setOpenMenuId(null);
+                                      setCprUpdateRecord(row);
+                                    },
+                                    color: "#1976d2",
+                                    hoverBg: "rgba(25,118,210,0.1)",
+                                  },
 
-                                // {
-                                //   label: "Delete",
-                                //   icon: "🗑️",
-                                //   handler: () => {
-                                //     setOpenMenuId(null);
-                                //     if (
-                                //       confirm(
-                                //         `Delete record for DTN: ${row.dtn}?`,
-                                //       )
-                                //     )
-                                //       alert(
-                                //         "Delete functionality not yet implemented",
-                                //       );
-                                //   },
-                                //   color: "#ef4444",
-                                //   hoverBg: "#ef444410",
-                                // },
-                              ].map((item) => (
-                                <button
-                                  key={item.label}
-                                  onClick={item.handler}
-                                  style={{
-                                    width: "100%",
-                                    padding: "0.6rem 0.85rem",
-                                    background: "transparent",
-                                    border: "none",
-                                    borderTop: `1px solid ${colors.tableBorder}`,
-                                    color: item.color,
-                                    fontSize: "0.78rem",
-                                    textAlign: "left",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.5rem",
-                                    transition: "background 0.2s",
-                                  }}
-                                  onMouseEnter={(e) =>
-                                    (e.currentTarget.style.background =
-                                      item.hoverBg)
-                                  }
-                                  onMouseLeave={(e) =>
-                                    (e.currentTarget.style.background =
-                                      "transparent")
-                                  }
-                                >
-                                  <span>{item.icon}</span>
-                                  <span>{item.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                                  ...(row.appStatus?.toUpperCase() !==
+                                  "COMPLETED"
+                                    ? [
+                                        {
+                                          label: "Application Re-assignment",
+                                          icon: "🔄",
+                                          handler: () => {
+                                            setOpenMenuId(null);
+                                            setReassignmentRecord(row);
+                                          },
+                                          color: "#7c3aed",
+                                          hoverBg: "rgba(124,58,237,0.1)",
+                                        },
+                                        {
+                                          label: "Application Re-route",
+                                          icon: "🔀",
+                                          handler: () => {
+                                            setOpenMenuId(null);
+                                            setRerouteRecord(row);
+                                          },
+                                          color: "#0891b2",
+                                          hoverBg: "rgba(8,145,178,0.1)",
+                                        },
+                                      ]
+                                    : []),
+
+                                  // {
+                                  //   label: "Delete",
+                                  //   icon: "🗑️",
+                                  //   handler: () => {
+                                  //     setOpenMenuId(null);
+                                  //     if (
+                                  //       confirm(
+                                  //         `Delete record for DTN: ${row.dtn}?`,
+                                  //       )
+                                  //     )
+                                  //       alert(
+                                  //         "Delete functionality not yet implemented",
+                                  //       );
+                                  //   },
+                                  //   color: "#ef4444",
+                                  //   hoverBg: "#ef444410",
+                                  // },
+                                ].map((item) => (
+                                  <button
+                                    key={item.label}
+                                    onClick={item.handler}
+                                    style={{
+                                      width: "100%",
+                                      padding: "0.6rem 0.85rem",
+                                      background: "transparent",
+                                      border: "none",
+                                      borderTop: `1px solid ${colors.tableBorder}`,
+                                      color: item.color,
+                                      fontSize: "0.78rem",
+                                      textAlign: "left",
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "0.5rem",
+                                      transition: "background 0.2s",
+                                    }}
+                                    onMouseEnter={(e) =>
+                                      (e.currentTarget.style.background =
+                                        item.hoverBg)
+                                    }
+                                    onMouseLeave={(e) =>
+                                      (e.currentTarget.style.background =
+                                        "transparent")
+                                    }
+                                  >
+                                    <span>{item.icon}</span>
+                                    <span>{item.label}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
