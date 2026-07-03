@@ -135,3 +135,22 @@ export const deleteApplicationDocument = async (documentId) => {
     throw new Error(msg);
   }
 };
+
+/**
+ * Get all non-deleted documents linked to a given DTN, across all
+ * entry types and doc categories.
+ * GET /api/application-documents/by-dtn/{dbDtn}
+ *
+ * @param {string} dbDtn
+ */
+export const getApplicationDocumentsByDtn = async (dbDtn) => {
+  try {
+    const response = await API.get(
+      `/application-documents/by-dtn/${encodeURIComponent(dbDtn)}`
+    );
+    return response.data; // { data: [...], total: number }
+  } catch (error) {
+    const msg = extractErrorMessage(error, "Failed to fetch documents");
+    throw new Error(msg);
+  }
+};
