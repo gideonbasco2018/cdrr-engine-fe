@@ -38,12 +38,11 @@ function extractErrorMessage(error, fallback) {
  * @param {(pct: number) => void} [onProgress] - optional upload progress callback
  */
 export const uploadApplicationDocument = async (
-  { mainDbId, dbEntryType, dbDtn, docCategory, file },
+  { dbEntryType, dbDtn, docCategory, file },
   onProgress
 ) => {
   try {
     const form = new FormData();
-    form.append("main_db_id", mainDbId);
     form.append("db_entry_type", dbEntryType);
     form.append("db_dtn", dbDtn);
     if (docCategory) form.append("doc_category", docCategory);
@@ -78,12 +77,11 @@ export const uploadApplicationDocument = async (
  * @param {(pct: number) => void} [onProgress] - optional upload progress callback
  */
 export const uploadApplicationDocumentsBatch = async (
-  { mainDbId, dbEntryType, dbDtn, docCategory, files },
+  { dbEntryType, dbDtn, docCategory, files },
   onProgress
 ) => {
   try {
     const form = new FormData();
-    form.append("main_db_id", mainDbId);
     form.append("db_entry_type", dbEntryType);
     form.append("db_dtn", dbDtn);
     if (docCategory) form.append("doc_category", docCategory);

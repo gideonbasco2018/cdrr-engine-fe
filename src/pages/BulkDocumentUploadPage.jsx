@@ -253,7 +253,6 @@ function makeGroup() {
 }
 
 function UploadTab({ colors, s }) {
-  const [mainDbId, setMainDbId] = useState("");
   const [dbEntryType, setDbEntryType] = useState("");
   const [dbDtn, setDbDtn] = useState("");
   const [existingCategories, setExistingCategories] = useState([]);
@@ -375,7 +374,6 @@ function UploadTab({ colors, s }) {
     );
     setGroups([makeGroup()]);
     setActiveEntryId(null);
-    setMainDbId("");
     setDbEntryType("");
     setDbDtn("");
     setExistingCategories([]);
@@ -385,7 +383,6 @@ function UploadTab({ colors, s }) {
   };
 
   const validate = () => {
-    if (!mainDbId.toString().trim()) return "Main DB ID is required.";
     if (!dbEntryType.trim()) return "Entry Type is required.";
     if (!dbDtn.trim()) return "DTN is required.";
     if (totalFiles === 0) return "Add at least one file.";
@@ -420,7 +417,6 @@ function UploadTab({ colors, s }) {
         // eslint-disable-next-line no-await-in-loop
         const result = await uploadApplicationDocumentsBatch(
           {
-            mainDbId,
             dbEntryType,
             dbDtn,
             docCategory: g.docCategory.trim() || undefined,
@@ -453,15 +449,6 @@ function UploadTab({ colors, s }) {
       <div style={s.leftCol} className="bdu-leftCol">
         <div style={s.card} className="bdu-card">
           <div style={s.fieldGrid} className="bdu-fieldGrid">
-            <Field label="Main DB ID" required colors={colors}>
-              <input
-                type="number"
-                value={mainDbId}
-                onChange={(e) => setMainDbId(e.target.value)}
-                placeholder="e.g. 2"
-                style={s.input}
-              />
-            </Field>
             <Field label="Entry Type" required colors={colors}>
               <input
                 type="text"
