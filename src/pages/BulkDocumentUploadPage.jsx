@@ -12,9 +12,14 @@ import {
   XCircle,
   Trash2,
   ExternalLink,
+  Search,
+  FolderOpen,
 } from "lucide-react";
 
-import { uploadApplicationDocumentsBatch } from "../api/application-documents";
+import {
+  uploadApplicationDocumentsBatch,
+  getApplicationDocumentsByDtn,
+} from "../api/application-documents";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB — dapat tugma sa backend limit
 const ACCEPTED_TYPES = {
@@ -42,10 +47,20 @@ function kindOf(file) {
   return ACCEPTED_TYPES[file.type] || "other";
 }
 
+/** Best-effort kind detection for already-uploaded Drive documents (by mime_type). */
+function kindOfMime(mimeType) {
+  return ACCEPTED_TYPES[mimeType] || "other";
+}
+
 function KindIcon({ kind, size = 16 }) {
   if (kind === "pdf") return <FileText size={size} />;
   if (kind === "image") return <ImageIcon size={size} />;
   return <FileIcon size={size} />;
+}
+
+/** Google Drive inline preview URL for a given file ID. */
+function drivePreviewUrl(driveFileId) {
+  return `https://drive.google.com/file/d/${driveFileId}/preview`;
 }
 
 /**
@@ -55,10 +70,71 @@ function KindIcon({ kind, size = 16 }) {
  * bilang prop mula sa parent/layout (hindi nagmamay-ari ng sarili nitong
  * theme toggle). Gamitin ang existing global dark mode switch niyo sa
  * top nav para makontrol ito.
+ *
+ * Dalawang tabs:
+ *  - "Upload"        — existing bulk upload workflow
+ *  - "Browse by DTN"  — search & preview already-uploaded documents by DTN
  */
 function BulkDocumentUploadPage({ darkMode }) {
   const colors = getColors(darkMode);
+  const s = buildStyles(colors);
 
+  const [activeTab, setActiveTab] = useState("upload"); // "upload" | "browse"
+
+  return (
+    <div style={s.page}>
+      <div style={s.shell}>
+        <header style={s.header}>
+          <div>
+            <h1 style={s.title}>Document Manager</h1>
+            <p style={s.subtitle}>
+              Upload supporting documents or browse previously uploaded files by
+              DTN.
+            </p>
+          </div>
+        </header>
+
+        <div style={s.tabBar}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("upload")}
+            style={{
+              ...s.tabBtn,
+              ...(activeTab === "upload" ? s.tabBtnActive : {}),
+            }}
+          >
+            <Upload size={14} /> Upload
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("browse")}
+            style={{
+              ...s.tabBtn,
+              ...(activeTab === "browse" ? s.tabBtnActive : {}),
+            }}
+          >
+            <FolderOpen size={14} /> Browse by DTN
+          </button>
+        </div>
+
+        {activeTab === "upload" ? (
+          <UploadTab colors={colors} s={s} />
+        ) : (
+          <BrowseByDtnTab colors={colors} s={s} />
+        )}
+      </div>
+
+      <style>{`
+        @keyframes bdu-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Tab 1 — Upload                                                     */
+/* ================================================================== */
+function UploadTab({ colors, s }) {
   const [mainDbId, setMainDbId] = useState("");
   const [dbEntryType, setDbEntryType] = useState("");
   const [dbDtn, setDbDtn] = useState("");
@@ -179,284 +255,453 @@ function BulkDocumentUploadPage({ darkMode }) {
     }
   };
 
-  const s = buildStyles(colors);
+  return (
+    <div style={s.layout}>
+      {/* ── Left: form + file list ─────────────────────────── */}
+      <div style={s.leftCol}>
+        <div style={s.card}>
+          <div style={s.fieldGrid}>
+            <Field label="Main DB ID" required colors={colors}>
+              <input
+                type="number"
+                value={mainDbId}
+                onChange={(e) => setMainDbId(e.target.value)}
+                placeholder="e.g. 2"
+                style={s.input}
+              />
+            </Field>
+            <Field label="Entry Type" required colors={colors}>
+              <input
+                type="text"
+                value={dbEntryType}
+                onChange={(e) => setDbEntryType(e.target.value)}
+                placeholder="e.g. Corrections"
+                style={s.input}
+              />
+            </Field>
+            <Field label="DTN" required colors={colors}>
+              <input
+                type="text"
+                value={dbDtn}
+                onChange={(e) => setDbDtn(e.target.value)}
+                placeholder="e.g. 20260702095509"
+                style={s.input}
+              />
+            </Field>
+            <Field label="Category" hint="optional" colors={colors}>
+              <input
+                type="text"
+                value={docCategory}
+                onChange={(e) => setDocCategory(e.target.value)}
+                placeholder="e.g. Product File"
+                style={s.input}
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            ...s.dropzone,
+            ...(isDragging ? s.dropzoneActive : {}),
+          }}
+        >
+          <Upload size={20} />
+          <p style={s.dropzoneText}>
+            <strong>Click</strong> or drag files here
+          </p>
+          <p style={s.dropzoneHint}>
+            PDF, JPG, PNG, GIF, WEBP, DOC, DOCX, XLS, XLSX · max 5MB
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ACCEPT_ATTR}
+            onChange={handleFileInputChange}
+            style={{ display: "none" }}
+          />
+        </div>
+
+        {entries.length > 0 && (
+          <div style={s.fileListCard}>
+            <div style={s.fileListHeader}>
+              <span>{entries.length} file(s)</span>
+              <button type="button" onClick={clearAll} style={s.clearLink}>
+                <Trash2 size={13} /> Clear all
+              </button>
+            </div>
+            <ul style={s.fileList}>
+              {entries.map((entry) => {
+                const isActive = entry.id === activeId;
+                const result = uploadResults?.results?.find(
+                  (r) => r.filename === entry.file.name,
+                );
+                return (
+                  <li
+                    key={entry.id}
+                    onClick={() => setActiveId(entry.id)}
+                    style={{
+                      ...s.fileItem,
+                      ...(isActive ? s.fileItemActive : {}),
+                    }}
+                  >
+                    <span style={s.fileItemIcon}>
+                      <KindIcon kind={entry.kind} />
+                    </span>
+                    <span style={s.fileItemName} title={entry.file.name}>
+                      {entry.file.name}
+                    </span>
+                    <span style={s.fileItemSize}>
+                      {formatBytes(entry.file.size)}
+                    </span>
+                    {result &&
+                      (result.success ? (
+                        <CheckCircle2 size={14} color={colors.success} />
+                      ) : (
+                        <XCircle size={14} color={colors.danger} />
+                      ))}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeEntry(entry.id);
+                      }}
+                      style={s.fileItemRemove}
+                      aria-label={`Remove ${entry.file.name}`}
+                    >
+                      <X size={13} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {formError && <div style={s.errorBanner}>{formError}</div>}
+
+        <div style={s.actions}>
+          <button
+            type="button"
+            onClick={handleUpload}
+            disabled={isUploading || entries.length === 0}
+            style={{
+              ...s.primaryBtn,
+              ...(isUploading || entries.length === 0 ? s.btnDisabled : {}),
+            }}
+          >
+            {isUploading ? (
+              <>
+                <Loader2
+                  size={15}
+                  style={{ animation: "bdu-spin 1s linear infinite" }}
+                />
+                Uploading... {uploadProgress}%
+              </>
+            ) : (
+              `Upload${entries.length ? ` (${entries.length})` : ""}`
+            )}
+          </button>
+        </div>
+
+        {uploadResults && (
+          <div style={s.resultsCard}>
+            <div style={s.resultsSummary}>
+              <span style={s.resultsTotal}>
+                {uploadResults.total} processed
+              </span>
+              <span style={s.badgeSuccess}>
+                {uploadResults.succeeded} successful
+              </span>
+              {uploadResults.failed > 0 && (
+                <span style={s.badgeFail}>{uploadResults.failed} failed</span>
+              )}
+            </div>
+            {uploadResults.results.some((r) => !r.success) && (
+              <ul style={s.resultsErrList}>
+                {uploadResults.results
+                  .filter((r) => !r.success)
+                  .map((r, i) => (
+                    <li key={i} style={s.resultsErrItem}>
+                      <XCircle size={13} color={colors.danger} />
+                      <span>{r.filename}</span>
+                      <span style={s.resultsErrMsg}>{r.error}</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Right: preview panel ────────────────────────────── */}
+      <div style={s.previewCol}>
+        <div style={s.previewCard}>
+          {!activeEntry ? (
+            <div style={s.previewEmpty}>
+              <FileIcon size={28} />
+              <p style={s.previewEmptyText}>
+                Select a file from the list to preview it here.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div style={s.previewHeader}>
+                <span style={s.previewHeaderIcon}>
+                  <KindIcon kind={activeEntry.kind} size={15} />
+                </span>
+                <span style={s.previewHeaderName} title={activeEntry.file.name}>
+                  {activeEntry.file.name}
+                </span>
+                <span style={s.previewHeaderSize}>
+                  {formatBytes(activeEntry.file.size)}
+                </span>
+                <a
+                  href={activeEntry.previewUrl}
+                  download={activeEntry.file.name}
+                  style={s.previewOpenLink}
+                  title="Download / open in new tab"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLink size={14} />
+                </a>
+              </div>
+              <div style={s.previewBody}>
+                {activeEntry.kind === "pdf" && (
+                  <iframe
+                    src={activeEntry.previewUrl}
+                    title={activeEntry.file.name}
+                    style={s.previewFrame}
+                  />
+                )}
+                {activeEntry.kind === "image" && (
+                  <div style={s.previewImageWrap}>
+                    <img
+                      src={activeEntry.previewUrl}
+                      alt={activeEntry.file.name}
+                      style={s.previewImage}
+                    />
+                  </div>
+                )}
+                {(activeEntry.kind === "doc" ||
+                  activeEntry.kind === "sheet" ||
+                  activeEntry.kind === "other") && (
+                  <div style={s.previewUnsupported}>
+                    <FileIcon size={36} />
+                    <p style={s.previewUnsupportedTitle}>
+                      No in-browser preview available for this file type
+                    </p>
+                    <p style={s.previewUnsupportedHint}>
+                      Click the icon above to download and open it.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Tab 2 — Browse by DTN                                              */
+/* ================================================================== */
+function BrowseByDtnTab({ colors, s }) {
+  const [dtnInput, setDtnInput] = useState("");
+  const [searchedDtn, setSearchedDtn] = useState("");
+  const [docs, setDocs] = useState([]);
+  const [activeDocId, setActiveDocId] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
+
+  const activeDoc = useMemo(
+    () => docs.find((d) => d.id === activeDocId) || null,
+    [docs, activeDocId],
+  );
+
+  const handleSearch = async () => {
+    const trimmed = dtnInput.trim();
+    if (!trimmed) {
+      setSearchError("Enter a DTN to search.");
+      return;
+    }
+    setSearchError("");
+    setIsSearching(true);
+    setHasSearched(true);
+    try {
+      const result = await getApplicationDocumentsByDtn(trimmed);
+      setDocs(result.data || []);
+      setActiveDocId(result.data?.[0]?.id ?? null);
+      setSearchedDtn(trimmed);
+    } catch (err) {
+      setSearchError(err.message || "Failed to fetch documents.");
+      setDocs([]);
+      setActiveDocId(null);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSearch();
+    }
+  };
 
   return (
-    <div style={s.page}>
-      <div style={s.shell}>
-        <header style={s.header}>
-          <div>
-            <h1 style={s.title}>Bulk Document Upload</h1>
-            <p style={s.subtitle}>
-              Add files and preview them before uploading to Drive.
-            </p>
-          </div>
-        </header>
-
-        <div style={s.layout}>
-          {/* ── Left: form + file list ─────────────────────────── */}
-          <div style={s.leftCol}>
-            <div style={s.card}>
-              <div style={s.fieldGrid}>
-                <Field label="Main DB ID" required colors={colors}>
-                  <input
-                    type="number"
-                    value={mainDbId}
-                    onChange={(e) => setMainDbId(e.target.value)}
-                    placeholder="e.g. 2"
-                    style={s.input}
-                  />
-                </Field>
-                <Field label="Entry Type" required colors={colors}>
-                  <input
-                    type="text"
-                    value={dbEntryType}
-                    onChange={(e) => setDbEntryType(e.target.value)}
-                    placeholder="e.g. Corrections"
-                    style={s.input}
-                  />
-                </Field>
-                <Field label="DTN" required colors={colors}>
-                  <input
-                    type="text"
-                    value={dbDtn}
-                    onChange={(e) => setDbDtn(e.target.value)}
-                    placeholder="e.g. 20260702095509"
-                    style={s.input}
-                  />
-                </Field>
-                <Field label="Category" hint="optional" colors={colors}>
-                  <input
-                    type="text"
-                    value={docCategory}
-                    onChange={(e) => setDocCategory(e.target.value)}
-                    placeholder="e.g. Product File"
-                    style={s.input}
-                  />
-                </Field>
-              </div>
-            </div>
-
-            <div
-              onDragOver={(e) => {
-                e.preventDefault();
-                setIsDragging(true);
-              }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              style={{
-                ...s.dropzone,
-                ...(isDragging ? s.dropzoneActive : {}),
-              }}
-            >
-              <Upload size={20} />
-              <p style={s.dropzoneText}>
-                <strong>Click</strong> or drag files here
-              </p>
-              <p style={s.dropzoneHint}>
-                PDF, JPG, PNG, GIF, WEBP, DOC, DOCX, XLS, XLSX · max 5MB
-              </p>
+    <div style={s.layout}>
+      {/* ── Left: search + results list ─────────────────────── */}
+      <div style={s.leftCol}>
+        <div style={s.card}>
+          <Field label="DTN" required colors={colors}>
+            <div style={s.searchRow}>
               <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept={ACCEPT_ATTR}
-                onChange={handleFileInputChange}
-                style={{ display: "none" }}
+                type="text"
+                value={dtnInput}
+                onChange={(e) => setDtnInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="e.g. 20260702095509"
+                style={{ ...s.input, flex: 1 }}
               />
-            </div>
-
-            {entries.length > 0 && (
-              <div style={s.fileListCard}>
-                <div style={s.fileListHeader}>
-                  <span>{entries.length} file(s)</span>
-                  <button type="button" onClick={clearAll} style={s.clearLink}>
-                    <Trash2 size={13} /> Clear all
-                  </button>
-                </div>
-                <ul style={s.fileList}>
-                  {entries.map((entry) => {
-                    const isActive = entry.id === activeId;
-                    const result = uploadResults?.results?.find(
-                      (r) => r.filename === entry.file.name,
-                    );
-                    return (
-                      <li
-                        key={entry.id}
-                        onClick={() => setActiveId(entry.id)}
-                        style={{
-                          ...s.fileItem,
-                          ...(isActive ? s.fileItemActive : {}),
-                        }}
-                      >
-                        <span style={s.fileItemIcon}>
-                          <KindIcon kind={entry.kind} />
-                        </span>
-                        <span style={s.fileItemName} title={entry.file.name}>
-                          {entry.file.name}
-                        </span>
-                        <span style={s.fileItemSize}>
-                          {formatBytes(entry.file.size)}
-                        </span>
-                        {result &&
-                          (result.success ? (
-                            <CheckCircle2 size={14} color={colors.success} />
-                          ) : (
-                            <XCircle size={14} color={colors.danger} />
-                          ))}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeEntry(entry.id);
-                          }}
-                          style={s.fileItemRemove}
-                          aria-label={`Remove ${entry.file.name}`}
-                        >
-                          <X size={13} />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-
-            {formError && <div style={s.errorBanner}>{formError}</div>}
-
-            <div style={s.actions}>
               <button
                 type="button"
-                onClick={handleUpload}
-                disabled={isUploading || entries.length === 0}
+                onClick={handleSearch}
+                disabled={isSearching}
                 style={{
-                  ...s.primaryBtn,
-                  ...(isUploading || entries.length === 0 ? s.btnDisabled : {}),
+                  ...s.searchBtn,
+                  ...(isSearching ? s.btnDisabled : {}),
                 }}
               >
-                {isUploading ? (
-                  <>
-                    <Loader2
-                      size={15}
-                      style={{ animation: "bdu-spin 1s linear infinite" }}
-                    />
-                    Uploading... {uploadProgress}%
-                  </>
+                {isSearching ? (
+                  <Loader2
+                    size={14}
+                    style={{ animation: "bdu-spin 1s linear infinite" }}
+                  />
                 ) : (
-                  `Upload${entries.length ? ` (${entries.length})` : ""}`
+                  <Search size={14} />
                 )}
               </button>
             </div>
+          </Field>
+        </div>
 
-            {uploadResults && (
-              <div style={s.resultsCard}>
-                <div style={s.resultsSummary}>
-                  <span style={s.resultsTotal}>
-                    {uploadResults.total} processed
-                  </span>
-                  <span style={s.badgeSuccess}>
-                    {uploadResults.succeeded} successful
-                  </span>
-                  {uploadResults.failed > 0 && (
-                    <span style={s.badgeFail}>
-                      {uploadResults.failed} failed
-                    </span>
-                  )}
-                </div>
-                {uploadResults.results.some((r) => !r.success) && (
-                  <ul style={s.resultsErrList}>
-                    {uploadResults.results
-                      .filter((r) => !r.success)
-                      .map((r, i) => (
-                        <li key={i} style={s.resultsErrItem}>
-                          <XCircle size={13} color={colors.danger} />
-                          <span>{r.filename}</span>
-                          <span style={s.resultsErrMsg}>{r.error}</span>
-                        </li>
-                      ))}
-                  </ul>
-                )}
-              </div>
+        {searchError && <div style={s.errorBanner}>{searchError}</div>}
+
+        {hasSearched && !searchError && (
+          <div style={s.fileListCard}>
+            <div style={s.fileListHeader}>
+              <span>
+                {docs.length} file(s) found for DTN{" "}
+                <strong>{searchedDtn}</strong>
+              </span>
+            </div>
+            {docs.length === 0 ? (
+              <p style={s.noResultsText}>
+                No documents have been uploaded for this DTN yet.
+              </p>
+            ) : (
+              <ul style={s.fileList}>
+                {docs.map((doc) => {
+                  const isActive = doc.id === activeDocId;
+                  const kind = kindOfMime(doc.mime_type);
+                  return (
+                    <li
+                      key={doc.id}
+                      onClick={() => setActiveDocId(doc.id)}
+                      style={{
+                        ...s.fileItem,
+                        ...(isActive ? s.fileItemActive : {}),
+                      }}
+                    >
+                      <span style={s.fileItemIcon}>
+                        <KindIcon kind={kind} />
+                      </span>
+                      <span
+                        style={s.fileItemName}
+                        title={doc.original_filename}
+                      >
+                        {doc.original_filename}
+                      </span>
+                      <span style={s.fileItemSize}>
+                        {formatBytes(doc.file_size_bytes)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </div>
-
-          {/* ── Right: preview panel ────────────────────────────── */}
-          <div style={s.previewCol}>
-            <div style={s.previewCard}>
-              {!activeEntry ? (
-                <div style={s.previewEmpty}>
-                  <FileIcon size={28} />
-                  <p style={s.previewEmptyText}>
-                    Select a file from the list to preview it here.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div style={s.previewHeader}>
-                    <span style={s.previewHeaderIcon}>
-                      <KindIcon kind={activeEntry.kind} size={15} />
-                    </span>
-                    <span
-                      style={s.previewHeaderName}
-                      title={activeEntry.file.name}
-                    >
-                      {activeEntry.file.name}
-                    </span>
-                    <span style={s.previewHeaderSize}>
-                      {formatBytes(activeEntry.file.size)}
-                    </span>
-                    <a
-                      href={activeEntry.previewUrl}
-                      download={activeEntry.file.name}
-                      style={s.previewOpenLink}
-                      title="Download / open in new tab"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink size={14} />
-                    </a>
-                  </div>
-                  <div style={s.previewBody}>
-                    {activeEntry.kind === "pdf" && (
-                      <iframe
-                        src={activeEntry.previewUrl}
-                        title={activeEntry.file.name}
-                        style={s.previewFrame}
-                      />
-                    )}
-                    {activeEntry.kind === "image" && (
-                      <div style={s.previewImageWrap}>
-                        <img
-                          src={activeEntry.previewUrl}
-                          alt={activeEntry.file.name}
-                          style={s.previewImage}
-                        />
-                      </div>
-                    )}
-                    {(activeEntry.kind === "doc" ||
-                      activeEntry.kind === "sheet" ||
-                      activeEntry.kind === "other") && (
-                      <div style={s.previewUnsupported}>
-                        <FileIcon size={36} />
-                        <p style={s.previewUnsupportedTitle}>
-                          No in-browser preview available for this file type
-                        </p>
-                        <p style={s.previewUnsupportedHint}>
-                          Click the icon above to download and open it.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
-      <style>{`
-        @keyframes bdu-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+      {/* ── Right: preview panel ────────────────────────────── */}
+      <div style={s.previewCol}>
+        <div style={s.previewCard}>
+          {!activeDoc ? (
+            <div style={s.previewEmpty}>
+              <FolderOpen size={28} />
+              <p style={s.previewEmptyText}>
+                Search a DTN and select a file from the list to preview it here.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div style={s.previewHeader}>
+                <span style={s.previewHeaderIcon}>
+                  <KindIcon kind={kindOfMime(activeDoc.mime_type)} size={15} />
+                </span>
+                <span
+                  style={s.previewHeaderName}
+                  title={activeDoc.original_filename}
+                >
+                  {activeDoc.original_filename}
+                </span>
+                <span style={s.previewHeaderSize}>
+                  {formatBytes(activeDoc.file_size_bytes)}
+                </span>
+                <a
+                  href={activeDoc.drive_file_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={s.previewOpenLink}
+                  title="Open in Google Drive"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLink size={14} />
+                </a>
+              </div>
+              <div style={s.previewBody}>
+                <iframe
+                  src={drivePreviewUrl(activeDoc.drive_file_id)}
+                  title={activeDoc.original_filename}
+                  style={s.previewFrame}
+                  allow="autoplay"
+                />
+              </div>
+              {activeDoc.doc_category && (
+                <div style={s.previewFooterMeta}>
+                  Category: <strong>{activeDoc.doc_category}</strong> · Entry
+                  Type: <strong>{activeDoc.db_entry_type}</strong>
+                  {activeDoc.uploaded_by_user_name &&
+                    ` · Uploaded by: ${activeDoc.uploaded_by_user_name}`}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -538,7 +783,7 @@ function buildStyles(colors) {
       display: "flex",
       alignItems: "flex-start",
       justifyContent: "space-between",
-      marginBottom: 20,
+      marginBottom: 16,
     },
     title: {
       fontSize: 20,
@@ -547,6 +792,33 @@ function buildStyles(colors) {
       letterSpacing: "-0.01em",
     },
     subtitle: { fontSize: 13.5, color: colors.textTertiary, margin: "4px 0 0" },
+
+    /* ── Tabs ── */
+    tabBar: {
+      display: "flex",
+      gap: 4,
+      marginBottom: 18,
+      borderBottom: `1px solid ${colors.cardBorder}`,
+    },
+    tabBtn: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "9px 16px",
+      fontSize: 13,
+      fontWeight: 600,
+      color: colors.textTertiary,
+      background: "transparent",
+      border: "none",
+      borderBottom: "2px solid transparent",
+      cursor: "pointer",
+      transition: "color 120ms ease, border-color 120ms ease",
+    },
+    tabBtnActive: {
+      color: colors.accent,
+      borderBottomColor: colors.accent,
+    },
+
     layout: {
       display: "grid",
       gridTemplateColumns: "minmax(0, 380px) 1fr",
@@ -569,6 +841,28 @@ function buildStyles(colors) {
       color: colors.textPrimary,
       background: colors.surfaceAlt,
     },
+
+    /* ── Browse-by-DTN search row ── */
+    searchRow: { display: "flex", gap: 8 },
+    searchBtn: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      border: "none",
+      background: colors.accent,
+      color: "#fff",
+      borderRadius: 8,
+      width: 38,
+      flexShrink: 0,
+      cursor: "pointer",
+    },
+    noResultsText: {
+      fontSize: 12.5,
+      color: colors.textTertiary,
+      padding: "6px 4px 2px",
+      margin: 0,
+    },
+
     dropzone: {
       borderWidth: "1.5px",
       borderStyle: "dashed",
@@ -827,6 +1121,12 @@ function buildStyles(colors) {
       margin: 0,
     },
     previewUnsupportedHint: { fontSize: 12, margin: 0 },
+    previewFooterMeta: {
+      padding: "8px 14px",
+      borderTop: `1px solid ${colors.cardBorder}`,
+      fontSize: 11.5,
+      color: colors.textTertiary,
+    },
   };
 }
 
