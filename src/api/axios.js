@@ -14,8 +14,16 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    if (!config.headers['Content-Type']) {
+    // Huwag i-force ang Content-Type kapag FormData ang laman (file uploads) —
+    // kailangan ng browser mismo ang mag-set nito para may tamang multipart boundary.
+    const isFormData = typeof FormData !== 'undefined' && config.data instanceof FormData;
+
+    if (!config.headers['Content-Type'] && !isFormData) {
       config.headers['Content-Type'] = 'application/json';
+    }
+
+    if (isFormData) {
+      delete config.headers['Content-Type'];
     }
 
     // Inject ?impersonate_user_id into dashboard API calls

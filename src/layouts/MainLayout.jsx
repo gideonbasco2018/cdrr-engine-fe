@@ -20,6 +20,7 @@ import RecordSectionPage from "../pages/RecordSectionPage";
 import LeadAssignmentsPage from "../pages/LeadAssignmentsPage";
 import ApplicationCorrectionPage from "../pages/ApplicationCorrectionPage";
 import DocumentRenamePage from "../pages/DocumentRenamePage";
+import BulkDocumentUploadPage from "../pages/BulkDocumentUploadPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -88,6 +89,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("monitoring")) return "monitoring";
     if (path.includes("appCorrection")) return "appCorrection";
     if (path.includes("document-rename")) return "document-rename";
+    if (path.includes("upload-document")) return "upload-document";
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
 
@@ -223,6 +225,10 @@ function MainLayout({ darkMode, setDarkMode }) {
         );
       case "document-rename":
         return <DocumentRenamePage darkMode={darkMode} userRole={userRole} />;
+      case "upload-document":
+        return (
+          <BulkDocumentUploadPage darkMode={darkMode} userRole={userRole} />
+        );
       case "dashboard":
 
       default:

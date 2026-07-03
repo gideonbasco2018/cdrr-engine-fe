@@ -214,6 +214,7 @@ function Sidebar({
       settings: `${basePath}/settings`,
       "lead-assignments": `${basePath}/lead-assignments`,
       "document-rename": `${basePath}/document-rename`,
+      "upload-document": `${basePath}/upload-document`,
     };
     if (isMobile) setMobileOpen(false);
     navigate(routeMap[itemId] || `${basePath}/dashboard`);

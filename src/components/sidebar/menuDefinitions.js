@@ -121,10 +121,16 @@ export const menuDefinitions = {
       label: "Records List", // 👈 recommended change
       roles: ["User", "Admin", "SuperAdmin"],
     },
-        {
+    {
       id: "document-rename",
       icon: "👔",
       label: "Document Rename",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
+    {
+      id: "upload-document",
+      icon: "👔",
+      label: "Upload Document",
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],

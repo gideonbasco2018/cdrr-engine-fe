@@ -155,7 +155,7 @@ export function CorrectionPage({
             >
               {entryType === "RECONSTRUCTION"
                 ? "Manual CPR Reconstruction"
-                : entryType === "VALIDITY_EXTENSION"
+                : entryType === "VALIDITY EXTENSION"
                   ? "Manual CPR Validity Extension"
                   : entryType === "CANCELLATION OF CPR"
                     ? "Manual CPR Cancellation of CPR"
