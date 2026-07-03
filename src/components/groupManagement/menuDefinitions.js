@@ -28,7 +28,7 @@ export const allMenuItems = [
   { id: "doctrack-magic", label: "Doctrack (Bulk Upload)", icon: "📦", category: "Other Database" },
   { id: "records-report", label: "Records List", icon: "🗂️", category: "Other Database" },
   { id: "document-rename", label: "Document Rename", icon: "👔", category: "Workflow" },
-
+  { id: "upload-document", label: "Upload Document", icon: "👔", category: "Other Database" },
   // Platform
   { id: "announcements", label: "Announcements", icon: "📢", category: "Platform" },
   { id: "support", label: "Support", icon: "🛠️", category: "Platform" },

@@ -114,6 +114,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       support: "Platform",
       "lead-assignments": "Other Database",
       "document-rename": "Other Database",
+      "upload-document": "Other Database",
       appCorrection: "Workflow",
     };
     return categoryMap[menuId] || "Other";
