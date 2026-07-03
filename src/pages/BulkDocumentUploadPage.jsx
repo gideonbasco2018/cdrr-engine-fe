@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Search,
   FolderOpen,
+  ChevronRight,
 } from "lucide-react";
 
 import {
@@ -73,7 +74,8 @@ function drivePreviewUrl(driveFileId) {
  *
  * Dalawang tabs:
  *  - "Upload"        — existing bulk upload workflow
- *  - "Browse by DTN"  — search & preview already-uploaded documents by DTN
+ *  - "Browse by DTN"  — search & preview already-uploaded documents by DTN,
+ *                        grouped by their Google Drive folder (doc_category)
  */
 function BulkDocumentUploadPage({ darkMode }) {
   const colors = getColors(darkMode);
@@ -514,7 +516,7 @@ function UploadTab({ colors, s }) {
 }
 
 /* ================================================================== */
-/*  Tab 2 — Browse by DTN                                              */
+/*  Tab 2 — Browse by DTN (grouped by Google Drive folder)             */
 /* ================================================================== */
 function BrowseByDtnTab({ colors, s }) {
   const [dtnInput, setDtnInput] = useState("");
@@ -524,11 +526,43 @@ function BrowseByDtnTab({ colors, s }) {
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
+  const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
 
   const activeDoc = useMemo(
     () => docs.find((d) => d.id === activeDocId) || null,
     [docs, activeDocId],
   );
+
+  // Group documents by their Google Drive folder (drive_folder_id).
+  // Falls back to doc_category / "General" as the display label when
+  // multiple documents share the same physical Drive folder.
+  const folders = useMemo(() => {
+    const groups = new Map();
+    for (const doc of docs) {
+      const key = doc.drive_folder_id || "no-folder";
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          label: doc.doc_category?.trim() || "General",
+          entryType: doc.db_entry_type || "",
+          items: [],
+        });
+      }
+      groups.get(key).items.push(doc);
+    }
+    return Array.from(groups.values()).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [docs]);
+
+  const toggleFolder = (key) => {
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const handleSearch = async () => {
     const trimmed = dtnInput.trim();
@@ -541,9 +575,11 @@ function BrowseByDtnTab({ colors, s }) {
     setHasSearched(true);
     try {
       const result = await getApplicationDocumentsByDtn(trimmed);
-      setDocs(result.data || []);
-      setActiveDocId(result.data?.[0]?.id ?? null);
+      const data = result.data || [];
+      setDocs(data);
+      setActiveDocId(data[0]?.id ?? null);
       setSearchedDtn(trimmed);
+      setCollapsedFolders(new Set());
     } catch (err) {
       setSearchError(err.message || "Failed to fetch documents.");
       setDocs([]);
@@ -562,7 +598,7 @@ function BrowseByDtnTab({ colors, s }) {
 
   return (
     <div style={s.layout}>
-      {/* ── Left: search + results list ─────────────────────── */}
+      {/* ── Left: search + folder/file tree ─────────────────── */}
       <div style={s.leftCol}>
         <div style={s.card}>
           <Field label="DTN" required colors={colors}>
@@ -612,35 +648,69 @@ function BrowseByDtnTab({ colors, s }) {
                 No documents have been uploaded for this DTN yet.
               </p>
             ) : (
-              <ul style={s.fileList}>
-                {docs.map((doc) => {
-                  const isActive = doc.id === activeDocId;
-                  const kind = kindOfMime(doc.mime_type);
+              <div style={s.folderTree}>
+                {folders.map((folder) => {
+                  const isCollapsed = collapsedFolders.has(folder.key);
                   return (
-                    <li
-                      key={doc.id}
-                      onClick={() => setActiveDocId(doc.id)}
-                      style={{
-                        ...s.fileItem,
-                        ...(isActive ? s.fileItemActive : {}),
-                      }}
-                    >
-                      <span style={s.fileItemIcon}>
-                        <KindIcon kind={kind} />
-                      </span>
-                      <span
-                        style={s.fileItemName}
-                        title={doc.original_filename}
+                    <div key={folder.key} style={s.folderGroup}>
+                      <button
+                        type="button"
+                        onClick={() => toggleFolder(folder.key)}
+                        style={s.folderHeader}
                       >
-                        {doc.original_filename}
-                      </span>
-                      <span style={s.fileItemSize}>
-                        {formatBytes(doc.file_size_bytes)}
-                      </span>
-                    </li>
+                        <ChevronRight
+                          size={13}
+                          style={{
+                            transform: isCollapsed
+                              ? "rotate(0deg)"
+                              : "rotate(90deg)",
+                            transition: "transform 120ms ease",
+                            flexShrink: 0,
+                          }}
+                        />
+                        <FolderOpen size={14} style={{ flexShrink: 0 }} />
+                        <span style={s.folderLabel} title={folder.label}>
+                          {folder.label}
+                        </span>
+                        <span style={s.folderCount}>{folder.items.length}</span>
+                      </button>
+
+                      {!isCollapsed && (
+                        <ul style={s.fileList}>
+                          {folder.items.map((doc) => {
+                            const isActive = doc.id === activeDocId;
+                            const kind = kindOfMime(doc.mime_type);
+                            return (
+                              <li
+                                key={doc.id}
+                                onClick={() => setActiveDocId(doc.id)}
+                                style={{
+                                  ...s.fileItem,
+                                  ...s.fileItemNested,
+                                  ...(isActive ? s.fileItemActive : {}),
+                                }}
+                              >
+                                <span style={s.fileItemIcon}>
+                                  <KindIcon kind={kind} />
+                                </span>
+                                <span
+                                  style={s.fileItemName}
+                                  title={doc.original_filename}
+                                >
+                                  {doc.original_filename}
+                                </span>
+                                <span style={s.fileItemSize}>
+                                  {formatBytes(doc.file_size_bytes)}
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
             )}
           </div>
         )}
@@ -861,6 +931,51 @@ function buildStyles(colors) {
       color: colors.textTertiary,
       padding: "6px 4px 2px",
       margin: 0,
+    },
+
+    /* ── Folder tree (Browse by DTN) ── */
+    folderTree: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+    },
+    folderGroup: {
+      display: "flex",
+      flexDirection: "column",
+    },
+    folderHeader: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      width: "100%",
+      padding: "7px 6px",
+      background: "transparent",
+      border: "none",
+      borderRadius: 6,
+      cursor: "pointer",
+      fontSize: 12.5,
+      fontWeight: 600,
+      color: colors.textPrimary,
+      textAlign: "left",
+    },
+    folderLabel: {
+      flex: 1,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+    },
+    folderCount: {
+      fontSize: 10.5,
+      fontWeight: 600,
+      color: colors.textTertiary,
+      background: colors.surfaceAlt,
+      padding: "1px 6px",
+      borderRadius: 999,
+      flexShrink: 0,
+    },
+    fileItemNested: {
+      marginLeft: 19,
+      width: "calc(100% - 19px)",
     },
 
     dropzone: {
