@@ -13,6 +13,13 @@ const ACCEPTED_TYPES = {
   "image/jpeg": "image",
   "image/png": "image",
 };
+
+const CATEGORY_OPTIONS = [
+  "GENERAL",
+  "PRODUCT FILE",
+  "DOCUMENTARY REQUIREMENTS",
+  "WORKSHEET",
+];
 const ACCEPT_ATTR = ".pdf,.jpg,.jpeg,.png";
 
 function formatBytes(bytes) {
@@ -53,16 +60,14 @@ export function StepUploadDocuments({ record, colors }) {
 
   // ── New files staged for upload ──
   const [stagedDocs, setStagedDocs] = useState([]);
-  const [docCategory, setDocCategory] = useState("Product File");
+  const [docCategory, setDocCategory] = useState("GENERAL");
   const [docError, setDocError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef(null);
 
-  // ── Preview panel selection — either an existing doc or a staged one ──
-  const [activeItem, setActiveItem] = useState(null); // { type: "existing"|"staged", doc }
-
+  const [activeItem, setActiveItem] = useState(null);
   const loadExisting = async () => {
     setIsLoadingExisting(true);
     setFetchError("");
@@ -109,12 +114,6 @@ export function StepUploadDocuments({ record, colors }) {
     return Array.from(groups.values()).sort((a, b) =>
       a.label.localeCompare(b.label),
     );
-  }, [existingDocs]);
-
-  const existingCategories = useMemo(() => {
-    return Array.from(
-      new Set(existingDocs.map((d) => d.doc_category?.trim()).filter(Boolean)),
-    ).sort();
   }, [existingDocs]);
 
   const toggleFolder = (key) => {
@@ -399,11 +398,8 @@ export function StepUploadDocuments({ record, colors }) {
               }}
             >
               Category (Folder)
-              <span style={{ color: textTertiary, fontWeight: 400 }}>
-                {" "}
-                — select existing or type a new one
-              </span>
             </label>
+
             <div
               style={{
                 display: "flex",
@@ -416,12 +412,9 @@ export function StepUploadDocuments({ record, colors }) {
               }}
             >
               <span style={{ flexShrink: 0 }}>📁</span>
-              <input
-                type="text"
-                list="stepdoc-category-options"
+              <select
                 value={docCategory}
                 onChange={(e) => setDocCategory(e.target.value)}
-                placeholder="e.g. Product File (leave blank for General)"
                 style={{
                   border: "none",
                   outline: "none",
@@ -431,49 +424,17 @@ export function StepUploadDocuments({ record, colors }) {
                   minWidth: 0,
                   fontSize: 13,
                   color: textPrimary,
-                }}
-              />
-            </div>
-            <datalist id="stepdoc-category-options">
-              {existingCategories.map((cat) => (
-                <option key={cat} value={cat} />
-              ))}
-            </datalist>
-            {existingCategories.length > 0 && (
-              <div
-                style={{
-                  display: "flex",
-                  flexWrap: "wrap",
-                  gap: 6,
-                  marginTop: 6,
+                  appearance: "none",
+                  cursor: "pointer",
                 }}
               >
-                {existingCategories.map((cat) => {
-                  const isActive = docCategory.trim() === cat;
-                  return (
-                    <button
-                      type="button"
-                      key={cat}
-                      onClick={() => setDocCategory(cat)}
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: "3px 9px",
-                        borderRadius: 999,
-                        border: `1px solid ${isActive ? "#1976d2" : cardBorder}`,
-                        background: isActive
-                          ? "rgba(25,118,210,0.1)"
-                          : "transparent",
-                        color: isActive ? "#1976d2" : textTertiary,
-                        cursor: "pointer",
-                      }}
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                {CATEGORY_OPTIONS.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div
@@ -672,7 +633,7 @@ export function StepUploadDocuments({ record, colors }) {
         style={{
           border: `1px solid ${cardBorder}`,
           borderRadius: 10,
-          minHeight: 480,
+          minHeight: 800,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
@@ -705,7 +666,7 @@ export function StepUploadDocuments({ record, colors }) {
                   width: "100%",
                   height: "100%",
                   border: "none",
-                  minHeight: 460,
+                  minHeight: 800,
                 }}
                 allow="autoplay"
               />
@@ -743,7 +704,7 @@ export function StepUploadDocuments({ record, colors }) {
                   width: "100%",
                   height: "100%",
                   border: "none",
-                  minHeight: 460,
+                  minHeight: 800,
                 }}
               />
             )}

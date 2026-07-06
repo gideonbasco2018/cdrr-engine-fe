@@ -450,13 +450,20 @@ function UploadTab({ colors, s }) {
         <div style={s.card} className="bdu-card">
           <div style={s.fieldGrid} className="bdu-fieldGrid">
             <Field label="Entry Type" required colors={colors}>
-              <input
-                type="text"
+              <select
                 value={dbEntryType}
                 onChange={(e) => setDbEntryType(e.target.value)}
-                placeholder="e.g. Corrections"
                 style={s.input}
-              />
+              >
+                <option value="">Select entry type</option>
+                <option value="CANCELLATION OF CPR">CANCELLATION OF CPR</option>
+                <option value="CORRECTION">CORRECTION</option>
+                <option value="RECONSTRUCTION">RECONSTRUCTION</option>
+                <option value="VALIDITY EXTENSION">VALIDITY EXTENSION</option>
+                <option value="SURRENDER DUE TO PAC">
+                  SURRENDER DUE TO PAC
+                </option>
+              </select>
             </Field>
             <Field label="DTN" required colors={colors}>
               <input
@@ -693,7 +700,7 @@ function UploadGroupBlock({
       <div style={s.card} className="bdu-card">
         <Field
           label="Category (Folder)"
-          hint="select existing or type a new one"
+          hint="leave blank for General"
           colors={colors}
         >
           <div style={s.folderPickerRow}>
@@ -701,40 +708,19 @@ function UploadGroupBlock({
               size={15}
               style={{ flexShrink: 0, color: colors.textTertiary }}
             />
-            <input
-              type="text"
-              list={datalistId}
+            <select
               value={group.docCategory}
               onChange={(e) => onCategoryChange(e.target.value)}
-              placeholder="e.g. Product File (leave blank for General)"
               style={s.folderInput}
-            />
+            >
+              <option value="">GENERAL</option>
+              <option value="PRODUCT FILE">PRODUCT FILE</option>
+              <option value="DOCUMENTARY REQUIREMENTS">
+                DOCUMENTARY REQUIREMENTS
+              </option>
+              <option value="WORKSHEET">WORKSHEET</option>
+            </select>
           </div>
-          <datalist id={datalistId}>
-            {existingCategories.map((cat) => (
-              <option key={cat} value={cat} />
-            ))}
-          </datalist>
-          {existingCategories.length > 0 && (
-            <div style={s.folderChipsRow}>
-              {existingCategories.map((cat) => {
-                const isActive = group.docCategory.trim() === cat;
-                return (
-                  <button
-                    type="button"
-                    key={cat}
-                    onClick={() => onCategoryChange(cat)}
-                    style={{
-                      ...s.folderChip,
-                      ...(isActive ? s.folderChipActive : {}),
-                    }}
-                  >
-                    {cat}
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </Field>
       </div>
 
@@ -1170,7 +1156,7 @@ function buildStyles(colors) {
       transition: "background 150ms ease, color 150ms ease",
     },
     shell: {
-      maxWidth: 1080,
+      maxWidth: 1600,
       width: "100%",
       margin: "0 auto",
       boxSizing: "border-box",
@@ -1217,7 +1203,7 @@ function buildStyles(colors) {
 
     layout: {
       display: "grid",
-      gridTemplateColumns: "minmax(0, 340px) 1fr",
+      gridTemplateColumns: "minmax(0, 400px) 1fr",
       gap: 16,
       alignItems: "start",
       width: "100%",
@@ -1645,7 +1631,7 @@ function buildStyles(colors) {
       minWidth: 0,
     },
     previewCol: {
-      minHeight: 480,
+      minHeight: 800,
       position: "sticky",
       top: 20,
       alignSelf: "start",
@@ -1657,7 +1643,7 @@ function buildStyles(colors) {
       border: `1px solid ${colors.cardBorder}`,
       borderRadius: 12,
       height: "100%",
-      minHeight: 480,
+      minHeight: 800,
       display: "flex",
       flexDirection: "column",
       overflow: "hidden",
@@ -1713,7 +1699,7 @@ function buildStyles(colors) {
     previewFrame: {
       width: "100%",
       height: "100%",
-      minHeight: 460,
+      minHeight: 800,
       border: "none",
     },
     previewImageWrap: {
