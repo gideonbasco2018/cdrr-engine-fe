@@ -19,9 +19,9 @@ import { Step4ActionForm } from "./steps/Step4ActionForm";
 import { StepCPRView } from "./steps/StepCPRView";
 import { SpellCheckButton } from "./steps/SpellCheckButton";
 import DoctrackPanel from "./steps/DoctrackPanel";
+import { StepUploadDocuments } from "./steps/StepUploadDocuments";
 
-const STEPS = ["Basic Info", "Full Details", "App Logs", "Action"];
-
+const STEPS = ["Basic Info", "Full Details", "Documents", "App Logs", "Action"];
 // ─── View mode toggle icon buttons ───
 function ViewModeToggle({ mode, onChange, colors }) {
   const btn = (id, icon, label, active) => (
@@ -155,8 +155,10 @@ export default function ViewDetailsModal({
       : currentStep === 2
         ? "📄 Full Details"
         : currentStep === 3
-          ? "📋 Application Logs"
-          : `✅ ${record.applicationStep}`;
+          ? "📁 Supporting Documents"
+          : currentStep === 4
+            ? "📋 Application Logs"
+            : `✅ ${record.applicationStep}`;
 
   // Modal width expands when doctrack panel is open
   const modalWidth = doctrackOpen ? "min(1380px, 97vw)" : "min(980px, 95vw)";
@@ -508,9 +510,12 @@ export default function ViewDetailsModal({
               />
             )}
             {!isCPR && currentStep === 3 && (
-              <Step3AppLogs record={record} colors={colors} />
+              <StepUploadDocuments record={record} colors={colors} />
             )}
             {!isCPR && currentStep === 4 && (
+              <Step3AppLogs record={record} colors={colors} />
+            )}
+            {!isCPR && currentStep === 5 && (
               <Step4ActionForm
                 record={record}
                 editedFields={editedFields}
