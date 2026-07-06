@@ -4,6 +4,7 @@ import { formatDate } from "./utils";
 import { getTheme } from "./theme";
 import { submitCorrection } from "../../api/cpr-correction";
 import { createDoctrackLogByRsn } from "../../api/doctrack";
+import { uploadApplicationDocumentsBatch } from "../../api/application-documents";
 
 export function ReviewStep({
   record,
@@ -16,6 +17,7 @@ export function ReviewStep({
   onError,
   deckerData,
   currentUser,
+  stagedDocs = [],
 }) {
   const t = getTheme(darkMode);
   const [loading, setLoading] = useState(false);
@@ -24,9 +26,12 @@ export function ReviewStep({
     deckerData?.doctrackAutoFill ?? true,
   );
 
+  const [statusMessage, setStatusMessage] = useState("");
+
   const handleConfirm = async () => {
     setLoading(true);
     setError("");
+    setStatusMessage("Submitting…");
     try {
       // 1️⃣ Doctrack log — same logic as Step4ActionForm
       if (doctrackEnabled) {
@@ -45,6 +50,7 @@ export function ReviewStep({
       }
 
       // 2️⃣ Ituloy ang correction
+      setStatusMessage("Saving correction…");
       const result = await submitCorrection({
         old_dtn: record.dtn,
         new_dtn: newDtn,
@@ -63,7 +69,30 @@ export function ReviewStep({
       });
 
       if (result.success) {
-        onSuccess?.(result);
+        // 3️⃣ Upload supporting documents — best-effort; correction mismo ay tapos na
+        let docUploadWarning = "";
+        if (stagedDocs.length > 0) {
+          try {
+            setStatusMessage(`Uploading ${stagedDocs.length} document(s)…`);
+            const uploadResult = await uploadApplicationDocumentsBatch(
+              {
+                dbEntryType: entryType,
+                dbDtn: newDtn,
+                docCategory: "Product File",
+                files: stagedDocs.map((d) => d.file),
+              },
+              (pct) => setStatusMessage(`Uploading document(s)… ${pct}%`),
+            );
+            if (uploadResult.failed > 0) {
+              docUploadWarning = `${uploadResult.failed} of ${uploadResult.total} supporting document(s) failed to upload.`;
+            }
+          } catch (uploadErr) {
+            console.error("⚠️ Document upload failed:", uploadErr);
+            docUploadWarning =
+              "Supporting documents failed to upload. You can re-upload them later from Document Manager.";
+          }
+        }
+        onSuccess?.({ ...result, docUploadWarning });
       } else {
         setError(result.message);
         onError?.(result.message);
@@ -75,6 +104,7 @@ export function ReviewStep({
       onError?.(msg);
     } finally {
       setLoading(false);
+      setStatusMessage("");
     }
   };
 
@@ -304,7 +334,6 @@ export function ReviewStep({
           </div>
         )}
 
-        {/* Confirm button */}
         <button
           onClick={handleConfirm}
           disabled={loading}
@@ -340,7 +369,7 @@ export function ReviewStep({
                   animation: "spin 0.6s linear infinite",
                 }}
               />
-              Submitting…
+              {statusMessage || "Submitting…"}
             </>
           ) : (
             "Confirm & Submit"

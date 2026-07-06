@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { StepIndicator } from "./StepIndicator";
 import { AllDetails } from "./AllDetails";
 import { DeckerDecisionForm } from "./DeckerDecisionForm";
@@ -11,6 +11,13 @@ import {
   getLastApplicationLogIndex,
 } from "../../api/application-logs";
 import { getUser } from "../../api/auth";
+import {
+  MAX_FILE_SIZE,
+  ACCEPTED_TYPES,
+  ACCEPT_ATTR,
+  formatBytes,
+  makeStagedDoc,
+} from "./docHelpers";
 
 export function CorrectionPage({
   record,
@@ -39,6 +46,56 @@ export function CorrectionPage({
   // editedFields will be populated by DeckerDecisionForm or other editable steps
   const [editedFields, setEditedFields] = useState({});
   const [editableSubject, setEditableSubject] = useState(subject || "");
+
+  const [stagedDocs, setStagedDocs] = useState([]); // { id, file, kind, previewUrl }
+  const [docError, setDocError] = useState("");
+  const [isDraggingDocs, setIsDraggingDocs] = useState(false);
+  const docFileInputRef = useRef(null);
+  const [previewDoc, setPreviewDoc] = useState(null);
+  // Revoke blob URLs on unmount to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      stagedDocs.forEach((d) => URL.revokeObjectURL(d.previewUrl));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const addStagedFiles = (fileList) => {
+    setDocError("");
+    const incoming = [];
+    for (const file of Array.from(fileList)) {
+      if (!(file.type in ACCEPTED_TYPES)) {
+        setDocError(`"${file.name}" is not a supported file type.`);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        setDocError(`"${file.name}" exceeds the 5MB limit.`);
+        continue;
+      }
+      incoming.push(makeStagedDoc(file));
+    }
+    if (incoming.length) setStagedDocs((prev) => [...prev, ...incoming]);
+  };
+
+  const removeStagedDoc = (id) => {
+    setStagedDocs((prev) => {
+      const target = prev.find((d) => d.id === id);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return prev.filter((d) => d.id !== id);
+    });
+  };
+
+  const handleDocInputChange = (e) => {
+    if (e.target.files?.length) addStagedFiles(e.target.files);
+    e.target.value = "";
+  };
+
+  const handleDocDrop = (e) => {
+    e.preventDefault();
+    setIsDraggingDocs(false);
+    if (e.dataTransfer.files?.length) addStagedFiles(e.dataTransfer.files);
+  };
+
   const showSidebar = step !== 2;
 
   const handleNext = () => {
@@ -285,6 +342,7 @@ export function CorrectionPage({
                 darkMode={darkMode}
                 deckerData={deckerData}
                 currentUser={getUser()}
+                stagedDocs={stagedDocs}
                 onSuccess={async (result) => {
                   try {
                     const currentUser = getUser();
@@ -350,7 +408,12 @@ export function CorrectionPage({
                     console.error("❌ Failed to create application logs:", err);
                   }
 
-                  setSubmitResult(result);
+                  setSubmitResult({
+                    ...result,
+                    message: result.docUploadWarning
+                      ? `${result.message || ""} ${result.docUploadWarning}`.trim()
+                      : result.message,
+                  });
                   setTimeout(() => {
                     onBack();
                   }, 1500);
@@ -563,12 +626,20 @@ export function CorrectionPage({
 
             <Card title="Supporting Documents">
               <div
+                onClick={() => docFileInputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingDocs(true);
+                }}
+                onDragLeave={() => setIsDraggingDocs(false)}
+                onDrop={handleDocDrop}
                 style={{
-                  border: `1.5px dashed ${t.cardBorder}`,
+                  border: `1.5px dashed ${isDraggingDocs ? t.accent : t.cardBorder}`,
                   borderRadius: 10,
                   padding: 16,
                   textAlign: "center",
                   cursor: "pointer",
+                  transition: "border-color 0.15s",
                 }}
               >
                 <svg
@@ -595,7 +666,110 @@ export function CorrectionPage({
                 <small style={{ fontSize: 11, color: t.textTertiary }}>
                   PDF, JPG, PNG max 5 MB per file
                 </small>
+                <input
+                  ref={docFileInputRef}
+                  type="file"
+                  multiple
+                  accept={ACCEPT_ATTR}
+                  onChange={handleDocInputChange}
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ display: "none" }}
+                />
               </div>
+
+              {docError && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: "7px 10px",
+                    borderRadius: 7,
+                    background: "rgba(239,68,68,0.08)",
+                    border: "1px solid rgba(239,68,68,0.25)",
+                    color: "#ef4444",
+                    fontSize: 11.5,
+                  }}
+                >
+                  {docError}
+                </div>
+              )}
+
+              {stagedDocs.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                  }}
+                >
+                  {stagedDocs.map((doc) => (
+                    <div
+                      key={doc.id}
+                      onClick={() => setPreviewDoc(doc)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "6px 8px",
+                        borderRadius: 7,
+                        border: `1px solid ${t.cardBorder}`,
+                        background: t.inputBg,
+                        fontSize: 11.5,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span
+                        style={{
+                          flex: 1,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          color: t.textPrimary,
+                        }}
+                        title={doc.file.name}
+                      >
+                        {doc.file.name}
+                      </span>
+                      <span style={{ color: t.textTertiary, flexShrink: 0 }}>
+                        {formatBytes(doc.file.size)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeStagedDoc(doc.id);
+                        }}
+                        style={{
+                          border: "none",
+                          background: "transparent",
+                          color: t.errorText || "#ef4444",
+                          cursor: "pointer",
+                          display: "flex",
+                          padding: 2,
+                          flexShrink: 0,
+                        }}
+                        aria-label={`Remove ${doc.file.name}`}
+                      >
+                        <svg
+                          width="13"
+                          height="13"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          viewBox="0 0 24 24"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  <div style={{ fontSize: 11, color: t.textTertiary }}>
+                    {stagedDocs.length} file(s) will be uploaded once you
+                    confirm &amp; submit.
+                  </div>
+                </div>
+              )}
             </Card>
           </div>
         )}
@@ -658,6 +832,139 @@ export function CorrectionPage({
           </div>
         </div>
       </div>
+
+      {previewDoc && (
+        <div
+          onClick={() => setPreviewDoc(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.6)",
+            zIndex: 1000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: darkMode ? "#1C1A17" : "#fff",
+              borderRadius: 12,
+              width: "min(900px, 100%)",
+              height: "min(85vh, 900px)",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "12px 16px",
+                borderBottom: `1px solid ${t.cardBorder}`,
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: t.textPrimary,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {previewDoc.file.name}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewDoc(null)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: t.textTertiary,
+                  cursor: "pointer",
+                  display: "flex",
+                  padding: 4,
+                }}
+                aria-label="Close preview"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div
+              style={{
+                flex: 1,
+                background: darkMode ? "#0e0d0c" : "#f4f3f1",
+                display: "flex",
+                minHeight: 0,
+              }}
+            >
+              {previewDoc.kind === "pdf" && (
+                <iframe
+                  src={previewDoc.previewUrl}
+                  title={previewDoc.file.name}
+                  style={{ width: "100%", height: "100%", border: "none" }}
+                />
+              )}
+              {previewDoc.kind === "image" && (
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 20,
+                  }}
+                >
+                  <img
+                    src={previewDoc.previewUrl}
+                    alt={previewDoc.file.name}
+                    style={{
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      objectFit: "contain",
+                      borderRadius: 6,
+                    }}
+                  />
+                </div>
+              )}
+              {previewDoc.kind !== "pdf" && previewDoc.kind !== "image" && (
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: t.textTertiary,
+                    fontSize: 13,
+                  }}
+                >
+                  No preview available for this file type.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
