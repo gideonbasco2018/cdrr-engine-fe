@@ -366,11 +366,12 @@ export function Step4ActionForm({
     formData.decision === "Scanned and Endorsed to Releasing Officer";
   // Shows the approval fields section (any decision + For Approval action)
   const isQEForApproval =
-    currentStep === "Quality Evaluation" && formData.action === "For Approval";
+    (currentStep === "Quality Evaluation" || currentStep === "Compliance") &&
+    formData.action === "For Approval";
 
   // Required validation only applies when Endorse to Supervisor
   const isQEApprovalRequired =
-    currentStep === "Quality Evaluation" &&
+    (currentStep === "Quality Evaluation" || currentStep === "Compliance") &&
     formData.decision === "Endorsed to Supervisor" &&
     formData.action === "For Approval";
 
