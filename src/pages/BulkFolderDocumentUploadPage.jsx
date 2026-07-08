@@ -269,6 +269,12 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
 
         @keyframes bdu-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
+        @keyframes bdu-pop-in {
+        0%   { transform: scale(0.3); opacity: 0; }
+        60%  { transform: scale(1.25); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+        }
+
         html, body {
           overflow-x: hidden;
         }
@@ -373,6 +379,7 @@ function UploadFolderTab({ colors, s }) {
   const [entries, setEntries] = useState([]);
   const [activeEntryId, setActiveEntryId] = useState(null);
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
+  const [liveStatuses, setLiveStatuses] = useState({});
 
   const [formError, setFormError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
@@ -567,6 +574,11 @@ function UploadFolderTab({ colors, s }) {
     return "";
   };
 
+  const generateBatchId = () =>
+    crypto?.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
   const handleUpload = async () => {
     setFormError("");
     const validationError = validate();
@@ -576,11 +588,38 @@ function UploadFolderTab({ colors, s }) {
     }
 
     setIsUploading(true);
-    setUploadProgress(0);
+    setUploadProgress(1); // start at 1%, not 0 — shows activity right away
+    setLiveStatuses({});
 
-    // Snapshot — dapat ito rin ang gamitin natin pag-match sa results,
-    // hindi yung "entries" state (baka mag-iba na ito bago matapos ang request).
     const sentEntries = entries;
+    const batchId = generateBatchId();
+    const total = sentEntries.length;
+
+    const pollTimer = setInterval(async () => {
+      try {
+        const logRes = await getUploadFolderLogs(batchId);
+        const logs = logRes.data || [];
+        if (logs.length) {
+          setLiveStatuses((prev) => {
+            const next = { ...prev };
+            logs.forEach((log) => {
+              next[log.relative_path] = {
+                success: log.status === "success",
+                error: log.error_message,
+              };
+            });
+            return next;
+          });
+        }
+        setUploadProgress(
+          total > 0
+            ? Math.min(99, Math.max(1, Math.round((logs.length / total) * 100)))
+            : 1,
+        );
+      } catch {
+        // transient poll failure — ignore, keep trying next tick
+      }
+    }, 1000);
 
     try {
       const result = await uploadApplicationDocumentsFolder(
@@ -588,30 +627,40 @@ function UploadFolderTab({ colors, s }) {
           dbEntryType,
           files: sentEntries.map((e) => e.file),
           relativePaths: sentEntries.map((e) => e.relativePath),
+          batchId,
         },
-        (pct) => setUploadProgress(pct),
+        () => {}, // axios byte-progress no longer drives the UI
       );
       setUploadResults(result);
+      setUploadProgress(100);
+
+      // Merge final authoritative results, in case the last poll tick missed them
+      setLiveStatuses((prev) => {
+        const next = { ...prev };
+        sentEntries.forEach((entry, idx) => {
+          const r = result.results[idx];
+          if (r)
+            next[entry.relativePath] = { success: r.success, error: r.error };
+        });
+        return next;
+      });
 
       const failedEntries = [];
       sentEntries.forEach((entry, idx) => {
         const r = result.results[idx];
-        if (r && !r.success) {
+        if (r && !r.success)
           failedEntries.push({ ...entry, uploadError: r.error });
-        } else {
-          URL.revokeObjectURL(entry.previewUrl);
-        }
+        else URL.revokeObjectURL(entry.previewUrl);
       });
 
       setEntries(failedEntries);
       setActiveEntryId(failedEntries[0]?.id ?? null);
-      if (failedEntries.length === 0) {
-        setDbEntryType("");
-      }
+      if (failedEntries.length === 0) setDbEntryType("");
       setCollapsedFolders(new Set());
     } catch (err) {
       setFormError(err.message || "Upload failed.");
     } finally {
+      clearInterval(pollTimer);
       setIsUploading(false);
     }
   };
@@ -804,9 +853,8 @@ function UploadFolderTab({ colors, s }) {
                               <ul style={s.fileList}>
                                 {folder.items.map((entry) => {
                                   const isActive = entry.id === activeEntryId;
-                                  const result = uploadResults?.results?.find(
-                                    (r) => r.filename === entry.file.name,
-                                  );
+                                  const result =
+                                    liveStatuses[entry.relativePath];
                                   return (
                                     <li
                                       key={entry.id}
@@ -818,7 +866,39 @@ function UploadFolderTab({ colors, s }) {
                                       }}
                                     >
                                       <span style={s.fileItemIcon}>
-                                        <KindIcon kind={entry.kind} />
+                                        {result ? (
+                                          <span
+                                            key={`${entry.id}-${result.success}`}
+                                            style={{
+                                              display: "inline-flex",
+                                              animation:
+                                                "bdu-pop-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+                                            }}
+                                          >
+                                            {result.success ? (
+                                              <CheckCircle2
+                                                size={16}
+                                                color={colors.success}
+                                              />
+                                            ) : (
+                                              <XCircle
+                                                size={16}
+                                                color={colors.danger}
+                                              />
+                                            )}
+                                          </span>
+                                        ) : isUploading ? (
+                                          <Loader2
+                                            size={14}
+                                            color={colors.textTertiary}
+                                            style={{
+                                              animation:
+                                                "bdu-spin 1s linear infinite",
+                                            }}
+                                          />
+                                        ) : (
+                                          <KindIcon kind={entry.kind} />
+                                        )}
                                       </span>
                                       <span
                                         style={s.fileItemName}
@@ -829,18 +909,6 @@ function UploadFolderTab({ colors, s }) {
                                       <span style={s.fileItemSize}>
                                         {formatBytes(entry.file.size)}
                                       </span>
-                                      {result &&
-                                        (result.success ? (
-                                          <CheckCircle2
-                                            size={14}
-                                            color={colors.success}
-                                          />
-                                        ) : (
-                                          <XCircle
-                                            size={14}
-                                            color={colors.danger}
-                                          />
-                                        ))}
                                       <button
                                         type="button"
                                         onClick={(e) => {

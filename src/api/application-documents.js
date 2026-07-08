@@ -119,7 +119,7 @@ export const uploadApplicationDocumentsBatch = async (
  * @param {(pct: number) => void} [onProgress] - optional upload progress callback
  */
 export const uploadApplicationDocumentsFolder = async (
-  { dbEntryType, mainDbId, files, relativePaths },
+  { dbEntryType, mainDbId, files, relativePaths, batchId  },
   onProgress
 ) => {
   try {
@@ -128,6 +128,7 @@ export const uploadApplicationDocumentsFolder = async (
     if (mainDbId !== undefined && mainDbId !== null && mainDbId !== "") {
       form.append("main_db_id", mainDbId);
     }
+    if (batchId) form.append("batch_id", batchId);
     files.forEach((file) => form.append("files", file));
     relativePaths.forEach((p) => form.append("relative_paths", p));
 
