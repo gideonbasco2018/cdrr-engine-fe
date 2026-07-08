@@ -21,6 +21,7 @@ import LeadAssignmentsPage from "../pages/LeadAssignmentsPage";
 import ApplicationCorrectionPage from "../pages/ApplicationCorrectionPage";
 import DocumentRenamePage from "../pages/DocumentRenamePage";
 import BulkDocumentUploadPage from "../pages/BulkDocumentUploadPage";
+import BulkFolderDocumentUploadPage from "../pages/BulkFolderDocumentUploadPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -66,15 +67,6 @@ function MainLayout({ darkMode, setDarkMode }) {
     // Workflow paths
     if (path.includes("for-decking")) return "for-decking";
     if (path.includes("task")) return "task";
-    if (path.includes("for-evaluation")) return "for-evaluation";
-    if (path.includes("for-compliance")) return "for-compliance";
-    if (path.includes("for-checking")) return "for-checking";
-    if (path.includes("supervisor")) return "supervisor";
-    if (path.includes("for-qa")) return "for-qa";
-    if (path.includes("for-director-signature"))
-      return "for-director-signature";
-    if (path.includes("for-releasing")) return "for-releasing";
-
     // Other databases
     if (path.includes("fda-verification")) return "fda-verification";
     if (path.includes("otc-database")) return "otc-database";
@@ -90,19 +82,14 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("appCorrection")) return "appCorrection";
     if (path.includes("document-rename")) return "document-rename";
     if (path.includes("upload-document")) return "upload-document";
+    if (path.includes("bulk-folder-document-upload"))
+      return "bulk-folder-document-upload";
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
 
     return "dashboard";
   };
-
   const activeMenu = getActiveMenuFromUrl();
-
-  // console.log("🔍 DEBUG - Active Menu:", {
-  //   pathname: location.pathname,
-  //   activeMenu,
-  // });
-
   // Color scheme based on darkMode prop
   const colors = darkMode
     ? {
@@ -127,55 +114,14 @@ function MainLayout({ darkMode, setDarkMode }) {
         return <DeckingPage darkMode={darkMode} userRole={userRole} />;
       case "task":
         return <TaskPage darkMode={darkMode} userRole={userRole} />;
-      case "for-evaluation":
-        return <ForEvaluationPage darkMode={darkMode} userRole={userRole} />;
-      case "for-compliance":
-        return (
-          <div style={{ padding: "2rem", color: colors.textPrimary }}>
-            For Compliance Page - Coming Soon
-          </div>
-        );
-      case "for-checking":
-        return (
-          <div style={{ padding: "2rem", color: colors.textPrimary }}>
-            For Checking Page - Coming Soon
-          </div>
-        );
-      case "supervisor":
-        return (
-          <div style={{ padding: "2rem", color: colors.textPrimary }}>
-            Supervisor Page - Coming Soon
-          </div>
-        );
-      case "for-qa":
-        return (
-          <div style={{ padding: "2rem", color: colors.textPrimary }}>
-            For QA Page - Coming Soon
-          </div>
-        );
-      case "for-director-signature":
-        return (
-          <div style={{ padding: "2rem", color: colors.textPrimary }}>
-            For Director Signature Page - Coming Soon
-          </div>
-        );
-      case "for-releasing":
-        return (
-          <div style={{ padding: "2rem", color: colors.textPrimary }}>
-            For Releasing Page - Coming Soon
-          </div>
-        );
       case "fda-verification":
         return <FDAVerificationPortalPage darkMode={darkMode} />;
-
       case "otc-database":
         return <OTCPage darkMode={darkMode} userRole={userRole} />;
-
       case "cdrr-inspector-reports":
         return (
           <CDRRInspectorReportsPage darkMode={darkMode} userRole={userRole} />
         );
-
       case "doctrack-magic":
         return <DoctrackMagicPage darkMode={darkMode} userRole={userRole} />;
 
@@ -229,6 +175,14 @@ function MainLayout({ darkMode, setDarkMode }) {
         return (
           <BulkDocumentUploadPage darkMode={darkMode} userRole={userRole} />
         );
+      case "bulk-folder-document-upload":
+        return (
+          <BulkFolderDocumentUploadPage
+            darkMode={darkMode}
+            userRole={userRole}
+          />
+        );
+
       case "dashboard":
 
       default:
