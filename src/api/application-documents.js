@@ -156,6 +156,8 @@ export const uploadApplicationDocumentsFolder = async (
  * @param {string} [params.uploadedBy] - exact match on uploader's username
  * @param {string} [params.dbDtn] - partial match
  * @param {string} [params.dbEntryType]
+ * @param {string} [params.dateFrom] - ISO-8601 datetime string, inclusive lower bound on created_at
+ * @param {string} [params.dateTo] - ISO-8601 datetime string, inclusive upper bound on created_at
  * @param {number} [params.limit]
  * @param {number} [params.offset]
  */
@@ -164,6 +166,8 @@ export const getUploadLogs = async ({
   uploadedBy,
   dbDtn,
   dbEntryType,
+  dateFrom,
+  dateTo,
   limit = 100,
   offset = 0,
 } = {}) => {
@@ -174,6 +178,8 @@ export const getUploadLogs = async ({
         uploaded_by: uploadedBy || undefined,
         db_dtn: dbDtn || undefined,
         db_entry_type: dbEntryType || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
         limit,
         offset,
       },

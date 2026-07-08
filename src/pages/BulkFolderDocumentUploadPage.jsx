@@ -10,20 +10,92 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  AlertCircle,
   Trash2,
   ExternalLink,
   Search,
   FolderOpen,
   ChevronRight,
-  AlertTriangle,
   ClipboardList,
 } from "lucide-react";
+
+import JSZip from "jszip";
 
 import {
   uploadApplicationDocumentsFolder,
   getUploadLogs,
   getUploadLogUploaders,
 } from "../api/application-documents";
+
+// JSZip doesn't expose mime types, kaya kailangan i-guess base sa extension
+const EXT_MIME = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  gif: "image/gif",
+  webp: "image/webp",
+  doc: "application/msword",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls: "application/vnd.ms-excel",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+};
+
+function guessMimeFromName(name) {
+  const ext = name.split(".").pop().toLowerCase();
+  return EXT_MIME[ext] || "application/octet-stream";
+}
+
+async function extractZipToEntries(zipFile, pathPrefix) {
+  const zip = await JSZip.loadAsync(zipFile);
+  const innerFiles = Object.values(zip.files).filter(
+    (zf) =>
+      !zf.dir &&
+      !zf.name.startsWith("__MACOSX") &&
+      !zf.name.split("/").pop().startsWith("."),
+  );
+
+  const out = [];
+  for (const zf of innerFiles) {
+    const blob = await zf.async("blob");
+    const filename = zf.name.split("/").pop();
+    const mime = guessMimeFromName(filename);
+    const typedFile = new File([blob], filename, { type: mime });
+    out.push({
+      file: typedFile,
+      relativePath: `${pathPrefix}${zf.name}`,
+    });
+  }
+  return out;
+}
+
+async function expandZipEntries(flat) {
+  const expanded = [];
+  for (const item of flat) {
+    const isZip = item.file.name.toLowerCase().endsWith(".zip");
+    if (!isZip) {
+      expanded.push(item);
+      continue;
+    }
+    const parts = item.relativePath
+      .replace(/\\/g, "/")
+      .split("/")
+      .filter(Boolean);
+    const prefix = parts.slice(0, -1).join("/");
+
+    const zipBaseName =
+      item.file.name.replace(/\.zip$/i, "").trim() || "archive";
+    const pathPrefix = prefix ? `${prefix}/${zipBaseName}/` : `${zipBaseName}/`;
+    try {
+      const inner = await extractZipToEntries(item.file, pathPrefix);
+      const innerExpanded = await expandZipEntries(inner); // in case may zip-in-zip
+      expanded.push(...innerExpanded);
+    } catch (err) {
+      expanded.push(item);
+    }
+  }
+  return expanded;
+}
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB — dapat tugma sa backend limit
 const ACCEPTED_TYPES = {
@@ -37,6 +109,9 @@ const ACCEPTED_TYPES = {
     "doc",
   "application/vnd.ms-excel": "sheet",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "sheet",
+
+  "application/zip": "archive",
+  "application/x-zip-compressed": "archive",
 };
 
 function formatBytes(bytes) {
@@ -53,6 +128,21 @@ function kindOf(file) {
 /** Best-effort kind detection for already-uploaded Drive documents (by mime_type). */
 function kindOfMime(mimeType) {
   return ACCEPTED_TYPES[mimeType] || "other";
+}
+
+/**
+ * Google Drive "view"/"open" links (…/file/d/FILE_ID/view) can't be embedded
+ * directly in an <iframe> — Drive returns X-Frame-Options: SAMEORIGIN for
+ * that route. The `/preview` route, however, is meant for embedding. This
+ * pulls the FILE_ID out of whatever link shape we got back from the API and
+ * rebuilds it as an embeddable preview URL.
+ */
+function toDriveEmbedUrl(url) {
+  if (!url) return null;
+  const match = url.match(/\/d\/([^/]+)/) || url.match(/[?&]id=([^&]+)/);
+  const fileId = match ? match[1] : null;
+  if (!fileId) return null;
+  return `https://drive.google.com/file/d/${fileId}/preview`;
 }
 
 function KindIcon({ kind, size = 16 }) {
@@ -286,6 +376,7 @@ function UploadFolderTab({ colors, s }) {
 
   const [formError, setFormError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResults, setUploadResults] = useState(null);
@@ -315,22 +406,33 @@ function UploadFolderTab({ colors, s }) {
     };
   }, [entries]);
 
-  const categoryGroups = useMemo(() => {
+  const dtnGroups = useMemo(() => {
     const groups = new Map();
     for (const entry of entries) {
-      const key = entry.category || "__root__";
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
+      const dtn = entry.relativePath.split("/")[0];
+      if (!groups.has(dtn)) {
+        groups.set(dtn, { dtn, items: [], categories: new Map() });
+      }
+      const g = groups.get(dtn);
+      g.items.push(entry);
+      const catKey = entry.category || "__root__";
+      if (!g.categories.has(catKey)) {
+        g.categories.set(catKey, {
+          key: catKey,
           label: entry.category || "General (root)",
           items: [],
         });
       }
-      groups.get(key).items.push(entry);
+      g.categories.get(catKey).items.push(entry);
     }
-    return Array.from(groups.values()).sort((a, b) =>
-      a.label.localeCompare(b.label),
-    );
+    return Array.from(groups.values())
+      .map((g) => ({
+        ...g,
+        categories: Array.from(g.categories.values()).sort((a, b) =>
+          a.label.localeCompare(b.label),
+        ),
+      }))
+      .sort((a, b) => a.dtn.localeCompare(b.dtn));
   }, [entries]);
 
   const toggleFolder = (key) => {
@@ -342,11 +444,22 @@ function UploadFolderTab({ colors, s }) {
     });
   };
 
-  const processFileEntries = useCallback((flat) => {
+  const processFileEntries = useCallback(async (flat) => {
+    setIsExtracting(true);
+    let expandedFlat;
+    try {
+      expandedFlat = await expandZipEntries(flat);
+    } catch (err) {
+      setFormError("Failed to read a zip file — it may be corrupted.");
+      setIsExtracting(false);
+      return;
+    }
+    setIsExtracting(false);
+
     const skipped = [];
     const newEntries = [];
 
-    for (const { file, relativePath } of flat) {
+    for (const { file, relativePath } of expandedFlat) {
       const parts = relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
       if (parts.length < 2) {
         skipped.push(file.name);
@@ -380,14 +493,14 @@ function UploadFolderTab({ colors, s }) {
     }
   }, []);
 
-  const handleFolderInputChange = (e) => {
+  const handleFolderInputChange = async (e) => {
     const fileList = Array.from(e.target.files || []);
     if (!fileList.length) return;
     const flat = fileList.map((file) => ({
       file,
       relativePath: file.webkitRelativePath || file.name,
     }));
-    processFileEntries(flat);
+    await processFileEntries(flat);
     e.target.value = "";
   };
 
@@ -413,7 +526,7 @@ function UploadFolderTab({ colors, s }) {
         );
         return;
       }
-      processFileEntries(flat);
+      await processFileEntries(flat);
       return;
     }
 
@@ -445,8 +558,6 @@ function UploadFolderTab({ colors, s }) {
   const validate = () => {
     if (!dbEntryType.trim()) return "Entry Type is required.";
     if (entries.length === 0) return "Select a folder with at least one file.";
-    if (dtnInfo.mismatch)
-      return "Files from more than one top-level folder were detected — please select a single folder.";
     for (const { file } of entries) {
       if (!(file.type in ACCEPTED_TYPES))
         return `"${file.name}" is not a supported file type.`;
@@ -467,20 +578,36 @@ function UploadFolderTab({ colors, s }) {
     setIsUploading(true);
     setUploadProgress(0);
 
+    // Snapshot — dapat ito rin ang gamitin natin pag-match sa results,
+    // hindi yung "entries" state (baka mag-iba na ito bago matapos ang request).
+    const sentEntries = entries;
+
     try {
       const result = await uploadApplicationDocumentsFolder(
         {
           dbEntryType,
-          files: entries.map((e) => e.file),
-          relativePaths: entries.map((e) => e.relativePath),
+          files: sentEntries.map((e) => e.file),
+          relativePaths: sentEntries.map((e) => e.relativePath),
         },
         (pct) => setUploadProgress(pct),
       );
       setUploadResults(result);
-      entries.forEach((e) => URL.revokeObjectURL(e.previewUrl));
-      setEntries([]);
-      setActiveEntryId(null);
-      setDbEntryType("");
+
+      const failedEntries = [];
+      sentEntries.forEach((entry, idx) => {
+        const r = result.results[idx];
+        if (r && !r.success) {
+          failedEntries.push({ ...entry, uploadError: r.error });
+        } else {
+          URL.revokeObjectURL(entry.previewUrl);
+        }
+      });
+
+      setEntries(failedEntries);
+      setActiveEntryId(failedEntries[0]?.id ?? null);
+      if (failedEntries.length === 0) {
+        setDbEntryType("");
+      }
       setCollapsedFolders(new Set());
     } catch (err) {
       setFormError(err.message || "Upload failed.");
@@ -519,20 +646,37 @@ function UploadFolderTab({ colors, s }) {
           }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
-          onClick={() => folderInputRef.current?.click()}
+          onClick={() => {
+            if (!isExtracting) folderInputRef.current?.click();
+          }}
           className="bdu-dropzone"
           style={{
             ...s.dropzone,
             ...(isDragging ? s.dropzoneActive : {}),
           }}
         >
-          <FolderOpen size={20} />
+          {isExtracting ? (
+            <Loader2
+              size={20}
+              style={{ animation: "bdu-spin 1s linear infinite" }}
+            />
+          ) : (
+            <FolderOpen size={20} />
+          )}
           <p style={s.dropzoneText}>
-            <strong>Select Folder</strong> or drag a folder here
+            {isExtracting ? (
+              <strong>Extracting zip file(s)...</strong>
+            ) : (
+              <>
+                <strong>Select Folder</strong> or drag a folder here
+              </>
+            )}
           </p>
           <p style={s.dropzoneHint}>
             The folder name becomes the DTN — subfolders become categories
-            automatically
+            automatically. Zip files are auto-extracted for preview. Browsers
+            only allow selecting one folder per dialog — drag multiple folders
+            together, or click again to add another.
           </p>
           <input
             ref={folderInputRef}
@@ -549,16 +693,16 @@ function UploadFolderTab({ colors, s }) {
           <div
             style={{
               ...s.detectedDtnBanner,
-              ...(dtnInfo.mismatch ? s.detectedDtnBannerWarn : {}),
+              ...(dtnInfo.mismatch ? s.detectedDtnBannerInfo : {}),
             }}
           >
             {dtnInfo.mismatch ? (
               <>
-                <AlertTriangle size={14} color={colors.danger} />
+                <FolderOpen size={14} color={colors.accent} />
                 <span>
-                  Multiple top-level folders detected:{" "}
-                  <strong>{dtnInfo.all.join(", ")}</strong> — select only one
-                  folder.
+                  {dtnInfo.all.length} DTNs detected:{" "}
+                  <strong>{dtnInfo.all.join(", ")}</strong> — each folder will
+                  be uploaded under its own DTN.
                 </span>
               </>
             ) : (
@@ -572,100 +716,151 @@ function UploadFolderTab({ colors, s }) {
           </div>
         )}
 
+        {uploadResults && uploadResults.failed > 0 && entries.length > 0 && (
+          <div style={s.detectedDtnBannerWarnSoft}>
+            <AlertCircle size={14} color={colors.danger} />
+            <span>
+              {entries.length} file(s) failed to upload — fix or leave as-is,
+              then click Upload again to retry only these.
+            </span>
+          </div>
+        )}
+
         {entries.length > 0 && (
           <div style={s.groupsHeaderRow}>
             <span style={s.groupsHeaderLabel}>
-              {entries.length} file(s) in {categoryGroups.length} folder(s)
+              {entries.length} file(s) · {dtnGroups.length} DTN(s)
             </span>
-            <button type="button" onClick={clearAll} style={s.clearLink}>
-              <Trash2 size={13} /> Clear all
-            </button>
+            <div style={s.groupsHeaderActions}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isExtracting) folderInputRef.current?.click();
+                }}
+                disabled={isExtracting}
+                style={{
+                  ...s.addFolderLink,
+                  ...(isExtracting ? s.btnDisabled : {}),
+                }}
+              >
+                <FolderOpen size={13} /> Add folder
+              </button>
+              <button type="button" onClick={clearAll} style={s.clearLink}>
+                <Trash2 size={13} /> Clear all
+              </button>
+            </div>
           </div>
         )}
 
         {entries.length > 0 && (
           <div style={s.fileListCard}>
             <div style={s.folderTree}>
-              {categoryGroups.map((folder) => {
-                const isCollapsed = collapsedFolders.has(folder.key);
+              {dtnGroups.map((dtnGroup) => {
+                const showDtnHeader = dtnGroups.length > 1;
                 return (
-                  <div key={folder.key} style={s.folderGroup}>
-                    <button
-                      type="button"
-                      onClick={() => toggleFolder(folder.key)}
-                      style={s.folderHeader}
-                    >
-                      <ChevronRight
-                        size={13}
-                        style={{
-                          transform: isCollapsed
-                            ? "rotate(0deg)"
-                            : "rotate(90deg)",
-                          transition: "transform 120ms ease",
-                          flexShrink: 0,
-                        }}
-                      />
-                      <FolderOpen size={14} style={{ flexShrink: 0 }} />
-                      <span style={s.folderLabel} title={folder.label}>
-                        {folder.label}
-                      </span>
-                      <span style={s.folderCount}>{folder.items.length}</span>
-                    </button>
-
-                    {!isCollapsed && (
-                      <ul style={s.fileList}>
-                        {folder.items.map((entry) => {
-                          const isActive = entry.id === activeEntryId;
-                          const result = uploadResults?.results?.find(
-                            (r) => r.filename === entry.file.name,
-                          );
-                          return (
-                            <li
-                              key={entry.id}
-                              onClick={() => setActiveEntryId(entry.id)}
-                              style={{
-                                ...s.fileItem,
-                                ...s.fileItemNested,
-                                ...(isActive ? s.fileItemActive : {}),
-                              }}
-                            >
-                              <span style={s.fileItemIcon}>
-                                <KindIcon kind={entry.kind} />
-                              </span>
-                              <span
-                                style={s.fileItemName}
-                                title={entry.file.name}
-                              >
-                                {entry.file.name}
-                              </span>
-                              <span style={s.fileItemSize}>
-                                {formatBytes(entry.file.size)}
-                              </span>
-                              {result &&
-                                (result.success ? (
-                                  <CheckCircle2
-                                    size={14}
-                                    color={colors.success}
-                                  />
-                                ) : (
-                                  <XCircle size={14} color={colors.danger} />
-                                ))}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  removeEntry(entry.id);
-                                }}
-                                style={s.fileItemRemove}
-                                aria-label={`Remove ${entry.file.name}`}
-                              >
-                                <X size={13} />
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
+                  <div key={dtnGroup.dtn} style={s.folderGroup}>
+                    {showDtnHeader && (
+                      <div style={s.dtnGroupHeader}>
+                        <FolderOpen size={14} style={{ flexShrink: 0 }} />
+                        <span style={s.dtnGroupLabel} title={dtnGroup.dtn}>
+                          DTN: {dtnGroup.dtn}
+                        </span>
+                        <span style={s.folderCount}>
+                          {dtnGroup.items.length}
+                        </span>
+                      </div>
                     )}
+                    <div style={showDtnHeader ? s.dtnGroupBody : undefined}>
+                      {dtnGroup.categories.map((folder) => {
+                        const groupKey = `${dtnGroup.dtn}::${folder.key}`;
+                        const isCollapsed = collapsedFolders.has(groupKey);
+                        return (
+                          <div key={groupKey} style={s.folderGroup}>
+                            <button
+                              type="button"
+                              onClick={() => toggleFolder(groupKey)}
+                              style={s.folderHeader}
+                            >
+                              <ChevronRight
+                                size={13}
+                                style={{
+                                  transform: isCollapsed
+                                    ? "rotate(0deg)"
+                                    : "rotate(90deg)",
+                                  transition: "transform 120ms ease",
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <FolderOpen size={14} style={{ flexShrink: 0 }} />
+                              <span style={s.folderLabel} title={folder.label}>
+                                {folder.label}
+                              </span>
+                              <span style={s.folderCount}>
+                                {folder.items.length}
+                              </span>
+                            </button>
+
+                            {!isCollapsed && (
+                              <ul style={s.fileList}>
+                                {folder.items.map((entry) => {
+                                  const isActive = entry.id === activeEntryId;
+                                  const result = uploadResults?.results?.find(
+                                    (r) => r.filename === entry.file.name,
+                                  );
+                                  return (
+                                    <li
+                                      key={entry.id}
+                                      onClick={() => setActiveEntryId(entry.id)}
+                                      style={{
+                                        ...s.fileItem,
+                                        ...s.fileItemNested,
+                                        ...(isActive ? s.fileItemActive : {}),
+                                      }}
+                                    >
+                                      <span style={s.fileItemIcon}>
+                                        <KindIcon kind={entry.kind} />
+                                      </span>
+                                      <span
+                                        style={s.fileItemName}
+                                        title={entry.file.name}
+                                      >
+                                        {entry.file.name}
+                                      </span>
+                                      <span style={s.fileItemSize}>
+                                        {formatBytes(entry.file.size)}
+                                      </span>
+                                      {result &&
+                                        (result.success ? (
+                                          <CheckCircle2
+                                            size={14}
+                                            color={colors.success}
+                                          />
+                                        ) : (
+                                          <XCircle
+                                            size={14}
+                                            color={colors.danger}
+                                          />
+                                        ))}
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          removeEntry(entry.id);
+                                        }}
+                                        style={s.fileItemRemove}
+                                        aria-label={`Remove ${entry.file.name}`}
+                                      >
+                                        <X size={13} />
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 );
               })}
@@ -693,6 +888,10 @@ function UploadFolderTab({ colors, s }) {
                 />
                 Uploading... {uploadProgress}%
               </>
+            ) : uploadResults &&
+              uploadResults.failed > 0 &&
+              entries.length > 0 ? (
+              `Retry Failed (${entries.length})`
             ) : (
               `Upload${entries.length ? ` (${entries.length})` : ""}`
             )}
@@ -784,6 +983,7 @@ function UploadFolderTab({ colors, s }) {
                 )}
                 {(activeEntry.kind === "doc" ||
                   activeEntry.kind === "sheet" ||
+                  activeEntry.kind === "archive" ||
                   activeEntry.kind === "other") && (
                   <div style={s.previewUnsupported}>
                     <FileIcon size={36} />
@@ -796,6 +996,11 @@ function UploadFolderTab({ colors, s }) {
                   </div>
                 )}
               </div>
+              {activeEntry.uploadError && (
+                <div style={s.logRowError}>
+                  Previous error: {activeEntry.uploadError}
+                </div>
+              )}
               {activeEntry.category && (
                 <div style={s.previewFooterMeta}>
                   Category: <strong>{activeEntry.category}</strong>
@@ -813,18 +1018,24 @@ function UploadFolderTab({ colors, s }) {
 /*  Tab 2 — Upload Logs — success + failed history, filterable         */
 /* ================================================================== */
 
-const LOGS_PAGE_SIZE = 100;
+const LOGS_PAGE_SIZE = 20;
 
 function UploadLogsTab({ colors, s }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [uploaderFilter, setUploaderFilter] = useState("");
   const [dtnFilter, setDtnFilter] = useState("");
   const [dtnFilterApplied, setDtnFilterApplied] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const [uploaders, setUploaders] = useState([]);
   const [logs, setLogs] = useState([]);
   const [total, setTotal] = useState(0);
-  const [offset, setOffset] = useState(0);
+  // Page-based pagination — 1-indexed. offset sent to the API is derived
+  // from this: (page - 1) * LOGS_PAGE_SIZE.
+  const [page, setPage] = useState(1);
+  const [expandedBatches, setExpandedBatches] = useState(() => new Set());
+  const [activeLogId, setActiveLogId] = useState(null);
 
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -835,36 +1046,62 @@ function UploadLogsTab({ colors, s }) {
       .catch(() => setUploaders([]));
   }, []);
 
+  const totalPages = Math.max(1, Math.ceil(total / LOGS_PAGE_SIZE));
+
   const fetchLogs = useCallback(
-    async (nextOffset, append) => {
+    async (pageNum) => {
       setIsLoading(true);
       setLoadError("");
       try {
+        // dateFrom/dateTo mula sa <input type="date"> ay date-only
+        // (YYYY-MM-DD, walang time). Kapag pinasa natin ito ng ganon
+        // sa backend at ang column doon ay may laman na timestamp
+        // (e.g. "2026-07-08 15:45:00"), yung dateTo == "2026-07-08"
+        // ay effectively nagiging midnight (00:00:00) — kaya lahat ng
+        // entries sa mismong araw na yun (na may oras na) ay
+        // na-eexclude. Kaya i-normalize natin dito bago i-send:
+        // dateFrom -> start of day, dateTo -> end of day.
+        const normalizedDateFrom = dateFrom
+          ? `${dateFrom}T00:00:00.000`
+          : undefined;
+        const normalizedDateTo = dateTo ? `${dateTo}T23:59:59.999` : undefined;
+
         const result = await getUploadLogs({
           status: statusFilter !== "all" ? statusFilter : undefined,
           uploadedBy: uploaderFilter || undefined,
           dbDtn: dtnFilterApplied || undefined,
+          dateFrom: normalizedDateFrom,
+          dateTo: normalizedDateTo,
           limit: LOGS_PAGE_SIZE,
-          offset: nextOffset,
+          offset: (pageNum - 1) * LOGS_PAGE_SIZE,
         });
-        setLogs((prev) =>
-          append ? [...prev, ...(result.data || [])] : result.data || [],
-        );
+        setLogs(result.data || []);
         setTotal(result.total || 0);
-        setOffset(nextOffset);
+        setPage(pageNum);
       } catch (err) {
         setLoadError(err.message || "Failed to load upload logs.");
       } finally {
         setIsLoading(false);
       }
     },
-    [statusFilter, uploaderFilter, dtnFilterApplied],
+    [statusFilter, uploaderFilter, dtnFilterApplied, dateFrom, dateTo],
   );
 
   useEffect(() => {
-    fetchLogs(0, false);
+    fetchLogs(1);
+    setExpandedBatches(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, uploaderFilter, dtnFilterApplied]);
+  }, [statusFilter, uploaderFilter, dtnFilterApplied, dateFrom, dateTo]);
+
+  const activeLog = useMemo(
+    () => logs.find((l) => l.id === activeLogId) || null,
+    [logs, activeLogId],
+  );
+
+  const activeLogEmbedUrl = useMemo(
+    () => (activeLog ? toDriveEmbedUrl(activeLog.drive_file_url) : null),
+    [activeLog],
+  );
 
   const handleDtnKeyDown = (e) => {
     if (e.key === "Enter") {
@@ -873,162 +1110,479 @@ function UploadLogsTab({ colors, s }) {
     }
   };
 
-  const handleLoadMore = () => fetchLogs(offset + LOGS_PAGE_SIZE, true);
+  const handlePrevPage = () => {
+    if (page > 1 && !isLoading) fetchLogs(page - 1);
+  };
+  const handleNextPage = () => {
+    if (page < totalPages && !isLoading) fetchLogs(page + 1);
+  };
+
+  const toggleBatch = (key) => {
+    setExpandedBatches((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // Group flat log entries into batches (by batch_id). Logs without a
+  // batch_id (e.g. older single-file uploads) each become their own
+  // one-entry "batch" so nothing gets dropped from the list.
+  const batchGroups = useMemo(() => {
+    const map = new Map();
+    for (const log of logs) {
+      const key = log.batch_id || `single-${log.id}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          batchId: log.batch_id || null,
+          entries: [],
+          dtns: new Set(),
+          entryTypes: new Set(),
+          uploaders: new Set(),
+          succeeded: 0,
+          failed: 0,
+          latest: log.created_at || null,
+        });
+      }
+      const g = map.get(key);
+      g.entries.push(log);
+      if (log.db_dtn) g.dtns.add(log.db_dtn);
+      if (log.db_entry_type) g.entryTypes.add(log.db_entry_type);
+      if (log.uploaded_by_user_name) g.uploaders.add(log.uploaded_by_user_name);
+      if (log.status === "success") g.succeeded += 1;
+      else g.failed += 1;
+      if (log.created_at && (!g.latest || log.created_at > g.latest)) {
+        g.latest = log.created_at;
+      }
+    }
+    return Array.from(map.values())
+      .map((g) => {
+        // Group this batch's entries by DTN — a single batch (e.g. from
+        // Batch Folder Upload) can contain multiple DTN folders at once.
+        const dtnMap = new Map();
+        for (const log of g.entries) {
+          const dtnKey = log.db_dtn || "Unknown";
+          if (!dtnMap.has(dtnKey)) {
+            dtnMap.set(dtnKey, {
+              dtn: dtnKey,
+              items: [],
+              succeeded: 0,
+              failed: 0,
+            });
+          }
+          const dg = dtnMap.get(dtnKey);
+          dg.items.push(log);
+          if (log.status === "success") dg.succeeded += 1;
+          else dg.failed += 1;
+        }
+        const dtnGroups = Array.from(dtnMap.values()).sort((a, b) =>
+          a.dtn.localeCompare(b.dtn),
+        );
+        return {
+          ...g,
+          dtns: Array.from(g.dtns),
+          entryTypes: Array.from(g.entryTypes),
+          uploaders: Array.from(g.uploaders),
+          total: g.entries.length,
+          dtnGroups,
+        };
+      })
+      .sort((a, b) => new Date(b.latest || 0) - new Date(a.latest || 0));
+  }, [logs]);
 
   return (
-    <div style={s.logsWrap}>
-      <div style={s.card} className="bdu-card">
-        <div style={s.logsFiltersRow} className="bdu-fieldGrid">
-          <Field label="Status" colors={colors}>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={s.input}
-            >
-              <option value="all">All</option>
-              <option value="success">Success</option>
-              <option value="failed">Failed</option>
-            </select>
-          </Field>
-          <Field label="Uploaded By" colors={colors}>
-            <select
-              value={uploaderFilter}
-              onChange={(e) => setUploaderFilter(e.target.value)}
-              style={s.input}
-            >
-              <option value="">All uploaders</option>
-              {uploaders.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-        <div style={{ marginTop: 10 }}>
-          <Field label="DTN" hint="press Enter to filter" colors={colors}>
-            <div style={s.searchRow}>
-              <input
-                type="text"
-                value={dtnFilter}
-                onChange={(e) => setDtnFilter(e.target.value)}
-                onKeyDown={handleDtnKeyDown}
-                placeholder="e.g. 20260702095509"
-                style={{ ...s.input, flex: 1, minWidth: 0 }}
-              />
-              <button
-                type="button"
-                onClick={() => setDtnFilterApplied(dtnFilter.trim())}
-                style={s.searchBtn}
+    <div style={s.layout} className="bdu-layout">
+      <div style={s.leftCol} className="bdu-leftCol">
+        <div style={s.card} className="bdu-card">
+          <div style={s.logsFiltersRow} className="bdu-fieldGrid">
+            <Field label="Status" colors={colors}>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={s.input}
               >
-                <Search size={14} />
-              </button>
-            </div>
-          </Field>
-        </div>
-      </div>
+                <option value="all">All</option>
+                <option value="success">Success</option>
+                <option value="failed">Failed</option>
+              </select>
+            </Field>
+            <Field label="Uploaded By" colors={colors}>
+              <select
+                value={uploaderFilter}
+                onChange={(e) => setUploaderFilter(e.target.value)}
+                style={s.input}
+              >
+                <option value="">All uploaders</option>
+                {uploaders.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
 
-      {loadError && <div style={s.errorBanner}>{loadError}</div>}
-
-      <div style={s.fileListCard}>
-        <div style={s.fileListHeader}>
-          <span>
-            {total} log entr{total === 1 ? "y" : "ies"}
-          </span>
-          {isLoading && (
-            <Loader2
-              size={14}
-              style={{ animation: "bdu-spin 1s linear infinite" }}
-            />
+          <div style={{ marginTop: 10 }}>
+            <Field label="DTN" hint="press Enter to filter" colors={colors}>
+              <div style={s.searchRow}>
+                <input
+                  type="text"
+                  value={dtnFilter}
+                  onChange={(e) => setDtnFilter(e.target.value)}
+                  onKeyDown={handleDtnKeyDown}
+                  placeholder="e.g. 20260702095509"
+                  style={{ ...s.input, flex: 1, minWidth: 0 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setDtnFilterApplied(dtnFilter.trim())}
+                  style={s.searchBtn}
+                >
+                  <Search size={14} />
+                </button>
+              </div>
+            </Field>
+          </div>
+          <div style={{ marginTop: 10 }} className="bdu-fieldGrid">
+            <Field label="Date From" colors={colors}>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                max={dateTo || undefined}
+                style={s.input}
+              />
+            </Field>
+            <Field label="Date To" colors={colors}>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                min={dateFrom || undefined}
+                style={s.input}
+              />
+            </Field>
+          </div>
+          {(dateFrom || dateTo) && (
+            <button
+              type="button"
+              onClick={() => {
+                setDateFrom("");
+                setDateTo("");
+              }}
+              style={s.clearDateLink}
+            >
+              <X size={12} /> Clear date range
+            </button>
           )}
         </div>
 
-        {logs.length === 0 && !isLoading ? (
-          <p style={s.noResultsText}>No upload logs found for these filters.</p>
-        ) : (
-          <ul style={s.logsList}>
-            {logs.map((log) => {
-              const kind = kindOfMime(log.mime_type);
-              const isSuccess = log.status === "success";
-              return (
-                <li key={log.id} style={s.logRow}>
-                  <div style={s.logRowTop}>
-                    <span style={s.logRowIcon}>
-                      <KindIcon kind={kind} size={14} />
-                    </span>
-                    <span
-                      style={s.logRowFilename}
-                      title={log.original_filename}
-                    >
-                      {log.original_filename}
-                    </span>
-                    <span style={isSuccess ? s.badgeSuccess : s.badgeFail}>
-                      {isSuccess ? (
-                        <>
-                          <CheckCircle2 size={11} /> success
-                        </>
-                      ) : (
-                        <>
-                          <XCircle size={11} /> failed
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <div style={s.logRowMeta}>
-                    DTN: <strong>{log.db_dtn}</strong>
-                    {log.doc_category && (
-                      <>
-                        {" "}
-                        · Category: <strong>{log.doc_category}</strong>
-                      </>
-                    )}{" "}
-                    · Entry Type: <strong>{log.db_entry_type}</strong>
-                    {log.uploaded_by_user_name && (
-                      <>
-                        {" "}
-                        · By: <strong>{log.uploaded_by_user_name}</strong>
-                      </>
-                    )}
-                    {log.created_at && (
-                      <> · {new Date(log.created_at).toLocaleString()}</>
-                    )}
-                  </div>
-                  {!isSuccess && log.error_message && (
-                    <div style={s.logRowError}>{log.error_message}</div>
-                  )}
-                  {isSuccess && log.drive_file_url && (
-                    <a
-                      href={log.drive_file_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={s.logRowLink}
-                    >
-                      <ExternalLink size={12} /> Open in Google Drive
-                    </a>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {loadError && <div style={s.errorBanner}>{loadError}</div>}
 
-        {logs.length < total && (
-          <div style={s.loadMoreRow}>
-            <button
-              type="button"
-              onClick={handleLoadMore}
-              disabled={isLoading}
-              style={{
-                ...s.loadMoreBtn,
-                ...(isLoading ? s.btnDisabled : {}),
-              }}
-            >
-              {isLoading
-                ? "Loading..."
-                : `Load more (${total - logs.length} left)`}
-            </button>
+        <div style={s.fileListCard}>
+          <div style={s.fileListHeader}>
+            <span>
+              {total} log entr{total === 1 ? "y" : "ies"} total · showing page{" "}
+              {page} of {totalPages} ({batchGroups.length} batch
+              {batchGroups.length === 1 ? "" : "es"} this page)
+            </span>
+            {isLoading && (
+              <Loader2
+                size={14}
+                style={{ animation: "bdu-spin 1s linear infinite" }}
+              />
+            )}
           </div>
-        )}
+
+          {batchGroups.length === 0 && !isLoading ? (
+            <p style={s.noResultsText}>
+              No upload logs found for these filters.
+            </p>
+          ) : (
+            <div style={s.folderTree}>
+              {batchGroups.map((batch) => {
+                const isExpanded = expandedBatches.has(batch.key);
+                return (
+                  <div key={batch.key} style={s.folderGroup}>
+                    <button
+                      type="button"
+                      onClick={() => toggleBatch(batch.key)}
+                      style={s.batchHeader}
+                    >
+                      <ChevronRight
+                        size={13}
+                        style={{
+                          transform: isExpanded
+                            ? "rotate(90deg)"
+                            : "rotate(0deg)",
+                          transition: "transform 120ms ease",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <ClipboardList size={14} style={{ flexShrink: 0 }} />
+                      <div style={s.batchHeaderInfo}>
+                        <span style={s.batchHeaderTitle}>
+                          {batch.dtns.length > 0
+                            ? batch.dtns.join(", ")
+                            : "Unknown DTN"}
+                        </span>
+                        <span style={s.batchHeaderSub}>
+                          {batch.entryTypes.join(", ") || "—"}
+                          {batch.uploaders.length > 0 &&
+                            ` · By: ${batch.uploaders.join(", ")}`}
+                          {batch.latest &&
+                            ` · ${new Date(batch.latest).toLocaleString()}`}
+                        </span>
+                      </div>
+                      <span style={s.folderCount}>{batch.total}</span>
+                      <span style={s.badgeSuccess}>{batch.succeeded} ok</span>
+                      {batch.failed > 0 && (
+                        <span style={s.badgeFail}>{batch.failed} failed</span>
+                      )}
+                    </button>
+
+                    {isExpanded && (
+                      <div style={s.dtnGroupWrap}>
+                        {batch.dtnGroups.map((dtnGroup) => {
+                          const showDtnHeader = batch.dtnGroups.length > 1;
+                          return (
+                            <div key={dtnGroup.dtn}>
+                              {showDtnHeader && (
+                                <div style={s.dtnSubHeader}>
+                                  <FolderOpen
+                                    size={13}
+                                    style={{ flexShrink: 0 }}
+                                  />
+                                  <span style={s.dtnGroupLabel}>
+                                    DTN: {dtnGroup.dtn}
+                                  </span>
+                                  <span style={s.folderCount}>
+                                    {dtnGroup.items.length}
+                                  </span>
+                                  <span style={s.badgeSuccess}>
+                                    {dtnGroup.succeeded} ok
+                                  </span>
+                                  {dtnGroup.failed > 0 && (
+                                    <span style={s.badgeFail}>
+                                      {dtnGroup.failed} failed
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              <ul
+                                style={{
+                                  ...s.logsList,
+                                  ...(showDtnHeader ? s.dtnGroupBody : {}),
+                                }}
+                              >
+                                {dtnGroup.items.map((log) => {
+                                  const kind = kindOfMime(log.mime_type);
+                                  const isSuccess = log.status === "success";
+                                  const isPreviewable =
+                                    isSuccess && !!log.drive_file_url;
+                                  const isActive = log.id === activeLogId;
+                                  return (
+                                    <li
+                                      key={log.id}
+                                      onClick={() =>
+                                        isPreviewable && setActiveLogId(log.id)
+                                      }
+                                      style={{
+                                        ...s.logRow,
+                                        ...s.fileItemNested,
+                                        ...(isPreviewable
+                                          ? { cursor: "pointer" }
+                                          : {}),
+                                        ...(isActive ? s.logRowActive : {}),
+                                      }}
+                                    >
+                                      <div style={s.logRowTop}>
+                                        <span style={s.logRowIcon}>
+                                          <KindIcon kind={kind} size={14} />
+                                        </span>
+                                        <span
+                                          style={s.logRowFilename}
+                                          title={log.original_filename}
+                                        >
+                                          {log.original_filename}
+                                        </span>
+                                        {isSuccess &&
+                                          log.error_message?.startsWith(
+                                            "Overwritten",
+                                          ) && (
+                                            <span style={s.badgeInfo}>
+                                              ↺ replaced
+                                            </span>
+                                          )}
+                                        <span
+                                          style={
+                                            isSuccess
+                                              ? s.badgeSuccess
+                                              : s.badgeFail
+                                          }
+                                        >
+                                          {isSuccess ? (
+                                            <>
+                                              <CheckCircle2 size={11} /> success
+                                            </>
+                                          ) : (
+                                            <>
+                                              <XCircle size={11} /> failed
+                                            </>
+                                          )}
+                                        </span>
+                                      </div>
+                                      <div style={s.logRowMeta}>
+                                        DTN: <strong>{log.db_dtn}</strong>
+                                        {log.doc_category && (
+                                          <>
+                                            {" "}
+                                            · Category:{" "}
+                                            <strong>{log.doc_category}</strong>
+                                          </>
+                                        )}{" "}
+                                        · Entry Type:{" "}
+                                        <strong>{log.db_entry_type}</strong>
+                                        {log.created_at && (
+                                          <>
+                                            {" "}
+                                            ·{" "}
+                                            {new Date(
+                                              log.created_at,
+                                            ).toLocaleString()}
+                                          </>
+                                        )}
+                                      </div>
+                                      {log.error_message && (
+                                        <div
+                                          style={
+                                            isSuccess
+                                              ? s.logRowInfo
+                                              : s.logRowError
+                                          }
+                                        >
+                                          {isSuccess
+                                            ? `↺ This upload replaced a previous file of the same name (${log.original_filename}) in this DTN/category.`
+                                            : log.error_message}
+                                        </div>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {total > 0 && (
+            <div style={s.paginationRow}>
+              <button
+                type="button"
+                onClick={handlePrevPage}
+                disabled={isLoading || page <= 1}
+                style={{
+                  ...s.pageBtn,
+                  ...(isLoading || page <= 1 ? s.btnDisabled : {}),
+                }}
+              >
+                Previous
+              </button>
+              <span style={s.pageIndicator}>
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextPage}
+                disabled={isLoading || page >= totalPages}
+                style={{
+                  ...s.pageBtn,
+                  ...(isLoading || page >= totalPages ? s.btnDisabled : {}),
+                }}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={s.previewCol} className="bdu-previewCol">
+        <div style={s.previewCard} className="bdu-previewCard">
+          {!activeLog ? (
+            <div style={s.previewEmpty}>
+              <FileText size={28} />
+              <p style={s.previewEmptyText}>
+                Click a successfully uploaded file on the left to preview it
+                here.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div style={s.previewHeader}>
+                <span style={s.previewHeaderIcon}>
+                  <KindIcon kind={kindOfMime(activeLog.mime_type)} size={15} />
+                </span>
+                <span
+                  style={s.previewHeaderName}
+                  title={activeLog.original_filename}
+                >
+                  {activeLog.original_filename}
+                </span>
+                {activeLog.drive_file_url && (
+                  <a
+                    href={activeLog.drive_file_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={s.previewOpenLink}
+                    title="Open in a new tab"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                )}
+              </div>
+              <div style={s.previewBody}>
+                {kindOfMime(activeLog.mime_type) === "pdf" &&
+                activeLogEmbedUrl ? (
+                  <iframe
+                    src={activeLogEmbedUrl}
+                    title={activeLog.original_filename}
+                    style={s.previewFrame}
+                    className="bdu-previewFrame"
+                  />
+                ) : (
+                  <div style={s.previewUnsupported}>
+                    <FileIcon size={36} />
+                    <p style={s.previewUnsupportedTitle}>
+                      No in-browser preview available for this file type
+                    </p>
+                    <p style={s.previewUnsupportedHint}>
+                      Click the icon above to open it in a new tab.
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div style={s.previewFooterMeta}>
+                DTN: <strong>{activeLog.db_dtn}</strong>
+                {activeLog.doc_category && (
+                  <>
+                    {" "}
+                    · Category: <strong>{activeLog.doc_category}</strong>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1206,6 +1760,24 @@ function buildStyles(colors) {
       borderColor: colors.danger,
       color: colors.danger,
     },
+    detectedDtnBannerInfo: {
+      background: colors.accentSoft,
+      borderColor: colors.accent,
+      color: colors.textPrimary,
+    },
+    detectedDtnBannerWarnSoft: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      fontSize: 12.5,
+      color: colors.danger,
+      background: colors.dangerSoft,
+      border: `1px solid ${colors.danger}`,
+      borderRadius: 8,
+      padding: "8px 11px",
+      minWidth: 0,
+      boxSizing: "border-box",
+    },
     batchIdText: {
       fontSize: 11,
       color: colors.textTertiary,
@@ -1243,6 +1815,10 @@ function buildStyles(colors) {
       minWidth: 0,
       boxSizing: "border-box",
     },
+    logRowActive: {
+      background: colors.accentSoft,
+      borderColor: colors.accent,
+    },
     logRowTop: {
       display: "flex",
       alignItems: "center",
@@ -1276,6 +1852,14 @@ function buildStyles(colors) {
       padding: "5px 8px",
       marginTop: 2,
     },
+    logRowInfo: {
+      fontSize: 11.5,
+      color: colors.accent,
+      background: colors.accentSoft,
+      borderRadius: 6,
+      padding: "5px 8px",
+      marginTop: 2,
+    },
     logRowLink: {
       display: "inline-flex",
       alignItems: "center",
@@ -1285,12 +1869,14 @@ function buildStyles(colors) {
       textDecoration: "none",
       marginTop: 2,
     },
-    loadMoreRow: {
+    paginationRow: {
       display: "flex",
+      alignItems: "center",
       justifyContent: "center",
+      gap: 12,
       marginTop: 12,
     },
-    loadMoreBtn: {
+    pageBtn: {
       border: `1px solid ${colors.cardBorder}`,
       background: colors.greyBg,
       color: colors.textPrimary,
@@ -1299,6 +1885,11 @@ function buildStyles(colors) {
       padding: "7px 16px",
       borderRadius: 999,
       cursor: "pointer",
+    },
+    pageIndicator: {
+      fontSize: 12.5,
+      fontWeight: 600,
+      color: colors.textTertiary,
     },
     groupsHeaderRow: {
       display: "flex",
@@ -1323,6 +1914,18 @@ function buildStyles(colors) {
       width: 38,
       flexShrink: 0,
       cursor: "pointer",
+    },
+
+    clearDateLink: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      background: "none",
+      border: "none",
+      color: colors.danger,
+      fontSize: 11.5,
+      cursor: "pointer",
+      padding: "6px 2px 0",
     },
     noResultsText: {
       fontSize: 12.5,
@@ -1357,6 +1960,64 @@ function buildStyles(colors) {
       textAlign: "left",
       minWidth: 0,
       boxSizing: "border-box",
+    },
+    // BAGO — idagdag dito
+    batchHeader: {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      width: "100%",
+      padding: "10px 10px",
+      background: colors.surfaceAlt,
+      border: `1px solid ${colors.cardBorder}`,
+      borderRadius: 8,
+      cursor: "pointer",
+      textAlign: "left",
+      minWidth: 0,
+      boxSizing: "border-box",
+      flexWrap: "wrap",
+    },
+    batchHeaderInfo: {
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      gap: 2,
+      minWidth: 0,
+      overflow: "hidden",
+    },
+    batchHeaderTitle: {
+      fontSize: 12.5,
+      fontWeight: 700,
+      color: colors.textPrimary,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+    },
+    batchHeaderSub: {
+      fontSize: 11,
+      color: colors.textTertiary,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+    },
+
+    dtnGroupWrap: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 8,
+      marginTop: 6,
+    },
+    dtnSubHeader: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "5px 6px",
+      fontSize: 11.5,
+      fontWeight: 700,
+      color: colors.accent,
+      background: colors.accentSoft,
+      borderRadius: 6,
+      marginLeft: 6,
     },
     folderLabel: {
       flex: 1,
@@ -1423,6 +2084,22 @@ function buildStyles(colors) {
       marginBottom: 8,
       padding: "0 4px",
     },
+    groupsHeaderActions: {
+      display: "flex",
+      alignItems: "center",
+      gap: 12,
+    },
+    addFolderLink: {
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      background: "none",
+      border: "none",
+      color: colors.accent,
+      fontSize: 12,
+      cursor: "pointer",
+      padding: 0,
+    },
     clearLink: {
       display: "flex",
       alignItems: "center",
@@ -1433,6 +2110,34 @@ function buildStyles(colors) {
       fontSize: 12,
       cursor: "pointer",
       padding: 0,
+    },
+    dtnGroupHeader: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "6px 6px",
+      fontSize: 12.5,
+      fontWeight: 700,
+      color: colors.accent,
+      borderBottom: `1px solid ${colors.cardBorder}`,
+      marginBottom: 4,
+    },
+    dtnGroupLabel: {
+      flex: 1,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      minWidth: 0,
+    },
+    dtnGroupBody: {
+      marginLeft: 6,
+      paddingLeft: 10,
+      borderLeft: `2px solid ${colors.cardBorder}`,
+      display: "flex",
+      flexDirection: "column",
+      gap: 4,
+      marginBottom: 8,
+      minWidth: 0,
     },
     fileList: {
       listStyle: "none",
@@ -1549,6 +2254,18 @@ function buildStyles(colors) {
       gap: 3,
       background: colors.dangerSoft,
       color: colors.danger,
+      padding: "2px 8px",
+      borderRadius: 999,
+      fontSize: 11.5,
+      fontWeight: 600,
+      flexShrink: 0,
+    },
+    badgeInfo: {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 3,
+      background: colors.accentSoft,
+      color: colors.accent,
       padding: "2px 8px",
       borderRadius: 999,
       fontSize: 11.5,
