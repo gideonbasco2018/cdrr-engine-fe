@@ -178,13 +178,19 @@ function Sidebar({
   const visibleWorkflow = sortByDbOrder(
     filterByRoleAndGroup(menuDefinitions.workflowItems),
   ).map((item) => (item.id === "task" ? { ...item, badge: taskCount } : item));
+
   const visibleOtherDatabase = sortByDbOrder(
     filterByRoleAndGroup(menuDefinitions.otherDatabaseItems),
   );
-  const visiblePlatform = sortByDbOrder(
-    filterByRoleAndGroup(menuDefinitions.platformItems),
+  const visibleTools = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.toolsItems),
   );
-
+  const visibleAdministration = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.administrationItems),
+  );
+  const visibleSupport = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.supportItems),
+  );
   const handleNavigation = (itemId) => {
     if (impersonating && itemId !== "dashboard") return;
     const basePath = getBasePath();
@@ -195,13 +201,6 @@ function Sidebar({
       "for-decking": `${basePath}/for-decking`,
       appCorrection: `${basePath}/appCorrection`,
       task: `${basePath}/task`,
-      "for-evaluation": `${basePath}/for-evaluation`,
-      "for-compliance": `${basePath}/for-compliance`,
-      "for-checking": `${basePath}/for-checking`,
-      supervisor: `${basePath}/supervisor`,
-      "for-qa": `${basePath}/for-qa`,
-      "for-director-signature": `${basePath}/for-director-signature`,
-      "for-releasing": `${basePath}/for-releasing`,
       "fda-verification": `${basePath}/fda-verification`,
       "otc-database": `${basePath}/otc-database`,
       "cdrr-inspector-reports": `${basePath}/cdrr-inspector-reports`,
@@ -215,6 +214,7 @@ function Sidebar({
       "lead-assignments": `${basePath}/lead-assignments`,
       "document-rename": `${basePath}/document-rename`,
       "upload-document": `${basePath}/upload-document`,
+      "bulk-folder-document-upload": `${basePath}/bulk-folder-document-upload`,
     };
     if (isMobile) setMobileOpen(false);
     navigate(routeMap[itemId] || `${basePath}/dashboard`);
@@ -390,7 +390,9 @@ function Sidebar({
               {renderSection("CDRR REPORTS", visibleCdrReports)}
               {renderSection("WORKFLOW STATUS", visibleWorkflow)}
               {renderSection("OTHER DATABASE", visibleOtherDatabase)}
-              {renderSection("PLATFORM", visiblePlatform)}
+              {renderSection("TOOLS", visibleTools)}
+              {renderSection("ADMINISTRATION", visibleAdministration)}
+              {renderSection("SUPPORT", visibleSupport)}
             </div>
           </div>
         )}
@@ -438,7 +440,9 @@ function Sidebar({
           {renderSection("REPORTS", visibleCdrReports)}
           {renderSection("WORKFLOW", visibleWorkflow)}
           {renderSection("OTHER DATABASE", visibleOtherDatabase)}
-          {renderSection("PLATFORM", visiblePlatform)}
+          {renderSection("TOOLS", visibleTools)}
+          {renderSection("ADMINISTRATION", visibleAdministration)}
+          {renderSection("SUPPORT", visibleSupport)}
         </div>
 
         <div

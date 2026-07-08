@@ -51,126 +51,40 @@ export const menuDefinitions = {
       label: "CPR Modification Services",
       roles: ["User", "Admin", "SuperAdmin"],
     },
-    {
-      id: "for-evaluation",
-      icon: "📊", // improved
-      label: "Evaluation",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-compliance",
-      icon: "⚠️", // improved
-      label: "For Compliance", // fixed spacing
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-checking",
-      icon: "🔍",
-      label: "Checking",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "supervisor",
-      icon: "👔",
-      label: "Supervisor",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-qa",
-      icon: "✅", // improved
-      label: "QA",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-director-signature",
-      icon: "🖊️", // improved
-      label: "Director Signature",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-releasing",
-      icon: "📤",
-      label: "Releasing",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-
   ],
 
   otherDatabaseItems: [
-    {
-      id: "fda-verification",
-      icon: "🔎", 
-      label: "FDA Verification Portal",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "cdrr-inspector-reports",
-      icon: "📑", 
-      label: "CDRR Inspection Reports",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "doctrack-magic",
-      icon: "📦",
-      label: "Doctrack (Bulk Upload)",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "records-report",
-      icon: "🗂️", // BEST for records
-      label: "Records List", // 👈 recommended change
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "document-rename",
-      icon: "👔",
-      label: "Document Rename",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "upload-document",
-      icon: "👔",
-      label: "Upload Document",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
+      {
+        id: "fda-verification",
+        icon: "🔎", 
+        label: "FDA Verification Portal",
+        roles: ["User", "Admin", "SuperAdmin"],
+      },
+      {
+        id: "cdrr-inspector-reports",
+        icon: "📑", 
+        label: "CDRR Inspection Reports",
+        roles: ["User", "Admin", "SuperAdmin"],
+      },
   ],
 
-  platformItems: [
-    {
-      id: "announcements",
-      icon: "📢",
-      label: "Announcements",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "support",
-      icon: "🛠️", // improved
-      label: "Support",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "access",
-      icon: "🔐",
-      label: "Access Management",
-      roles: ["Admin", "SuperAdmin"],
-    },
-    {
-      id: "users",
-      icon: "👥",
-      label: "User Management",
-      roles: ["Admin", "SuperAdmin"],
-    },
-    {
-      id: "settings",
-      icon: "⚙️",
-      label: "Settings",
-      roles: ["SuperAdmin"],
-    },
-    {
-      id: "lead-assignments",
-      icon: "🔗",
-      label: "Lead Assignment",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
+  toolsItems: [
+      { id: "doctrack-magic", icon: "📦", label: "Doctrack (Bulk Upload)", roles: ["User","Admin","SuperAdmin"] },
+      { id: "records-report", icon: "🗂️", label: "Records List", roles: ["User","Admin","SuperAdmin"] },
+      { id: "document-rename", icon: "📄", label: "Document Rename", roles: ["User","Admin","SuperAdmin"] },
+      { id: "upload-document", icon: "📤", label: "Upload Document", roles: ["User","Admin","SuperAdmin"] },
+      { id: "bulk-folder-document-upload", icon: "📚", label: "Batch Folder Upload", roles: ["User","Admin","SuperAdmin"] },
+  ],
+
+  administrationItems: [
+      { id: "access", icon: "🔐", label: "Access Management", roles: ["Admin","SuperAdmin"] },
+      { id: "users", icon: "👥", label: "User Management", roles: ["Admin","SuperAdmin"] },
+      { id: "settings", icon: "⚙️", label: "Settings", roles: ["SuperAdmin"] },
+      { id: "lead-assignments", icon: "🔗", label: "Lead Assignment", roles: ["User","Admin","SuperAdmin"] },
+  ],
+
+  supportItems: [
+      { id: "announcements", icon: "📢", label: "Announcements", roles: ["User","Admin","SuperAdmin"] },
+      { id: "support", icon: "🛠️", label: "Support", roles: ["User","Admin","SuperAdmin"] },
   ],
 };

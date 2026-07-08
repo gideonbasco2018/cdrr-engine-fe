@@ -1,4 +1,4 @@
-// src/pages/BulkDocumentUploadPage.jsx
+// src/pages/BulkFolderDocumentUploadPage.jsx
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
@@ -15,12 +15,14 @@ import {
   Search,
   FolderOpen,
   ChevronRight,
-  Plus,
+  AlertTriangle,
+  ClipboardList,
 } from "lucide-react";
 
 import {
-  uploadApplicationDocumentsBatch,
-  getApplicationDocumentsByDtn,
+  uploadApplicationDocumentsFolder,
+  getUploadLogs,
+  getUploadLogUploaders,
 } from "../api/application-documents";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB — dapat tugma sa backend limit
@@ -36,7 +38,6 @@ const ACCEPTED_TYPES = {
   "application/vnd.ms-excel": "sheet",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "sheet",
 };
-const ACCEPT_ATTR = ".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx,.xls,.xlsx";
 
 function formatBytes(bytes) {
   if (!bytes) return "0 KB";
@@ -58,11 +59,6 @@ function KindIcon({ kind, size = 16 }) {
   if (kind === "pdf") return <FileText size={size} />;
   if (kind === "image") return <ImageIcon size={size} />;
   return <FileIcon size={size} />;
-}
-
-/** Google Drive inline preview URL for a given file ID. */
-function drivePreviewUrl(driveFileId) {
-  return `https://drive.google.com/file/d/${driveFileId}/preview`;
 }
 
 /**
@@ -115,11 +111,24 @@ function traverseFileTree(entry, pathPrefix = "") {
   });
 }
 
-function BulkDocumentUploadPage({ darkMode }) {
+/**
+ * BulkFolderDocumentUploadPage
+ *
+ * Sumusunod sa parehong pattern ng TaskPage.jsx — `darkMode` ay ipinapasa
+ * bilang prop mula sa parent/layout. Dalawang tabs:
+ *  - "Upload Folder"  — select/drag an ENTIRE folder. The folder's name
+ *                        becomes the DTN and any nested subfolders (any
+ *                        depth) automatically become the doc_category —
+ *                        nothing to type except Entry Type.
+ *  - "Upload Logs"     — audit view ng lahat ng upload attempts (success +
+ *                        failed), across lahat ng batches, filterable by
+ *                        status / uploader / DTN.
+ */
+function BulkFolderDocumentUploadPage({ darkMode }) {
   const colors = getColors(darkMode);
-  const s = buildStyles(colors, darkMode);
+  const s = buildStyles(colors);
 
-  const [activeTab, setActiveTab] = useState("upload");
+  const [activeTab, setActiveTab] = useState("folder"); // "folder" | "logs"
 
   return (
     <div style={s.page} className="bdu-page">
@@ -127,11 +136,11 @@ function BulkDocumentUploadPage({ darkMode }) {
         <header style={s.header}>
           <div>
             <h1 style={s.title} className="bdu-title">
-              Document Manager
+              Batch Folder Upload
             </h1>
             <p style={s.subtitle}>
-              Upload supporting documents or browse previously uploaded files by
-              DTN.
+              Upload an entire folder of supporting documents, or review past
+              batch upload logs.
             </p>
           </div>
         </header>
@@ -139,31 +148,32 @@ function BulkDocumentUploadPage({ darkMode }) {
         <div style={s.tabBar} className="bdu-tabBar">
           <button
             type="button"
-            onClick={() => setActiveTab("upload")}
+            onClick={() => setActiveTab("folder")}
             className="bdu-tabBtn"
             style={{
               ...s.tabBtn,
-              ...(activeTab === "upload" ? s.tabBtnActive : {}),
+              ...(activeTab === "folder" ? s.tabBtnActive : {}),
             }}
           >
-            <Upload size={14} /> Upload Files
+            <FolderOpen size={14} /> Upload Folder
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("browse")}
+            onClick={() => setActiveTab("logs")}
             className="bdu-tabBtn"
             style={{
               ...s.tabBtn,
-              ...(activeTab === "browse" ? s.tabBtnActive : {}),
+              ...(activeTab === "logs" ? s.tabBtnActive : {}),
             }}
           >
-            <Search size={14} /> Browse by DTN
+            <ClipboardList size={14} /> Upload Logs
           </button>
         </div>
 
-        {activeTab === "upload" && <UploadTab colors={colors} s={s} />}
-        {activeTab === "browse" && <BrowseByDtnTab colors={colors} s={s} />}
+        {activeTab === "folder" && <UploadFolderTab colors={colors} s={s} />}
+        {activeTab === "logs" && <UploadLogsTab colors={colors} s={s} />}
       </div>
+
       <style>{`
         * { box-sizing: border-box; }
 
@@ -202,7 +212,6 @@ function BulkDocumentUploadPage({ darkMode }) {
           min-width: 0;
         }
 
-        /* Any input/select/textarea inside the page must never force overflow */
         .bdu-page input,
         .bdu-page select,
         .bdu-page textarea {
@@ -210,7 +219,6 @@ function BulkDocumentUploadPage({ darkMode }) {
           max-width: 100%;
         }
 
-        /* Tablet */
         @media (max-width: 860px) {
           .bdu-layout {
             grid-template-columns: 1fr;
@@ -227,7 +235,6 @@ function BulkDocumentUploadPage({ darkMode }) {
           }
         }
 
-        /* Tablet+mobile: shrink the fixed preview heights so it doesn't dominate the stacked layout */
         @media (max-width: 860px) {
           .bdu-previewCard {
             min-height: 420px !important;
@@ -237,7 +244,6 @@ function BulkDocumentUploadPage({ darkMode }) {
           }
         }
 
-        /* Mobile */
         @media (max-width: 520px) {
           .bdu-page {
             padding: 14px 8px !important;
@@ -269,24 +275,12 @@ function BulkDocumentUploadPage({ darkMode }) {
 }
 
 /* ================================================================== */
-/*  Tab 1 — Upload Folder (NEW)                                        */
+/*  Tab 1 — Upload Folder                                               */
 /* ================================================================== */
 
-/**
- * UploadFolderTab
- *
- * Isang buong folder lang ang pinipili/dini-drag ng user (via
- * <input webkitdirectory> o pag-drop ng folder). Walang ipapasok na DTN
- * o Category — parehong auto-derived mula sa folder structure mismo:
- *   - Top-level folder name  -> db_dtn
- *   - Anumang subfolder (kahit ilang level pa) sa pagitan ng DTN folder
- *     at ng file mismo -> doc_category (joined ng "/")
- * Entry Type lang ang kailangang piliin ng user, dahil wala talagang
- * paraan para malaman iyon mula sa folder structure.
- */
 function UploadFolderTab({ colors, s }) {
   const [dbEntryType, setDbEntryType] = useState("");
-  const [entries, setEntries] = useState([]); // { id, file, relativePath, category, kind, previewUrl }
+  const [entries, setEntries] = useState([]);
   const [activeEntryId, setActiveEntryId] = useState(null);
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
 
@@ -310,9 +304,6 @@ function UploadFolderTab({ colors, s }) {
     [entries, activeEntryId],
   );
 
-  // Detect the DTN (top-level folder name) from whatever's been added so
-  // far, and flag it if somehow more than one distinct top folder ended
-  // up in the list (e.g. user selected a folder twice).
   const dtnInfo = useMemo(() => {
     const names = Array.from(
       new Set(entries.map((e) => e.relativePath.split("/")[0])),
@@ -324,8 +315,6 @@ function UploadFolderTab({ colors, s }) {
     };
   }, [entries]);
 
-  // Group entries by their subfolder path so the list mirrors the actual
-  // folder structure that was uploaded.
   const categoryGroups = useMemo(() => {
     const groups = new Map();
     for (const entry of entries) {
@@ -353,7 +342,6 @@ function UploadFolderTab({ colors, s }) {
     });
   };
 
-  /** Normalizes a flat [{ file, relativePath }] list into tracked entries. */
   const processFileEntries = useCallback((flat) => {
     const skipped = [];
     const newEntries = [];
@@ -361,7 +349,6 @@ function UploadFolderTab({ colors, s }) {
     for (const { file, relativePath } of flat) {
       const parts = relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
       if (parts.length < 2) {
-        // Walang root folder segment — hindi natin masasabi kung anong DTN ito.
         skipped.push(file.name);
         continue;
       }
@@ -430,7 +417,6 @@ function UploadFolderTab({ colors, s }) {
       return;
     }
 
-    // Fallback: browser gave us loose files with no directory info at all.
     setFormError(
       "Drag-and-drop of a folder isn't supported in this browser — use 'Select Folder' instead.",
     );
@@ -491,9 +477,6 @@ function UploadFolderTab({ colors, s }) {
         (pct) => setUploadProgress(pct),
       );
       setUploadResults(result);
-      // Blank out the form once the request completes — the results card
-      // above keeps showing what happened (succeeded/failed/batch id), so
-      // nothing about the upload's outcome is lost, only the working form.
       entries.forEach((e) => URL.revokeObjectURL(e.previewUrl));
       setEntries([]);
       setActiveEntryId(null);
@@ -508,7 +491,6 @@ function UploadFolderTab({ colors, s }) {
 
   return (
     <div style={s.layout} className="bdu-layout">
-      {/* ── Left: entry type + folder picker + detected structure ── */}
       <div style={s.leftCol} className="bdu-leftCol">
         <div style={s.card} className="bdu-card">
           <Field label="Entry Type" required colors={colors}>
@@ -750,7 +732,6 @@ function UploadFolderTab({ colors, s }) {
         )}
       </div>
 
-      {/* ── Right: preview panel ────────────────────────────── */}
       <div style={s.previewCol} className="bdu-previewCol">
         <div style={s.previewCard} className="bdu-previewCard">
           {!activeEntry ? (
@@ -829,862 +810,14 @@ function UploadFolderTab({ colors, s }) {
 }
 
 /* ================================================================== */
-/*  Tab 2 — Upload Files (manual entry, existing workflow)             */
-/* ================================================================== */
-
-/** Bagong empty group — bawat group ay may sariling category + file list. */
-function makeGroup() {
-  return {
-    groupId: `grp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    docCategory: "",
-    entries: [], // { id, file, kind, previewUrl }
-  };
-}
-
-function UploadTab({ colors, s }) {
-  const [dbEntryType, setDbEntryType] = useState("");
-  const [dbDtn, setDbDtn] = useState("");
-  const [existingCategories, setExistingCategories] = useState([]);
-
-  // Multiple category "groups" — bawat isa may sariling docCategory + entries.
-  const [groups, setGroups] = useState(() => [makeGroup()]);
-  const [activeEntryId, setActiveEntryId] = useState(null);
-
-  const [formError, setFormError] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadResults, setUploadResults] = useState(null);
-
-  const activeEntry = useMemo(() => {
-    for (const g of groups) {
-      const found = g.entries.find((e) => e.id === activeEntryId);
-      if (found) return found;
-    }
-    return null;
-  }, [groups, activeEntryId]);
-
-  const totalFiles = useMemo(
-    () => groups.reduce((sum, g) => sum + g.entries.length, 0),
-    [groups],
-  );
-
-  // Revoke object URLs on unmount to avoid memory leaks
-  useEffect(() => {
-    return () => {
-      groups.forEach((g) =>
-        g.entries.forEach((e) => URL.revokeObjectURL(e.previewUrl)),
-      );
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Look up existing folders (doc_category values) already used for this
-  // DTN, so the category field can suggest them instead of forcing the
-  // person to remember/retype an exact folder name. Debounced so it
-  // doesn't fire on every keystroke.
-  useEffect(() => {
-    const trimmed = dbDtn.trim();
-    if (!trimmed) {
-      setExistingCategories([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        const result = await getApplicationDocumentsByDtn(trimmed);
-        const cats = Array.from(
-          new Set(
-            (result.data || [])
-              .map((d) => d.doc_category?.trim())
-              .filter(Boolean),
-          ),
-        ).sort();
-        setExistingCategories(cats);
-      } catch {
-        // Silent — this is just a convenience lookup, not required for upload.
-        setExistingCategories([]);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [dbDtn]);
-
-  const addFilesToGroup = useCallback((groupId, fileList) => {
-    const incoming = Array.from(fileList).map((file) => ({
-      id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      file,
-      kind: kindOf(file),
-      previewUrl: URL.createObjectURL(file),
-    }));
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.groupId === groupId
-          ? { ...g, entries: [...g.entries, ...incoming] }
-          : g,
-      ),
-    );
-    setActiveEntryId((prev) => prev ?? incoming[0]?.id ?? null);
-    setUploadResults(null);
-  }, []);
-
-  const removeEntry = (groupId, entryId) => {
-    setGroups((prev) =>
-      prev.map((g) => {
-        if (g.groupId !== groupId) return g;
-        const target = g.entries.find((e) => e.id === entryId);
-        if (target) URL.revokeObjectURL(target.previewUrl);
-        return { ...g, entries: g.entries.filter((e) => e.id !== entryId) };
-      }),
-    );
-    setActiveEntryId((prev) => (prev === entryId ? null : prev));
-  };
-
-  const setGroupCategory = (groupId, value) => {
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.groupId === groupId ? { ...g, docCategory: value } : g,
-      ),
-    );
-  };
-
-  const addGroup = () => setGroups((prev) => [...prev, makeGroup()]);
-
-  const removeGroup = (groupId) => {
-    setGroups((prev) => {
-      const target = prev.find((g) => g.groupId === groupId);
-      if (target)
-        target.entries.forEach((e) => URL.revokeObjectURL(e.previewUrl));
-      const next = prev.filter((g) => g.groupId !== groupId);
-      return next.length ? next : [makeGroup()]; // laging may at least 1 group
-    });
-  };
-
-  const clearAll = () => {
-    groups.forEach((g) =>
-      g.entries.forEach((e) => URL.revokeObjectURL(e.previewUrl)),
-    );
-    setGroups([makeGroup()]);
-    setActiveEntryId(null);
-    setDbEntryType("");
-    setDbDtn("");
-    setExistingCategories([]);
-    setFormError("");
-    setUploadResults(null);
-    setUploadProgress(0);
-  };
-
-  const validate = () => {
-    if (!dbEntryType.trim()) return "Entry Type is required.";
-    if (!dbDtn.trim()) return "DTN is required.";
-    if (totalFiles === 0) return "Add at least one file.";
-    for (const g of groups) {
-      for (const { file } of g.entries) {
-        if (!(file.type in ACCEPTED_TYPES))
-          return `"${file.name}" is not a supported file type.`;
-        if (file.size > MAX_FILE_SIZE)
-          return `"${file.name}" exceeds the 5MB limit.`;
-      }
-    }
-    return "";
-  };
-
-  const handleUpload = async () => {
-    setFormError("");
-    const validationError = validate();
-    if (validationError) {
-      setFormError(validationError);
-      return;
-    }
-
-    const groupsToUpload = groups.filter((g) => g.entries.length > 0);
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    const aggregated = { total: 0, succeeded: 0, failed: 0, results: [] };
-
-    try {
-      for (let i = 0; i < groupsToUpload.length; i++) {
-        const g = groupsToUpload[i];
-        // eslint-disable-next-line no-await-in-loop
-        const result = await uploadApplicationDocumentsBatch(
-          {
-            dbEntryType,
-            dbDtn,
-            docCategory: g.docCategory.trim() || undefined,
-            files: g.entries.map((e) => e.file),
-          },
-          (pct) => {
-            const overall = Math.round(
-              ((i + pct / 100) / groupsToUpload.length) * 100,
-            );
-            setUploadProgress(overall);
-          },
-        );
-        aggregated.total += result.total;
-        aggregated.succeeded += result.succeeded;
-        aggregated.failed += result.failed;
-        aggregated.results.push(...result.results);
-      }
-      setUploadResults(aggregated);
-      // Files stay in the list so the person can still review previews after upload
-    } catch (err) {
-      setFormError(err.message || "Upload failed.");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  return (
-    <div style={s.layout} className="bdu-layout">
-      {/* ── Left: form + category groups (each with its own dropzone/file list) ── */}
-      <div style={s.leftCol} className="bdu-leftCol">
-        <div style={s.card} className="bdu-card">
-          <div style={s.fieldGrid} className="bdu-fieldGrid">
-            <Field label="Entry Type" required colors={colors}>
-              <select
-                value={dbEntryType}
-                onChange={(e) => setDbEntryType(e.target.value)}
-                style={s.input}
-              >
-                <option value="">Select entry type</option>
-                <option value="CANCELLATION OF CPR">CANCELLATION OF CPR</option>
-                <option value="CORRECTION">CORRECTION</option>
-                <option value="RECONSTRUCTION">RECONSTRUCTION</option>
-                <option value="VALIDITY EXTENSION">VALIDITY EXTENSION</option>
-                <option value="SURRENDER DUE TO PAC">
-                  SURRENDER DUE TO PAC
-                </option>
-                <option value="DOCUMENTS FROM CLIENT">
-                  DOCUMENTS FROM CLIENT
-                </option>
-              </select>
-            </Field>
-            <Field label="DTN" required colors={colors}>
-              <input
-                type="text"
-                value={dbDtn}
-                onChange={(e) => setDbDtn(e.target.value)}
-                placeholder="e.g. 20260702095509"
-                style={s.input}
-              />
-            </Field>
-          </div>
-        </div>
-
-        <div style={s.groupsHeaderRow}>
-          <span style={s.groupsHeaderLabel}>Files</span>
-          <div style={{ display: "flex", gap: 8 }}>
-            {totalFiles > 0 && (
-              <button type="button" onClick={clearAll} style={s.clearLink}>
-                <Trash2 size={13} /> Clear all
-              </button>
-            )}
-            <button type="button" onClick={addGroup} style={s.addGroupBtn}>
-              <Plus size={14} /> Add category
-            </button>
-          </div>
-        </div>
-
-        {groups.map((group, idx) => (
-          <UploadGroupBlock
-            key={group.groupId}
-            group={group}
-            index={idx}
-            isFirst={idx === 0}
-            canRemove={groups.length > 1}
-            existingCategories={existingCategories}
-            colors={colors}
-            s={s}
-            onCategoryChange={(val) => setGroupCategory(group.groupId, val)}
-            onAddFiles={(fileList) => addFilesToGroup(group.groupId, fileList)}
-            onRemoveEntry={(entryId) => removeEntry(group.groupId, entryId)}
-            onRemoveGroup={() => removeGroup(group.groupId)}
-            activeEntryId={activeEntryId}
-            onSelectEntry={setActiveEntryId}
-            uploadResults={uploadResults}
-          />
-        ))}
-
-        {formError && <div style={s.errorBanner}>{formError}</div>}
-
-        <div style={s.actions}>
-          <button
-            type="button"
-            onClick={handleUpload}
-            disabled={isUploading || totalFiles === 0}
-            style={{
-              ...s.primaryBtn,
-              ...(isUploading || totalFiles === 0 ? s.btnDisabled : {}),
-            }}
-          >
-            {isUploading ? (
-              <>
-                <Loader2
-                  size={15}
-                  style={{ animation: "bdu-spin 1s linear infinite" }}
-                />
-                Uploading... {uploadProgress}%
-              </>
-            ) : (
-              `Upload${totalFiles ? ` (${totalFiles})` : ""}`
-            )}
-          </button>
-        </div>
-
-        {uploadResults && (
-          <div style={s.resultsCard}>
-            <div style={s.resultsSummary}>
-              <span style={s.resultsTotal}>
-                {uploadResults.total} processed
-              </span>
-              <span style={s.badgeSuccess}>
-                {uploadResults.succeeded} successful
-              </span>
-              {uploadResults.failed > 0 && (
-                <span style={s.badgeFail}>{uploadResults.failed} failed</span>
-              )}
-            </div>
-            {uploadResults.results.some((r) => !r.success) && (
-              <ul style={s.resultsErrList}>
-                {uploadResults.results
-                  .filter((r) => !r.success)
-                  .map((r, i) => (
-                    <li key={i} style={s.resultsErrItem}>
-                      <XCircle size={13} color={colors.danger} />
-                      <span>{r.filename}</span>
-                      <span style={s.resultsErrMsg}>{r.error}</span>
-                    </li>
-                  ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Right: preview panel ────────────────────────────── */}
-      <div style={s.previewCol} className="bdu-previewCol">
-        <div style={s.previewCard} className="bdu-previewCard">
-          {!activeEntry ? (
-            <div style={s.previewEmpty}>
-              <FileIcon size={28} />
-              <p style={s.previewEmptyText}>
-                Select a file from the list to preview it here.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div style={s.previewHeader}>
-                <span style={s.previewHeaderIcon}>
-                  <KindIcon kind={activeEntry.kind} size={15} />
-                </span>
-                <span style={s.previewHeaderName} title={activeEntry.file.name}>
-                  {activeEntry.file.name}
-                </span>
-                <span style={s.previewHeaderSize}>
-                  {formatBytes(activeEntry.file.size)}
-                </span>
-                <a
-                  href={activeEntry.previewUrl}
-                  download={activeEntry.file.name}
-                  style={s.previewOpenLink}
-                  title="Download / open in new tab"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <ExternalLink size={14} />
-                </a>
-              </div>
-              <div style={s.previewBody}>
-                {activeEntry.kind === "pdf" && (
-                  <iframe
-                    src={activeEntry.previewUrl}
-                    title={activeEntry.file.name}
-                    style={s.previewFrame}
-                    className="bdu-previewFrame"
-                  />
-                )}
-                {activeEntry.kind === "image" && (
-                  <div style={s.previewImageWrap}>
-                    <img
-                      src={activeEntry.previewUrl}
-                      alt={activeEntry.file.name}
-                      style={s.previewImage}
-                    />
-                  </div>
-                )}
-                {(activeEntry.kind === "doc" ||
-                  activeEntry.kind === "sheet" ||
-                  activeEntry.kind === "other") && (
-                  <div style={s.previewUnsupported}>
-                    <FileIcon size={36} />
-                    <p style={s.previewUnsupportedTitle}>
-                      No in-browser preview available for this file type
-                    </p>
-                    <p style={s.previewUnsupportedHint}>
-                      Click the icon above to download and open it.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * UploadGroupBlock
- *
- * Isang "category group" — may sariling Category (Folder) field, dropzone,
- * at file list. Pwedeng magdagdag ng maraming group sa isang session
- * (hal. Group 1 = "Product File", Group 2 = "Document Requirements"),
- * tapos isang "Upload" button na lang sa dulo ng UploadTab ang mag-uupload
- * ng lahat — isang batch API call per group, parehong DTN/Entry Type.
- */
-function UploadGroupBlock({
-  group,
-  index,
-  isFirst,
-  canRemove,
-  existingCategories,
-  colors,
-  s,
-  onCategoryChange,
-  onAddFiles,
-  onRemoveEntry,
-  onRemoveGroup,
-  activeEntryId,
-  onSelectEntry,
-  uploadResults,
-}) {
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef(null);
-  const datalistId = `doc-category-options-${group.groupId}`;
-
-  const handleFileInputChange = (e) => {
-    if (e.target.files?.length) onAddFiles(e.target.files);
-    e.target.value = "";
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (e.dataTransfer.files?.length) onAddFiles(e.dataTransfer.files);
-  };
-
-  return (
-    <div style={{ ...s.groupBlock, ...(isFirst ? s.groupBlockFirst : {}) }}>
-      <div style={s.groupBlockHeader}>
-        <span style={s.groupBlockTitle}>
-          Group {index + 1}
-          {group.docCategory.trim() ? ` — ${group.docCategory.trim()}` : ""}
-        </span>
-        {canRemove && (
-          <button
-            type="button"
-            onClick={onRemoveGroup}
-            style={s.groupRemoveBtn}
-          >
-            <Trash2 size={13} /> Remove
-          </button>
-        )}
-      </div>
-
-      <div style={s.card} className="bdu-card">
-        <Field
-          label="Category (Folder)"
-          hint="leave blank for General"
-          colors={colors}
-        >
-          <div style={s.folderPickerRow}>
-            <FolderOpen
-              size={15}
-              style={{ flexShrink: 0, color: colors.textTertiary }}
-            />
-            <select
-              value={group.docCategory}
-              onChange={(e) => onCategoryChange(e.target.value)}
-              style={s.folderInput}
-            >
-              <option value="">GENERAL</option>
-              <option value="PRODUCT FILE">PRODUCT FILE</option>
-              <option value="DOCUMENTARY REQUIREMENTS">
-                DOCUMENTARY REQUIREMENTS
-              </option>
-              <option value="WORKSHEET">WORKSHEET</option>
-            </select>
-          </div>
-        </Field>
-      </div>
-
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragging(true);
-        }}
-        onDragLeave={() => setIsDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        className="bdu-dropzone"
-        style={{
-          ...s.dropzone,
-          ...(isDragging ? s.dropzoneActive : {}),
-        }}
-      >
-        <Upload size={20} />
-        <p style={s.dropzoneText}>
-          <strong>Click</strong> or drag files here
-        </p>
-        <p style={s.dropzoneHint}>
-          PDF, JPG, PNG, GIF, WEBP, DOC, DOCX, XLS, XLSX · max 5MB
-        </p>
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept={ACCEPT_ATTR}
-          onChange={handleFileInputChange}
-          style={{ display: "none" }}
-        />
-      </div>
-
-      {group.entries.length > 0 && (
-        <div style={s.fileListCard}>
-          <div style={s.fileListHeader}>
-            <span>{group.entries.length} file(s)</span>
-          </div>
-          <ul style={s.fileList}>
-            {group.entries.map((entry) => {
-              const isActive = entry.id === activeEntryId;
-              const result = uploadResults?.results?.find(
-                (r) => r.filename === entry.file.name,
-              );
-              return (
-                <li
-                  key={entry.id}
-                  onClick={() => onSelectEntry(entry.id)}
-                  style={{
-                    ...s.fileItem,
-                    ...(isActive ? s.fileItemActive : {}),
-                  }}
-                >
-                  <span style={s.fileItemIcon}>
-                    <KindIcon kind={entry.kind} />
-                  </span>
-                  <span style={s.fileItemName} title={entry.file.name}>
-                    {entry.file.name}
-                  </span>
-                  <span style={s.fileItemSize}>
-                    {formatBytes(entry.file.size)}
-                  </span>
-                  {result &&
-                    (result.success ? (
-                      <CheckCircle2 size={14} color={colors.success} />
-                    ) : (
-                      <XCircle size={14} color={colors.danger} />
-                    ))}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onRemoveEntry(entry.id);
-                    }}
-                    style={s.fileItemRemove}
-                    aria-label={`Remove ${entry.file.name}`}
-                  >
-                    <X size={13} />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* ================================================================== */
-/*  Tab 3 — Browse by DTN (grouped by Google Drive folder)             */
-/* ================================================================== */
-function BrowseByDtnTab({ colors, s }) {
-  const [dtnInput, setDtnInput] = useState("");
-  const [searchedDtn, setSearchedDtn] = useState("");
-  const [docs, setDocs] = useState([]);
-  const [activeDocId, setActiveDocId] = useState(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState("");
-  const [hasSearched, setHasSearched] = useState(false);
-  const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
-
-  const activeDoc = useMemo(
-    () => docs.find((d) => d.id === activeDocId) || null,
-    [docs, activeDocId],
-  );
-
-  // Group documents by their Google Drive folder (drive_folder_id).
-  // Falls back to doc_category / "General" as the display label when
-  // multiple documents share the same physical Drive folder.
-  const folders = useMemo(() => {
-    const groups = new Map();
-    for (const doc of docs) {
-      const key = doc.drive_folder_id || "no-folder";
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          label: doc.doc_category?.trim() || "General",
-          entryType: doc.db_entry_type || "",
-          items: [],
-        });
-      }
-      groups.get(key).items.push(doc);
-    }
-    return Array.from(groups.values()).sort((a, b) =>
-      a.label.localeCompare(b.label),
-    );
-  }, [docs]);
-
-  const toggleFolder = (key) => {
-    setCollapsedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const handleSearch = async () => {
-    const trimmed = dtnInput.trim();
-    if (!trimmed) {
-      setSearchError("Enter a DTN to search.");
-      return;
-    }
-    setSearchError("");
-    setIsSearching(true);
-    setHasSearched(true);
-    try {
-      const result = await getApplicationDocumentsByDtn(trimmed);
-      const data = result.data || [];
-      setDocs(data);
-      setActiveDocId(data[0]?.id ?? null);
-      setSearchedDtn(trimmed);
-      setCollapsedFolders(new Set());
-    } catch (err) {
-      setSearchError(err.message || "Failed to fetch documents.");
-      setDocs([]);
-      setActiveDocId(null);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleSearch();
-    }
-  };
-
-  return (
-    <div style={s.layout} className="bdu-layout">
-      {/* ── Left: search + folder/file tree ─────────────────── */}
-      <div style={s.leftCol} className="bdu-leftCol">
-        <div style={s.card} className="bdu-card">
-          <Field label="DTN" required colors={colors}>
-            <div style={s.searchRow}>
-              <input
-                type="text"
-                value={dtnInput}
-                onChange={(e) => setDtnInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="e.g. 20260702095509"
-                style={{ ...s.input, flex: 1, minWidth: 0 }}
-              />
-              <button
-                type="button"
-                onClick={handleSearch}
-                disabled={isSearching}
-                style={{
-                  ...s.searchBtn,
-                  ...(isSearching ? s.btnDisabled : {}),
-                }}
-              >
-                {isSearching ? (
-                  <Loader2
-                    size={14}
-                    style={{ animation: "bdu-spin 1s linear infinite" }}
-                  />
-                ) : (
-                  <Search size={14} />
-                )}
-              </button>
-            </div>
-          </Field>
-        </div>
-
-        {searchError && <div style={s.errorBanner}>{searchError}</div>}
-
-        {hasSearched && !searchError && (
-          <div style={s.fileListCard}>
-            <div style={s.fileListHeader}>
-              <span>
-                {docs.length} file(s) found for DTN{" "}
-                <strong>{searchedDtn}</strong>
-              </span>
-            </div>
-            {docs.length === 0 ? (
-              <p style={s.noResultsText}>
-                No documents have been uploaded for this DTN yet.
-              </p>
-            ) : (
-              <div style={s.folderTree}>
-                {folders.map((folder) => {
-                  const isCollapsed = collapsedFolders.has(folder.key);
-                  return (
-                    <div key={folder.key} style={s.folderGroup}>
-                      <button
-                        type="button"
-                        onClick={() => toggleFolder(folder.key)}
-                        style={s.folderHeader}
-                      >
-                        <ChevronRight
-                          size={13}
-                          style={{
-                            transform: isCollapsed
-                              ? "rotate(0deg)"
-                              : "rotate(90deg)",
-                            transition: "transform 120ms ease",
-                            flexShrink: 0,
-                          }}
-                        />
-                        <FolderOpen size={14} style={{ flexShrink: 0 }} />
-                        <span style={s.folderLabel} title={folder.label}>
-                          {folder.label}
-                        </span>
-                        <span style={s.folderCount}>{folder.items.length}</span>
-                      </button>
-
-                      {!isCollapsed && (
-                        <ul style={s.fileList}>
-                          {folder.items.map((doc) => {
-                            const isActive = doc.id === activeDocId;
-                            const kind = kindOfMime(doc.mime_type);
-                            return (
-                              <li
-                                key={doc.id}
-                                onClick={() => setActiveDocId(doc.id)}
-                                style={{
-                                  ...s.fileItem,
-                                  ...s.fileItemNested,
-                                  ...(isActive ? s.fileItemActive : {}),
-                                }}
-                              >
-                                <span style={s.fileItemIcon}>
-                                  <KindIcon kind={kind} />
-                                </span>
-                                <span
-                                  style={s.fileItemName}
-                                  title={doc.original_filename}
-                                >
-                                  {doc.original_filename}
-                                </span>
-                                <span style={s.fileItemSize}>
-                                  {formatBytes(doc.file_size_bytes)}
-                                </span>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Right: preview panel ────────────────────────────── */}
-      <div style={s.previewCol} className="bdu-previewCol">
-        <div style={s.previewCard} className="bdu-previewCard">
-          {!activeDoc ? (
-            <div style={s.previewEmpty}>
-              <FolderOpen size={28} />
-              <p style={s.previewEmptyText}>
-                Search a DTN and select a file from the list to preview it here.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div style={s.previewHeader}>
-                <span style={s.previewHeaderIcon}>
-                  <KindIcon kind={kindOfMime(activeDoc.mime_type)} size={15} />
-                </span>
-                <span
-                  style={s.previewHeaderName}
-                  title={activeDoc.original_filename}
-                >
-                  {activeDoc.original_filename}
-                </span>
-                <span style={s.previewHeaderSize}>
-                  {formatBytes(activeDoc.file_size_bytes)}
-                </span>
-                <a
-                  href={activeDoc.drive_file_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={s.previewOpenLink}
-                  title="Open in Google Drive"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <ExternalLink size={14} />
-                </a>
-              </div>
-              <div style={s.previewBody}>
-                <iframe
-                  src={drivePreviewUrl(activeDoc.drive_file_id)}
-                  title={activeDoc.original_filename}
-                  style={s.previewFrame}
-                  className="bdu-previewFrame"
-                  allow="autoplay"
-                />
-              </div>
-              {activeDoc.doc_category && (
-                <div style={s.previewFooterMeta}>
-                  Category: <strong>{activeDoc.doc_category}</strong> · Entry
-                  Type: <strong>{activeDoc.db_entry_type}</strong>
-                  {activeDoc.uploaded_by_user_name &&
-                    ` · Uploaded by: ${activeDoc.uploaded_by_user_name}`}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ================================================================== */
-/*  Tab 4 — Upload Logs (NEW) — success + failed history, filterable   */
+/*  Tab 2 — Upload Logs — success + failed history, filterable         */
 /* ================================================================== */
 
 const LOGS_PAGE_SIZE = 100;
 
-/**
- * UploadLogsTab
- *
- * Pangkalahatang audit view ng lahat ng upload attempts — success at
- * failed — galing sa BulkUploadLog table sa backend, across lahat ng
- * batches (hindi lang isang session). May tatlong filters:
- *   - Status (All / Success / Failed)
- *   - Uploaded By (dropdown, populated mula sa distinct uploaders)
- *   - DTN (partial-match search)
- * "Load more" pagination gamit ang limit/offset.
- */
 function UploadLogsTab({ colors, s }) {
-  const [statusFilter, setStatusFilter] = useState("all"); // "all" | "success" | "failed"
-  const [uploaderFilter, setUploaderFilter] = useState(""); // "" = all uploaders
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [uploaderFilter, setUploaderFilter] = useState("");
   const [dtnFilter, setDtnFilter] = useState("");
   const [dtnFilterApplied, setDtnFilterApplied] = useState("");
 
@@ -1696,7 +829,6 @@ function UploadLogsTab({ colors, s }) {
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
 
-  // Populate the "Uploaded By" dropdown once.
   useEffect(() => {
     getUploadLogUploaders()
       .then((res) => setUploaders(res.uploaders || []))
@@ -1729,7 +861,6 @@ function UploadLogsTab({ colors, s }) {
     [statusFilter, uploaderFilter, dtnFilterApplied],
   );
 
-  // Re-fetch from the top whenever status/uploader/applied-DTN filters change.
   useEffect(() => {
     fetchLogs(0, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1925,15 +1056,6 @@ function Field({ label, required, hint, colors, children }) {
   );
 }
 
-/**
- * Color tokens derived from the darkMode boolean.
- * Kung may shared `getColorScheme(darkMode)` na kayo (tulad ng ginagamit sa
- * TaskPage.jsx / ColorScheme.js), palitan na lang ito ng import mula doon
- * para iisa lang ang source of truth ng palette sa buong app:
- *
- *   import { getColorScheme } from "../components/tasks/ColorScheme";
- *   const colors = getColorScheme(darkMode);
- */
 function getColors(darkMode) {
   return darkMode
     ? {
@@ -1970,7 +1092,7 @@ function getColors(darkMode) {
       };
 }
 
-function buildStyles(colors, darkMode) {
+function buildStyles(colors) {
   return {
     page: {
       minHeight: "100vh",
@@ -2004,8 +1126,6 @@ function buildStyles(colors, darkMode) {
       letterSpacing: "-0.01em",
     },
     subtitle: { fontSize: 13, color: colors.textTertiary, margin: "3px 0 0" },
-
-    /* ── Tabs ── */
     tabBar: {
       display: "flex",
       gap: 4,
@@ -2030,7 +1150,6 @@ function buildStyles(colors, darkMode) {
       color: colors.accent,
       borderBottomColor: colors.accent,
     },
-
     layout: {
       display: "grid",
       gridTemplateColumns: "minmax(0, 400px) 1fr",
@@ -2058,12 +1177,6 @@ function buildStyles(colors, darkMode) {
       minWidth: 0,
       boxSizing: "border-box",
     },
-    fieldGrid: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 10,
-      minWidth: 0,
-    },
     input: {
       border: `1px solid ${colors.cardBorder}`,
       borderRadius: 8,
@@ -2071,13 +1184,10 @@ function buildStyles(colors, darkMode) {
       fontSize: 13.5,
       color: colors.textPrimary,
       background: colors.surfaceAlt,
-      colorScheme: darkMode ? "dark" : "light",
       width: "100%",
       minWidth: 0,
       boxSizing: "border-box",
     },
-
-    /* ── Detected DTN banner (Upload Folder tab) ── */
     detectedDtnBanner: {
       display: "flex",
       alignItems: "center",
@@ -2101,8 +1211,6 @@ function buildStyles(colors, darkMode) {
       color: colors.textTertiary,
       margin: "10px 0 0",
     },
-
-    /* ── Upload Logs tab ── */
     logsWrap: {
       display: "flex",
       flexDirection: "column",
@@ -2192,8 +1300,6 @@ function buildStyles(colors, darkMode) {
       borderRadius: 999,
       cursor: "pointer",
     },
-
-    /* ── Category groups (Upload tab) ── */
     groupsHeaderRow: {
       display: "flex",
       alignItems: "center",
@@ -2205,118 +1311,6 @@ function buildStyles(colors, darkMode) {
       fontWeight: 600,
       color: colors.textTertiary,
     },
-    addGroupBtn: {
-      display: "flex",
-      alignItems: "center",
-      gap: 5,
-      fontSize: 12,
-      fontWeight: 600,
-      color: colors.accent,
-      background: colors.accentSoft,
-      border: `1px solid ${colors.accent}`,
-      borderRadius: 999,
-      padding: "5px 12px",
-      cursor: "pointer",
-    },
-    groupBlock: {
-      display: "flex",
-      flexDirection: "column",
-      gap: 10,
-      paddingTop: 10,
-      marginTop: 2,
-      borderTop: `1px dashed ${colors.cardBorder}`,
-      minWidth: 0,
-    },
-    groupBlockFirst: {
-      paddingTop: 0,
-      marginTop: 0,
-      borderTop: "none",
-    },
-    groupBlockHeader: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      padding: "0 2px",
-      gap: 8,
-    },
-    groupBlockTitle: {
-      fontSize: 12,
-      fontWeight: 700,
-      color: colors.textPrimary,
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-      minWidth: 0,
-    },
-    groupRemoveBtn: {
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-      background: "none",
-      border: "none",
-      color: colors.danger,
-      fontSize: 11.5,
-      cursor: "pointer",
-      padding: 0,
-      flexShrink: 0,
-    },
-
-    /* ── Category / folder picker (per group) ── */
-    folderPickerRow: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      border: `1px solid ${colors.cardBorder}`,
-      borderRadius: 8,
-      padding: "0 10px",
-      background: colors.surfaceAlt,
-      width: "100%",
-      minWidth: 0,
-      boxSizing: "border-box",
-    },
-    folderInput: {
-      border: "none",
-      outline: "none",
-      background: "transparent",
-      colorScheme: darkMode ? "dark" : "light",
-      padding: "8px 0",
-      flex: 1,
-      minWidth: 0,
-      width: "100%",
-      fontSize: 13.5,
-      color: colors.textPrimary,
-      boxSizing: "border-box",
-    },
-    folderChipsRow: {
-      display: "flex",
-      flexWrap: "wrap",
-      gap: 6,
-      marginTop: 8,
-    },
-    folderChip: {
-      display: "flex",
-      alignItems: "center",
-      gap: 4,
-      fontSize: 11.5,
-      fontWeight: 600,
-      padding: "4px 10px",
-      borderRadius: 999,
-      border: `1px solid ${colors.cardBorder}`,
-      background: colors.greyBg,
-      color: colors.textTertiary,
-      cursor: "pointer",
-      maxWidth: "100%",
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-    },
-    folderChipActive: {
-      borderColor: colors.accent,
-      color: colors.accent,
-      background: colors.accentSoft,
-    },
-
-    /* ── Browse-by-DTN search row ── */
     searchRow: { display: "flex", gap: 8, minWidth: 0 },
     searchBtn: {
       display: "flex",
@@ -2336,8 +1330,6 @@ function buildStyles(colors, darkMode) {
       padding: "6px 4px 2px",
       margin: 0,
     },
-
-    /* ── Folder tree (Upload Folder tab + Browse by DTN) ── */
     folderTree: {
       display: "flex",
       flexDirection: "column",
@@ -2386,7 +1378,6 @@ function buildStyles(colors, darkMode) {
       marginLeft: 19,
       width: "calc(100% - 19px)",
     },
-
     dropzone: {
       borderWidth: "1.5px",
       borderStyle: "dashed",
@@ -2702,4 +1693,4 @@ function buildStyles(colors, darkMode) {
   };
 }
 
-export default BulkDocumentUploadPage;
+export default BulkFolderDocumentUploadPage;
