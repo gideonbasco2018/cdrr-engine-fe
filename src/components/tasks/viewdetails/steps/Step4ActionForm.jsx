@@ -375,6 +375,12 @@ export function Step4ActionForm({
     formData.decision === "Endorsed to Supervisor" &&
     formData.action === "For Approval";
 
+  // Dynamic required fields
+  const effectiveRequiredFields = new Set(QE_APPROVAL_REQUIRED_FIELDS);
+  if (approvalFields.typeDocReleased === "Certificate") {
+    effectiveRequiredFields.delete("secpa");
+  }
+
   // Action dropdown key
   const actionKey = `${currentStep}_${formData.decision}`;
   const baseActionConfig = ACTION_CONFIG[actionKey] ?? null;
@@ -658,7 +664,7 @@ export function Step4ActionForm({
       (loadingUsers || assigneeOptions.length === 0 || !formData.assignee)) ||
     (needsAssignee && isReturnToEvaluator && !formData.assignee) ||
     (isQEApprovalRequired &&
-      [...QE_APPROVAL_REQUIRED_FIELDS].some(
+      [...effectiveRequiredFields].some(
         (k) => !approvalFields[k]?.toString().trim(),
       ));
   const infoText = !formData.decision
@@ -1237,12 +1243,12 @@ export function Step4ActionForm({
                   <div key={key}>
                     <label style={labelStyle}>
                       {QE_APPROVAL_FIELD_LABELS[key]}
-                      {QE_APPROVAL_REQUIRED_FIELDS.has(key) && (
+                      {effectiveRequiredFields.has(key) && (
                         <span style={{ color: "#ef4444" }}></span>
                       )}
                     </label>
                     {isQEApprovalRequired &&
-                      QE_APPROVAL_REQUIRED_FIELDS.has(key) &&
+                      effectiveRequiredFields.has(key) &&
                       !approvalFields[key]?.toString().trim() && (
                         <p
                           style={{
@@ -1308,12 +1314,12 @@ export function Step4ActionForm({
                 <div key={key}>
                   <label style={labelStyle}>
                     {QE_APPROVAL_FIELD_LABELS[key]}
-                    {QE_APPROVAL_REQUIRED_FIELDS.has(key) && (
+                    {effectiveRequiredFields.has(key) && (
                       <span style={{ color: "#ef4444" }}></span>
                     )}
                   </label>
                   {isQEApprovalRequired &&
-                    QE_APPROVAL_REQUIRED_FIELDS.has(key) &&
+                    effectiveRequiredFields.has(key) &&
                     !approvalFields[key]?.toString().trim() && (
                       <p
                         style={{
