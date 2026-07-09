@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import JSZip from "jszip";
+import { createExtractorFromData } from "node-unrar-js";
 
 import {
   uploadApplicationDocumentsFolder,
@@ -39,6 +40,8 @@ const EXT_MIME = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   xls: "application/vnd.ms-excel",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt: "application/vnd.ms-powerpoint",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 };
 
 function guessMimeFromName(name) {
@@ -69,11 +72,33 @@ async function extractZipToEntries(zipFile, pathPrefix) {
   return out;
 }
 
-async function expandZipEntries(flat) {
+async function extractRarToEntries(rarFile, pathPrefix) {
+  const arrayBuffer = await rarFile.arrayBuffer();
+  const extractor = await createExtractorFromData({ data: arrayBuffer });
+  const { files } = extractor.extract();
+
+  const out = [];
+  for (const entry of files) {
+    if (entry.fileHeader.flags.directory) continue;
+    const name = entry.fileHeader.name.replace(/\\/g, "/");
+    const filename = name.split("/").pop();
+    if (name.startsWith("__MACOSX") || filename.startsWith(".")) continue;
+    if (!entry.extraction) continue; // walang binary data (e.g. skipped/error entry)
+
+    const mime = guessMimeFromName(filename);
+    const typedFile = new File([entry.extraction], filename, { type: mime });
+    out.push({ file: typedFile, relativePath: `${pathPrefix}${name}` });
+  }
+  return out;
+}
+
+async function expandArchiveEntries(flat) {
   const expanded = [];
   for (const item of flat) {
-    const isZip = item.file.name.toLowerCase().endsWith(".zip");
-    if (!isZip) {
+    const lowerName = item.file.name.toLowerCase();
+    const isZip = lowerName.endsWith(".zip");
+    const isRar = lowerName.endsWith(".rar");
+    if (!isZip && !isRar) {
       expanded.push(item);
       continue;
     }
@@ -83,12 +108,17 @@ async function expandZipEntries(flat) {
       .filter(Boolean);
     const prefix = parts.slice(0, -1).join("/");
 
-    const zipBaseName =
-      item.file.name.replace(/\.zip$/i, "").trim() || "archive";
-    const pathPrefix = prefix ? `${prefix}/${zipBaseName}/` : `${zipBaseName}/`;
+    const archiveBaseName =
+      item.file.name.replace(/\.(zip|rar)$/i, "").trim() || "archive";
+    const pathPrefix = prefix
+      ? `${prefix}/${archiveBaseName}/`
+      : `${archiveBaseName}/`;
+
     try {
-      const inner = await extractZipToEntries(item.file, pathPrefix);
-      const innerExpanded = await expandZipEntries(inner); // in case may zip-in-zip
+      const inner = isZip
+        ? await extractZipToEntries(item.file, pathPrefix)
+        : await extractRarToEntries(item.file, pathPrefix);
+      const innerExpanded = await expandArchiveEntries(inner); // archive-in-archive
       expanded.push(...innerExpanded);
     } catch (err) {
       expanded.push(item);
@@ -97,7 +127,7 @@ async function expandZipEntries(flat) {
   return expanded;
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB — dapat tugma sa backend limit
+const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200 MB — dapat tugma sa backend limit
 const ACCEPTED_TYPES = {
   "application/pdf": "pdf",
   "image/jpeg": "image",
@@ -109,9 +139,15 @@ const ACCEPTED_TYPES = {
     "doc",
   "application/vnd.ms-excel": "sheet",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "sheet",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    "ppt",
 
   "application/zip": "archive",
   "application/x-zip-compressed": "archive",
+  "application/vnd.rar": "archive",
+  "application/x-rar-compressed": "archive",
+  "application/x-rar": "archive",
 };
 
 function formatBytes(bytes) {
@@ -386,6 +422,7 @@ function UploadFolderTab({ colors, s }) {
   const [isExtracting, setIsExtracting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadCounts, setUploadCounts] = useState({ done: 0, total: 0 });
   const [uploadResults, setUploadResults] = useState(null);
 
   const folderInputRef = useRef(null);
@@ -455,9 +492,9 @@ function UploadFolderTab({ colors, s }) {
     setIsExtracting(true);
     let expandedFlat;
     try {
-      expandedFlat = await expandZipEntries(flat);
+      expandedFlat = await expandArchiveEntries(flat);
     } catch (err) {
-      setFormError("Failed to read a zip file — it may be corrupted.");
+      setFormError("Failed to read a zip/rar file — it may be corrupted.");
       setIsExtracting(false);
       return;
     }
@@ -559,6 +596,7 @@ function UploadFolderTab({ colors, s }) {
     setFormError("");
     setUploadResults(null);
     setUploadProgress(0);
+    setUploadCounts({ done: 0, total: 0 });
     setCollapsedFolders(new Set());
   };
 
@@ -569,7 +607,7 @@ function UploadFolderTab({ colors, s }) {
       if (!(file.type in ACCEPTED_TYPES))
         return `"${file.name}" is not a supported file type.`;
       if (file.size > MAX_FILE_SIZE)
-        return `"${file.name}" exceeds the 5MB limit.`;
+        return `"${file.name}" exceeds the 200MB limit.`;
     }
     return "";
   };
@@ -588,7 +626,8 @@ function UploadFolderTab({ colors, s }) {
     }
 
     setIsUploading(true);
-    setUploadProgress(1); // start at 1%, not 0 — shows activity right away
+    setUploadProgress(1);
+    setUploadCounts({ done: 0, total: entries.length });
     setLiveStatuses({});
 
     const sentEntries = entries;
@@ -611,6 +650,7 @@ function UploadFolderTab({ colors, s }) {
             return next;
           });
         }
+        setUploadCounts({ done: logs.length, total });
         setUploadProgress(
           total > 0
             ? Math.min(99, Math.max(1, Math.round((logs.length / total) * 100)))
@@ -633,6 +673,7 @@ function UploadFolderTab({ colors, s }) {
       );
       setUploadResults(result);
       setUploadProgress(100);
+      setUploadCounts({ done: total, total });
 
       // Merge final authoritative results, in case the last poll tick missed them
       setLiveStatuses((prev) => {
@@ -714,7 +755,7 @@ function UploadFolderTab({ colors, s }) {
           )}
           <p style={s.dropzoneText}>
             {isExtracting ? (
-              <strong>Extracting zip file(s)...</strong>
+              <strong>Extracting zip/rar file(s)...</strong>
             ) : (
               <>
                 <strong>Select Folder</strong> or drag a folder here
@@ -723,9 +764,9 @@ function UploadFolderTab({ colors, s }) {
           </p>
           <p style={s.dropzoneHint}>
             The folder name becomes the DTN — subfolders become categories
-            automatically. Zip files are auto-extracted for preview. Browsers
-            only allow selecting one folder per dialog — drag multiple folders
-            together, or click again to add another.
+            automatically. Zip and Rar files are auto-extracted for preview.
+            Browsers only allow selecting one folder per dialog — drag multiple
+            folders together, or click again to add another.
           </p>
           <input
             ref={folderInputRef}
@@ -938,6 +979,14 @@ function UploadFolderTab({ colors, s }) {
 
         {formError && <div style={s.errorBanner}>{formError}</div>}
 
+        {isUploading && (
+          <div style={s.progressBarTrack}>
+            <div
+              style={{ ...s.progressBarFill, width: `${uploadProgress}%` }}
+            />
+          </div>
+        )}
+
         <div style={s.actions}>
           <button
             type="button"
@@ -954,7 +1003,8 @@ function UploadFolderTab({ colors, s }) {
                   size={15}
                   style={{ animation: "bdu-spin 1s linear infinite" }}
                 />
-                Uploading... {uploadProgress}%
+                Uploading {uploadCounts.done}/{uploadCounts.total} files ·{" "}
+                {uploadProgress}%
               </>
             ) : uploadResults &&
               uploadResults.failed > 0 &&
@@ -2029,7 +2079,7 @@ function buildStyles(colors) {
       minWidth: 0,
       boxSizing: "border-box",
     },
-    // BAGO — idagdag dito
+
     batchHeader: {
       display: "flex",
       alignItems: "center",
@@ -2474,6 +2524,17 @@ function buildStyles(colors) {
       overflow: "hidden",
       textOverflow: "ellipsis",
       whiteSpace: "nowrap",
+    },
+    progressBarTrack: {
+      height: 6,
+      borderRadius: 999,
+      background: colors.greyBg,
+      overflow: "hidden",
+    },
+    progressBarFill: {
+      height: "100%",
+      background: colors.accent,
+      transition: "width 300ms ease",
     },
   };
 }
