@@ -518,8 +518,8 @@ function ReassignmentModal({ record, onClose, colors, darkMode }) {
         @keyframes reassign-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
       `}</style>
 
-      <div style={overlayStyle} onClick={onClose}>
-        <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+      <div style={overlayStyle}>
+        <div style={modalStyle}>
           {/* ── Header ── */}
           <div
             style={{

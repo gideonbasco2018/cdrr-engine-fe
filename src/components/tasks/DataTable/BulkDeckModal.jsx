@@ -412,9 +412,9 @@ export function BulkDeckModal({
     }
   };
 
-  const overlay = (onClick, children) => (
+  // Backdrop click-to-close function remove
+  const overlay = (_onClick, children) => (
     <div
-      onClick={onClick}
       style={{
         position: "fixed",
         inset: 0,

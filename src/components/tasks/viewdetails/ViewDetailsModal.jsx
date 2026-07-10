@@ -83,6 +83,7 @@ export default function ViewDetailsModal({
   onClose,
   onSuccess,
   colors,
+  darkMode,
 }) {
   const [currentStep, setCurrentStep] = useState(1);
   const [editedFields, setEditedFields] = useState({});
@@ -165,7 +166,8 @@ export default function ViewDetailsModal({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — click-outside-to-close is disabled on purpose;
+    dapat button X lang ang pwedeng magsara ng modal na ito */}
       <div
         style={{
           position: "fixed",
@@ -174,7 +176,6 @@ export default function ViewDetailsModal({
           backdropFilter: "blur(4px)",
           zIndex: 1000,
         }}
-        onClick={onClose}
       />
 
       {/* Modal */}
@@ -510,7 +511,11 @@ export default function ViewDetailsModal({
               />
             )}
             {!isCPR && currentStep === 3 && (
-              <StepUploadDocuments record={record} colors={colors} />
+              <StepUploadDocuments
+                record={record}
+                colors={colors}
+                darkMode={darkMode}
+              />
             )}
             {!isCPR && currentStep === 4 && (
               <Step3AppLogs record={record} colors={colors} />

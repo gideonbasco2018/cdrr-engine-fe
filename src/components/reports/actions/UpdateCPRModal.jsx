@@ -1499,6 +1499,7 @@ function UpdateCPRModal({
         />
       )}
 
+      {/* The click-outside-to-close behavior was intentionally removed. The CPR Update modal can now only be closed using the ✕ button or the Cancel button.*/}
       <div
         className="cpr-modal-root"
         style={{
@@ -1511,7 +1512,6 @@ function UpdateCPRModal({
           justifyContent: "center",
           padding: "0.75rem",
         }}
-        onClick={(e) => e.target === e.currentTarget && onClose()}
       >
         <div
           style={{

@@ -1,5 +1,6 @@
 // steps/StepUploadDocuments.jsx
 import { useState, useRef, useEffect, useMemo } from "react";
+import { ChevronRight, Folder, FolderOpen } from "lucide-react";
 // ⚠️ Adjust this relative path to match how other files in this folder
 // (e.g. Step4ActionForm.jsx) import from src/api/ — copy that same depth.
 import {
@@ -37,6 +38,69 @@ function kindOfMime(mimeType) {
   return ACCEPTED_TYPES[mimeType] || "other";
 }
 
+/**
+ * I-convert ang flat list ng existing docs papunta sa nested folder tree,
+ * gamit ang `doc_category` bilang buong path (hal.
+ * "EMPAGLIFLOZIN 10-.../PART I/SEC A. INTRODUCTION"), kaparehong pattern
+ * ng file explorer sa VS Code. Docs na walang doc_category ay nasa root
+ * level lang, gamit ang original_filename.
+ */
+function buildDocFileTree(docs) {
+  const root = {
+    type: "folder",
+    name: "root",
+    path: "",
+    children: new Map(),
+    count: 0,
+  };
+
+  const ensureFolder = (parent, name, pathKey) => {
+    if (!parent.children.has(pathKey)) {
+      parent.children.set(pathKey, {
+        type: "folder",
+        name,
+        path: pathKey,
+        children: new Map(),
+        count: 0,
+      });
+    }
+    return parent.children.get(pathKey);
+  };
+
+  docs.forEach((doc) => {
+    const category = doc.doc_category?.trim();
+    const segments = category ? category.split("/").filter(Boolean) : [];
+
+    let current = root;
+    let pathAcc = "";
+    for (const seg of segments) {
+      pathAcc = pathAcc ? `${pathAcc}/${seg}` : seg;
+      current = ensureFolder(current, seg, pathAcc);
+    }
+    const fileName = doc.original_filename;
+    const filePath = pathAcc ? `${pathAcc}/${fileName}` : fileName;
+    current.children.set(`file:${filePath}:${doc.id}`, {
+      type: "file",
+      name: fileName,
+      path: filePath,
+      doc,
+    });
+  });
+
+  const finalize = (node) => {
+    const childArr = Array.from(node.children.values());
+    const folders = childArr.filter((c) => c.type === "folder");
+    const files = childArr.filter((c) => c.type === "file");
+    folders.forEach(finalize);
+    folders.sort((a, b) => a.name.localeCompare(b.name));
+    files.sort((a, b) => a.name.localeCompare(b.name));
+    node.count = files.length + folders.reduce((sum, f) => sum + f.count, 0);
+    node.children = [...folders, ...files];
+  };
+  finalize(root);
+  return root.children;
+}
+
 function makeStagedDoc(file) {
   return {
     id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -51,7 +115,7 @@ function drivePreviewUrl(driveFileId) {
   return `https://drive.google.com/file/d/${driveFileId}/preview`;
 }
 
-export function StepUploadDocuments({ record, colors }) {
+export function StepUploadDocuments({ record, colors, darkMode }) {
   // ── Existing documents already uploaded for this DTN ──
   const [existingDocs, setExistingDocs] = useState([]);
   const [isLoadingExisting, setIsLoadingExisting] = useState(true);
@@ -97,24 +161,20 @@ export function StepUploadDocuments({ record, colors }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Group existing docs by their Google Drive folder
-  const folders = useMemo(() => {
-    const groups = new Map();
-    for (const doc of existingDocs) {
-      const key = doc.drive_folder_id || "no-folder";
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          label: doc.doc_category?.trim() || "General",
-          items: [],
-        });
-      }
-      groups.get(key).items.push(doc);
-    }
-    return Array.from(groups.values()).sort((a, b) =>
-      a.label.localeCompare(b.label),
+  const fileTree = useMemo(() => {
+    const children = buildDocFileTree(existingDocs);
+    const totalCount = children.reduce(
+      (sum, node) => sum + (node.type === "folder" ? node.count : 1),
+      0,
     );
-  }, [existingDocs]);
+    return {
+      type: "folder",
+      name: String(record.dtn),
+      path: "",
+      children,
+      count: totalCount,
+    };
+  }, [existingDocs, record.dtn]);
 
   const toggleFolder = (key) => {
     setCollapsedFolders((prev) => {
@@ -212,6 +272,132 @@ export function StepUploadDocuments({ record, colors }) {
     cursor: "pointer",
   });
 
+  // Recursive renderer — folder nodes (chevron + folder icon + count
+  // badge) at file nodes, VS Code-style na file explorer tree.
+  const renderTreeNode = (node, depth) => {
+    if (node.type === "folder") {
+      const folderKey = node.path || "__root__";
+      const isCollapsed = collapsedFolders.has(folderKey);
+      return (
+        <div key={folderKey}>
+          <button
+            type="button"
+            onClick={() => toggleFolder(folderKey)}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 6,
+              width: "100%",
+              padding: "5px 6px",
+              background: "transparent",
+              border: "none",
+              borderRadius: 6,
+              cursor: "pointer",
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: textPrimary,
+              textAlign: "left",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background =
+                colors.tableRowHover || "rgba(255,255,255,0.05)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            <ChevronRight
+              size={12}
+              style={{
+                flexShrink: 0,
+                marginTop: 2,
+                color: textTertiary,
+                transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)",
+                transition: "transform 0.12s ease",
+              }}
+            />
+            <span
+              style={{
+                flexShrink: 0,
+                marginTop: 1,
+                color: "#f59e0b",
+                display: "inline-flex",
+              }}
+            >
+              {isCollapsed ? <Folder size={13} /> : <FolderOpen size={13} />}
+            </span>
+            <span style={{ flex: 1, minWidth: 0 }}>{node.name}</span>
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: 10.5,
+                fontWeight: 600,
+                color: textTertiary,
+                background: colors.inputBg ?? "transparent",
+                padding: "1px 6px",
+                borderRadius: 999,
+              }}
+            >
+              {node.count}
+            </span>
+          </button>
+
+          {!isCollapsed && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+                marginLeft: 9,
+                paddingLeft: 8,
+                borderLeft: `1px solid ${cardBorder}`,
+                marginTop: 2,
+                marginBottom: 4,
+              }}
+            >
+              {node.children.map((child) => renderTreeNode(child, depth + 1))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ── File node ──
+    const doc = node.doc;
+    const isActive =
+      activeItem?.type === "existing" && activeItem.doc.id === doc.id;
+    return (
+      <div
+        key={`${node.path}:${doc.id}`}
+        onClick={() => setActiveItem({ type: "existing", doc })}
+        style={rowStyle(isActive)}
+      >
+        <span
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: textPrimary,
+          }}
+          title={doc.original_filename}
+        >
+          {doc.original_filename}
+        </span>
+        <span
+          style={{
+            color: textTertiary,
+            flexShrink: 0,
+            fontSize: 11,
+          }}
+        >
+          {formatBytes(doc.file_size_bytes)}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div
       style={{
@@ -221,158 +407,22 @@ export function StepUploadDocuments({ record, colors }) {
         alignItems: "start",
       }}
     >
-      {/* ── Left: existing docs (grouped by folder) + add-new dropzone ── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <div
-          style={{
-            border: `1px solid ${cardBorder}`,
-            borderRadius: 10,
-            padding: 10,
-          }}
-        >
-          {isLoadingExisting ? (
-            <div style={{ fontSize: 12, color: textTertiary, padding: 6 }}>
-              Loading documents…
-            </div>
-          ) : fetchError ? (
-            <div style={{ fontSize: 12, color: "#ef4444", padding: 6 }}>
-              {fetchError}
-            </div>
-          ) : (
-            <>
-              <div
-                style={{
-                  fontSize: 11.5,
-                  color: textTertiary,
-                  marginBottom: 8,
-                  padding: "0 2px",
-                }}
-              >
-                {existingDocs.length} file(s) found for DTN{" "}
-                <strong style={{ color: textPrimary }}>{record.dtn}</strong>
-              </div>
-              {existingDocs.length === 0 ? (
-                <p style={{ fontSize: 12, color: textTertiary, margin: 0 }}>
-                  No documents have been uploaded for this DTN yet.
-                </p>
-              ) : (
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
-                >
-                  {folders.map((folder) => {
-                    const isCollapsed = collapsedFolders.has(folder.key);
-                    return (
-                      <div key={folder.key}>
-                        <button
-                          type="button"
-                          onClick={() => toggleFolder(folder.key)}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 6,
-                            width: "100%",
-                            padding: "7px 6px",
-                            background: "transparent",
-                            border: "none",
-                            borderRadius: 6,
-                            cursor: "pointer",
-                            fontSize: 12.5,
-                            fontWeight: 600,
-                            color: textPrimary,
-                            textAlign: "left",
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              transform: isCollapsed
-                                ? "rotate(0deg)"
-                                : "rotate(90deg)",
-                              transition: "transform 0.12s ease",
-                            }}
-                          >
-                            ▶
-                          </span>
-                          📁 {folder.label}
-                          <span
-                            style={{
-                              marginLeft: "auto",
-                              fontSize: 10.5,
-                              fontWeight: 600,
-                              color: textTertiary,
-                              background: colors.inputBg ?? "transparent",
-                              padding: "1px 6px",
-                              borderRadius: 999,
-                            }}
-                          >
-                            {folder.items.length}
-                          </span>
-                        </button>
-
-                        {!isCollapsed && (
-                          <div
-                            style={{
-                              display: "flex",
-                              flexDirection: "column",
-                              gap: 4,
-                              marginLeft: 19,
-                              marginTop: 2,
-                              marginBottom: 4,
-                            }}
-                          >
-                            {folder.items.map((doc) => {
-                              const isActive =
-                                activeItem?.type === "existing" &&
-                                activeItem.doc.id === doc.id;
-                              return (
-                                <div
-                                  key={doc.id}
-                                  onClick={() =>
-                                    setActiveItem({ type: "existing", doc })
-                                  }
-                                  style={rowStyle(isActive)}
-                                >
-                                  <span
-                                    style={{
-                                      flex: 1,
-                                      overflow: "hidden",
-                                      textOverflow: "ellipsis",
-                                      whiteSpace: "nowrap",
-                                      color: textPrimary,
-                                    }}
-                                    title={doc.original_filename}
-                                  >
-                                    {doc.original_filename}
-                                  </span>
-                                  <span
-                                    style={{
-                                      color: textTertiary,
-                                      flexShrink: 0,
-                                      fontSize: 11,
-                                    }}
-                                  >
-                                    {formatBytes(doc.file_size_bytes)}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
+      {/* ── Left: add-new dropzone (taas) + existing docs tree (baba) ── */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          maxHeight: 800,
+        }}
+      >
         {/* ── Add new files ── */}
         <div
           style={{
             border: `1px solid ${cardBorder}`,
             borderRadius: 10,
             padding: 10,
+            flexShrink: 0,
           }}
         >
           <div
@@ -426,10 +476,18 @@ export function StepUploadDocuments({ record, colors }) {
                   color: textPrimary,
                   appearance: "none",
                   cursor: "pointer",
+                  colorScheme: darkMode ? "dark" : "light",
                 }}
               >
                 {CATEGORY_OPTIONS.map((cat) => (
-                  <option key={cat} value={cat}>
+                  <option
+                    key={cat}
+                    value={cat}
+                    style={{
+                      background: colors.cardBg ?? "#1e1e1e",
+                      color: textPrimary,
+                    }}
+                  >
                     {cat}
                   </option>
                 ))}
@@ -624,6 +682,62 @@ export function StepUploadDocuments({ record, colors }) {
                 </button>
               )}
             </div>
+          )}
+        </div>
+
+        {/* ── Existing docs (nested tree, VS Code-style) ── */}
+        <div
+          style={{
+            border: `1px solid ${cardBorder}`,
+            borderRadius: 10,
+            padding: 10,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            flex: "1 1 auto",
+          }}
+        >
+          {isLoadingExisting ? (
+            <div style={{ fontSize: 12, color: textTertiary, padding: 6 }}>
+              Loading documents…
+            </div>
+          ) : fetchError ? (
+            <div style={{ fontSize: 12, color: "#ef4444", padding: 6 }}>
+              {fetchError}
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: textTertiary,
+                  marginBottom: 8,
+                  padding: "0 2px",
+                  flexShrink: 0,
+                }}
+              >
+                {existingDocs.length} file(s) found for DTN{" "}
+                <strong style={{ color: textPrimary }}>{record.dtn}</strong>
+              </div>
+              {existingDocs.length === 0 ? (
+                <p style={{ fontSize: 12, color: textTertiary, margin: 0 }}>
+                  No documents have been uploaded for this DTN yet.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    overflowY: "auto",
+                    minHeight: 0,
+                    flex: "1 1 auto",
+                  }}
+                >
+                  {renderTreeNode(fileTree, 0)}
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
