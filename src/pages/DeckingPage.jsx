@@ -31,6 +31,7 @@ function buildFilterParams(filters) {
   if (filters.brandName) p.brand_name = filters.brandName;
   if (filters.genericName) p.generic_name = filters.genericName;
   if (filters.dtn) p.dtn = parseInt(filters.dtn, 10);
+  if (filters.entryType) p.entry_type = filters.entryType;
   if (filters.typeDocReleased) p.type_doc_released = filters.typeDocReleased;
   if (filters.dateReleasedFrom) p.date_released_from = filters.dateReleasedFrom;
   if (filters.dateReleasedTo) p.date_released_to = filters.dateReleasedTo;
@@ -767,6 +768,7 @@ function DeckingPage({ darkMode }) {
         if (processingTypeTab !== null)
           params.processing_type =
             processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
+        console.log("🚀 FINAL PARAMS SENT TO API:", params);
         const json = await getUploadReports(params);
         if (!json?.data || !Array.isArray(json.data)) {
           setUploadReportsData([]);
