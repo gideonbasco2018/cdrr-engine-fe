@@ -2201,7 +2201,7 @@ function EditRecordModal({
 
   return (
     <>
-      {/* Backdrop */}
+      {/* The backdrop click-outside-to-close behavior was intentionally removed. The modal can now only be closed using the ✕ button or the Cancel button. */}
       <div
         style={{
           position: "fixed",
@@ -2213,7 +2213,6 @@ function EditRecordModal({
           backdropFilter: "blur(4px)",
           zIndex: 1000,
         }}
-        onClick={onClose}
       />
 
       {/* Modal */}

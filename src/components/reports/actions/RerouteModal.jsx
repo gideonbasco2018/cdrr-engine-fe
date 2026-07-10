@@ -544,8 +544,8 @@ function RerouteModal({ record, onClose, colors, darkMode }) {
     <>
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      <div style={overlayStyle} onClick={onClose}>
-        <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+      <div style={overlayStyle}>
+        <div style={modalStyle}>
           {/* ── Header ── */}
           <div
             style={{
