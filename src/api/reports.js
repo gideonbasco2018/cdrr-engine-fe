@@ -11,6 +11,7 @@ export const getUploadReports = async ({
   prescription = '',
   prescription_not = '',
   dtn = null,
+  entry_type = '',  
   manufacturer = '',
   lto_company = '',
   brand_name = '',
@@ -55,6 +56,7 @@ export const getUploadReports = async ({
   if (prescription) params.prescription = prescription;
   if (prescription_not) params.prescription_not = prescription_not;
   if (dtn) params.dtn = dtn;
+  if (entry_type) params.entry_type = entry_type; 
   if (manufacturer) params.manufacturer = manufacturer;
   if (lto_company) params.lto_company = lto_company;
   if (brand_name) params.brand_name = brand_name;
@@ -88,6 +90,7 @@ export const getUploadReports = async ({
     params.sort_order = sortOrder;
   }
 
+  console.log("📡 AXIOS PARAMS (final, right before request):", params);
   const response = await API.get("/main-db/", { params });
   return response.data;
 };
@@ -206,6 +209,15 @@ export const getEstablishmentCategories = async (
   return response.data.categories;
 };
 
+// ✅ Fetch unique entry types with counts
+export const getEntryTypes = async (status = null) => {
+  const params = {};
+  if (status) params.status = status;
+
+  const response = await API.get("/main-db/entry-types", { params });
+  return response.data.entry_types;
+};
+
 export const downloadTemplate = async () => {
   const response = await API.get('/main-db/download-template', {
     responseType: 'blob',
@@ -236,6 +248,7 @@ export const exportFilteredRecords = async ({
   app_status = '',
   app_type = '',
   processing_type = '',
+  entry_type = '',
   // ✅ Supply chain params
   manufacturer_country = '',
   trader = '',
@@ -266,6 +279,7 @@ export const exportFilteredRecords = async ({
   if (prescription) params.prescription = prescription;
   if (prescription_not) params.prescription_not = prescription_not;
   if (dtn) params.dtn = dtn;
+  if (entry_type) params.entry_type = entry_type; 
   if (manufacturer) params.manufacturer = manufacturer;
   if (lto_company) params.lto_company = lto_company;
   if (brand_name) params.brand_name = brand_name;
@@ -273,6 +287,7 @@ export const exportFilteredRecords = async ({
   if (app_status) params.app_status = app_status;
   if (app_type) params.app_type = app_type;
   if (processing_type) params.processing_type = processing_type;
+  if (entry_type) params.entry_type = entry_type;
   // ✅ Supply chain
   if (manufacturer_country) params.manufacturer_country = manufacturer_country;
   if (trader) params.trader = trader;

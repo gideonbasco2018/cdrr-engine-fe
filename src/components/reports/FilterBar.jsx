@@ -1,6 +1,6 @@
 // FILE: src/components/reports/FilterBar.jsx
 import { useState, useEffect, useRef } from "react";
-import { getEstablishmentCategories } from "../../api/reports";
+import { getEstablishmentCategories, getEntryTypes } from "../../api/reports";
 import { COUNTRIES } from "../tasks/viewdetails/config/constants";
 
 const inputStyle = (colors, overrides = {}) => ({
@@ -46,6 +46,7 @@ const GENERAL_FIELDS = [
     placeholder: "Enter DTN number",
     inputType: "number",
   },
+  { key: "entryType", label: "🏷️ Entry Type", type: "entryTypeSelect" },
   { key: "category", label: "📍 Est. Category", type: "select" },
   {
     key: "ltoCompany",
@@ -527,6 +528,8 @@ function FilterField({
   accentColor = "#4CAF50",
   categories = [],
   loadingCategories = false,
+  entryTypes = [],
+  loadingEntryTypes = false,
 }) {
   const isActive = Boolean(value && value.trim() !== "");
 
@@ -577,6 +580,28 @@ function FilterField({
           {categories.map((cat) => (
             <option key={cat.value || "empty"} value={cat.value || ""}>
               {cat.value || "No Category"}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {field.type === "entryTypeSelect" && (
+        <select
+          value={value || ""}
+          onChange={(e) => onChange(field.key, e.target.value)}
+          disabled={loadingEntryTypes}
+          style={inputStyle(colors, {
+            cursor: loadingEntryTypes ? "not-allowed" : "pointer",
+            opacity: loadingEntryTypes ? 0.6 : 1,
+            ...(isActive ? activeBorder : {}),
+          })}
+        >
+          <option value="">
+            {loadingEntryTypes ? "Loading…" : "All Entry Types"}
+          </option>
+          {entryTypes.map((et) => (
+            <option key={et.value || "empty"} value={et.value || ""}>
+              {et.value || "No Entry Type"}
             </option>
           ))}
         </select>
@@ -666,6 +691,8 @@ function FilterBar({
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [establishmentCategories, setEstablishmentCategories] = useState([]);
   const [loadingCategories, setLoadingCategories] = useState(false);
+  const [entryTypes, setEntryTypes] = useState([]);
+  const [loadingEntryTypes, setLoadingEntryTypes] = useState(false);
 
   // ── Normalize incoming searchTerm to a string for the textarea ──
   const normalizeSearchToString = (val) => {
@@ -722,6 +749,24 @@ function FilterBar({
     fetch();
   }, [activeTab, subTab, prescriptionTab, appStatusTab]);
 
+  useEffect(() => {
+    const fetchEntryTypes = async () => {
+      try {
+        setLoadingEntryTypes(true);
+        let status = null;
+        if (activeTab === "not-decked") status = "not_decked";
+        else if (activeTab === "decked") status = "decked";
+        const types = await getEntryTypes(status);
+        setEntryTypes(types || []);
+      } catch {
+        setEntryTypes([]);
+      } finally {
+        setLoadingEntryTypes(false);
+      }
+    };
+    fetchEntryTypes();
+  }, [activeTab]);
+
   const handleLocalFilterChange = (key, value) =>
     setLocalFilters((prev) => ({ ...prev, [key]: value }));
 
@@ -753,6 +798,8 @@ function FilterBar({
   // If multi-DTN mode: pass { dtns: "123,456,789", search: "" }
   // If single/normal: pass { dtns: "", search: localSearch }
   const handleSearch = () => {
+    console.log("🔍 DEBUG localFilters:", localFilters);
+    console.log("🔍 DEBUG entryType value:", localFilters.entryType);
     if (isMultiDTNMode) {
       // Send dtns as comma-separated, clear search
       onSearchChange(""); // clear the generic search
@@ -1043,6 +1090,8 @@ function FilterBar({
                   accentColor="#4CAF50"
                   categories={establishmentCategories}
                   loadingCategories={loadingCategories}
+                  entryTypes={entryTypes}
+                  loadingEntryTypes={loadingEntryTypes}
                 />
               ),
             )}

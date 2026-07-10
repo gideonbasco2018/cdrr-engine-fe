@@ -15,7 +15,6 @@ export const tableColumns = [
   { key: "entryType", label: "Entry Type", width: "110px" },
   { key: "__divider__", label: "", width: "1px" },
   { key: "regNo", label: "Registration No.", width: "150px" },
-  { key: "__divider__", label: "", width: "1px" },
   { key: "estCat", label: "Est. Category", width: "120px" },
   { key: "ltoComp", label: "LTO Company", width: "200px" },
   { key: "ltoAdd", label: "LTO Address", width: "450px" },
@@ -62,8 +61,8 @@ export const tableColumns = [
   { key: "suggRp", label: "Suggested RP", width: "120px" },
   // { key: "noSample", label: "No. Sample", width: "100px" },
   // { key: "expiryDate", label: "Expiry Date", width: "120px" },
-  // { key: "cprValidity", label: "CPR Validity", width: "120px" },
-  { key: "regNo", label: "Registration No.", width: "150px" },
+  // // { key: "cprValidity", label: "CPR Validity", width: "120px" },
+  // { key: "regNo", label: "Registration No.", width: "150px" },
   { key: "appType", label: "Application Type", width: "120px" },
   { key: "motherAppType", label: "Mother App Type", width: "150px" },
 
