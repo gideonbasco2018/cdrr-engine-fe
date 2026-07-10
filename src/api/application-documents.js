@@ -291,3 +291,34 @@ export const getApplicationDocumentsByDtn = async (dbDtn) => {
     throw new Error(msg);
   }
 };
+
+export const uploadApplicationDocumentSingle = async (
+  { dbEntryType, dbDtn, docCategory, mainDbId, batchId, file, relativePath },
+  onProgress,
+) => {
+  try {
+    const formData = new FormData();
+    formData.append("db_entry_type", dbEntryType);
+    formData.append("db_dtn", dbDtn);
+    formData.append("relative_path", relativePath);
+    formData.append("batch_id", batchId);
+    if (docCategory) formData.append("doc_category", docCategory);
+    if (mainDbId) formData.append("main_db_id", mainDbId);
+    formData.append("file", file);
+
+    const response = await API.post(
+      "/application-documents/upload-folder/single",
+      formData,
+      {
+        headers: { "Content-Type": undefined },
+        onUploadProgress: (evt) => {
+          if (onProgress) onProgress(evt.loaded, evt.total);
+        },
+      },
+    );
+    return response.data;
+    // Returns: { filename, success, document?, error? }
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "Failed to upload document"));
+  }
+};

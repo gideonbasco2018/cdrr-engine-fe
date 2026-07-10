@@ -23,7 +23,7 @@ import JSZip from "jszip";
 import { createExtractorFromData } from "node-unrar-js";
 
 import {
-  uploadApplicationDocumentsFolder,
+  uploadApplicationDocumentSingle,
   getUploadLogs,
   getUploadLogUploaders,
 } from "../api/application-documents";
@@ -235,6 +235,198 @@ function traverseFileTree(entry, pathPrefix = "") {
     }
     resolve([]);
   });
+}
+
+/**
+ * Gumagawa ng totoong nested folder tree galing sa flat entries kung saan
+ * ang `category` field ay "/"-joined path (hal. "PART II/SEC B/2. DRUG
+ * PRODUCT"). Ganito rin dapat kahawig ang structure na ginagawa sa
+ * Google Drive — hindi dapat isang mahabang flat label na lang.
+ */
+function buildCategoryTree(items) {
+  const root = {
+    key: "__root__",
+    label: "General (root)",
+    children: new Map(),
+    items: [],
+  };
+  for (const entry of items) {
+    if (!entry.category) {
+      root.items.push(entry);
+      continue;
+    }
+    const parts = entry.category.split("/").filter(Boolean);
+    let node = root;
+    let pathAcc = "";
+    for (const part of parts) {
+      pathAcc = pathAcc ? `${pathAcc}/${part}` : part;
+      if (!node.children.has(part)) {
+        node.children.set(part, {
+          key: pathAcc,
+          label: part,
+          children: new Map(),
+          items: [],
+        });
+      }
+      node = node.children.get(part);
+    }
+    node.items.push(entry);
+  }
+  return root;
+}
+
+function countTreeItems(node) {
+  let count = node.items.length;
+  for (const child of node.children.values()) {
+    count += countTreeItems(child);
+  }
+  return count;
+}
+
+function FileEntryItem({
+  entry,
+  s,
+  colors,
+  isActive,
+  result,
+  isUploading,
+  onSelect,
+  onRemove,
+}) {
+  return (
+    <li
+      onClick={onSelect}
+      style={{
+        ...s.fileItem,
+        ...s.fileItemNested,
+        ...(isActive ? s.fileItemActive : {}),
+      }}
+    >
+      <span style={s.fileItemIcon}>
+        {result ? (
+          <span
+            key={`${entry.id}-${result.success}`}
+            style={{
+              display: "inline-flex",
+              animation: "bdu-pop-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+            }}
+          >
+            {result.success ? (
+              <CheckCircle2 size={16} color={colors.success} />
+            ) : (
+              <XCircle size={16} color={colors.danger} />
+            )}
+          </span>
+        ) : isUploading ? (
+          <Loader2
+            size={14}
+            color={colors.textTertiary}
+            style={{ animation: "bdu-spin 1s linear infinite" }}
+          />
+        ) : (
+          <KindIcon kind={entry.kind} />
+        )}
+      </span>
+      <span style={s.fileItemName} title={entry.file.name}>
+        {entry.file.name}
+      </span>
+      <span style={s.fileItemSize}>{formatBytes(entry.file.size)}</span>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        style={s.fileItemRemove}
+        aria-label={`Remove ${entry.file.name}`}
+      >
+        <X size={13} />
+      </button>
+    </li>
+  );
+}
+
+function FolderTreeNode({
+  node,
+  groupKeyPrefix,
+  colors,
+  s,
+  collapsedFolders,
+  toggleFolder,
+  activeEntryId,
+  setActiveEntryId,
+  liveStatuses,
+  isUploading,
+  removeEntry,
+}) {
+  const groupKey = `${groupKeyPrefix}::${node.key}`;
+  const isCollapsed = collapsedFolders.has(groupKey);
+  const totalCount = countTreeItems(node);
+  const childNodes = Array.from(node.children.values()).sort((a, b) =>
+    a.label.localeCompare(b.label),
+  );
+
+  return (
+    <div style={s.folderGroup}>
+      <button
+        type="button"
+        onClick={() => toggleFolder(groupKey)}
+        style={s.folderHeader}
+      >
+        <ChevronRight
+          size={13}
+          style={{
+            transform: isCollapsed ? "rotate(0deg)" : "rotate(90deg)",
+            transition: "transform 120ms ease",
+            flexShrink: 0,
+          }}
+        />
+        <FolderOpen size={14} style={{ flexShrink: 0 }} />
+        <span style={s.folderLabel} title={node.label}>
+          {node.label}
+        </span>
+        <span style={s.folderCount}>{totalCount}</span>
+      </button>
+
+      {!isCollapsed && (
+        <div style={s.dtnGroupBody}>
+          {childNodes.map((child) => (
+            <FolderTreeNode
+              key={child.key}
+              node={child}
+              groupKeyPrefix={groupKeyPrefix}
+              colors={colors}
+              s={s}
+              collapsedFolders={collapsedFolders}
+              toggleFolder={toggleFolder}
+              activeEntryId={activeEntryId}
+              setActiveEntryId={setActiveEntryId}
+              liveStatuses={liveStatuses}
+              isUploading={isUploading}
+              removeEntry={removeEntry}
+            />
+          ))}
+          {node.items.length > 0 && (
+            <ul style={s.fileList}>
+              {node.items.map((entry) => (
+                <FileEntryItem
+                  key={entry.id}
+                  entry={entry}
+                  s={s}
+                  colors={colors}
+                  isActive={entry.id === activeEntryId}
+                  result={liveStatuses[entry.relativePath]}
+                  isUploading={isUploading}
+                  onSelect={() => setActiveEntryId(entry.id)}
+                  onRemove={() => removeEntry(entry.id)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -455,26 +647,14 @@ function UploadFolderTab({ colors, s }) {
     for (const entry of entries) {
       const dtn = entry.relativePath.split("/")[0];
       if (!groups.has(dtn)) {
-        groups.set(dtn, { dtn, items: [], categories: new Map() });
+        groups.set(dtn, { dtn, items: [] });
       }
-      const g = groups.get(dtn);
-      g.items.push(entry);
-      const catKey = entry.category || "__root__";
-      if (!g.categories.has(catKey)) {
-        g.categories.set(catKey, {
-          key: catKey,
-          label: entry.category || "General (root)",
-          items: [],
-        });
-      }
-      g.categories.get(catKey).items.push(entry);
+      groups.get(dtn).items.push(entry);
     }
     return Array.from(groups.values())
       .map((g) => ({
         ...g,
-        categories: Array.from(g.categories.values()).sort((a, b) =>
-          a.label.localeCompare(b.label),
-        ),
+        tree: buildCategoryTree(g.items),
       }))
       .sort((a, b) => a.dtn.localeCompare(b.dtn));
   }, [entries]);
@@ -617,6 +797,8 @@ function UploadFolderTab({ colors, s }) {
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+  const CONCURRENCY = 3; // ilang files ang sabay na aasenso — taasan/babaan depende sa performance
+
   const handleUpload = async () => {
     setFormError("");
     const validationError = validate();
@@ -626,84 +808,97 @@ function UploadFolderTab({ colors, s }) {
     }
 
     setIsUploading(true);
-    setUploadProgress(1);
-    setUploadCounts({ done: 0, total: entries.length });
     setLiveStatuses({});
-
     const sentEntries = entries;
     const batchId = generateBatchId();
     const total = sentEntries.length;
+    setUploadCounts({ done: 0, total });
+    setUploadProgress(1);
 
-    const pollTimer = setInterval(async () => {
-      try {
-        const logRes = await getUploadFolderLogs(batchId);
-        const logs = logRes.data || [];
-        if (logs.length) {
-          setLiveStatuses((prev) => {
-            const next = { ...prev };
-            logs.forEach((log) => {
-              next[log.relative_path] = {
-                success: log.status === "success",
-                error: log.error_message,
-              };
-            });
-            return next;
-          });
-        }
-        setUploadCounts({ done: logs.length, total });
-        setUploadProgress(
-          total > 0
-            ? Math.min(99, Math.max(1, Math.round((logs.length / total) * 100)))
-            : 1,
-        );
-      } catch {
-        // transient poll failure — ignore, keep trying next tick
-      }
-    }, 1000);
+    const loadedBytes = new Array(total).fill(0);
+    const totalBytesArr = sentEntries.map((e) => e.file.size);
+    const totalBytesSum = totalBytesArr.reduce((a, b) => a + b, 0) || 1;
 
-    try {
-      const result = await uploadApplicationDocumentsFolder(
-        {
-          dbEntryType,
-          files: sentEntries.map((e) => e.file),
-          relativePaths: sentEntries.map((e) => e.relativePath),
-          batchId,
-        },
-        () => {}, // axios byte-progress no longer drives the UI
+    const updateOverallProgress = () => {
+      const sumLoaded = loadedBytes.reduce((a, b) => a + b, 0);
+      setUploadProgress(
+        Math.min(
+          99,
+          Math.max(1, Math.round((sumLoaded / totalBytesSum) * 100)),
+        ),
       );
-      setUploadResults(result);
-      setUploadProgress(100);
-      setUploadCounts({ done: total, total });
+    };
 
-      // Merge final authoritative results, in case the last poll tick missed them
-      setLiveStatuses((prev) => {
-        const next = { ...prev };
-        sentEntries.forEach((entry, idx) => {
-          const r = result.results[idx];
-          if (r)
-            next[entry.relativePath] = { success: r.success, error: r.error };
-        });
-        return next;
-      });
+    const results = new Array(total);
+    let doneCount = 0;
+    let cursor = 0;
 
-      const failedEntries = [];
-      sentEntries.forEach((entry, idx) => {
-        const r = result.results[idx];
-        if (r && !r.success)
-          failedEntries.push({ ...entry, uploadError: r.error });
-        else URL.revokeObjectURL(entry.previewUrl);
-      });
+    const worker = async () => {
+      while (cursor < total) {
+        const idx = cursor++;
+        const entry = sentEntries[idx];
+        try {
+          const r = await uploadApplicationDocumentSingle(
+            {
+              dbEntryType,
+              dbDtn: entry.relativePath.split("/")[0],
+              docCategory: entry.category,
+              batchId,
+              file: entry.file,
+              relativePath: entry.relativePath,
+            },
+            (loaded) => {
+              loadedBytes[idx] = loaded;
+              updateOverallProgress();
+            },
+          );
+          results[idx] = r;
+          setLiveStatuses((prev) => ({
+            ...prev,
+            [entry.relativePath]: { success: r.success, error: r.error },
+          }));
+        } catch (err) {
+          results[idx] = {
+            filename: entry.file.name,
+            success: false,
+            error: err.message || "Upload failed.",
+          };
+          setLiveStatuses((prev) => ({
+            ...prev,
+            [entry.relativePath]: { success: false, error: err.message },
+          }));
+        } finally {
+          loadedBytes[idx] = totalBytesArr[idx];
+          doneCount += 1;
+          setUploadCounts({ done: doneCount, total });
+          updateOverallProgress();
+        }
+      }
+    };
 
-      setEntries(failedEntries);
-      setActiveEntryId(failedEntries[0]?.id ?? null);
-      if (failedEntries.length === 0) setDbEntryType("");
-      setCollapsedFolders(new Set());
-    } catch (err) {
-      setFormError(err.message || "Upload failed.");
-    } finally {
-      clearInterval(pollTimer);
-      setIsUploading(false);
-    }
+    const workers = Array.from({ length: Math.min(CONCURRENCY, total) }, () =>
+      worker(),
+    );
+    await Promise.all(workers);
+
+    const succeeded = results.filter((r) => r.success).length;
+    const failed = total - succeeded;
+    setUploadResults({ total, succeeded, failed, results, batch_id: batchId });
+    setUploadProgress(100);
+
+    const failedEntries = [];
+    sentEntries.forEach((entry, idx) => {
+      const r = results[idx];
+      if (r && !r.success)
+        failedEntries.push({ ...entry, uploadError: r.error });
+      else URL.revokeObjectURL(entry.previewUrl);
+    });
+
+    setEntries(failedEntries);
+    setActiveEntryId(failedEntries[0]?.id ?? null);
+    if (failedEntries.length === 0) setDbEntryType("");
+    setCollapsedFolders(new Set());
+    setIsUploading(false);
   };
 
   return (
@@ -861,114 +1056,44 @@ function UploadFolderTab({ colors, s }) {
                       </div>
                     )}
                     <div style={showDtnHeader ? s.dtnGroupBody : undefined}>
-                      {dtnGroup.categories.map((folder) => {
-                        const groupKey = `${dtnGroup.dtn}::${folder.key}`;
-                        const isCollapsed = collapsedFolders.has(groupKey);
-                        return (
-                          <div key={groupKey} style={s.folderGroup}>
-                            <button
-                              type="button"
-                              onClick={() => toggleFolder(groupKey)}
-                              style={s.folderHeader}
-                            >
-                              <ChevronRight
-                                size={13}
-                                style={{
-                                  transform: isCollapsed
-                                    ? "rotate(0deg)"
-                                    : "rotate(90deg)",
-                                  transition: "transform 120ms ease",
-                                  flexShrink: 0,
-                                }}
-                              />
-                              <FolderOpen size={14} style={{ flexShrink: 0 }} />
-                              <span style={s.folderLabel} title={folder.label}>
-                                {folder.label}
-                              </span>
-                              <span style={s.folderCount}>
-                                {folder.items.length}
-                              </span>
-                            </button>
-
-                            {!isCollapsed && (
-                              <ul style={s.fileList}>
-                                {folder.items.map((entry) => {
-                                  const isActive = entry.id === activeEntryId;
-                                  const result =
-                                    liveStatuses[entry.relativePath];
-                                  return (
-                                    <li
-                                      key={entry.id}
-                                      onClick={() => setActiveEntryId(entry.id)}
-                                      style={{
-                                        ...s.fileItem,
-                                        ...s.fileItemNested,
-                                        ...(isActive ? s.fileItemActive : {}),
-                                      }}
-                                    >
-                                      <span style={s.fileItemIcon}>
-                                        {result ? (
-                                          <span
-                                            key={`${entry.id}-${result.success}`}
-                                            style={{
-                                              display: "inline-flex",
-                                              animation:
-                                                "bdu-pop-in 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-                                            }}
-                                          >
-                                            {result.success ? (
-                                              <CheckCircle2
-                                                size={16}
-                                                color={colors.success}
-                                              />
-                                            ) : (
-                                              <XCircle
-                                                size={16}
-                                                color={colors.danger}
-                                              />
-                                            )}
-                                          </span>
-                                        ) : isUploading ? (
-                                          <Loader2
-                                            size={14}
-                                            color={colors.textTertiary}
-                                            style={{
-                                              animation:
-                                                "bdu-spin 1s linear infinite",
-                                            }}
-                                          />
-                                        ) : (
-                                          <KindIcon kind={entry.kind} />
-                                        )}
-                                      </span>
-                                      <span
-                                        style={s.fileItemName}
-                                        title={entry.file.name}
-                                      >
-                                        {entry.file.name}
-                                      </span>
-                                      <span style={s.fileItemSize}>
-                                        {formatBytes(entry.file.size)}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          removeEntry(entry.id);
-                                        }}
-                                        style={s.fileItemRemove}
-                                        aria-label={`Remove ${entry.file.name}`}
-                                      >
-                                        <X size={13} />
-                                      </button>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {Array.from(dtnGroup.tree.children.values())
+                        .sort((a, b) => a.label.localeCompare(b.label))
+                        .map((child) => (
+                          <FolderTreeNode
+                            key={child.key}
+                            node={child}
+                            groupKeyPrefix={dtnGroup.dtn}
+                            colors={colors}
+                            s={s}
+                            collapsedFolders={collapsedFolders}
+                            toggleFolder={toggleFolder}
+                            activeEntryId={activeEntryId}
+                            setActiveEntryId={setActiveEntryId}
+                            liveStatuses={liveStatuses}
+                            isUploading={isUploading}
+                            removeEntry={removeEntry}
+                          />
+                        ))}
+                      {dtnGroup.tree.items.length > 0 && (
+                        <FolderTreeNode
+                          node={{
+                            key: "__root__",
+                            label: "General (root)",
+                            children: new Map(),
+                            items: dtnGroup.tree.items,
+                          }}
+                          groupKeyPrefix={dtnGroup.dtn}
+                          colors={colors}
+                          s={s}
+                          collapsedFolders={collapsedFolders}
+                          toggleFolder={toggleFolder}
+                          activeEntryId={activeEntryId}
+                          setActiveEntryId={setActiveEntryId}
+                          liveStatuses={liveStatuses}
+                          isUploading={isUploading}
+                          removeEntry={removeEntry}
+                        />
+                      )}
                     </div>
                   </div>
                 );
