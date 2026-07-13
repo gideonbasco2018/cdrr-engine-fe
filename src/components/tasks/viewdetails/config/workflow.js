@@ -8,6 +8,7 @@ export const WORKFLOW = {
     "Endorsed to Supervisor": "Supervisor",
     "Draft Recommendation": "Checking",
     "Returned to S&E Evaluator": "S&E",
+    "Endorsed to S&E (Parallel)": "S&E", 
   },
    "S&E": {
     "Endorsed to S&E Supervisor": "S&E Supervisor",
@@ -114,6 +115,7 @@ export const STEP_DECISIONS = {
     "For Compliance",
     "Draft Recommendation",
     "Returned to S&E Evaluator",
+    "Endorsed to S&E (Parallel)", 
   ],
   "S&E": [
     "Endorsed to S&E Supervisor",  
@@ -191,6 +193,7 @@ export const DECISION_DOCTRACK = {
   "For Decking": "Forwarded to Evaluator",
   "Approved OD": "Approved by CDRR Director",
   "Disapproved OD": "Disapproved by CDRR Director",
+  "Endorsed to S&E (Parallel)": "Forwarded to S&E for parallel evaluation; Quality Evaluation continues processing simultaneously",
 };
 
 export const EDITABLE_STEPS = [

@@ -356,6 +356,7 @@ export function Step4ActionForm({
     currentStep,
     formData.decision,
   );
+  const isParallelSE = formData.decision === "Endorsed to S&E (Parallel)";
   const needsAssignee =
     nextStep !== null && !isForCompliance && !nextStepActive;
   const isLRDChiefAdmin = currentStep === "LRD Chief Admin";
@@ -900,6 +901,36 @@ export function Step4ActionForm({
               ? { deadline_date: deadlineDate, working_days: workingDays }
               : {}),
           });
+        }
+      }
+
+      if (isParallelSE) {
+        try {
+          const parallelIndexData = await getLastApplicationLogIndex(
+            record.mainDbId,
+          );
+          const parallelNextIndex = (parallelIndexData.last_index ?? 0) + 1;
+
+          await createApplicationLog({
+            main_db_id: record.mainDbId,
+            application_step: "Quality Evaluation",
+            user_name: currentUser?.username || formData.currentUserDisplay,
+            application_status: "IN PROGRESS",
+            application_decision: "",
+            application_remarks: "",
+            start_date: formattedDateTime,
+            accomplished_date: null,
+            del_index: parallelNextIndex,
+            del_previous: parallelIndexData.last_index,
+            del_last_index: 1,
+            del_thread: "Open",
+            user_id: currentUser?.id ?? null,
+          });
+        } catch (err) {
+          console.warn(
+            "⚠️ Failed to create parallel QE log (non-fatal):",
+            err.message,
+          );
         }
       }
 
