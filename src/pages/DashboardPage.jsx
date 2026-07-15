@@ -51,6 +51,8 @@ import {
   stopImpersonation,
 } from "../api/auth";
 import UploadHistoryCard from "../components/dashboard/UploadHistoryCard";
+import TawkChat from "../components/TawkChat";
+
 // ─── Impersonation Banner ─────────────────────────────────────────────────────
 function ImpersonationPrompt({ ui, onClose }) {
   const name = getImpersonatedName();
@@ -1076,6 +1078,7 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
 
   return (
     <>
+      <TawkChat />
       {/* ── Impersonation Prompt Modal (shown once on redirect) ── */}
       {showImpersonationPrompt && (
         <ImpersonationPrompt
