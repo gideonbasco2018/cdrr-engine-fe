@@ -1131,6 +1131,29 @@ function DataTable({
                 >
                   ★ {/* ← NO SortIcon here */}
                 </th>
+                <th
+                  style={{
+                    padding: "0.45rem 0.4rem",
+                    textAlign: "left",
+                    fontSize: "0.55rem",
+                    fontWeight: 600,
+                    color: "#22c55e",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.03em",
+                    borderBottom: `1px solid ${colors.tableBorder}`,
+                    background: colors.tableBg,
+                    position: "sticky",
+                    left: "116px",
+                    zIndex: 21,
+                    width: "110px",
+                    minWidth: "110px",
+                    whiteSpace: "nowrap",
+                    cursor: "default",
+                    userSelect: "none",
+                  }}
+                >
+                  🎯 Target
+                </th>
 
                 {visibleColumns.map((col) =>
                   col.key === "__divider__" ? (
@@ -1434,6 +1457,47 @@ function DataTable({
                       >
                         ★
                       </button>
+                    </td>
+
+                    {/* 🎯 Target indicator */}
+                    <td
+                      style={{
+                        padding: "0.4rem 0.4rem",
+                        borderBottom: `1px solid ${colors.tableBorder}`,
+                        textAlign: "left",
+                        position: "sticky",
+                        left: "116px",
+                        background: solidStickyBg,
+                        zIndex: 9,
+                        width: "110px",
+                        minWidth: "110px",
+                        whiteSpace: "nowrap",
+                        transition: "background .2s",
+                      }}
+                      title={row.target_remarks || ""}
+                    >
+                      {row.is_targeted && (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "3px",
+                            fontSize: "0.65rem",
+                            fontWeight: 700,
+                            color: "#22c55e",
+                          }}
+                        >
+                          🎯{" "}
+                          {row.target_end_date
+                            ? `until ${new Date(
+                                row.target_end_date,
+                              ).toLocaleDateString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                              })}`
+                            : "Targeted"}
+                        </span>
+                      )}
                     </td>
 
                     {visibleColumns.map((col) =>

@@ -190,10 +190,6 @@ function mapActivityItem(app, index) {
     statusColor,
     statusBg,
     statusLabel,
-    icon,
-    statusColor,
-    statusBg,
-    statusLabel,
     appStep,
     dtn: app.dtn,
   };
@@ -479,7 +475,7 @@ export default function ActivityFeedView({
 }) {
   const font =
     "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
-    "-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  ("-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Segoe UI',Roboto,Helvetica,Arial,sans-serif");
 
   const [feed, setFeed] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -510,10 +506,10 @@ export default function ActivityFeedView({
       const raw = Array.isArray(data?.rows)
         ? data.rows
         : Array.isArray(data?.data)
-        ? data.data
-        : Array.isArray(data)
-        ? data
-        : [];
+          ? data.data
+          : Array.isArray(data)
+            ? data
+            : [];
       const items = raw.map((app, i) => mapActivityItem(app, i));
       items.sort((a, b) => {
         if (!a.rawDate) return 1;

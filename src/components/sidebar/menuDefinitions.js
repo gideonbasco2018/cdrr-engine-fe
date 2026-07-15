@@ -81,6 +81,7 @@ export const menuDefinitions = {
       { id: "users", icon: "👥", label: "User Management", roles: ["Admin","SuperAdmin"] },
       { id: "settings", icon: "⚙️", label: "Settings", roles: ["SuperAdmin"] },
       { id: "lead-assignments", icon: "🔗", label: "Lead Assignment", roles: ["User","Admin","SuperAdmin"] },
+      { id: "target-assignments", icon: "🎯", label: "Target Assignment", roles: ["User","Admin","SuperAdmin"] },
   ],
 
   supportItems: [
