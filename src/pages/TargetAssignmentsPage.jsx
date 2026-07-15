@@ -217,6 +217,44 @@ function TargetModal({
   const [endDate, setEndDate] = useState(single?.target_end_date || "");
   const [remarks, setRemarks] = useState(single?.target_remarks || "");
   const [error, setError] = useState(null);
+  const [monthPick, setMonthPick] = useState("");
+
+  // ── Quick month picker: next 12 months from today ─────────────────
+  const monthChoices = useMemo(() => {
+    const out = [];
+    const base = new Date();
+    base.setDate(1);
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(base.getFullYear(), base.getMonth() + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+      });
+      out.push({ key, label });
+    }
+    return out;
+  }, []);
+
+  // Format a Date using its LOCAL y/m/d — avoids the UTC shift that
+  // toISOString() causes (which can push the date back a day in
+  // timezones ahead of UTC, like PHT).
+  const toLocalIso = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  const handleMonthPick = (key) => {
+    setMonthPick(key);
+    if (!key) return;
+    const [y, m] = key.split("-").map(Number);
+    const first = new Date(y, m - 1, 1);
+    const last = new Date(y, m, 0); // day 0 of next month = last day of this month
+    setStartDate(toLocalIso(first));
+    setEndDate(toLocalIso(last));
+  };
 
   const handleSubmit = () => {
     if (!startDate || !endDate) {
@@ -282,6 +320,20 @@ function TargetModal({
             : `${single.brand_name} · DTN ${single.dtn}`}
         </div>
 
+        <label style={labelStyle(colors)}>Quick Pick: Month</label>
+        <select
+          value={monthPick}
+          onChange={(e) => handleMonthPick(e.target.value)}
+          style={{ ...inputStyle(colors), cursor: "pointer" }}
+        >
+          <option value="">— Select a month (optional) —</option>
+          {monthChoices.map((mc) => (
+            <option key={mc.key} value={mc.key}>
+              {mc.label}
+            </option>
+          ))}
+        </select>
+
         <label style={labelStyle(colors)}>Target Start Date</label>
         <input
           type="date"
@@ -295,7 +347,10 @@ function TargetModal({
         <input
           type="date"
           value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
+          onChange={(e) => {
+            setEndDate(e.target.value);
+            setMonthPick("");
+          }}
           onClick={(e) => e.currentTarget.showPicker?.()}
           style={{ ...inputStyle(colors), cursor: "pointer" }}
         />
@@ -401,6 +456,89 @@ const formatMonthLabel = (key) => {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 };
 
+const todayLocalIso = () => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+
+// ── Compare date_accomplished vs target_end_date to classify the
+// outcome of a targeted task. Falls back to "Pending"/"Overdue" when
+// the task hasn't been accomplished yet. ────────────────────────────
+const TARGET_OUTCOME_STYLES = {
+  within: {
+    bg: "rgba(34,197,94,0.12)",
+    border: "#22c55e",
+    color: "#22c55e",
+    label: "Within Target",
+  },
+  beyond: {
+    bg: "rgba(239,68,68,0.12)",
+    border: "#ef4444",
+    color: "#ef4444",
+    label: "Beyond Target",
+  },
+  overdue: {
+    bg: "rgba(239,68,68,0.12)",
+    border: "#ef4444",
+    color: "#ef4444",
+    label: "Overdue",
+  },
+  pending: {
+    bg: "rgba(59,130,246,0.12)",
+    border: "#3b82f6",
+    color: "#3b82f6",
+    label: "Pending",
+  },
+  unknown: {
+    bg: "rgba(150,150,150,0.12)",
+    border: "#9ca3af",
+    color: "#9ca3af",
+    label: "—",
+  },
+};
+
+const isCompletedStatus = (status) =>
+  (status || "").trim().toUpperCase() === "COMPLETED";
+
+function getTargetOutcome(t) {
+  const end = t.target_end_date;
+  if (!end) return "unknown";
+
+  const accomplished = t.date_accomplished
+    ? String(t.date_accomplished).slice(0, 10)
+    : null;
+
+  if (accomplished) {
+    return accomplished <= end ? "within" : "beyond";
+  }
+
+  return todayLocalIso() > end ? "overdue" : "pending";
+}
+
+function TargetOutcomeBadge({ outcome }) {
+  const s = TARGET_OUTCOME_STYLES[outcome] || TARGET_OUTCOME_STYLES.unknown;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        fontSize: "0.68rem",
+        fontWeight: 700,
+        padding: "3px 9px",
+        borderRadius: "9999px",
+        background: s.bg,
+        border: `1px solid ${s.border}`,
+        color: s.color,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {s.label}
+    </span>
+  );
+}
 // ── Diagram view: draggable member + task cards, connected by lines,
 //    filterable by month tabs (based on target_start_date) ──────────
 function TeamDiagramView({
@@ -750,8 +888,8 @@ function TeamDiagramView({
 
           {nodes.map((n) => {
             const pos = positions[n.id] || { x: 0, y: 0 };
-            const completed = n.tasks.filter(
-              (t) => t.status === "Completed",
+            const completed = n.tasks.filter((t) =>
+              isCompletedStatus(t.status),
             ).length;
             return (
               <div key={n.id}>
@@ -838,9 +976,18 @@ function TargetTableView({ colors, team, diagramData, diagramLoading }) {
         );
       if (targeted.length > 0) {
         const total = memberTasks.length;
-        const completed = memberTasks.filter(
-          (t) => t.status === "Completed",
+        const completed = memberTasks.filter((t) =>
+          isCompletedStatus(t.status),
         ).length;
+
+        let withinCount = 0;
+        let beyondCount = 0;
+        targeted.forEach((t) => {
+          const outcome = getTargetOutcome(t);
+          if (outcome === "within") withinCount++;
+          if (outcome === "beyond" || outcome === "overdue") beyondCount++;
+        });
+
         out.push({
           member: m,
           targets: targeted,
@@ -849,6 +996,8 @@ function TargetTableView({ colors, team, diagramData, diagramLoading }) {
             completed,
             onProcess: total - completed,
             targetCount: targeted.length, // ← filtered count, sumusunod sa month tab
+            withinCount,
+            beyondCount,
           },
         });
       }
@@ -973,12 +1122,13 @@ function TargetTableView({ colors, team, diagramData, diagramLoading }) {
           >
             <thead>
               <tr style={{ background: colors.rowHover, textAlign: "left" }}>
-                <th style={{ ...thStyle(colors), minWidth: 190 }}>Member</th>
+                <th style={{ ...thStyle(colors), minWidth: 210 }}>Member</th>
                 <th style={thStyle(colors)}>Target</th>
                 <th style={thStyle(colors)}>Step</th>
                 <th style={thStyle(colors)}>Status</th>
                 <th style={thStyle(colors)}>Date Accomplished</th>
                 <th style={thStyle(colors)}>Target Date</th>
+                <th style={thStyle(colors)}>Target Status</th>
               </tr>
             </thead>
             <tbody>
@@ -1005,43 +1155,16 @@ function TargetTableView({ colors, team, diagramData, diagramLoading }) {
                             fontSize: "0.68rem",
                             fontWeight: 400,
                             color: colors.textTertiary,
-                            marginBottom: "0.4rem",
+                            marginBottom: "0.5rem",
                           }}
                         >
                           {member.lead_role}
                         </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: "3px",
-                          }}
-                        >
-                          <MiniBadge
-                            label="Total"
-                            value={stats.total}
-                            colors={colors}
-                            tone="neutral"
-                          />
-                          <MiniBadge
-                            label="Done"
-                            value={stats.completed}
-                            colors={colors}
-                            tone="green"
-                          />
-                          <MiniBadge
-                            label="On Proc"
-                            value={stats.onProcess}
-                            colors={colors}
-                            tone="blue"
-                          />
-                          <MiniBadge
-                            label="🎯"
-                            value={member.target_count}
-                            colors={colors}
-                            tone="target"
-                          />
-                        </div>
+                        <MemberStatGrid
+                          stats={stats}
+                          member={member}
+                          colors={colors}
+                        />
                       </td>
                     )}
                     <td style={tdStyle(colors)}>
@@ -1069,6 +1192,9 @@ function TargetTableView({ colors, team, diagramData, diagramLoading }) {
                       {t.target_start_date && t.target_end_date
                         ? `${t.target_start_date} → ${t.target_end_date}`
                         : t.target_start_date || t.target_end_date || "—"}
+                    </td>
+                    <td style={tdStyle(colors)}>
+                      <TargetOutcomeBadge outcome={getTargetOutcome(t)} />
                     </td>
                   </tr>
                 )),
@@ -1141,13 +1267,13 @@ function MemberNode({ member, colors, loading, total, completed, onProcess }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}>
         <MiniBadge label="Total" value={total} colors={colors} tone="neutral" />
         <MiniBadge
-          label="Done"
+          label="Completed"
           value={completed}
           colors={colors}
           tone="green"
         />
         <MiniBadge
-          label="On Proc"
+          label="In Progress"
           value={onProcess}
           colors={colors}
           tone="blue"
@@ -1169,6 +1295,99 @@ function MemberNode({ member, colors, loading, total, completed, onProcess }) {
   );
 }
 
+// ── Compact stat grid for the Member cell — cleaner than a wall of
+// badges. Two mini-tables: workload (Total/Done/On Proc/🎯) and
+// target outcome (Within/Beyond), stacked vertically.
+function MemberStatGrid({ stats, member, colors }) {
+  const rowStyle = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "3px 8px",
+    fontSize: "0.68rem",
+  };
+  const labelStyle2 = { color: colors.textTertiary, fontWeight: 500 };
+  const valueStyle = (color) => ({
+    fontWeight: 700,
+    color: color || colors.textPrimary,
+  });
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+        maxWidth: 190,
+      }}
+    >
+      <div
+        style={{
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "6px",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            ...rowStyle,
+            borderBottom: `1px solid ${colors.cardBorder}`,
+          }}
+        >
+          <span style={labelStyle2}>Total</span>
+          <span style={valueStyle()}>{stats.total}</span>
+        </div>
+        <div
+          style={{
+            ...rowStyle,
+            borderBottom: `1px solid ${colors.cardBorder}`,
+          }}
+        >
+          <span style={labelStyle2}>Completed</span>
+          <span style={valueStyle("#22c55e")}>{stats.completed}</span>
+        </div>
+        <div
+          style={{
+            ...rowStyle,
+            borderBottom: `1px solid ${colors.cardBorder}`,
+          }}
+        >
+          <span style={labelStyle2}>In Progress</span>
+          <span style={valueStyle("#3b82f6")}>{stats.onProcess}</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle2}>🎯 Targeted</span>
+          <span style={valueStyle(colors.targetBorder)}>
+            {member.target_count}
+          </span>
+        </div>
+      </div>
+
+      <div
+        style={{
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "6px",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            ...rowStyle,
+            borderBottom: `1px solid ${colors.cardBorder}`,
+          }}
+        >
+          <span style={labelStyle2}>✓ Within Target</span>
+          <span style={valueStyle("#22c55e")}>{stats.withinCount}</span>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle2}>✕ Beyond Target</span>
+          <span style={valueStyle("#ef4444")}>{stats.beyondCount}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MiniBadge({ label, value, colors, tone }) {
   const toneStyles = {
     neutral: {
@@ -1178,6 +1397,7 @@ function MiniBadge({ label, value, colors, tone }) {
     },
     green: { bg: "rgba(34,197,94,0.12)", border: "#22c55e", color: "#22c55e" },
     blue: { bg: "rgba(59,130,246,0.12)", border: "#3b82f6", color: "#3b82f6" },
+    red: { bg: "rgba(239,68,68,0.12)", border: "#ef4444", color: "#ef4444" },
     target: {
       bg: colors.targetBg,
       border: colors.targetBorder,
@@ -1207,12 +1427,16 @@ function MiniBadge({ label, value, colors, tone }) {
 }
 
 function TaskNode({ task, colors }) {
+  const key = (task.status || "").trim().toUpperCase();
+  const kind = STATUS_KIND_MAP[key] || "default";
+  const statusColor = STATUS_KIND_STYLES[kind].color;
+
   return (
     <div
       title={task.target_remarks || ""}
       style={{
-        background: colors.targetBg,
-        border: `1px solid ${colors.targetBorder}`,
+        background: `${statusColor}1a`, // ~10% opacity tint of the status color
+        border: `1px solid ${statusColor}`,
         borderRadius: "8px",
         padding: "0.4rem 0.55rem",
         boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
@@ -1244,12 +1468,21 @@ function TaskNode({ task, colors }) {
       >
         {task.brand_name}
       </div>
+      <div
+        style={{
+          fontSize: "0.58rem",
+          fontWeight: 700,
+          color: statusColor,
+        }}
+      >
+        {task.status || "—"}
+      </div>
       {task.target_end_date && (
         <div
           style={{
             fontSize: "0.58rem",
             fontWeight: 600,
-            color: colors.targetBorder,
+            color: statusColor,
           }}
         >
           until {task.target_end_date}
@@ -1274,7 +1507,11 @@ export default function TargetAssignmentsPage({ darkMode }) {
   // ── Search & filters ────────────────────────────────────────────
   const [searchDtn, setSearchDtn] = useState("");
   const [filterStep, setFilterStep] = useState("");
-  const [filterStatus, setFilterStatus] = useState("");
+  const [filterStatus, setFilterStatus] = useState("IN PROGRESS");
+
+  // ── Pagination (List View table) ──────────────────────────────────
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // ── Bulk selection ──────────────────────────────────────────────
   const [selectedLogIds, setSelectedLogIds] = useState(new Set());
@@ -1351,9 +1588,14 @@ export default function TargetAssignmentsPage({ darkMode }) {
     // reset per-member UI state when switching members
     setSearchDtn("");
     setFilterStep("");
-    setFilterStatus("");
+    setFilterStatus("IN PROGRESS");
     setSelectedLogIds(new Set());
+    setCurrentPage(1);
   }, [selectedMemberId, loadTasks]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchDtn, filterStep, filterStatus]);
 
   useEffect(() => {
     if (
@@ -1387,6 +1629,15 @@ export default function TargetAssignmentsPage({ darkMode }) {
       return true;
     });
   }, [tasks, searchDtn, filterStep, filterStatus]);
+
+  // ── Derived: paginated slice of filteredTasks ─────────────────────
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / rowsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const indexOfFirstRow = (safePage - 1) * rowsPerPage;
+  const paginatedTasks = filteredTasks.slice(
+    indexOfFirstRow,
+    indexOfFirstRow + rowsPerPage,
+  );
 
   const allFilteredSelected =
     filteredTasks.length > 0 &&
@@ -1637,28 +1888,41 @@ export default function TargetAssignmentsPage({ darkMode }) {
                           style={{
                             fontSize: "0.7rem",
                             color: colors.textTertiary,
+                            marginBottom: "0.3rem",
                           }}
                         >
                           {m.lead_role} · {m.task_count} task
                           {m.task_count !== 1 ? "s" : ""}
                         </div>
-                      </div>
-                      {m.target_count > 0 && (
-                        <span
+                        <div
                           style={{
-                            fontSize: "0.65rem",
-                            fontWeight: 700,
-                            color: colors.targetBorder,
-                            background: colors.targetBg,
-                            border: `1px solid ${colors.targetBorder}`,
-                            borderRadius: "9999px",
-                            padding: "1px 7px",
-                            flexShrink: 0,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: "3px",
                           }}
                         >
-                          {m.target_count} 🎯
-                        </span>
-                      )}
+                          <MiniBadge
+                            label="In Progress"
+                            value={m.in_progress_count}
+                            colors={colors}
+                            tone="blue"
+                          />
+                          <MiniBadge
+                            label="Completed"
+                            value={m.completed_count}
+                            colors={colors}
+                            tone="green"
+                          />
+                          {m.target_count > 0 && (
+                            <MiniBadge
+                              label="🎯"
+                              value={m.target_count}
+                              colors={colors}
+                              tone="target"
+                            />
+                          )}
+                        </div>
+                      </div>
                     </div>
                   );
                 })
@@ -1798,155 +2062,319 @@ export default function TargetAssignmentsPage({ darkMode }) {
                   )}
                 </div>
 
-                <div style={{ overflowY: "auto", flex: 1 }}>
-                  {tasksLoading ? (
-                    <div
-                      style={{
-                        padding: "2rem",
-                        textAlign: "center",
-                        color: colors.textTertiary,
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      Loading tasks…
-                    </div>
-                  ) : tasksError ? (
-                    <div
-                      style={{
-                        padding: "2rem",
-                        textAlign: "center",
-                        color: "#ef4444",
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      {tasksError}
-                    </div>
-                  ) : filteredTasks.length === 0 ? (
-                    <div
-                      style={{
-                        padding: "2rem",
-                        textAlign: "center",
-                        color: colors.textTertiary,
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      {tasks.length === 0
-                        ? "No active tasks assigned to this user right now."
-                        : "No tasks match your search/filters."}
-                    </div>
-                  ) : (
-                    <table
-                      style={{
-                        width: "100%",
-                        borderCollapse: "collapse",
-                        fontSize: "0.82rem",
-                      }}
-                    >
-                      <thead>
-                        <tr
-                          style={{
-                            background: colors.rowHover,
-                            textAlign: "left",
-                          }}
-                        >
-                          <th style={{ ...thStyle(colors), width: 34 }}>
-                            <input
-                              type="checkbox"
-                              checked={allFilteredSelected}
-                              onChange={toggleSelectAll}
-                            />
-                          </th>
-                          <th style={thStyle(colors)}>DTN</th>
-                          <th style={thStyle(colors)}>Brand Name</th>
-                          <th style={thStyle(colors)}>Step</th>
-                          <th style={thStyle(colors)}>Status</th>
-                          <th style={thStyle(colors)}>App Type</th>
-                          <th style={thStyle(colors)}>Processing Type</th>
-                          <th style={thStyle(colors)}>Timeline</th>
-                          <th style={thStyle(colors)}>
-                            Date Received (Center)
-                          </th>
-                          <th style={thStyle(colors)}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredTasks.map((t) => (
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    minHeight: 0,
+                  }}
+                >
+                  <div style={{ overflowY: "auto", flex: 1 }}>
+                    {tasksLoading ? (
+                      <div
+                        style={{
+                          padding: "2rem",
+                          textAlign: "center",
+                          color: colors.textTertiary,
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        Loading tasks…
+                      </div>
+                    ) : tasksError ? (
+                      <div
+                        style={{
+                          padding: "2rem",
+                          textAlign: "center",
+                          color: "#ef4444",
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        {tasksError}
+                      </div>
+                    ) : filteredTasks.length === 0 ? (
+                      <div
+                        style={{
+                          padding: "2rem",
+                          textAlign: "center",
+                          color: colors.textTertiary,
+                          fontSize: "0.85rem",
+                        }}
+                      >
+                        {tasks.length === 0
+                          ? "No active tasks assigned to this user right now."
+                          : "No tasks match your search/filters."}
+                      </div>
+                    ) : (
+                      <table
+                        style={{
+                          width: "100%",
+                          borderCollapse: "collapse",
+                          fontSize: "0.82rem",
+                        }}
+                      >
+                        <thead>
                           <tr
-                            key={t.log_id}
                             style={{
-                              borderTop: `1px solid ${colors.cardBorder}`,
-                              background: t.is_targeted
-                                ? colors.targetBg
-                                : "transparent",
+                              background: colors.rowHover,
+                              textAlign: "left",
                             }}
                           >
-                            <td style={tdStyle(colors)}>
+                            <th style={{ ...thStyle(colors), width: 34 }}>
                               <input
                                 type="checkbox"
-                                checked={selectedLogIds.has(t.log_id)}
-                                onChange={() => toggleSelectOne(t.log_id)}
+                                checked={allFilteredSelected}
+                                onChange={toggleSelectAll}
                               />
-                            </td>
-                            <td style={tdStyle(colors)}>{t.dtn}</td>
-                            <td style={{ ...tdStyle(colors), fontWeight: 600 }}>
-                              {t.brand_name}
-                              {t.is_targeted && t.target_end_date && (
-                                <div
-                                  style={{
-                                    fontWeight: 400,
-                                    fontSize: "0.7rem",
-                                    color: colors.targetBorder,
-                                    marginTop: 2,
-                                  }}
-                                >
-                                  🎯 {t.target_start_date} → {t.target_end_date}
-                                </div>
-                              )}
-                            </td>
-                            <td style={tdStyle(colors)}>{t.step}</td>
-                            <td style={tdStyle(colors)}>
-                              <StatusPill status={t.status} />
-                            </td>
-                            <td style={tdStyle(colors)}>{t.app_type || "—"}</td>
-                            <td style={tdStyle(colors)}>
-                              {t.processing_type || "—"}
-                            </td>
-                            <td style={tdStyle(colors)}>
-                              {t.timeline != null ? `${t.timeline} days` : "—"}
-                            </td>
-                            <td style={tdStyle(colors)}>
-                              {t.date_received_center || "—"}
-                            </td>
-                            <td
-                              style={{ ...tdStyle(colors), textAlign: "right" }}
+                            </th>
+                            <th style={thStyle(colors)}>DTN</th>
+                            <th style={thStyle(colors)}>Brand Name</th>
+                            <th style={thStyle(colors)}>Step</th>
+                            <th style={thStyle(colors)}>Status</th>
+                            <th style={thStyle(colors)}>App Type</th>
+                            <th style={thStyle(colors)}>Processing Type</th>
+                            <th style={thStyle(colors)}>Timeline</th>
+                            <th style={thStyle(colors)}>
+                              Date Received (Center)
+                            </th>
+                            <th style={thStyle(colors)}></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedTasks.map((t) => (
+                            <tr
+                              key={t.log_id}
+                              style={{
+                                borderTop: `1px solid ${colors.cardBorder}`,
+                                background: t.is_targeted
+                                  ? colors.targetBg
+                                  : "transparent",
+                              }}
                             >
-                              <button
-                                onClick={() => openTargetModal(t)}
+                              <td style={tdStyle(colors)}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedLogIds.has(t.log_id)}
+                                  onChange={() => toggleSelectOne(t.log_id)}
+                                />
+                              </td>
+                              <td style={tdStyle(colors)}>{t.dtn}</td>
+                              <td
+                                style={{ ...tdStyle(colors), fontWeight: 600 }}
+                              >
+                                {t.brand_name}
+                                {t.is_targeted && t.target_end_date && (
+                                  <div
+                                    style={{
+                                      fontWeight: 400,
+                                      fontSize: "0.7rem",
+                                      color: colors.targetBorder,
+                                      marginTop: 2,
+                                    }}
+                                  >
+                                    🎯 {t.target_start_date} →{" "}
+                                    {t.target_end_date}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={tdStyle(colors)}>{t.step}</td>
+                              <td style={tdStyle(colors)}>
+                                <StatusPill status={t.status} />
+                              </td>
+                              <td style={tdStyle(colors)}>
+                                {t.app_type || "—"}
+                              </td>
+                              <td style={tdStyle(colors)}>
+                                {t.processing_type || "—"}
+                              </td>
+                              <td style={tdStyle(colors)}>
+                                {t.timeline != null
+                                  ? `${t.timeline} days`
+                                  : "—"}
+                              </td>
+                              <td style={tdStyle(colors)}>
+                                {t.date_received_center || "—"}
+                              </td>
+                              <td
                                 style={{
-                                  padding: "4px 10px",
-                                  borderRadius: "6px",
-                                  border: `1px solid ${t.is_targeted ? colors.targetBorder : colors.cardBorder}`,
-                                  background: t.is_targeted
-                                    ? colors.targetBorder
-                                    : "transparent",
-                                  color: t.is_targeted
-                                    ? "#fff"
-                                    : colors.textSecondary,
-                                  fontSize: "0.72rem",
-                                  fontWeight: 600,
-                                  cursor: "pointer",
-                                  whiteSpace: "nowrap",
+                                  ...tdStyle(colors),
+                                  textAlign: "right",
                                 }}
                               >
-                                {t.is_targeted
-                                  ? "🎯 Targeted"
-                                  : "Mark as Target"}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                                <button
+                                  onClick={() => openTargetModal(t)}
+                                  style={{
+                                    padding: "4px 10px",
+                                    borderRadius: "6px",
+                                    border: `1px solid ${t.is_targeted ? colors.targetBorder : colors.cardBorder}`,
+                                    background: t.is_targeted
+                                      ? colors.targetBorder
+                                      : "transparent",
+                                    color: t.is_targeted
+                                      ? "#fff"
+                                      : colors.textSecondary,
+                                    fontSize: "0.72rem",
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                    whiteSpace: "nowrap",
+                                  }}
+                                >
+                                  {t.is_targeted
+                                    ? "🎯 Targeted"
+                                    : "Mark as Target"}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {filteredTasks.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.75rem",
+                        padding: "0.6rem 1.1rem",
+                        borderTop: `1px solid ${colors.cardBorder}`,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                          fontSize: "0.72rem",
+                          color: colors.textSecondary,
+                        }}
+                      >
+                        <span>Rows per page:</span>
+                        <select
+                          value={rowsPerPage}
+                          onChange={(e) => {
+                            setRowsPerPage(Number(e.target.value));
+                            setCurrentPage(1);
+                          }}
+                          style={{
+                            padding: "3px 6px",
+                            borderRadius: "6px",
+                            border: `1px solid ${colors.cardBorder}`,
+                            background: colors.pageBg,
+                            color: colors.textPrimary,
+                            fontSize: "0.72rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          {[10, 25, 50, 100].map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                        <span>
+                          {indexOfFirstRow + 1}–
+                          {Math.min(
+                            indexOfFirstRow + rowsPerPage,
+                            filteredTasks.length,
+                          )}{" "}
+                          of {filteredTasks.length}
+                        </span>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.4rem",
+                        }}
+                      >
+                        <button
+                          onClick={() => setCurrentPage(1)}
+                          disabled={safePage === 1}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            border: `1px solid ${colors.cardBorder}`,
+                            background: "transparent",
+                            color: colors.textSecondary,
+                            fontSize: "0.72rem",
+                            cursor: safePage === 1 ? "default" : "pointer",
+                            opacity: safePage === 1 ? 0.4 : 1,
+                          }}
+                        >
+                          « First
+                        </button>
+                        <button
+                          onClick={() =>
+                            setCurrentPage((p) => Math.max(1, p - 1))
+                          }
+                          disabled={safePage === 1}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            border: `1px solid ${colors.cardBorder}`,
+                            background: "transparent",
+                            color: colors.textSecondary,
+                            fontSize: "0.72rem",
+                            cursor: safePage === 1 ? "default" : "pointer",
+                            opacity: safePage === 1 ? 0.4 : 1,
+                          }}
+                        >
+                          ‹ Prev
+                        </button>
+                        <span
+                          style={{
+                            fontSize: "0.72rem",
+                            color: colors.textPrimary,
+                            fontWeight: 600,
+                            padding: "0 0.3rem",
+                          }}
+                        >
+                          Page {safePage} of {totalPages}
+                        </span>
+                        <button
+                          onClick={() =>
+                            setCurrentPage((p) => Math.min(totalPages, p + 1))
+                          }
+                          disabled={safePage === totalPages}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            border: `1px solid ${colors.cardBorder}`,
+                            background: "transparent",
+                            color: colors.textSecondary,
+                            fontSize: "0.72rem",
+                            cursor:
+                              safePage === totalPages ? "default" : "pointer",
+                            opacity: safePage === totalPages ? 0.4 : 1,
+                          }}
+                        >
+                          Next ›
+                        </button>
+                        <button
+                          onClick={() => setCurrentPage(totalPages)}
+                          disabled={safePage === totalPages}
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            border: `1px solid ${colors.cardBorder}`,
+                            background: "transparent",
+                            color: colors.textSecondary,
+                            fontSize: "0.72rem",
+                            cursor:
+                              safePage === totalPages ? "default" : "pointer",
+                            opacity: safePage === totalPages ? 0.4 : 1,
+                          }}
+                        >
+                          Last »
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               </>
