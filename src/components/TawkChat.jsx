@@ -3,11 +3,15 @@ import { useEffect } from "react";
 
 function TawkChat() {
   useEffect(() => {
-    // Iwasan ma-duplicate yung script kung mag-re-render/mag-navigate
-    if (window.Tawk_API) return;
+    // Kapag may existing na widget na (mounted na dati sa ibang page),
+    // ipakita na lang ulit ito sa halip na mag-inject ng bagong script.
+    if (window.Tawk_API) {
+      window.Tawk_API.showWidget?.();
+      return;
+    }
 
-    var Tawk_API = window.Tawk_API || {};
-    var Tawk_LoadStart = new Date();
+    window.Tawk_API = window.Tawk_API || {};
+    window.Tawk_LoadStart = new Date();
 
     var s1 = document.createElement("script");
     var s0 = document.getElementsByTagName("script")[0];
@@ -16,6 +20,11 @@ function TawkChat() {
     s1.charset = "UTF-8";
     s1.setAttribute("crossorigin", "*");
     s0.parentNode.insertBefore(s1, s0);
+
+    // ── Cleanup: itago ang widget kapag umalis sa page na ito ──
+    return () => {
+      window.Tawk_API?.hideWidget?.();
+    };
   }, []);
 
   return null;
