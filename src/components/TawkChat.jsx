@@ -3,8 +3,6 @@ import { useEffect } from "react";
 
 function TawkChat() {
   useEffect(() => {
-    // Kapag may existing na widget na (mounted na dati sa ibang page),
-    // ipakita na lang ulit ito sa halip na mag-inject ng bagong script.
     if (window.Tawk_API) {
       window.Tawk_API.showWidget?.();
       return;
