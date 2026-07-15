@@ -782,7 +782,7 @@ export default function AllRecords({
   const TL = darkMode ? timelineColorsDark : timelineColors;
   const SP = darkMode ? stepColorsDark : stepColors;
 
-  const GRID = "1.4fr 1.1fr 1.8fr 0.95fr 1fr 0.9fr 0.85fr 0.5fr";
+  const GRID = "1.4fr 1.1fr 1.8fr 0.95fr 0.85fr 1fr 0.9fr 0.85fr 0.5fr";
 
   const fromLabel = dtnSideLabel(dtnFromYear, dtnFromMonth, dtnFromDay);
   const toLabel = dtnSideLabel(dtnToYear, dtnToMonth, dtnToDay);
@@ -1121,6 +1121,7 @@ export default function AllRecords({
               { label: "User", col: "user" },
               { label: "Drug / Application", col: "drug" },
               { label: "Date", col: "date" },
+              { label: "Entry Type", col: "entry_type" },
               { label: "Step", col: "step" },
               { label: "Timeline", col: "timeline" },
               { label: "Status", col: "status" },
@@ -1264,6 +1265,25 @@ export default function AllRecords({
                           borderRadius: 4,
                           background: ui.progressBg,
                           animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.06}s infinite`,
+                        }}
+                      />
+                    </div>
+
+                    {/* Entry Type */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 18,
+                          width: 60,
+                          borderRadius: 6,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.07}s infinite`,
                         }}
                       />
                     </div>
@@ -1534,6 +1554,31 @@ export default function AllRecords({
                             day: "numeric",
                           })
                         : "—"}
+                    </span>
+
+                    {/* Entry Type */}
+                    <span
+                      style={{
+                        padding: "5px 8px",
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.6rem",
+                          fontWeight: 600,
+                          padding: "2px 7px",
+                          borderRadius: 6,
+                          background: darkMode ? "#2a2a3e" : "#eef2ff",
+                          color: darkMode ? "#a5b4fc" : "#4338ca",
+                          whiteSpace: "nowrap",
+                          fontFamily: font,
+                        }}
+                      >
+                        {row.entry_type || "—"}
+                      </span>
                     </span>
 
                     {/* Step */}
