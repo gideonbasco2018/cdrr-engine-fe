@@ -113,6 +113,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       settings: "Administration",
       "lead-assignments": "Administration",
       appCorrection: "Workflow",
+      "target-assignments": "Administration",
     };
     return categoryMap[menuId] || "Other";
   };

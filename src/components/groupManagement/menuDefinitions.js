@@ -30,6 +30,7 @@ export const allMenuItems = [
   { id: "users", label: "User Management", icon: "👥", category: "Administration" },
   { id: "settings", label: "Settings", icon: "⚙️", category: "Administration" },
   { id: "lead-assignments", label: "Lead Assignments", icon: "🔗", category: "Administration" },
+  { id: "target-assignments", label: "Target Assignments", icon: "🎯", category: "Administration" },
 
   // Support 
   { id: "announcements", label: "Announcements", icon: "📢", category: "Support" },

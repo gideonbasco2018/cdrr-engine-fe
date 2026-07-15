@@ -255,8 +255,10 @@ function TaskPage({ darkMode }) {
     lastModifiedTo: "",
     estCat: "",
     starredOnly: false,
+    targetedOnly: false,
+    targetDateFrom: "",
+    targetDateTo: "",
   });
-
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(null);
   const colors = getColorScheme(darkMode);
 
@@ -492,6 +494,7 @@ function TaskPage({ darkMode }) {
 
   // ✅ Backend na ang nag-hahandle ng appType, prescription, appStatus,
   //    processingType, estCat, at search — frontend lang ang natitira
+
   const filteredData = useMemo(() => {
     const filtered = subTabData.filter((r) => {
       const mstar = !filters.starredOnly || r.is_starred === 1;
@@ -514,9 +517,22 @@ function TaskPage({ darkMode }) {
       const mfrom = !from || (lm && lm >= from);
       const mto = !to || (lm && lm <= to);
 
-      return mstar && msb && mfrom && mto;
-    });
+      // targeted only — frontend lang
+      const mtarget = !filters.targetedOnly || r.is_targeted === true;
 
+      // target end-date range — frontend lang
+      const tfrom = filters.targetDateFrom
+        ? new Date(filters.targetDateFrom)
+        : null;
+      const tto = filters.targetDateTo
+        ? new Date(filters.targetDateTo + "T23:59:59")
+        : null;
+      const ted = r.target_end_date ? new Date(r.target_end_date) : null;
+      const mtfrom = !tfrom || (ted && ted >= tfrom);
+      const mtto = !tto || (ted && ted <= tto);
+
+      return mstar && msb && mfrom && mto && mtarget && mtfrom && mtto;
+    });
     // Frontend sort para sa fields na hindi kaya ng backend
     if (sortBy === "log_sent_by" || sortBy === "log_last_modified") {
       filtered.sort((a, b) => {
@@ -971,6 +987,115 @@ function TaskPage({ darkMode }) {
                 Starred Only
               </button>
 
+              <div style={dividerStyle} />
+
+              {/* Targeted Only */}
+              <button
+                onClick={() =>
+                  setFilters({
+                    ...filters,
+                    targetedOnly: !filters.targetedOnly,
+                  })
+                }
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.3rem",
+                  padding: "0.22rem 0.6rem",
+                  borderRadius: 5,
+                  border: `1px solid ${filters.targetedOnly ? "#22c55e" : colors.cardBorder}`,
+                  background: filters.targetedOnly
+                    ? "rgba(34,197,94,0.15)"
+                    : "transparent",
+                  color: filters.targetedOnly ? "#22c55e" : colors.textTertiary,
+                  fontSize: "0.62rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  transition: "all .15s",
+                }}
+              >
+                🎯
+                {(() => {
+                  const count = tabData.filter((r) => r.is_targeted).length;
+                  return count > 0 ? (
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "0.9rem",
+                        height: "0.9rem",
+                        padding: "0 0.2rem",
+                        background: filters.targetedOnly
+                          ? "#22c55e"
+                          : "rgba(34,197,94,0.3)",
+                        borderRadius: 999,
+                        fontSize: "0.55rem",
+                        fontWeight: 800,
+                        color: filters.targetedOnly ? "#000" : "#22c55e",
+                      }}
+                    >
+                      {count}
+                    </span>
+                  ) : null;
+                })()}
+                Targeted Only
+              </button>
+
+              {/* Target Date range */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <span style={labelStyle}>🎯 Target Until</span>
+                <input
+                  type="date"
+                  value={filters.targetDateFrom}
+                  onChange={(e) =>
+                    setFilters({ ...filters, targetDateFrom: e.target.value })
+                  }
+                  style={inputStyle(filters.targetDateFrom)}
+                />
+                <span
+                  style={{ fontSize: "0.65rem", color: colors.textTertiary }}
+                >
+                  to
+                </span>
+                <input
+                  type="date"
+                  value={filters.targetDateTo}
+                  onChange={(e) =>
+                    setFilters({ ...filters, targetDateTo: e.target.value })
+                  }
+                  style={inputStyle(filters.targetDateTo)}
+                />
+                {(filters.targetDateFrom || filters.targetDateTo) && (
+                  <button
+                    onClick={() =>
+                      setFilters({
+                        ...filters,
+                        targetDateFrom: "",
+                        targetDateTo: "",
+                      })
+                    }
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#ef4444",
+                      cursor: "pointer",
+                      fontSize: "0.65rem",
+                      padding: 0,
+                      fontWeight: 600,
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
               {/* Selection indicator */}
               {selectedRows.length > 0 && (
                 <>
@@ -1102,6 +1227,27 @@ function TaskPage({ darkMode }) {
                 colors={colors}
               />
             )}
+            {filters.targetedOnly && (
+              <Chip
+                label="🎯 Targeted Only"
+                onRemove={() => setFilters({ ...filters, targetedOnly: false })}
+                colors={colors}
+              />
+            )}
+            {filters.targetDateFrom && (
+              <Chip
+                label={`Target From: ${filters.targetDateFrom}`}
+                onRemove={() => setFilters({ ...filters, targetDateFrom: "" })}
+                colors={colors}
+              />
+            )}
+            {filters.targetDateTo && (
+              <Chip
+                label={`Target To: ${filters.targetDateTo}`}
+                onRemove={() => setFilters({ ...filters, targetDateTo: "" })}
+                colors={colors}
+              />
+            )}
 
             <button
               onClick={() => {
@@ -1117,6 +1263,9 @@ function TaskPage({ darkMode }) {
                   lastModifiedTo: "",
                   estCat: "",
                   starredOnly: false,
+                  targetedOnly: false,
+                  targetDateFrom: "",
+                  targetDateTo: "",
                 });
               }}
               style={{

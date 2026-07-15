@@ -22,6 +22,7 @@ import ApplicationCorrectionPage from "../pages/ApplicationCorrectionPage";
 import DocumentRenamePage from "../pages/DocumentRenamePage";
 import BulkDocumentUploadPage from "../pages/BulkDocumentUploadPage";
 import BulkFolderDocumentUploadPage from "../pages/BulkFolderDocumentUploadPage";
+import TargetAssignmentsPage from "../pages/TargetAssignmentsPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -64,6 +65,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("users")) return "users";
     if (path.includes("settings")) return "settings";
     if (path.includes("lead-assignments")) return "lead-assignments";
+    if (path.includes("target-assignments")) return "target-assignments";
     // Workflow paths
     if (path.includes("for-decking")) return "for-decking";
     if (path.includes("task")) return "task";
@@ -181,6 +183,10 @@ function MainLayout({ darkMode, setDarkMode }) {
             darkMode={darkMode}
             userRole={userRole}
           />
+        );
+      case "target-assignments":
+        return (
+          <TargetAssignmentsPage darkMode={darkMode} userRole={userRole} />
         );
 
       case "dashboard":

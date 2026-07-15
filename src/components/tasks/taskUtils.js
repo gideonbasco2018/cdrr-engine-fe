@@ -130,6 +130,12 @@ export const mapWorkflowTask = (task, index) => {
     // ── Starred tracking ──────────────────────────────────────────
     is_starred: task.is_starred ?? 0,
     starred_at: task.starred_at ?? null,
+
+    // ── Target tracking (NEW) ──────────────────────────────────────
+    is_targeted: task.is_targeted ?? false,
+    target_start_date: task.target_start_date ?? null,
+    target_end_date: task.target_end_date ?? null,
+    target_remarks: task.target_remarks ?? null,
   };
 };
 
