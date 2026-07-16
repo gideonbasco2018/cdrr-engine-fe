@@ -235,7 +235,7 @@ export function StepUploadDocuments({ record, colors, darkMode }) {
     try {
       await uploadApplicationDocumentsBatch(
         {
-          dbEntryType: record.entryType ?? "",
+          dbEntryType: record.entryType || "ORIGINAL",
           dbDtn: record.dtn,
           docCategory: docCategory.trim() || undefined,
           files: stagedDocs.map((d) => d.file),
