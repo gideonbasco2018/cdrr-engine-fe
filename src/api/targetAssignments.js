@@ -32,6 +32,36 @@ export const getMemberTasks = async (memberUserId) => {
 };
 
 // ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/all-teams
+// Admin/monitoring view — every active team across all leads
+// ─────────────────────────────────────────────
+export const getAllTeams = async () => {
+  try {
+    const response = await API.get("/target_assignments/lead-assignments/all-teams");
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to fetch all teams";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/all-teams/{memberUserId}/tasks
+// Admin/monitoring view — tasks for any member, regardless of who leads them
+// ─────────────────────────────────────────────
+export const getAllTeamsMemberTasks = async (memberUserId) => {
+  try {
+    const response = await API.get(
+      `/target_assignments/lead-assignments/all-teams/${memberUserId}/tasks`
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to fetch member tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
 // POST /api/target_assignments/target-assignments
 // Marks a task (application_log) as target, with a target date range
 // ─────────────────────────────────────────────
@@ -51,24 +81,8 @@ export const markAsTarget = async (applicationLogId, { targetStartDate, targetEn
 };
 
 // ─────────────────────────────────────────────
-// DELETE /api/target_assignments/target-assignments/{applicationLogId}
-// Unmarks a task as target
-// ─────────────────────────────────────────────
-export const unmarkAsTarget = async (applicationLogId) => {
-  try {
-    const response = await API.delete(
-      `/target_assignments/target-assignments/${applicationLogId}`
-    );
-    return response.data;
-  } catch (error) {
-    const errorMessage = error.response?.data?.detail || error.message || "Failed to unmark task as target";
-    throw new Error(errorMessage);
-  }
-};
-
-// ─────────────────────────────────────────────
 // POST /api/target_assignments/target-assignments/bulk
-// Marks multiple tasks (application_logs) as target, same date range/remarks
+// Marks several tasks as target at once, same date range/remarks
 // ─────────────────────────────────────────────
 export const bulkMarkAsTarget = async (
   applicationLogIds,
@@ -83,8 +97,23 @@ export const bulkMarkAsTarget = async (
     });
     return response.data;
   } catch (error) {
-    const errorMessage =
-      error.response?.data?.detail || error.message || "Failed to bulk mark tasks as target";
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to bulk-mark tasks as target";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// DELETE /api/target_assignments/target-assignments/{applicationLogId}
+// Unmarks a task as target
+// ─────────────────────────────────────────────
+export const unmarkAsTarget = async (applicationLogId) => {
+  try {
+    const response = await API.delete(
+      `/target_assignments/target-assignments/${applicationLogId}`
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to unmark task as target";
     throw new Error(errorMessage);
   }
 };

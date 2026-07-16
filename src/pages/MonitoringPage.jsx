@@ -15,6 +15,7 @@ import FRPTatView from "../components/monitoring/frpTat/FRPTatView";
 import CprTrendView from "../components/monitoring/cprTrend/CprTrendView";
 import ProcessingTrendView from "../components/monitoring/processingTrend/ProcessingTrendView";
 import FRPMonitoringView from "../components/monitoring/frpMonitoring/FRPMonitoringView";
+import TeamOverviewView from "../components/monitoring/teamOverview/TeamOverviewView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1042,6 +1043,8 @@ function renderContent(
       return <FRPMonitoringView ui={ui} darkMode={darkMode} />;
     case "processingtrend":
       return <ProcessingTrendView ui={ui} darkMode={darkMode} />;
+    case "teamoverview":
+      return <TeamOverviewView darkMode={darkMode} />;
     default:
       return null;
   }
@@ -1260,6 +1263,11 @@ function MonitoringPage({ darkMode }) {
       key: "processingtrend",
       label: "Processing Trend",
       subtitle: "App trend & breakdown",
+    },
+    {
+      key: "teamoverview",
+      label: "Team Overview",
+      subtitle: "Diagram & target table",
     },
   ];
 
