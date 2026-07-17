@@ -212,6 +212,267 @@ function MiniBadge({ label, value, colors, tone }) {
   );
 }
 
+// ── Within/Beyond Target classification for one targeted task ──────
+// "Within" = finished on/before the deadline, or (if still ongoing)
+// today hasn't passed the deadline yet. "Beyond" = missed it.
+// Returns null when there isn't enough info to classify (no target
+// end date, or done but accomplished date wasn't recorded).
+function classifyTargetStatus(t) {
+  if (!t.target_end_date) return null;
+  const key = (t.status || "").trim().toUpperCase();
+  const isDoneKind = ["COMPLETED", "CLOSED", "RELEASED"].includes(key);
+
+  if (isDoneKind) {
+    if (!t.date_accomplished) return null;
+    const accomplished = String(t.date_accomplished).slice(0, 10);
+    return accomplished <= t.target_end_date ? "within" : "beyond";
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  return today <= t.target_end_date ? "within" : "beyond";
+}
+
+// ── Member summary card (Member column content) ─────────────────────
+// Matches the "Total / Completed / In Progress / Targeted / Within /
+// Beyond" panel style.
+function MemberSummaryCard({ member, stats, colors }) {
+  const row = (label, value, color) => (
+    <div
+      key={label}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "5px 9px",
+        borderBottom: `1px solid ${colors.cardBorder}`,
+        fontSize: "0.72rem",
+      }}
+    >
+      <span style={{ color: colors.textSecondary }}>{label}</span>
+      <span style={{ fontWeight: 700, color }}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div>
+      <div
+        style={{
+          fontWeight: 700,
+          color: colors.textPrimary,
+          fontSize: "0.85rem",
+        }}
+      >
+        {member.member_name}
+      </div>
+      <div
+        style={{
+          fontSize: "0.68rem",
+          color: colors.textTertiary,
+          marginBottom: "0.5rem",
+        }}
+      >
+        {member.lead_role}
+      </div>
+
+      <div
+        style={{
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "8px",
+          overflow: "hidden",
+          background: colors.pageBg,
+          marginBottom: "0.4rem",
+        }}
+      >
+        {row("Total", stats.total, colors.textPrimary)}
+        {row("Completed", stats.completed, "#22c55e")}
+        {row("In Progress", stats.inProgress, "#3b82f6")}
+        {row("🎯 Targeted", member.target_count, colors.textPrimary)}
+      </div>
+
+      <div
+        style={{
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "8px",
+          overflow: "hidden",
+          background: colors.pageBg,
+        }}
+      >
+        {row("✓ Within Target", stats.within, "#22c55e")}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "5px 9px",
+            fontSize: "0.72rem",
+          }}
+        >
+          <span style={{ color: colors.textSecondary }}>✗ Beyond Target</span>
+          <span style={{ fontWeight: 700, color: "#ef4444" }}>
+            {stats.beyond}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Application Status progress bar + click-to-view history popover ──
+// Percent comes from the backend's application_progress_percent — a
+// weighted per-stage checklist (Quality Eval 40%, then +10% each for
+// Checker/Supervisor/QA Admin/LRD Chief Admin/OD-Receiving/OD-Releasing).
+// 100% only once OD-Releasing itself is completed. Click the bar to
+// open/close the full trail: step → status → date. Click anywhere outside to close it.
+function ApplicationStatusBar({ task, colors }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const percent = task.application_progress_percent ?? 0;
+  const barColor = getStatusNodeColors(task.status).border;
+  const history = task.application_history || [];
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", width: 130 }}>
+      <div
+        onClick={() => history.length > 0 && setOpen((p) => !p)}
+        style={{ cursor: history.length > 0 ? "pointer" : "default" }}
+      >
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            fontSize: "0.66rem",
+            color: colors.textSecondary,
+            marginBottom: "3px",
+          }}
+        >
+          <span>{task.step || "—"}</span>
+          <span style={{ fontWeight: 700, color: barColor }}>{percent}%</span>
+        </div>
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: 6,
+            borderRadius: "9999px",
+            background: "rgba(150,150,150,0.2)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              height: "100%",
+              width: `${percent}%`,
+              borderRadius: "9999px",
+              background: barColor,
+              transition: "width 0.3s ease",
+            }}
+          />
+        </div>
+      </div>
+
+      {open && history.length > 0 && (
+        <div
+          style={{
+            position: "absolute",
+            zIndex: 30,
+            top: "calc(100% + 6px)",
+            left: 0,
+            width: 240,
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: "8px",
+            padding: "0.55rem 0.65rem",
+            boxShadow: "0 10px 28px rgba(0,0,0,0.35)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "0.4rem",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                color: colors.textPrimary,
+              }}
+            >
+              Application History
+            </span>
+            <button
+              onClick={() => setOpen(false)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: colors.textTertiary,
+                cursor: "pointer",
+                fontSize: "0.75rem",
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              ✕
+            </button>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "0.35rem",
+              maxHeight: 220,
+              overflowY: "auto",
+            }}
+          >
+            {history.map((h, i) => {
+              const hc = getStatusNodeColors(h.status);
+              return (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: "0.66rem",
+                    borderLeft: `2px solid ${hc.border}`,
+                    paddingLeft: "0.4rem",
+                  }}
+                >
+                  <div style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {h.step || "—"}
+                  </div>
+                  <div style={{ color: hc.text }}>{h.status || "—"}</div>
+                  {h.user_name && (
+                    <div style={{ color: colors.textSecondary }}>
+                      👤 {h.user_name}
+                    </div>
+                  )}
+                  {h.date && (
+                    <div style={{ color: colors.textTertiary }}>
+                      {String(h.date).slice(0, 10)}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════
 // DIAGRAM TAB — Lead → Members → Targeted Tasks
 // ══════════════════════════════════════════════════════════════════
@@ -1000,10 +1261,36 @@ function TableTab({ colors, team, diagramData, monthOptions }) {
           const completed = memberTasks.filter(
             (t) => t.status === "Completed",
           ).length;
+          const inProgress = memberTasks.filter(
+            (t) =>
+              (STATUS_KIND_MAP[(t.status || "").trim().toUpperCase()] ||
+                "default") === "progress",
+          ).length;
+
+          // Within/Beyond computed from ALL of this member's targeted
+          // tasks (not the month/search-filtered `targeted` list above)
+          // — it's a status summary, not something that should shrink
+          // just because you filtered the visible rows.
+          const allMemberTargeted = memberTasks.filter((t) => t.is_targeted);
+          let within = 0;
+          let beyond = 0;
+          allMemberTargeted.forEach((t) => {
+            const c = classifyTargetStatus(t);
+            if (c === "within") within += 1;
+            else if (c === "beyond") beyond += 1;
+          });
+
           out.push({
             member: m,
             targets: targeted,
-            stats: { total, completed, onProcess: total - completed },
+            stats: {
+              total,
+              completed,
+              inProgress,
+              onProcess: total - completed,
+              within,
+              beyond,
+            },
           });
         }
       });
@@ -1159,9 +1446,11 @@ function TableTab({ colors, team, diagramData, monthOptions }) {
                 <th style={thStyle(colors)}>Lead</th>
                 <th style={thStyle(colors)}>Target</th>
                 <th style={thStyle(colors)}>Step</th>
+                <th style={thStyle(colors)}>Entry / App Type</th>
                 <th style={thStyle(colors)}>Status</th>
                 <th style={thStyle(colors)}>Date Accomplished</th>
                 <th style={thStyle(colors)}>Target Date</th>
+                <th style={thStyle(colors)}>Application Status</th>
               </tr>
             </thead>
             <tbody>
@@ -1178,53 +1467,14 @@ function TableTab({ colors, team, diagramData, monthOptions }) {
                           ...tdStyle(colors),
                           verticalAlign: "top",
                           borderRight: `1px solid ${colors.cardBorder}`,
+                          minWidth: 190,
                         }}
                       >
-                        <div style={{ fontWeight: 700 }}>
-                          {member.member_name}
-                        </div>
-                        <div
-                          style={{
-                            fontSize: "0.68rem",
-                            fontWeight: 400,
-                            color: colors.textTertiary,
-                            marginBottom: "0.4rem",
-                          }}
-                        >
-                          {member.lead_role}
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: "3px",
-                          }}
-                        >
-                          <MiniBadge
-                            label="Total"
-                            value={stats.total}
-                            colors={colors}
-                            tone="neutral"
-                          />
-                          <MiniBadge
-                            label="Done"
-                            value={stats.completed}
-                            colors={colors}
-                            tone="green"
-                          />
-                          <MiniBadge
-                            label="On Proc"
-                            value={stats.onProcess}
-                            colors={colors}
-                            tone="blue"
-                          />
-                          <MiniBadge
-                            label="🎯"
-                            value={member.target_count}
-                            colors={colors}
-                            tone="target"
-                          />
-                        </div>
+                        <MemberSummaryCard
+                          member={member}
+                          stats={stats}
+                          colors={colors}
+                        />
                       </td>
                     )}
                     {idx === 0 && (
@@ -1254,6 +1504,20 @@ function TableTab({ colors, team, diagramData, monthOptions }) {
                     </td>
                     <td style={tdStyle(colors)}>{t.step || "—"}</td>
                     <td style={tdStyle(colors)}>
+                      {t.entry_type || "ORIGINAL"}
+                      {t.app_type && (
+                        <div
+                          style={{
+                            fontSize: "0.7rem",
+                            color: colors.textSecondary,
+                            fontWeight: 400,
+                          }}
+                        >
+                          {t.app_type}
+                        </div>
+                      )}
+                    </td>
+                    <td style={tdStyle(colors)}>
                       <StatusPill status={t.status} />
                     </td>
                     <td style={tdStyle(colors)}>
@@ -1265,6 +1529,9 @@ function TableTab({ colors, team, diagramData, monthOptions }) {
                       {t.target_start_date && t.target_end_date
                         ? `${t.target_start_date} → ${t.target_end_date}`
                         : t.target_start_date || t.target_end_date || "—"}
+                    </td>
+                    <td style={{ ...tdStyle(colors), overflow: "visible" }}>
+                      <ApplicationStatusBar task={t} colors={colors} />
                     </td>
                   </tr>
                 )),
