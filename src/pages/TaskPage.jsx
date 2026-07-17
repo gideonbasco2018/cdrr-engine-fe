@@ -336,7 +336,7 @@ function TaskPage({ darkMode }) {
         const alreadyRead = new Set(
           (res2.data || []).filter((t) => t.is_read === 1).map((t) => t.id),
         );
-        setReadIds(alreadyRead);
+        setReadIds((prev) => new Set([...prev, ...alreadyRead]));
       }
     } catch (e) {
       console.error(e);
@@ -388,11 +388,10 @@ function TaskPage({ darkMode }) {
           setActiveTab(found.applicationStep);
         }
       }
-
       const alreadyRead = new Set(
         (res.data || []).filter((t) => t.is_read === 1).map((t) => t.id),
       );
-      setReadIds(alreadyRead);
+      setReadIds((prev) => new Set([...prev, ...alreadyRead]));
     } catch (e) {
       console.error(e);
       setData([]);
@@ -466,6 +465,17 @@ function TaskPage({ darkMode }) {
         return acc;
       }, {}),
     [steps, allStepsData, readIds],
+  );
+
+  const stepTargetedCounts = useMemo(
+    () =>
+      steps.reduce((acc, step) => {
+        acc[step] = allStepsData.filter(
+          (d) => d.applicationStep === step && d.is_targeted,
+        ).length;
+        return acc;
+      }, {}),
+    [steps, allStepsData],
   );
 
   // ✅ tabData — data na lang (already filtered by step sa backend)
@@ -682,6 +692,7 @@ function TaskPage({ darkMode }) {
               const isActive = activeTab === step;
               const count = stepCounts[step] ?? 0;
               const unread = stepUnreadCounts[step] ?? 0;
+              const targeted = stepTargetedCounts[step] ?? 0;
               return (
                 <button
                   key={step}
@@ -706,6 +717,28 @@ function TaskPage({ darkMode }) {
                   }}
                 >
                   {step}
+                  {targeted > 0 && (
+                    <span
+                      title={`${targeted} targeted task${targeted > 1 ? "s" : ""}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "2px",
+                        minWidth: "1.2rem",
+                        height: "1.2rem",
+                        padding: "0 0.35rem",
+                        borderRadius: "999px",
+                        fontSize: "0.65rem",
+                        fontWeight: 700,
+                        lineHeight: 1,
+                        background: "rgba(34,197,94,0.15)",
+                        border: "1px solid rgba(34,197,94,0.4)",
+                        color: "#22c55e",
+                      }}
+                    >
+                      🎯 {targeted}
+                    </span>
+                  )}
                   <span
                     style={{
                       display: "inline-flex",
