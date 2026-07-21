@@ -55,8 +55,8 @@ export const WORKFLOW = {
     "For Decking": "Quality Evaluation", 
   },
   "OD Review": {
-    "Approved OD": null,
-    "Disapproved OD": null,
+    "Approved OD": "OD-Receiving",
+    "Disapproved OD": "OD-Receiving",
   },
   "PRSDD Quality Evaluation": {
     "Endorsed to Checker": "PRSDD Checking",
