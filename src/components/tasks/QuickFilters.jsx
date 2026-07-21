@@ -252,14 +252,14 @@ function QuickFilters({
           <div style={{ position: "relative" }}>
             <input
               type="number"
-              placeholder="Search by DTN..."
+              placeholder="Search DTN or Old RSN..."
               value={searchInput}
               onChange={(e) => onSearchInputChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter")
                   onFiltersChange({
                     ...filters,
-                    dtn: searchInput ? Number(searchInput) : null,
+                    dtn: searchInput ? searchInput.trim() : null,
                   });
               }}
               style={{
@@ -289,7 +289,7 @@ function QuickFilters({
             onClick={() =>
               onFiltersChange({
                 ...filters,
-                dtn: searchInput ? Number(searchInput) : null,
+                dtn: searchInput ? searchInput.trim() : null,
               })
             }
             style={{

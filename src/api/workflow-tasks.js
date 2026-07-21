@@ -22,7 +22,7 @@ import API from "./axios";
  * @param {number|null}  [params.main_db_id]              - Filter by specific MainDB record ID
  *
  * // MainDB-level filters
- * @param {number|null}  [params.dtn]                     - Document Tracking Number
+ * @param {string|null}  [params.dtn]                     - Document Tracking Number OR Old RSN/Other DTN (exact match on either)
  * @param {string|null}  [params.est_cat]                 - Establishment Category
  * @param {string|null}  [params.app_type]                - Application Type. Use "__EMPTY__" for null/empty.
  * @param {string|null}  [params.db_app_status]           - MainDB App Status. Use "__EMPTY__" for null/empty.
