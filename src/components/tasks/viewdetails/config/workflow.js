@@ -1,5 +1,3 @@
-/*  Workflow Config                                                      */
-
 export const WORKFLOW = {
   "Quality Evaluation": {
     "Endorsed to Checker": "Checking",
