@@ -26,7 +26,7 @@ const DECISION_STYLE = (d = "") => {
   };
 };
 
-function UserAvatar({ name, size = 40 }) {
+function UserAvatar({ name, fullName, size = 40 }) {
   const initials = (name ?? "?")[0].toUpperCase();
   return (
     <div
@@ -72,6 +72,23 @@ function UserAvatar({ name, size = 40 }) {
       >
         {name}
       </span>
+      {fullName && (
+        <span
+          style={{
+            fontSize: 10,
+            color: "var(--color-text-tertiary)",
+            opacity: 0.7,
+            textAlign: "center",
+            maxWidth: 90,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            lineHeight: 1.2,
+          }}
+        >
+          {fullName}
+        </span>
+      )}
     </div>
   );
 }
@@ -165,12 +182,12 @@ function DateBlock({ startDate, accomplishedDate }) {
   const fmt = (d) =>
     d
       ? new Date(d).toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      })
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        })
       : null;
 
   const Row = ({ label, value, color }) => (
@@ -263,12 +280,13 @@ function LogCard({ log, index, isLast }) {
             overflow: "hidden",
             marginLeft: 10,
             boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
-            borderLeft: `4px solid ${status === "COMPLETED"
-              ? "#10b981"
-              : status === "IN PROGRESS"
-                ? "#2196F3"
-                : "#6b7280"
-              }`,
+            borderLeft: `4px solid ${
+              status === "COMPLETED"
+                ? "#10b981"
+                : status === "IN PROGRESS"
+                  ? "#2196F3"
+                  : "#6b7280"
+            }`,
             transition: "all 0.15s ease",
             cursor: "default",
           }}
@@ -342,7 +360,17 @@ function LogCard({ log, index, isLast }) {
             }}
           >
             {/* Left: User Avatar */}
-            {log.user_name && <UserAvatar name={log.user_name} size={40} />}
+            {log.user_name && (
+              <UserAvatar
+                name={log.user_name}
+                fullName={
+                  log.user_first_name || log.user_surname
+                    ? `${log.user_first_name ?? ""} ${log.user_surname ?? ""}`.trim()
+                    : null
+                }
+                size={40}
+              />
+            )}
 
             {/* Right: 4-column grid */}
             <div
@@ -468,96 +496,117 @@ function LogCard({ log, index, isLast }) {
               {(log.decision_result ||
                 log.decision_authority_name ||
                 log.application_remarks) && (
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                      alignItems: "flex-start",
-                    }}
-                  >
-                    {log.decision_result && (
-                      <div>
-                        <FieldLabel>Result</FieldLabel>
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            fontSize: 11,
-                            fontWeight: 500,
-                            padding: "3px 8px",
-                            borderRadius: 20,
-                            background: "rgba(8,145,178,0.08)",
-                            color: "#0891b2",
-                            border: "0.5px solid rgba(8,145,178,0.2)",
-                          }}
-                        >
-                          {log.decision_result}
-                        </span>
-                      </div>
-                    )}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  {log.decision_result && (
+                    <div>
+                      <FieldLabel>Result</FieldLabel>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          fontSize: 11,
+                          fontWeight: 500,
+                          padding: "3px 8px",
+                          borderRadius: 20,
+                          background: "rgba(8,145,178,0.08)",
+                          color: "#0891b2",
+                          border: "0.5px solid rgba(8,145,178,0.2)",
+                        }}
+                      >
+                        {log.decision_result}
+                      </span>
+                    </div>
+                  )}
 
-                    {log.decision_authority_name && (
-                      <div>
-                        <FieldLabel>Authority</FieldLabel>
+                  {log.decision_authority_name && (
+                    <div>
+                      <FieldLabel>Authority</FieldLabel>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "3px 8px",
+                          borderRadius: 5,
+                          background: "rgba(245,158,11,0.07)",
+                          border: "0.5px solid rgba(245,158,11,0.2)",
+                          fontSize: 11,
+                          fontWeight: 500,
+                          color: "#b45309",
+                        }}
+                      >
                         <div
                           style={{
-                            display: "inline-flex",
+                            width: 16,
+                            height: 16,
+                            borderRadius: "50%",
+                            background:
+                              "linear-gradient(135deg, #f59e0b, #d97706)",
+                            display: "flex",
                             alignItems: "center",
-                            gap: 5,
-                            padding: "3px 8px",
-                            borderRadius: 5,
-                            background: "rgba(245,158,11,0.07)",
-                            border: "0.5px solid rgba(245,158,11,0.2)",
-                            fontSize: 11,
-                            fontWeight: 500,
-                            color: "#b45309",
+                            justifyContent: "center",
+                            fontSize: 8,
+                            fontWeight: 700,
+                            color: "#fff",
+                            flexShrink: 0,
                           }}
                         >
-                          <div
-                            style={{
-                              width: 16,
-                              height: 16,
-                              borderRadius: "50%",
-                              background:
-                                "linear-gradient(135deg, #f59e0b, #d97706)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              fontSize: 8,
-                              fontWeight: 700,
-                              color: "#fff",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {log.decision_authority_name[0].toUpperCase()}
-                          </div>
-                          {log.decision_authority_name}
+                          {log.decision_authority_name[0].toUpperCase()}
                         </div>
+                        {log.decision_authority_name}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {log.application_remarks && (
-                      <div style={{ flex: 1, minWidth: 120 }}>
-                        <FieldLabel>Remarks</FieldLabel>
-                        <div
-                          style={{
-                            padding: "6px 10px",
-                            background: "var(--color-background-secondary)",
-                            borderRadius: "var(--border-radius-md)",
-                            borderLeft: "2px solid var(--color-border-secondary)",
-                            fontSize: 11,
-                            color: "var(--color-text-primary)",
-                            lineHeight: 1.5,
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {log.application_remarks}
-                        </div>
+                  {log.doctrack_remarks && (
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                      <FieldLabel>Doctrack Remarks</FieldLabel>
+                      <div
+                        style={{
+                          padding: "6px 10px",
+                          background: "rgba(8,145,178,0.06)",
+                          borderRadius: "var(--border-radius-md)",
+                          borderLeft: "2px solid #0891b2",
+                          fontSize: 11,
+                          color: "var(--color-text-primary)",
+                          lineHeight: 1.5,
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {log.doctrack_remarks}
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+
+                  {log.application_remarks && (
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                      <FieldLabel>Remarks</FieldLabel>
+                      <div
+                        style={{
+                          padding: "6px 10px",
+                          background: "var(--color-background-secondary)",
+                          borderRadius: "var(--border-radius-md)",
+                          borderLeft: "2px solid var(--color-border-secondary)",
+                          fontSize: 11,
+                          color: "var(--color-text-primary)",
+                          lineHeight: 1.5,
+                          whiteSpace: "pre-wrap",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {log.application_remarks}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
