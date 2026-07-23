@@ -97,7 +97,7 @@ export const tableColumns = [
   { key: "cprCondRemarks", label: "CPR Cond Remarks", width: "600px" },
   { key: "cprCondAddRemarks", label: "CPR Cond Add Remarks", width: "200px" },
 
-  { key: "appRemarks", label: "App Remarks", width: "200px" },
+  { key: "appRemarks", label: "App Remarks", width: "2000px" },
   { key: "dbTimelineCitizenCharter", label: "Timeline (Days)", width: "150px" },
   { key: "statusTimeline", label: "Status Timeline", width: "250px" },
   // { key: "userUploader", label: "Uploader", width: "200px" },

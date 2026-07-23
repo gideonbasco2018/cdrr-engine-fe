@@ -702,6 +702,9 @@ export function LoadingModal({
                     <option value="SURRENDER DUE TO PAC">
                       Surrender due to PAC
                     </option>
+                    <option value="POST-APPROVAL CHANGE/VARIATION">
+                      Post-Approval Change/Variation
+                    </option>
                   </select>
                   {entryTypeTouched && !entryType && (
                     <div

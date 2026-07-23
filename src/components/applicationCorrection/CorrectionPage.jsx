@@ -218,7 +218,9 @@ export function CorrectionPage({
                     ? "Manual CPR Cancellation of CPR"
                     : entryType === "SURRENDER DUE TO PAC"
                       ? "Manual CPR Surrender due to PAC"
-                      : "Manual CPR Correction"}
+                      : entryType === "POST-APPROVAL CHANGE/VARIATION"
+                        ? "Manual CPR Post-Approval Change/Variation"
+                        : "Manual CPR Correction"}
             </h1>
             <p style={{ fontSize: 13, color: t.textSecondary, marginTop: 3 }}>
               Document Tracking No.{" "}
