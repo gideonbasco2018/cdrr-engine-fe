@@ -1098,6 +1098,18 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   }}
                                 >
                                   {log.user_name || "—"}
+                                  {(log.user_first_name ||
+                                    log.user_surname) && (
+                                    <span
+                                      style={{
+                                        color: textMuted,
+                                        fontWeight: 400,
+                                        marginLeft: 4,
+                                      }}
+                                    >
+                                      ({log.user_first_name} {log.user_surname})
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                               {log.application_decision && (
@@ -1239,14 +1251,12 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   </div>
                                 ) : (
                                   <span
-                                    className="alm-inprogress"
                                     style={{
                                       fontSize: "0.75rem",
-                                      color: "#d97706",
-                                      fontWeight: 600,
+                                      color: textMuted,
                                     }}
                                   >
-                                    In Progress…
+                                    —
                                   </span>
                                 )}
                               </div>
@@ -1288,7 +1298,8 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                             log.action_type === "REASSIGNMENT" ||
                             log.action_type === "REROUTE" ||
                             log.decision_result ||
-                            log.decision_authority_name) && (
+                            log.decision_authority_name ||
+                            log.doctrack_remarks) && (
                             <div
                               style={{
                                 borderTop: `1px solid ${dividerColor}`,
@@ -1616,6 +1627,41 @@ function ApplicationLogsModal({ record, onClose, colors, darkMode }) {
                                   >
                                     {log.decision_authority_name}
                                   </span>
+                                </div>
+                              )}
+
+                              {/* Doctrack Remarks */}
+                              {log.doctrack_remarks && (
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: "0.6rem",
+                                      fontWeight: 700,
+                                      color: textMuted,
+                                      textTransform: "uppercase",
+                                      letterSpacing: "0.06em",
+                                      marginBottom: 3,
+                                    }}
+                                  >
+                                    🗂️ Doctrack Remarks
+                                  </div>
+                                  <p
+                                    style={{
+                                      margin: 0,
+                                      fontSize: "0.78rem",
+                                      color: textPrimary,
+                                      lineHeight: 1.6,
+                                      whiteSpace: "pre-wrap",
+                                      wordBreak: "break-word",
+                                      padding: "0.55rem 0.75rem",
+                                      background: darkMode ? "#111" : "#fff",
+                                      border: `1px solid ${dividerColor}`,
+                                      borderRadius: 6,
+                                      borderLeft: "3px solid #0891b2",
+                                    }}
+                                  >
+                                    {log.doctrack_remarks}
+                                  </p>
                                 </div>
                               )}
 
