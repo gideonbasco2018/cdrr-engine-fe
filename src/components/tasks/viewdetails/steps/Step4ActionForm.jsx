@@ -185,15 +185,7 @@ const ACTION_CONFIG = {
     options: ["For ENOD", "For Approval", "For Disapproval"],
     warning: "Action is required when endorsing to checker.",
   },
-  "Checking_Checked and returned to evaluator": {
-    options: [
-      "For appropriate action - Re-evaluation",
-      "For appropriate action - Send eNOD",
-      "For Printing (Approval)",
-      "For Printing (Disapproval)",
-    ],
-    warning: "Action is required when returning to evaluator.",
-  },
+
   "Checking_Forwarded to Supervisor": {
     options: [
       "For appropriate action - Re-evaluation",

@@ -90,7 +90,7 @@ export const tableColumns = [
   { key: "cprCond",               label: "CPR Condition",      width: "200px" },
   { key: "cprCondRemarks",        label: "CPR Cond Remarks",   width: "600px", wrap: true },
   { key: "cprCondAddRemarks",     label: "CPR Cond Add Remarks", width: "200px" },
-  { key: "appRemarks",            label: "App Remarks",        width: "200px" },
+  { key: "appRemarks",            label: "App Remarks",        width: "2000px" },
   { key: "dbTimelineCitizenCharter", label: "Timeline (Days)", width: "130px" },
   { key: "statusTimeline",        label: "Status Timeline",    width: "160px" },
   // { key: "userUploader",          label: "Uploaded By",        width: "140px" },
