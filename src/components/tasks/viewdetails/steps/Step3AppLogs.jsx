@@ -495,6 +495,7 @@ function LogCard({ log, index, isLast }) {
               {/* Row 2 (optional): Decision result + Authority + Remarks */}
               {(log.decision_result ||
                 log.decision_authority_name ||
+                log.doctrack_remarks ||
                 log.application_remarks) && (
                 <div
                   style={{
