@@ -218,8 +218,8 @@ export function CorrectionPage({
                     ? "Manual CPR Cancellation of CPR"
                     : entryType === "SURRENDER DUE TO PAC"
                       ? "Manual CPR Surrender due to PAC"
-                      : entryType === "POST-APPROVAL CHANGE/VARIATION"
-                        ? "Manual CPR Post-Approval Change/Variation"
+                      : entryType === "APPEAL"
+                        ? "Appeal"
                         : "Manual CPR Correction"}
             </h1>
             <p style={{ fontSize: 13, color: t.textSecondary, marginTop: 3 }}>
@@ -390,7 +390,9 @@ export function CorrectionPage({
                             ? "PRSDD Quality Evaluation"
                             : deckerData.decision === "For LRD Chief Admin"
                               ? "LRD Chief Admin"
-                              : "LRD Decking";
+                              : deckerData.decision === "For OD-Releasing"
+                                ? "OD-Releasing"
+                                : "LRD Decking";
                     await createApplicationLog({
                       main_db_id: result.main_db_id,
                       application_step: nextStep,
