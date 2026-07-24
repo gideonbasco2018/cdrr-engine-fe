@@ -1,5 +1,10 @@
 import { useState, useEffect } from "react";
-import { getUser, getCurrentUser, updateCurrentUser } from "../api/auth";
+import {
+  getUser,
+  getCurrentUser,
+  updateCurrentUser,
+  uploadMyProfilePicture,
+} from "../api/auth";
 
 function ProfilePage({ darkMode }) {
   const [user, setUser] = useState(null);
@@ -29,6 +34,9 @@ function ProfilePage({ darkMode }) {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [localPreview, setLocalPreview] = useState(null);
+  const [imageVersion, setImageVersion] = useState(Date.now());
 
   const colors = darkMode
     ? {
@@ -60,6 +68,31 @@ function ProfilePage({ darkMode }) {
     loadUserData();
   }, []);
 
+  const handlePictureSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPicture(true);
+    try {
+      const updated = await uploadMyProfilePicture(file);
+      setUser(updated);
+      const storage = localStorage.getItem("access_token")
+        ? localStorage
+        : sessionStorage;
+      storage.setItem("user", JSON.stringify(updated));
+      window.dispatchEvent(
+        new CustomEvent("user-updated", { detail: updated }),
+      );
+      setProfileSuccess("Profile picture updated!");
+      setTimeout(() => setProfileSuccess(""), 3000);
+    } catch (error) {
+      setProfileError(
+        error?.response?.data?.detail || "Failed to upload picture.",
+      );
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
   const loadUserData = async () => {
     try {
       const userData = await getCurrentUser();
@@ -86,6 +119,11 @@ function ProfilePage({ darkMode }) {
         });
       }
     } finally {
+      const storage = localStorage.getItem("access_token")
+        ? localStorage
+        : sessionStorage;
+      const savedPreview = storage.getItem("profile_picture_preview");
+      if (savedPreview) setLocalPreview(savedPreview);
       setLoading(false);
     }
   };
@@ -110,6 +148,9 @@ function ProfilePage({ darkMode }) {
       storage.setItem("user", JSON.stringify(updated));
 
       setUser(updated);
+      window.dispatchEvent(
+        new CustomEvent("user-updated", { detail: updated }),
+      );
       setProfileSuccess("Profile updated successfully!");
       setTimeout(() => setProfileSuccess(""), 3000);
     } catch (error) {
@@ -157,7 +198,7 @@ function ProfilePage({ darkMode }) {
       <div
         style={{
           flex: 1,
-          padding: "2rem",
+          padding: "1.25rem",
           background: colors.pageBg,
           display: "flex",
           alignItems: "center",
@@ -176,22 +217,37 @@ function ProfilePage({ darkMode }) {
     return "U";
   };
 
+  const getProfileImageSrc = () => {
+    if (!user?.profile_picture_url) return null;
+    const directUrl = getDirectDriveUrl(user.profile_picture_url);
+    const sep = directUrl.includes("?") ? "&" : "?";
+    return `${directUrl}${sep}v=${imageVersion}`;
+  };
+
+  const getDirectDriveUrl = (url) => {
+    const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+    if (match) {
+      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+    }
+    return url;
+  };
+
   return (
     <div
       style={{
         flex: 1,
-        padding: "2rem",
+        padding: "1.25rem",
         overflowY: "auto",
         background: colors.pageBg,
         transition: "all 0.3s ease",
       }}
     >
-      <div style={{ marginBottom: "2rem" }}>
+      <div style={{ marginBottom: "1.25rem" }}>
         <h1
           style={{
-            fontSize: "1.75rem",
+            fontSize: "1.3rem",
             fontWeight: "600",
-            marginBottom: "0.5rem",
+            marginBottom: "0.35rem",
             color: colors.textPrimary,
             transition: "color 0.3s ease",
           }}
@@ -201,7 +257,7 @@ function ProfilePage({ darkMode }) {
         <p
           style={{
             color: colors.textTertiary,
-            fontSize: "0.9rem",
+            fontSize: "0.8rem",
             transition: "color 0.3s ease",
           }}
         >
@@ -212,8 +268,8 @@ function ProfilePage({ darkMode }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "300px 1fr",
-          gap: "2rem",
+          gridTemplateColumns: "220px 1fr",
+          gap: "1.25rem",
           maxWidth: "1200px",
         }}
       >
@@ -222,36 +278,74 @@ function ProfilePage({ darkMode }) {
             style={{
               background: colors.cardBg,
               border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
-              padding: "2rem",
+              borderRadius: "10px",
+              padding: "1.25rem",
               textAlign: "center",
               transition: "all 0.3s ease",
             }}
           >
             <div
               style={{
-                width: "100px",
-                height: "100px",
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                borderRadius: "50%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontSize: "2.5rem",
-                fontWeight: "600",
-                margin: "0 auto 1.5rem",
+                position: "relative",
+                width: "70px",
+                margin: "0 auto 1rem",
               }}
             >
-              {getUserInitial()}
+              <div
+                style={{
+                  width: "70px",
+                  height: "70px",
+                  background: localPreview
+                    ? `url(${localPreview}) center/cover`
+                    : getProfileImageSrc()
+                      ? `url(${getProfileImageSrc()}) center/cover`
+                      : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: "1.7rem",
+                  fontWeight: "600",
+                }}
+              >
+                {!getProfileImageSrc() && !localPreview && getUserInitial()}
+              </div>
+              <label
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  background: uploadingPicture ? "#999" : "#4CAF50",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: uploadingPicture ? "not-allowed" : "pointer",
+                  border: `2px solid ${colors.cardBg}`,
+                  fontSize: "0.65rem",
+                }}
+                title="Change profile picture"
+              >
+                {uploadingPicture ? "…" : "📷"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  onChange={handlePictureSelect}
+                  disabled={uploadingPicture}
+                  style={{ display: "none" }}
+                />
+              </label>
             </div>
 
             <h2
               style={{
-                fontSize: "1.25rem",
+                fontSize: "1rem",
                 fontWeight: "600",
                 color: colors.textPrimary,
-                marginBottom: "0.5rem",
+                marginBottom: "0.35rem",
                 transition: "color 0.3s ease",
               }}
             >
@@ -264,8 +358,8 @@ function ProfilePage({ darkMode }) {
               <p
                 style={{
                   color: colors.textSecondary,
-                  fontSize: "0.9rem",
-                  marginBottom: "0.5rem",
+                  fontSize: "0.8rem",
+                  marginBottom: "0.35rem",
                   transition: "color 0.3s ease",
                 }}
               >
@@ -276,19 +370,18 @@ function ProfilePage({ darkMode }) {
             <p
               style={{
                 color: colors.textTertiary,
-                fontSize: "0.85rem",
+                fontSize: "0.75rem",
                 transition: "color 0.3s ease",
               }}
             >
               @{user?.username}
             </p>
 
-            {/* ← IDAGDAG ITO */}
             {user?.alias && (
               <p
                 style={{
                   color: colors.textSecondary,
-                  fontSize: "0.85rem",
+                  fontSize: "0.75rem",
                   marginTop: "0.25rem",
                   fontStyle: "italic",
                   transition: "color 0.3s ease",
@@ -300,8 +393,8 @@ function ProfilePage({ darkMode }) {
 
             <div
               style={{
-                marginTop: "1.5rem",
-                paddingTop: "1.5rem",
+                marginTop: "1rem",
+                paddingTop: "1rem",
                 borderTop: `1px solid ${colors.cardBorder}`,
                 transition: "border-color 0.3s ease",
               }}
@@ -310,13 +403,13 @@ function ProfilePage({ darkMode }) {
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  marginBottom: "0.75rem",
+                  marginBottom: "0.5rem",
                 }}
               >
                 <span
                   style={{
                     color: colors.textSecondary,
-                    fontSize: "0.85rem",
+                    fontSize: "0.75rem",
                     transition: "color 0.3s ease",
                   }}
                 >
@@ -325,7 +418,7 @@ function ProfilePage({ darkMode }) {
                 <span
                   style={{
                     color: "#4CAF50",
-                    fontSize: "0.85rem",
+                    fontSize: "0.75rem",
                     fontWeight: "500",
                   }}
                 >
@@ -336,7 +429,7 @@ function ProfilePage({ darkMode }) {
                 <span
                   style={{
                     color: colors.textSecondary,
-                    fontSize: "0.85rem",
+                    fontSize: "0.75rem",
                     transition: "color 0.3s ease",
                   }}
                 >
@@ -345,7 +438,7 @@ function ProfilePage({ darkMode }) {
                 <span
                   style={{
                     color: colors.textPrimary,
-                    fontSize: "0.85rem",
+                    fontSize: "0.75rem",
                     transition: "color 0.3s ease",
                   }}
                 >
@@ -362,8 +455,8 @@ function ProfilePage({ darkMode }) {
           <div
             style={{
               display: "flex",
-              gap: "2rem",
-              marginBottom: "2rem",
+              gap: "1.25rem",
+              marginBottom: "1.25rem",
               borderBottom: `2px solid ${colors.cardBorder}`,
               transition: "border-color 0.3s ease",
             }}
@@ -373,8 +466,8 @@ function ProfilePage({ darkMode }) {
               style={{
                 background: "none",
                 border: "none",
-                padding: "1rem 0",
-                fontSize: "1rem",
+                padding: "0.6rem 0",
+                fontSize: "0.85rem",
                 fontWeight: "600",
                 color:
                   activeTab === "profile"
@@ -396,8 +489,8 @@ function ProfilePage({ darkMode }) {
               style={{
                 background: "none",
                 border: "none",
-                padding: "1rem 0",
-                fontSize: "1rem",
+                padding: "0.6rem 0",
+                fontSize: "0.85rem",
                 fontWeight: "600",
                 color:
                   activeTab === "password"
@@ -421,17 +514,17 @@ function ProfilePage({ darkMode }) {
               style={{
                 background: colors.cardBg,
                 border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "12px",
-                padding: "2rem",
+                borderRadius: "10px",
+                padding: "1.25rem",
                 transition: "all 0.3s ease",
               }}
             >
               <h3
                 style={{
-                  fontSize: "1.1rem",
+                  fontSize: "0.95rem",
                   fontWeight: "600",
                   color: colors.textPrimary,
-                  marginBottom: "1.5rem",
+                  marginBottom: "1rem",
                   transition: "color 0.3s ease",
                 }}
               >
@@ -443,8 +536,8 @@ function ProfilePage({ darkMode }) {
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 1fr",
-                    gap: "1.5rem",
-                    marginBottom: "1.5rem",
+                    gap: "1rem",
+                    marginBottom: "1rem",
                   }}
                 >
                   <div>
@@ -452,8 +545,8 @@ function ProfilePage({ darkMode }) {
                       style={{
                         display: "block",
                         color: colors.textSecondary,
-                        fontSize: "0.85rem",
-                        marginBottom: "0.5rem",
+                        fontSize: "0.75rem",
+                        marginBottom: "0.35rem",
                         fontWeight: "500",
                         transition: "color 0.3s ease",
                       }}
@@ -473,12 +566,12 @@ function ProfilePage({ darkMode }) {
                       disabled={profileLoading}
                       style={{
                         width: "100%",
-                        padding: "0.875rem",
+                        padding: "0.6rem",
                         background: colors.inputBg,
                         border: `1px solid ${colors.inputBorder}`,
                         borderRadius: "8px",
                         color: colors.textPrimary,
-                        fontSize: "0.95rem",
+                        fontSize: "0.85rem",
                         outline: "none",
                         transition: "all 0.3s ease",
                         opacity: profileLoading ? 0.6 : 1,
@@ -495,8 +588,8 @@ function ProfilePage({ darkMode }) {
                       style={{
                         display: "block",
                         color: colors.textSecondary,
-                        fontSize: "0.85rem",
-                        marginBottom: "0.5rem",
+                        fontSize: "0.75rem",
+                        marginBottom: "0.35rem",
                         fontWeight: "500",
                         transition: "color 0.3s ease",
                       }}
@@ -516,12 +609,12 @@ function ProfilePage({ darkMode }) {
                       disabled={profileLoading}
                       style={{
                         width: "100%",
-                        padding: "0.875rem",
+                        padding: "0.6rem",
                         background: colors.inputBg,
                         border: `1px solid ${colors.inputBorder}`,
                         borderRadius: "8px",
                         color: colors.textPrimary,
-                        fontSize: "0.95rem",
+                        fontSize: "0.85rem",
                         outline: "none",
                         transition: "all 0.3s ease",
                         opacity: profileLoading ? 0.6 : 1,
@@ -534,13 +627,13 @@ function ProfilePage({ darkMode }) {
                   </div>
                 </div>
 
-                <div style={{ marginBottom: "1.5rem" }}>
+                <div style={{ marginBottom: "1rem" }}>
                   <label
                     style={{
                       display: "block",
                       color: colors.textSecondary,
-                      fontSize: "0.85rem",
-                      marginBottom: "0.5rem",
+                      fontSize: "0.75rem",
+                      marginBottom: "0.35rem",
                       fontWeight: "500",
                       transition: "color 0.3s ease",
                     }}
@@ -553,12 +646,12 @@ function ProfilePage({ darkMode }) {
                     disabled
                     style={{
                       width: "100%",
-                      padding: "0.875rem",
+                      padding: "0.6rem",
                       background: colors.inputBg,
                       border: `1px solid ${colors.inputBorder}`,
                       borderRadius: "8px",
                       color: colors.textTertiary,
-                      fontSize: "0.95rem",
+                      fontSize: "0.85rem",
                       outline: "none",
                       transition: "all 0.3s ease",
                       opacity: 0.6,
@@ -568,8 +661,8 @@ function ProfilePage({ darkMode }) {
                   <p
                     style={{
                       color: colors.textTertiary,
-                      fontSize: "0.75rem",
-                      marginTop: "0.5rem",
+                      fontSize: "0.7rem",
+                      marginTop: "0.35rem",
                       transition: "color 0.3s ease",
                     }}
                   >
@@ -577,13 +670,13 @@ function ProfilePage({ darkMode }) {
                   </p>
                 </div>
 
-                <div style={{ marginBottom: "1.5rem" }}>
+                <div style={{ marginBottom: "1rem" }}>
                   <label
                     style={{
                       display: "block",
                       color: colors.textSecondary,
-                      fontSize: "0.85rem",
-                      marginBottom: "0.5rem",
+                      fontSize: "0.75rem",
+                      marginBottom: "0.35rem",
                       fontWeight: "500",
                       transition: "color 0.3s ease",
                     }}
@@ -596,12 +689,12 @@ function ProfilePage({ darkMode }) {
                     disabled
                     style={{
                       width: "100%",
-                      padding: "0.875rem",
+                      padding: "0.6rem",
                       background: colors.inputBg,
                       border: `1px solid ${colors.inputBorder}`,
                       borderRadius: "8px",
                       color: colors.textTertiary,
-                      fontSize: "0.95rem",
+                      fontSize: "0.85rem",
                       outline: "none",
                       transition: "all 0.3s ease",
                       opacity: 0.6,
@@ -611,8 +704,8 @@ function ProfilePage({ darkMode }) {
                   <p
                     style={{
                       color: colors.textTertiary,
-                      fontSize: "0.75rem",
-                      marginTop: "0.5rem",
+                      fontSize: "0.7rem",
+                      marginTop: "0.35rem",
                       transition: "color 0.3s ease",
                     }}
                   >
@@ -620,13 +713,13 @@ function ProfilePage({ darkMode }) {
                   </p>
                 </div>
 
-                <div style={{ marginBottom: "2rem" }}>
+                <div style={{ marginBottom: "1.25rem" }}>
                   <label
                     style={{
                       display: "block",
                       color: colors.textSecondary,
-                      fontSize: "0.85rem",
-                      marginBottom: "0.5rem",
+                      fontSize: "0.75rem",
+                      marginBottom: "0.35rem",
                       fontWeight: "500",
                       transition: "color 0.3s ease",
                     }}
@@ -646,12 +739,12 @@ function ProfilePage({ darkMode }) {
                     disabled={profileLoading}
                     style={{
                       width: "100%",
-                      padding: "0.875rem",
+                      padding: "0.6rem",
                       background: colors.inputBg,
                       border: `1px solid ${colors.inputBorder}`,
                       borderRadius: "8px",
                       color: colors.textPrimary,
-                      fontSize: "0.95rem",
+                      fontSize: "0.85rem",
                       outline: "none",
                       transition: "all 0.3s ease",
                       opacity: profileLoading ? 0.6 : 1,
@@ -664,13 +757,13 @@ function ProfilePage({ darkMode }) {
                 </div>
 
                 {/* Alias */}
-                <div style={{ marginBottom: "2rem" }}>
+                <div style={{ marginBottom: "1.25rem" }}>
                   <label
                     style={{
                       display: "block",
                       color: colors.textSecondary,
-                      fontSize: "0.85rem",
-                      marginBottom: "0.5rem",
+                      fontSize: "0.75rem",
+                      marginBottom: "0.35rem",
                       fontWeight: "500",
                       transition: "color 0.3s ease",
                     }}
@@ -687,12 +780,12 @@ function ProfilePage({ darkMode }) {
                     disabled={profileLoading}
                     style={{
                       width: "100%",
-                      padding: "0.875rem",
+                      padding: "0.6rem",
                       background: colors.inputBg,
                       border: `1px solid ${colors.inputBorder}`,
                       borderRadius: "8px",
                       color: colors.textPrimary,
-                      fontSize: "0.95rem",
+                      fontSize: "0.85rem",
                       outline: "none",
                       transition: "all 0.3s ease",
                       opacity: profileLoading ? 0.6 : 1,
@@ -707,13 +800,13 @@ function ProfilePage({ darkMode }) {
                 {profileError && (
                   <div
                     style={{
-                      padding: "0.875rem",
+                      padding: "0.6rem",
                       background: "rgba(244, 67, 54, 0.1)",
                       border: "1px solid rgba(244, 67, 54, 0.3)",
                       borderRadius: "8px",
                       color: "#f44336",
-                      fontSize: "0.9rem",
-                      marginBottom: "1rem",
+                      fontSize: "0.8rem",
+                      marginBottom: "0.75rem",
                     }}
                   >
                     {profileError}
@@ -723,13 +816,13 @@ function ProfilePage({ darkMode }) {
                 {profileSuccess && (
                   <div
                     style={{
-                      padding: "0.875rem",
+                      padding: "0.6rem",
                       background: "rgba(76, 175, 80, 0.1)",
                       border: "1px solid rgba(76, 175, 80, 0.3)",
                       borderRadius: "8px",
                       color: "#4CAF50",
-                      fontSize: "0.9rem",
-                      marginBottom: "1rem",
+                      fontSize: "0.8rem",
+                      marginBottom: "0.75rem",
                     }}
                   >
                     {profileSuccess}
@@ -740,12 +833,12 @@ function ProfilePage({ darkMode }) {
                   type="submit"
                   disabled={profileLoading}
                   style={{
-                    padding: "0.875rem 2rem",
+                    padding: "0.6rem 1.5rem",
                     background: profileLoading ? "#999" : "#4CAF50",
                     border: "none",
                     borderRadius: "8px",
                     color: "#fff",
-                    fontSize: "0.95rem",
+                    fontSize: "0.85rem",
                     fontWeight: "600",
                     cursor: profileLoading ? "not-allowed" : "pointer",
                     transition: "all 0.2s",
@@ -768,17 +861,17 @@ function ProfilePage({ darkMode }) {
               style={{
                 background: colors.cardBg,
                 border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "12px",
-                padding: "2rem",
+                borderRadius: "10px",
+                padding: "1.25rem",
                 transition: "all 0.3s ease",
               }}
             >
               <h3
                 style={{
-                  fontSize: "1.1rem",
+                  fontSize: "0.95rem",
                   fontWeight: "600",
                   color: colors.textPrimary,
-                  marginBottom: "0.5rem",
+                  marginBottom: "0.35rem",
                   transition: "color 0.3s ease",
                 }}
               >
@@ -787,8 +880,8 @@ function ProfilePage({ darkMode }) {
               <p
                 style={{
                   color: colors.textSecondary,
-                  fontSize: "0.9rem",
-                  marginBottom: "2rem",
+                  fontSize: "0.8rem",
+                  marginBottom: "1.25rem",
                   transition: "color 0.3s ease",
                 }}
               >
@@ -796,13 +889,13 @@ function ProfilePage({ darkMode }) {
               </p>
 
               <form onSubmit={handlePasswordSubmit}>
-                <div style={{ marginBottom: "1.5rem" }}>
+                <div style={{ marginBottom: "1rem" }}>
                   <label
                     style={{
                       display: "block",
                       color: colors.textSecondary,
-                      fontSize: "0.85rem",
-                      marginBottom: "0.5rem",
+                      fontSize: "0.75rem",
+                      marginBottom: "0.35rem",
                       fontWeight: "500",
                       transition: "color 0.3s ease",
                     }}
@@ -823,13 +916,13 @@ function ProfilePage({ darkMode }) {
                       disabled={passwordLoading}
                       style={{
                         width: "100%",
-                        padding: "0.875rem",
-                        paddingRight: "3rem",
+                        padding: "0.6rem",
+                        paddingRight: "2.4rem",
                         background: colors.inputBg,
                         border: `1px solid ${colors.inputBorder}`,
                         borderRadius: "8px",
                         color: colors.textPrimary,
-                        fontSize: "0.95rem",
+                        fontSize: "0.85rem",
                         outline: "none",
                         transition: "all 0.3s ease",
                         opacity: passwordLoading ? 0.6 : 1,
@@ -847,15 +940,15 @@ function ProfilePage({ darkMode }) {
                       disabled={passwordLoading}
                       style={{
                         position: "absolute",
-                        right: "0.875rem",
+                        right: "0.6rem",
                         top: "50%",
                         transform: "translateY(-50%)",
                         background: "none",
                         border: "none",
                         color: colors.textSecondary,
                         cursor: passwordLoading ? "not-allowed" : "pointer",
-                        fontSize: "0.85rem",
-                        padding: "0.25rem",
+                        fontSize: "0.8rem",
+                        padding: "0.2rem",
                       }}
                     >
                       {showCurrentPassword ? "👁️" : "👁️‍🗨️"}
@@ -863,13 +956,13 @@ function ProfilePage({ darkMode }) {
                   </div>
                 </div>
 
-                <div style={{ marginBottom: "1.5rem" }}>
+                <div style={{ marginBottom: "1rem" }}>
                   <label
                     style={{
                       display: "block",
                       color: colors.textSecondary,
-                      fontSize: "0.85rem",
-                      marginBottom: "0.5rem",
+                      fontSize: "0.75rem",
+                      marginBottom: "0.35rem",
                       fontWeight: "500",
                       transition: "color 0.3s ease",
                     }}
@@ -890,13 +983,13 @@ function ProfilePage({ darkMode }) {
                       disabled={passwordLoading}
                       style={{
                         width: "100%",
-                        padding: "0.875rem",
-                        paddingRight: "3rem",
+                        padding: "0.6rem",
+                        paddingRight: "2.4rem",
                         background: colors.inputBg,
                         border: `1px solid ${colors.inputBorder}`,
                         borderRadius: "8px",
                         color: colors.textPrimary,
-                        fontSize: "0.95rem",
+                        fontSize: "0.85rem",
                         outline: "none",
                         transition: "all 0.3s ease",
                         opacity: passwordLoading ? 0.6 : 1,
@@ -912,15 +1005,15 @@ function ProfilePage({ darkMode }) {
                       disabled={passwordLoading}
                       style={{
                         position: "absolute",
-                        right: "0.875rem",
+                        right: "0.6rem",
                         top: "50%",
                         transform: "translateY(-50%)",
                         background: "none",
                         border: "none",
                         color: colors.textSecondary,
                         cursor: passwordLoading ? "not-allowed" : "pointer",
-                        fontSize: "0.85rem",
-                        padding: "0.25rem",
+                        fontSize: "0.8rem",
+                        padding: "0.2rem",
                       }}
                     >
                       {showNewPassword ? "👁️" : "👁️‍🗨️"}
@@ -929,8 +1022,8 @@ function ProfilePage({ darkMode }) {
                   <p
                     style={{
                       color: colors.textTertiary,
-                      fontSize: "0.75rem",
-                      marginTop: "0.5rem",
+                      fontSize: "0.7rem",
+                      marginTop: "0.35rem",
                       transition: "color 0.3s ease",
                     }}
                   >
@@ -938,13 +1031,13 @@ function ProfilePage({ darkMode }) {
                   </p>
                 </div>
 
-                <div style={{ marginBottom: "2rem" }}>
+                <div style={{ marginBottom: "1.25rem" }}>
                   <label
                     style={{
                       display: "block",
                       color: colors.textSecondary,
-                      fontSize: "0.85rem",
-                      marginBottom: "0.5rem",
+                      fontSize: "0.75rem",
+                      marginBottom: "0.35rem",
                       fontWeight: "500",
                       transition: "color 0.3s ease",
                     }}
@@ -965,13 +1058,13 @@ function ProfilePage({ darkMode }) {
                       disabled={passwordLoading}
                       style={{
                         width: "100%",
-                        padding: "0.875rem",
-                        paddingRight: "3rem",
+                        padding: "0.6rem",
+                        paddingRight: "2.4rem",
                         background: colors.inputBg,
                         border: `1px solid ${colors.inputBorder}`,
                         borderRadius: "8px",
                         color: colors.textPrimary,
-                        fontSize: "0.95rem",
+                        fontSize: "0.85rem",
                         outline: "none",
                         transition: "all 0.3s ease",
                         opacity: passwordLoading ? 0.6 : 1,
@@ -989,15 +1082,15 @@ function ProfilePage({ darkMode }) {
                       disabled={passwordLoading}
                       style={{
                         position: "absolute",
-                        right: "0.875rem",
+                        right: "0.6rem",
                         top: "50%",
                         transform: "translateY(-50%)",
                         background: "none",
                         border: "none",
                         color: colors.textSecondary,
                         cursor: passwordLoading ? "not-allowed" : "pointer",
-                        fontSize: "0.85rem",
-                        padding: "0.25rem",
+                        fontSize: "0.8rem",
+                        padding: "0.2rem",
                       }}
                     >
                       {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
@@ -1008,13 +1101,13 @@ function ProfilePage({ darkMode }) {
                 {passwordError && (
                   <div
                     style={{
-                      padding: "0.875rem",
+                      padding: "0.6rem",
                       background: "rgba(244, 67, 54, 0.1)",
                       border: "1px solid rgba(244, 67, 54, 0.3)",
                       borderRadius: "8px",
                       color: "#f44336",
-                      fontSize: "0.9rem",
-                      marginBottom: "1rem",
+                      fontSize: "0.8rem",
+                      marginBottom: "0.75rem",
                     }}
                   >
                     {passwordError}
@@ -1024,13 +1117,13 @@ function ProfilePage({ darkMode }) {
                 {passwordSuccess && (
                   <div
                     style={{
-                      padding: "0.875rem",
+                      padding: "0.6rem",
                       background: "rgba(76, 175, 80, 0.1)",
                       border: "1px solid rgba(76, 175, 80, 0.3)",
                       borderRadius: "8px",
                       color: "#4CAF50",
-                      fontSize: "0.9rem",
-                      marginBottom: "1rem",
+                      fontSize: "0.8rem",
+                      marginBottom: "0.75rem",
                     }}
                   >
                     {passwordSuccess}
@@ -1041,12 +1134,12 @@ function ProfilePage({ darkMode }) {
                   type="submit"
                   disabled={passwordLoading}
                   style={{
-                    padding: "0.875rem 2rem",
+                    padding: "0.6rem 1.5rem",
                     background: passwordLoading ? "#999" : "#4CAF50",
                     border: "none",
                     borderRadius: "8px",
                     color: "#fff",
-                    fontSize: "0.95rem",
+                    fontSize: "0.85rem",
                     fontWeight: "600",
                     cursor: passwordLoading ? "not-allowed" : "pointer",
                     transition: "all 0.2s",
@@ -1065,6 +1158,66 @@ function ProfilePage({ darkMode }) {
           )}
         </div>
       </div>
+
+      {/* Upload Loading Modal */}
+      {uploadingPicture && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000,
+          }}
+        >
+          <div
+            style={{
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: "10px",
+              padding: "1.25rem 1.5rem",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.6rem",
+              minWidth: "140px",
+            }}
+          >
+            <div
+              style={{
+                width: "22px",
+                height: "22px",
+                border: `2.5px solid ${colors.cardBorder}`,
+                borderTop: "2.5px solid #4CAF50",
+                borderRadius: "50%",
+                animation: "profile-pic-spin 0.8s linear infinite",
+              }}
+            />
+            <p
+              style={{
+                color: colors.textPrimary,
+                fontSize: "0.75rem",
+                fontWeight: "500",
+                margin: 0,
+              }}
+            >
+              Uploading...
+            </p>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes profile-pic-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // FILE: src/components/reports/FilterBar.jsx
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { getEstablishmentCategories, getEntryTypes } from "../../api/reports";
 import { COUNTRIES } from "../tasks/viewdetails/config/constants";
 
@@ -157,16 +158,40 @@ export function CountryDropdown({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const ref = useRef(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+  const ref = useRef(null); // wraps the button only
+  const panelRef = useRef(null); // the portaled dropdown panel
   const searchRef = useRef(null);
 
   const filtered = search.trim()
     ? COUNTRIES.filter((c) => c.toLowerCase().includes(search.toLowerCase()))
     : COUNTRIES;
 
+  // ── Compute the button's screen position so the portaled panel can
+  //    line up underneath it, regardless of any scrollable ancestor. ──
+  const updateCoords = () => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setCoords({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  };
+
+  useEffect(() => {
+    if (open) updateCoords();
+  }, [open]);
+
+  // ── Close on outside click (checks both the button AND the portaled panel) ──
   useEffect(() => {
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
+      if (
+        ref.current &&
+        !ref.current.contains(e.target) &&
+        panelRef.current &&
+        !panelRef.current.contains(e.target)
+      ) {
         setOpen(false);
         setSearch("");
       }
@@ -174,6 +199,18 @@ export function CountryDropdown({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // ── Keep the panel aligned with the button on scroll/resize while open ──
+  useEffect(() => {
+    if (!open) return;
+    const handleReposition = () => updateCoords();
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("resize", handleReposition);
+    return () => {
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("resize", handleReposition);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (open && searchRef.current) {
@@ -237,114 +274,117 @@ export function CountryDropdown({
         </span>
       </button>
 
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 4px)",
-            left: 0,
-            right: 0,
-            background: colors.cardBg,
-            border: `1px solid ${accentColor}`,
-            borderRadius: "8px",
-            boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-            zIndex: 9999,
-            overflow: "hidden",
-          }}
-        >
+      {open &&
+        createPortal(
           <div
+            ref={panelRef}
             style={{
-              padding: "0.4rem 0.5rem",
-              borderBottom: `1px solid ${colors.cardBorder}`,
+              position: "fixed",
+              top: coords.top,
+              left: coords.left,
+              width: coords.width,
+              background: colors.cardBg,
+              border: `1px solid ${accentColor}`,
+              borderRadius: "8px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+              zIndex: 99999,
+              overflow: "hidden",
             }}
           >
-            <input
-              ref={searchRef}
-              type="text"
-              placeholder="Search country..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "0.3rem 0.5rem",
-                background: colors.inputBg,
-                border: `1px solid ${colors.inputBorder}`,
-                borderRadius: "5px",
-                color: colors.textPrimary,
-                fontSize: "0.70rem",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
-
-          <div style={{ maxHeight: "40vh", overflowY: "auto" }}>
             <div
-              onClick={() => handleSelect("")}
               style={{
-                padding: "0.4rem 0.65rem",
-                fontSize: "0.72rem",
-                cursor: "pointer",
-                color: !value ? accentColor : colors.textPrimary,
-                fontWeight: !value ? "600" : "400",
-                background: !value ? `${accentColor}18` : "transparent",
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => {
-                if (value) e.currentTarget.style.background = colors.inputBg;
-              }}
-              onMouseLeave={(e) => {
-                if (value) e.currentTarget.style.background = "transparent";
+                padding: "0.4rem 0.5rem",
+                borderBottom: `1px solid ${colors.cardBorder}`,
               }}
             >
-              All Countries
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search country..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "0.3rem 0.5rem",
+                  background: colors.inputBg,
+                  border: `1px solid ${colors.inputBorder}`,
+                  borderRadius: "5px",
+                  color: colors.textPrimary,
+                  fontSize: "0.70rem",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
             </div>
 
-            {filtered.length === 0 ? (
+            <div style={{ maxHeight: "40vh", overflowY: "auto" }}>
               <div
+                onClick={() => handleSelect("")}
                 style={{
-                  padding: "0.5rem 0.65rem",
-                  fontSize: "0.70rem",
-                  color: colors.textTertiary,
-                  textAlign: "center",
+                  padding: "0.4rem 0.65rem",
+                  fontSize: "0.72rem",
+                  cursor: "pointer",
+                  color: !value ? accentColor : colors.textPrimary,
+                  fontWeight: !value ? "600" : "400",
+                  background: !value ? `${accentColor}18` : "transparent",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  if (value) e.currentTarget.style.background = colors.inputBg;
+                }}
+                onMouseLeave={(e) => {
+                  if (value) e.currentTarget.style.background = "transparent";
                 }}
               >
-                No results
+                All Countries
               </div>
-            ) : (
-              filtered.map((c) => (
+
+              {filtered.length === 0 ? (
                 <div
-                  key={c}
-                  onClick={() => handleSelect(c)}
                   style={{
-                    padding: "0.4rem 0.65rem",
-                    fontSize: "0.72rem",
-                    cursor: "pointer",
-                    color: value === c ? accentColor : colors.textPrimary,
-                    fontWeight: value === c ? "600" : "400",
-                    background:
-                      value === c ? `${accentColor}18` : "transparent",
-                    transition: "background 0.15s",
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (value !== c)
-                      e.currentTarget.style.background = colors.inputBg;
-                  }}
-                  onMouseLeave={(e) => {
-                    if (value !== c)
-                      e.currentTarget.style.background = "transparent";
+                    padding: "0.5rem 0.65rem",
+                    fontSize: "0.70rem",
+                    color: colors.textTertiary,
+                    textAlign: "center",
                   }}
                 >
-                  {c}
+                  No results
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+              ) : (
+                filtered.map((c) => (
+                  <div
+                    key={c}
+                    onClick={() => handleSelect(c)}
+                    style={{
+                      padding: "0.4rem 0.65rem",
+                      fontSize: "0.72rem",
+                      cursor: "pointer",
+                      color: value === c ? accentColor : colors.textPrimary,
+                      fontWeight: value === c ? "600" : "400",
+                      background:
+                        value === c ? `${accentColor}18` : "transparent",
+                      transition: "background 0.15s",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (value !== c)
+                        e.currentTarget.style.background = colors.inputBg;
+                    }}
+                    onMouseLeave={(e) => {
+                      if (value !== c)
+                        e.currentTarget.style.background = "transparent";
+                    }}
+                  >
+                    {c}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

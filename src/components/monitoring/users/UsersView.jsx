@@ -118,6 +118,12 @@ function getInitials(name) {
     .join("");
 }
 
+function getAvatarSrc(user, version) {
+  if (!user?.profile_picture_url) return null;
+  const sep = user.profile_picture_url.includes("?") ? "&" : "?";
+  return `${user.profile_picture_url}${sep}v=${version || Date.now()}`;
+}
+
 function mapUser(u, index) {
   return {
     id: u.id,
@@ -129,6 +135,7 @@ function mapUser(u, index) {
     status: !u.is_active ? "Inactive" : "Active",
     avatar: index % avatarPalette.length,
     groups: u.groups || [],
+    profile_picture_url: u.profile_picture_url || null,
   };
 }
 
@@ -205,6 +212,7 @@ function UsersView({
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [imageVersion] = useState(Date.now());
 
   const dark = darkMode;
 
@@ -723,7 +731,9 @@ function UsersView({
                       width: 44,
                       height: 44,
                       borderRadius: "50%",
-                      background: av.bg,
+                      background: getAvatarSrc(user, imageVersion)
+                        ? `url(${getAvatarSrc(user, imageVersion)}) center/cover`
+                        : av.bg,
                       color: av.color,
                       display: "flex",
                       alignItems: "center",
@@ -734,7 +744,8 @@ function UsersView({
                       boxShadow: `0 2px 8px ${av.color}20`,
                     }}
                   >
-                    {getInitials(user.name)}
+                    {!getAvatarSrc(user, imageVersion) &&
+                      getInitials(user.name)}
                   </div>
                   {/* Status dot */}
                   <div
@@ -973,4 +984,3 @@ function UsersView({
 }
 
 export default UsersView;
-

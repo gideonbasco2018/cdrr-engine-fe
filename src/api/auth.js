@@ -342,6 +342,39 @@ export const updateUser = async (userId, updates) => {
   return response.data;
 };
 
+// ========================================
+// PROFILE PICTURE
+// ========================================
+
+export const uploadUserProfilePicture = async (userId, file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(
+      `auth/admin/users/${userId}/profile-picture`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    return response.data;
+  } catch (err) {
+    console.error('Upload profile picture error:', err);
+    throw err;
+  }
+};
+
+export const uploadMyProfilePicture = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post('auth/me/profile-picture', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  } catch (err) {
+    console.error('Upload profile picture error:', err);
+    throw err;
+  }
+};
 
 // ========================================
 // IMPERSONATION HELPERS
@@ -375,4 +408,6 @@ export const getImpersonatedName = () => {
 export const isImpersonating = () => {
   return !!sessionStorage.getItem('impersonate_user_id');
 };
+
+
 
