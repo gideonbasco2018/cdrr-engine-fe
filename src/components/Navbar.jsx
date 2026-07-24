@@ -12,6 +12,12 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
   useEffect(() => {
     const userData = getUser();
     setUser(userData);
+
+    const handleUserUpdated = (e) => {
+      setUser(e.detail);
+    };
+    window.addEventListener("user-updated", handleUserUpdated);
+    return () => window.removeEventListener("user-updated", handleUserUpdated);
   }, []);
 
   useEffect(() => {
@@ -88,6 +94,15 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
     if (user?.first_name) return user.first_name.charAt(0).toUpperCase();
     if (user?.username) return user.username.charAt(0).toUpperCase();
     return "U";
+  };
+
+  const getAvatarSrc = () => {
+    if (!user?.profile_picture_url) return null;
+    const sep = user.profile_picture_url.includes("?") ? "&" : "?";
+    const version = user.updated_at
+      ? new Date(user.updated_at).getTime()
+      : Date.now();
+    return `${user.profile_picture_url}${sep}v=${version}`;
   };
 
   const getDisplayName = () => {
@@ -200,12 +215,13 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                 {userRole.toUpperCase()}
               </div>
             </div>
-
             <div
               style={{
                 width: "32px",
                 height: "32px",
-                background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+                background: getAvatarSrc()
+                  ? `url(${getAvatarSrc()}) center/cover`
+                  : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
                 borderRadius: "50%",
                 display: "flex",
                 alignItems: "center",
@@ -215,9 +231,8 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
                 fontWeight: "600",
               }}
             >
-              {getUserInitial()}
+              {!getAvatarSrc() && getUserInitial()}
             </div>
-
             <span
               style={{
                 color: colors.textSecondary,

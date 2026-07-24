@@ -8,6 +8,7 @@ import {
   resetPassword,
   updateUser,
   getAllGroups,
+  uploadUserProfilePicture,
 } from "../api/auth";
 
 // ── Avatar colour palette (deterministic per initials) ───────────────
@@ -26,6 +27,12 @@ const AVATAR_COLORS = [
 const avatarColor = (name = "") => {
   const i = (name.charCodeAt(0) || 0) % AVATAR_COLORS.length;
   return AVATAR_COLORS[i];
+};
+
+const getAvatarSrc = (user, version) => {
+  if (!user?.profile_picture_url) return null;
+  const sep = user.profile_picture_url.includes("?") ? "&" : "?";
+  return `${user.profile_picture_url}${sep}v=${version || Date.now()}`;
 };
 
 function UserManagementPage({ darkMode, userRole }) {
@@ -60,6 +67,12 @@ function UserManagementPage({ darkMode, userRole }) {
   const [viewMode, setViewMode] = useState("card");
   const [tablePage, setTablePage] = useState(1);
   const TABLE_PAGE_SIZE = 20;
+
+  const [pictureFile, setPictureFile] = useState(null);
+  const [picturePreview, setPicturePreview] = useState(null);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+  const [pictureOverrides, setPictureOverrides] = useState({});
+  const [imageVersion, setImageVersion] = useState(Date.now());
 
   const c = darkMode
     ? {
@@ -280,6 +293,38 @@ function UserManagementPage({ darkMode, userRole }) {
       alias: user.alias || "",
       access_request: user.access_request || "",
     });
+    setPictureFile(null);
+    setPicturePreview(user.profile_picture_url || null);
+  };
+
+  const handlePictureSelect = async (e, userId) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    setPictureFile(file);
+    setPicturePreview(preview);
+    setPictureOverrides((prev) => ({ ...prev, [userId]: preview }));
+    setUploadingPicture(true);
+    try {
+      const updated = await uploadUserProfilePicture(userId, file);
+      showToast("success", "Profile picture updated.");
+      await fetchData();
+      setImageVersion(Date.now());
+      setPictureOverrides((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    } catch (err) {
+      showToast("error", err?.response?.data?.detail || "Upload failed.");
+      setPictureOverrides((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    } finally {
+      setUploadingPicture(false);
+    }
   };
 
   const filteredUsers = (() => {
@@ -430,7 +475,11 @@ function UserManagementPage({ darkMode, userRole }) {
                 width: 46,
                 height: 46,
                 borderRadius: "50%",
-                background: bg,
+                background: pictureOverrides[user.id]
+                  ? `url(${pictureOverrides[user.id]}) center/cover`
+                  : getAvatarSrc(user, imageVersion)
+                    ? `url(${getAvatarSrc(user, imageVersion)}) center/cover`
+                    : bg,
                 color: fg,
                 display: "flex",
                 alignItems: "center",
@@ -441,9 +490,15 @@ function UserManagementPage({ darkMode, userRole }) {
                 border: `2px solid ${fg}30`,
               }}
             >
-              {initial}
-              {initial2}
+              {!pictureOverrides[user.id] &&
+                !getAvatarSrc(user, imageVersion) && (
+                  <>
+                    {initial}
+                    {initial2}
+                  </>
+                )}
             </div>
+
             <span
               style={{
                 position: "absolute",
@@ -864,6 +919,7 @@ function UserManagementPage({ darkMode, userRole }) {
       <style>{`
         @keyframes slideIn { from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)} }
         @keyframes fadeUp  { from{opacity:0;transform:translateY(8px)}  to{opacity:1;transform:translateY(0)} }
+        @keyframes um-spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
       `}</style>
 
       {/* TOAST */}
@@ -933,6 +989,66 @@ function UserManagementPage({ darkMode, userRole }) {
             >
               Update details for <strong>{editModal.username}</strong>
             </p>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "1rem",
+                marginBottom: "1.25rem",
+              }}
+            >
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: "50%",
+                  background: picturePreview
+                    ? `url(${picturePreview}) center/cover`
+                    : "#e5e7eb",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: `1px solid ${c.cardBorder}`,
+                  flexShrink: 0,
+                }}
+              >
+                {!picturePreview && "📷"}
+              </div>
+              <div>
+                <label
+                  style={{
+                    display: "inline-block",
+                    padding: "0.4rem 0.9rem",
+                    borderRadius: 7,
+                    border: `1px solid ${c.cardBorder}`,
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    cursor: uploadingPicture ? "not-allowed" : "pointer",
+                    color: c.textSecondary,
+                    opacity: uploadingPicture ? 0.6 : 1,
+                  }}
+                >
+                  {uploadingPicture ? "Uploading…" : "Change Picture"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/gif,image/webp"
+                    onChange={(e) => handlePictureSelect(e, editModal.userId)}
+                    disabled={uploadingPicture}
+                    style={{ display: "none" }}
+                  />
+                </label>
+                <p
+                  style={{
+                    margin: "0.3rem 0 0",
+                    fontSize: "0.7rem",
+                    color: c.textTertiary,
+                  }}
+                >
+                  JPG, PNG, GIF, or WEBP · max 5MB
+                </p>
+              </div>
+            </div>
 
             {/* Personal Info */}
             <div
@@ -1926,7 +2042,11 @@ function UserManagementPage({ darkMode, userRole }) {
                       width: 36,
                       height: 36,
                       borderRadius: "50%",
-                      background: bg,
+                      background: pictureOverrides[user.id]
+                        ? `url(${pictureOverrides[user.id]}) center/cover`
+                        : getAvatarSrc(user, imageVersion)
+                          ? `url(${getAvatarSrc(user, imageVersion)}) center/cover`
+                          : bg,
                       color: fg,
                       display: "flex",
                       alignItems: "center",
@@ -1936,7 +2056,9 @@ function UserManagementPage({ darkMode, userRole }) {
                       border: `2px solid ${fg}30`,
                     }}
                   >
-                    {initial}
+                    {!pictureOverrides[user.id] &&
+                      !getAvatarSrc(user, imageVersion) &&
+                      initial}
                   </div>
 
                   {/* Name + Email */}
@@ -2381,6 +2503,44 @@ function UserManagementPage({ darkMode, userRole }) {
                 </div>
               );
             })()}
+        </div>
+      )}
+      {/* UPLOAD LOADING OVERLAY */}
+      {uploadingPicture && (
+        <div style={{ ...overlayStyle, zIndex: 1100 }}>
+          <div
+            style={{
+              background: c.modalBg,
+              border: `1px solid ${c.modalBorder}`,
+              borderRadius: 12,
+              padding: "1.25rem 1.75rem",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.6rem",
+            }}
+          >
+            <div
+              style={{
+                width: 26,
+                height: 26,
+                border: `3px solid ${c.cardBorder}`,
+                borderTop: "3px solid #3b82f6",
+                borderRadius: "50%",
+                animation: "um-spin 0.8s linear infinite",
+              }}
+            />
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.8rem",
+                fontWeight: 600,
+                color: c.textPrimary,
+              }}
+            >
+              Uploading picture…
+            </p>
+          </div>
         </div>
       )}
     </div>

@@ -1,10 +1,13 @@
 // FILE: src/components/reports/actions/ViewDetailsModal.jsx
 
-import { useState } from "react";
-import { Step3AppLogs } from "../../tasks/viewdetails/steps/Step3AppLogs";
+import { useState, createContext, useContext } from "react";
+
+/* Provides a consistent label-column width to every LVRow within a given
+   AccordionSection, so values line up vertically within that section. */
+const LabelWidthContext = createContext(null);
 
 /* ================================================================== */
-/*  Helpers (unchanged)                                                 */
+/*  Helpers                                                              */
 /* ================================================================== */
 const formatDate = (dateString) => {
   if (!dateString || dateString === "N/A" || dateString === null) return "N/A";
@@ -52,1119 +55,904 @@ const calculateStatusTimeline = (record) => {
     : { status: "BEYOND", days: diffDays };
 };
 
-/* ================================================================== */
-/*  Static App History Panel                                            */
-/* ================================================================== */
-const STATIC_HISTORY = [
-  {
-    step: "OD Receiving",
-    status: "Completed",
-    user: "Juan dela Cruz",
-    date: "Jan 10, 2025",
-    remarks: "Documents received and verified.",
-  },
-  {
-    step: "For Evaluation",
-    status: "Completed",
-    user: "Maria Santos",
-    date: "Jan 15, 2025",
-    remarks: "Initial evaluation done.",
-  },
-  {
-    step: "For Checking",
-    status: "Completed",
-    user: "Pedro Reyes",
-    date: "Feb 3, 2025",
-    remarks: "Checked and endorsed.",
-  },
-  {
-    step: "For QA",
-    status: "Completed",
-    user: "Ana Gomez",
-    date: "Feb 20, 2025",
-    remarks: "QA review passed.",
-  },
-  {
-    step: "For Releasing",
-    status: "In Progress",
-    user: "Jose Bautista",
-    date: "Mar 5, 2025",
-    remarks: "Pending final release.",
-  },
-];
-
-const STEP_COLORS = {
-  Completed: { bg: "#10b98115", color: "#10b981", border: "#10b98130" },
-  "In Progress": { bg: "#f59e0b15", color: "#f59e0b", border: "#f59e0b30" },
-  Pending: { bg: "#6b728015", color: "#6b7280", border: "#6b728030" },
+/* Status pill tone — mirrors the green "Approved" pill in the reference */
+const statusTone = (statusRaw) => {
+  const s = (statusRaw || "").toUpperCase();
+  if (s === "APPROVED" || s === "COMPLETED")
+    return { bg: "#dcfce7", color: "#16a34a", dot: "#16a34a" };
+  if (s === "REJECTED" || s === "DENIED")
+    return { bg: "#fee2e2", color: "#dc2626", dot: "#dc2626" };
+  if (s === "PENDING" || s === "ON-PROCESS" || s === "ON PROCESS")
+    return { bg: "#fef3c7", color: "#b45309", dot: "#b45309" };
+  return { bg: "#e0e7ff", color: "#4338ca", dot: "#4338ca" };
 };
 
-function AppHistoryPanel({ onClose, colors, darkMode, dtn }) {
+/* Shared blue accent used for section headers / icons / links */
+const ACCENT = "#2563eb";
+const ACCENT_BG = "#eff6ff";
+const ICON_CIRCLE_BG = "#e0e7ff";
+
+/* Simple line icons (stroke uses currentColor so they inherit ACCENT) */
+const IconSvg = ({ children, size = 13 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    {children}
+  </svg>
+);
+
+const Icons = {
+  document: (
+    <IconSvg size={15}>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M9 13h6M9 17h6" />
+    </IconSvg>
+  ),
+  info: (
+    <IconSvg>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-5M12 8h.01" />
+    </IconSvg>
+  ),
+  pill: (
+    <IconSvg>
+      <rect
+        x="3"
+        y="8"
+        width="18"
+        height="8"
+        rx="4"
+        transform="rotate(45 12 12)"
+      />
+      <line x1="8.5" y1="8.5" x2="15.5" y2="15.5" />
+    </IconSvg>
+  ),
+  cash: (
+    <IconSvg>
+      <rect x="2" y="6" width="20" height="12" rx="2" />
+      <circle cx="12" cy="12" r="3" />
+    </IconSvg>
+  ),
+  company: (
+    <IconSvg>
+      <path d="M17 3l4 4-4 4M21 7H9M7 21l-4-4 4-4M3 17h12" />
+    </IconSvg>
+  ),
+  hash: (
+    <IconSvg>
+      <path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" />
+    </IconSvg>
+  ),
+  check: (
+    <IconSvg>
+      <path d="M20 6L9 17l-5-5" />
+    </IconSvg>
+  ),
+  edit: (
+    <IconSvg>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </IconSvg>
+  ),
+};
+
+/* ================================================================== */
+/*  Accordion Section + Label:Value row                                  */
+/* ================================================================== */
+function AccordionSection({
+  icon,
+  title,
+  children,
+  colors,
+  defaultOpen = true,
+  labelWidth = 110,
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div
       style={{
-        width: 300,
-        minWidth: 300,
-        borderLeft: `1px solid ${colors.cardBorder}`,
-        display: "flex",
-        flexDirection: "column",
+        border: `1px solid ${colors.cardBorder}`,
+        borderRadius: "8px",
+        marginBottom: "0.65rem",
         overflow: "hidden",
-        background: darkMode ? "#0f0f0f" : "#fafafa",
       }}
     >
-      {/* Panel Header */}
-      <div
+      <button
+        onClick={() => setOpen((o) => !o)}
         style={{
-          padding: "0.75rem 1rem",
-          borderBottom: `1px solid ${colors.cardBorder}`,
+          width: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          flexShrink: 0,
+          padding: "0.65rem 0.9rem",
+          background: colors.cardBg,
+          border: "none",
+          borderBottom: open ? `1px solid ${colors.cardBorder}` : "none",
+          cursor: "pointer",
+          textAlign: "left",
         }}
       >
-        <div>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.8rem",
-              fontWeight: 700,
-              color: colors.textPrimary,
-            }}
-          >
-            📋 Application History
-          </p>
-          <p
-            style={{
-              margin: 0,
-              fontSize: "0.6rem",
-              color: colors.textTertiary,
-            }}
-          >
-            DTN:{" "}
-            <span style={{ color: "#2196F3", fontWeight: 600 }}>{dtn}</span>
-          </p>
-        </div>
-        <button
-          onClick={onClose}
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 5,
-            border: `1px solid ${colors.cardBorder}`,
-            background: "transparent",
-            color: colors.textSecondary,
-            cursor: "pointer",
-            fontSize: "0.8rem",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#ef444415";
-            e.currentTarget.style.borderColor = "#ef4444";
-            e.currentTarget.style.color = "#ef4444";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.borderColor = colors.cardBorder;
-            e.currentTarget.style.color = colors.textSecondary;
-          }}
-        >
-          ✕
-        </button>
-      </div>
-
-      {/* Timeline */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "0.85rem 1rem",
-          display: "flex",
-          flexDirection: "column",
-          gap: 0,
-        }}
-      >
-        {STATIC_HISTORY.map((item, idx) => {
-          const sc = STEP_COLORS[item.status] ?? STEP_COLORS["Pending"];
-          const isLast = idx === STATIC_HISTORY.length - 1;
-          return (
-            <div key={idx} style={{ display: "flex", gap: "0.65rem" }}>
-              {/* Timeline line + dot */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <div
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: "50%",
-                    background: sc.color,
-                    border: `2px solid ${sc.border}`,
-                    flexShrink: 0,
-                    marginTop: 3,
-                  }}
-                />
-                {!isLast && (
-                  <div
-                    style={{
-                      width: 1.5,
-                      flex: 1,
-                      background: colors.cardBorder,
-                      minHeight: 24,
-                    }}
-                  />
-                )}
-              </div>
-
-              {/* Content */}
-              <div style={{ flex: 1, paddingBottom: isLast ? 0 : "0.85rem" }}>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 3,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.72rem",
-                      fontWeight: 700,
-                      color: colors.textPrimary,
-                    }}
-                  >
-                    {item.step}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.56rem",
-                      fontWeight: 700,
-                      padding: "1px 7px",
-                      borderRadius: 99,
-                      background: sc.bg,
-                      color: sc.color,
-                      border: `1px solid ${sc.border}`,
-                    }}
-                  >
-                    {item.status}
-                  </span>
-                </div>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "0.62rem",
-                    color: colors.textSecondary,
-                    marginBottom: 2,
-                  }}
-                >
-                  👤 {item.user}
-                </p>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: "0.6rem",
-                    color: colors.textTertiary,
-                    marginBottom: 4,
-                  }}
-                >
-                  📅 {item.date}
-                </p>
-                {item.remarks && (
-                  <div
-                    style={{
-                      padding: "0.3rem 0.5rem",
-                      background:
-                        colors.inputBg ?? (darkMode ? "#1a1a1a" : "#f3f4f6"),
-                      border: `1px solid ${colors.cardBorder}`,
-                      borderRadius: 5,
-                      fontSize: "0.6rem",
-                      color: colors.textSecondary,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    {item.remarks}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Footer note */}
-      <div
-        style={{
-          padding: "0.5rem 1rem",
-          borderTop: `1px solid ${colors.cardBorder}`,
-          fontSize: "0.58rem",
-          color: colors.textTertiary,
-          textAlign: "center",
-          fontStyle: "italic",
-        }}
-      >
-        Static data — backend integration coming soon
-      </div>
-    </div>
-  );
-}
-
-/* ================================================================== */
-/*  Shared Sub-components (unchanged)                                   */
-/* ================================================================== */
-function VDSection({ title, children, colors }) {
-  return (
-    <div style={{ marginBottom: "1rem" }}>
-      {title && (
-        <h3
-          style={{
-            fontSize: "0.72rem",
-            fontWeight: "700",
-            color: colors.textPrimary,
-            marginBottom: "0.5rem",
-            paddingBottom: "0.35rem",
-            borderBottom: `2px solid ${colors.cardBorder}`,
-            letterSpacing: "0.02em",
-          }}
-        >
-          {title}
-        </h3>
-      )}
-      {children}
-    </div>
-  );
-}
-
-function FieldGrid({ children, cols = 2 }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        gap: "0.5rem",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function DisplayField({ label, value, colors, fullWidth = false }) {
-  const isNA = value === "N/A";
-  return (
-    <div
-      style={
-        fullWidth
-          ? { gridColumn: "1 / -1", marginBottom: "0.3rem" }
-          : { display: "flex", flexDirection: "column", gap: "0.15rem" }
-      }
-    >
-      <label
-        style={{
-          fontSize: "0.55rem",
-          fontWeight: "700",
-          color: colors.textTertiary,
-          letterSpacing: "0.07em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </label>
-      <div
-        style={{
-          padding: "0.3rem 0.5rem",
-          background: colors.inputBg,
-          border: `1px solid ${colors.inputBorder}`,
-          borderRadius: "5px",
-          color: isNA ? colors.textTertiary : colors.textPrimary,
-          fontSize: "0.65rem",
-          minHeight: fullWidth ? "2rem" : "1.6rem",
-          whiteSpace: fullWidth ? "pre-wrap" : "normal",
-          wordBreak: "break-word",
-          display: "flex",
-          alignItems: fullWidth ? "flex-start" : "center",
-          fontStyle: isNA ? "italic" : "normal",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function SummaryCard({
-  icon,
-  label,
-  value,
-  accent,
-  colors,
-  fullWidth = false,
-}) {
-  return (
-    <div
-      style={{
-        ...(fullWidth ? { gridColumn: "1 / -1" } : {}),
-        padding: "0.4rem 0.6rem",
-        background: colors.inputBg,
-        border: `1px solid ${colors.inputBorder}`,
-        borderLeft: `3px solid ${accent}`,
-        borderRadius: "5px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.1rem",
-      }}
-    >
-      <span
-        style={{
-          fontSize: "0.5rem",
-          fontWeight: "700",
-          color: colors.textTertiary,
-          textTransform: "uppercase",
-          letterSpacing: "0.07em",
-        }}
-      >
-        {icon} {label}
-      </span>
-      <span
-        style={{
-          fontSize: "0.65rem",
-          fontWeight: "600",
-          color: value === "N/A" ? colors.textTertiary : colors.textPrimary,
-          fontStyle: value === "N/A" ? "italic" : "normal",
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function StatusTimelineField({ label, record, colors }) {
-  const { status, days } = calculateStatusTimeline(record);
-  const ok = status === "WITHIN";
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.15rem" }}>
-      <label
-        style={{
-          fontSize: "0.55rem",
-          fontWeight: "700",
-          color: colors.textTertiary,
-          letterSpacing: "0.07em",
-          textTransform: "uppercase",
-        }}
-      >
-        {label}
-      </label>
-      <div
-        style={{
-          padding: "0.3rem 0.5rem",
-          background: colors.inputBg,
-          border: `1px solid ${colors.inputBorder}`,
-          borderRadius: "5px",
-          fontSize: "0.65rem",
-          display: "flex",
-          alignItems: "center",
-          minHeight: "1.6rem",
-        }}
-      >
-        {!status ? (
-          <span style={{ color: colors.textTertiary, fontStyle: "italic" }}>
-            N/A
-          </span>
-        ) : (
+        <span style={{ display: "flex", alignItems: "center", gap: "0.55rem" }}>
           <span
             style={{
-              padding: "0.18rem 0.5rem",
-              background: ok
-                ? "linear-gradient(135deg,#10b981,#059669)"
-                : "linear-gradient(135deg,#ef4444,#dc2626)",
-              color: "#fff",
-              borderRadius: "5px",
-              fontSize: "0.58rem",
-              fontWeight: "700",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-              display: "inline-flex",
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              background: ICON_CIRCLE_BG,
+              color: ACCENT,
+              display: "flex",
               alignItems: "center",
-              gap: "0.3rem",
+              justifyContent: "center",
+              fontSize: "0.7rem",
+              flexShrink: 0,
             }}
           >
-            {ok ? "✓" : "⚠"} {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
+            {icon}
           </span>
-        )}
-      </div>
+          <span
+            style={{
+              fontSize: "0.78rem",
+              fontWeight: "700",
+              color: ACCENT,
+            }}
+          >
+            {title}
+          </span>
+        </span>
+        <span
+          style={{
+            fontSize: "0.65rem",
+            color: colors.textTertiary,
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 0.2s",
+          }}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div
+          style={{
+            padding: "0.8rem 0.9rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.5rem",
+            background: colors.cardBg,
+          }}
+        >
+          <LabelWidthContext.Provider value={labelWidth}>
+            {children}
+          </LabelWidthContext.Provider>
+        </div>
+      )}
     </div>
   );
 }
 
-/* ================================================================== */
-/*  Step Tab Bar                                                        */
-/* ================================================================== */
-function StepTabBar({ currentStep, setCurrentStep, colors }) {
-  const tabs = [
-    { step: 1, icon: "👁️", label: "Application Information" },
-    { step: 2, icon: "🗂️", label: "Application Logs" },
-  ];
+function LVRow({ label, value, colors, wide = false, fullWidth = false }) {
+  const isNA = value === "N/A";
+  const labelWidth = useContext(LabelWidthContext);
   return (
     <div
       style={{
         display: "flex",
-        borderBottom: `1px solid ${colors.cardBorder}`,
-        flexShrink: 0,
+        fontSize: "0.7rem",
+        gap: "0.35rem",
+        alignItems: wide ? "flex-start" : "center",
+        gridColumn: fullWidth ? "1 / -1" : undefined,
       }}
     >
-      {tabs.map(({ step, icon, label }) => {
-        const isActive = currentStep === step;
-        return (
-          <button
-            key={step}
-            onClick={() => setCurrentStep(step)}
-            style={{
-              padding: "0.55rem 1.25rem",
-              background: "transparent",
-              border: "none",
-              borderBottom: isActive
-                ? "2px solid #2196F3"
-                : "2px solid transparent",
-              color: isActive ? "#2196F3" : colors.textTertiary,
-              fontSize: "0.72rem",
-              fontWeight: isActive ? "700" : "500",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "0.4rem",
-              transition: "all 0.2s",
-              marginBottom: "-1px",
-            }}
-          >
-            <span>{icon}</span>
-            {label}
-          </button>
-        );
-      })}
+      <span
+        style={{
+          flexShrink: 0,
+          width: labelWidth ? `${labelWidth}px` : undefined,
+          color: "#7a8190",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </span>
+      <span style={{ color: "#7a8190", flexShrink: 0 }}>:</span>
+      <span
+        style={{
+          color: isNA ? colors.textTertiary : colors.textPrimary,
+          fontStyle: isNA ? "italic" : "normal",
+          fontWeight: 500,
+          wordBreak: "break-word",
+          whiteSpace: wide ? "pre-wrap" : "normal",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function LVGrid({ children }) {
+  return (
+    <div
+      className="vdm-lv-grid"
+      style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        rowGap: "0.55rem",
+        columnGap: "1rem",
+      }}
+    >
+      {children}
     </div>
   );
 }
 
 /* ================================================================== */
-/*  All Details (Step 1) — unchanged                                    */
+/*  All Details — single-view accordion layout                          */
 /* ================================================================== */
 function AllDetails({ record, colors }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
 
+  const companySections = [
+    {
+      title: "Manufacturer",
+      keys: {
+        name: "prodManu",
+        country: "prodManuCountry",
+        lto: "prodManuLtoNo",
+        tin: "prodManuTin",
+        add: "prodManuAdd",
+      },
+    },
+    {
+      title: "Trader",
+      keys: {
+        name: "prodTrader",
+        country: "prodTraderCountry",
+        lto: "prodTraderLtoNo",
+        tin: "prodTraderTin",
+        add: "prodTraderAdd",
+      },
+    },
+    {
+      title: "Importer",
+      keys: {
+        name: "prodImporter",
+        country: "prodImporterCountry",
+        lto: "prodImporterLtoNo",
+        tin: "prodImporterTin",
+        add: "prodImporterAdd",
+      },
+    },
+    {
+      title: "Distributor",
+      keys: {
+        name: "prodDistri",
+        country: "prodDistriCountry",
+        lto: "prodDistriLtoNo",
+        tin: "prodDistriTin",
+        add: "prodDistriAdd",
+      },
+    },
+    {
+      title: "Repacker",
+      keys: {
+        name: "prodRepacker",
+        country: "prodRepackerCountry",
+        lto: "prodRepackerLtoNo",
+        tin: "prodRepackerTin",
+        add: "prodRepackerAdd",
+      },
+    },
+  ];
+
+  const tone = statusTone(record.appStatus);
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-      {/* DTN Banner */}
+      {/* Status / Submitted bar — mirrors the reference top row */}
       <div
         style={{
-          padding: "0.65rem 0.85rem",
-          background:
-            "linear-gradient(135deg, rgba(33,150,243,0.08), rgba(33,150,243,0.03))",
-          border: "1px solid rgba(33,150,243,0.2)",
+          padding: "0.75rem 0.9rem",
+          background: colors.inputBg,
+          border: `1px solid ${colors.cardBorder}`,
           borderRadius: "8px",
           display: "flex",
           alignItems: "center",
-          gap: "0.75rem",
+          gap: "2rem",
           flexWrap: "wrap",
         }}
       >
         <div>
           <div
             style={{
-              fontSize: "0.5rem",
+              fontSize: "0.62rem",
+              color: colors.textTertiary,
+              marginBottom: "0.3rem",
+            }}
+          >
+            Entry Type
+          </div>
+          <div
+            style={{
+              fontSize: "0.78rem",
               fontWeight: "700",
-              color: "#2196F3",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: "0.1rem",
+              color: colors.textPrimary,
+            }}
+          >
+            {cleanValue(record.entryType)}
+          </div>
+        </div>
+
+        <div>
+          <div
+            style={{
+              fontSize: "0.62rem",
+              color: colors.textTertiary,
+              marginBottom: "0.3rem",
+            }}
+          >
+            Status
+          </div>
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.3rem",
+              padding: "0.2rem 0.6rem",
+              background: tone.bg,
+              color: tone.color,
+              borderRadius: "999px",
+              fontSize: "0.65rem",
+              fontWeight: "700",
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: tone.dot,
+                display: "inline-block",
+              }}
+            />
+            {cleanValue(record.appStatus)}
+          </span>
+        </div>
+
+        <div>
+          <div
+            style={{
+              fontSize: "0.62rem",
+              color: colors.textTertiary,
+              marginBottom: "0.3rem",
             }}
           >
             Document Tracking No.
           </div>
           <div
             style={{
-              fontSize: "1rem",
-              fontWeight: "800",
+              fontSize: "0.78rem",
+              fontWeight: "700",
               color: colors.textPrimary,
-              letterSpacing: "-0.02em",
             }}
           >
             {cleanValue(record.dtn)}
           </div>
         </div>
-        <div
-          style={{
-            width: "1px",
-            height: "28px",
-            background: colors.cardBorder,
-          }}
-        />
-        <div style={{ flex: 1, minWidth: "120px" }}>
+        <div>
           <div
             style={{
-              fontSize: "0.5rem",
-              fontWeight: "700",
+              fontSize: "0.62rem",
               color: colors.textTertiary,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: "0.15rem",
+              marginBottom: "0.3rem",
             }}
           >
-            App Status
+            Old RSN
           </div>
           <div
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              padding: "0.18rem 0.5rem",
-              background: (() => {
-                const s = record.appStatus?.toUpperCase();
-                if (s === "COMPLETED" || s === "APPROVED")
-                  return "linear-gradient(135deg,#10b981,#059669)";
-                if (s === "PENDING")
-                  return "linear-gradient(135deg,#eab308,#ca8a04)";
-                if (s === "REJECTED")
-                  return "linear-gradient(135deg,#ef4444,#dc2626)";
-                return "linear-gradient(135deg,#6b7280,#4b5563)";
-              })(),
-              color: "#fff",
-              borderRadius: "5px",
-              fontSize: "0.58rem",
+              fontSize: "0.78rem",
               fontWeight: "700",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
+              color: colors.textPrimary,
             }}
           >
-            {cleanValue(record.appStatus)}
+            {cleanValue(record.oldRsn)}
           </div>
         </div>
-        {record.dbTimelineCitizenCharter && (
+
+        <div>
           <div
             style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "0.05rem",
+              fontSize: "0.62rem",
+              color: colors.textTertiary,
+              marginBottom: "0.3rem",
             }}
           >
+            Registration No.
+          </div>
+          <div
+            style={{
+              fontSize: "0.78rem",
+              fontWeight: "700",
+              color: colors.textPrimary,
+            }}
+          >
+            {cleanValue(record.regNo)}
+          </div>
+        </div>
+
+        {record.dbTimelineCitizenCharter && (
+          <div>
             <div
               style={{
-                fontSize: "0.5rem",
-                fontWeight: "700",
+                fontSize: "0.62rem",
                 color: colors.textTertiary,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
+                marginBottom: "0.3rem",
               }}
             >
               Timeline
             </div>
             <div
               style={{
-                fontSize: "0.8rem",
-                fontWeight: "800",
+                fontSize: "0.78rem",
+                fontWeight: "700",
                 color: colors.textPrimary,
               }}
             >
-              {cleanValue(record.dbTimelineCitizenCharter)}
-              <span
-                style={{
-                  fontSize: "0.52rem",
-                  fontWeight: "500",
-                  color: colors.textTertiary,
-                  marginLeft: "0.2rem",
-                }}
-              >
-                working days
-              </span>
+              {cleanValue(record.dbTimelineCitizenCharter)} working days
             </div>
           </div>
         )}
+
         {status && (
-          <span
-            style={{
-              padding: "0.22rem 0.6rem",
-              background: ok
-                ? "linear-gradient(135deg,#10b981,#059669)"
-                : "linear-gradient(135deg,#ef4444,#dc2626)",
-              color: "#fff",
-              borderRadius: "5px",
-              fontSize: "0.55rem",
-              fontWeight: "700",
-              letterSpacing: "0.5px",
-              textTransform: "uppercase",
-            }}
-          >
-            {ok ? "✓" : "⚠"} {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
-          </span>
+          <div>
+            <div
+              style={{
+                fontSize: "0.62rem",
+                color: colors.textTertiary,
+                marginBottom: "0.3rem",
+              }}
+            >
+              Aging
+            </div>
+            <span
+              style={{
+                padding: "0.2rem 0.6rem",
+                background: ok ? "#dcfce7" : "#fee2e2",
+                color: ok ? "#16a34a" : "#dc2626",
+                borderRadius: "999px",
+                fontSize: "0.65rem",
+                fontWeight: "700",
+              }}
+            >
+              {ok ? `Within (${days}d)` : `Beyond (${days}d)`}
+            </span>
+          </div>
         )}
       </div>
 
-      {/* Summary Cards */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gap: "0.4rem",
-        }}
-      >
-        <SummaryCard
-          icon="⚙️"
-          label="Processing Type"
-          value={cleanValue(record.processingType)}
-          accent="#005cd4"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="🗂️"
-          label="Category"
-          value={cleanValue(record.estCat)}
-          accent="#fbff00"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="📋"
-          label="Application Type"
-          value={cleanValue(record.appType)}
-          accent="#ff1547"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="🏢"
-          label="LTO Company"
-          value={cleanValue(record.ltoComp)}
-          accent="#0fff2f"
-          colors={colors}
-          fullWidth
-        />
-        <SummaryCard
-          icon="📍"
-          label="LTO Address"
-          value={cleanValue(record.ltoAdd)}
-          accent="#ff950a"
-          colors={colors}
-          fullWidth
-        />
-        <SummaryCard
-          icon="📧"
-          label="Email"
-          value={cleanValue(record.eadd)}
-          accent="#fa3a93"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="🪪"
-          label="TIN"
-          value={cleanValue(record.tin)}
-          accent="#ca44ff"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="📞"
-          label="Contact No."
-          value={cleanValue(record.contactNo)}
-          accent="#00f18d"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="🔑"
-          label="LTO Number"
-          value={cleanValue(record.ltoNo)}
-          accent="#781192"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="📅"
-          label="LTO Validity"
-          value={formatDate(record.validity)}
-          accent="#607d8b"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="📅"
-          label="Date Received Central"
-          value={formatDate(record.dateReceivedCent)}
-          accent="#607d8b"
-          colors={colors}
-        />
-        <SummaryCard
-          icon="📅"
-          label="Date Received FDAC"
-          value={formatDate(record.dateReceivedFdac)}
-          accent="#0b5b83"
-          colors={colors}
-        />
-      </div>
+      {/* Two-column layout: left = Establishment/Product/Fees/Companies (60%), right = Application/Released/CPR/Amendments (40%) — collapses to one column on small screens */}
+      <style>{`
+        .vdm-two-col {
+          display: flex;
+          gap: 0.75rem;
+          align-items: flex-start;
+          flex-wrap: nowrap;
+        }
+        .vdm-col-left,
+        .vdm-col-right {
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+        }
+        .vdm-col-left { flex: 1 1 60%; }
+        .vdm-col-right { flex: 0 0 40%; }
+        @media (max-width: 760px) {
+          .vdm-two-col {
+            flex-direction: column;
+          }
+          .vdm-col-left,
+          .vdm-col-right {
+            flex: 1 1 100%;
+            width: 100%;
+          }
+          .vdm-lv-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+      <div className="vdm-two-col">
+        <div className="vdm-col-left">
+          {/* Establishment Information */}
+          <AccordionSection
+            icon={Icons.info}
+            title="Establishment Information"
+            colors={colors}
+            labelWidth={95}
+          >
+            <LVGrid>
+              <LVRow
+                label="Category"
+                value={cleanValue(record.estCat)}
+                colors={colors}
+                fullWidth
+              />
+              <LVRow
+                label="LTO Number"
+                value={cleanValue(record.ltoNo)}
+                colors={colors}
+              />
+              <LVRow
+                label="LTO Validity"
+                value={formatDate(record.validity)}
+                colors={colors}
+              />
 
-      {/* Product Details */}
-      <VDSection title="💊 Product Details" colors={colors}>
-        <FieldGrid cols={3}>
-          <DisplayField
-            label="Brand Name"
-            value={cleanValue(record.prodBrName)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Generic Name"
-            value={cleanValue(record.prodGenName)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Dosage Strength"
-            value={cleanValue(record.prodDosStr)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Dosage Form"
-            value={cleanValue(record.prodDosForm)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Classification"
-            value={cleanValue(record.prodClassPrescript)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Essential Drug"
-            value={cleanValue(record.prodEssDrugList)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Shelf Life"
-            value={cleanValue(record.prodDistriShelfLife)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Pharma Category"
-            value={cleanValue(record.prodPharmaCat)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Product Category"
-            value={cleanValue(record.prodCat)}
-            colors={colors}
-          />
-          <DisplayField
-            label="File"
-            value={cleanValue(record.file)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Storage Condition"
-            value={cleanValue(record.storageCond)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Packaging"
-            value={cleanValue(record.packaging)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Expiry Date"
-            value={formatDate(record.expiryDate)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Suggested RP"
-            value={cleanValue(record.suggRp)}
-            colors={colors}
-          />
-          <DisplayField
-            label="No. of Samples"
-            value={cleanValue(record.noSample)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
+              <LVRow
+                label="Company"
+                value={cleanValue(record.ltoComp)}
+                colors={colors}
+                fullWidth
+              />
+              <LVRow
+                label="Address"
+                value={cleanValue(record.ltoAdd)}
+                colors={colors}
+                wide
+                fullWidth
+              />
 
-      {/* Fees */}
-      <VDSection title="💰 Fees" colors={colors}>
-        <FieldGrid cols={3}>
-          <DisplayField
-            label="Fee"
-            value={cleanValue(record.fee)}
-            colors={colors}
-          />
-          <DisplayField
-            label="LRF"
-            value={cleanValue(record.lrf)}
-            colors={colors}
-          />
-          <DisplayField
-            label="SURC"
-            value={cleanValue(record.surc)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Total"
-            value={cleanValue(record.total)}
-            colors={colors}
-          />
-          <DisplayField
-            label="OR No."
-            value={cleanValue(record.orNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Date Issued"
-            value={formatDate(record.dateIssued)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
+              <LVRow
+                label="Email Address"
+                value={cleanValue(record.eadd)}
+                colors={colors}
+              />
+              <LVRow
+                label="TIN"
+                value={cleanValue(record.tin)}
+                colors={colors}
+              />
+              <LVRow
+                label="Contact No."
+                value={cleanValue(record.contactNo)}
+                colors={colors}
+              />
+            </LVGrid>
+          </AccordionSection>
 
-      {/* Manufacturer / Trader / Importer / Distributor / Repacker */}
-      {[
-        {
-          title: "🏭 Manufacturer",
-          keys: {
-            name: "prodManu",
-            country: "prodManuCountry",
-            lto: "prodManuLtoNo",
-            tin: "prodManuTin",
-            add: "prodManuAdd",
-          },
-        },
-        {
-          title: "🤝 Trader",
-          keys: {
-            name: "prodTrader",
-            country: "prodTraderCountry",
-            lto: "prodTraderLtoNo",
-            tin: "prodTraderTin",
-            add: "prodTraderAdd",
-          },
-        },
-        {
-          title: "🚢 Importer",
-          keys: {
-            name: "prodImporter",
-            country: "prodImporterCountry",
-            lto: "prodImporterLtoNo",
-            tin: "prodImporterTin",
-            add: "prodImporterAdd",
-          },
-        },
-        {
-          title: "📦 Distributor",
-          keys: {
-            name: "prodDistri",
-            country: "prodDistriCountry",
-            lto: "prodDistriLtoNo",
-            tin: "prodDistriTin",
-            add: "prodDistriAdd",
-          },
-        },
-        {
-          title: "🔄 Repacker",
-          keys: {
-            name: "prodRepacker",
-            country: "prodRepackerCountry",
-            lto: "prodRepackerLtoNo",
-            tin: "prodRepackerTin",
-            add: "prodRepackerAdd",
-          },
-        },
-      ].map(({ title, keys }) => (
-        <VDSection key={title} title={title} colors={colors}>
-          <FieldGrid cols={2}>
-            <DisplayField
-              label="Name"
-              value={cleanValue(record[keys.name])}
+          {/* Product Details */}
+          <AccordionSection
+            icon={Icons.pill}
+            title="Product Details"
+            colors={colors}
+            labelWidth={115}
+          >
+            <LVGrid>
+              <LVRow
+                label="Brand Name"
+                value={cleanValue(record.prodBrName)}
+                colors={colors}
+              />
+              <LVRow
+                label="Generic Name"
+                value={cleanValue(record.prodGenName)}
+                colors={colors}
+              />
+              <LVRow
+                label="Dosage Strength"
+                value={cleanValue(record.prodDosStr)}
+                colors={colors}
+              />
+              <LVRow
+                label="Dosage Form"
+                value={cleanValue(record.prodDosForm)}
+                colors={colors}
+              />
+              <LVRow
+                label="Classification"
+                value={cleanValue(record.prodClassPrescript)}
+                colors={colors}
+              />
+              <LVRow
+                label="Essential Drug"
+                value={cleanValue(record.prodEssDrugList)}
+                colors={colors}
+              />
+              <LVRow
+                label="Shelf Life"
+                value={cleanValue(record.prodDistriShelfLife)}
+                colors={colors}
+              />
+              <LVRow
+                label="Pharma Category"
+                value={cleanValue(record.prodPharmaCat)}
+                colors={colors}
+              />
+              <LVRow
+                label="Product Category"
+                value={cleanValue(record.prodCat)}
+                colors={colors}
+              />
+              <LVRow
+                label="File"
+                value={cleanValue(record.file)}
+                colors={colors}
+              />
+              <LVRow
+                label="Storage Condition"
+                value={cleanValue(record.storageCond)}
+                colors={colors}
+              />
+              <LVRow
+                label="Packaging"
+                value={cleanValue(record.packaging)}
+                colors={colors}
+              />
+              <LVRow
+                label="Suggested RP"
+                value={cleanValue(record.suggRp)}
+                colors={colors}
+              />
+              <LVRow
+                label="No. of Samples"
+                value={cleanValue(record.noSample)}
+                colors={colors}
+              />
+            </LVGrid>
+          </AccordionSection>
+
+          {/* Fees */}
+          <AccordionSection
+            icon={Icons.cash}
+            title="Fees"
+            colors={colors}
+            labelWidth={65}
+          >
+            <LVGrid>
+              <LVRow
+                label="Fee"
+                value={cleanValue(record.fee)}
+                colors={colors}
+              />
+              <LVRow
+                label="LRF"
+                value={cleanValue(record.lrf)}
+                colors={colors}
+              />
+              <LVRow
+                label="SURC"
+                value={cleanValue(record.surc)}
+                colors={colors}
+              />
+              <LVRow
+                label="Total"
+                value={cleanValue(record.total)}
+                colors={colors}
+              />
+              <LVRow
+                label="OR No."
+                value={cleanValue(record.orNo)}
+                colors={colors}
+              />
+              <LVRow
+                label="Date Issued"
+                value={formatDate(record.dateIssued)}
+                colors={colors}
+              />
+            </LVGrid>
+          </AccordionSection>
+
+          {/* Manufacturer / Trader / Importer / Distributor / Repacker */}
+          {companySections.map(({ title, keys }) => (
+            <AccordionSection
+              key={title}
+              icon={Icons.company}
+              title={title}
+              colors={colors}
+              labelWidth={70}
+            >
+              <LVGrid>
+                <LVRow
+                  label="Name"
+                  value={cleanValue(record[keys.name])}
+                  colors={colors}
+                />
+                <LVRow
+                  label="Country"
+                  value={cleanValue(record[keys.country])}
+                  colors={colors}
+                />
+                <LVRow
+                  label="LTO No."
+                  value={cleanValue(record[keys.lto])}
+                  colors={colors}
+                />
+                <LVRow
+                  label="TIN"
+                  value={cleanValue(record[keys.tin])}
+                  colors={colors}
+                />
+              </LVGrid>
+              <LVRow
+                label="Address"
+                value={cleanValue(record[keys.add])}
+                colors={colors}
+                wide
+              />
+            </AccordionSection>
+          ))}
+        </div>
+
+        <div className="vdm-col-right">
+          {/* Application Information */}
+          <AccordionSection
+            icon={Icons.hash}
+            title="Application Information"
+            colors={colors}
+            labelWidth={135}
+          >
+            <LVRow
+              label="Processing Type"
+              value={cleanValue(record.processingType)}
               colors={colors}
             />
-            <DisplayField
-              label="Country"
-              value={cleanValue(record[keys.country])}
-              colors={colors}
-            />
-            <DisplayField
-              label="LTO No."
-              value={cleanValue(record[keys.lto])}
-              colors={colors}
-            />
-            <DisplayField
-              label="TIN"
-              value={cleanValue(record[keys.tin])}
-              colors={colors}
-            />
-            <DisplayField
-              label="Address"
-              value={cleanValue(record[keys.add])}
+
+            <LVRow
+              label="Date Received FDAC"
+              value={formatDate(record.dateReceivedFdac)}
               colors={colors}
               fullWidth
             />
-          </FieldGrid>
-        </VDSection>
-      ))}
+            <LVRow
+              label="Date Received Central"
+              value={formatDate(record.dateReceivedCent)}
+              colors={colors}
+              wide
+              fullWidth
+            />
 
-      {/* Application Info */}
-      <VDSection title="📋 Application Information" colors={colors}>
-        <FieldGrid cols={3}>
-          <DisplayField
-            label="Registration No."
-            value={cleanValue(record.regNo)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Mother App Type"
-            value={cleanValue(record.motherAppType)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Old RSN"
-            value={cleanValue(record.oldRsn)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Certification"
-            value={cleanValue(record.certification)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Class"
-            value={cleanValue(record.class)}
-            colors={colors}
-          />
-          <DisplayField
-            label="MO"
-            value={cleanValue(record.mo)}
-            colors={colors}
-          />
-        </FieldGrid>
-      </VDSection>
+            <LVRow
+              label="Application Type"
+              value={cleanValue(record.appType)}
+              colors={colors}
+            />
+            <LVRow
+              label="Mother App Type"
+              value={cleanValue(record.motherAppType)}
+              colors={colors}
+            />
 
-      {/* Released Info */}
-      <VDSection title="📤 Released Information" colors={colors}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "0.4rem",
-          }}
-        >
-          <SummaryCard
-            icon="📄"
-            label="Type of Document Released"
-            value={cleanValue(record.typeDocReleased)}
-            accent="#2196F3"
+            <LVRow
+              label="Certification"
+              value={cleanValue(record.certification)}
+              colors={colors}
+              fullWidth
+            />
+            <LVRow
+              label="Class"
+              value={cleanValue(record.class)}
+              colors={colors}
+            />
+            <LVRow label="MO" value={cleanValue(record.mo)} colors={colors} />
+          </AccordionSection>
+
+          {/* Released Information */}
+          <AccordionSection
+            icon={Icons.check}
+            title="Released Information"
             colors={colors}
-          />
-          <SummaryCard
-            icon="📎"
-            label="Attachments Released"
-            value={cleanValue(record.attaReleased)}
-            accent="#10b981"
+            labelWidth={160}
+          >
+            <LVRow
+              label="Type of Document Released"
+              value={cleanValue(record.typeDocReleased)}
+              colors={colors}
+            />
+            <LVRow
+              label="Attachments Released"
+              value={cleanValue(record.attaReleased)}
+              colors={colors}
+            />
+            <LVRow
+              label="SECPA"
+              value={cleanValue(record.secpa)}
+              colors={colors}
+            />
+            <LVRow
+              label="Expiry"
+              value={formatDate(record.secpaExpDate)}
+              colors={colors}
+            />
+            <LVRow
+              label="Issued On"
+              value={formatDate(record.secpaIssuedOn)}
+              colors={colors}
+            />
+            <LVRow
+              label="Date Released by CDRR"
+              value={formatDate(record.dateReleased)}
+              colors={colors}
+            />
+          </AccordionSection>
+
+          {/* CPR Conditions */}
+          <AccordionSection
+            icon={Icons.info}
+            title="CPR Conditions"
             colors={colors}
-          />
-          <SummaryCard
-            icon="🔖"
-            label="SECPA"
-            value={cleanValue(record.secpa)}
-            accent="#f59e0b"
+            labelWidth={140}
+          >
+            <LVRow
+              label="CPR Condition/s"
+              value={cleanValue(record.cprCond)}
+              colors={colors}
+              wide
+            />
+            <LVRow
+              label="CPR Condition Remarks"
+              value={cleanValue(record.cprCondRemarks)}
+              colors={colors}
+              wide
+            />
+            <LVRow
+              label="Additional Remarks"
+              value={cleanValue(record.cprCondAddRemarks)}
+              colors={colors}
+              wide
+            />
+          </AccordionSection>
+
+          {/* Amendments & Remarks */}
+          <AccordionSection
+            icon={Icons.edit}
+            title="Amendments & Remarks"
             colors={colors}
-          />
-          <SummaryCard
-            icon="📅"
-            label="Expiry"
-            value={formatDate(record.secpaExpDate)}
-            accent="#ef4444"
-            colors={colors}
-          />
-          <SummaryCard
-            icon="📅"
-            label="Issued On"
-            value={formatDate(record.secpaIssuedOn)}
-            accent="#8b5cf6"
-            colors={colors}
-          />
-          <SummaryCard
-            icon="📅"
-            label="Date Released by CDRR"
-            value={formatDate(record.dateReleased)}
-            accent="#06b6d4"
-            colors={colors}
-          />
+            labelWidth={125}
+          >
+            <LVRow
+              label="Amendment 1"
+              value={cleanValue(record.ammend1)}
+              colors={colors}
+            />
+            <LVRow
+              label="Amendment 2"
+              value={cleanValue(record.ammend2)}
+              colors={colors}
+            />
+            <LVRow
+              label="Amendment 3"
+              value={cleanValue(record.ammend3)}
+              colors={colors}
+            />
+
+            <LVRow
+              label="Application Remarks"
+              value={cleanValue(record.appRemarks)}
+              colors={colors}
+              wide
+            />
+            <LVRow
+              label="General Remarks"
+              value={cleanValue(record.remarks1)}
+              colors={colors}
+              wide
+            />
+          </AccordionSection>
         </div>
-      </VDSection>
-
-      {/* CPR Conditions */}
-      <VDSection title="📜 CPR Conditions" colors={colors}>
-        <DisplayField
-          label="CPR Condition/s"
-          value={cleanValue(record.cprCond)}
-          colors={colors}
-          fullWidth
-        />
-        <DisplayField
-          label="CPR Condition Remarks"
-          value={cleanValue(record.cprCondRemarks)}
-          colors={colors}
-          fullWidth
-        />
-        <DisplayField
-          label="Additional Remarks"
-          value={cleanValue(record.cprCondAddRemarks)}
-          colors={colors}
-          fullWidth
-        />
-      </VDSection>
-
-      {/* Amendments & Remarks */}
-      <VDSection title="📝 Amendments & Remarks" colors={colors}>
-        <FieldGrid cols={3}>
-          <DisplayField
-            label="Amendment 1"
-            value={cleanValue(record.ammend1)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Amendment 2"
-            value={cleanValue(record.ammend2)}
-            colors={colors}
-          />
-          <DisplayField
-            label="Amendment 3"
-            value={cleanValue(record.ammend3)}
-            colors={colors}
-          />
-        </FieldGrid>
-        <div
-          style={{
-            marginTop: "0.4rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.4rem",
-          }}
-        >
-          <DisplayField
-            label="Application Remarks"
-            value={cleanValue(record.appRemarks)}
-            colors={colors}
-            fullWidth
-          />
-          <DisplayField
-            label="General Remarks"
-            value={cleanValue(record.remarks1)}
-            colors={colors}
-            fullWidth
-          />
-        </div>
-      </VDSection>
+      </div>
     </div>
   );
 }
 
 /* ================================================================== */
-/*  Main Modal                                                          */
+/*  Main Modal — single view, no tabs, no App History button            */
 /* ================================================================== */
 function ViewDetailsModal({
   record,
@@ -1173,14 +961,10 @@ function ViewDetailsModal({
   darkMode,
   loading = false,
 }) {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [showHistory, setShowHistory] = useState(false);
-
   if (!record) return null;
 
   return (
     <>
-      {/* Backdrop */}
       <div
         style={{
           position: "fixed",
@@ -1195,14 +979,13 @@ function ViewDetailsModal({
         onClick={onClose}
       />
 
-      {/* Modal — expands width when panel is open */}
       <div
         style={{
           position: "fixed",
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: showHistory ? "min(1400px, 97vw)" : "min(1100px, 95vw)",
+          width: "min(1100px, 95vw)",
           maxHeight: "94vh",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
@@ -1212,14 +995,13 @@ function ViewDetailsModal({
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          transition: "width 0.3s ease",
         }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── Header ── */}
         <div
           style={{
-            padding: "0.75rem 1.25rem",
+            padding: "0.85rem 1.25rem",
             borderBottom: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
@@ -1229,255 +1011,145 @@ function ViewDetailsModal({
           }}
         >
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "0.1rem" }}
+            style={{ display: "flex", alignItems: "center", gap: "0.65rem" }}
           >
-            <h2
+            <span
               style={{
-                fontSize: "0.95rem",
-                fontWeight: "700",
-                color: colors.textPrimary,
-                margin: 0,
-              }}
-            >
-              {currentStep === 1
-                ? "👁️ Application Information"
-                : "🗂️ Application Logs"}
-            </h2>
-            <p
-              style={{
-                fontSize: "0.65rem",
-                color: colors.textTertiary,
-                margin: 0,
-              }}
-            >
-              DTN:{" "}
-              <strong style={{ color: "#2196F3" }}>
-                {cleanValue(record.dtn)}
-              </strong>
-              {" · "}
-              {cleanValue(record.prodBrName)}
-            </p>
-          </div>
-
-          {/* Right side buttons */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              flexShrink: 0,
-            }}
-          >
-            {/* History toggle button */}
-            <button
-              onClick={() => setShowHistory((v) => !v)}
-              title="Application History"
-              style={{
-                padding: "0.3rem 0.75rem",
-                borderRadius: "6px",
-                border: `1px solid ${showHistory ? "#2196F3" : colors.cardBorder}`,
-                background: showHistory
-                  ? "rgba(33,150,243,0.1)"
-                  : "transparent",
-                color: showHistory ? "#2196F3" : colors.textSecondary,
-                fontSize: "0.7rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "0.35rem",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                if (!showHistory) {
-                  e.currentTarget.style.background = "rgba(33,150,243,0.07)";
-                  e.currentTarget.style.borderColor = "#2196F3";
-                  e.currentTarget.style.color = "#2196F3";
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!showHistory) {
-                  e.currentTarget.style.background = "transparent";
-                  e.currentTarget.style.borderColor = colors.cardBorder;
-                  e.currentTarget.style.color = colors.textSecondary;
-                }
-              }}
-            >
-              📋 {showHistory ? "Hide History" : "App History"}
-            </button>
-
-            {/* Close button */}
-            <button
-              onClick={onClose}
-              style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "6px",
-                border: `1px solid ${colors.cardBorder}`,
-                background: "transparent",
-                color: colors.textSecondary,
-                cursor: "pointer",
-                fontSize: "0.9rem",
+                width: 30,
+                height: 30,
+                borderRadius: "8px",
+                background: ACCENT_BG,
+                color: ACCENT,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#ef444415";
-                e.currentTarget.style.borderColor = "#ef4444";
-                e.currentTarget.style.color = "#ef4444";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.borderColor = colors.cardBorder;
-                e.currentTarget.style.color = colors.textSecondary;
               }}
             >
-              ✕
-            </button>
+              {Icons.document}
+            </span>
+            <div>
+              <h2
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: "700",
+                  color: colors.textPrimary,
+                  margin: 0,
+                }}
+              >
+                Application Details
+              </h2>
+            </div>
           </div>
-        </div>
 
-        {/* ── Step Tab Bar ── */}
-        <StepTabBar
-          currentStep={currentStep}
-          setCurrentStep={setCurrentStep}
-          colors={colors}
-        />
-
-        {/* ── Body: main content + side panel ── */}
-        <div
-          style={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}
-        >
-          {/* Main scrollable content */}
-          <div
+          <button
+            onClick={onClose}
             style={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: "auto",
-              padding: "1rem 1.25rem",
+              width: "28px",
+              height: "28px",
+              borderRadius: "6px",
+              border: "none",
+              background: "transparent",
+              color: colors.textSecondary,
+              cursor: "pointer",
+              fontSize: "1rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(0,0,0,0.05)";
+              e.currentTarget.style.color = colors.textPrimary;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.color = colors.textSecondary;
             }}
           >
-            {currentStep === 1 &&
-              (loading ? (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "300px",
-                    gap: "0.75rem",
-                    color: colors.textTertiary,
-                  }}
-                >
-                  <div style={{ fontSize: "2rem" }}>⏳</div>
-                  <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>
-                    Loading details...
-                  </span>
-                  <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
-                    DTN: {record?.dtn}
-                  </span>
-                </div>
-              ) : (
-                <AllDetails record={record} colors={colors} />
-              ))}
-            {currentStep === 2 && (
-              <Step3AppLogs
-                record={{ ...record, mainDbId: record.mainDbId ?? record.id }}
-                colors={colors}
-              />
-            )}
-          </div>
+            ✕
+          </button>
+        </div>
 
-          {/* Side Panel */}
-          {showHistory && (
-            <AppHistoryPanel
-              onClose={() => setShowHistory(false)}
-              colors={colors}
-              darkMode={darkMode}
-              dtn={cleanValue(record.dtn)}
-            />
+        {/* ── Body ── */}
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: "1rem 1.25rem",
+          }}
+        >
+          {loading ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "300px",
+                gap: "0.75rem",
+                color: colors.textTertiary,
+              }}
+            >
+              <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>
+                Loading details...
+              </span>
+              <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
+                DTN: {record?.dtn}
+              </span>
+            </div>
+          ) : (
+            <AllDetails record={record} colors={colors} />
           )}
         </div>
 
         {/* ── Footer ── */}
         <div
           style={{
-            padding: "0.65rem 1.25rem",
+            padding: "0.75rem 1.25rem",
             borderTop: `1px solid ${colors.cardBorder}`,
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
             flexShrink: 0,
+            gap: "0.5rem",
             background: colors.cardBg,
           }}
         >
-          <span
+          <button
+            onClick={onClose}
             style={{
-              fontSize: "0.65rem",
-              color: colors.textTertiary,
+              padding: "0.5rem 1.1rem",
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: "7px",
+              color: colors.textPrimary,
+              fontSize: "0.75rem",
               fontWeight: "600",
+              cursor: "pointer",
             }}
           >
-            Step {currentStep} of 2
-          </span>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            {currentStep > 1 && (
-              <button
-                onClick={() => setCurrentStep((s) => s - 1)}
-                style={{
-                  padding: "0.45rem 1rem",
-                  background: colors.inputBg,
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "7px",
-                  color: colors.textPrimary,
-                  fontSize: "0.72rem",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                }}
-              >
-                ← Previous
-              </button>
-            )}
-            {currentStep < 2 && (
-              <button
-                onClick={() => setCurrentStep((s) => s + 1)}
-                style={{
-                  padding: "0.45rem 1.1rem",
-                  background: "linear-gradient(135deg, #2196F3, #1976D2)",
-                  border: "none",
-                  borderRadius: "7px",
-                  color: "#fff",
-                  fontSize: "0.72rem",
-                  fontWeight: "700",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                  boxShadow: "0 2px 8px rgba(33,150,243,0.3)",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-1px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 4px 12px rgba(33,150,243,0.4)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "none";
-                  e.currentTarget.style.boxShadow =
-                    "0 2px 8px rgba(33,150,243,0.3)";
-                }}
-              >
-                Next →
-              </button>
-            )}
-          </div>
+            Close
+          </button>
+          <button
+            style={{
+              padding: "0.5rem 1.2rem",
+              background: ACCENT,
+              border: "none",
+              borderRadius: "7px",
+              color: "#fff",
+              fontSize: "0.75rem",
+              fontWeight: "700",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem",
+            }}
+          >
+            ✎ Edit
+          </button>
         </div>
       </div>
     </>
