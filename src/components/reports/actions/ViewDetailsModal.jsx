@@ -1133,23 +1133,6 @@ function ViewDetailsModal({
           >
             Close
           </button>
-          <button
-            style={{
-              padding: "0.5rem 1.2rem",
-              background: ACCENT,
-              border: "none",
-              borderRadius: "7px",
-              color: "#fff",
-              fontSize: "0.75rem",
-              fontWeight: "700",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.4rem",
-            }}
-          >
-            ✎ Edit
-          </button>
         </div>
       </div>
     </>
