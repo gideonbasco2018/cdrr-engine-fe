@@ -1,4 +1,5 @@
 import { SZ, COUNTRIES } from "../config/constants";
+import { ACCENT, SUCCESS } from "../steps/StepUIKit";
 
 /* ── VDSection ─────────────────────────────────────────────────── */
 export function VDSection({ title, children, colors }) {
@@ -151,7 +152,7 @@ export function EditableField({
           rows={2}
           style={baseStyle}
           onFocus={(e) => {
-            e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+            e.target.style.borderColor = isDirty ? "#f59e0b" : ACCENT;
           }}
           onBlur={(e) => {
             e.target.style.borderColor = isDirty
@@ -166,7 +167,7 @@ export function EditableField({
           onChange={(e) => onChange(fieldKey, e.target.value)}
           style={baseStyle}
           onFocus={(e) => {
-            e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+            e.target.style.borderColor = isDirty ? "#f59e0b" : ACCENT;
           }}
           onBlur={(e) => {
             e.target.style.borderColor = isDirty
@@ -258,7 +259,7 @@ export function CountrySelect({
           minHeight: SZ.inputMinH,
         }}
         onFocus={(e) => {
-          e.target.style.borderColor = isDirty ? "#f59e0b" : "#2196F3";
+          e.target.style.borderColor = isDirty ? "#f59e0b" : ACCENT;
         }}
         onBlur={(e) => {
           e.target.style.borderColor = isDirty ? "#f59e0b" : colors.inputBorder;
@@ -331,6 +332,8 @@ export function SummaryCard({ icon, label, value, accent, colors }) {
     </div>
   );
 }
+
+/* ── StepIndicator ─────────────────────────────────────────────── */
 export function StepIndicator({ currentStep, steps, colors }) {
   return (
     <div
@@ -375,19 +378,17 @@ export function StepIndicator({ currentStep, steps, colors }) {
                   flexShrink: 0,
                   transition: "all 0.3s ease",
                   background: isCompleted
-                    ? "#10b981"
+                    ? SUCCESS
                     : isActive
-                      ? "#2196F3"
+                      ? ACCENT
                       : colors.inputBg,
                   border: isCompleted
-                    ? "2px solid #10b981"
+                    ? `2px solid ${SUCCESS}`
                     : isActive
-                      ? "2px solid #2196F3"
+                      ? `2px solid ${ACCENT}`
                       : `2px solid ${colors.cardBorder}`,
                   color: isCompleted || isActive ? "#fff" : colors.textTertiary,
-                  boxShadow: isActive
-                    ? "0 0 0 3px rgba(33,150,243,0.15)"
-                    : "none",
+                  boxShadow: isActive ? `0 0 0 3px ${ACCENT}26` : "none",
                 }}
               >
                 {isCompleted ? "✓" : stepNum}
@@ -397,7 +398,7 @@ export function StepIndicator({ currentStep, steps, colors }) {
                   style={{
                     flex: 1,
                     height: "2px",
-                    background: isCompleted ? "#10b981" : colors.cardBorder,
+                    background: isCompleted ? SUCCESS : colors.cardBorder,
                     margin: "0 4px",
                     transition: "background 0.3s ease",
                   }}
@@ -412,9 +413,9 @@ export function StepIndicator({ currentStep, steps, colors }) {
                 fontSize: "0.58rem",
                 fontWeight: isActive ? "700" : "500",
                 color: isActive
-                  ? "#2196F3"
+                  ? ACCENT
                   : isCompleted
-                    ? "#10b981"
+                    ? SUCCESS
                     : colors.textTertiary,
                 whiteSpace: "nowrap",
                 textAlign: "center",

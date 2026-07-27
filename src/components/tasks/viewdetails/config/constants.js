@@ -1,7 +1,7 @@
 export const SZ = {
   labelFs: "0.62rem",
-  valueFs: "0.78rem",
-  sectionTitleFs: "0.8rem",
+  valueFs: "0.7rem",
+  sectionTitleFs: "0.78rem",
   inputPad: "0.35rem 0.6rem",
   inputMinH: "1.8rem",
   gridGap: "0.6rem",
