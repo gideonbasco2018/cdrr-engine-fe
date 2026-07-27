@@ -27,6 +27,13 @@ export default function MetricDetailModal({
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [openMenuRow, setOpenMenuRow] = useState(null);
+  const [dtnSort, setDtnSort] = useState(null); // null | "asc" | "desc"
+
+  const toggleDtnSort = () => {
+    setDtnSort((prev) =>
+      prev === null ? "asc" : prev === "asc" ? "desc" : null,
+    );
+  };
 
   // ── Filters ───────────────────────────────────────────────────────────────
   const [filterFrom, setFilterFrom] = useState("");
@@ -78,6 +85,10 @@ export default function MetricDetailModal({
         if (resolvedTo) extraParams.accomplished_date_to = resolvedTo;
         if (resolvedStep) extraParams.app_step = resolvedStep;
         if (resolvedDtn) extraParams.dtn = resolvedDtn;
+        if (dtnSort) {
+          extraParams.sort_by = "dtn";
+          extraParams.sort_dir = dtnSort;
+        }
 
         const res = await getDashboardDetail({
           metric: metricKey,
@@ -100,7 +111,15 @@ export default function MetricDetailModal({
         setLoading(false);
       }
     },
-    [metricKey, dateParams, appliedFrom, appliedTo, appliedStep, appliedDtn],
+    [
+      metricKey,
+      dateParams,
+      appliedFrom,
+      appliedTo,
+      appliedStep,
+      appliedDtn,
+      dtnSort,
+    ],
   );
 
   useEffect(() => {
@@ -696,7 +715,7 @@ export default function MetricDetailModal({
                   >
                     {[
                       { label: "#", align: "center", width: 40 },
-                      { label: "DTN", align: "left" },
+                      { label: "DTN", align: "left", sortable: true },
                       { label: "Company", align: "left" },
                       { label: "Brand Name", align: "left" },
                       { label: "Generic Name", align: "left" },
@@ -718,10 +737,13 @@ export default function MetricDetailModal({
                         ? "#f59e0b"
                         : col.highlight
                           ? accentColor
-                          : null;
+                          : col.sortable && dtnSort
+                            ? accentColor
+                            : null;
                       return (
                         <th
                           key={ci}
+                          onClick={col.sortable ? toggleDtnSort : undefined}
                           style={{
                             padding: "9px 12px",
                             textAlign: col.align,
@@ -733,11 +755,27 @@ export default function MetricDetailModal({
                             borderBottom: `1px solid ${hlColor || ui.cardBorder}`,
                             whiteSpace: "nowrap",
                             width: col.width || "auto",
+                            cursor: col.sortable ? "pointer" : "default",
+                            userSelect: col.sortable ? "none" : "auto",
                           }}
                         >
                           {col.label}
                           {(col.highlight || col.stepHighlight) && (
                             <span style={{ marginLeft: 4 }}>▼</span>
+                          )}
+                          {col.sortable && (
+                            <span
+                              style={{
+                                marginLeft: 4,
+                                opacity: dtnSort ? 1 : 0.4,
+                              }}
+                            >
+                              {dtnSort === "asc"
+                                ? "▲"
+                                : dtnSort === "desc"
+                                  ? "▼"
+                                  : "⇅"}
+                            </span>
                           )}
                         </th>
                       );

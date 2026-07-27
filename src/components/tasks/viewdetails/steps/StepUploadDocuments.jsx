@@ -1,4 +1,4 @@
-// steps/StepUploadDocuments.jsx
+// components/tasks/viewdetails/steps/StepUploadDocuments.jsx
 import { useState, useRef, useEffect, useMemo } from "react";
 import { ChevronRight, Folder, FolderOpen } from "lucide-react";
 // ⚠️ Adjust this relative path to match how other files in this folder

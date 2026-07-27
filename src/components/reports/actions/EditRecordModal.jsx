@@ -1634,7 +1634,7 @@ function ReviewAndSave({ formData, originalData, colors }) {
     return (
       <div
         style={{
-          padding: "0.75rem 0.9rem",
+          // padding: "0.75rem 0.9rem",
           background: colors.inputBg,
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: "8px",

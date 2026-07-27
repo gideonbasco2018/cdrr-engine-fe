@@ -1,3 +1,4 @@
+// components/tasks/viewdetails/steps/Step3AppLogs.jsx
 import { useState, useEffect } from "react";
 import { getApplicationLogs } from "../../../../api/application-logs";
 

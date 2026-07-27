@@ -12,16 +12,18 @@ import {
   QA_ADMIN_REQUIRED_FIELDS,
 } from "./config/fields";
 import { StepIndicator } from "./components/BaseFields";
-import { Step1BasicInfo } from "./steps/Step1BasicInfo";
-import { Step2FullDetails } from "./steps/Step2FullDetails";
+import { Step1FullDetails } from "./steps/Step1FullDetails";
 import { Step3AppLogs } from "./steps/Step3AppLogs";
 import { Step4ActionForm } from "./steps/Step4ActionForm";
 import { StepCPRView } from "./steps/StepCPRView";
 import { SpellCheckButton } from "./steps/SpellCheckButton";
 import DoctrackPanel from "./steps/DoctrackPanel";
 import { StepUploadDocuments } from "./steps/StepUploadDocuments";
+import { ACCENT } from "./steps/StepUIKit";
 
-const STEPS = ["Basic Info", "Full Details", "Documents", "App Logs", "Action"];
+// Full Details now covers what used to be Basic Info + Full Details (merged)
+const STEPS = ["Full Details", "Documents", "App Logs", "Action"];
+
 // ─── View mode toggle icon buttons ───
 function ViewModeToggle({ mode, onChange, colors }) {
   const btn = (id, icon, label, active) => (
@@ -34,25 +36,22 @@ function ViewModeToggle({ mode, onChange, colors }) {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        border: `1.5px solid ${active ? "#1976d2" : colors.cardBorder}`,
+        border: `1.5px solid ${active ? ACCENT : colors.cardBorder}`,
         borderRadius: id === "normal" ? "6px 0 0 6px" : "0 6px 6px 0",
-        background: active
-          ? "linear-gradient(135deg, rgba(25,118,210,0.18), rgba(25,118,210,0.08))"
-          : (colors.inputBg ?? "transparent"),
-        color: active ? "#1976d2" : colors.textSecondary,
+        background: active ? "#e0e7ff" : (colors.inputBg ?? "transparent"),
+        color: active ? ACCENT : colors.textSecondary,
         cursor: "pointer",
         fontSize: "0.78rem",
         transition: "all 0.18s",
         position: "relative",
         zIndex: active ? 1 : 0,
-        boxShadow: active ? "0 0 0 2px rgba(25,118,210,0.18)" : "none",
         fontWeight: active ? "700" : "500",
       }}
       onMouseEnter={(e) => {
         if (!active) {
-          e.currentTarget.style.background = "rgba(25,118,210,0.07)";
-          e.currentTarget.style.borderColor = "#1976d2";
-          e.currentTarget.style.color = "#1976d2";
+          e.currentTarget.style.background = "#eff6ff";
+          e.currentTarget.style.borderColor = ACCENT;
+          e.currentTarget.style.color = ACCENT;
         }
       }}
       onMouseLeave={(e) => {
@@ -73,7 +72,41 @@ function ViewModeToggle({ mode, onChange, colors }) {
       title="Switch view mode"
     >
       {btn("normal", "☰", "Normal View (Steps)", mode === "normal")}
-      {btn("cpr", "📜", "CPR Document View", mode === "cpr")}
+      {btn("cpr", "▤", "CPR Document View", mode === "cpr")}
+    </div>
+  );
+}
+
+/* ── Compact header notice pill — used for Edit Mode Active / QE notice ── */
+function HeaderNotice({ tone = "info", children }) {
+  const tones = {
+    info: { bg: "#eff6ff", border: "#bfdbfe", color: ACCENT },
+    warn: { bg: "#fef3c7", border: "#fde68a", color: "#b45309" },
+  };
+  const t = tones[tone] ?? tones.info;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.3rem",
+        padding: "0.1rem 0.45rem",
+        background: t.bg,
+        border: `1px solid ${t.border}`,
+        borderRadius: "4px",
+        fontSize: "0.56rem",
+        lineHeight: 1.25,
+        color: t.color,
+        flex: "1 1 auto",
+        minWidth: 0,
+      }}
+    >
+      <span style={{ flexShrink: 0, fontSize: "0.6rem" }}>
+        {tone === "warn" ? "⚠️" : "ℹ️"}
+      </span>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+        {children}
+      </span>
     </div>
   );
 }
@@ -95,6 +128,7 @@ export default function ViewDetailsModal({
 
   const canEdit = EDITABLE_STEPS.includes(record?.applicationStep);
   const isQAAdmin = record?.applicationStep === "QA Admin";
+  const isQE = record?.applicationStep === "Quality Evaluation";
   const totalSteps = STEPS.length;
 
   const handleFieldChange = (fieldKey, newValue) =>
@@ -110,18 +144,18 @@ export default function ViewDetailsModal({
       return !String(val ?? "").trim();
     });
 
-  const step1Missing = isQAAdmin
-    ? getMissingFields(getStep1RequiredFields(record, editedFields))
-    : [];
-
-  const step2Missing = isQAAdmin
-    ? getMissingFields(QA_ADMIN_REQUIRED_FIELDS.step2)
+  // Full Details (step 1) now covers what used to be split across
+  // Step 1 (Basic Info) + Step 2 (Full Details) — merge both required-field
+  // sets into a single list since it's one step now.
+  const fullDetailsMissing = isQAAdmin
+    ? getMissingFields([
+        ...getStep1RequiredFields(record, editedFields),
+        ...QA_ADMIN_REQUIRED_FIELDS.step2,
+      ])
     : [];
 
   const isNextBlocked =
-    isQAAdmin &&
-    ((currentStep === 1 && step1Missing.length > 0) ||
-      (currentStep === 2 && step2Missing.length > 0));
+    isQAAdmin && currentStep === 1 && fullDetailsMissing.length > 0;
 
   const goNext = () => {
     if (isNextBlocked) return;
@@ -146,23 +180,23 @@ export default function ViewDetailsModal({
   };
 
   const isCPR = viewMode === "cpr";
-  const missingCount =
-    currentStep === 1 ? step1Missing.length : step2Missing.length;
+  const missingCount = fullDetailsMissing.length;
 
   const headerTitle = isCPR
-    ? "📜 CPR Document View"
+    ? "CPR Document View"
     : currentStep === 1
-      ? "👁️ Basic Information"
+      ? "Full Details"
       : currentStep === 2
-        ? "📄 Full Details"
+        ? "Supporting Documents"
         : currentStep === 3
-          ? "📁 Supporting Documents"
-          : currentStep === 4
-            ? "📋 Application Logs"
-            : `✅ ${record.applicationStep}`;
+          ? "Application Logs"
+          : `${record.applicationStep}`;
+
+  // Show the Edit Mode / QE notices only on the Full Details step (normal view)
+  const showHeaderNotices = !isCPR && currentStep === 1 && (canEdit || isQE);
 
   // Modal width expands when doctrack panel is open
-  const modalWidth = doctrackOpen ? "min(1380px, 97vw)" : "min(980px, 95vw)";
+  const modalWidth = doctrackOpen ? "min(1380px, 97vw)" : "min(1100px, 95vw)";
 
   return (
     <>
@@ -189,7 +223,7 @@ export default function ViewDetailsModal({
           maxHeight: "88vh",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "12px",
+          borderRadius: "14px",
           boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
           zIndex: 1001,
           display: "flex",
@@ -202,258 +236,285 @@ export default function ViewDetailsModal({
         {/* ── Header ── */}
         <div
           style={{
-            padding: "0.85rem 1.25rem",
+            background: colors.inputBg,
             borderBottom: `1px solid ${colors.cardBorder}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
+            borderRadius: "14px 14px 0 0",
             flexShrink: 0,
-            gap: "0.75rem",
           }}
         >
-          {/* Left: title + meta */}
           <div
             style={{
+              padding: showHeaderNotices
+                ? "0.7rem 1.25rem 0.35rem"
+                : "0.85rem 1.25rem",
               display: "flex",
-              flexDirection: "column",
-              gap: "0.1rem",
-              minWidth: 0,
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.75rem",
             }}
           >
+            {/* Left: title + meta */}
             <div
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.1rem",
+                minWidth: 0,
+              }}
             >
-              <h2
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                <h2
+                  style={{
+                    fontSize: "0.95rem",
+                    fontWeight: "700",
+                    color: colors.textPrimary,
+                    margin: 0,
+                  }}
+                >
+                  {headerTitle}
+                </h2>
+                {isCPR && canEdit && (
+                  <span
+                    style={{
+                      padding: "0.06rem 0.38rem",
+                      fontSize: "0.58rem",
+                      fontWeight: "700",
+                      background: "#dcfce7",
+                      color: "#16a34a",
+                      border: "1px solid #bbf7d0",
+                      borderRadius: "4px",
+                    }}
+                  >
+                    Editable
+                  </span>
+                )}
+                {isCPR && !canEdit && (
+                  <span
+                    style={{
+                      padding: "0.06rem 0.38rem",
+                      fontSize: "0.58rem",
+                      fontWeight: "700",
+                      background: "rgba(100,100,100,0.1)",
+                      color: colors.textTertiary,
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: "4px",
+                    }}
+                  >
+                    View Only
+                  </span>
+                )}
+              </div>
+              <p
                 style={{
-                  fontSize: "1rem",
-                  fontWeight: "700",
-                  color: colors.textPrimary,
+                  fontSize: "0.65rem",
+                  color: colors.textTertiary,
                   margin: 0,
                 }}
               >
-                {headerTitle}
-              </h2>
-              {isCPR && canEdit && (
-                <span
-                  style={{
-                    padding: "0.06rem 0.38rem",
-                    fontSize: "0.58rem",
-                    fontWeight: "700",
-                    background: "rgba(16,185,129,0.12)",
-                    color: "#059669",
-                    border: "1px solid rgba(16,185,129,0.3)",
-                    borderRadius: "4px",
-                  }}
-                >
-                  ✎ Editable
-                </span>
-              )}
-              {isCPR && !canEdit && (
-                <span
-                  style={{
-                    padding: "0.06rem 0.38rem",
-                    fontSize: "0.58rem",
-                    fontWeight: "700",
-                    background: "rgba(100,100,100,0.1)",
-                    color: colors.textTertiary,
-                    border: `1px solid ${colors.cardBorder}`,
-                    borderRadius: "4px",
-                  }}
-                >
-                  🔒 View Only
-                </span>
-              )}
-            </div>
-            <p
-              style={{
-                fontSize: "0.7rem",
-                color: colors.textTertiary,
-                margin: 0,
-              }}
-            >
-              DTN:{" "}
-              <strong style={{ color: "#2196F3" }}>
-                {cleanValue(record.dtn)}
-              </strong>
-              {" · "}
-              {cleanValue(record.prodBrName)}
-              {canEdit && dirtyCount > 0 && (
-                <span
-                  style={{
-                    marginLeft: "0.6rem",
-                    padding: "0.08rem 0.4rem",
-                    background: "rgba(245,158,11,0.15)",
-                    color: "#b45309",
-                    borderRadius: "3px",
-                    fontSize: "0.62rem",
-                    fontWeight: "700",
-                  }}
-                >
-                  ✎ {dirtyCount} unsaved edit{dirtyCount > 1 ? "s" : ""}
-                </span>
-              )}
-            </p>
-
-            {/* Compliance Deadline badge */}
-            {record.complianceDeadline &&
-              (() => {
-                const urgency = deadlineUrgency(record.complianceDeadline);
-                const wdaysLeft = countWorkingDays(
-                  todayStr(),
-                  record.complianceDeadline,
-                );
-                const cfgMap = {
-                  overdue: {
-                    bg: "rgba(239,68,68,0.15)",
-                    border: "#ef4444",
-                    color: "#ef4444",
-                    icon: "🚨",
-                  },
-                  critical: {
-                    bg: "rgba(239,68,68,0.1)",
-                    border: "#ef4444",
-                    color: "#ef4444",
-                    icon: "🔴",
-                  },
-                  warning: {
-                    bg: "rgba(245,158,11,0.12)",
-                    border: "#f59e0b",
-                    color: "#b45309",
-                    icon: "🟡",
-                  },
-                  ok: {
-                    bg: "rgba(16,185,129,0.1)",
-                    border: "#10b981",
-                    color: "#059669",
-                    icon: "🟢",
-                  },
-                };
-                const cfg = cfgMap[urgency] ?? cfgMap.ok;
-                return (
-                  <div
+                DTN:{" "}
+                <strong style={{ color: ACCENT }}>
+                  {cleanValue(record.dtn)}
+                </strong>
+                {canEdit && dirtyCount > 0 && (
+                  <span
                     style={{
-                      marginTop: "0.3rem",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      padding: "0.2rem 0.6rem",
-                      background: cfg.bg,
-                      border: `1px solid ${cfg.border}`,
-                      borderRadius: "20px",
-                      fontSize: "0.62rem",
+                      marginLeft: "0.6rem",
+                      padding: "0.08rem 0.4rem",
+                      background: "#fef3c7",
+                      color: "#b45309",
+                      borderRadius: "3px",
+                      fontSize: "0.6rem",
                       fontWeight: "700",
-                      color: cfg.color,
-                      width: "fit-content",
                     }}
                   >
-                    <span>{cfg.icon}</span>
-                    <span>Compliance Deadline:</span>
-                    <span>{fmtDeadline(record.complianceDeadline)}</span>
-                    <span
+                    {dirtyCount} unsaved edit{dirtyCount > 1 ? "s" : ""}
+                  </span>
+                )}
+              </p>
+
+              {/* Compliance Deadline badge */}
+              {record.complianceDeadline &&
+                (() => {
+                  const urgency = deadlineUrgency(record.complianceDeadline);
+                  const wdaysLeft = countWorkingDays(
+                    todayStr(),
+                    record.complianceDeadline,
+                  );
+                  const cfgMap = {
+                    overdue: {
+                      bg: "#fee2e2",
+                      border: "#dc2626",
+                      color: "#dc2626",
+                    },
+                    critical: {
+                      bg: "#fee2e2",
+                      border: "#dc2626",
+                      color: "#dc2626",
+                    },
+                    warning: {
+                      bg: "#fef3c7",
+                      border: "#f59e0b",
+                      color: "#b45309",
+                    },
+                    ok: { bg: "#dcfce7", border: "#16a34a", color: "#16a34a" },
+                  };
+                  const cfg = cfgMap[urgency] ?? cfgMap.ok;
+                  return (
+                    <div
                       style={{
-                        padding: "0.08rem 0.35rem",
-                        background: cfg.border + "25",
-                        borderRadius: "10px",
-                        fontSize: "0.58rem",
+                        marginTop: "0.3rem",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.4rem",
+                        padding: "0.2rem 0.6rem",
+                        background: cfg.bg,
+                        border: `1px solid ${cfg.border}`,
+                        borderRadius: "20px",
+                        fontSize: "0.6rem",
+                        fontWeight: "700",
+                        color: cfg.color,
+                        width: "fit-content",
                       }}
                     >
-                      {urgency === "overdue" ? "OVERDUE" : `${wdaysLeft}d left`}
-                    </span>
-                  </div>
-                );
-              })()}
-          </div>
+                      <span>Compliance Deadline:</span>
+                      <span>{fmtDeadline(record.complianceDeadline)}</span>
+                      <span
+                        style={{
+                          padding: "0.08rem 0.35rem",
+                          background: "rgba(0,0,0,0.06)",
+                          borderRadius: "10px",
+                          fontSize: "0.56rem",
+                        }}
+                      >
+                        {urgency === "overdue"
+                          ? "OVERDUE"
+                          : `${wdaysLeft}d left`}
+                      </span>
+                    </div>
+                  );
+                })()}
+            </div>
 
-          {/* Center: step indicator */}
-          <div
-            style={{
-              flex: 1,
-              maxWidth: "460px",
-              position: "relative",
-              paddingBottom: isCPR ? 0 : "1rem",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {isCPR ? (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.3rem 0.8rem",
-                  background: "rgba(25,118,210,0.06)",
-                  border: "1px solid rgba(25,118,210,0.2)",
-                  borderRadius: "20px",
-                  fontSize: "0.68rem",
-                  fontWeight: "600",
-                  color: "#1976d2",
-                }}
-              >
-                <span>📜</span>
-                <span>Certificate of Product Registration</span>
-              </div>
-            ) : (
-              <StepIndicator
-                currentStep={currentStep}
-                steps={STEPS}
-                colors={colors}
-              />
-            )}
-          </div>
-
-          {/* Right: spell check + view toggle + close */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              flexShrink: 0,
-            }}
-          >
-            {!isCPR && currentStep === 1 && canEdit && (
-              <SpellCheckButton
-                record={record}
-                editedFields={editedFields}
-                onFieldChange={handleFieldChange}
-                colors={colors}
-              />
-            )}
-            <ViewModeToggle
-              mode={viewMode}
-              onChange={handleViewModeChange}
-              colors={colors}
-            />
-            <button
-              onClick={onClose}
+            {/* Center: step indicator */}
+            <div
               style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "6px",
-                border: `1px solid ${colors.cardBorder}`,
-                background: "transparent",
-                color: colors.textSecondary,
-                cursor: "pointer",
-                fontSize: "0.95rem",
+                flex: 1,
+                maxWidth: "420px",
+                position: "relative",
+                paddingBottom: isCPR ? 0 : "1rem",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#ef444415";
-                e.currentTarget.style.borderColor = "#ef4444";
-                e.currentTarget.style.color = "#ef4444";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.borderColor = colors.cardBorder;
-                e.currentTarget.style.color = colors.textSecondary;
+            >
+              {isCPR ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.3rem 0.8rem",
+                    background: "#eff6ff",
+                    border: "1px solid #bfdbfe",
+                    borderRadius: "20px",
+                    fontSize: "0.68rem",
+                    fontWeight: "600",
+                    color: ACCENT,
+                  }}
+                >
+                  <span>Certificate of Product Registration</span>
+                </div>
+              ) : (
+                <StepIndicator
+                  currentStep={currentStep}
+                  steps={STEPS}
+                  colors={colors}
+                />
+              )}
+            </div>
+
+            {/* Right: spell check + view toggle + close */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                flexShrink: 0,
               }}
             >
-              ✕
-            </button>
+              {!isCPR && currentStep === 1 && canEdit && (
+                <SpellCheckButton
+                  record={record}
+                  editedFields={editedFields}
+                  onFieldChange={handleFieldChange}
+                  colors={colors}
+                />
+              )}
+              <ViewModeToggle
+                mode={viewMode}
+                onChange={handleViewModeChange}
+                colors={colors}
+              />
+              <button
+                onClick={onClose}
+                style={{
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "6px",
+                  border: `1px solid ${colors.cardBorder}`,
+                  background: "transparent",
+                  color: colors.textSecondary,
+                  cursor: "pointer",
+                  fontSize: "0.95rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(0,0,0,0.05)";
+                  e.currentTarget.style.borderColor = colors.textPrimary;
+                  e.currentTarget.style.color = colors.textPrimary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.borderColor = colors.cardBorder;
+                  e.currentTarget.style.color = colors.textSecondary;
+                }}
+              >
+                ✕
+              </button>
+            </div>
           </div>
+
+          {/* Compact notices row — Edit Mode Active / QE Action-step notice.
+              Lives inside the header, right under the title/step-tabs row. */}
+          {showHeaderNotices && (
+            <div
+              style={{
+                display: "flex",
+                gap: "0.4rem",
+                flexWrap: "wrap",
+                padding: "0 1.25rem 0.5rem",
+                marginTop: "-0.15rem",
+              }}
+            >
+              {canEdit && (
+                <HeaderNotice tone="warn">
+                  <strong>Edit Mode Active</strong> — dashed amber underline =
+                  modified. Saves on submit.
+                </HeaderNotice>
+              )}
+              {isQE && (
+                <HeaderNotice tone="info">
+                  <strong>Reg. No., SECPA, Released Info</strong> — available in{" "}
+                  <strong>Action</strong> step when Action Type is{" "}
+                  <strong>For Approval</strong>.
+                </HeaderNotice>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ── Body: main content + optional doctrack panel ── */}
@@ -464,7 +525,7 @@ export default function ViewDetailsModal({
             flexDirection: "row",
             minHeight: 0,
             overflow: "clip",
-            borderRadius: "0 0 12px 12px",
+            borderRadius: "0 0 14px 14px",
           }}
         >
           {/* Main content area */}
@@ -487,40 +548,28 @@ export default function ViewDetailsModal({
               />
             )}
             {!isCPR && currentStep === 1 && (
-              <Step1BasicInfo
+              <Step1FullDetails
                 record={record}
                 editedFields={editedFields}
                 onFieldChange={handleFieldChange}
                 canEdit={canEdit}
                 colors={colors}
                 isQAAdmin={isQAAdmin}
-                missingFields={step1Missing}
+                missingFields={fullDetailsMissing}
                 onOpenDoctrack={handleOpenDoctrack}
               />
             )}
             {!isCPR && currentStep === 2 && (
-              <Step2FullDetails
-                record={record}
-                editedFields={editedFields}
-                onFieldChange={handleFieldChange}
-                canEdit={canEdit}
-                colors={colors}
-                currentStep={record.applicationStep}
-                isQAAdmin={isQAAdmin}
-                missingFields={step2Missing}
-              />
-            )}
-            {!isCPR && currentStep === 3 && (
               <StepUploadDocuments
                 record={record}
                 colors={colors}
                 darkMode={darkMode}
               />
             )}
-            {!isCPR && currentStep === 4 && (
+            {!isCPR && currentStep === 3 && (
               <Step3AppLogs record={record} colors={colors} />
             )}
-            {!isCPR && currentStep === 5 && (
+            {!isCPR && currentStep === 4 && (
               <Step4ActionForm
                 record={record}
                 editedFields={editedFields}
@@ -556,7 +605,7 @@ export default function ViewDetailsModal({
         >
           <span
             style={{
-              fontSize: "0.7rem",
+              fontSize: "0.68rem",
               color: colors.textTertiary,
               fontWeight: "600",
             }}
@@ -569,10 +618,10 @@ export default function ViewDetailsModal({
                   gap: "0.35rem",
                 }}
               >
-                <span>📜 CPR View</span>
+                <span>CPR View</span>
                 {canEdit && dirtyCount > 0 && (
-                  <span style={{ color: "#f59e0b", fontWeight: "700" }}>
-                    · ✎ {dirtyCount} edit{dirtyCount > 1 ? "s" : ""} pending
+                  <span style={{ color: "#b45309", fontWeight: "700" }}>
+                    · {dirtyCount} edit{dirtyCount > 1 ? "s" : ""} pending
                   </span>
                 )}
               </span>
@@ -583,11 +632,11 @@ export default function ViewDetailsModal({
                   <span
                     style={{
                       marginLeft: "0.6rem",
-                      color: "#f59e0b",
+                      color: "#b45309",
                       fontWeight: "700",
                     }}
                   >
-                    · ✎ {dirtyCount} edit{dirtyCount > 1 ? "s" : ""} pending
+                    · {dirtyCount} edit{dirtyCount > 1 ? "s" : ""} pending
                   </span>
                 )}
               </>
@@ -605,9 +654,9 @@ export default function ViewDetailsModal({
                     padding: "0.45rem 0.9rem",
                     background: colors.inputBg,
                     border: `1px solid ${colors.cardBorder}`,
-                    borderRadius: "6px",
+                    borderRadius: "7px",
                     color: colors.textPrimary,
-                    fontSize: "0.78rem",
+                    fontSize: "0.75rem",
                     fontWeight: "600",
                     cursor: "pointer",
                   }}
@@ -627,13 +676,13 @@ export default function ViewDetailsModal({
                   {isNextBlocked && (
                     <span
                       style={{
-                        fontSize: "0.63rem",
-                        color: "#ef4444",
+                        fontSize: "0.62rem",
+                        color: "#dc2626",
                         fontWeight: "600",
                         textAlign: "right",
                       }}
                     >
-                      ⚠️ {missingCount} required field
+                      {missingCount} required field
                       {missingCount !== 1 ? "s" : ""} must be filled first
                     </span>
                   )}
@@ -641,19 +690,14 @@ export default function ViewDetailsModal({
                     onClick={goNext}
                     disabled={isNextBlocked}
                     style={{
-                      padding: "0.45rem 1rem",
-                      background: isNextBlocked
-                        ? "rgba(33,150,243,0.3)"
-                        : "linear-gradient(135deg, #2196F3, #1976D2)",
+                      padding: "0.45rem 1.1rem",
+                      background: isNextBlocked ? "#93c5fd" : ACCENT,
                       border: "none",
-                      borderRadius: "6px",
+                      borderRadius: "7px",
                       color: "#fff",
-                      fontSize: "0.78rem",
+                      fontSize: "0.75rem",
                       fontWeight: "700",
                       cursor: isNextBlocked ? "not-allowed" : "pointer",
-                      boxShadow: isNextBlocked
-                        ? "none"
-                        : "0 2px 6px rgba(33,150,243,0.3)",
                       transition: "all 0.2s",
                     }}
                     onMouseEnter={(e) => {
@@ -680,7 +724,7 @@ export default function ViewDetailsModal({
               }}
             >
               {canEdit
-                ? "Edit fields above — changes apply on Step 4 submit"
+                ? "Edit fields above — changes apply on Action step submit"
                 : "Switch to Normal View to navigate steps"}
             </div>
           )}
