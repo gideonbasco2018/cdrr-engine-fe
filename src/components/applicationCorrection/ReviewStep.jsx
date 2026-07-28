@@ -49,7 +49,7 @@ export function ReviewStep({
         }
       }
 
-      // 2️⃣ Ituloy ang correction
+      // 2️⃣ continue correction
       setStatusMessage("Saving correction…");
       const result = await submitCorrection({
         old_dtn: record.dtn,
@@ -58,7 +58,7 @@ export function ReviewStep({
         DB_ENTRY_TYPE: entryType,
         subject: subject,
         ...editedFields,
-        DB_APP_STATUS: "ON-PROCESS",
+        DB_APP_STATUS: "IN PROGRESS",
         application_decision: deckerData?.decision || "",
         application_remarks: deckerData?.remarks || "",
         assignee: deckerData?.assignee || "",
@@ -69,7 +69,7 @@ export function ReviewStep({
       });
 
       if (result.success) {
-        // 3️⃣ Upload supporting documents — best-effort; correction mismo ay tapos na
+        // 3️⃣ Upload supporting documents — best-effort;
         let docUploadWarning = "";
         if (stagedDocs.length > 0) {
           try {
