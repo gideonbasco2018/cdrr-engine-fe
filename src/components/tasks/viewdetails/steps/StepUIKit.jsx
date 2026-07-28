@@ -151,14 +151,25 @@ export const statusTone = (statusRaw) => {
 /*  Edit-mode banner, QE notice, dirty-fields banner, etc.               */
 /*  `compact` renders a smaller, tighter banner (header-level notices). */
 /* ================================================================== */
-export function Notice({ tone = "info", children, compact = false }) {
-  const tones = {
+export function Notice({
+  tone = "info",
+  children,
+  compact = false,
+  darkMode = false,
+}) {
+  const lightTones = {
     info: { bg: ACCENT_BG, border: "#bfdbfe", color: ACCENT },
     warn: { bg: "#fef3c7", border: "#fde68a", color: "#b45309" },
     ok: { bg: "#dcfce7", border: "#bbf7d0", color: "#16a34a" },
     error: { bg: "#fee2e2", border: "#fecaca", color: "#dc2626" },
   };
-  const t = tones[tone];
+  const darkTones = {
+    info: { bg: "#16233d", border: "#28477a", color: "#8bb6ff" },
+    warn: { bg: "#3a2e15", border: "#6b4f1f", color: "#f0b649" },
+    ok: { bg: "#132b1e", border: "#215a37", color: "#4ade80" },
+    error: { bg: "#3a1717", border: "#6b2424", color: "#f77070" },
+  };
+  const t = (darkMode ? darkTones : lightTones)[tone];
   return (
     <div
       style={{

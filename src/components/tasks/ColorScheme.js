@@ -1,3 +1,4 @@
+// components/tasks/ColorScheme.js
 export const getColorScheme = (darkMode) =>
   darkMode
     ? {
