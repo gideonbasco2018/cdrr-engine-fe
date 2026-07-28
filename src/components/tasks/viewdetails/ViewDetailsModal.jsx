@@ -12,7 +12,10 @@ import {
   QA_ADMIN_REQUIRED_FIELDS,
 } from "./config/fields";
 import { StepIndicator } from "./components/BaseFields";
-import { Step1FullDetails } from "./steps/Step1FullDetails";
+import {
+  Step1FullDetails,
+  CLASSIFICATION_OPTIONS,
+} from "./steps/Step1FullDetails";
 import { Step3AppLogs } from "./steps/Step3AppLogs";
 import { Step4ActionForm } from "./steps/Step4ActionForm";
 import { StepCPRView } from "./steps/StepCPRView";
@@ -78,12 +81,18 @@ function ViewModeToggle({ mode, onChange, colors }) {
 }
 
 /* ── Compact header notice pill — used for Edit Mode Active / QE notice ── */
-function HeaderNotice({ tone = "info", children }) {
-  const tones = {
+function HeaderNotice({ tone = "info", children, darkMode = false }) {
+  const lightTones = {
     info: { bg: "#eff6ff", border: "#bfdbfe", color: ACCENT },
     warn: { bg: "#fef3c7", border: "#fde68a", color: "#b45309" },
   };
-  const t = tones[tone] ?? tones.info;
+  const darkTones = {
+    info: { bg: "#16233d", border: "#28477a", color: "#8bb6ff" },
+    warn: { bg: "#3a2e15", border: "#6b4f1f", color: "#f0b649" },
+  };
+  const t =
+    (darkMode ? darkTones : lightTones)[tone] ??
+    (darkMode ? darkTones.info : lightTones.info);
   return (
     <div
       style={{
@@ -154,8 +163,16 @@ export default function ViewDetailsModal({
       ])
     : [];
 
+  const classificationVal =
+    "prodClassPrescript" in editedFields
+      ? editedFields.prodClassPrescript
+      : (record.prodClassPrescript ?? "");
+  const isClassificationInvalid =
+    !classificationVal || !CLASSIFICATION_OPTIONS.includes(classificationVal);
+
   const isNextBlocked =
-    isQAAdmin && currentStep === 1 && fullDetailsMissing.length > 0;
+    currentStep === 1 &&
+    ((isQAAdmin && fullDetailsMissing.length > 0) || isClassificationInvalid);
 
   const goNext = () => {
     if (isNextBlocked) return;
@@ -557,6 +574,7 @@ export default function ViewDetailsModal({
                 isQAAdmin={isQAAdmin}
                 missingFields={fullDetailsMissing}
                 onOpenDoctrack={handleOpenDoctrack}
+                darkMode={darkMode}
               />
             )}
             {!isCPR && currentStep === 2 && (
@@ -682,8 +700,11 @@ export default function ViewDetailsModal({
                         textAlign: "right",
                       }}
                     >
-                      {missingCount} required field
-                      {missingCount !== 1 ? "s" : ""} must be filled first
+                      {isClassificationInvalid
+                        ? "Please select a valid Classification"
+                        : `${missingCount} required field${
+                            missingCount !== 1 ? "s" : ""
+                          } must be filled first`}
                     </span>
                   )}
                   <button

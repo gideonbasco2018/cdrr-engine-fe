@@ -1,5 +1,5 @@
 // components/tasks/viewdetails/steps/Step1FullDetails.jsx
-import { useContext } from "react";
+import { useContext, useState, useRef, useEffect } from "react";
 import {
   cleanValue,
   formatDate,
@@ -18,6 +18,163 @@ import {
   RequiredBadge,
   LabelWidthContext,
 } from "./StepUIKit";
+/* ================================================================== */
+/*  Searchable dropdown / combobox                                     */
+/* ================================================================== */
+function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "— Select —",
+  baseInputStyle,
+  borderColor,
+  onFocusColor,
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapRef = useRef(null);
+  const searchRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (open && searchRef.current) {
+      searchRef.current.focus();
+    }
+  }, [open]);
+
+  const filtered = query
+    ? options.filter((opt) => opt.toLowerCase().includes(query.toLowerCase()))
+    : options;
+
+  const handleSelect = (opt) => {
+    onChange(opt);
+    setQuery("");
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative", width: "100%" }}>
+      {/* Closed-state trigger showing current value */}
+      <div
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          ...baseInputStyle,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          cursor: "pointer",
+          userSelect: "none",
+          borderBottomColor: open ? onFocusColor : borderColor,
+        }}
+      >
+        <span
+          style={{
+            color: value ? "inherit" : "#909092",
+            fontStyle: value ? "normal" : "italic",
+          }}
+        >
+          {value || placeholder}
+        </span>
+        <span
+          style={{
+            fontSize: "1rem",
+            color: "#919191",
+            marginLeft: "0.4rem",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.15s ease",
+          }}
+        >
+          ▾
+        </span>
+      </div>
+
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            background: "#2f2f30",
+            border: "1px solid #525252",
+            borderRadius: "6px",
+            boxShadow: "0 6px 16px rgba(0,0,0,0.35)",
+            marginTop: "3px",
+            overflow: "hidden",
+          }}
+        >
+          <input
+            ref={searchRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search country..."
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              padding: "0.4rem 0.6rem",
+              fontSize: "0.68rem",
+              fontFamily: "inherit",
+              color: "#fff",
+              background: "#333435",
+              border: "none",
+              borderBottom: "1px solid #4e4f52",
+              outline: "none",
+            }}
+          />
+          <div style={{ maxHeight: "180px", overflowY: "auto" }}>
+            {filtered.length === 0 ? (
+              <div
+                style={{
+                  padding: "0.4rem 0.6rem",
+                  fontSize: "0.68rem",
+                  color: "#9ca3af",
+                  fontStyle: "italic",
+                }}
+              >
+                No matches
+              </div>
+            ) : (
+              filtered.map((opt) => (
+                <div
+                  key={opt}
+                  onMouseDown={() => handleSelect(opt)}
+                  style={{
+                    padding: "0.4rem 0.6rem",
+                    fontSize: "0.68rem",
+                    color: "#e5e7eb",
+                    cursor: "pointer",
+                    background: opt === value ? "#2a3142" : "transparent",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#2a3142")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background =
+                      opt === value ? "#2a3142" : "transparent")
+                  }
+                >
+                  {opt}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ================================================================== */
 /*  Universal editable label:value row                                  */
@@ -118,30 +275,55 @@ function LVField({
             {isEmpty ? "N/A" : currentVal}
           </span>
         ) : type === "select" ? (
-          <select
-            value={currentVal || ""}
-            onChange={(e) => onChange(fieldKey, e.target.value)}
-            style={{
-              ...baseInputStyle,
-              cursor: "pointer",
-              colorScheme: "light",
-            }}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
+          <div
+            style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
           >
-            <option value="" style={{ color: "#111827", background: "#fff" }}>
-              — Select —
-            </option>
-            {options.map((opt) => (
-              <option
-                key={opt}
-                value={opt}
-                style={{ color: "#111827", background: "#fff" }}
-              >
-                {opt}
+            <select
+              value={currentVal || ""}
+              onChange={(e) => onChange(fieldKey, e.target.value)}
+              style={{
+                ...baseInputStyle,
+                cursor: "pointer",
+                colorScheme: "light",
+              }}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+            >
+              <option value="" style={{ color: "#111827", background: "#fff" }}>
+                — Select —
               </option>
-            ))}
-          </select>
+              {currentVal && !options.includes(currentVal) && (
+                <option
+                  value={currentVal}
+                  style={{ color: "#111827", background: "#fff" }}
+                >
+                  {currentVal}
+                </option>
+              )}
+              {options.map((opt) => (
+                <option
+                  key={opt}
+                  value={opt}
+                  style={{ color: "#111827", background: "#fff" }}
+                >
+                  {opt}
+                </option>
+              ))}
+            </select>
+            {currentVal && !options.includes(currentVal) && (
+              <span
+                title={`"${currentVal}" is not one of the standard options — please review/update`}
+                style={{
+                  flexShrink: 0,
+                  fontSize: "0.75rem",
+                  cursor: "help",
+                  lineHeight: 1,
+                }}
+              >
+                ⚠️
+              </span>
+            )}
+          </div>
         ) : type === "textarea" ? (
           <textarea
             value={currentVal || ""}
@@ -168,38 +350,15 @@ function LVField({
             onBlur={handleBlur}
           />
         ) : type === "country" ? (
-          <select
+          <SearchableSelect
             value={currentVal || ""}
-            onChange={(e) => onChange(fieldKey, e.target.value)}
-            style={{
-              ...baseInputStyle,
-              cursor: "pointer",
-              colorScheme: "light",
-            }}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-          >
-            <option value="" style={{ color: "#111827", background: "#fff" }}>
-              — Select country —
-            </option>
-            {currentVal && !COUNTRIES.includes(currentVal) && (
-              <option
-                value={currentVal}
-                style={{ color: "#111827", background: "#fff" }}
-              >
-                {currentVal}
-              </option>
-            )}
-            {COUNTRIES.map((c) => (
-              <option
-                key={c}
-                value={c}
-                style={{ color: "#111827", background: "#fff" }}
-              >
-                {c}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => onChange(fieldKey, v)}
+            options={COUNTRIES}
+            placeholder="— Select country —"
+            baseInputStyle={baseInputStyle}
+            borderColor={borderColor}
+            onFocusColor={ACCENT}
+          />
         ) : (
           <input
             type="text"
@@ -230,6 +389,12 @@ function LVField({
   );
 }
 
+export const CLASSIFICATION_OPTIONS = [
+  "N/A",
+  "Prescription (Rx) Drug",
+  "Over-the-Counter (OTC) Drug",
+  "Household Remedy (HR)",
+];
 /* ================================================================== */
 /*  Step 1 + Step 2 merged — All Details (view + inline edit)           */
 /* ================================================================== */
@@ -242,6 +407,7 @@ export function Step1FullDetails({
   isQAAdmin = false,
   missingFields = [],
   onOpenDoctrack,
+  darkMode = false,
 }) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
@@ -299,7 +465,7 @@ export function Step1FullDetails({
   };
 
   const entityGuide = isQAAdmin ? (
-    <Notice tone="info">
+    <Notice tone="info" darkMode={darkMode}>
       If this entity does not apply, enter <strong>N/A</strong> in the name
       field — the <strong>Country</strong> field will no longer be required.
     </Notice>
@@ -361,7 +527,10 @@ export function Step1FullDetails({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
       {isQAAdmin && (
-        <Notice tone={missingFields.length > 0 ? "error" : "ok"}>
+        <Notice
+          tone={missingFields.length > 0 ? "error" : "ok"}
+          darkMode={darkMode}
+        >
           {missingFields.length > 0 ? (
             <>
               <strong>
@@ -552,6 +721,58 @@ export function Step1FullDetails({
 
       <div className="s1fd-two-col">
         <div className="s1fd-col-left">
+          {/* Product Details */}
+          <AccordionSection
+            icon={Icons.pill}
+            title="Product Details"
+            colors={colors}
+            labelWidth={140}
+          >
+            <LVGrid>
+              {row("Brand Name", "prodBrName", {
+                wide: true,
+                fullWidth: true,
+              })}
+              {row("Generic Name", "prodGenName", {
+                wide: true,
+                fullWidth: true,
+              })}
+              {row("Dosage Strength", "prodDosStr", {
+                wide: true,
+                fullWidth: true,
+                type: "textarea",
+              })}
+              {row("Dosage Form", "prodDosForm", {
+                wide: true,
+                fullWidth: true,
+                type: "textarea",
+              })}
+              {row("Classification", "prodClassPrescript", {
+                type: "select",
+                options: CLASSIFICATION_OPTIONS,
+                wide: true,
+                fullWidth: true,
+              })}
+              {row("Essential Drug", "prodEssDrugList")}
+              {row("Shelf Life", "prodDistriShelfLife")}
+              {row("Pharma Category", "prodPharmaCat")}
+              {row("Product Category", "prodCat")}
+              {row("File", "file")}
+              {row("Storage Condition", "storageCond", {
+                wide: true,
+                fullWidth: true,
+                type: "textarea",
+              })}
+              {row("Packaging", "packaging", {
+                wide: true,
+                fullWidth: true,
+                type: "textarea",
+              })}
+              {row("Suggested Retail Price", "suggRp")}
+              {row("No. of Samples", "noSample")}
+            </LVGrid>
+          </AccordionSection>
+
           {/* Establishment Information */}
           <AccordionSection
             icon={Icons.info}
@@ -573,42 +794,15 @@ export function Step1FullDetails({
                 fullWidth: true,
                 type: "textarea",
               })}
-              {row("Email Address", "eadd")}
+              {row("Email Address", "eadd", {
+                wide: true,
+                fullWidth: true,
+              })}
               {row("TIN Number", "tin")}
-              {row("Contact Number", "contactNo")}
-            </LVGrid>
-          </AccordionSection>
-
-          {/* Product Details */}
-          <AccordionSection
-            icon={Icons.pill}
-            title="Product Details"
-            colors={colors}
-            labelWidth={140}
-          >
-            <LVGrid>
-              {row("Brand Name", "prodBrName")}
-              {row("Generic Name", "prodGenName")}
-              {row("Dosage Strength", "prodDosStr")}
-              {row("Dosage Form", "prodDosForm")}
-              {row("Classification", "prodClassPrescript")}
-              {row("Essential Drug", "prodEssDrugList")}
-              {row("Shelf Life", "prodDistriShelfLife")}
-              {row("Pharma Category", "prodPharmaCat")}
-              {row("Product Category", "prodCat")}
-              {row("File", "file")}
-              {row("Storage Condition", "storageCond", {
+              {row("Contact Number", "contactNo", {
                 wide: true,
                 fullWidth: true,
-                type: "textarea",
               })}
-              {row("Packaging", "packaging", {
-                wide: true,
-                fullWidth: true,
-                type: "textarea",
-              })}
-              {row("Suggested Retail Price", "suggRp")}
-              {row("No. of Samples", "noSample")}
             </LVGrid>
           </AccordionSection>
 
@@ -639,13 +833,18 @@ export function Step1FullDetails({
               labelWidth={90}
             >
               {entityGuide}
+
+              {row(title, fields.name, { wide: true, type: "textarea" })}
+              {row("Address", fields.add, { wide: true, type: "textarea" })}
               <LVGrid cols={2}>
-                {row(title, fields.name)}
+                {" "}
                 {row("Country", fields.country, { type: "country" })}
+              </LVGrid>
+
+              <LVGrid cols={2}>
                 {row("LTO No.", fields.lto)}
                 {row("TIN", fields.tin)}
               </LVGrid>
-              {row("Address", fields.add, { wide: true, type: "textarea" })}
             </AccordionSection>
           ))}
         </div>
