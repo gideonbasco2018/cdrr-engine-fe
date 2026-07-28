@@ -180,6 +180,22 @@ function SearchableSelect({
 /*  Universal editable label:value row                                  */
 /*  type: "text" | "date" | "select" | "textarea" | "country"           */
 /* ================================================================== */
+/* Formats a date value as "23 April 2026" (day month year) */
+function formatDateLong(val) {
+  if (!val || val === "N/A") return "";
+  try {
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
 function LVField({
   label,
   fieldKey,
@@ -194,11 +210,15 @@ function LVField({
   isEditable = false,
   missing = false,
   applicable = true,
+  displayFormatter = null,
 }) {
   const labelWidth = useContext(LabelWidthContext);
   const isDirty =
     isEditable && String(currentVal ?? "") !== String(originalVal ?? "");
   const isEmpty = !currentVal;
+  const displayVal = displayFormatter
+    ? displayFormatter(currentVal) || currentVal
+    : currentVal;
 
   const toInputDate = (val) => {
     if (!val || val === "N/A") return "";
@@ -272,7 +292,7 @@ function LVField({
               whiteSpace: wide ? "pre-wrap" : "normal",
             }}
           >
-            {isEmpty ? "N/A" : currentVal}
+            {isEmpty ? "N/A" : displayVal}
           </span>
         ) : type === "select" ? (
           <div
@@ -858,9 +878,13 @@ export function Step1FullDetails({
           >
             {!isQE && row("Registration No.", "regNo")}
             {row("Processing Type", "processingType")}
-            {row("Date Received FDAC", "dateReceivedFdac", { type: "date" })}
+            {row("Date Received FDAC", "dateReceivedFdac", {
+              type: "date",
+              displayFormatter: formatDateLong,
+            })}
             {row("Date Received Central", "dateReceivedCent", {
               type: "date",
+              displayFormatter: formatDateLong,
             })}
 
             {row("Application Type", "appType")}
