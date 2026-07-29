@@ -757,6 +757,8 @@ function UploadButton({ onFileSelect, onDownloadTemplate, uploading, colors }) {
                             fontWeight: 700,
                             borderBottom: `1px solid ${colors.cardBorder}`,
                             whiteSpace: "nowrap",
+                            minWidth:
+                              i === prescriptionColIndex ? 260 : undefined,
                           }}
                         >
                           {h}
@@ -816,6 +818,7 @@ function UploadButton({ onFileSelect, onDownloadTemplate, uploading, colors }) {
                                   style={{
                                     padding: "4px 6px",
                                     borderBottom: `1px solid ${colors.cardBorder}`,
+                                    minWidth: 460,
                                   }}
                                 >
                                   <select
