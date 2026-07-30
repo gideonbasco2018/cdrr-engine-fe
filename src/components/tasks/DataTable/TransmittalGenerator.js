@@ -167,9 +167,9 @@ export const generatePDF = async (selectedData, activeTab) => {
   doc.text("TRANSMITTAL SLIP", 10, 7.5);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setFontSize(10);
   doc.text(
-    "FDA Center for Drug Regulation and Research (CDRR)",
+    "FDA- Center for Drug Regulation and Research (CDRR)",
     10,
     13,
   );
@@ -248,16 +248,16 @@ export const generatePDF = async (selectedData, activeTab) => {
     margin: { left: 5, right: 5 },
     columnStyles: {
       _no:             { halign: "center", cellWidth: 6,  valign: "middle" },
-      dtn:             { cellWidth: 28,    halign: "center", valign: "middle", fontStyle: "bold" },
-      oldRsnDtn:       { cellWidth: 28,    halign: "center", valign: "middle" },
-      entryType:       { cellWidth: 18,    halign: "center", valign: "middle" },
-      ltoCompany:      { cellWidth: 30,    valign: "middle" },
+      dtn:             { cellWidth: 31,    halign: "center", valign: "middle", fontStyle: "bold" },
+      oldRsnDtn:       { cellWidth: 31,    halign: "center", valign: "middle" },
+      entryType:       { cellWidth: 27,    halign: "center", valign: "middle" },
+      ltoCompany:      { cellWidth: 33,    valign: "middle" },
       ltoAdd:          { cellWidth: 38,    valign: "middle" },
       secpa:           { cellWidth: 20,    halign: "center", valign: "middle" },
-      appType:         { cellWidth: 20,    valign: "middle" },
-      regNo:           { cellWidth: 20,    halign: "center", valign: "middle" },
-      typeDocReleased: { cellWidth: 22,    valign: "middle" },
-      attaReleased:    { cellWidth: 26,    valign: "middle" },
+      appType:         { cellWidth: 18,    valign: "middle" },
+      regNo:           { cellWidth: 18,    halign: "center", valign: "middle" },
+      typeDocReleased: { cellWidth: 18,    valign: "middle" },
+      attaReleased:    { cellWidth: 24,    valign: "middle" },
       dateReleased:    { cellWidth: 20,    halign: "center", valign: "middle" },
     },
     didParseCell: (h) => {
@@ -465,8 +465,8 @@ export const generateCorrectionTransmittal = async (selectedData, activeTab) => 
   doc.text("CORRECTION / RECONSTRUCTION TRANSMITTAL SLIP", 10, 7.5);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.text("FDA Center for Drug Regulation and Research (CDRR)", 10, 13);
+  doc.setFontSize(10);
+  doc.text("FDA- Center for Drug Regulation and Research (CDRR)", 10, 13);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
