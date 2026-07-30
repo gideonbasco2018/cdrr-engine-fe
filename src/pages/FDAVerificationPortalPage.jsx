@@ -57,6 +57,8 @@ function FDAVerificationPortalPage({ darkMode }) {
   // ✅ Advanced filters expanded state
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [columnFilters, setColumnFilters] = useState({});
   // Store button refs for dropdown positioning
   const buttonRefs = useRef({});
 
@@ -203,6 +205,19 @@ function FDAVerificationPortalPage({ darkMode }) {
     { key: "date_uploaded", label: "Date Uploaded", width: "250px" },
   ];
 
+  const FILTERABLE_COLUMNS = [
+    { key: "registration_number", label: "Registration No." },
+    ...columns.filter(
+      (col) =>
+        ![
+          "uploaded_by",
+          "date_uploaded",
+          "issuance_date",
+          "expiry_date",
+        ].includes(col.key),
+    ),
+  ];
+
   const isToday = (dateString) => {
     if (!dateString) return false;
     const date = new Date(dateString);
@@ -289,6 +304,9 @@ function FDAVerificationPortalPage({ darkMode }) {
         uploaded_yesterday: activeTab === "yesterday",
         uploaded_this_month: activeTab === "thismonth",
         uploaded_by: filters.uploadedBy || null,
+        sort_by: sortConfig.key, // ✅ NEW
+        sort_order: sortConfig.direction, // ✅ NEW
+        column_filters: columnFilters, // ✅ NEW
       });
       setDrugsData(response.data || []);
       setPagination(response.pagination || {});
@@ -300,6 +318,10 @@ function FDAVerificationPortalPage({ darkMode }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [sortConfig, columnFilters]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -318,7 +340,9 @@ function FDAVerificationPortalPage({ darkMode }) {
     activeTab,
     currentUser,
     filters.uploadedBy,
-  ]); // ✅ added filters.uploadedBy
+    sortConfig,
+    columnFilters,
+  ]);
   const handleViewDetails = async (drugId) => {
     try {
       setLoading(true);
@@ -530,6 +554,22 @@ function FDAVerificationPortalPage({ darkMode }) {
     return () => document.removeEventListener("click", handleClickOutside);
   }, [openDropdown]);
 
+  // ✅ NEW — sort handler: asc -> desc -> none (cycles per column)
+  const handleSort = (key) => {
+    setSortConfig((prev) => {
+      if (prev.key !== key) return { key, direction: "asc" };
+      if (prev.direction === "asc") return { key, direction: "desc" };
+      return { key: null, direction: "asc" };
+    });
+  };
+
+  // ✅ NEW — per-column filter handler
+  const handleColumnFilterChange = (key, value) => {
+    setColumnFilters((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleClearColumnFilters = () => setColumnFilters({});
+
   // ✅ Clear all filters
   const handleClearFilters = () => {
     setFilters({ uploadedBy: "", dateUploadFrom: "", dateUploadTo: "" });
@@ -542,8 +582,14 @@ function FDAVerificationPortalPage({ darkMode }) {
     filters.dateUploadFrom ||
     filters.dateUploadTo;
 
+  const hasActiveColumnFilters = Object.values(columnFilters).some(
+    (v) => v && v.trim() !== "",
+  );
   const filteredData = getFilteredData();
-  const duplicateRegNums = [];
+  const duplicateRegNums =
+    activeTab === "duplicates"
+      ? drugsData.map((d) => d.registration_number?.trim()).filter(Boolean)
+      : [];
   if (userLoading) {
     return (
       <div
@@ -1019,6 +1065,243 @@ function FDAVerificationPortalPage({ darkMode }) {
                         transition: "border-color 0.2s",
                       }}
                     />
+                  </div>
+
+                  {/* ── Column Filters ─────────────── */}
+                  <div
+                    style={{
+                      borderTop: `1px solid ${colors.cardBorder}`,
+                      paddingTop: "0.65rem",
+                      marginTop: "0.15rem",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: "0.5rem",
+                      }}
+                    >
+                      <label
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: "600",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        Column Filters
+                      </label>
+                      {hasActiveColumnFilters && (
+                        <button
+                          onClick={handleClearColumnFilters}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#ef4444",
+                            cursor: "pointer",
+                            fontSize: "0.68rem",
+                            fontWeight: "600",
+                            padding: 0,
+                          }}
+                        >
+                          ✕ Clear
+                        </button>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.5rem",
+                        maxHeight: "260px",
+                        overflowY: "auto",
+                        paddingRight: "0.25rem",
+                      }}
+                    >
+                      {FILTERABLE_COLUMNS.map((col) => (
+                        <div key={col.key}>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "0.68rem",
+                              color: colors.textTertiary,
+                              marginBottom: "0.2rem",
+                            }}
+                          >
+                            {col.label}
+                          </label>
+                          <input
+                            className="fda-input"
+                            type="text"
+                            placeholder={`Filter ${col.label}...`}
+                            value={columnFilters[col.key] || ""}
+                            onChange={(e) =>
+                              handleColumnFilterChange(col.key, e.target.value)
+                            }
+                            style={{
+                              width: "100%",
+                              padding: "0.4rem 0.55rem",
+                              background: colors.inputBg,
+                              border: `1px solid ${colors.inputBorder}`,
+                              borderRadius: "6px",
+                              color: colors.textPrimary,
+                              fontSize: "0.76rem",
+                              boxSizing: "border-box",
+                              transition: "border-color 0.2s",
+                            }}
+                          />
+                        </div>
+                      ))}
+
+                      {/* ✅ NEW — Issuance Date range (From/To) */}
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "0.68rem",
+                            color: colors.textTertiary,
+                            marginBottom: "0.2rem",
+                          }}
+                        >
+                          Issuance Date
+                        </label>
+                        <div style={{ display: "flex", gap: "0.4rem" }}>
+                          <input
+                            className="fda-input"
+                            type="date"
+                            value={columnFilters.issuance_date_from || ""}
+                            onChange={(e) =>
+                              handleColumnFilterChange(
+                                "issuance_date_from",
+                                e.target.value,
+                              )
+                            }
+                            style={{
+                              width: "50%",
+                              padding: "0.4rem 0.5rem",
+                              background: colors.inputBg,
+                              border: `1px solid ${colors.inputBorder}`,
+                              borderRadius: "6px",
+                              color: colors.textPrimary,
+                              fontSize: "0.72rem",
+                              boxSizing: "border-box",
+                              colorScheme: darkMode ? "dark" : "light",
+                              transition: "border-color 0.2s",
+                            }}
+                          />
+                          <input
+                            className="fda-input"
+                            type="date"
+                            value={columnFilters.issuance_date_to || ""}
+                            onChange={(e) =>
+                              handleColumnFilterChange(
+                                "issuance_date_to",
+                                e.target.value,
+                              )
+                            }
+                            style={{
+                              width: "50%",
+                              padding: "0.4rem 0.5rem",
+                              background: colors.inputBg,
+                              border: `1px solid ${colors.inputBorder}`,
+                              borderRadius: "6px",
+                              color: colors.textPrimary,
+                              fontSize: "0.72rem",
+                              boxSizing: "border-box",
+                              colorScheme: darkMode ? "dark" : "light",
+                              transition: "border-color 0.2s",
+                            }}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            fontSize: "0.6rem",
+                            color: colors.textTertiary,
+                            marginTop: "0.15rem",
+                          }}
+                        >
+                          <span>From</span>
+                          <span>To</span>
+                        </div>
+                      </div>
+
+                      {/* ✅ NEW — Expiry Date range (From/To) */}
+                      <div>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: "0.68rem",
+                            color: colors.textTertiary,
+                            marginBottom: "0.2rem",
+                          }}
+                        >
+                          Expiry Date
+                        </label>
+                        <div style={{ display: "flex", gap: "0.4rem" }}>
+                          <input
+                            className="fda-input"
+                            type="date"
+                            value={columnFilters.expiry_date_from || ""}
+                            onChange={(e) =>
+                              handleColumnFilterChange(
+                                "expiry_date_from",
+                                e.target.value,
+                              )
+                            }
+                            style={{
+                              width: "50%",
+                              padding: "0.4rem 0.5rem",
+                              background: colors.inputBg,
+                              border: `1px solid ${colors.inputBorder}`,
+                              borderRadius: "6px",
+                              color: colors.textPrimary,
+                              fontSize: "0.72rem",
+                              boxSizing: "border-box",
+                              colorScheme: darkMode ? "dark" : "light",
+                              transition: "border-color 0.2s",
+                            }}
+                          />
+                          <input
+                            className="fda-input"
+                            type="date"
+                            value={columnFilters.expiry_date_to || ""}
+                            onChange={(e) =>
+                              handleColumnFilterChange(
+                                "expiry_date_to",
+                                e.target.value,
+                              )
+                            }
+                            style={{
+                              width: "50%",
+                              padding: "0.4rem 0.5rem",
+                              background: colors.inputBg,
+                              border: `1px solid ${colors.inputBorder}`,
+                              borderRadius: "6px",
+                              color: colors.textPrimary,
+                              fontSize: "0.72rem",
+                              boxSizing: "border-box",
+                              colorScheme: darkMode ? "dark" : "light",
+                              transition: "border-color 0.2s",
+                            }}
+                          />
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            fontSize: "0.6rem",
+                            color: colors.textTertiary,
+                            marginTop: "0.15rem",
+                          }}
+                        >
+                          <span>From</span>
+                          <span>To</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1669,7 +1952,6 @@ function FDAVerificationPortalPage({ darkMode }) {
                 {filteredData.length !== 1 ? "s" : ""}
               </span>
             </div>
-
             <FDADataTable
               filteredData={filteredData}
               columns={columns}
@@ -1689,6 +1971,10 @@ function FDAVerificationPortalPage({ darkMode }) {
               handleCancelClick={handleCancelClick}
               isExpired={isExpired}
               duplicateRegNums={duplicateRegNums}
+              sortConfig={sortConfig} // ✅ NEW
+              onSort={handleSort} // ✅ NEW
+              hasActiveColumnFilters={hasActiveColumnFilters} // ✅ NEW
+              onClearColumnFilters={handleClearColumnFilters} // ✅ NEW
             />
 
             <FDATablePagination

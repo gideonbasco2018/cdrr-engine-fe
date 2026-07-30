@@ -46,13 +46,15 @@ export const generateExcel = async (selectedData, activeTab) => {
     ["TRANSMITTAL SLIP — FDA Center for Drug Regulation and Research (CDRR)"],
     [
       `Generated: ${dateStr} ${timeStr}`,
-      "", "", "", "", "", "", "", "", "",
+      "", "", "", "", "", "", "", "", "", "", "",
       `Total Records: ${selectedData.length}`,
     ],
     [],
     [
       "#",
       "DTN",
+      "Other DTN",
+      "Entry Type",
       "Company Name",
       "Company Address",
       "SECPA Number",
@@ -68,6 +70,8 @@ export const generateExcel = async (selectedData, activeTab) => {
     wsData.push([
       i + 1,
       clean(r.dtn),
+      clean(r.oldRsn),
+      clean(r.entryType),
       clean(r.ltoCompany),
       clean(r.ltoAdd),
       clean(r.secpa),
@@ -80,10 +84,10 @@ export const generateExcel = async (selectedData, activeTab) => {
   });
 
   const ws = window.XLSX.utils.aoa_to_sheet(wsData);
-  ws["!cols"] = [4, 26, 32, 40, 20, 22, 22, 22, 28, 18].map((wch) => ({
+  ws["!cols"] = [4, 26, 22, 18, 32, 40, 20, 22, 22, 22, 28, 18].map((wch) => ({
     wch,
   }));
-  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }];
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 11 } }];
 
   const wb = window.XLSX.utils.book_new();
   window.XLSX.utils.book_append_sheet(wb, ws, "Transmittal");
@@ -147,6 +151,12 @@ export const generatePDF = async (selectedData, activeTab) => {
     genBarcode(r.dtn && r.dtn !== "N/A" ? r.dtn : "N/A"),
   );
 
+  const oldRsnBarcodeImages = selectedData.map((r) =>
+    r.oldRsn && r.oldRsn !== "N/A" && String(r.oldRsn).trim() !== ""
+      ? genBarcode(r.oldRsn)
+      : null,
+  );
+
   /* ── Header ── */
   doc.setFillColor(25, 118, 210);
   doc.rect(0, 0, pageW, 18, "F");
@@ -177,8 +187,9 @@ export const generatePDF = async (selectedData, activeTab) => {
   /* ── Columns ── */
   const cols = [
     { header: "#",                   dataKey: "_no"             },
-    { header: "Barcode",             dataKey: "_barcode"        },
     { header: "DTN",                 dataKey: "dtn"             },
+    { header: "Other DTN",           dataKey: "oldRsnDtn"       },
+    { header: "Entry Type",          dataKey: "entryType"       },
     { header: "Company Name",        dataKey: "ltoCompany"      },
     { header: "Company Address",     dataKey: "ltoAdd"          },
     { header: "SECPA Number",        dataKey: "secpa"           },
@@ -191,8 +202,9 @@ export const generatePDF = async (selectedData, activeTab) => {
 
   const rows = selectedData.map((r, i) => ({
     _no:             i + 1,
-    _barcode:        "",
     dtn:             clean(r.dtn),
+    oldRsnDtn:       clean(r.oldRsn),
+    entryType:       clean(r.entryType),
     ltoCompany:      clean(r.ltoCompany),
     ltoAdd:          clean(r.ltoAdd),
     secpa:           clean(r.secpa),
@@ -203,8 +215,8 @@ export const generatePDF = async (selectedData, activeTab) => {
     dateReleased:    clean(r.dateReleased),
   }));
 
-  const ROW_H = 11;
-  const BAR_W = 24;
+  const ROW_H = 15;
+  const BAR_W = 26;
   const BAR_H = 6;
 
   doc.autoTable({
@@ -236,29 +248,87 @@ export const generatePDF = async (selectedData, activeTab) => {
     margin: { left: 5, right: 5 },
     columnStyles: {
       _no:             { halign: "center", cellWidth: 6,  valign: "middle" },
-      _barcode:        { cellWidth: 27,    halign: "center", valign: "middle" },
-      dtn:             { cellWidth: 27,    halign: "center", valign: "middle", fontStyle: "bold" },
-      ltoCompany:      { cellWidth: 34,    valign: "middle" },
+      dtn:             { cellWidth: 28,    halign: "center", valign: "middle", fontStyle: "bold" },
+      oldRsnDtn:       { cellWidth: 28,    halign: "center", valign: "middle" },
+      entryType:       { cellWidth: 18,    halign: "center", valign: "middle" },
+      ltoCompany:      { cellWidth: 30,    valign: "middle" },
       ltoAdd:          { cellWidth: 38,    valign: "middle" },
       secpa:           { cellWidth: 20,    halign: "center", valign: "middle" },
       appType:         { cellWidth: 20,    valign: "middle" },
-      regNo:           { cellWidth: 22,    halign: "center", valign: "middle" },
+      regNo:           { cellWidth: 20,    halign: "center", valign: "middle" },
       typeDocReleased: { cellWidth: 22,    valign: "middle" },
-      attaReleased:    { cellWidth: 28,    valign: "middle" },
+      attaReleased:    { cellWidth: 26,    valign: "middle" },
       dateReleased:    { cellWidth: 20,    halign: "center", valign: "middle" },
     },
+    didParseCell: (h) => {
+      // Suppress the default text render for DTN and Other DTN cells — we
+      // draw them manually in didDrawCell so text can sit under a barcode.
+      if (
+        h.section === "body" &&
+        (h.column.dataKey === "dtn" || h.column.dataKey === "oldRsnDtn")
+      ) {
+        h.cell.text = [];
+      }
+    },
     didDrawCell: (h) => {
-      if (h.section === "body" && h.column.dataKey === "_barcode") {
+      if (h.section === "body" && h.column.dataKey === "dtn") {
+        const cell = h.cell;
         const img = barcodeImages[h.row.index];
+        const dtnText = rows[h.row.index].dtn;
+
         if (img) {
-          const cell = h.cell;
           doc.addImage(
             img,
             "PNG",
             cell.x + (cell.width - BAR_W) / 2,
-            cell.y + (cell.height - BAR_H) / 2,
+            cell.y + 1.5,
             BAR_W,
             BAR_H,
+          );
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.5);
+        doc.setTextColor(30, 30, 30);
+        doc.text(
+          dtnText,
+          cell.x + cell.width / 2,
+          cell.y + 1.5 + BAR_H + 3.5,
+          { align: "center" },
+        );
+      }
+
+      if (h.section === "body" && h.column.dataKey === "oldRsnDtn") {
+        const cell = h.cell;
+        const img = oldRsnBarcodeImages[h.row.index];
+        const text = rows[h.row.index].oldRsnDtn;
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(30, 30, 30);
+
+        if (img) {
+          doc.addImage(
+            img,
+            "PNG",
+            cell.x + (cell.width - BAR_W) / 2,
+            cell.y + 1.5,
+            BAR_W,
+            BAR_H,
+          );
+          doc.text(
+            text,
+            cell.x + cell.width / 2,
+            cell.y + 1.5 + BAR_H + 3.5,
+            { align: "center" },
+          );
+        } else {
+          // No barcode-able value (e.g. "—") — just center the text.
+          doc.text(
+            text,
+            cell.x + cell.width / 2,
+            cell.y + cell.height / 2 + 1.2,
+            { align: "center" },
           );
         }
       }
