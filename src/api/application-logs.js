@@ -252,3 +252,58 @@ export const toggleStarApplicationLog = async (logId, starred) => {
     throw new Error(errorMessage);
   }
 };
+
+/**
+ * Get open/active tasks (del_last_index = 1, del_thread = "Open"),
+ * joined with main_db for DTN / OLD RSN.
+ * Used by the Reassignment/Reroute page (task-list view).
+ *
+ * GET /api/application-logs/open-tasks
+ *
+ * @param {Object} params
+ * @param {number} [params.page=1]
+ * @param {number} [params.page_size=10000]
+ * @param {string} [params.search]             - DTN search
+ * @param {string} [params.application_step]
+ * @param {string} [params.user_name]
+ * @returns {Promise<{data: Array, total: number, page: number, page_size: number}>}
+ */
+export const getOpenTasks = async ({
+  page = 1,
+  page_size = 10000,
+  search,
+  application_step,
+  user_name,
+} = {}) => {
+  try {
+    const response = await API.get("/application-logs/open-tasks", {
+      params: {
+        page,
+        page_size,
+        ...(search && { search }),
+        ...(application_step && { application_step }),
+        ...(user_name && { user_name }),
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching open tasks:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch open tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+export const getOpenTaskSteps = async () => {
+  try {
+    const response = await API.get("/application-logs/open-tasks/steps");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching open task steps:", error);
+    throw new Error(
+      error.response?.data?.detail || error.message || "Failed to fetch steps",
+    );
+  }
+};
