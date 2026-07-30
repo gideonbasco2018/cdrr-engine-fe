@@ -56,6 +56,9 @@ export const getAllDrugs = async ({
   uploaded_yesterday = false,
   uploaded_this_month = false,
   uploaded_by = null,
+  sort_by = null,          // ✅ NEW
+  sort_order = 'desc',     // ✅ NEW
+  column_filters = null,   // ✅ NEW — { columnKey: "value", ... }
 } = {}) => {
   try {
     const params = {
@@ -71,6 +74,21 @@ export const getAllDrugs = async ({
 
     if (search) params.search = search;
     if (uploaded_by) params.uploaded_by = uploaded_by;
+
+    if (sort_by) {
+      params.sort_by = sort_by;
+      params.sort_order = sort_order;
+    }
+
+    if (column_filters && Object.keys(column_filters).length > 0) {
+      // strip empty values before sending
+      const cleaned = Object.fromEntries(
+        Object.entries(column_filters).filter(([, v]) => v && v.trim() !== "")
+      );
+      if (Object.keys(cleaned).length > 0) {
+        params.column_filters = JSON.stringify(cleaned);
+      }
+    }
 
     const response = await API.get('/fda/drugs', { params });
     return response.data;

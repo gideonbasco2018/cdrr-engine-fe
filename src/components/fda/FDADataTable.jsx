@@ -2,6 +2,23 @@
 import FDATableColumns from "./FDATableColumns";
 import FDAActionDropdown from "./actions/FDAActionDropdown";
 
+// ✅ MOVED OUTSIDE — stable component identity across re-renders
+function SortIndicator({ colKey, sortConfig, colors }) {
+  const isActive = sortConfig.key === colKey;
+  return (
+    <span
+      style={{
+        marginLeft: "0.3rem",
+        fontSize: "0.6rem",
+        color: isActive ? "#4CAF50" : colors.textTertiary,
+        opacity: isActive ? 1 : 0.4,
+      }}
+    >
+      {isActive ? (sortConfig.direction === "asc" ? "▲" : "▼") : "⇅"}
+    </span>
+  );
+}
+
 function FDADataTable({
   filteredData,
   columns,
@@ -21,6 +38,10 @@ function FDADataTable({
   handleCancelClick,
   isExpired,
   duplicateRegNums,
+  sortConfig = { key: null, direction: "asc" },
+  onSort = () => {},
+  hasActiveColumnFilters = false, // ✅ NEW
+  onClearColumnFilters = () => {}, // ✅ NEW
 }) {
   const isDuplicateRecord = (drug) => {
     return (
@@ -72,12 +93,11 @@ function FDADataTable({
           style={{
             position: "sticky",
             top: 0,
-            background: colors.tableBg,
             zIndex: 20,
           }}
         >
+          {/* ── Row 1: labels + sort ─────────────────────────── */}
           <tr>
-            {/* Frozen: # */}
             <th
               style={{
                 position: "sticky",
@@ -101,8 +121,8 @@ function FDADataTable({
               #
             </th>
 
-            {/* Frozen: Registration Number */}
             <th
+              onClick={() => onSort("registration_number")}
               style={{
                 position: "sticky",
                 left: "48px",
@@ -120,15 +140,22 @@ function FDADataTable({
                 width: "150px",
                 minWidth: "150px",
                 maxWidth: "150px",
+                cursor: "pointer",
+                userSelect: "none",
               }}
             >
               Registration No.
+              <SortIndicator
+                colKey="registration_number"
+                sortConfig={sortConfig}
+                colors={colors}
+              />
             </th>
 
-            {/* Regular Columns */}
             {columns.map((col) => (
               <th
                 key={col.key}
+                onClick={() => onSort(col.key)}
                 style={{
                   padding: "0.45rem 0.6rem",
                   textAlign: "left",
@@ -141,13 +168,19 @@ function FDADataTable({
                   background: colors.tableBg,
                   minWidth: col.width,
                   whiteSpace: "nowrap",
+                  cursor: "pointer",
+                  userSelect: "none",
                 }}
               >
                 {col.label}
+                <SortIndicator
+                  colKey={col.key}
+                  sortConfig={sortConfig}
+                  colors={colors}
+                />
               </th>
             ))}
 
-            {/* Frozen: Actions */}
             <th
               style={{
                 position: "sticky",
@@ -170,7 +203,6 @@ function FDADataTable({
             </th>
           </tr>
         </thead>
-
         <tbody>
           {filteredData.map((row, index) => {
             const isDuplicate = isDuplicateRecord(row);
