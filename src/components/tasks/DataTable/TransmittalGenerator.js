@@ -621,3 +621,69 @@ export const generateCorrectionTransmittal = async (selectedData, activeTab) => 
     `correction_transmittal_${activeTab ?? "task"}_${now.toISOString().slice(0, 10)}.pdf`,
   );
 };
+
+/* ================================================================== */
+/*  CORRECTION / RECONSTRUCTION — EXCEL                               */
+/* ================================================================== */
+export const generateCorrectionExcel = async (selectedData, activeTab) => {
+  await loadScript(
+    "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+  );
+
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("en-PH", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const wsData = [
+    [
+      "CORRECTION / RECONSTRUCTION TRANSMITTAL SLIP — FDA Center for Drug Regulation and Research (CDRR)",
+    ],
+    [
+      `Generated: ${dateStr} ${timeStr}`,
+      "", "", "", "", "",
+      `Total Records: ${selectedData.length}`,
+    ],
+    [],
+    [
+      "#",
+      "DTN",
+      "Old DTN",
+      "Date Received",
+      "Type of Letter",
+      "Subject",
+      "Evaluator",
+      "Remarks",
+    ],
+  ];
+
+  selectedData.forEach((r, i) => {
+    wsData.push([
+      i + 1,
+      clean(r.dtn),
+      clean(r.oldDtn),
+      clean(r.dateReceived),
+      clean(r.typeOfLetter),
+      clean(r.subject),
+      clean(r.evaluator),
+      clean(r.remarks),
+    ]);
+  });
+
+  const ws = window.XLSX.utils.aoa_to_sheet(wsData);
+  ws["!cols"] = [4, 26, 26, 18, 22, 50, 24, 30].map((wch) => ({ wch }));
+  ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }];
+
+  const wb = window.XLSX.utils.book_new();
+  window.XLSX.utils.book_append_sheet(wb, ws, "Correction Transmittal");
+  window.XLSX.writeFile(
+    wb,
+    `correction_transmittal_${activeTab ?? "task"}_${now.toISOString().slice(0, 10)}.xlsx`,
+  );
+};
