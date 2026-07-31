@@ -22,7 +22,11 @@ import { updateUploadReport } from "../../../api/reports";
 
 import { BulkDeckModal } from "./BulkDeckModal";
 import { renderCell } from "./renderCell";
-import { generateTransmittal } from "./TransmittalGenerator";
+import {
+  generateTransmittal,
+  generatePDF,
+  generateExcel,
+} from "./TransmittalGenerator";
 import {
   BULK_DECK_CONFIG,
   RECORD_TAB_COLUMNS,
@@ -37,6 +41,7 @@ import { closeTasksBulk, getCurrentUser } from "../../../api/closed-tasks";
 /* ================================================================== */
 function DataTable({
   data,
+  fullData = data,
   selectedRows,
   onSelectRow,
   onSelectAll,
@@ -75,6 +80,9 @@ function DataTable({
   const [showBulkComplete, setShowBulkComplete] = useState(false);
   const { showGuide, openGuide, closeGuide } = useHowToUseGuide();
   const [showColPicker, setShowColPicker] = useState(false);
+
+  const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
+  const [generatingTransmittal, setGeneratingTransmittal] = useState(false);
 
   const isComplianceTab =
     activeTab === "Compliance" || activeTab === "PRSDD Compliance";
@@ -224,7 +232,7 @@ function DataTable({
     const isODReleasing = bulkDeckConfig.currentStep === "OD-Releasing";
 
     const seen = new Set();
-    const selectedData = data
+    const selectedData = fullData
       .filter((r) => selectedRows.includes(r.id))
       .filter((r) => {
         if (seen.has(r.id)) return false;
@@ -488,7 +496,7 @@ function DataTable({
     const closedAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
 
     const seen = new Set();
-    const selectedData = data
+    const selectedData = fullData
       .filter((r) => selectedRows.includes(r.id))
       .filter((r) => {
         if (seen.has(r.id)) return false;
@@ -539,12 +547,23 @@ function DataTable({
   };
 
   /* ── Transmittal ── */
-  const handleGenerateTransmittal = async () => {
+  const handleGenerateTransmittal = async (format = "both") => {
     if (!selectedRows.length) return;
-    const selectedData = data.filter((r) => selectedRows.includes(r.id));
-    await generateTransmittal(selectedData, activeTab);
+    const selectedData = fullData.filter((r) => selectedRows.includes(r.id));
+    setGeneratingTransmittal(true);
+    try {
+      if (format === "pdf") {
+        await generatePDF(selectedData, activeTab);
+      } else if (format === "excel") {
+        await generateExcel(selectedData, activeTab);
+      } else {
+        await generateTransmittal(selectedData, activeTab);
+      }
+    } finally {
+      setGeneratingTransmittal(false);
+      setShowTransmittalChoice(false);
+    }
   };
-
   /* ── Menu button helper ── */
   const menuBtn = (onClick, style = {}, children) => (
     <button
@@ -906,7 +925,7 @@ function DataTable({
             {/* Generate Transmittal */}
             {selectedRows.length > 0 && (
               <button
-                onClick={handleGenerateTransmittal}
+                onClick={() => setShowTransmittalChoice(true)}
                 style={smallBtn({
                   background: "linear-gradient(135deg,#1976d2,#1565c0)",
                   boxShadow: "0 1px 4px rgba(25,118,210,0.3)",
@@ -916,7 +935,6 @@ function DataTable({
                 <span style={smallBadge}>{selectedRows.length}</span>
               </button>
             )}
-
             {/* Close Task (Final)
             {selectedRows.length > 0 && (
               <button
@@ -1749,6 +1767,163 @@ function DataTable({
           darkMode={darkMode}
         />
       )}
+
+      {showTransmittalChoice && (
+        <div
+          onClick={() =>
+            !generatingTransmittal && setShowTransmittalChoice(false)
+          }
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 14,
+              padding: "2rem",
+              width: 380,
+              maxWidth: "90%",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "2rem",
+                marginBottom: "0.75rem",
+                textAlign: "center",
+              }}
+            >
+              📄
+            </div>
+            <h3
+              style={{
+                margin: "0 0 0.5rem",
+                color: colors.textPrimary,
+                fontSize: "1.05rem",
+                fontWeight: 700,
+                textAlign: "center",
+              }}
+            >
+              Generate Transmittal
+            </h3>
+            <p
+              style={{
+                margin: "0 0 1.5rem",
+                color: colors.textSecondary,
+                fontSize: "0.85rem",
+                textAlign: "center",
+              }}
+            >
+              Choose format for{" "}
+              <strong style={{ color: "#1976d2" }}>
+                {selectedRows.length}
+              </strong>{" "}
+              selected record{selectedRows.length > 1 ? "s" : ""}.
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+              }}
+            >
+              <button
+                onClick={() => handleGenerateTransmittal("pdf")}
+                disabled={generatingTransmittal}
+                style={{
+                  padding: "0.65rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  cursor: generatingTransmittal ? "not-allowed" : "pointer",
+                  opacity: generatingTransmittal ? 0.6 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                📕 PDF only
+              </button>
+
+              <button
+                onClick={() => handleGenerateTransmittal("excel")}
+                disabled={generatingTransmittal}
+                style={{
+                  padding: "0.65rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg,#16a34a,#15803d)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  cursor: generatingTransmittal ? "not-allowed" : "pointer",
+                  opacity: generatingTransmittal ? 0.6 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                📗 Excel only
+              </button>
+
+              <button
+                onClick={() => handleGenerateTransmittal("both")}
+                disabled={generatingTransmittal}
+                style={{
+                  padding: "0.65rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg,#1976d2,#1565c0)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  cursor: generatingTransmittal ? "not-allowed" : "pointer",
+                  opacity: generatingTransmittal ? 0.6 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                📄 Both PDF & Excel
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowTransmittalChoice(false)}
+              disabled={generatingTransmittal}
+              style={{
+                marginTop: "1rem",
+                width: "100%",
+                padding: "0.5rem",
+                borderRadius: 8,
+                border: `1px solid ${colors.cardBorder}`,
+                background: "transparent",
+                color: colors.textSecondary,
+                fontSize: "0.8rem",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
       {/* ── Confirm Receive modal ── */}
       {confirmReceive && (
         <div
@@ -1928,10 +2103,10 @@ function DataTable({
       {showBulkDeck && bulkDeckConfig && (
         <BulkDeckModal
           selectedCount={selectedRows.length}
-          selectedDtns={data
+          selectedDtns={fullData
             .filter((r) => selectedRows.includes(r.id))
             .map((r) => r.dtn || r.id)}
-          selectedRecords={data.filter((r) => selectedRows.includes(r.id))}
+          selectedRecords={fullData.filter((r) => selectedRows.includes(r.id))}
           config={bulkDeckConfig}
           colors={colors}
           darkMode={darkMode}
@@ -1949,7 +2124,7 @@ function DataTable({
       {showBulkComplete && (
         <BulkCompleteModal
           selectedCount={selectedRows.length}
-          selectedDtns={data
+          selectedDtns={fullData
             .filter((r) => selectedRows.includes(r.id))
             .map((r) => r.dtn || r.id)}
           colors={colors}

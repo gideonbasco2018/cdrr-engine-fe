@@ -1353,6 +1353,7 @@ function TaskPage({ darkMode }) {
           <div style={{ flex: 1, minHeight: 0 }}>
             <DataTable
               data={paginatedData}
+              fullData={filteredData}
               selectedRows={selectedRows}
               onSelectRow={handleSelectRow}
               onSelectAll={handleSelectAll}
