@@ -273,8 +273,11 @@ export const generatePDF = async (selectedData, activeTab) => {
     didDrawCell: (h) => {
       if (h.section === "body" && h.column.dataKey === "dtn") {
         const cell = h.cell;
+        const rowData = rows[h.row.index];
+        if (!rowData) return;   // ← GUARD: iwas crash kung walang matching row
+
         const img = barcodeImages[h.row.index];
-        const dtnText = rows[h.row.index].dtn;
+        const dtnText = rowData.dtn;
 
         if (img) {
           doc.addImage(
@@ -300,8 +303,11 @@ export const generatePDF = async (selectedData, activeTab) => {
 
       if (h.section === "body" && h.column.dataKey === "oldRsnDtn") {
         const cell = h.cell;
+        const rowData = rows[h.row.index];
+        if (!rowData) return;   // ← GUARD: iwas crash kung walang matching row
+
         const img = oldRsnBarcodeImages[h.row.index];
-        const text = rows[h.row.index].oldRsnDtn;
+        const text = rowData.oldRsnDtn;
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(6.5);
@@ -323,7 +329,6 @@ export const generatePDF = async (selectedData, activeTab) => {
             { align: "center" },
           );
         } else {
-          // No barcode-able value (e.g. "—") — just center the text.
           doc.text(
             text,
             cell.x + cell.width / 2,

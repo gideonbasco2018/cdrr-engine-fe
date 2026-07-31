@@ -11,6 +11,7 @@ export const allMenuItems = [
 
   // Workflow
   { id: "for-decking", label: "Assignment / Queue", icon: "📥", category: "Workflow" },
+  { id: "reassignment", label: "Reassignment / Reroute", icon: "🔀", category: "Workflow" },
   { id: "task", label: "Tasks", icon: "📝", category: "Workflow" },
   { id: "appCorrection", label: "Manual CPR Correction", icon: "📝", category: "Workflow" }, 
 

@@ -551,6 +551,9 @@ function DataTable({
     if (!selectedRows.length) return;
     const selectedData = fullData.filter((r) => selectedRows.includes(r.id));
     setGeneratingTransmittal(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
     try {
       if (format === "pdf") {
         await generatePDF(selectedData, activeTab);
@@ -559,6 +562,11 @@ function DataTable({
       } else {
         await generateTransmittal(selectedData, activeTab);
       }
+    } catch (err) {
+      console.error("Transmittal generation failed:", err);
+      alert(
+        "Nagka-error sa paggawa ng transmittal. Subukan ulit o bawasan ang bilang ng records.",
+      );
     } finally {
       setGeneratingTransmittal(false);
       setShowTransmittalChoice(false);
