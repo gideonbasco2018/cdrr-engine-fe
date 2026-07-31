@@ -6,6 +6,7 @@ import {
   generatePDF,
   generateExcel,
   generateCorrectionTransmittal,
+  generateCorrectionExcel,
 } from "../tasks/DataTable/TransmittalGenerator";
 
 const PAGE_SIZE = 10;
@@ -135,12 +136,13 @@ export default function MetricDetailModal({
     fetchPage(1);
   }, [fetchPage]);
 
-  // ── Transmittal export ───────────────────────────────────────────────────
   const [transmittalLoading, setTransmittalLoading] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
   const [correctionTransmittalLoading, setCorrectionTransmittalLoading] =
     useState(false);
-
+  const [showCorrectionTransmittalChoice, setShowCorrectionTransmittalChoice] =
+    useState(false);
   const toCorrectionTransmittalRow = (r) => {
     // Replace ║ with a clean separator — newline para mag-wrap sa PDF cell
     const subjectText = r.subject ? r.subject.replace("║", "\n").trim() : "";
@@ -173,6 +175,104 @@ export default function MetricDetailModal({
         })
       : "N/A",
   });
+
+  const fetchAllTransmittalRows = async () => {
+    const extraParams = {};
+    if (appliedFrom) extraParams.accomplished_date_from = appliedFrom;
+    if (appliedTo) extraParams.accomplished_date_to = appliedTo;
+    if (appliedStep) extraParams.app_step = appliedStep;
+
+    const firstRes = await getDashboardDetail({
+      metric: metricKey,
+      page: 1,
+      page_size: 500,
+      ...dateParams,
+      ...extraParams,
+    });
+    let rows = firstRes.data.map(toTransmittalRow);
+
+    for (let p = 2; p <= firstRes.total_pages; p++) {
+      const res = await getDashboardDetail({
+        metric: metricKey,
+        page: p,
+        page_size: 500,
+        ...dateParams,
+        ...extraParams,
+      });
+      rows.push(...res.data.map(toTransmittalRow));
+    }
+    return rows;
+  };
+
+  const handleGenerateTransmittalChoice = async (format) => {
+    setShowTransmittalChoice(false);
+    setTransmittalLoading(true);
+    try {
+      const rows = await fetchAllTransmittalRows();
+      if (format === "pdf") {
+        await generatePDF(rows, metricKey);
+      } else if (format === "excel") {
+        await generateExcel(rows, metricKey);
+      } else {
+        await generatePDF(rows, metricKey);
+        await generateExcel(rows, metricKey);
+      }
+    } catch (err) {
+      console.error("Transmittal export failed:", err);
+    } finally {
+      setTransmittalLoading(false);
+    }
+  };
+
+  const fetchAllCorrectionTransmittalRows = async () => {
+    const extraParams = {};
+    if (appliedFrom) extraParams.accomplished_date_from = appliedFrom;
+    if (appliedTo) extraParams.accomplished_date_to = appliedTo;
+    if (appliedStep) extraParams.app_step = appliedStep;
+    if (appliedDtn) extraParams.dtn = appliedDtn;
+
+    const firstRes = await getDashboardDetail({
+      metric: metricKey,
+      page: 1,
+      page_size: 500,
+      ...dateParams,
+      ...extraParams,
+    });
+    let rows = firstRes.data.map(toCorrectionTransmittalRow);
+
+    for (let p = 2; p <= firstRes.total_pages; p++) {
+      const res = await getDashboardDetail({
+        metric: metricKey,
+        page: p,
+        page_size: 500,
+        ...dateParams,
+        ...extraParams,
+      });
+      rows.push(...res.data.map(toCorrectionTransmittalRow));
+    }
+    return rows;
+  };
+
+  const handleGenerateCorrectionTransmittalChoice = async (format) => {
+    setShowCorrectionTransmittalChoice(false);
+    setCorrectionTransmittalLoading(true);
+    try {
+      const rows = await fetchAllCorrectionTransmittalRows();
+      if (format === "pdf") {
+        await generateCorrectionTransmittal(rows, metricKey);
+      } else if (format === "excel") {
+        await generateCorrectionExcel(rows, metricKey);
+      } else {
+        await generateCorrectionTransmittal(rows, metricKey);
+        await generateCorrectionExcel(rows, metricKey);
+      }
+    } catch (err) {
+      console.error("Correction transmittal export failed:", err);
+    } finally {
+      setCorrectionTransmittalLoading(false);
+    }
+  };
+
   const handleExport = async (format, scope) => {
     setShowExportMenu(false);
     setTransmittalLoading(true);
@@ -1070,47 +1170,9 @@ export default function MetricDetailModal({
                 ? `${startRow}–${endRow} of ${total.toLocaleString()} records`
                 : ""}
             </span>
-
             {total > 0 && (
               <button
-                onClick={async () => {
-                  if (correctionTransmittalLoading) return;
-                  setCorrectionTransmittalLoading(true);
-                  try {
-                    const extraParams = {};
-                    if (appliedFrom)
-                      extraParams.accomplished_date_from = appliedFrom;
-                    if (appliedTo) extraParams.accomplished_date_to = appliedTo;
-                    if (appliedStep) extraParams.app_step = appliedStep;
-                    if (appliedDtn) extraParams.dtn = appliedDtn;
-
-                    const firstRes = await getDashboardDetail({
-                      metric: metricKey,
-                      page: 1,
-                      page_size: 500,
-                      ...dateParams,
-                      ...extraParams,
-                    });
-                    let rows = firstRes.data.map(toCorrectionTransmittalRow);
-
-                    for (let p = 2; p <= firstRes.total_pages; p++) {
-                      const res = await getDashboardDetail({
-                        metric: metricKey,
-                        page: p,
-                        page_size: 500,
-                        ...dateParams,
-                        ...extraParams,
-                      });
-                      rows.push(...res.data.map(toCorrectionTransmittalRow));
-                    }
-
-                    await generateCorrectionTransmittal(rows, metricKey);
-                  } catch (err) {
-                    console.error("Correction transmittal export failed:", err);
-                  } finally {
-                    setCorrectionTransmittalLoading(false);
-                  }
-                }}
+                onClick={() => setShowCorrectionTransmittalChoice(true)}
                 disabled={correctionTransmittalLoading}
                 style={{
                   display: "flex",
@@ -1139,45 +1201,7 @@ export default function MetricDetailModal({
 
             {total > 0 && (
               <button
-                onClick={async () => {
-                  if (transmittalLoading) return;
-                  setTransmittalLoading(true);
-                  try {
-                    const extraParams = {};
-                    if (appliedFrom)
-                      extraParams.accomplished_date_from = appliedFrom;
-                    if (appliedTo) extraParams.accomplished_date_to = appliedTo;
-                    if (appliedStep) extraParams.app_step = appliedStep;
-
-                    // Fetch all records with current filters
-                    const firstRes = await getDashboardDetail({
-                      metric: metricKey,
-                      page: 1,
-                      page_size: 500,
-                      ...dateParams,
-                      ...extraParams,
-                    });
-                    let rows = firstRes.data.map(toTransmittalRow);
-
-                    for (let p = 2; p <= firstRes.total_pages; p++) {
-                      const res = await getDashboardDetail({
-                        metric: metricKey,
-                        page: p,
-                        page_size: 500,
-                        ...dateParams,
-                        ...extraParams,
-                      });
-                      rows.push(...res.data.map(toTransmittalRow));
-                    }
-
-                    await generatePDF(rows, metricKey);
-                    await generateExcel(rows, metricKey);
-                  } catch (err) {
-                    console.error("Transmittal export failed:", err);
-                  } finally {
-                    setTransmittalLoading(false);
-                  }
-                }}
+                onClick={() => setShowTransmittalChoice(true)}
                 disabled={transmittalLoading}
                 style={{
                   display: "flex",
@@ -1252,6 +1276,285 @@ export default function MetricDetailModal({
           </div>
         </div>
       </div>
+      {showTransmittalChoice && (
+        <div
+          onClick={() => setShowTransmittalChoice(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1100,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: ui.cardBg,
+              border: `1px solid ${ui.cardBorder}`,
+              borderRadius: 14,
+              padding: "1.75rem",
+              width: 360,
+              maxWidth: "90%",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "1.8rem",
+                marginBottom: "0.6rem",
+                textAlign: "center",
+              }}
+            >
+              📄
+            </div>
+            <h3
+              style={{
+                margin: "0 0 0.4rem",
+                color: ui.textPrimary,
+                fontSize: "1rem",
+                fontWeight: 700,
+                textAlign: "center",
+              }}
+            >
+              Generate Transmittal
+            </h3>
+            <p
+              style={{
+                margin: "0 0 1.25rem",
+                color: ui.textMuted,
+                fontSize: "0.8rem",
+                textAlign: "center",
+              }}
+            >
+              Choose format for{" "}
+              <strong style={{ color: accentColor }}>{total}</strong> record
+              {total > 1 ? "s" : ""}.
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.55rem",
+              }}
+            >
+              <button
+                onClick={() => handleGenerateTransmittalChoice("pdf")}
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                  color: "#fff",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                📕 PDF only
+              </button>
+
+              <button
+                onClick={() => handleGenerateTransmittalChoice("excel")}
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg,#16a34a,#15803d)",
+                  color: "#fff",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                📗 Excel only
+              </button>
+
+              <button
+                onClick={() => handleGenerateTransmittalChoice("both")}
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: `linear-gradient(135deg, ${accentColor}, ${accentColor}dd)`,
+                  color: "#fff",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                📄 Both PDF & Excel
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowTransmittalChoice(false)}
+              style={{
+                marginTop: "0.9rem",
+                width: "100%",
+                padding: "0.5rem",
+                borderRadius: 8,
+                border: `1px solid ${ui.cardBorder}`,
+                background: "transparent",
+                color: ui.textMuted,
+                fontSize: "0.78rem",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showCorrectionTransmittalChoice && (
+        <div
+          onClick={() => setShowCorrectionTransmittalChoice(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1100,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: ui.cardBg,
+              border: `1px solid ${ui.cardBorder}`,
+              borderRadius: 14,
+              padding: "1.75rem",
+              width: 380,
+              maxWidth: "90%",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "1.8rem",
+                marginBottom: "0.6rem",
+                textAlign: "center",
+              }}
+            >
+              📝
+            </div>
+            <h3
+              style={{
+                margin: "0 0 0.4rem",
+                color: ui.textPrimary,
+                fontSize: "1rem",
+                fontWeight: 700,
+                textAlign: "center",
+              }}
+            >
+              Correction/Reconstruction Transmittal
+            </h3>
+            <p
+              style={{
+                margin: "0 0 1.25rem",
+                color: ui.textMuted,
+                fontSize: "0.8rem",
+                textAlign: "center",
+              }}
+            >
+              Choose format for{" "}
+              <strong style={{ color: "#7c3aed" }}>{total}</strong> record
+              {total > 1 ? "s" : ""}.
+            </p>
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.55rem",
+              }}
+            >
+              <button
+                onClick={() => handleGenerateCorrectionTransmittalChoice("pdf")}
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+                  color: "#fff",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                📕 PDF only
+              </button>
+
+              <button
+                onClick={() =>
+                  handleGenerateCorrectionTransmittalChoice("excel")
+                }
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg,#16a34a,#15803d)",
+                  color: "#fff",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                📗 Excel only
+              </button>
+
+              <button
+                onClick={() =>
+                  handleGenerateCorrectionTransmittalChoice("both")
+                }
+                style={{
+                  padding: "0.6rem 1rem",
+                  borderRadius: 8,
+                  border: "none",
+                  background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                  color: "#fff",
+                  fontSize: "0.82rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                📄 Both PDF & Excel
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowCorrectionTransmittalChoice(false)}
+              style={{
+                marginTop: "0.9rem",
+                width: "100%",
+                padding: "0.5rem",
+                borderRadius: 8,
+                border: `1px solid ${ui.cardBorder}`,
+                background: "transparent",
+                color: ui.textMuted,
+                fontSize: "0.78rem",
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
