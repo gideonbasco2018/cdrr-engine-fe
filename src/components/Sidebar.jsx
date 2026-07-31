@@ -199,6 +199,7 @@ function Sidebar({
       monitoring: `${basePath}/monitoring`,
       reports: `${basePath}/reports`,
       "for-decking": `${basePath}/for-decking`,
+      reassignment: `${basePath}/reassignment`,
       appCorrection: `${basePath}/appCorrection`,
       task: `${basePath}/task`,
       "fda-verification": `${basePath}/fda-verification`,

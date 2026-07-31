@@ -39,6 +39,12 @@ export const menuDefinitions = {
       label: "Assignment / Queue",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+     {
+      id: "reassignment",
+      icon: "🔀",
+      label: "Reassignment / Reroute",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
     {
       id: "task",
       icon: "📝",

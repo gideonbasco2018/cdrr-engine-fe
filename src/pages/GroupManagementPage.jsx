@@ -98,6 +98,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       reports: "CDR Reports",
       "otc-database": "CDR Reports",
       "for-decking": "Workflow",
+      reassignment: "Workflow",
       task: "Workflow",
       "fda-verification": "Other Database",
       "cdrr-inspector-reports": "Other Database",

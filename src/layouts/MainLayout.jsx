@@ -23,6 +23,7 @@ import DocumentRenamePage from "../pages/DocumentRenamePage";
 import BulkDocumentUploadPage from "../pages/BulkDocumentUploadPage";
 import BulkFolderDocumentUploadPage from "../pages/BulkFolderDocumentUploadPage";
 import TargetAssignmentsPage from "../pages/TargetAssignmentsPage";
+import ReassignmentPage from "../pages/ReassignmentPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -68,6 +69,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("target-assignments")) return "target-assignments";
     // Workflow paths
     if (path.includes("for-decking")) return "for-decking";
+    if (path.includes("reassignment")) return "reassignment";
     if (path.includes("task")) return "task";
     // Other databases
     if (path.includes("fda-verification")) return "fda-verification";
@@ -114,6 +116,8 @@ function MainLayout({ darkMode, setDarkMode }) {
         return <ProfilePage darkMode={darkMode} userRole={userRole} />;
       case "for-decking":
         return <DeckingPage darkMode={darkMode} userRole={userRole} />;
+      case "reassignment":
+        return <ReassignmentPage darkMode={darkMode} userRole={userRole} />;
       case "task":
         return <TaskPage darkMode={darkMode} userRole={userRole} />;
       case "fda-verification":
