@@ -33,13 +33,7 @@ function FDATableColumns({ row, columns, colors, isExpired }) {
               {isExpired(row[col.key]) && " ⚠️"}
             </span>
           ) : col.key === "date_uploaded" && row[col.key] ? (
-            new Date(row[col.key]).toLocaleString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
+            new Date(row[col.key]).toISOString().split("T")[0]
           ) : (
             row[col.key] || "N/A"
           )}
