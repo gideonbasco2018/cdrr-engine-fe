@@ -9,6 +9,8 @@ import { useSidebarColors } from "./sidebar/useSidebarColors";
 import { menuDefinitions } from "./sidebar/menuDefinitions";
 import MenuItem from "./sidebar/MenuItem";
 import { getMyTaskCount } from "../api/workflow-tasks";
+import { getMyGMPTaskCount } from "../api/gmp";
+
 // ── RESPONSIVE HOOK ───────────────────────────────────────────────────────────
 function useIsMobile(breakpoint = 768) {
   const [isMobile, setIsMobile] = useState(
@@ -36,11 +38,10 @@ function Sidebar({
   const [menuPermissions, setMenuPermissions] = useState({});
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [taskCount, setTaskCount] = useState(0);
-
+  const [gmpTaskCount, setGmpTaskCount] = useState(0);
   const navigate = useNavigate();
   const location = useLocation();
   const colors = useSidebarColors(darkMode);
-
   const impersonating = isImpersonating();
 
   // Auto-close mobile drawer on route change
@@ -85,7 +86,6 @@ function Sidebar({
         setPermissionsLoaded(true);
       }
     };
-
     loadMenuPermissions();
     window.addEventListener("menuPermissionsUpdated", loadMenuPermissions);
     return () => {
@@ -132,15 +132,10 @@ function Sidebar({
     }
     return items.filter((item) => {
       const hasRole = item.roles.includes(userRole);
-      if (["access", "users", "settings"].includes(item.id)) return hasRole;
+      if (["access", "users", "settings", "gmp-queue", "gmp-tasks"].includes(item.id)) return hasRole;
       const menuData = menuPermissions[item.id];
       const allowedGroups = menuData?.group_ids;
-
-      if (
-        !allowedGroups ||
-        !Array.isArray(allowedGroups) ||
-        allowedGroups.length === 0
-      )
+      if (!allowedGroups || !Array.isArray(allowedGroups) || allowedGroups.length === 0)
         return false;
       if (!userGroups || userGroups.length === 0) return false;
       const hasGroup = allowedGroups.some((requiredGroup) =>
@@ -163,9 +158,18 @@ function Sidebar({
       const data = await getMyTaskCount();
       setTaskCount(data.count || 0);
     };
-
     fetchTaskCount();
     const interval = setInterval(fetchTaskCount, 60_000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchGmpTaskCount = async () => {
+      const count = await getMyGMPTaskCount();
+      setGmpTaskCount(count);
+    };
+    fetchGmpTaskCount();
+    const interval = setInterval(fetchGmpTaskCount, 60_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -177,7 +181,11 @@ function Sidebar({
   );
   const visibleWorkflow = sortByDbOrder(
     filterByRoleAndGroup(menuDefinitions.workflowItems),
-  ).map((item) => (item.id === "task" ? { ...item, badge: taskCount } : item));
+  ).map((item) =>
+    item.id === "task" ? { ...item, badge: taskCount }
+    : item.id === "gmp-tasks" ? { ...item, badge: gmpTaskCount }
+    : item
+  );
 
   const visibleOtherDatabase = sortByDbOrder(
     filterByRoleAndGroup(menuDefinitions.otherDatabaseItems),
@@ -195,26 +203,36 @@ function Sidebar({
     if (impersonating && itemId !== "dashboard") return;
     const basePath = getBasePath();
     const routeMap = {
-      dashboard: `${basePath}/dashboard`,
-      monitoring: `${basePath}/monitoring`,
-      reports: `${basePath}/reports`,
-      "for-decking": `${basePath}/for-decking`,
-      reassignment: `${basePath}/reassignment`,
-      appCorrection: `${basePath}/appCorrection`,
-      task: `${basePath}/task`,
-      "fda-verification": `${basePath}/fda-verification`,
-      "otc-database": `${basePath}/otc-database`,
-      "cdrr-inspector-reports": `${basePath}/cdrr-inspector-reports`,
-      "doctrack-magic": `${basePath}/doctrack-magic`,
-      "records-report": `${basePath}/records-report`,
-      announcements: `${basePath}/announcements`,
-      support: `${basePath}/support`,
-      access: `${basePath}/access`,
-      users: `${basePath}/users`,
-      settings: `${basePath}/settings`,
-      "lead-assignments": `${basePath}/lead-assignments`,
-      "document-rename": `${basePath}/document-rename`,
-      "upload-document": `${basePath}/upload-document`,
+      dashboard:                `${basePath}/dashboard`,
+      monitoring:                `${basePath}/monitoring`,
+      reports:                   `${basePath}/reports`,
+      "for-decking":             `${basePath}/for-decking`,
+      reassignment:              `${basePath}/reassignment`,
+      // ── GMP Task Queue & Workflow ──────────────────────────────────────────
+      "gmp-queue":                `${basePath}/gmp-queue`,
+      "gmp-tasks":                `${basePath}/gmp-tasks`,
+      appCorrection:              `${basePath}/appCorrection`,
+      task:                       `${basePath}/task`,
+      "for-evaluation":           `${basePath}/for-evaluation`,
+      "for-compliance":           `${basePath}/for-compliance`,
+      "for-checking":             `${basePath}/for-checking`,
+      supervisor:                 `${basePath}/supervisor`,
+      "for-qa":                   `${basePath}/for-qa`,
+      "for-director-signature":   `${basePath}/for-director-signature`,
+      "for-releasing":            `${basePath}/for-releasing`,
+      "fda-verification":         `${basePath}/fda-verification`,
+      "otc-database":             `${basePath}/otc-database`,
+      "cdrr-inspector-reports":   `${basePath}/cdrr-inspector-reports`,
+      "doctrack-magic":           `${basePath}/doctrack-magic`,
+      "records-report":           `${basePath}/records-report`,
+      announcements:              `${basePath}/announcements`,
+      support:                    `${basePath}/support`,
+      access:                     `${basePath}/access`,
+      users:                      `${basePath}/users`,
+      settings:                   `${basePath}/settings`,
+      "lead-assignments":         `${basePath}/lead-assignments`,
+      "document-rename":          `${basePath}/document-rename`,
+      "upload-document":          `${basePath}/upload-document`,
       "bulk-folder-document-upload": `${basePath}/bulk-folder-document-upload`,
       "target-assignments": `${basePath}/target-assignments`,
     };
@@ -244,7 +262,6 @@ function Sidebar({
           <MenuItem
             key={item.id}
             item={item}
-            badge={item.id === "task" ? taskCount : undefined}
             activeMenu={activeMenu}
             collapsed={isCollapsed}
             colors={colors}
@@ -277,35 +294,20 @@ function Sidebar({
           <button
             onClick={() => setMobileOpen(true)}
             style={{
-              position: "fixed",
-              top: 12,
-              left: 12,
-              zIndex: 1100,
-              width: 40,
-              height: 40,
-              borderRadius: "10px",
-              border: "none",
+              position: "fixed", top: 12, left: 12, zIndex: 1100,
+              width: 40, height: 40, borderRadius: "10px", border: "none",
               background: darkMode ? "#161616" : "#ffffff",
               boxShadow: darkMode
                 ? "0 2px 12px rgba(0,0,0,0.5)"
                 : "0 2px 12px rgba(0,0,0,0.15)",
               color: darkMode ? "#f5f5f5" : "#1a1f36",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
             }}
             aria-label="Open menu"
           >
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <line x1="3" y1="6" x2="21" y2="6" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2.5">
+              <line x1="3" y1="6"  x2="21" y2="6"  />
               <line x1="3" y1="12" x2="21" y2="12" />
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
@@ -316,12 +318,8 @@ function Sidebar({
           <div
             onClick={() => setMobileOpen(false)}
             style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.5)",
-              zIndex: 1050,
-              animation: "fadeIn 0.2s ease",
-              backdropFilter: "blur(2px)",
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+              zIndex: 1050, animation: "fadeIn 0.2s ease", backdropFilter: "blur(2px)",
             }}
           />
         )}
@@ -329,17 +327,11 @@ function Sidebar({
         {mobileOpen && (
           <div
             style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              bottom: 0,
-              width: sidebarWidth,
-              background: colors.sidebarBg,
+              position: "fixed", top: 0, left: 0, bottom: 0,
+              width: sidebarWidth, background: colors.sidebarBg,
               borderRight: `1px solid ${colors.sidebarBorder}`,
-              display: "flex",
-              flexDirection: "column",
-              zIndex: 1051,
-              animation: "slideInLeft 0.25s ease",
+              display: "flex", flexDirection: "column",
+              zIndex: 1051, animation: "slideInLeft 0.25s ease",
               boxShadow: "4px 0 24px rgba(0,0,0,0.25)",
             }}
           >
@@ -347,49 +339,29 @@ function Sidebar({
               style={{
                 padding: "1rem 1.25rem",
                 borderBottom: `1px solid ${colors.sidebarBorder}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
               }}
             >
-              <img
-                src="/images/FDALogo.png"
-                alt="FDA Logo"
-                style={{ height: "36px", width: "auto", objectFit: "contain" }}
-              />
+              <img src="/images/FDALogo.png" alt="FDA Logo"
+                style={{ height: "36px", width: "auto", objectFit: "contain" }} />
               <button
                 onClick={() => setMobileOpen(false)}
                 style={{
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  color: colors.textSecondary,
-                  padding: 4,
-                  borderRadius: 6,
-                  display: "flex",
-                  alignItems: "center",
+                  background: "transparent", border: "none", cursor: "pointer",
+                  color: colors.textSecondary, padding: 4, borderRadius: 6,
+                  display: "flex", alignItems: "center",
                 }}
               >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2.5">
+                  <line x1="18" y1="6"  x2="6"  y2="18" />
+                  <line x1="6"  y1="6"  x2="18" y2="18" />
                 </svg>
               </button>
             </div>
-
-            <div
-              className="sidebar-scroll"
-              style={{ flex: 1, overflowY: "auto" }}
-            >
-              {renderSection("MAIN", visibleMainMenu)}
-              {renderSection("CDRR REPORTS", visibleCdrReports)}
+            <div className="sidebar-scroll" style={{ flex: 1, overflowY: "auto" }}>
+              {renderSection("MAIN",           visibleMainMenu)}
+              {renderSection("CDRR REPORTS",   visibleCdrReports)}
               {renderSection("WORKFLOW STATUS", visibleWorkflow)}
               {renderSection("OTHER DATABASE", visibleOtherDatabase)}
               {renderSection("TOOLS", visibleTools)}
@@ -413,11 +385,9 @@ function Sidebar({
       `}</style>
       <div
         style={{
-          width: sidebarWidth,
-          background: colors.sidebarBg,
+          width: sidebarWidth, background: colors.sidebarBg,
           borderRight: `1px solid ${colors.sidebarBorder}`,
-          display: "flex",
-          flexDirection: "column",
+          display: "flex", flexDirection: "column",
           transition: "width 0.3s ease",
         }}
       >
@@ -429,44 +399,31 @@ function Sidebar({
           }}
         >
           {!collapsed && (
-            <img
-              src="/images/FDALogo.png"
-              alt="FDA Logo"
-              style={{ height: "50px", width: "auto", objectFit: "contain" }}
-            />
+            <img src="/images/FDALogo.png" alt="FDA Logo"
+              style={{ height: "50px", width: "auto", objectFit: "contain" }} />
           )}
         </div>
-
         <div className="sidebar-scroll" style={{ flex: 1, overflowY: "auto" }}>
-          {renderSection("MAIN", visibleMainMenu)}
-          {renderSection("REPORTS", visibleCdrReports)}
-          {renderSection("WORKFLOW", visibleWorkflow)}
+          {renderSection("MAIN",           visibleMainMenu)}
+          {renderSection("REPORTS",        visibleCdrReports)}
+          {renderSection("WORKFLOW",       visibleWorkflow)}
           {renderSection("OTHER DATABASE", visibleOtherDatabase)}
           {renderSection("TOOLS", visibleTools)}
           {renderSection("ADMINISTRATION", visibleAdministration)}
           {renderSection("SUPPORT", visibleSupport)}
         </div>
-
         <div
           style={{
-            padding: "0.5rem",
-            borderTop: `1px solid ${colors.sidebarBorder}`,
-            display: "flex",
-            justifyContent: "center",
+            padding: "0.5rem", borderTop: `1px solid ${colors.sidebarBorder}`,
+            display: "flex", justifyContent: "center",
           }}
         >
           <button
             onClick={() => setCollapsed(!collapsed)}
             style={{
-              width: "30px",
-              height: "30px",
-              borderRadius: "8px",
-              border: "none",
-              background: colors.toggleBg,
-              color: colors.textSecondary,
-              cursor: "pointer",
-              fontSize: "1rem",
-              transition: "all 0.2s ease",
+              width: "30px", height: "30px", borderRadius: "8px", border: "none",
+              background: colors.toggleBg, color: colors.textSecondary,
+              cursor: "pointer", fontSize: "1rem", transition: "all 0.2s ease",
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = colors.toggleHover;
