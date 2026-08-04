@@ -55,17 +55,17 @@ function FDADataTable({
     return (
       <div
         style={{
-          padding: "3rem 2rem",
+          padding: "2.34rem 1.56rem",
           textAlign: "center",
           color: colors.textTertiary,
         }}
       >
-        <div style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>📋</div>
-        <p style={{ fontSize: "0.95rem", marginBottom: "0.4rem" }}>
+        <div style={{ fontSize: "2.12rem", marginBottom: "0.75rem" }}>📋</div>
+        <p style={{ fontSize: "0.81rem", marginBottom: "0.4rem" }}>
           {loading ? "Loading..." : "No data found"}
         </p>
         {!loading && (
-          <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+          <p style={{ fontSize: "0.68rem", opacity: 0.7 }}>
             Try adjusting your filters or search terms
           </p>
         )}
@@ -78,7 +78,7 @@ function FDADataTable({
       style={{
         overflowX: "auto",
         overflowY: "auto",
-        maxHeight: "calc(100vh - 330px)",
+        maxHeight: "calc(100vh - 270px)",
       }}
     >
       <table
@@ -103,7 +103,7 @@ function FDADataTable({
                 position: "sticky",
                 left: 0,
                 zIndex: 21,
-                padding: "0.45rem 0.6rem",
+                padding: "0.25rem 0.4rem",
                 textAlign: "center",
                 fontSize: "0.68rem",
                 fontWeight: "600",
@@ -127,7 +127,7 @@ function FDADataTable({
                 position: "sticky",
                 left: "48px",
                 zIndex: 21,
-                padding: "0.45rem 0.6rem",
+                padding: "0.25rem 0.4rem",
                 textAlign: "left",
                 fontSize: "0.68rem",
                 fontWeight: "600",
@@ -157,7 +157,7 @@ function FDADataTable({
                 key={col.key}
                 onClick={() => onSort(col.key)}
                 style={{
-                  padding: "0.45rem 0.6rem",
+                  padding: "0.25rem 0.4rem",
                   textAlign: "left",
                   fontSize: "0.68rem",
                   fontWeight: "600",
@@ -186,7 +186,7 @@ function FDADataTable({
                 position: "sticky",
                 right: 0,
                 zIndex: 21,
-                padding: "0.45rem 0.6rem",
+                padding: "0.25rem 0.4rem",
                 textAlign: "center",
                 fontSize: "0.68rem",
                 fontWeight: "600",
@@ -252,8 +252,8 @@ function FDADataTable({
                     position: "sticky",
                     left: 0,
                     zIndex: 10,
-                    padding: "0.35rem 0.6rem",
-                    fontSize: "0.75rem",
+                    padding: "0.2rem 0.4rem",
+                    fontSize: "0.64rem",
                     fontWeight: "700",
                     color: colors.textTertiary,
                     borderBottom: `1px solid ${colors.tableBorder}`,
@@ -271,8 +271,8 @@ function FDADataTable({
                     position: "sticky",
                     left: "48px",
                     zIndex: 10,
-                    padding: "0.35rem 0.6rem",
-                    fontSize: "0.76rem",
+                    padding: "0.2rem 0.4rem",
+                    fontSize: "0.65rem",
                     fontWeight: isDuplicate || isCanceled ? "700" : "600",
                     color: isCanceled
                       ? "#f44336"
@@ -291,7 +291,7 @@ function FDADataTable({
                         marginLeft: "0.4rem",
                         background: "#f44336",
                         color: "#fff",
-                        padding: "0.1rem 0.4rem",
+                        padding: "0.2rem 0.31rem",
                         borderRadius: "3px",
                         fontSize: "0.62rem",
                         fontWeight: "600",
@@ -307,7 +307,7 @@ function FDADataTable({
                         marginLeft: "0.4rem",
                         background: "#E91E63",
                         color: "#fff",
-                        padding: "0.1rem 0.4rem",
+                        padding: "0.2rem 0.31rem",
                         borderRadius: "3px",
                         fontSize: "0.62rem",
                         fontWeight: "600",
@@ -333,7 +333,7 @@ function FDADataTable({
                     position: "sticky",
                     right: 0,
                     zIndex: 10,
-                    padding: "0.35rem 0.6rem",
+                    padding: "0.2rem 0.4rem",
                     borderBottom: `1px solid ${colors.tableBorder}`,
                     textAlign: "center",
                     background: rowBg,
@@ -351,11 +351,11 @@ function FDADataTable({
                       onClick={() => toggleDropdown(row.id)}
                       disabled={loading}
                       style={{
-                        padding: "0.3rem 0.5rem",
+                        padding: "0.23rem 0.39rem",
                         background: "transparent",
                         border: "none",
                         cursor: loading ? "not-allowed" : "pointer",
-                        fontSize: "1.1rem",
+                        fontSize: "0.94rem",
                         color: colors.textPrimary,
                         opacity: loading ? 0.5 : 1,
                       }}

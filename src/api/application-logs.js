@@ -252,20 +252,23 @@ export const toggleStarApplicationLog = async (logId, starred) => {
     throw new Error(errorMessage);
   }
 };
-
 /**
  * Get open/active tasks (del_last_index = 1, del_thread = "Open"),
  * joined with main_db for DTN / OLD RSN.
- * Used by the Reassignment/Reroute page (task-list view).
+ * Used by the Reassignment/Reroute page and Directors Target view.
  *
  * GET /api/application-logs/open-tasks
  *
  * @param {Object} params
  * @param {number} [params.page=1]
  * @param {number} [params.page_size=10000]
- * @param {string} [params.search]             - DTN search
+ * @param {string} [params.search]              - DTN search
  * @param {string} [params.application_step]
  * @param {string} [params.user_name]
+ * @param {string} [params.dtn_date_from]        - "YYYYMMDD", based on DTN digits 1-8
+ * @param {string} [params.dtn_date_to]          - "YYYYMMDD", based on DTN digits 1-8
+ * @param {string} [params.date_received_from]   - "YYYY-MM-DD"
+ * @param {string} [params.date_received_to]     - "YYYY-MM-DD"
  * @returns {Promise<{data: Array, total: number, page: number, page_size: number}>}
  */
 export const getOpenTasks = async ({
@@ -274,6 +277,10 @@ export const getOpenTasks = async ({
   search,
   application_step,
   user_name,
+  dtn_date_from,
+  dtn_date_to,
+  date_received_from,
+  date_received_to,
 } = {}) => {
   try {
     const response = await API.get("/application-logs/open-tasks", {
@@ -283,6 +290,10 @@ export const getOpenTasks = async ({
         ...(search && { search }),
         ...(application_step && { application_step }),
         ...(user_name && { user_name }),
+        ...(dtn_date_from && { dtn_date_from }),
+        ...(dtn_date_to && { dtn_date_to }),
+        ...(date_received_from && { date_received_from }),
+        ...(date_received_to && { date_received_to }),
       },
     });
     return response.data;
@@ -304,6 +315,24 @@ export const getOpenTaskSteps = async () => {
     console.error("Error fetching open task steps:", error);
     throw new Error(
       error.response?.data?.detail || error.message || "Failed to fetch steps",
+    );
+  }
+};
+
+/**
+ * Get distinct user_name values among open tasks — for the
+ * Current User filter dropdown in Directors Target view.
+ *
+ * GET /api/application-logs/open-tasks/users
+ */
+export const getOpenTaskUsers = async () => {
+  try {
+    const response = await API.get("/application-logs/open-tasks/users");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching open task users:", error);
+    throw new Error(
+      error.response?.data?.detail || error.message || "Failed to fetch users",
     );
   }
 };
