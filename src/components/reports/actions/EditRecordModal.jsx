@@ -265,14 +265,7 @@ const RELEASED_DOC_OPTIONS = [
   "Letter (Re-routed)",
 ];
 
-const STATUS_OPTIONS = [
-  "APPROVED",
-  "COMPLETED",
-  "PENDING",
-  "ON-PROCESS",
-  "REJECTED",
-  "DENIED",
-];
+const STATUS_OPTIONS = ["COMPLETED", "IN PROGRESS", "CANCELLED"];
 
 /* ================================================================== */
 /*  Date input (native, styled inline)                                  */
