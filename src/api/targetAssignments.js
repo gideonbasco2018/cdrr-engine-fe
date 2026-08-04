@@ -117,3 +117,77 @@ export const unmarkAsTarget = async (applicationLogId) => {
     throw new Error(errorMessage);
   }
 };
+// ─────────────────────────────────────────────
+// POST /api/target_assignments/target-assignments/directors-target
+// Marks a task as Director's Target (system-wide, not lead-scoped)
+// ─────────────────────────────────────────────
+export const markAsDirectorsTarget = async (
+  logId,
+  { targetStartDate, targetEndDate, remarks = "" },
+) => {
+  try {
+    const response = await API.post(
+      "/target_assignments/target-assignments/directors-target",
+      {
+        application_log_id: logId,
+        target_start_date: targetStartDate,
+        target_end_date: targetEndDate,
+        remarks,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to mark task as director's target";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// POST /api/target_assignments/target-assignments/directors-target/bulk
+// Marks several tasks as Director's Target at once, same date range/remarks
+// ─────────────────────────────────────────────
+export const bulkMarkAsDirectorsTarget = async (
+  logIds,
+  { targetStartDate, targetEndDate, remarks = "" },
+) => {
+  try {
+    const response = await API.post(
+      "/target_assignments/target-assignments/directors-target/bulk",
+      {
+        application_log_ids: logIds,
+        target_start_date: targetStartDate,
+        target_end_date: targetEndDate,
+        remarks,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to bulk-mark tasks as director's target";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// DELETE /api/target_assignments/target-assignments/directors-target/{logId}
+// Unmarks a task as Director's Target
+// ─────────────────────────────────────────────
+export const unmarkAsDirectorsTarget = async (logId) => {
+  try {
+    const response = await API.delete(
+      `/target_assignments/target-assignments/directors-target/${logId}`,
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to unmark task as director's target";
+    throw new Error(errorMessage);
+  }
+};

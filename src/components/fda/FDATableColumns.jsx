@@ -6,8 +6,8 @@ function FDATableColumns({ row, columns, colors, isExpired }) {
         <td
           key={col.key}
           style={{
-            padding: "1rem",
-            fontSize: "0.85rem",
+            padding: "0.2rem 0.4rem",
+            fontSize: "0.65rem",
             color: colors.tableText,
             borderBottom: `1px solid ${colors.tableBorder}`,
             minWidth: col.width,
@@ -19,9 +19,9 @@ function FDATableColumns({ row, columns, colors, isExpired }) {
           {col.key === "expiry_date" && row[col.key] ? (
             <span
               style={{
-                padding: "0.25rem 0.5rem",
+                padding: "0.15rem 0.35rem",
                 borderRadius: "4px",
-                fontSize: "0.8rem",
+                fontSize: "0.62rem",
                 fontWeight: "600",
                 background: isExpired(row[col.key])
                   ? "rgba(244, 67, 54, 0.1)"
