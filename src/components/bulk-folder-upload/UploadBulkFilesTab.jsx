@@ -1,49 +1,79 @@
-// FILE: src/components/bulk-folder-upload/UploadFolderTab.jsx
+// FILE: src/components/bulk-folder-upload/UploadBulkFilesTab.jsx
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Loader2,
   AlertCircle,
   Trash2,
   ExternalLink,
+  FilePlus2,
   FolderOpen,
   File as FileIcon,
 } from "lucide-react";
 
 import { uploadApplicationDocumentSingle } from "../../api/application-documents";
-import { expandArchiveEntries, traverseFileTree } from "./utils/archiveUtils";
 import {
   MAX_FILE_SIZE,
   ACCEPTED_TYPES,
   formatBytes,
   kindOf,
-  buildCategoryTree,
 } from "./utils/fileHelpers";
-import FolderTreeNode from "./FolderTreeNode";
+import FileEntryItem from "./FileEntryItem";
 import KindIcon from "./KindIcon";
 import Field from "./Field";
 
 const CONCURRENCY = 3;
 
+const DOC_CATEGORY_OPTIONS = [
+  "CLIENT'S INITIAL SUBMISSION",
+  "EVALUATOR'S FILE",
+  "FDA OUTPUT DOCUMENTS",
+  "APPROVED LABEL",
+  "COMPLIANCE DOCUMENTS",
+];
+
 /* ================================================================== */
-/*  Tab 1 — Upload Folder                                               */
+/*  Tab 3 — Upload Files (Auto-Folder)                                  */
+/*                                                                      */
+/*  Loose files lang ang pinipili ng user (hindi folder). Bawat file   */
+/*  ay awtomatikong gagawan ng sariling "virtual folder" — ang         */
+/*  filename (walang extension) ang magiging DTN — tapos ang piniling  */
+/*  Category (dropdown) ang magiging subfolder sa loob ng DTN bago     */
+/*  yung file mismo.                                                   */
+/*                                                                      */
+/*  Halimbawa (Category = "PRODUCT FILE"):                             */
+/*    202994294.pdf -> 202994294/PRODUCT FILE/202994294.pdf            */
+/*    28342834.pdf  -> 28342834/PRODUCT FILE/28342834.pdf              */
+/*                                                                      */
+/*  Isang Category lang ang napipili per batch (kagaya ng Entry Type)  */
+/*  — ginagamit ito sa lahat ng files na kasama sa upload na ito.      */
 /* ================================================================== */
 
-function UploadFolderTab({ colors, s }) {
+/**
+ * Kunin ang filename na walang extension — ito ang magiging DTN.
+ * Kapag walang "." (o nagsisimula sa ".", e.g. ".gitignore"), gamitin
+ * na lang ang buong filename bilang DTN.
+ */
+function deriveDtnFromFilename(filename) {
+  const dotIdx = filename.lastIndexOf(".");
+  if (dotIdx <= 0) return filename.trim();
+  return filename.slice(0, dotIdx).trim();
+}
+
+function UploadBulkFilesTab({ colors, s }) {
   const [dbEntryType, setDbEntryType] = useState("");
+  const [docCategory, setDocCategory] = useState("");
   const [entries, setEntries] = useState([]);
   const [activeEntryId, setActiveEntryId] = useState(null);
-  const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
   const [liveStatuses, setLiveStatuses] = useState({});
 
   const [formError, setFormError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
-  const [isExtracting, setIsExtracting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadCounts, setUploadCounts] = useState({ done: 0, total: 0 });
   const [uploadResults, setUploadResults] = useState(null);
 
-  const folderInputRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -57,72 +87,52 @@ function UploadFolderTab({ colors, s }) {
     [entries, activeEntryId],
   );
 
-  const dtnInfo = useMemo(() => {
-    const names = Array.from(
-      new Set(entries.map((e) => e.relativePath.split("/")[0])),
-    );
-    return {
-      name: names[0] || "",
-      mismatch: names.length > 1,
-      all: names,
-    };
-  }, [entries]);
+  // Buuin ang buong relative path base sa DTN (per-file) + kasalukuyang
+  // piniling Category. Dynamic ito (hindi naka-store sa entry) para
+  // laging updated kahit palitan pa ng user yung dropdown bago mag-upload.
+  const buildRelativePath = useCallback(
+    (entry) => `${entry.dtn}/${docCategory}/${entry.file.name}`,
+    [docCategory],
+  );
 
+  // I-grupo ang entries per (auto-derived) DTN — walang further nesting
+  // dito sa listahan, kaya't flat lang ang bawat group (isa o higit pang
+  // files na nagkataong magkapareho ang base filename).
   const dtnGroups = useMemo(() => {
     const groups = new Map();
     for (const entry of entries) {
-      const dtn = entry.relativePath.split("/")[0];
-      if (!groups.has(dtn)) {
-        groups.set(dtn, { dtn, items: [] });
-      }
-      groups.get(dtn).items.push(entry);
+      if (!groups.has(entry.dtn))
+        groups.set(entry.dtn, { dtn: entry.dtn, items: [] });
+      groups.get(entry.dtn).items.push(entry);
     }
-    return Array.from(groups.values())
-      .map((g) => ({
-        ...g,
-        tree: buildCategoryTree(g.items),
-      }))
-      .sort((a, b) => a.dtn.localeCompare(b.dtn));
+    return Array.from(groups.values()).sort((a, b) =>
+      a.dtn.localeCompare(b.dtn),
+    );
   }, [entries]);
 
-  const toggleFolder = (key) => {
-    setCollapsedFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
+  // DTN groups na may 2+ files (magkapareho ang filename minus
+  // extension) — sasama sila sa iisang folder, ipapaalam lang sa user.
+  const collisions = useMemo(
+    () => dtnGroups.filter((g) => g.items.length > 1),
+    [dtnGroups],
+  );
 
-  const processFileEntries = useCallback(async (flat) => {
-    setIsExtracting(true);
-    let expandedFlat;
-    try {
-      expandedFlat = await expandArchiveEntries(flat);
-    } catch (err) {
-      setFormError("Failed to read a zip/rar file — it may be corrupted.");
-      setIsExtracting(false);
-      return;
-    }
-    setIsExtracting(false);
-
+  const handleFilesAdded = useCallback((fileList) => {
     const skipped = [];
     const newEntries = [];
 
-    for (const { file, relativePath } of expandedFlat) {
-      const parts = relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
-      if (parts.length < 2) {
+    for (const file of fileList) {
+      const dtn = deriveDtnFromFilename(file.name);
+      if (!dtn) {
         skipped.push(file.name);
         continue;
       }
-      const category = parts.length > 2 ? parts.slice(1, -1).join("/") : null;
       newEntries.push({
-        id: `${relativePath}-${file.size}-${Date.now()}-${Math.random()
+        id: `${dtn}-${file.name}-${file.size}-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 8)}`,
         file,
-        relativePath,
-        category,
+        dtn,
         kind: kindOf(file),
         previewUrl: URL.createObjectURL(file),
       });
@@ -136,53 +146,29 @@ function UploadFolderTab({ colors, s }) {
 
     if (skipped.length) {
       setFormError(
-        `Skipped ${skipped.length} file(s) with no detectable folder (make sure you selected a folder, not loose files).`,
+        `Nalaktawan ang ${skipped.length} file(s) na walang valid na filename.`,
       );
     } else if (newEntries.length) {
       setFormError("");
     }
   }, []);
 
-  const handleFolderInputChange = async (e) => {
+  const handleFileInputChange = (e) => {
     const fileList = Array.from(e.target.files || []);
     if (!fileList.length) return;
-    const flat = fileList.map((file) => ({
-      file,
-      relativePath: file.webkitRelativePath || file.name,
-    }));
-    await processFileEntries(flat);
+    handleFilesAdded(fileList);
     e.target.value = "";
   };
 
-  const handleDrop = async (e) => {
+  const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-
-    const items = e.dataTransfer?.items;
-    const canTraverse =
-      items && items.length && typeof items[0].webkitGetAsEntry === "function";
-
-    if (canTraverse) {
-      const topEntries = Array.from(items)
-        .map((it) => it.webkitGetAsEntry())
-        .filter(Boolean);
-      const nested = await Promise.all(
-        topEntries.map((entry) => traverseFileTree(entry, "")),
-      );
-      const flat = nested.flat();
-      if (!flat.length) {
-        setFormError(
-          "Couldn't read that folder — try 'Select Folder' instead.",
-        );
-        return;
-      }
-      await processFileEntries(flat);
+    const fileList = Array.from(e.dataTransfer?.files || []);
+    if (!fileList.length) {
+      setFormError("Walang nakuhang file mula sa drag-and-drop.");
       return;
     }
-
-    setFormError(
-      "Drag-and-drop of a folder isn't supported in this browser — use 'Select Folder' instead.",
-    );
+    handleFilesAdded(fileList);
   };
 
   const removeEntry = (entryId) => {
@@ -199,21 +185,22 @@ function UploadFolderTab({ colors, s }) {
     setEntries([]);
     setActiveEntryId(null);
     setDbEntryType("");
+    setDocCategory("");
     setFormError("");
     setUploadResults(null);
     setUploadProgress(0);
     setUploadCounts({ done: 0, total: 0 });
-    setCollapsedFolders(new Set());
   };
 
   const validate = () => {
     if (!dbEntryType.trim()) return "Entry Type is required.";
-    if (entries.length === 0) return "Select a folder with at least one file.";
+    if (!docCategory.trim()) return "Category is required.";
+    if (entries.length === 0) return "Pumili ng kahit isang file.";
     for (const { file } of entries) {
       if (!(file.type in ACCEPTED_TYPES))
-        return `"${file.name}" is not a supported file type.`;
+        return `"${file.name}" ay hindi supported na file type.`;
       if (file.size > MAX_FILE_SIZE)
-        return `"${file.name}" exceeds the 200MB limit.`;
+        return `"${file.name}" ay lumagpas sa 200MB limit.`;
     }
     return "";
   };
@@ -261,15 +248,16 @@ function UploadFolderTab({ colors, s }) {
       while (cursor < total) {
         const idx = cursor++;
         const entry = sentEntries[idx];
+        const relativePath = buildRelativePath(entry);
         try {
           const r = await uploadApplicationDocumentSingle(
             {
               dbEntryType,
-              dbDtn: entry.relativePath.split("/")[0],
-              docCategory: entry.category,
+              dbDtn: entry.dtn,
+              docCategory,
               batchId,
               file: entry.file,
-              relativePath: entry.relativePath,
+              relativePath,
             },
             (loaded) => {
               loadedBytes[idx] = loaded;
@@ -279,7 +267,7 @@ function UploadFolderTab({ colors, s }) {
           results[idx] = r;
           setLiveStatuses((prev) => ({
             ...prev,
-            [entry.relativePath]: { success: r.success, error: r.error },
+            [entry.id]: { success: r.success, error: r.error },
           }));
         } catch (err) {
           results[idx] = {
@@ -289,7 +277,7 @@ function UploadFolderTab({ colors, s }) {
           };
           setLiveStatuses((prev) => ({
             ...prev,
-            [entry.relativePath]: { success: false, error: err.message },
+            [entry.id]: { success: false, error: err.message },
           }));
         } finally {
           loadedBytes[idx] = totalBytesArr[idx];
@@ -320,8 +308,10 @@ function UploadFolderTab({ colors, s }) {
 
     setEntries(failedEntries);
     setActiveEntryId(failedEntries[0]?.id ?? null);
-    if (failedEntries.length === 0) setDbEntryType("");
-    setCollapsedFolders(new Set());
+    if (failedEntries.length === 0) {
+      setDbEntryType("");
+      setDocCategory("");
+    }
     setIsUploading(false);
   };
 
@@ -329,24 +319,39 @@ function UploadFolderTab({ colors, s }) {
     <div style={s.layout} className="bdu-layout">
       <div style={s.leftCol} className="bdu-leftCol">
         <div style={s.card} className="bdu-card">
-          <Field label="Entry Type" required colors={colors}>
-            <select
-              value={dbEntryType}
-              onChange={(e) => setDbEntryType(e.target.value)}
-              style={s.input}
-            >
-              <option value="">Select entry type</option>
-              <option value="CANCELLATION OF CPR">CANCELLATION OF CPR</option>
-              <option value="CORRECTION">CORRECTION</option>
-              <option value="RECONSTRUCTION">RECONSTRUCTION</option>
-              <option value="VALIDITY EXTENSION">VALIDITY EXTENSION</option>
-              <option value="SURRENDER DUE TO PAC">SURRENDER DUE TO PAC</option>
-              <option value="DOCUMENTS FROM CLIENT">
-                DOCUMENTS FROM CLIENT
-              </option>
-              <option value="OUTPUT DOCUMENTS">OUTPUT DOCUMENTS</option>
-            </select>
-          </Field>
+          <div className="bdu-fieldGrid">
+            <Field label="Entry Type" required colors={colors}>
+              <select
+                value={dbEntryType}
+                onChange={(e) => setDbEntryType(e.target.value)}
+                style={s.input}
+              >
+                <option value="">Select entry type</option>
+                <option value="CANCELLATION OF CPR">CANCELLATION OF CPR</option>
+                <option value="CORRECTION">CORRECTION</option>
+                <option value="RECONSTRUCTION">RECONSTRUCTION</option>
+                <option value="VALIDITY EXTENSION">VALIDITY EXTENSION</option>
+                <option value="SURRENDER DUE TO PAC">
+                  SURRENDER DUE TO PAC
+                </option>
+                <option value="ORIGINAL">ORIGINAL</option>
+              </select>
+            </Field>
+            <Field label="Category" required colors={colors}>
+              <select
+                value={docCategory}
+                onChange={(e) => setDocCategory(e.target.value)}
+                style={s.input}
+              >
+                <option value="">Select category</option>
+                {DOC_CATEGORY_OPTIONS.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
         </div>
 
         <div
@@ -356,73 +361,55 @@ function UploadFolderTab({ colors, s }) {
           }}
           onDragLeave={() => setIsDragging(false)}
           onDrop={handleDrop}
-          onClick={() => {
-            if (!isExtracting) folderInputRef.current?.click();
-          }}
+          onClick={() => fileInputRef.current?.click()}
           className="bdu-dropzone"
           style={{
             ...s.dropzone,
             ...(isDragging ? s.dropzoneActive : {}),
           }}
         >
-          {isExtracting ? (
-            <Loader2
-              size={20}
-              style={{ animation: "bdu-spin 1s linear infinite" }}
-            />
-          ) : (
-            <FolderOpen size={20} />
-          )}
+          <FilePlus2 size={20} />
           <p style={s.dropzoneText}>
-            {isExtracting ? (
-              <strong>Extracting zip/rar file(s)...</strong>
-            ) : (
-              <>
-                <strong>Select Folder</strong> or drag a folder here
-              </>
-            )}
+            <strong>Select Files</strong> or drag files here
           </p>
           <p style={s.dropzoneHint}>
-            The folder name becomes the DTN — subfolders become categories
-            automatically. Zip and Rar files are auto-extracted for preview.
-            Browsers only allow selecting one folder per dialog — drag multiple
-            folders together, or click again to add another.
+            Bawat file na i-uupload ay awtomatikong gagawan ng sariling folder
+            (DTN) gamit ang filename nito, tapos ilalagay sa loob ng piniling
+            Category sa itaas — hindi kailangan mag-select ng folder, mga
+            individual na files lang.
           </p>
           <input
-            ref={folderInputRef}
+            ref={fileInputRef}
             type="file"
-            webkitdirectory=""
-            directory=""
             multiple
-            onChange={handleFolderInputChange}
+            onChange={handleFileInputChange}
             style={{ display: "none" }}
           />
         </div>
 
         {entries.length > 0 && (
-          <div
-            style={{
-              ...s.detectedDtnBanner,
-              ...(dtnInfo.mismatch ? s.detectedDtnBannerInfo : {}),
-            }}
-          >
-            {dtnInfo.mismatch ? (
-              <>
-                <FolderOpen size={14} color={colors.accent} />
-                <span>
-                  {dtnInfo.all.length} DTNs detected:{" "}
-                  <strong>{dtnInfo.all.join(", ")}</strong> — each folder will
-                  be uploaded under its own DTN.
-                </span>
-              </>
-            ) : (
-              <>
-                <FolderOpen size={14} color={colors.accent} />
-                <span>
-                  Detected DTN: <strong>{dtnInfo.name}</strong>
-                </span>
-              </>
-            )}
+          <div style={s.detectedDtnBanner}>
+            <FolderOpen size={14} color={colors.accent} />
+            <span>
+              {entries.length} file(s) will create {dtnGroups.length} folder
+              {dtnGroups.length === 1 ? "" : "s"} (DTN
+              {dtnGroups.length === 1 ? "" : "s"}) — e.g.{" "}
+              <strong>
+                {dtnGroups[0]?.dtn}/{docCategory || "CATEGORY"}/
+                {dtnGroups[0]?.items[0]?.file.name}
+              </strong>
+            </span>
+          </div>
+        )}
+
+        {collisions.length > 0 && (
+          <div style={s.detectedDtnBannerInfo}>
+            <AlertCircle size={14} color={colors.accent} />
+            <span>
+              {collisions.length} filename(s) magkapareho (walang extension)
+              kaya magsasama sa iisang folder:{" "}
+              <strong>{collisions.map((c) => c.dtn).join(", ")}</strong>
+            </span>
           </div>
         )}
 
@@ -444,16 +431,10 @@ function UploadFolderTab({ colors, s }) {
             <div style={s.groupsHeaderActions}>
               <button
                 type="button"
-                onClick={() => {
-                  if (!isExtracting) folderInputRef.current?.click();
-                }}
-                disabled={isExtracting}
-                style={{
-                  ...s.addFolderLink,
-                  ...(isExtracting ? s.btnDisabled : {}),
-                }}
+                onClick={() => fileInputRef.current?.click()}
+                style={s.addFolderLink}
               >
-                <FolderOpen size={13} /> Add folder
+                <FilePlus2 size={13} /> Add files
               </button>
               <button type="button" onClick={clearAll} style={s.clearLink}>
                 <Trash2 size={13} /> Clear all
@@ -465,64 +446,35 @@ function UploadFolderTab({ colors, s }) {
         {entries.length > 0 && (
           <div style={s.fileListCard}>
             <div style={s.folderTree}>
-              {dtnGroups.map((dtnGroup) => {
-                const showDtnHeader = dtnGroups.length > 1;
-                return (
-                  <div key={dtnGroup.dtn} style={s.folderGroup}>
-                    {showDtnHeader && (
-                      <div style={s.dtnGroupHeader}>
-                        <FolderOpen size={14} style={{ flexShrink: 0 }} />
-                        <span style={s.dtnGroupLabel} title={dtnGroup.dtn}>
-                          DTN: {dtnGroup.dtn}
-                        </span>
-                        <span style={s.folderCount}>
-                          {dtnGroup.items.length}
-                        </span>
-                      </div>
-                    )}
-                    <div style={showDtnHeader ? s.dtnGroupBody : undefined}>
-                      {Array.from(dtnGroup.tree.children.values())
-                        .sort((a, b) => a.label.localeCompare(b.label))
-                        .map((child) => (
-                          <FolderTreeNode
-                            key={child.key}
-                            node={child}
-                            groupKeyPrefix={dtnGroup.dtn}
-                            colors={colors}
-                            s={s}
-                            collapsedFolders={collapsedFolders}
-                            toggleFolder={toggleFolder}
-                            activeEntryId={activeEntryId}
-                            setActiveEntryId={setActiveEntryId}
-                            liveStatuses={liveStatuses}
-                            isUploading={isUploading}
-                            removeEntry={removeEntry}
-                          />
-                        ))}
-                      {dtnGroup.tree.items.length > 0 && (
-                        <FolderTreeNode
-                          node={{
-                            key: "__root__",
-                            label: "General (root)",
-                            children: new Map(),
-                            items: dtnGroup.tree.items,
-                          }}
-                          groupKeyPrefix={dtnGroup.dtn}
-                          colors={colors}
-                          s={s}
-                          collapsedFolders={collapsedFolders}
-                          toggleFolder={toggleFolder}
-                          activeEntryId={activeEntryId}
-                          setActiveEntryId={setActiveEntryId}
-                          liveStatuses={liveStatuses}
-                          isUploading={isUploading}
-                          removeEntry={removeEntry}
-                        />
-                      )}
-                    </div>
+              {dtnGroups.map((group) => (
+                <div key={group.dtn} style={s.folderGroup}>
+                  <div style={s.dtnGroupHeader}>
+                    <FolderOpen size={14} style={{ flexShrink: 0 }} />
+                    <span style={s.dtnGroupLabel} title={group.dtn}>
+                      {group.dtn}
+                      {docCategory ? ` / ${docCategory}` : ""}
+                    </span>
+                    <span style={s.folderCount}>{group.items.length}</span>
                   </div>
-                );
-              })}
+                  <div style={s.dtnGroupBody}>
+                    <ul style={s.fileList}>
+                      {group.items.map((entry) => (
+                        <FileEntryItem
+                          key={entry.id}
+                          entry={entry}
+                          s={s}
+                          colors={colors}
+                          isActive={entry.id === activeEntryId}
+                          result={liveStatuses[entry.id]}
+                          isUploading={isUploading}
+                          onSelect={() => setActiveEntryId(entry.id)}
+                          onRemove={() => removeEntry(entry.id)}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -607,10 +559,10 @@ function UploadFolderTab({ colors, s }) {
         <div style={s.previewCard} className="bdu-previewCard">
           {!activeEntry ? (
             <div style={s.previewEmpty}>
-              <FolderOpen size={28} />
+              <FilePlus2 size={28} />
               <p style={s.previewEmptyText}>
-                Select a folder, then choose a file from the list to preview it
-                here.
+                Pumili ng files, tapos i-click ang isang file sa listahan para
+                ma-preview dito.
               </p>
             </div>
           ) : (
@@ -673,11 +625,9 @@ function UploadFolderTab({ colors, s }) {
                   Previous error: {activeEntry.uploadError}
                 </div>
               )}
-              {activeEntry.category && (
-                <div style={s.previewFooterMeta}>
-                  Category: <strong>{activeEntry.category}</strong>
-                </div>
-              )}
+              <div style={s.previewFooterMeta}>
+                Path: <strong>{buildRelativePath(activeEntry)}</strong>
+              </div>
             </>
           )}
         </div>
@@ -686,4 +636,4 @@ function UploadFolderTab({ colors, s }) {
   );
 }
 
-export default UploadFolderTab;
+export default UploadBulkFilesTab;

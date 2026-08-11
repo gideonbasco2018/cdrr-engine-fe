@@ -1,13 +1,13 @@
 // src/pages/LeadAssignmentsPage.jsx
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { getAllUsers } from "../api/auth";
 import {
   getLeadAssignments,
-  createLeadAssignment,
   batchCreateLeadAssignments,
   updateLeadAssignment,
   deleteLeadAssignment,
 } from "../api/lead-assignments";
+import { getUnits, createUnit, updateUnit, deleteUnit } from "../api/units";
 
 // ── Avatar colours ────────────────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -23,7 +23,6 @@ const AVATAR_COLORS = [
 const avColor = (name = "") =>
   AVATAR_COLORS[(name.charCodeAt(0) || 0) % AVATAR_COLORS.length];
 
-const ROLE_TABS = ["All", "Checker", "Supervisor"];
 const PAGE_SIZE = 20;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -148,14 +147,13 @@ function Avatar({ user, size = 32 }) {
 }
 
 // ── Badge ─────────────────────────────────────────────────────────────────────
-function Badge({ type }) {
+function Badge({ label, tone }) {
   const map = {
-    Checker: { bg: "#ede9fe", color: "#6366f1" },
-    Supervisor: { bg: "#dbeafe", color: "#3b82f6" },
-    Active: { bg: "#dcfce7", color: "#16a34a" },
-    Inactive: { bg: "#f3f4f6", color: "#6b7280" },
+    role: { bg: "#ede9fe", color: "#6366f1" },
+    active: { bg: "#dcfce7", color: "#16a34a" },
+    inactive: { bg: "#f3f4f6", color: "#6b7280" },
   };
-  const s = map[type] || map.Inactive;
+  const s = map[tone] || map.role;
   return (
     <span
       style={{
@@ -168,12 +166,13 @@ function Badge({ type }) {
         fontWeight: 600,
         background: s.bg,
         color: s.color,
+        whiteSpace: "nowrap",
       }}
     >
-      {(type === "Active" || type === "Inactive") && (
+      {(tone === "active" || tone === "inactive") && (
         <span style={{ fontSize: 7 }}>●</span>
       )}
-      {type}
+      {label}
     </span>
   );
 }
@@ -206,30 +205,255 @@ function Toast({ toast }) {
   );
 }
 
-// ── Transfer Modal (Create) ───────────────────────────────────────────────────
+// ── Unit Form Modal (Create / Edit a Unit) ────────────────────────────────────
+function UnitFormModal({
+  unit,
+  onClose,
+  onSubmit,
+  submitting,
+  error,
+  allUsers,
+  c,
+}) {
+  const [name, setName] = useState(unit?.name || "");
+  const [description, setDescription] = useState(unit?.description || "");
+  const [leadUserId, setLeadUserId] = useState(
+    unit?.lead?.id ? String(unit.lead.id) : "",
+  );
+  const [qaAdminUserId, setQaAdminUserId] = useState(
+    unit?.qa_admin?.id ? String(unit.qa_admin.id) : "",
+  );
+  const inp = inpStyle(c);
+  const isEdit = !!unit;
+
+  const handleSubmit = () => {
+    if (!name.trim()) return;
+    onSubmit({
+      name: name.trim(),
+      description: description.trim() || null,
+      lead_user_id: leadUserId ? Number(leadUserId) : null,
+      qa_admin_user_id: qaAdminUserId ? Number(qaAdminUserId) : null,
+    });
+  };
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 999,
+        background: c.modalOverlay,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: c.modalBg,
+          borderRadius: 14,
+          border: `1px solid ${c.modalBorder}`,
+          padding: "1.75rem",
+          width: "100%",
+          maxWidth: 440,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+          boxSizing: "border-box",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ fontSize: "1.4rem", marginBottom: 6 }}>🏷️</div>
+        <h3
+          style={{
+            margin: "0 0 0.25rem",
+            color: c.textPrimary,
+            fontSize: "1.1rem",
+          }}
+        >
+          {isEdit ? "Edit unit" : "New unit"}
+        </h3>
+        <p
+          style={{
+            margin: "0 0 1.25rem",
+            color: c.textSecondary,
+            fontSize: "0.85rem",
+          }}
+        >
+          A unit groups members under a head and (optional) QA admin — e.g.
+          "Facilitated Registration Pathway Unit".
+        </p>
+
+        {error && (
+          <div
+            style={{
+              background: "#fee2e2",
+              color: "#dc2626",
+              borderRadius: 8,
+              padding: "10px 14px",
+              fontSize: 13,
+              marginBottom: "1rem",
+            }}
+          >
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div style={{ marginBottom: "0.9rem" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              color: c.textSecondary,
+              marginBottom: 5,
+            }}
+          >
+            Unit name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Facilitated Registration Pathway Unit"
+            style={inp}
+          />
+        </div>
+
+        <div style={{ marginBottom: "0.9rem" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              color: c.textSecondary,
+              marginBottom: 5,
+            }}
+          >
+            Description <span style={{ fontWeight: 400 }}>(optional)</span>
+          </label>
+          <textarea
+            rows={2}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            style={{ ...inp, resize: "vertical" }}
+          />
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+            marginBottom: "1.5rem",
+          }}
+        >
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                color: c.textSecondary,
+                marginBottom: 5,
+              }}
+            >
+              Unit head
+            </label>
+            <select
+              value={leadUserId}
+              onChange={(e) => setLeadUserId(e.target.value)}
+              style={inp}
+            >
+              <option value="">None</option>
+              {allUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {fullName(u)} (@{u.username})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "0.78rem",
+                fontWeight: 600,
+                color: c.textSecondary,
+                marginBottom: 5,
+              }}
+            >
+              QA Admin
+            </label>
+            <select
+              value={qaAdminUserId}
+              onChange={(e) => setQaAdminUserId(e.target.value)}
+              style={inp}
+            >
+              <option value="">None</option>
+              {allUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {fullName(u)} (@{u.username})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={btnSecondary(c)}>
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={submitting || !name.trim()}
+            style={{
+              ...btnPrimary,
+              opacity: submitting || !name.trim() ? 0.5 : 1,
+              cursor: submitting || !name.trim() ? "not-allowed" : "pointer",
+            }}
+          >
+            {submitting ? "Saving..." : isEdit ? "Save changes" : "Create unit"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Transfer Modal (assign members to a Unit + Role) ──────────────────────────
 function AssignmentTransferModal({
   onClose,
   onSubmit,
   submitting,
   error,
-  leadUsers,
-  evaluators,
+  units,
+  allUsers,
+  allGroups,
+  defaultUnitId,
   darkMode,
   c,
 }) {
-  const [leadRole, setLeadRole] = useState("Checker");
-  const [leadUserId, setLeadUserId] = useState("");
+  const [unitId, setUnitId] = useState(
+    defaultUnitId ? String(defaultUnitId) : "",
+  );
+  const [groupId, setGroupId] = useState("");
   const [remarks, setRemarks] = useState("");
   const [members, setMembers] = useState([]);
   const [search, setSearch] = useState("");
   const [dropActive, setDropActive] = useState(false);
   const dragging = useRef(null);
 
-  const filteredLeads = leadUsers.filter((u) =>
-    u.groups?.some((g) => g.name === leadRole),
-  );
+  // Pool of users who actually belong to the selected role/group, so we're
+  // not dragging in people who aren't Evaluators/Preassessors/etc. at all.
+  const roleMatchedUsers = groupId
+    ? allUsers.filter((u) =>
+        u.groups?.some((g) => String(g.id) === String(groupId)),
+      )
+    : [];
+
   const memberIds = new Set(members.map((m) => m.id));
-  const available = evaluators.filter(
+  const available = roleMatchedUsers.filter(
     (u) =>
       !memberIds.has(u.id) &&
       (search === "" ||
@@ -244,7 +468,6 @@ function AssignmentTransferModal({
   const onDragStart = (user) => {
     dragging.current = user;
   };
-
   const onDropRight = (e) => {
     e.preventDefault();
     setDropActive(false);
@@ -260,10 +483,10 @@ function AssignmentTransferModal({
   };
 
   const handleSubmit = () => {
-    if (!leadUserId || members.length === 0) return;
+    if (!unitId || !groupId || members.length === 0) return;
     onSubmit({
-      lead_user_id: Number(leadUserId),
-      lead_role: leadRole,
+      unit_id: Number(unitId),
+      group_id: Number(groupId),
       member_user_ids: members.map((m) => m.id),
       remarks: remarks || null,
     });
@@ -337,7 +560,7 @@ function AssignmentTransferModal({
                 color: c.textSecondary,
               }}
             >
-              Select a lead then drag or click + Add to assign evaluators.
+              Pick a unit and role, then drag or click + Add to assign members.
             </p>
           </div>
           <button
@@ -360,7 +583,6 @@ function AssignmentTransferModal({
           </button>
         </div>
 
-        {/* Error */}
         {error && (
           <div
             style={{
@@ -375,11 +597,11 @@ function AssignmentTransferModal({
           </div>
         )}
 
-        {/* Lead selection */}
+        {/* Unit / Role selection */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 2fr 2fr",
+            gridTemplateColumns: "1.3fr 1fr 1.3fr",
             gap: 12,
           }}
         >
@@ -393,18 +615,19 @@ function AssignmentTransferModal({
                 marginBottom: 5,
               }}
             >
-              Lead role
+              Unit
             </label>
             <select
-              value={leadRole}
-              onChange={(e) => {
-                setLeadRole(e.target.value);
-                setLeadUserId("");
-              }}
+              value={unitId}
+              onChange={(e) => setUnitId(e.target.value)}
               style={inp}
             >
-              <option value="Checker">Checker</option>
-              <option value="Supervisor">Supervisor</option>
+              <option value="">Select unit...</option>
+              {units.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -417,17 +640,20 @@ function AssignmentTransferModal({
                 marginBottom: 5,
               }}
             >
-              Lead user ({leadRole})
+              Role
             </label>
             <select
-              value={leadUserId}
-              onChange={(e) => setLeadUserId(e.target.value)}
+              value={groupId}
+              onChange={(e) => {
+                setGroupId(e.target.value);
+                setMembers([]);
+              }}
               style={inp}
             >
-              <option value="">Select {leadRole}...</option>
-              {filteredLeads.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {fullName(u)} (@{u.username})
+              <option value="">Select role...</option>
+              {allGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
                 </option>
               ))}
             </select>
@@ -464,7 +690,7 @@ function AssignmentTransferModal({
             height: 340,
           }}
         >
-          {/* LEFT — Available */}
+          {/* LEFT — Available (filtered to the selected role's group members) */}
           <div
             style={{
               ...panelStyle,
@@ -474,7 +700,6 @@ function AssignmentTransferModal({
             onDragOver={(e) => e.preventDefault()}
             onDrop={onDropLeft}
           >
-            {/* Panel header */}
             <div
               style={{
                 padding: "9px 14px",
@@ -493,7 +718,7 @@ function AssignmentTransferModal({
                   letterSpacing: "0.05em",
                 }}
               >
-                All Evaluators — not added
+                {groupId ? "Matching users — not added" : "Pick a role first"}
               </span>
               <span
                 style={{
@@ -509,7 +734,6 @@ function AssignmentTransferModal({
               </span>
             </div>
 
-            {/* Search */}
             <div
               style={{
                 padding: "8px 12px",
@@ -522,12 +746,12 @@ function AssignmentTransferModal({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 style={{ ...inp, padding: "5px 10px", fontSize: "0.8rem" }}
+                disabled={!groupId}
               />
             </div>
 
-            {/* List */}
             <div style={{ flex: 1, overflowY: "auto" }}>
-              {available.length === 0 && (
+              {!groupId && (
                 <div
                   style={{
                     padding: "2rem",
@@ -536,7 +760,21 @@ function AssignmentTransferModal({
                     fontSize: "0.82rem",
                   }}
                 >
-                  {search ? "No users match." : "All evaluators added."}
+                  Select a role above to see users in that group.
+                </div>
+              )}
+              {groupId && available.length === 0 && (
+                <div
+                  style={{
+                    padding: "2rem",
+                    textAlign: "center",
+                    color: c.textTertiary,
+                    fontSize: "0.82rem",
+                  }}
+                >
+                  {search
+                    ? "No users match."
+                    : "No available users in this role."}
                 </div>
               )}
               {available.map((user) => (
@@ -679,7 +917,6 @@ function AssignmentTransferModal({
             onDragLeave={() => setDropActive(false)}
             onDrop={onDropRight}
           >
-            {/* Panel header */}
             <div
               style={{
                 padding: "9px 14px",
@@ -698,8 +935,8 @@ function AssignmentTransferModal({
                   letterSpacing: "0.05em",
                 }}
               >
-                {leadUserId
-                  ? `${filteredLeads.find((u) => String(u.id) === String(leadUserId))?.first_name ?? "Lead"}'s members`
+                {groupId
+                  ? `${allGroups.find((g) => String(g.id) === String(groupId))?.name ?? "Role"} members`
                   : "Members"}
               </span>
               {members.length > 0 && (
@@ -718,7 +955,6 @@ function AssignmentTransferModal({
               )}
             </div>
 
-            {/* Drop hint when empty */}
             {members.length === 0 && (
               <div
                 style={{
@@ -732,14 +968,11 @@ function AssignmentTransferModal({
                 }}
               >
                 <span style={{ fontSize: 30 }}>👥</span>
-                <span style={{ fontSize: "0.82rem" }}>
-                  Drag evaluators here
-                </span>
+                <span style={{ fontSize: "0.82rem" }}>Drag users here</span>
                 <span style={{ fontSize: "0.73rem" }}>or use + Add button</span>
               </div>
             )}
 
-            {/* Member list */}
             <div style={{ flex: 1, overflowY: "auto" }}>
               {members.map((user, idx) => (
                 <div
@@ -850,8 +1083,8 @@ function AssignmentTransferModal({
         >
           <span style={{ fontSize: "0.82rem", color: c.textSecondary }}>
             {members.length > 0
-              ? `${members.length} evaluator${members.length > 1 ? "s" : ""} will be assigned`
-              : "No evaluators added yet"}
+              ? `${members.length} member${members.length > 1 ? "s" : ""} will be assigned`
+              : "No members added yet"}
           </span>
           <div style={{ display: "flex", gap: 8 }}>
             <button onClick={onClose} style={btnSecondary(c)}>
@@ -859,13 +1092,17 @@ function AssignmentTransferModal({
             </button>
             <button
               onClick={handleSubmit}
-              disabled={submitting || !leadUserId || members.length === 0}
+              disabled={
+                submitting || !unitId || !groupId || members.length === 0
+              }
               style={{
                 ...btnPrimary,
                 opacity:
-                  submitting || !leadUserId || members.length === 0 ? 0.5 : 1,
+                  submitting || !unitId || !groupId || members.length === 0
+                    ? 0.5
+                    : 1,
                 cursor:
-                  submitting || !leadUserId || members.length === 0
+                  submitting || !unitId || !groupId || members.length === 0
                     ? "not-allowed"
                     : "pointer",
               }}
@@ -881,8 +1118,17 @@ function AssignmentTransferModal({
   );
 }
 
-// ── Edit Modal ────────────────────────────────────────────────────────────────
-function EditModal({ form, setForm, onClose, onSubmit, submitting, error, c }) {
+// ── Edit Modal (assignment: remarks / active / re-tag role) ──────────────────
+function EditModal({
+  form,
+  setForm,
+  onClose,
+  onSubmit,
+  submitting,
+  error,
+  allGroups,
+  c,
+}) {
   const inp = inpStyle(c);
   return (
     <div
@@ -928,7 +1174,7 @@ function EditModal({ form, setForm, onClose, onSubmit, submitting, error, c }) {
             fontSize: "0.85rem",
           }}
         >
-          Update status or remarks.
+          Update role, status, or remarks.
         </p>
 
         {error && (
@@ -945,6 +1191,33 @@ function EditModal({ form, setForm, onClose, onSubmit, submitting, error, c }) {
             ⚠️ {error}
           </div>
         )}
+
+        <div style={{ marginBottom: "1rem" }}>
+          <label
+            style={{
+              display: "block",
+              fontSize: "0.82rem",
+              fontWeight: 600,
+              color: c.textSecondary,
+              marginBottom: 5,
+            }}
+          >
+            Role
+          </label>
+          <select
+            value={form.group_id ?? ""}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, group_id: e.target.value }))
+            }
+            style={inp}
+          >
+            {allGroups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div style={{ marginBottom: "1rem" }}>
           <label
@@ -1014,9 +1287,10 @@ function EditModal({ form, setForm, onClose, onSubmit, submitting, error, c }) {
   );
 }
 
-// ── Delete Modal ──────────────────────────────────────────────────────────────
+// ── Delete Confirm Modal (assignment OR unit) ─────────────────────────────────
 function DeleteModal({ target, onClose, onConfirm, deleting, c }) {
   if (!target) return null;
+  const isUnit = target.kind === "unit";
   return (
     <div
       style={{
@@ -1045,7 +1319,7 @@ function DeleteModal({ target, onClose, onConfirm, deleting, c }) {
       >
         <div style={{ fontSize: "1.4rem", marginBottom: 6 }}>⚠️</div>
         <h3 style={{ margin: "0 0 0.35rem", color: c.textPrimary }}>
-          Delete assignment?
+          {isUnit ? "Delete unit?" : "Delete assignment?"}
         </h3>
         <p
           style={{
@@ -1055,15 +1329,31 @@ function DeleteModal({ target, onClose, onConfirm, deleting, c }) {
             lineHeight: 1.5,
           }}
         >
-          This will permanently remove the assignment between{" "}
-          <strong style={{ color: c.textPrimary }}>
-            {fullName(target.lead)}
-          </strong>{" "}
-          and{" "}
-          <strong style={{ color: c.textPrimary }}>
-            {fullName(target.member)}
-          </strong>
-          .
+          {isUnit ? (
+            <>
+              This will permanently delete{" "}
+              <strong style={{ color: c.textPrimary }}>
+                {target.unit.name}
+              </strong>{" "}
+              and remove{" "}
+              <strong style={{ color: c.textPrimary }}>
+                every member assignment
+              </strong>{" "}
+              under it.
+            </>
+          ) : (
+            <>
+              This will remove{" "}
+              <strong style={{ color: c.textPrimary }}>
+                {fullName(target.row.member)}
+              </strong>{" "}
+              from{" "}
+              <strong style={{ color: c.textPrimary }}>
+                {target.row.unit?.name}
+              </strong>{" "}
+              ({target.row.group?.name}).
+            </>
+          )}
         </p>
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={btnSecondary(c)}>
@@ -1092,6 +1382,8 @@ export default function LeadAssignmentsPage({ darkMode }) {
   const c = makeColors(darkMode);
 
   // ── Data ───────────────────────────────────────────────────────────────────
+  const [units, setUnits] = useState([]);
+  const [unitsLoading, setUnitsLoading] = useState(true);
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -1099,18 +1391,24 @@ export default function LeadAssignmentsPage({ darkMode }) {
   const [allUsers, setAllUsers] = useState([]);
 
   // ── Filters ────────────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState("All");
+  const [selectedUnitId, setSelectedUnitId] = useState("all"); // "all" | unit id
+  const [roleFilter, setRoleFilter] = useState(""); // group_id
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  // ── Modal ──────────────────────────────────────────────────────────────────
-  const [modalMode, setModalMode] = useState(null); // "create" | "edit"
+  // ── Modals ─────────────────────────────────────────────────────────────────
+  const [modalMode, setModalMode] = useState(null); // "create" | "edit" | "unitForm"
   const [editTarget, setEditTarget] = useState(null);
-  const [editForm, setEditForm] = useState({ remarks: "", is_active: true });
+  const [editForm, setEditForm] = useState({
+    remarks: "",
+    is_active: true,
+    group_id: "",
+  });
+  const [editingUnit, setEditingUnit] = useState(null); // null = creating new unit
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null); // { kind: "unit"|"assignment", ... }
   const [deleting, setDeleting] = useState(false);
 
   // ── Toast ──────────────────────────────────────────────────────────────────
@@ -1120,13 +1418,17 @@ export default function LeadAssignmentsPage({ darkMode }) {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // ── Derived user lists ─────────────────────────────────────────────────────
-  const leadUsers = allUsers.filter((u) =>
-    u.groups?.some((g) => g.name === "Checker" || g.name === "Supervisor"),
-  );
-  const evaluators = allUsers.filter((u) =>
-    u.groups?.some((g) => g.name === "Evaluator"),
-  );
+  // ── Roles/groups available for assignment — sourced from the users' own
+  // group memberships (Checker/Evaluator, Preassessor, etc.) ─────────────────
+  const allGroups = useMemo(() => {
+    const map = new Map();
+    allUsers.forEach((u) =>
+      (u.groups || []).forEach((g) => map.set(g.id, g.name)),
+    );
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+  }, [allUsers]);
 
   // ── Fetch users ────────────────────────────────────────────────────────────
   const fetchUsers = useCallback(async () => {
@@ -1139,9 +1441,23 @@ export default function LeadAssignmentsPage({ darkMode }) {
     }
   }, []);
 
+  // ── Fetch units ────────────────────────────────────────────────────────────
+  const fetchUnits = useCallback(async () => {
+    setUnitsLoading(true);
+    try {
+      const res = await getUnits();
+      setUnits(res.data ?? []);
+    } catch {
+      /* non-blocking */
+    } finally {
+      setUnitsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+    fetchUnits();
+  }, [fetchUsers, fetchUnits]);
 
   // ── Fetch assignments ──────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -1151,7 +1467,8 @@ export default function LeadAssignmentsPage({ darkMode }) {
       const params = {
         page,
         page_size: PAGE_SIZE,
-        ...(activeTab !== "All" && { lead_role: activeTab }),
+        ...(selectedUnitId !== "all" && { unit_id: selectedUnitId }),
+        ...(roleFilter && { group_id: roleFilter }),
         ...(statusFilter === "active" && { is_active: true }),
         ...(statusFilter === "inactive" && { is_active: false }),
       };
@@ -1163,25 +1480,28 @@ export default function LeadAssignmentsPage({ darkMode }) {
     } finally {
       setLoading(false);
     }
-  }, [page, activeTab, statusFilter]);
+  }, [page, selectedUnitId, roleFilter, statusFilter]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
   useEffect(() => {
     setPage(1);
-  }, [activeTab, statusFilter, search]);
+  }, [selectedUnitId, roleFilter, statusFilter, search]);
 
   // ── Client search ──────────────────────────────────────────────────────────
   const filtered = data.filter((row) => {
     if (!search) return true;
     const q = search.toLowerCase();
     return (
-      fullName(row.lead).toLowerCase().includes(q) ||
       fullName(row.member).toLowerCase().includes(q) ||
-      (row.lead?.username ?? "").toLowerCase().includes(q)
+      (row.member?.username ?? "").toLowerCase().includes(q) ||
+      (row.unit?.name ?? "").toLowerCase().includes(q)
     );
   });
+
+  const selectedUnit =
+    units.find((u) => String(u.id) === String(selectedUnitId)) || null;
 
   // ── Stats ──────────────────────────────────────────────────────────────────
   const stats = [
@@ -1191,19 +1511,15 @@ export default function LeadAssignmentsPage({ darkMode }) {
       value: data.filter((r) => r.is_active).length,
       color: "#16a34a",
     },
+    { label: "UNITS", value: units.length, color: "#6366f1" },
     {
-      label: "CHECKERS",
-      value: data.filter((r) => r.lead_role === "Checker").length,
-      color: "#6366f1",
-    },
-    {
-      label: "SUPERVISORS",
-      value: data.filter((r) => r.lead_role === "Supervisor").length,
+      label: "MEMBERS",
+      value: new Set(data.map((r) => r.member_user_id)).size,
       color: "#3b82f6",
     },
   ];
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  // ── Handlers: assignments ─────────────────────────────────────────────────
   const openCreate = () => {
     setFormError(null);
     setModalMode("create");
@@ -1211,7 +1527,11 @@ export default function LeadAssignmentsPage({ darkMode }) {
 
   const openEdit = (row) => {
     setEditTarget(row);
-    setEditForm({ remarks: row.remarks || "", is_active: row.is_active });
+    setEditForm({
+      remarks: row.remarks || "",
+      is_active: row.is_active,
+      group_id: row.group_id,
+    });
     setFormError(null);
     setModalMode("edit");
   };
@@ -1219,6 +1539,7 @@ export default function LeadAssignmentsPage({ darkMode }) {
   const closeModal = () => {
     setModalMode(null);
     setEditTarget(null);
+    setEditingUnit(null);
   };
 
   const handleCreate = async (payload) => {
@@ -1232,6 +1553,7 @@ export default function LeadAssignmentsPage({ darkMode }) {
       );
       closeModal();
       fetchData();
+      fetchUnits(); // refresh member counts
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -1246,6 +1568,7 @@ export default function LeadAssignmentsPage({ darkMode }) {
       await updateLeadAssignment(editTarget.id, {
         is_active: editForm.is_active,
         remarks: editForm.remarks || null,
+        group_id: editForm.group_id ? Number(editForm.group_id) : undefined,
       });
       showToast("success", "Assignment updated.");
       closeModal();
@@ -1257,13 +1580,59 @@ export default function LeadAssignmentsPage({ darkMode }) {
     }
   };
 
-  const handleDelete = async () => {
+  const handleDeleteAssignment = async (row) =>
+    setDeleteTarget({ kind: "assignment", row });
+
+  // ── Handlers: units ────────────────────────────────────────────────────────
+  const openCreateUnit = () => {
+    setEditingUnit(null);
+    setFormError(null);
+    setModalMode("unitForm");
+  };
+  const openEditUnit = (unit) => {
+    setEditingUnit(unit);
+    setFormError(null);
+    setModalMode("unitForm");
+  };
+
+  const handleUnitSubmit = async (payload) => {
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      if (editingUnit) {
+        await updateUnit(editingUnit.id, payload);
+        showToast("success", "Unit updated.");
+      } else {
+        await createUnit(payload);
+        showToast("success", "Unit created.");
+      }
+      closeModal();
+      fetchUnits();
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteUnit = (unit) => setDeleteTarget({ kind: "unit", unit });
+
+  // ── Shared delete confirm ─────────────────────────────────────────────────
+  const handleDeleteConfirm = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await deleteLeadAssignment(deleteTarget.id);
+      if (deleteTarget.kind === "unit") {
+        await deleteUnit(deleteTarget.unit.id);
+        showToast("success", "Unit deleted.");
+        if (String(selectedUnitId) === String(deleteTarget.unit.id))
+          setSelectedUnitId("all");
+        fetchUnits();
+      } else {
+        await deleteLeadAssignment(deleteTarget.row.id);
+        showToast("success", "Assignment deleted.");
+      }
       setDeleteTarget(null);
-      showToast("success", "Assignment deleted.");
       fetchData();
     } catch (err) {
       showToast("error", err.message);
@@ -1306,7 +1675,7 @@ export default function LeadAssignmentsPage({ darkMode }) {
             fontSize: "0.8rem",
           }}
         >
-          Manage Checker &amp; Supervisor monitoring of Evaluators.
+          Manage units and who's assigned to each, by role.
         </p>
       </div>
 
@@ -1359,53 +1728,57 @@ export default function LeadAssignmentsPage({ darkMode }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: "1.25rem",
+          marginBottom: "1rem",
           gap: "1rem",
           flexWrap: "wrap",
         }}
       >
-        {/* Role tabs */}
-        <div
-          style={{
-            display: "flex",
-            gap: "0.35rem",
-            background: c.cardBg,
-            border: `1px solid ${c.cardBorder}`,
-            borderRadius: 10,
-            padding: "0.3rem",
-          }}
-        >
-          {ROLE_TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                padding: "0.4rem 1rem",
-                borderRadius: 8,
-                border: "none",
-                background: activeTab === tab ? c.tabActiveBg : "transparent",
-                color: activeTab === tab ? "#fff" : c.textSecondary,
-                fontSize: "0.83rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "all 0.15s",
-                fontFamily: "inherit",
-              }}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
+        <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+          <select
+            value={selectedUnitId}
+            onChange={(e) => setSelectedUnitId(e.target.value)}
+            style={{
+              padding: "0.45rem 0.9rem",
+              borderRadius: 8,
+              border: `1px solid ${c.inputBorder}`,
+              background: c.inputBg,
+              color: c.textPrimary,
+              fontSize: "0.85rem",
+              fontFamily: "inherit",
+              outline: "none",
+              minWidth: 220,
+            }}
+          >
+            <option value="all">All units</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
 
-        {/* Right controls */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            flexWrap: "wrap",
-          }}
-        >
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            style={{
+              padding: "0.45rem 0.9rem",
+              borderRadius: 8,
+              border: `1px solid ${c.inputBorder}`,
+              background: c.inputBg,
+              color: c.textPrimary,
+              fontSize: "0.85rem",
+              fontFamily: "inherit",
+              outline: "none",
+            }}
+          >
+            <option value="">All roles</option>
+            {allGroups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -1427,7 +1800,7 @@ export default function LeadAssignmentsPage({ darkMode }) {
 
           <input
             type="text"
-            placeholder="Search users..."
+            placeholder="Search users or unit..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -1441,7 +1814,15 @@ export default function LeadAssignmentsPage({ darkMode }) {
               outline: "none",
             }}
           />
+        </div>
 
+        <div style={{ display: "flex", gap: "0.6rem" }}>
+          <button
+            onClick={openCreateUnit}
+            style={{ ...btnSecondary(c), fontWeight: 600 }}
+          >
+            + New unit
+          </button>
           <button
             onClick={openCreate}
             style={{
@@ -1455,6 +1836,138 @@ export default function LeadAssignmentsPage({ darkMode }) {
           </button>
         </div>
       </div>
+
+      {/* Selected unit info card */}
+      {selectedUnit && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1rem",
+            background: c.cardBg,
+            border: `1px solid ${c.cardBorder}`,
+            borderRadius: 12,
+            padding: "0.9rem 1.25rem",
+            marginBottom: "0.8rem",
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontWeight: 700,
+                fontSize: "0.95rem",
+                color: c.textPrimary,
+              }}
+            >
+              {selectedUnit.name}
+            </div>
+            {selectedUnit.description && (
+              <div
+                style={{
+                  fontSize: "0.78rem",
+                  color: c.textSecondary,
+                  marginTop: 2,
+                }}
+              >
+                {selectedUnit.description}
+              </div>
+            )}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "1.5rem",
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  color: c.textTertiary,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                }}
+              >
+                Head
+              </span>
+              {selectedUnit.lead ? (
+                <>
+                  <Avatar user={selectedUnit.lead} size={26} />
+                  <span style={{ fontSize: "0.82rem", color: c.textPrimary }}>
+                    {fullName(selectedUnit.lead)}
+                  </span>
+                </>
+              ) : (
+                <span style={{ fontSize: "0.82rem", color: c.textTertiary }}>
+                  —
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  color: c.textTertiary,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                }}
+              >
+                QA Admin
+              </span>
+              {selectedUnit.qa_admin ? (
+                <>
+                  <Avatar user={selectedUnit.qa_admin} size={26} />
+                  <span style={{ fontSize: "0.82rem", color: c.textPrimary }}>
+                    {fullName(selectedUnit.qa_admin)}
+                  </span>
+                </>
+              ) : (
+                <span style={{ fontSize: "0.82rem", color: c.textTertiary }}>
+                  —
+                </span>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 5 }}>
+              <button
+                onClick={() => openEditUnit(selectedUnit)}
+                title="Edit unit"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 6,
+                  border: `1px solid ${c.cardBorder}`,
+                  background: "transparent",
+                  color: c.textSecondary,
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                }}
+              >
+                ✏️
+              </button>
+              <button
+                onClick={() => handleDeleteUnit(selectedUnit)}
+                title="Delete unit"
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 6,
+                  border: `1px solid ${darkMode ? "#3a1a1a" : "#fee2e2"}`,
+                  background: "transparent",
+                  color: "#ef4444",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                }}
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Error */}
       {error && (
@@ -1494,25 +2007,23 @@ export default function LeadAssignmentsPage({ darkMode }) {
           overflow: "hidden",
         }}
       >
-        {/* Table Header */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 130px 100px 130px 80px",
+            gridTemplateColumns:
+              selectedUnitId === "all"
+                ? "1.3fr 1fr 130px 100px 130px 80px"
+                : "1.6fr 130px 100px 130px 80px",
             gap: "1rem",
             padding: "0.7rem 1.25rem",
             background: darkMode ? "#1a1a1a" : "#f9f9f9",
             borderBottom: `1px solid ${c.cardBorder}`,
           }}
         >
-          {[
-            "Lead",
-            "Member (Evaluator)",
-            "Role",
-            "Status",
-            "Assigned date",
-            "",
-          ].map((h) => (
+          {(selectedUnitId === "all"
+            ? ["Member", "Unit", "Role", "Status", "Assigned date", ""]
+            : ["Member", "Role", "Status", "Assigned date", ""]
+          ).map((h) => (
             <div
               key={h}
               style={{
@@ -1528,7 +2039,6 @@ export default function LeadAssignmentsPage({ darkMode }) {
           ))}
         </div>
 
-        {/* Loading */}
         {loading && (
           <div
             style={{
@@ -1541,7 +2051,6 @@ export default function LeadAssignmentsPage({ darkMode }) {
           </div>
         )}
 
-        {/* Empty */}
         {!loading && filtered.length === 0 && (
           <div
             style={{
@@ -1559,7 +2068,6 @@ export default function LeadAssignmentsPage({ darkMode }) {
           </div>
         )}
 
-        {/* Rows */}
         {!loading &&
           filtered.map((row, index) => {
             const rowBg =
@@ -1573,7 +2081,10 @@ export default function LeadAssignmentsPage({ darkMode }) {
                 key={row.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr 130px 100px 130px 80px",
+                  gridTemplateColumns:
+                    selectedUnitId === "all"
+                      ? "1.3fr 1fr 130px 100px 130px 80px"
+                      : "1.6fr 130px 100px 130px 80px",
                   alignItems: "center",
                   gap: "1rem",
                   padding: "0.9rem 1.25rem",
@@ -1586,25 +2097,6 @@ export default function LeadAssignmentsPage({ darkMode }) {
                 }
                 onMouseLeave={(e) => (e.currentTarget.style.background = rowBg)}
               >
-                {/* Lead */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Avatar user={row.lead} size={34} />
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: 600,
-                        color: c.textPrimary,
-                        fontSize: "0.88rem",
-                      }}
-                    >
-                      {fullName(row.lead)}
-                    </div>
-                    <div style={{ fontSize: "0.73rem", color: c.textTertiary }}>
-                      @{row.lead?.username ?? ""}
-                    </div>
-                  </div>
-                </div>
-
                 {/* Member */}
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Avatar user={row.member} size={34} />
@@ -1624,8 +2116,17 @@ export default function LeadAssignmentsPage({ darkMode }) {
                   </div>
                 </div>
 
-                <Badge type={row.lead_role} />
-                <Badge type={row.is_active ? "Active" : "Inactive"} />
+                {selectedUnitId === "all" && (
+                  <div style={{ fontSize: "0.85rem", color: c.textPrimary }}>
+                    {row.unit?.name ?? "—"}
+                  </div>
+                )}
+
+                <Badge label={row.group?.name ?? "—"} tone="role" />
+                <Badge
+                  label={row.is_active ? "Active" : "Inactive"}
+                  tone={row.is_active ? "active" : "inactive"}
+                />
 
                 <div style={{ fontSize: "0.82rem", color: c.textSecondary }}>
                   {formatDate(row.assigned_at)}
@@ -1651,23 +2152,12 @@ export default function LeadAssignmentsPage({ darkMode }) {
                       color: c.textSecondary,
                       cursor: "pointer",
                       fontSize: "0.85rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = darkMode
-                        ? "#2a2a2a"
-                        : "#f0f0f0")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
                   >
                     ✏️
                   </button>
                   <button
-                    onClick={() => setDeleteTarget(row)}
+                    onClick={() => handleDeleteAssignment(row)}
                     title="Delete"
                     style={{
                       width: 32,
@@ -1678,18 +2168,7 @@ export default function LeadAssignmentsPage({ darkMode }) {
                       color: "#ef4444",
                       cursor: "pointer",
                       fontSize: "0.85rem",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
                     }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = darkMode
-                        ? "#2a1010"
-                        : "#fee2e2")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "transparent")
-                    }
                   >
                     🗑️
                   </button>
@@ -1741,9 +2220,6 @@ export default function LeadAssignmentsPage({ darkMode }) {
                     color: disabled ? c.textTertiary : c.textSecondary,
                     cursor: disabled ? "not-allowed" : "pointer",
                     fontSize: "0.9rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
                     opacity: disabled ? 0.4 : 1,
                   }}
                 >
@@ -1762,8 +2238,10 @@ export default function LeadAssignmentsPage({ darkMode }) {
           onSubmit={handleCreate}
           submitting={submitting}
           error={formError}
-          leadUsers={leadUsers}
-          evaluators={evaluators}
+          units={units}
+          allUsers={allUsers}
+          allGroups={allGroups}
+          defaultUnitId={selectedUnitId !== "all" ? selectedUnitId : null}
           darkMode={darkMode}
           c={c}
         />
@@ -1777,6 +2255,19 @@ export default function LeadAssignmentsPage({ darkMode }) {
           onSubmit={handleEdit}
           submitting={submitting}
           error={formError}
+          allGroups={allGroups}
+          c={c}
+        />
+      )}
+
+      {modalMode === "unitForm" && (
+        <UnitFormModal
+          unit={editingUnit}
+          onClose={closeModal}
+          onSubmit={handleUnitSubmit}
+          submitting={submitting}
+          error={formError}
+          allUsers={allUsers}
           c={c}
         />
       )}
@@ -1784,7 +2275,7 @@ export default function LeadAssignmentsPage({ darkMode }) {
       <DeleteModal
         target={deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
+        onConfirm={handleDeleteConfirm}
         deleting={deleting}
         c={c}
       />
