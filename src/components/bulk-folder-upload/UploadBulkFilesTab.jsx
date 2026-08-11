@@ -34,29 +34,45 @@ const DOC_CATEGORY_OPTIONS = [
 /* ================================================================== */
 /*  Tab 3 — Upload Files (Auto-Folder)                                  */
 /*                                                                      */
-/*  Loose files lang ang pinipili ng user (hindi folder). Bawat file   */
-/*  ay awtomatikong gagawan ng sariling "virtual folder" — ang         */
-/*  filename (walang extension) ang magiging DTN — tapos ang piniling  */
-/*  Category (dropdown) ang magiging subfolder sa loob ng DTN bago     */
-/*  yung file mismo.                                                   */
+/*  The user selects loose files (not a folder). Each file             */
+/*  automatically gets its own "virtual folder" using a DTN derived    */
+/*  from the filename — the selected Category (dropdown) then becomes  */
+/*  the subfolder inside that DTN, right before the file itself.       */
 /*                                                                      */
-/*  Halimbawa (Category = "PRODUCT FILE"):                             */
-/*    202994294.pdf -> 202994294/PRODUCT FILE/202994294.pdf            */
-/*    28342834.pdf  -> 28342834/PRODUCT FILE/28342834.pdf              */
+/*  Example (Category = "PRODUCT FILE"):                               */
+/*    202994294.pdf                          -> DTN: 202994294         */
+/*      => 202994294/PRODUCT FILE/202994294.pdf                        */
+/*    DRP-12804_20250307094701 Clean.pdf     -> DTN: 20250307094701    */
+/*      => 20250307094701/PRODUCT FILE/DRP-12804_20250307094701 Clean.pdf */
 /*                                                                      */
-/*  Isang Category lang ang napipili per batch (kagaya ng Entry Type)  */
-/*  — ginagamit ito sa lahat ng files na kasama sa upload na ito.      */
+/*  Only one Category is selected per batch (same as Entry Type) —     */
+/*  it applies to every file included in this upload.                  */
 /* ================================================================== */
 
 /**
- * Kunin ang filename na walang extension — ito ang magiging DTN.
- * Kapag walang "." (o nagsisimula sa ".", e.g. ".gitignore"), gamitin
- * na lang ang buong filename bilang DTN.
+ * DTN pattern — a 14-digit timestamp (YYYYMMDDHHMMSS), e.g.
+ * "20250307094701". Used so the correct DTN is extracted even when
+ * the filename contains other numbers (e.g. "DRP-12804_...").
+ */
+const DTN_PATTERN = /\d{14}/;
+
+/**
+ * First look for the first run of 14 consecutive digits in the
+ * filename (without extension) — that becomes the DTN (e.g.
+ * "DRP-12804_20250307094701 Clean.pdf" -> "20250307094701"). If no
+ * 14-digit sequence is found (e.g. the whole filename IS the DTN,
+ * like "202994294.pdf"), fall back to the previous behavior: the
+ * full filename (without extension) is used as the DTN.
  */
 function deriveDtnFromFilename(filename) {
   const dotIdx = filename.lastIndexOf(".");
-  if (dotIdx <= 0) return filename.trim();
-  return filename.slice(0, dotIdx).trim();
+  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+  const trimmedBase = base.trim();
+
+  const match = trimmedBase.match(DTN_PATTERN);
+  if (match) return match[0];
+
+  return trimmedBase;
 }
 
 function UploadBulkFilesTab({ colors, s }) {
@@ -87,17 +103,18 @@ function UploadBulkFilesTab({ colors, s }) {
     [entries, activeEntryId],
   );
 
-  // Buuin ang buong relative path base sa DTN (per-file) + kasalukuyang
-  // piniling Category. Dynamic ito (hindi naka-store sa entry) para
-  // laging updated kahit palitan pa ng user yung dropdown bago mag-upload.
+  // Build the full relative path from the per-file DTN + the currently
+  // selected Category. This is computed on the fly (not stored on the
+  // entry) so it always stays up to date even if the user changes the
+  // dropdown before uploading.
   const buildRelativePath = useCallback(
     (entry) => `${entry.dtn}/${docCategory}/${entry.file.name}`,
     [docCategory],
   );
 
-  // I-grupo ang entries per (auto-derived) DTN — walang further nesting
-  // dito sa listahan, kaya't flat lang ang bawat group (isa o higit pang
-  // files na nagkataong magkapareho ang base filename).
+  // Group entries by their (auto-derived) DTN — no further nesting in
+  // this list, so each group is flat (one or more files that happen to
+  // share the same base filename).
   const dtnGroups = useMemo(() => {
     const groups = new Map();
     for (const entry of entries) {
@@ -110,8 +127,8 @@ function UploadBulkFilesTab({ colors, s }) {
     );
   }, [entries]);
 
-  // DTN groups na may 2+ files (magkapareho ang filename minus
-  // extension) — sasama sila sa iisang folder, ipapaalam lang sa user.
+  // DTN groups with 2+ files (matching filename minus extension) —
+  // these will be merged into a single folder; just let the user know.
   const collisions = useMemo(
     () => dtnGroups.filter((g) => g.items.length > 1),
     [dtnGroups],
@@ -145,9 +162,7 @@ function UploadBulkFilesTab({ colors, s }) {
     }
 
     if (skipped.length) {
-      setFormError(
-        `Nalaktawan ang ${skipped.length} file(s) na walang valid na filename.`,
-      );
+      setFormError(`Skipped ${skipped.length} file(s) with no valid filename.`);
     } else if (newEntries.length) {
       setFormError("");
     }
@@ -165,7 +180,7 @@ function UploadBulkFilesTab({ colors, s }) {
     setIsDragging(false);
     const fileList = Array.from(e.dataTransfer?.files || []);
     if (!fileList.length) {
-      setFormError("Walang nakuhang file mula sa drag-and-drop.");
+      setFormError("No files were received from the drag-and-drop.");
       return;
     }
     handleFilesAdded(fileList);
@@ -195,12 +210,12 @@ function UploadBulkFilesTab({ colors, s }) {
   const validate = () => {
     if (!dbEntryType.trim()) return "Entry Type is required.";
     if (!docCategory.trim()) return "Category is required.";
-    if (entries.length === 0) return "Pumili ng kahit isang file.";
+    if (entries.length === 0) return "Select at least one file.";
     for (const { file } of entries) {
       if (!(file.type in ACCEPTED_TYPES))
-        return `"${file.name}" ay hindi supported na file type.`;
+        return `"${file.name}" is not a supported file type.`;
       if (file.size > MAX_FILE_SIZE)
-        return `"${file.name}" ay lumagpas sa 200MB limit.`;
+        return `"${file.name}" exceeds the 200MB limit.`;
     }
     return "";
   };
@@ -373,10 +388,11 @@ function UploadBulkFilesTab({ colors, s }) {
             <strong>Select Files</strong> or drag files here
           </p>
           <p style={s.dropzoneHint}>
-            Bawat file na i-uupload ay awtomatikong gagawan ng sariling folder
-            (DTN) gamit ang filename nito, tapos ilalagay sa loob ng piniling
-            Category sa itaas — hindi kailangan mag-select ng folder, mga
-            individual na files lang.
+            Each uploaded file automatically gets its own folder (DTN), then
+            gets placed inside the Category selected above — no need to select a
+            folder, just individual files. If a 14-digit timestamp is found in
+            the filename (e.g. "20250307094701"), that becomes the DTN;
+            otherwise the full filename (without extension) is used as the DTN.
           </p>
           <input
             ref={fileInputRef}
@@ -406,8 +422,8 @@ function UploadBulkFilesTab({ colors, s }) {
           <div style={s.detectedDtnBannerInfo}>
             <AlertCircle size={14} color={colors.accent} />
             <span>
-              {collisions.length} filename(s) magkapareho (walang extension)
-              kaya magsasama sa iisang folder:{" "}
+              {collisions.length} filename(s) share the same base name (without
+              extension), so they'll be merged into a single folder:{" "}
               <strong>{collisions.map((c) => c.dtn).join(", ")}</strong>
             </span>
           </div>
@@ -561,8 +577,7 @@ function UploadBulkFilesTab({ colors, s }) {
             <div style={s.previewEmpty}>
               <FilePlus2 size={28} />
               <p style={s.previewEmptyText}>
-                Pumili ng files, tapos i-click ang isang file sa listahan para
-                ma-preview dito.
+                Select files, then click one in the list to preview it here.
               </p>
             </div>
           ) : (

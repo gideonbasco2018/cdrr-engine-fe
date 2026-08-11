@@ -341,10 +341,7 @@ function UploadFolderTab({ colors, s }) {
               <option value="RECONSTRUCTION">RECONSTRUCTION</option>
               <option value="VALIDITY EXTENSION">VALIDITY EXTENSION</option>
               <option value="SURRENDER DUE TO PAC">SURRENDER DUE TO PAC</option>
-              <option value="DOCUMENTS FROM CLIENT">
-                DOCUMENTS FROM CLIENT
-              </option>
-              <option value="OUTPUT DOCUMENTS">OUTPUT DOCUMENTS</option>
+              <option value="ORIGINAL">ORIGINAL</option>
             </select>
           </Field>
         </div>
