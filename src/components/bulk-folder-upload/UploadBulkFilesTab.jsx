@@ -24,12 +24,11 @@ import Field from "./Field";
 const CONCURRENCY = 3;
 
 const DOC_CATEGORY_OPTIONS = [
-  "PRODUCT FILE",
-  "DOCUMENTARY REQUIREMENTS",
-  "OUTPUT DOCUMENTS",
-  "REGULATORY DOCUMENTS",
-  "FINAL DOCUMENTS",
-  "ISSUED DOCUMENTS",
+  "CLIENT'S INITIAL SUBMISSION",
+  "EVALUATOR'S FILE",
+  "FDA OUTPUT DOCUMENTS",
+  "APPROVED LABEL",
+  "COMPLIANCE DOCUMENTS",
 ];
 
 /* ================================================================== */
