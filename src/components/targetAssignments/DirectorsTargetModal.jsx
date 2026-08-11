@@ -20,7 +20,7 @@ export function DirectorsTargetModal({
   const [endDate, setEndDate] = useState("");
   const [remarks, setRemarks] = useState("");
   const [error, setError] = useState(null);
-  const [monthPick, setMonthPick] = useState("");
+  const [periodPick, setPeriodPick] = useState("");
 
   // ── Quick month picker: next 12 months from today ─────────────────
   const monthChoices = useMemo(() => {
@@ -29,12 +29,25 @@ export function DirectorsTargetModal({
     base.setDate(1);
     for (let i = 0; i < 12; i++) {
       const d = new Date(base.getFullYear(), base.getMonth() + i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const key = `M-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const label = d.toLocaleDateString("en-US", {
         month: "long",
         year: "numeric",
       });
       out.push({ key, label });
+    }
+    return out;
+  }, []);
+
+  // ── Quick semester picker: H1 (Jan–Jun) / H2 (Jul–Dec) — kasalukuyang
+  //    taon at susunod na taon, para may option kahit malapit na sa
+  //    dulo ng taon ────────────────────────────────────────────────
+  const semesterChoices = useMemo(() => {
+    const out = [];
+    const year = new Date().getFullYear();
+    for (const y of [year, year + 1]) {
+      out.push({ key: `H1-${y}`, label: `H1 ${y} (Jan – Jun)` });
+      out.push({ key: `H2-${y}`, label: `H2 ${y} (Jul – Dec)` });
     }
     return out;
   }, []);
@@ -46,14 +59,28 @@ export function DirectorsTargetModal({
     return `${y}-${m}-${day}`;
   };
 
-  const handleMonthPick = (key) => {
-    setMonthPick(key);
+  const handlePeriodPick = (key) => {
+    setPeriodPick(key);
     if (!key) return;
-    const [y, m] = key.split("-").map(Number);
-    const first = new Date(y, m - 1, 1);
-    const last = new Date(y, m, 0);
-    setStartDate(toLocalIso(first));
-    setEndDate(toLocalIso(last));
+
+    if (key.startsWith("M-")) {
+      const [, y, m] = key.split("-").map((v, i) => (i === 0 ? v : Number(v)));
+      const first = new Date(Number(y), m - 1, 1);
+      const last = new Date(Number(y), m, 0);
+      setStartDate(toLocalIso(first));
+      setEndDate(toLocalIso(last));
+      return;
+    }
+
+    if (key.startsWith("H1-") || key.startsWith("H2-")) {
+      const [half, yStr] = key.split("-");
+      const y = Number(yStr);
+      const first = half === "H1" ? new Date(y, 0, 1) : new Date(y, 6, 1);
+      const last = half === "H1" ? new Date(y, 5, 30) : new Date(y, 11, 31);
+      setStartDate(toLocalIso(first));
+      setEndDate(toLocalIso(last));
+      return;
+    }
   };
 
   const handleSubmit = () => {
@@ -118,25 +145,37 @@ export function DirectorsTargetModal({
             : `${single.brand_name} · DTN ${single.dtn}`}
         </div>
 
-        <label style={labelStyle(colors)}>Quick Pick: Month</label>
+        <label style={labelStyle(colors)}>Quick Pick: Period</label>
         <select
-          value={monthPick}
-          onChange={(e) => handleMonthPick(e.target.value)}
+          value={periodPick}
+          onChange={(e) => handlePeriodPick(e.target.value)}
           style={{ ...inputStyle(colors), cursor: "pointer" }}
         >
-          <option value="">— Select a month (optional) —</option>
-          {monthChoices.map((mc) => (
-            <option key={mc.key} value={mc.key}>
-              {mc.label}
-            </option>
-          ))}
+          <option value="">— Select a period (optional) —</option>
+          <optgroup label="Semester">
+            {semesterChoices.map((sc) => (
+              <option key={sc.key} value={sc.key}>
+                {sc.label}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Month">
+            {monthChoices.map((mc) => (
+              <option key={mc.key} value={mc.key}>
+                {mc.label}
+              </option>
+            ))}
+          </optgroup>
         </select>
 
         <label style={labelStyle(colors)}>Target Start Date</label>
         <input
           type="date"
           value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
+          onChange={(e) => {
+            setStartDate(e.target.value);
+            setPeriodPick("");
+          }}
           onClick={(e) => e.currentTarget.showPicker?.()}
           style={{ ...inputStyle(colors), cursor: "pointer" }}
         />
@@ -147,7 +186,7 @@ export function DirectorsTargetModal({
           value={endDate}
           onChange={(e) => {
             setEndDate(e.target.value);
-            setMonthPick("");
+            setPeriodPick("");
           }}
           onClick={(e) => e.currentTarget.showPicker?.()}
           style={{ ...inputStyle(colors), cursor: "pointer" }}

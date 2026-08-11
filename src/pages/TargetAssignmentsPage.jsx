@@ -13,14 +13,16 @@ import { TeamDiagramView } from "../components/targetAssignments/TeamDiagramView
 import { TargetTableView } from "../components/targetAssignments/TargetTableView";
 import { DirectorsTargetView } from "../components/targetAssignments/DirectorsTargetView";
 import { TargetModal } from "../components/targetAssignments/TargetModal";
-
+import { DirectorsTeamDiagramView } from "../components/targetAssignments/DirectorsTeamDiagramView";
 // ── Groups na pwedeng makakita ng "Directors Target" tab ────────────
 const ALLOWED_DIRECTORS_TARGET_GROUPS = ["OD", "Director", "IT"];
 
 function userInAllowedGroups(user, allowedNames) {
   if (!user?.groups) return false;
   const allowedLower = allowedNames.map((n) => n.toLowerCase());
-  return user.groups.some((g) => allowedLower.includes((g.name || "").toLowerCase()));
+  return user.groups.some((g) =>
+    allowedLower.includes((g.name || "").toLowerCase()),
+  );
 }
 
 export default function TargetAssignmentsPage({ darkMode }) {
@@ -119,7 +121,10 @@ export default function TargetAssignmentsPage({ darkMode }) {
   }, [selectedMemberId, loadTasks]);
 
   useEffect(() => {
-    if ((activeView === "diagram" || activeView === "table") && team.length > 0) {
+    if (
+      (activeView === "diagram" || activeView === "table") &&
+      team.length > 0
+    ) {
       loadDiagramData(team);
     }
   }, [activeView, team, loadDiagramData]);
@@ -134,7 +139,11 @@ export default function TargetAssignmentsPage({ darkMode }) {
     if (!modalSubmitting) setModalTasks(null);
   };
 
-  const handleModalSubmit = async ({ targetStartDate, targetEndDate, remarks }) => {
+  const handleModalSubmit = async ({
+    targetStartDate,
+    targetEndDate,
+    remarks,
+  }) => {
     if (!modalTasks || modalTasks.length === 0) return;
     setModalSubmitting(true);
     try {
@@ -178,7 +187,10 @@ export default function TargetAssignmentsPage({ darkMode }) {
     { key: "diagram", label: "🗺️ Team Diagram" },
     { key: "table", label: "📊 Target Table" },
     ...(canSeeDirectorsTarget
-      ? [{ key: "directors", label: "🏛️ Directors Target" }]
+      ? [
+          { key: "directors", label: "🏛️ Directors Target" },
+          { key: "directorsDiagram", label: "🏛️🗺️ Directors Diagram" },
+        ]
       : []),
   ];
 
@@ -201,7 +213,13 @@ export default function TargetAssignmentsPage({ darkMode }) {
         <h1 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700 }}>
           🎯 Target Assignments
         </h1>
-        <p style={{ margin: "0.25rem 0 0", fontSize: "0.8rem", color: colors.textSecondary }}>
+        <p
+          style={{
+            margin: "0.25rem 0 0",
+            fontSize: "0.8rem",
+            color: colors.textSecondary,
+          }}
+        >
           Showing team members assigned to you as lead.
         </p>
       </div>
@@ -272,6 +290,8 @@ export default function TargetAssignmentsPage({ darkMode }) {
         />
       ) : activeView === "directors" && canSeeDirectorsTarget ? (
         <DirectorsTargetView colors={colors} />
+      ) : activeView === "directorsDiagram" && canSeeDirectorsTarget ? (
+        <DirectorsTeamDiagramView colors={colors} />
       ) : null}
 
       {modalTasks && (
