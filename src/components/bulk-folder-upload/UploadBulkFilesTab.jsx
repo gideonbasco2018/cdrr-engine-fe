@@ -35,28 +35,45 @@ const DOC_CATEGORY_OPTIONS = [
 /*  Tab 3 — Upload Files (Auto-Folder)                                  */
 /*                                                                      */
 /*  Loose files lang ang pinipili ng user (hindi folder). Bawat file   */
-/*  ay awtomatikong gagawan ng sariling "virtual folder" — ang         */
-/*  filename (walang extension) ang magiging DTN — tapos ang piniling  */
-/*  Category (dropdown) ang magiging subfolder sa loob ng DTN bago     */
-/*  yung file mismo.                                                   */
+/*  ay awtomatikong gagawan ng sariling "virtual folder" gamit ang DTN */
+/*  na hinango mula sa filename — tapos ang piniling Category          */
+/*  (dropdown) ang magiging subfolder sa loob ng DTN bago yung file    */
+/*  mismo.                                                              */
 /*                                                                      */
 /*  Halimbawa (Category = "PRODUCT FILE"):                             */
-/*    202994294.pdf -> 202994294/PRODUCT FILE/202994294.pdf            */
-/*    28342834.pdf  -> 28342834/PRODUCT FILE/28342834.pdf              */
+/*    202994294.pdf                          -> DTN: 202994294         */
+/*      => 202994294/PRODUCT FILE/202994294.pdf                        */
+/*    DRP-12804_20250307094701 Clean.pdf     -> DTN: 20250307094701    */
+/*      => 20250307094701/PRODUCT FILE/DRP-12804_20250307094701 Clean.pdf */
 /*                                                                      */
 /*  Isang Category lang ang napipili per batch (kagaya ng Entry Type)  */
 /*  — ginagamit ito sa lahat ng files na kasama sa upload na ito.      */
 /* ================================================================== */
 
 /**
- * Kunin ang filename na walang extension — ito ang magiging DTN.
- * Kapag walang "." (o nagsisimula sa ".", e.g. ".gitignore"), gamitin
- * na lang ang buong filename bilang DTN.
+ * DTN pattern — 14-digit na timestamp (YYYYMMDDHHMMSS), e.g.
+ * "20250307094701". Ginagamit ito para tama ang makuhang DTN kahit
+ * may ibang numero sa filename (e.g. "DRP-12804_...").
+ */
+const DTN_PATTERN = /\d{14}/;
+
+/**
+ * Hanapin muna ang unang 14 consecutive digits sa filename (walang
+ * extension) — ito ang DTN (e.g. "DRP-12804_20250307094701 Clean.pdf"
+ * -> "20250307094701"). Kapag walang nahanap na 14-digit sequence
+ * (hal. yung buong filename mismo ang DTN, tulad ng "202994294.pdf"),
+ * babalik sa dating behavior: buong filename (walang extension) ang
+ * gagamitin bilang DTN.
  */
 function deriveDtnFromFilename(filename) {
   const dotIdx = filename.lastIndexOf(".");
-  if (dotIdx <= 0) return filename.trim();
-  return filename.slice(0, dotIdx).trim();
+  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+  const trimmedBase = base.trim();
+
+  const match = trimmedBase.match(DTN_PATTERN);
+  if (match) return match[0];
+
+  return trimmedBase;
 }
 
 function UploadBulkFilesTab({ colors, s }) {
@@ -374,9 +391,11 @@ function UploadBulkFilesTab({ colors, s }) {
           </p>
           <p style={s.dropzoneHint}>
             Bawat file na i-uupload ay awtomatikong gagawan ng sariling folder
-            (DTN) gamit ang filename nito, tapos ilalagay sa loob ng piniling
-            Category sa itaas — hindi kailangan mag-select ng folder, mga
-            individual na files lang.
+            (DTN), tapos ilalagay sa loob ng piniling Category sa itaas — hindi
+            kailangan mag-select ng folder, mga individual na files lang. Kung
+            may 14-digit na timestamp sa filename (hal. "20250307094701"), ito
+            ang gagamiting DTN; kung wala, ang buong filename (walang extension)
+            ang magiging DTN.
           </p>
           <input
             ref={fileInputRef}
