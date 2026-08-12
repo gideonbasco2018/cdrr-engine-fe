@@ -61,6 +61,55 @@ export const getAllTeamsMemberTasks = async (memberUserId) => {
   }
 };
 
+export const getAllTeamsMemberInProgressTasks = async (
+  memberUserId,
+  {
+    page = 1,
+    pageSize = 20,
+    dtn,
+    dateFrom,
+    dateTo,
+    step,
+    appType,
+    productClass,
+    processingType,
+    entryType,
+    directorsTarget,
+    sortBy,
+    sortDir,
+  } = {}
+) => {
+  try {
+    const response = await API.get(
+      `/target_assignments/lead-assignments/all-teams/${memberUserId}/tasks/in-progress`,
+      {
+        params: {
+          page,
+          page_size: pageSize,
+          dtn: dtn || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          step: step || undefined,
+          app_type: appType || undefined,
+          product_class: productClass || undefined,
+          processing_type: processingType || undefined,
+          entry_type: entryType || undefined,
+          directors_target: directorsTarget || undefined,
+          sort_by: sortBy || undefined,
+          sort_dir: sortDir || undefined,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch in-progress tasks";
+    throw new Error(errorMessage);
+  }
+};
+
 // ─────────────────────────────────────────────
 // POST /api/target_assignments/target-assignments
 // Marks a task (application_log) as target, with a target date range
@@ -114,6 +163,141 @@ export const unmarkAsTarget = async (applicationLogId) => {
     return response.data;
   } catch (error) {
     const errorMessage = error.response?.data?.detail || error.message || "Failed to unmark task as target";
+    throw new Error(errorMessage);
+  }
+};
+// ─────────────────────────────────────────────
+// POST /api/target_assignments/target-assignments/directors-target
+// Marks a task as Director's Target (system-wide, not lead-scoped)
+// ─────────────────────────────────────────────
+export const markAsDirectorsTarget = async (
+  logId,
+  { targetStartDate, targetEndDate, remarks = "" },
+) => {
+  try {
+    const response = await API.post(
+      "/target_assignments/target-assignments/directors-target",
+      {
+        application_log_id: logId,
+        target_start_date: targetStartDate,
+        target_end_date: targetEndDate,
+        remarks,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to mark task as director's target";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// POST /api/target_assignments/target-assignments/directors-target/bulk
+// Marks several tasks as Director's Target at once, same date range/remarks
+// ─────────────────────────────────────────────
+export const bulkMarkAsDirectorsTarget = async (
+  logIds,
+  { targetStartDate, targetEndDate, remarks = "" },
+) => {
+  try {
+    const response = await API.post(
+      "/target_assignments/target-assignments/directors-target/bulk",
+      {
+        application_log_ids: logIds,
+        target_start_date: targetStartDate,
+        target_end_date: targetEndDate,
+        remarks,
+      },
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to bulk-mark tasks as director's target";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// DELETE /api/target_assignments/target-assignments/directors-target/{logId}
+// Unmarks a task as Director's Target
+// ─────────────────────────────────────────────
+export const unmarkAsDirectorsTarget = async (logId) => {
+  try {
+    const response = await API.delete(
+      `/target_assignments/target-assignments/directors-target/${logId}`,
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to unmark task as director's target";
+    throw new Error(errorMessage);
+  }
+};
+
+export const getUnitInProgressSummary = async (unitId) => {
+  try {
+    const response = await API.get(
+      `/target_assignments/lead-assignments/all-teams/${unitId}/in-progress-summary`
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to fetch unit summary";
+    throw new Error(errorMessage);
+  }
+};
+
+
+export const getUnitInProgressTasks = async (
+  unitId,
+  {
+    page = 1,
+    pageSize = 20,
+    step,
+    appType,
+    productClass,
+    processingType,
+    dtn,
+    dateFrom,
+    dateTo,
+    entryType,
+    memberName,
+    directorsTarget,
+    sortBy,
+    sortDir,
+  } = {}
+) => {
+  try {
+    const response = await API.get(
+      `/target_assignments/lead-assignments/all-teams/units/${unitId}/tasks/in-progress`,
+      {
+        params: {
+          page,
+          page_size: pageSize,
+          step: step || undefined,
+          app_type: appType || undefined,
+          product_class: productClass || undefined,
+          processing_type: processingType || undefined,
+          dtn: dtn || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          entry_type: entryType || undefined,
+          member_name: memberName || undefined,
+          directors_target: directorsTarget || undefined,
+          sort_by: sortBy || undefined,
+          sort_dir: sortDir || undefined,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to fetch unit tasks";
     throw new Error(errorMessage);
   }
 };

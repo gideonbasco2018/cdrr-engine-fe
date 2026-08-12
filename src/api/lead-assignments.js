@@ -7,9 +7,9 @@ import API from "./axios";
  * @param {Object} params
  * @param {number}  [params.page=1]
  * @param {number}  [params.page_size=20]
- * @param {number}  [params.lead_user_id]
+ * @param {number}  [params.unit_id]
  * @param {number}  [params.member_user_id]
- * @param {string}  [params.lead_role]       - "Checker" | "Supervisor"
+ * @param {number}  [params.group_id]        - functional role within the unit
  * @param {boolean} [params.is_active]
  */
 export const getLeadAssignments = async (params = {}) => {
@@ -39,11 +39,11 @@ export const getLeadAssignmentById = async (id) => {
 };
 
 /**
- * Create new lead assignment
+ * Assign a single member to a unit under a specific role
  * @param {Object} payload
- * @param {number} payload.lead_user_id
+ * @param {number} payload.unit_id
  * @param {number} payload.member_user_id
- * @param {string} payload.lead_role       - "Checker" | "Supervisor"
+ * @param {number} payload.group_id        - functional role within the unit
  * @param {string} [payload.remarks]
  */
 export const createLeadAssignment = async (payload) => {
@@ -58,11 +58,12 @@ export const createLeadAssignment = async (payload) => {
 };
 
 /**
- * Update lead assignment (deactivate, change remarks)
+ * Update lead assignment (deactivate, change remarks, re-tag role)
  * @param {number} id
  * @param {Object} payload
  * @param {boolean} [payload.is_active]
  * @param {string}  [payload.remarks]
+ * @param {number}  [payload.group_id]
  */
 export const updateLeadAssignment = async (id, payload) => {
   try {
@@ -91,10 +92,10 @@ export const deleteLeadAssignment = async (id) => {
 };
 
 /**
- * Batch create — one lead, maraming evaluators
+ * Batch create — one unit + one role, maraming members
  * @param {Object} payload
- * @param {number}   payload.lead_user_id
- * @param {string}   payload.lead_role
+ * @param {number}   payload.unit_id
+ * @param {number}   payload.group_id        - functional role within the unit
  * @param {number[]} payload.member_user_ids
  * @param {string}   [payload.remarks]
  */
@@ -105,6 +106,26 @@ export const batchCreateLeadAssignments = async (payload) => {
   } catch (error) {
     const errorMessage =
       error.response?.data?.detail || error.message || "Failed to create assignments";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/all-teams/{memberUserId}/tasks/in-progress
+// Paginated, in-progress-only tasks — for the Directors Diagram view
+// ─────────────────────────────────────────────
+export const getAllTeamsMemberInProgressTasks = async (
+  memberUserId,
+  { page = 1, pageSize = 20 } = {}
+) => {
+  try {
+    const response = await API.get(
+      `/target_assignments/lead-assignments/all-teams/${memberUserId}/tasks/in-progress`,
+      { params: { page, page_size: pageSize } }
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage = error.response?.data?.detail || error.message || "Failed to fetch member tasks";
     throw new Error(errorMessage);
   }
 };

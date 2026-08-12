@@ -1,29 +1,17 @@
 // FILE: src/pages/BulkFolderDocumentUploadPage.jsx
 import { useState } from "react";
-import { FolderOpen, ClipboardList } from "lucide-react";
+import { FolderOpen, ClipboardList, FilePlus2 } from "lucide-react";
 
 import { getColors, buildStyles } from "../components/bulk-folder-upload/theme";
 import UploadFolderTab from "../components/bulk-folder-upload/UploadFolderTab";
+import UploadBulkFilesTab from "../components/bulk-folder-upload/UploadBulkFilesTab";
 import UploadLogsTab from "../components/bulk-folder-upload/UploadLogsTab";
 
-/**
- * BulkFolderDocumentUploadPage
- *
- * Sumusunod sa parehong pattern ng TaskPage.jsx — `darkMode` ay ipinapasa
- * bilang prop mula sa parent/layout. Dalawang tabs:
- *  - "Upload Folder"  — select/drag an ENTIRE folder. The folder's name
- *                        becomes the DTN and any nested subfolders (any
- *                        depth) automatically become the doc_category —
- *                        nothing to type except Entry Type.
- *  - "Upload Logs"     — audit view ng lahat ng upload attempts (success +
- *                        failed), across lahat ng batches, filterable by
- *                        status / uploader / DTN.
- */
 function BulkFolderDocumentUploadPage({ darkMode }) {
   const colors = getColors(darkMode);
   const s = buildStyles(colors);
 
-  const [activeTab, setActiveTab] = useState("folder"); // "folder" | "logs"
+  const [activeTab, setActiveTab] = useState("folder"); // "folder" | "files" | "logs"
 
   return (
     <div style={s.page} className="bdu-page">
@@ -34,8 +22,8 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
               Batch Folder Upload
             </h1>
             <p style={s.subtitle}>
-              Upload an entire folder of supporting documents, or review past
-              batch upload logs.
+              Upload an entire folder, upload loose files with auto-generated
+              folders, or review past batch upload logs.
             </p>
           </div>
         </header>
@@ -54,6 +42,17 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("files")}
+            className="bdu-tabBtn"
+            style={{
+              ...s.tabBtn,
+              ...(activeTab === "files" ? s.tabBtnActive : {}),
+            }}
+          >
+            <FilePlus2 size={14} /> Upload Files
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("logs")}
             className="bdu-tabBtn"
             style={{
@@ -66,6 +65,7 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
         </div>
 
         {activeTab === "folder" && <UploadFolderTab colors={colors} s={s} />}
+        {activeTab === "files" && <UploadBulkFilesTab colors={colors} s={s} />}
         {activeTab === "logs" && <UploadLogsTab colors={colors} s={s} />}
       </div>
 

@@ -51,9 +51,6 @@ function FDAVerificationPortalPage({ darkMode }) {
   });
   const [openDropdown, setOpenDropdown] = useState(null);
 
-  // ✅ Sidebar collapse state
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   // ✅ Advanced filters expanded state
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -612,7 +609,7 @@ function FDAVerificationPortalPage({ darkMode }) {
         `}</style>
         <p
           style={{
-            fontSize: "0.72rem",
+            fontSize: "0.62rem",
             fontWeight: 600,
             color: colors.textTertiary,
             margin: 0,
@@ -646,8 +643,8 @@ function FDAVerificationPortalPage({ darkMode }) {
       </div>
     );
   }
-  // ── Sidebar tab config ──────────────────────────────────────────────
-  const sidebarTabs = [
+  // ── View tabs config (dating sidebar tabs, horizontal na ngayon) ─────
+  const viewTabs = [
     {
       key: "all",
       icon: "📋",
@@ -704,6 +701,7 @@ function FDAVerificationPortalPage({ darkMode }) {
       style={{
         flex: 1,
         display: "flex",
+        flexDirection: "column",
         background: colors.pageBg,
         overflow: "hidden",
         transition: "all 0.3s ease",
@@ -716,9 +714,20 @@ function FDAVerificationPortalPage({ darkMode }) {
           50%  { width: 60%; }
           100% { transform: translateX(350%); width: 40%; }
         }
-        .fda-sidebar-item:hover { background: rgba(76,175,80,0.08) !important; }
         .fda-input:focus { border-color: #4CAF50 !important; outline: none; }
         .fda-clear-btn:hover { background: rgba(239,68,68,0.12) !important; color: #ef4444 !important; border-color: #ef4444 !important; }
+        .fda-view-tab:hover { filter: brightness(0.97); }
+
+        /* ── Responsive: small screens ─────────────────── */
+        @media (max-width: 640px) {
+          .fda-header-row { flex-direction: column; align-items: flex-start !important; }
+          .fda-header-actions { width: 100%; }
+          .fda-header-actions button, .fda-header-actions label {
+            flex: 1 1 auto;
+            justify-content: center;
+          }
+          .fda-searchbar-row > div:first-child { flex: 1 1 100% !important; }
+        }
       `}</style>
 
       {/* Loading bar — top of page */}
@@ -751,1244 +760,967 @@ function FDAVerificationPortalPage({ darkMode }) {
       )}
 
       {/* ════════════════════════════════════════════
-          LEFT SIDEBAR — Search + Filters + Tabs
+          MAIN CONTENT AREA (walang sidebar na)
       ════════════════════════════════════════════ */}
       <div
         style={{
-          width: sidebarCollapsed ? "52px" : "200px",
-          minWidth: sidebarCollapsed ? "52px" : "200px",
-          maxWidth: sidebarCollapsed ? "52px" : "200px",
-          background: colors.cardBg || colors.cardBg,
-          borderRight: `1px solid ${colors.sidebarBorder || colors.cardBorder}`,
-          padding: sidebarCollapsed ? "1rem 0" : "1rem 0",
-          display: "flex",
-          flexDirection: "column",
-          transition: "width 0.25s ease, min-width 0.25s ease",
-          overflowY: "hidden",
+          flex: 1,
+          overflowY: "auto",
           overflowX: "hidden",
-          gap: "0.5rem",
-          flexShrink: 0,
+          padding: "0.7rem 1.1rem",
+          boxSizing: "border-box",
+          width: "100%",
         }}
       >
-        {/* Sidebar Header */}
+        {/* Header — title, view tabs, and action buttons all in one row */}
         <div
+          className="fda-header-row"
           style={{
             display: "flex",
-            alignItems: "center",
             justifyContent: "space-between",
-            padding: "0 1rem 0.75rem",
-            borderBottom: `2px solid ${colors.cardBorder}`,
-            flexShrink: 0,
-            overflow: "hidden",
-            whiteSpace: "nowrap",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "0.5rem",
+            marginBottom: "0.6rem",
           }}
         >
-          {!sidebarCollapsed && (
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+          <div style={{ marginRight: "0.5rem", minWidth: 0 }}>
+            <h1
+              style={{
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                marginBottom: "0.1rem",
+                color: colors.textPrimary,
+                margin: 0,
+              }}
             >
-              <span style={{ fontSize: "1rem" }}>⚡</span>
-              <h2
-                style={{
-                  fontSize: "0.82rem",
-                  fontWeight: "600",
-                  color: colors.textPrimary,
-                  margin: 0,
-                }}
-              >
-                Quick Filters
-              </h2>
-            </div>
-          )}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              FDA Verification Portal
+            </h1>
+            <p
+              style={{
+                color: colors.textTertiary,
+                fontSize: "0.6rem",
+                margin: "0.1rem 0 0",
+              }}
+            >
+              Verify and manage FDA registered pharmaceutical products
+            </p>
+          </div>
+
+          {/* action buttons */}
+          <div
+            className="fda-header-actions"
             style={{
-              width: "26px",
-              height: "26px",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              background: "transparent",
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "6px",
-              cursor: "pointer",
-              color: colors.textTertiary,
-              fontSize: "0.7rem",
-              flexShrink: 0,
-              transition: "all 0.2s ease",
+              gap: "0.35rem",
+              flexWrap: "wrap",
             }}
           >
-            {sidebarCollapsed ? "▶" : "◀"}
-          </button>
+            <button
+              onClick={handleExportToExcel}
+              disabled={loading || filteredData.length === 0}
+              style={{
+                padding: "0.32rem 0.55rem",
+                background: "transparent",
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "7px",
+                color: colors.textPrimary,
+                fontSize: "0.6rem",
+                fontWeight: "500",
+                cursor:
+                  loading || filteredData.length === 0
+                    ? "not-allowed"
+                    : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                whiteSpace: "nowrap",
+                opacity: loading || filteredData.length === 0 ? 0.5 : 1,
+              }}
+            >
+              <span>📊</span>
+              <span>Export Data</span>
+            </button>
+
+            <button
+              onClick={handleDownloadTemplate}
+              disabled={loading}
+              style={{
+                padding: "0.32rem 0.55rem",
+                background: "transparent",
+                border: `2px solid ${colors.cardBorder}`,
+                borderRadius: "7px",
+                color: colors.textPrimary,
+                fontSize: "0.6rem",
+                fontWeight: "500",
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                whiteSpace: "nowrap",
+                opacity: loading ? 0.5 : 1,
+              }}
+            >
+              <span>📥</span>
+              <span>Download Template</span>
+            </button>
+
+            <label
+              style={{
+                padding: "0.32rem 0.55rem",
+                background: loading
+                  ? "#999"
+                  : "linear-gradient(135deg, #4CAF50 0%, #45a049 100%)",
+                border: "none",
+                borderRadius: "7px",
+                color: "#fff",
+                fontSize: "0.6rem",
+                fontWeight: "500",
+                cursor: loading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                whiteSpace: "nowrap",
+                boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
+              }}
+            >
+              <span>📤</span>
+              <span>Upload New Data</span>
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileUpload}
+                disabled={loading}
+                style={{ display: "none" }}
+              />
+            </label>
+          </div>
         </div>
 
-        {/* Sidebar Body — only shown when expanded */}
-        {!sidebarCollapsed && (
+        {/* Error Message */}
+        {error && (
           <div
             style={{
-              flex: 1,
-              overflowY: "auto",
-              padding: "1rem",
+              background: "#ff4444",
+              color: "#fff",
+              padding: "0.58rem 0.78rem",
+              borderRadius: "8px",
+              marginBottom: "0.75rem",
               display: "flex",
-              flexDirection: "column",
-              gap: "1rem",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: "0.7rem",
             }}
           >
-            {/* ── Search ─────────────────────────────── */}
-            <div>
-              <label
+            <span>❌ {error}</span>
+            <button
+              onClick={() => setError(null)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "#fff",
+                cursor: "pointer",
+                fontSize: "0.94rem",
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* ════════════════════════════════════════════
+            NEW — Search + Advanced Filters bar
+            (kapalit ng dating sidebar + stats cards)
+        ════════════════════════════════════════════ */}
+        <div
+          style={{
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: "8px",
+            padding: "0.4rem 0.6rem",
+            marginBottom: "0.5rem",
+            boxShadow: darkMode
+              ? "0 1px 3px rgba(0,0,0,0.3)"
+              : "0 1px 3px rgba(0,0,0,0.04)",
+          }}
+        >
+          <div
+            className="fda-searchbar-row"
+            style={{
+              display: "flex",
+              gap: "0.6rem",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            {/* Search */}
+            <div
+              style={{
+                position: "relative",
+                flex: "1 1 200px",
+                minWidth: "140px",
+              }}
+            >
+              <span
                 style={{
-                  display: "block",
-                  fontSize: "0.75rem",
-                  fontWeight: "600",
+                  position: "absolute",
+                  left: "0.6rem",
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: "0.72rem",
                   color: colors.textTertiary,
-                  marginBottom: "0.4rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
+                  pointerEvents: "none",
                 }}
               >
-                Search
-              </label>
-              <div style={{ position: "relative" }}>
-                <span
-                  style={{
-                    position: "absolute",
-                    left: "0.6rem",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    fontSize: "0.85rem",
-                    color: colors.textTertiary,
-                    pointerEvents: "none",
-                  }}
-                >
-                  🔍
-                </span>
-                <input
-                  className="fda-input"
-                  type="text"
-                  placeholder="DTN, Brand, Generic..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: "0.6rem 2rem 0.6rem 1.8rem",
-                    background: colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: "7px",
-                    color: colors.textPrimary,
-                    fontSize: "0.82rem",
-                    boxSizing: "border-box",
-                    transition: "border-color 0.2s",
-                  }}
-                />
-                {searchTerm && (
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    style={{
-                      position: "absolute",
-                      right: "0.5rem",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      background: "transparent",
-                      border: "none",
-                      color: colors.textTertiary,
-                      cursor: "pointer",
-                      fontSize: "0.85rem",
-                      lineHeight: 1,
-                      padding: 0,
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* ── Advanced Filters toggle ─────────────── */}
-            <div>
-              <button
-                onClick={() => setAdvancedOpen(!advancedOpen)}
+                🔍
+              </span>
+              <input
+                className="fda-input"
+                type="text"
+                placeholder="Search DTN, Brand, Generic..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 style={{
                   width: "100%",
-                  padding: "0.55rem 0.75rem",
-                  background: advancedOpen
-                    ? "rgba(76,175,80,0.1)"
-                    : "transparent",
-                  border: `1px solid ${advancedOpen ? "#4CAF5060" : colors.inputBorder}`,
-                  borderRadius: "7px",
-                  color: advancedOpen ? "#4CAF50" : colors.textSecondary,
-                  fontSize: "0.8rem",
-                  fontWeight: "600",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  transition: "all 0.2s",
+                  padding: "0.38rem 1.8rem 0.38rem 1.6rem",
+                  background: colors.inputBg,
+                  border: `1px solid ${colors.inputBorder}`,
+                  borderRadius: "6px",
+                  color: colors.textPrimary,
+                  fontSize: "0.68rem",
+                  boxSizing: "border-box",
+                  transition: "border-color 0.2s",
                 }}
-              >
-                <span>⚙️ Advanced Filters</span>
-                <span
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
                   style={{
-                    fontSize: "0.65rem",
-                    transition: "transform 0.2s",
-                    transform: advancedOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    position: "absolute",
+                    right: "0.5rem",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "transparent",
+                    border: "none",
+                    color: colors.textTertiary,
+                    cursor: "pointer",
+                    fontSize: "0.72rem",
+                    lineHeight: 1,
+                    padding: 0,
                   }}
                 >
-                  ▼
-                </span>
-              </button>
-
-              {/* Advanced filter fields */}
-              {advancedOpen && (
-                <div
-                  style={{
-                    marginTop: "0.5rem",
-                    padding: "0.75rem",
-                    background: colors.sidebarSectionBg || colors.inputBg,
-                    border: `1px solid ${colors.inputBorder}`,
-                    borderRadius: "8px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.65rem",
-                  }}
-                >
-                  {/* Uploaded By */}
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "0.72rem",
-                        fontWeight: "600",
-                        color: colors.textTertiary,
-                        marginBottom: "0.3rem",
-                      }}
-                    >
-                      Uploaded By
-                    </label>
-                    <input
-                      className="fda-input"
-                      type="text"
-                      placeholder="Username..."
-                      value={filters.uploadedBy}
-                      onChange={(e) =>
-                        setFilters((p) => ({
-                          ...p,
-                          uploadedBy: e.target.value,
-                        }))
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem 0.65rem",
-                        background: colors.inputBg,
-                        border: `1px solid ${colors.inputBorder}`,
-                        borderRadius: "6px",
-                        color: colors.textPrimary,
-                        fontSize: "0.8rem",
-                        boxSizing: "border-box",
-                        transition: "border-color 0.2s",
-                      }}
-                    />
-                  </div>
-
-                  {/* Date From */}
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "0.72rem",
-                        fontWeight: "600",
-                        color: colors.textTertiary,
-                        marginBottom: "0.3rem",
-                      }}
-                    >
-                      Upload Date From
-                    </label>
-                    <input
-                      className="fda-input"
-                      type="date"
-                      value={filters.dateUploadFrom}
-                      onChange={(e) =>
-                        setFilters((p) => ({
-                          ...p,
-                          dateUploadFrom: e.target.value,
-                        }))
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem 0.65rem",
-                        background: colors.inputBg,
-                        border: `1px solid ${colors.inputBorder}`,
-                        borderRadius: "6px",
-                        color: colors.textPrimary,
-                        fontSize: "0.8rem",
-                        boxSizing: "border-box",
-                        colorScheme: darkMode ? "dark" : "light",
-                        transition: "border-color 0.2s",
-                      }}
-                    />
-                  </div>
-
-                  {/* Date To */}
-                  <div>
-                    <label
-                      style={{
-                        display: "block",
-                        fontSize: "0.72rem",
-                        fontWeight: "600",
-                        color: colors.textTertiary,
-                        marginBottom: "0.3rem",
-                      }}
-                    >
-                      Upload Date To
-                    </label>
-                    <input
-                      className="fda-input"
-                      type="date"
-                      value={filters.dateUploadTo}
-                      onChange={(e) =>
-                        setFilters((p) => ({
-                          ...p,
-                          dateUploadTo: e.target.value,
-                        }))
-                      }
-                      style={{
-                        width: "100%",
-                        padding: "0.5rem 0.65rem",
-                        background: colors.inputBg,
-                        border: `1px solid ${colors.inputBorder}`,
-                        borderRadius: "6px",
-                        color: colors.textPrimary,
-                        fontSize: "0.8rem",
-                        boxSizing: "border-box",
-                        colorScheme: darkMode ? "dark" : "light",
-                        transition: "border-color 0.2s",
-                      }}
-                    />
-                  </div>
-
-                  {/* ── Column Filters ─────────────── */}
-                  <div
-                    style={{
-                      borderTop: `1px solid ${colors.cardBorder}`,
-                      paddingTop: "0.65rem",
-                      marginTop: "0.15rem",
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        marginBottom: "0.5rem",
-                      }}
-                    >
-                      <label
-                        style={{
-                          fontSize: "0.72rem",
-                          fontWeight: "600",
-                          color: colors.textTertiary,
-                        }}
-                      >
-                        Column Filters
-                      </label>
-                      {hasActiveColumnFilters && (
-                        <button
-                          onClick={handleClearColumnFilters}
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            color: "#ef4444",
-                            cursor: "pointer",
-                            fontSize: "0.68rem",
-                            fontWeight: "600",
-                            padding: 0,
-                          }}
-                        >
-                          ✕ Clear
-                        </button>
-                      )}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "0.5rem",
-                        maxHeight: "260px",
-                        overflowY: "auto",
-                        paddingRight: "0.25rem",
-                      }}
-                    >
-                      {FILTERABLE_COLUMNS.map((col) => (
-                        <div key={col.key}>
-                          <label
-                            style={{
-                              display: "block",
-                              fontSize: "0.68rem",
-                              color: colors.textTertiary,
-                              marginBottom: "0.2rem",
-                            }}
-                          >
-                            {col.label}
-                          </label>
-                          <input
-                            className="fda-input"
-                            type="text"
-                            placeholder={`Filter ${col.label}...`}
-                            value={columnFilters[col.key] || ""}
-                            onChange={(e) =>
-                              handleColumnFilterChange(col.key, e.target.value)
-                            }
-                            style={{
-                              width: "100%",
-                              padding: "0.4rem 0.55rem",
-                              background: colors.inputBg,
-                              border: `1px solid ${colors.inputBorder}`,
-                              borderRadius: "6px",
-                              color: colors.textPrimary,
-                              fontSize: "0.76rem",
-                              boxSizing: "border-box",
-                              transition: "border-color 0.2s",
-                            }}
-                          />
-                        </div>
-                      ))}
-
-                      {/* ✅ NEW — Issuance Date range (From/To) */}
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "0.68rem",
-                            color: colors.textTertiary,
-                            marginBottom: "0.2rem",
-                          }}
-                        >
-                          Issuance Date
-                        </label>
-                        <div style={{ display: "flex", gap: "0.4rem" }}>
-                          <input
-                            className="fda-input"
-                            type="date"
-                            value={columnFilters.issuance_date_from || ""}
-                            onChange={(e) =>
-                              handleColumnFilterChange(
-                                "issuance_date_from",
-                                e.target.value,
-                              )
-                            }
-                            style={{
-                              width: "50%",
-                              padding: "0.4rem 0.5rem",
-                              background: colors.inputBg,
-                              border: `1px solid ${colors.inputBorder}`,
-                              borderRadius: "6px",
-                              color: colors.textPrimary,
-                              fontSize: "0.72rem",
-                              boxSizing: "border-box",
-                              colorScheme: darkMode ? "dark" : "light",
-                              transition: "border-color 0.2s",
-                            }}
-                          />
-                          <input
-                            className="fda-input"
-                            type="date"
-                            value={columnFilters.issuance_date_to || ""}
-                            onChange={(e) =>
-                              handleColumnFilterChange(
-                                "issuance_date_to",
-                                e.target.value,
-                              )
-                            }
-                            style={{
-                              width: "50%",
-                              padding: "0.4rem 0.5rem",
-                              background: colors.inputBg,
-                              border: `1px solid ${colors.inputBorder}`,
-                              borderRadius: "6px",
-                              color: colors.textPrimary,
-                              fontSize: "0.72rem",
-                              boxSizing: "border-box",
-                              colorScheme: darkMode ? "dark" : "light",
-                              transition: "border-color 0.2s",
-                            }}
-                          />
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            fontSize: "0.6rem",
-                            color: colors.textTertiary,
-                            marginTop: "0.15rem",
-                          }}
-                        >
-                          <span>From</span>
-                          <span>To</span>
-                        </div>
-                      </div>
-
-                      {/* ✅ NEW — Expiry Date range (From/To) */}
-                      <div>
-                        <label
-                          style={{
-                            display: "block",
-                            fontSize: "0.68rem",
-                            color: colors.textTertiary,
-                            marginBottom: "0.2rem",
-                          }}
-                        >
-                          Expiry Date
-                        </label>
-                        <div style={{ display: "flex", gap: "0.4rem" }}>
-                          <input
-                            className="fda-input"
-                            type="date"
-                            value={columnFilters.expiry_date_from || ""}
-                            onChange={(e) =>
-                              handleColumnFilterChange(
-                                "expiry_date_from",
-                                e.target.value,
-                              )
-                            }
-                            style={{
-                              width: "50%",
-                              padding: "0.4rem 0.5rem",
-                              background: colors.inputBg,
-                              border: `1px solid ${colors.inputBorder}`,
-                              borderRadius: "6px",
-                              color: colors.textPrimary,
-                              fontSize: "0.72rem",
-                              boxSizing: "border-box",
-                              colorScheme: darkMode ? "dark" : "light",
-                              transition: "border-color 0.2s",
-                            }}
-                          />
-                          <input
-                            className="fda-input"
-                            type="date"
-                            value={columnFilters.expiry_date_to || ""}
-                            onChange={(e) =>
-                              handleColumnFilterChange(
-                                "expiry_date_to",
-                                e.target.value,
-                              )
-                            }
-                            style={{
-                              width: "50%",
-                              padding: "0.4rem 0.5rem",
-                              background: colors.inputBg,
-                              border: `1px solid ${colors.inputBorder}`,
-                              borderRadius: "6px",
-                              color: colors.textPrimary,
-                              fontSize: "0.72rem",
-                              boxSizing: "border-box",
-                              colorScheme: darkMode ? "dark" : "light",
-                              transition: "border-color 0.2s",
-                            }}
-                          />
-                        </div>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            fontSize: "0.6rem",
-                            color: colors.textTertiary,
-                            marginTop: "0.15rem",
-                          }}
-                        >
-                          <span>From</span>
-                          <span>To</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                  ✕
+                </button>
               )}
             </div>
 
-            {/* ── Clear all filters button ─────────────── */}
+            {/* View tabs — nasa gitna ng Search at Advanced Filters */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                flexWrap: "wrap",
+              }}
+            >
+              {viewTabs.map((tab) => {
+                const isActive = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    className="fda-view-tab"
+                    onClick={() => setActiveTab(tab.key)}
+                    style={{
+                      padding: "0.28rem 0.5rem",
+                      background: isActive ? `${tab.color}18` : colors.cardBg,
+                      border: `1px solid ${isActive ? tab.color + "60" : colors.cardBorder}`,
+                      borderRadius: "16px",
+                      color: isActive ? tab.color : colors.textSecondary,
+                      fontSize: "0.6rem",
+                      fontWeight: isActive ? "700" : "500",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.3rem",
+                      whiteSpace: "nowrap",
+                      boxShadow: isActive ? `0 1px 4px ${tab.color}30` : "none",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span style={{ fontSize: "0.68rem" }}>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                    <span
+                      style={{
+                        fontSize: "0.58rem",
+                        fontWeight: "700",
+                        padding: "0.1rem 0.28rem",
+                        borderRadius: "9px",
+                        background: isActive ? tab.color : colors.inputBg,
+                        color: isActive ? "#fff" : colors.textTertiary,
+                        minWidth: "16px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Advanced Filters toggle */}
+            <button
+              onClick={() => setAdvancedOpen(!advancedOpen)}
+              style={{
+                padding: "0.3rem 0.5rem",
+                background: advancedOpen
+                  ? "rgba(76,175,80,0.1)"
+                  : "transparent",
+                border: `1px solid ${advancedOpen ? "#4CAF5060" : colors.inputBorder}`,
+                borderRadius: "7px",
+                color: advancedOpen ? "#4CAF50" : colors.textSecondary,
+                fontSize: "0.68rem",
+                fontWeight: "600",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                whiteSpace: "nowrap",
+                transition: "all 0.2s",
+              }}
+            >
+              <span>⚙️ Advanced Filters</span>
+              <span
+                style={{
+                  fontSize: "0.65rem",
+                  transition: "transform 0.2s",
+                  transform: advancedOpen ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+              >
+                ▼
+              </span>
+            </button>
+
             {hasActiveFilters && (
               <button
                 className="fda-clear-btn"
                 onClick={handleClearFilters}
                 style={{
-                  width: "100%",
-                  padding: "0.5rem",
+                  padding: "0.3rem 0.5rem",
                   background: "transparent",
                   border: `1px solid ${colors.inputBorder}`,
                   borderRadius: "7px",
                   color: colors.textTertiary,
-                  fontSize: "0.78rem",
+                  fontSize: "0.66rem",
                   fontWeight: "600",
                   cursor: "pointer",
+                  whiteSpace: "nowrap",
                   transition: "all 0.2s",
                 }}
               >
                 ✕ Clear All Filters
               </button>
             )}
+          </div>
 
-            {/* ── Divider ─────────────────────────────── */}
+          {/* Advanced filter fields */}
+          {advancedOpen && (
             <div
               style={{
+                marginTop: "0.75rem",
+                paddingTop: "0.75rem",
                 borderTop: `1px solid ${colors.cardBorder}`,
-                margin: "0 -1rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.75rem",
               }}
-            />
-
-            {/* ── Tab navigation ──────────────────────── */}
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "0.75rem",
-                  fontWeight: "700",
-                  color: colors.textTertiary,
-                  marginBottom: "0.5rem",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                Views
-              </label>
+            >
+              {/* Uploaded By / Date range */}
               <div
                 style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.25rem",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: "0.6rem",
                 }}
               >
-                {sidebarTabs.map((tab) => {
-                  const isActive = activeTab === tab.key;
-                  return (
-                    <button
-                      key={tab.key}
-                      className="fda-sidebar-item"
-                      onClick={() => setActiveTab(tab.key)}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.62rem",
+                      fontWeight: "600",
+                      color: colors.textTertiary,
+                      marginBottom: "0.3rem",
+                    }}
+                  >
+                    Uploaded By
+                  </label>
+                  <input
+                    className="fda-input"
+                    type="text"
+                    placeholder="Username..."
+                    value={filters.uploadedBy}
+                    onChange={(e) =>
+                      setFilters((p) => ({ ...p, uploadedBy: e.target.value }))
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "0.39rem 0.51rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: "6px",
+                      color: colors.textPrimary,
+                      fontSize: "0.68rem",
+                      boxSizing: "border-box",
+                      transition: "border-color 0.2s",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.62rem",
+                      fontWeight: "600",
+                      color: colors.textTertiary,
+                      marginBottom: "0.3rem",
+                    }}
+                  >
+                    Upload Date From
+                  </label>
+                  <input
+                    className="fda-input"
+                    type="date"
+                    value={filters.dateUploadFrom}
+                    onChange={(e) =>
+                      setFilters((p) => ({
+                        ...p,
+                        dateUploadFrom: e.target.value,
+                      }))
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "0.39rem 0.51rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: "6px",
+                      color: colors.textPrimary,
+                      fontSize: "0.68rem",
+                      boxSizing: "border-box",
+                      colorScheme: darkMode ? "dark" : "light",
+                      transition: "border-color 0.2s",
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.62rem",
+                      fontWeight: "600",
+                      color: colors.textTertiary,
+                      marginBottom: "0.3rem",
+                    }}
+                  >
+                    Upload Date To
+                  </label>
+                  <input
+                    className="fda-input"
+                    type="date"
+                    value={filters.dateUploadTo}
+                    onChange={(e) =>
+                      setFilters((p) => ({
+                        ...p,
+                        dateUploadTo: e.target.value,
+                      }))
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "0.39rem 0.51rem",
+                      background: colors.inputBg,
+                      border: `1px solid ${colors.inputBorder}`,
+                      borderRadius: "6px",
+                      color: colors.textPrimary,
+                      fontSize: "0.68rem",
+                      boxSizing: "border-box",
+                      colorScheme: darkMode ? "dark" : "light",
+                      transition: "border-color 0.2s",
+                    }}
+                  />
+                </div>
+
+                {/* Issuance Date range */}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.62rem",
+                      fontWeight: "600",
+                      color: colors.textTertiary,
+                      marginBottom: "0.3rem",
+                    }}
+                  >
+                    Issuance Date (From / To)
+                  </label>
+                  <div style={{ display: "flex", gap: "0.4rem" }}>
+                    <input
+                      className="fda-input"
+                      type="date"
+                      value={columnFilters.issuance_date_from || ""}
+                      onChange={(e) =>
+                        handleColumnFilterChange(
+                          "issuance_date_from",
+                          e.target.value,
+                        )
+                      }
                       style={{
-                        width: "100%",
-                        padding: "0.6rem 0.75rem",
-                        background: isActive ? `${tab.color}18` : "transparent",
-                        border: `1px solid ${isActive ? tab.color + "50" : "transparent"}`,
-                        borderRadius: "8px",
-                        color: isActive ? tab.color : colors.textSecondary,
-                        fontSize: "0.83rem",
-                        fontWeight: isActive ? "700" : "500",
-                        cursor: "pointer",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: "0.5rem",
-                        textAlign: "left",
-                        transition: "all 0.15s",
+                        width: "50%",
+                        padding: "0.39rem 0.39rem",
+                        background: colors.inputBg,
+                        border: `1px solid ${colors.inputBorder}`,
+                        borderRadius: "6px",
+                        color: colors.textPrimary,
+                        fontSize: "0.65rem",
+                        boxSizing: "border-box",
+                        colorScheme: darkMode ? "dark" : "light",
+                        transition: "border-color 0.2s",
                       }}
-                    >
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "0.5rem",
-                        }}
-                      >
-                        <span style={{ fontSize: "0.95rem" }}>{tab.icon}</span>
-                        <span>{tab.label}</span>
-                      </span>
-                      <span
-                        style={{
-                          fontSize: "0.7rem",
-                          fontWeight: "700",
-                          padding: "0.15rem 0.45rem",
-                          borderRadius: "10px",
-                          background: isActive ? tab.color : colors.inputBg,
-                          color: isActive ? "#fff" : colors.textTertiary,
-                          minWidth: "24px",
-                          textAlign: "center",
-                          flexShrink: 0,
-                        }}
-                      >
-                        {tab.count}
-                      </span>
-                    </button>
-                  );
-                })}
+                    />
+                    <input
+                      className="fda-input"
+                      type="date"
+                      value={columnFilters.issuance_date_to || ""}
+                      onChange={(e) =>
+                        handleColumnFilterChange(
+                          "issuance_date_to",
+                          e.target.value,
+                        )
+                      }
+                      style={{
+                        width: "50%",
+                        padding: "0.39rem 0.39rem",
+                        background: colors.inputBg,
+                        border: `1px solid ${colors.inputBorder}`,
+                        borderRadius: "6px",
+                        color: colors.textPrimary,
+                        fontSize: "0.65rem",
+                        boxSizing: "border-box",
+                        colorScheme: darkMode ? "dark" : "light",
+                        transition: "border-color 0.2s",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Expiry Date range */}
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: "0.62rem",
+                      fontWeight: "600",
+                      color: colors.textTertiary,
+                      marginBottom: "0.3rem",
+                    }}
+                  >
+                    Expiry Date (From / To)
+                  </label>
+                  <div style={{ display: "flex", gap: "0.4rem" }}>
+                    <input
+                      className="fda-input"
+                      type="date"
+                      value={columnFilters.expiry_date_from || ""}
+                      onChange={(e) =>
+                        handleColumnFilterChange(
+                          "expiry_date_from",
+                          e.target.value,
+                        )
+                      }
+                      style={{
+                        width: "50%",
+                        padding: "0.39rem 0.39rem",
+                        background: colors.inputBg,
+                        border: `1px solid ${colors.inputBorder}`,
+                        borderRadius: "6px",
+                        color: colors.textPrimary,
+                        fontSize: "0.65rem",
+                        boxSizing: "border-box",
+                        colorScheme: darkMode ? "dark" : "light",
+                        transition: "border-color 0.2s",
+                      }}
+                    />
+                    <input
+                      className="fda-input"
+                      type="date"
+                      value={columnFilters.expiry_date_to || ""}
+                      onChange={(e) =>
+                        handleColumnFilterChange(
+                          "expiry_date_to",
+                          e.target.value,
+                        )
+                      }
+                      style={{
+                        width: "50%",
+                        padding: "0.39rem 0.39rem",
+                        background: colors.inputBg,
+                        border: `1px solid ${colors.inputBorder}`,
+                        borderRadius: "6px",
+                        color: colors.textPrimary,
+                        fontSize: "0.65rem",
+                        boxSizing: "border-box",
+                        colorScheme: darkMode ? "dark" : "light",
+                        transition: "border-color 0.2s",
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* Collapsed state: show only tab icons */}
-        {sidebarCollapsed && (
-          <div
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              padding: "0.5rem 0",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "0.25rem",
-            }}
-          >
-            {/* Search icon */}
-            <button
-              onClick={() => setSidebarCollapsed(false)}
-              title="Expand to search"
-              style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "8px",
-                border: `1px solid ${colors.cardBorder}`,
-                background: "transparent",
-                color: colors.textTertiary,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "0.9rem",
-                marginBottom: "0.5rem",
-              }}
-            >
-              🔍
-            </button>
-
-            <div
-              style={{
-                width: "32px",
-                height: "1px",
-                background: colors.cardBorder,
-                margin: "0.25rem 0",
-              }}
-            />
-
-            {sidebarTabs.map((tab) => {
-              const isActive = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  title={tab.label}
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "8px",
-                    border: `1px solid ${isActive ? tab.color + "60" : "transparent"}`,
-                    background: isActive ? `${tab.color}18` : "transparent",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1rem",
-                    transition: "all 0.15s",
-                  }}
-                >
-                  {tab.icon}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* ════════════════════════════════════════════
-          MAIN CONTENT AREA
-      ════════════════════════════════════════════ */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "1.25rem 2rem" }}>
-          {/* Header */}
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-              marginBottom: "1rem",
-            }}
-          >
-            <div>
-              <h1
-                style={{
-                  fontSize: "1.1rem",
-                  fontWeight: "600",
-                  marginBottom: "0.2rem",
-                  color: colors.textPrimary,
-                  margin: 0,
-                }}
-              >
-                FDA Verification Portal
-              </h1>
-              <p
-                style={{
-                  color: colors.textTertiary,
-                  fontSize: "0.75rem",
-                  margin: "0.2rem 0 0",
-                }}
-              >
-                Verify and manage FDA registered pharmaceutical products
-              </p>
-            </div>
-
-            <div style={{ display: "flex", gap: "0.6rem" }}>
-              <button
-                onClick={handleExportToExcel}
-                disabled={loading || filteredData.length === 0}
-                style={{
-                  padding: "0.55rem 0.85rem",
-                  background: "transparent",
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
-                  color: colors.textPrimary,
-                  fontSize: "0.72rem",
-                  fontWeight: "500",
-                  cursor:
-                    loading || filteredData.length === 0
-                      ? "not-allowed"
-                      : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                  opacity: loading || filteredData.length === 0 ? 0.5 : 1,
-                }}
-              >
-                <span>📊</span>
-                <span>Export Data</span>
-              </button>
-
-              <button
-                onClick={handleDownloadTemplate}
-                disabled={loading}
-                style={{
-                  padding: "0.55rem 0.85rem",
-                  background: "transparent",
-                  border: `2px solid ${colors.cardBorder}`,
-                  borderRadius: "8px",
-                  color: colors.textPrimary,
-                  fontSize: "0.72rem",
-                  fontWeight: "500",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                  opacity: loading ? 0.5 : 1,
-                }}
-              >
-                <span>📥</span>
-                <span>Download Template</span>
-              </button>
-
-              <label
-                style={{
-                  padding: "0.55rem 0.85rem",
-                  background: loading
-                    ? "#999"
-                    : "linear-gradient(135deg, #4CAF50 0%, #45a049 100%)",
-                  border: "none",
-                  borderRadius: "8px",
-                  color: "#fff",
-                  fontSize: "0.72rem",
-                  fontWeight: "500",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                  boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
-                }}
-              >
-                <span>📤</span>
-                <span>Upload New Data</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleFileUpload}
-                  disabled={loading}
-                  style={{ display: "none" }}
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* Error Message */}
-          {error && (
-            <div
-              style={{
-                background: "#ff4444",
-                color: "#fff",
-                padding: "0.75rem 1rem",
-                borderRadius: "8px",
-                marginBottom: "0.75rem",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                fontSize: "0.82rem",
-              }}
-            >
-              <span>❌ {error}</span>
-              <button
-                onClick={() => setError(null)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontSize: "1.1rem",
-                }}
-              >
-                ×
-              </button>
-            </div>
-          )}
-
-          {/* ── Stats Cards — compact ── */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-              gap: "0.3rem",
-              marginBottom: "0.6rem",
-            }}
-          >
-            {[
-              {
-                icon: "📋",
-                label: "Total Manual Application Released",
-                value: stats.totalProducts,
-                color: colors.textPrimary,
-              },
-              {
-                icon: "✅",
-                label: "Active Products",
-                value: stats.activeProducts,
-                color: "#4CAF50",
-              },
-              {
-                icon: "⏰",
-                label: "Expired",
-                value: stats.expiredProducts,
-                color: "#FF9800",
-              },
-              {
-                icon: "🔄",
-                label: "Duplicate Records",
-                value: stats.duplicateProducts,
-                color: "#E91E63",
-              },
-              {
-                icon: "🚫",
-                label: "Canceled",
-                value: stats.canceledProducts,
-                color: "#f44336",
-              },
-            ].map((stat, index) => (
+              {/* Column Filters */}
               <div
-                key={index}
                 style={{
-                  background: colors.cardBg,
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "7px",
-                  padding: "0.4rem 0.6rem", // ✅ tighter padding
+                  borderTop: `1px solid ${colors.cardBorder}`,
+                  paddingTop: "0.65rem",
                 }}
               >
                 <div
                   style={{
                     display: "flex",
+                    justifyContent: "space-between",
                     alignItems: "center",
-                    gap: "0.4rem",
+                    marginBottom: "0.5rem",
                   }}
                 >
-                  <span style={{ fontSize: "1rem" }}>{stat.icon}</span>{" "}
-                  {/* ✅ smaller icon */}
-                  <div>
-                    <p
+                  <label
+                    style={{
+                      fontSize: "0.62rem",
+                      fontWeight: "600",
+                      color: colors.textTertiary,
+                    }}
+                  >
+                    Column Filters
+                  </label>
+                  {hasActiveColumnFilters && (
+                    <button
+                      onClick={handleClearColumnFilters}
                       style={{
-                        fontSize: "0.6rem", // ✅ smaller label
-                        color: colors.textTertiary,
-                        marginBottom: "0.05rem",
-                        lineHeight: "1.2",
+                        background: "transparent",
+                        border: "none",
+                        color: "#ef4444",
+                        cursor: "pointer",
+                        fontSize: "0.68rem",
+                        fontWeight: "600",
+                        padding: 0,
                       }}
                     >
-                      {stat.label}
-                    </p>
-                    <p
-                      style={{
-                        fontSize: "0.95rem", // ✅ slightly smaller value
-                        fontWeight: "700",
-                        color: stat.color,
-                        margin: 0,
-                        lineHeight: "1.2",
-                      }}
-                    >
-                      {stat.value}
-                    </p>
-                  </div>
+                      ✕ Clear
+                    </button>
+                  )}
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+                    gap: "0.5rem",
+                  }}
+                >
+                  {FILTERABLE_COLUMNS.map((col) => (
+                    <div key={col.key}>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: "0.68rem",
+                          color: colors.textTertiary,
+                          marginBottom: "0.2rem",
+                        }}
+                      >
+                        {col.label}
+                      </label>
+                      <input
+                        className="fda-input"
+                        type="text"
+                        placeholder={`Filter ${col.label}...`}
+                        value={columnFilters[col.key] || ""}
+                        onChange={(e) =>
+                          handleColumnFilterChange(col.key, e.target.value)
+                        }
+                        style={{
+                          width: "100%",
+                          padding: "0.31rem 0.43rem",
+                          background: colors.inputBg,
+                          border: `1px solid ${colors.inputBorder}`,
+                          borderRadius: "6px",
+                          color: colors.textPrimary,
+                          fontSize: "0.65rem",
+                          boxSizing: "border-box",
+                          transition: "border-color 0.2s",
+                        }}
+                      />
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-
-          {/* Active filter chips */}
-          {hasActiveFilters && (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: "0.4rem",
-                marginBottom: "0.6rem",
-              }}
-            >
-              {searchTerm && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.25rem 0.55rem",
-                    background: "rgba(76,175,80,0.12)",
-                    border: "1px solid #4CAF5040",
-                    borderRadius: "20px",
-                    fontSize: "0.75rem",
-                    color: "#4CAF50",
-                    fontWeight: "600",
-                  }}
-                >
-                  🔍 "{searchTerm}"
-                  <button
-                    onClick={() => setSearchTerm("")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#4CAF50",
-                      cursor: "pointer",
-                      padding: 0,
-                      lineHeight: 1,
-                      fontSize: "0.72rem",
-                    }}
-                  >
-                    ✕
-                  </button>
-                </span>
-              )}
-              {filters.uploadedBy && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.25rem 0.55rem",
-                    background: "rgba(33,150,243,0.12)",
-                    border: "1px solid #2196F340",
-                    borderRadius: "20px",
-                    fontSize: "0.75rem",
-                    color: "#2196F3",
-                    fontWeight: "600",
-                  }}
-                >
-                  👤 {filters.uploadedBy}
-                  <button
-                    onClick={() =>
-                      setFilters((p) => ({ ...p, uploadedBy: "" }))
-                    }
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#2196F3",
-                      cursor: "pointer",
-                      padding: 0,
-                      lineHeight: 1,
-                      fontSize: "0.72rem",
-                    }}
-                  >
-                    ✕
-                  </button>
-                </span>
-              )}
-              {filters.dateUploadFrom && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.25rem 0.55rem",
-                    background: "rgba(156,39,176,0.12)",
-                    border: "1px solid #9C27B040",
-                    borderRadius: "20px",
-                    fontSize: "0.75rem",
-                    color: "#9C27B0",
-                    fontWeight: "600",
-                  }}
-                >
-                  📅 From: {filters.dateUploadFrom}
-                  <button
-                    onClick={() =>
-                      setFilters((p) => ({ ...p, dateUploadFrom: "" }))
-                    }
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#9C27B0",
-                      cursor: "pointer",
-                      padding: 0,
-                      lineHeight: 1,
-                      fontSize: "0.72rem",
-                    }}
-                  >
-                    ✕
-                  </button>
-                </span>
-              )}
-              {filters.dateUploadTo && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "0.35rem",
-                    padding: "0.25rem 0.55rem",
-                    background: "rgba(156,39,176,0.12)",
-                    border: "1px solid #9C27B040",
-                    borderRadius: "20px",
-                    fontSize: "0.75rem",
-                    color: "#9C27B0",
-                    fontWeight: "600",
-                  }}
-                >
-                  📅 To: {filters.dateUploadTo}
-                  <button
-                    onClick={() =>
-                      setFilters((p) => ({ ...p, dateUploadTo: "" }))
-                    }
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#9C27B0",
-                      cursor: "pointer",
-                      padding: 0,
-                      lineHeight: 1,
-                      fontSize: "0.72rem",
-                    }}
-                  >
-                    ✕
-                  </button>
-                </span>
-              )}
             </div>
           )}
+        </div>
 
-          {/* Data Table */}
+        {/* Active filter chips */}
+        {hasActiveFilters && (
           <div
             style={{
-              background: colors.cardBg,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
-              overflow: "hidden",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.4rem",
+              marginBottom: "0.6rem",
+            }}
+          >
+            {searchTerm && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  padding: "0.22rem 0.43rem",
+                  background: "rgba(76,175,80,0.12)",
+                  border: "1px solid #4CAF5040",
+                  borderRadius: "20px",
+                  fontSize: "0.64rem",
+                  color: "#4CAF50",
+                  fontWeight: "600",
+                }}
+              >
+                🔍 "{searchTerm}"
+                <button
+                  onClick={() => setSearchTerm("")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#4CAF50",
+                    cursor: "pointer",
+                    padding: 0,
+                    lineHeight: 1,
+                    fontSize: "0.62rem",
+                  }}
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {filters.uploadedBy && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  padding: "0.22rem 0.43rem",
+                  background: "rgba(33,150,243,0.12)",
+                  border: "1px solid #2196F340",
+                  borderRadius: "20px",
+                  fontSize: "0.64rem",
+                  color: "#2196F3",
+                  fontWeight: "600",
+                }}
+              >
+                👤 {filters.uploadedBy}
+                <button
+                  onClick={() => setFilters((p) => ({ ...p, uploadedBy: "" }))}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#2196F3",
+                    cursor: "pointer",
+                    padding: 0,
+                    lineHeight: 1,
+                    fontSize: "0.62rem",
+                  }}
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {filters.dateUploadFrom && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  padding: "0.22rem 0.43rem",
+                  background: "rgba(156,39,176,0.12)",
+                  border: "1px solid #9C27B040",
+                  borderRadius: "20px",
+                  fontSize: "0.64rem",
+                  color: "#9C27B0",
+                  fontWeight: "600",
+                }}
+              >
+                📅 From: {filters.dateUploadFrom}
+                <button
+                  onClick={() =>
+                    setFilters((p) => ({ ...p, dateUploadFrom: "" }))
+                  }
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#9C27B0",
+                    cursor: "pointer",
+                    padding: 0,
+                    lineHeight: 1,
+                    fontSize: "0.62rem",
+                  }}
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+            {filters.dateUploadTo && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                  padding: "0.22rem 0.43rem",
+                  background: "rgba(156,39,176,0.12)",
+                  border: "1px solid #9C27B040",
+                  borderRadius: "20px",
+                  fontSize: "0.64rem",
+                  color: "#9C27B0",
+                  fontWeight: "600",
+                }}
+              >
+                📅 To: {filters.dateUploadTo}
+                <button
+                  onClick={() =>
+                    setFilters((p) => ({ ...p, dateUploadTo: "" }))
+                  }
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#9C27B0",
+                    cursor: "pointer",
+                    padding: 0,
+                    lineHeight: 1,
+                    fontSize: "0.62rem",
+                  }}
+                >
+                  ✕
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Data Table */}
+        <div
+          style={{
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: "12px",
+            overflow: "hidden",
+            boxShadow: darkMode
+              ? "0 1px 3px rgba(0,0,0,0.3)"
+              : "0 1px 3px rgba(0,0,0,0.04)",
+          }}
+        >
+          <div
+            style={{
+              padding: "0.35rem 0.7rem",
+              borderBottom: `1px solid ${colors.tableBorder}`,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
             }}
           >
             <div
               style={{
-                padding: "0.65rem 1.25rem",
-                borderBottom: `1px solid ${colors.tableBorder}`,
                 display: "flex",
-                justifyContent: "space-between",
                 alignItems: "center",
+                gap: "0.6rem",
               }}
             >
-              <div
+              <h3
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.6rem",
+                  fontSize: "0.77rem",
+                  fontWeight: "600",
+                  color: colors.textPrimary,
+                  margin: 0,
                 }}
               >
-                <h3
-                  style={{
-                    fontSize: "0.9rem",
-                    fontWeight: "600",
-                    color: colors.textPrimary,
-                    margin: 0,
-                  }}
-                >
-                  {activeTab === "all"
-                    ? "All Manual Application"
-                    : activeTab === "duplicates"
-                      ? "Duplicate Registration Numbers"
-                      : activeTab === "today"
-                        ? "My Products Uploaded Today"
-                        : activeTab === "yesterday"
-                          ? "My Products Uploaded Yesterday"
-                          : activeTab === "thismonth"
-                            ? "My Products Uploaded This Month"
-                            : activeTab === "expired"
-                              ? "All Expired Products"
-                              : "All Canceled Products"}
-                </h3>
-                {(() => {
-                  const tab = sidebarTabs.find((t) => t.key === activeTab);
-                  return tab ? (
-                    <span
-                      style={{
-                        padding: "0.15rem 0.5rem",
-                        background: `${tab.color}18`,
-                        border: `1px solid ${tab.color}40`,
-                        borderRadius: "12px",
-                        fontSize: "0.7rem",
-                        fontWeight: "700",
-                        color: tab.color,
-                      }}
-                    >
-                      {tab.icon} {tab.label}
-                    </span>
-                  ) : null;
-                })()}
-              </div>
-              <span
-                style={{ fontSize: "0.78rem", color: colors.textSecondary }}
-              >
-                Showing {filteredData.length} record
-                {filteredData.length !== 1 ? "s" : ""}
-              </span>
+                {activeTab === "all"
+                  ? "All Manual Application"
+                  : activeTab === "duplicates"
+                    ? "Duplicate Registration Numbers"
+                    : activeTab === "today"
+                      ? "My Products Uploaded Today"
+                      : activeTab === "yesterday"
+                        ? "My Products Uploaded Yesterday"
+                        : activeTab === "thismonth"
+                          ? "My Products Uploaded This Month"
+                          : activeTab === "expired"
+                            ? "All Expired Products"
+                            : "All Canceled Products"}
+              </h3>
+              {(() => {
+                const tab = viewTabs.find((t) => t.key === activeTab);
+                return tab ? (
+                  <span
+                    style={{
+                      padding: "0.22rem 0.39rem",
+                      background: `${tab.color}18`,
+                      border: `1px solid ${tab.color}40`,
+                      borderRadius: "12px",
+                      fontSize: "0.62rem",
+                      fontWeight: "700",
+                      color: tab.color,
+                    }}
+                  >
+                    {tab.icon} {tab.label}
+                  </span>
+                ) : null;
+              })()}
             </div>
-            <FDADataTable
-              filteredData={filteredData}
-              columns={columns}
-              colors={colors}
-              currentPage={currentPage}
-              pageSize={pageSize}
-              loading={loading}
-              openDropdown={openDropdown}
-              buttonRefs={buttonRefs}
-              activeTab={activeTab}
-              darkMode={darkMode}
-              currentUser={currentUser}
-              canEditDrug={canEditDrug}
-              toggleDropdown={toggleDropdown}
-              handleViewDetails={handleViewDetails}
-              handleEdit={handleEdit}
-              handleCancelClick={handleCancelClick}
-              isExpired={isExpired}
-              duplicateRegNums={duplicateRegNums}
-              sortConfig={sortConfig} // ✅ NEW
-              onSort={handleSort} // ✅ NEW
-              hasActiveColumnFilters={hasActiveColumnFilters} // ✅ NEW
-              onClearColumnFilters={handleClearColumnFilters} // ✅ NEW
-            />
-
-            <FDATablePagination
-              currentPage={currentPage}
-              pageSize={pageSize}
-              pagination={pagination}
-              colors={colors}
-              loading={loading}
-              handlePageChange={handlePageChange}
-              setPageSize={setPageSize}
-            />
+            <span style={{ fontSize: "0.66rem", color: colors.textSecondary }}>
+              Showing {filteredData.length} record
+              {filteredData.length !== 1 ? "s" : ""}
+            </span>
           </div>
+          <FDADataTable
+            filteredData={filteredData}
+            columns={columns}
+            colors={colors}
+            currentPage={currentPage}
+            pageSize={pageSize}
+            loading={loading}
+            openDropdown={openDropdown}
+            buttonRefs={buttonRefs}
+            activeTab={activeTab}
+            darkMode={darkMode}
+            currentUser={currentUser}
+            canEditDrug={canEditDrug}
+            toggleDropdown={toggleDropdown}
+            handleViewDetails={handleViewDetails}
+            handleEdit={handleEdit}
+            handleCancelClick={handleCancelClick}
+            isExpired={isExpired}
+            duplicateRegNums={duplicateRegNums}
+            sortConfig={sortConfig}
+            onSort={handleSort}
+            hasActiveColumnFilters={hasActiveColumnFilters}
+            onClearColumnFilters={handleClearColumnFilters}
+          />
+
+          <FDATablePagination
+            currentPage={currentPage}
+            pageSize={pageSize}
+            pagination={pagination}
+            colors={colors}
+            loading={loading}
+            handlePageChange={handlePageChange}
+            setPageSize={setPageSize}
+          />
         </div>
-        {/* end scrollable content */}
       </div>
       {/* end main content */}
 
