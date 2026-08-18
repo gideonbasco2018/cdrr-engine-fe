@@ -27,7 +27,8 @@ import Field from "./Field";
 /*  Tab 2 — Upload Logs — success + failed history, filterable         */
 /* ================================================================== */
 
-const LOGS_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 20;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 
 const formatBytes = (bytes) => {
   if (bytes === null || bytes === undefined) return null;
@@ -104,6 +105,7 @@ function buildFileTree(logs) {
 }
 
 function UploadLogsTab({ colors, s }) {
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [statusFilter, setStatusFilter] = useState("all");
   const [uploaderFilter, setUploaderFilter] = useState("");
   const [dtnFilter, setDtnFilter] = useState("");
@@ -132,21 +134,13 @@ function UploadLogsTab({ colors, s }) {
       .catch(() => setUploaders([]));
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(total / LOGS_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const fetchLogs = useCallback(
     async (pageNum) => {
       setIsLoading(true);
       setLoadError("");
       try {
-        // dateFrom/dateTo mula sa <input type="date"> ay date-only
-        // (YYYY-MM-DD, walang time). Kapag pinasa natin ito ng ganon
-        // sa backend at ang column doon ay may laman na timestamp
-        // (e.g. "2026-07-08 15:45:00"), yung dateTo == "2026-07-08"
-        // ay effectively nagiging midnight (00:00:00) — kaya lahat ng
-        // entries sa mismong araw na yun (na may oras na) ay
-        // na-eexclude. Kaya i-normalize natin dito bago i-send:
-        // dateFrom -> start of day, dateTo -> end of day.
         const normalizedDateFrom = dateFrom
           ? `${dateFrom}T00:00:00.000`
           : undefined;
@@ -158,8 +152,8 @@ function UploadLogsTab({ colors, s }) {
           dbDtn: dtnFilterApplied || undefined,
           dateFrom: normalizedDateFrom,
           dateTo: normalizedDateTo,
-          limit: LOGS_PAGE_SIZE,
-          offset: (pageNum - 1) * LOGS_PAGE_SIZE,
+          limit: pageSize,
+          offset: (pageNum - 1) * pageSize,
         });
         setLogs(result.data || []);
         setTotal(result.total || 0);
@@ -170,7 +164,14 @@ function UploadLogsTab({ colors, s }) {
         setIsLoading(false);
       }
     },
-    [statusFilter, uploaderFilter, dtnFilterApplied, dateFrom, dateTo],
+    [
+      statusFilter,
+      uploaderFilter,
+      dtnFilterApplied,
+      dateFrom,
+      dateTo,
+      pageSize,
+    ],
   );
 
   useEffect(() => {
@@ -178,7 +179,14 @@ function UploadLogsTab({ colors, s }) {
     setExpandedBatches(new Set());
     setCollapsedFolders(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, uploaderFilter, dtnFilterApplied, dateFrom, dateTo]);
+  }, [
+    statusFilter,
+    uploaderFilter,
+    dtnFilterApplied,
+    dateFrom,
+    dateTo,
+    pageSize,
+  ]);
 
   const activeLog = useMemo(
     () => logs.find((l) => l.id === activeLogId) || null,
@@ -647,9 +655,23 @@ function UploadLogsTab({ colors, s }) {
               >
                 Previous
               </button>
+
               <span style={s.pageIndicator}>
                 Page {page} of {totalPages}
               </span>
+
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                style={{ ...s.input, width: "auto", padding: "0.25rem 0.5rem" }}
+              >
+                {PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n} / page
+                  </option>
+                ))}
+              </select>
+
               <button
                 type="button"
                 onClick={handleNextPage}
