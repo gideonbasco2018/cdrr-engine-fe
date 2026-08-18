@@ -27,8 +27,8 @@ import Field from "./Field";
 /*  Tab 2 — Upload Logs — success + failed history, filterable         */
 /* ================================================================== */
 
-const DEFAULT_PAGE_SIZE = 20;
-const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const BATCH_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const DEFAULT_BATCH_PAGE_SIZE = 10;
 
 const formatBytes = (bytes) => {
   if (bytes === null || bytes === undefined) return null;
@@ -105,7 +105,6 @@ function buildFileTree(logs) {
 }
 
 function UploadLogsTab({ colors, s }) {
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [statusFilter, setStatusFilter] = useState("all");
   const [uploaderFilter, setUploaderFilter] = useState("");
   const [dtnFilter, setDtnFilter] = useState("");
@@ -115,13 +114,14 @@ function UploadLogsTab({ colors, s }) {
 
   const [uploaders, setUploaders] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(0); // total_batches, from the API
   // Page-based pagination — 1-indexed. offset sent to the API is derived
-  // from this: (page - 1) * LOGS_PAGE_SIZE.
+  // from this: (page - 1) * batchPageSize.
   const [page, setPage] = useState(1);
+  const [batchPageSize, setBatchPageSize] = useState(DEFAULT_BATCH_PAGE_SIZE);
   const [expandedBatches, setExpandedBatches] = useState(() => new Set());
-  // Mga folder-node na naka-COLLAPSE (default: expanded lahat pagbukas
-  // ng isang batch, gaya ng behavior sa BulkDocumentUploadPage.jsx).
+  // Collapsed folder nodes (default: all expanded when a batch is opened,
+  // same behavior as BulkDocumentUploadPage.jsx).
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
   const [activeLogId, setActiveLogId] = useState(null);
 
@@ -134,7 +134,7 @@ function UploadLogsTab({ colors, s }) {
       .catch(() => setUploaders([]));
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalPages = Math.max(1, Math.ceil(total / batchPageSize));
 
   const fetchLogs = useCallback(
     async (pageNum) => {
@@ -152,11 +152,11 @@ function UploadLogsTab({ colors, s }) {
           dbDtn: dtnFilterApplied || undefined,
           dateFrom: normalizedDateFrom,
           dateTo: normalizedDateTo,
-          limit: pageSize,
-          offset: (pageNum - 1) * pageSize,
+          limit: batchPageSize,
+          offset: (pageNum - 1) * batchPageSize,
         });
-        setLogs(result.data || []);
-        setTotal(result.total || 0);
+        setLogs(result.data || []); // full logs for the batches on this page
+        setTotal(result.total || 0); // total_batches
         setPage(pageNum);
       } catch (err) {
         setLoadError(err.message || "Failed to load upload logs.");
@@ -170,7 +170,7 @@ function UploadLogsTab({ colors, s }) {
       dtnFilterApplied,
       dateFrom,
       dateTo,
-      pageSize,
+      batchPageSize,
     ],
   );
 
@@ -185,7 +185,7 @@ function UploadLogsTab({ colors, s }) {
     dtnFilterApplied,
     dateFrom,
     dateTo,
-    pageSize,
+    batchPageSize,
   ]);
 
   const activeLog = useMemo(
@@ -570,9 +570,9 @@ function UploadLogsTab({ colors, s }) {
         <div style={s.fileListCard}>
           <div style={s.fileListHeader}>
             <span>
-              {total} log entr{total === 1 ? "y" : "ies"} total · showing page{" "}
-              {page} of {totalPages} ({batchGroups.length} batch
-              {batchGroups.length === 1 ? "" : "es"} this page)
+              {total} batch{total === 1 ? "" : "es"} total · showing page {page}{" "}
+              of {totalPages} ({logs.length} log entr
+              {logs.length === 1 ? "y" : "ies"} this page)
             </span>
             {isLoading && (
               <Loader2
@@ -661,11 +661,11 @@ function UploadLogsTab({ colors, s }) {
               </span>
 
               <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value))}
+                value={batchPageSize}
+                onChange={(e) => setBatchPageSize(Number(e.target.value))}
                 style={{ ...s.input, width: "auto", padding: "0.25rem 0.5rem" }}
               >
-                {PAGE_SIZE_OPTIONS.map((n) => (
+                {BATCH_PAGE_SIZE_OPTIONS.map((n) => (
                   <option key={n} value={n}>
                     {n} / page
                   </option>
