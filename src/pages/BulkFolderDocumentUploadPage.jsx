@@ -1,17 +1,18 @@
 // FILE: src/pages/BulkFolderDocumentUploadPage.jsx
 import { useState } from "react";
-import { FolderOpen, ClipboardList, FilePlus2 } from "lucide-react";
+import { FolderOpen, ClipboardList, FilePlus2, BarChart3 } from "lucide-react";
 
 import { getColors, buildStyles } from "../components/bulk-folder-upload/theme";
 import UploadFolderTab from "../components/bulk-folder-upload/UploadFolderTab";
 import UploadBulkFilesTab from "../components/bulk-folder-upload/UploadBulkFilesTab";
 import UploadLogsTab from "../components/bulk-folder-upload/UploadLogsTab";
+import BatchSummaryTab from "../components/bulk-folder-upload/BatchSummaryTab";
 
 function BulkFolderDocumentUploadPage({ darkMode }) {
   const colors = getColors(darkMode);
   const s = buildStyles(colors);
 
-  const [activeTab, setActiveTab] = useState("folder"); // "folder" | "files" | "logs"
+  const [activeTab, setActiveTab] = useState("folder"); // "folder" | "files" | "logs" | "summary"
 
   return (
     <div style={s.page} className="bdu-page">
@@ -62,13 +63,24 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
           >
             <ClipboardList size={14} /> Upload Logs
           </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("summary")}
+            className="bdu-tabBtn"
+            style={{
+              ...s.tabBtn,
+              ...(activeTab === "summary" ? s.tabBtnActive : {}),
+            }}
+          >
+            <BarChart3 size={14} /> Batch Summary
+          </button>
         </div>
 
         {activeTab === "folder" && <UploadFolderTab colors={colors} s={s} />}
         {activeTab === "files" && <UploadBulkFilesTab colors={colors} s={s} />}
         {activeTab === "logs" && <UploadLogsTab colors={colors} s={s} />}
+        {activeTab === "summary" && <BatchSummaryTab colors={colors} s={s} />}
       </div>
-
       <style>{`
         * { box-sizing: border-box; }
 
