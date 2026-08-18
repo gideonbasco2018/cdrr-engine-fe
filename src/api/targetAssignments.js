@@ -301,3 +301,62 @@ export const getUnitInProgressTasks = async (
     throw new Error(errorMessage);
   }
 };
+
+// ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/directors-targets/overview
+// Org-wide snapshot for the Directors Monitoring tab
+// ─────────────────────────────────────────────
+export const getDirectorsTargetsOverview = async () => {
+  try {
+    const response = await API.get(
+      "/target_assignments/lead-assignments/directors-targets/overview"
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch directors targets overview";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/directors-targets/list
+// Paginated, filterable detailed list of every active Director's Target
+// ─────────────────────────────────────────────
+export const getDirectorsTargetsList = async ({
+  page = 1,
+  pageSize = 20,
+  dtn,
+  unitId,
+  memberName,
+  completionStatus,
+  sortBy,
+  sortDir,
+} = {}) => {
+  try {
+    const response = await API.get(
+      "/target_assignments/lead-assignments/directors-targets/list",
+      {
+        params: {
+          page,
+          page_size: pageSize,
+          dtn: dtn || undefined,
+          unit_id: unitId || undefined,
+          member_name: memberName || undefined,
+          completion_status: completionStatus || undefined,
+          sort_by: sortBy || undefined,
+          sort_dir: sortDir || undefined,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch directors targets list";
+    throw new Error(errorMessage);
+  }
+};

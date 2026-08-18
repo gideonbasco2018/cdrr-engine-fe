@@ -14,6 +14,7 @@ import { TargetTableView } from "../components/targetAssignments/TargetTableView
 import { DirectorsTargetView } from "../components/targetAssignments/DirectorsTargetView";
 import { TargetModal } from "../components/targetAssignments/TargetModal";
 import { DirectorsTeamDiagramView } from "../components/targetAssignments/DirectorsTeamDiagramView";
+import { DirectorsMonitoringView } from "../components/targetAssignments/DirectorsMonitoringView";
 // ── Groups na pwedeng makakita ng "Directors Target" tab ────────────
 const ALLOWED_DIRECTORS_TARGET_GROUPS = ["OD", "Director", "IT"];
 
@@ -188,8 +189,9 @@ export default function TargetAssignmentsPage({ darkMode }) {
     { key: "table", label: "📊 Target Table" },
     ...(canSeeDirectorsTarget
       ? [
-          { key: "directors", label: "🏛️ Directors Target" },
-          { key: "directorsDiagram", label: "🏛️🗺️ Directors Diagram" },
+          { key: "directors", label: "🏛️ Director's Task Assignment" },
+          { key: "directorsDiagram", label: "🏛️🗺️ Director's Team Assignment" },
+          { key: "directorsMonitoring", label: "📈 Director's Monitoring" },
         ]
       : []),
   ];
@@ -292,6 +294,8 @@ export default function TargetAssignmentsPage({ darkMode }) {
         <DirectorsTargetView colors={colors} />
       ) : activeView === "directorsDiagram" && canSeeDirectorsTarget ? (
         <DirectorsTeamDiagramView colors={colors} />
+      ) : activeView === "directorsMonitoring" && canSeeDirectorsTarget ? (
+        <DirectorsMonitoringView colors={colors} />
       ) : null}
 
       {modalTasks && (
