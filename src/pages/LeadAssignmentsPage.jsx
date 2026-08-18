@@ -205,6 +205,178 @@ function Toast({ toast }) {
   );
 }
 
+// ── Searchable Select (typeable combobox) ─────────────────────────────────────
+// A lightweight, dependency-free combobox: text input that filters a dropdown
+// list as you type. Click a row (or press Enter on a highlighted row) to pick.
+function SearchableSelect({
+  value,
+  onChange,
+  options, // [{ id, label }]
+  placeholder = "Search...",
+  emptyLabel = "None",
+  c,
+  darkMode,
+  disabled = false,
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [highlight, setHighlight] = useState(0);
+  const wrapRef = useRef(null);
+  const inputRef = useRef(null);
+
+  const selected = options.find((o) => String(o.id) === String(value));
+
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    };
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, []);
+
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(query.toLowerCase()),
+  );
+
+  const pick = (id) => {
+    onChange(id ? String(id) : "");
+    setOpen(false);
+    setQuery("");
+  };
+
+  const handleKeyDown = (e) => {
+    if (!open && (e.key === "ArrowDown" || e.key === "Enter")) {
+      setOpen(true);
+      return;
+    }
+    if (!open) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => Math.min(h + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const opt = filtered[highlight];
+      if (opt) pick(opt.id);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+      setQuery("");
+    }
+  };
+
+  useEffect(() => {
+    setHighlight(0);
+  }, [query, open]);
+
+  return (
+    <div ref={wrapRef} style={{ position: "relative" }}>
+      <input
+        ref={inputRef}
+        type="text"
+        disabled={disabled}
+        value={open ? query : selected ? selected.label : ""}
+        placeholder={selected ? selected.label : placeholder}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          if (!open) setOpen(true);
+        }}
+        onFocus={() => {
+          setQuery("");
+          setOpen(true);
+        }}
+        onKeyDown={handleKeyDown}
+        style={{
+          ...inpStyle(c),
+          cursor: disabled ? "not-allowed" : "text",
+          opacity: disabled ? 0.6 : 1,
+        }}
+      />
+      {open && !disabled && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            zIndex: 50,
+            background: c.modalBg,
+            border: `1px solid ${c.modalBorder}`,
+            borderRadius: 8,
+            maxHeight: 190,
+            overflowY: "auto",
+            boxShadow: "0 6px 18px rgba(0,0,0,0.25)",
+          }}
+        >
+          <div
+            onMouseDown={(e) => {
+              e.preventDefault();
+              pick("");
+            }}
+            style={{
+              padding: "8px 12px",
+              fontSize: "0.82rem",
+              cursor: "pointer",
+              color: c.textTertiary,
+              fontStyle: "italic",
+              background: !value
+                ? darkMode
+                  ? "#2a2a2a"
+                  : "#f0f4ff"
+                : "transparent",
+            }}
+          >
+            {emptyLabel}
+          </div>
+          {filtered.length === 0 && (
+            <div
+              style={{
+                padding: "10px 12px",
+                fontSize: "0.8rem",
+                color: c.textTertiary,
+              }}
+            >
+              No matches.
+            </div>
+          )}
+          {filtered.map((opt, idx) => (
+            <div
+              key={opt.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(opt.id);
+              }}
+              onMouseEnter={() => setHighlight(idx)}
+              style={{
+                padding: "8px 12px",
+                fontSize: "0.83rem",
+                cursor: "pointer",
+                color: c.textPrimary,
+                background:
+                  idx === highlight
+                    ? darkMode
+                      ? "#2a2a2a"
+                      : "#f0f4ff"
+                    : String(opt.id) === String(value)
+                      ? darkMode
+                        ? "#222"
+                        : "#f7f9ff"
+                      : "transparent",
+              }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Unit Form Modal (Create / Edit a Unit) ────────────────────────────────────
 function UnitFormModal({
   unit,
@@ -213,6 +385,7 @@ function UnitFormModal({
   submitting,
   error,
   allUsers,
+  darkMode,
   c,
 }) {
   const [name, setName] = useState(unit?.name || "");
@@ -225,6 +398,15 @@ function UnitFormModal({
   );
   const inp = inpStyle(c);
   const isEdit = !!unit;
+
+  const userOptions = useMemo(
+    () =>
+      allUsers.map((u) => ({
+        id: u.id,
+        label: `${fullName(u)} (@${u.username})`,
+      })),
+    [allUsers],
+  );
 
   const handleSubmit = () => {
     if (!name.trim()) return;
@@ -360,18 +542,14 @@ function UnitFormModal({
             >
               Unit head
             </label>
-            <select
+            <SearchableSelect
               value={leadUserId}
-              onChange={(e) => setLeadUserId(e.target.value)}
-              style={inp}
-            >
-              <option value="">None</option>
-              {allUsers.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {fullName(u)} (@{u.username})
-                </option>
-              ))}
-            </select>
+              onChange={setLeadUserId}
+              options={userOptions}
+              placeholder="Type a name..."
+              c={c}
+              darkMode={darkMode}
+            />
           </div>
           <div>
             <label
@@ -385,18 +563,14 @@ function UnitFormModal({
             >
               QA Admin
             </label>
-            <select
+            <SearchableSelect
               value={qaAdminUserId}
-              onChange={(e) => setQaAdminUserId(e.target.value)}
-              style={inp}
-            >
-              <option value="">None</option>
-              {allUsers.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {fullName(u)} (@{u.username})
-                </option>
-              ))}
-            </select>
+              onChange={setQaAdminUserId}
+              options={userOptions}
+              placeholder="Type a name..."
+              c={c}
+              darkMode={darkMode}
+            />
           </div>
         </div>
 
@@ -2268,6 +2442,7 @@ export default function LeadAssignmentsPage({ darkMode }) {
           submitting={submitting}
           error={formError}
           allUsers={allUsers}
+          darkMode={darkMode}
           c={c}
         />
       )}
