@@ -120,6 +120,178 @@ function HeaderNotice({ tone = "info", children, darkMode = false }) {
   );
 }
 
+/* ── Release confirmation modal ──
+   Shown to QA Admin before advancing past Step 1, so they explicitly
+   confirm the "Type Doc Released" value that is about to be pushed to
+   the DBMS (and, if it's a CPR, also to VerifiPortal). */
+function ReleaseConfirmModal({
+  typeDocReleased,
+  onCancel,
+  onConfirm,
+  colors,
+  darkMode,
+}) {
+  const displayVal =
+    typeDocReleased &&
+    String(typeDocReleased).trim() &&
+    typeDocReleased !== "N/A"
+      ? typeDocReleased
+      : "N/A";
+  const isCprRelease = String(typeDocReleased).trim().toUpperCase() === "CPR";
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {/* Backdrop */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          background: "rgba(0,0,0,0.55)",
+          backdropFilter: "blur(2px)",
+        }}
+        onClick={onCancel}
+      />
+
+      {/* Dialog */}
+      <div
+        style={{
+          position: "relative",
+          width: "min(420px, 92vw)",
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "12px",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.45)",
+          padding: "1.1rem 1.2rem",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            marginBottom: "0.6rem",
+          }}
+        >
+          <span style={{ fontSize: "1.1rem" }}>⚠️</span>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              color: colors.textPrimary,
+            }}
+          >
+            Confirm Type of Document Released
+          </h3>
+        </div>
+
+        <p
+          style={{
+            fontSize: "0.72rem",
+            lineHeight: 1.5,
+            color: colors.textSecondary ?? colors.textPrimary,
+            margin: "0 0 0.55rem",
+          }}
+        >
+          The <strong>Type Doc Released</strong> field is currently set to{" "}
+          <strong style={{ color: ACCENT }}>{displayVal}</strong>. This value
+          will be saved and reflected in the <strong>DBMS</strong>.
+        </p>
+        <p
+          style={{
+            fontSize: "0.72rem",
+            lineHeight: 1.5,
+            color: colors.textSecondary ?? colors.textPrimary,
+            margin: "0 0 0.55rem",
+          }}
+        >
+          <strong>Note:</strong> If the Type Doc Released is set to{" "}
+          <strong style={{ color: ACCENT }}>CPR</strong>, the corresponding
+          value will also be reflected in VerifPortal.
+        </p>
+
+        {isCprRelease && (
+          <p
+            style={{
+              fontSize: "0.72rem",
+              lineHeight: 1.5,
+              color: "#b45309",
+              background: darkMode ? "#3a2e15" : "#fef3c7",
+              border: `1px solid ${darkMode ? "#6b4f1f" : "#fde68a"}`,
+              borderRadius: "6px",
+              padding: "0.45rem 0.6rem",
+              margin: "0 0 0.6rem",
+            }}
+          >
+            Since this is a <strong>CPR</strong>, it will also reflect in{" "}
+            <strong>VerifiPortal</strong>.
+          </p>
+        )}
+
+        <p
+          style={{
+            fontSize: "0.72rem",
+            fontWeight: 600,
+            color: colors.textPrimary,
+            margin: "0 0 1rem",
+          }}
+        >
+          Are you sure you want to proceed with this value?
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: "0.5rem",
+          }}
+        >
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "0.4rem 0.9rem",
+              background: colors.inputBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: "7px",
+              color: colors.textPrimary,
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            No, go back
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: "0.4rem 1rem",
+              background: ACCENT,
+              border: "none",
+              borderRadius: "7px",
+              color: "#fff",
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Yes, confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ViewDetailsModal({
   record,
   onClose,
@@ -132,6 +304,7 @@ export default function ViewDetailsModal({
   const [viewMode, setViewMode] = useState("normal");
   const [doctrackOpen, setDoctrackOpen] = useState(false);
   const [doctrackRecord, setDoctrackRecord] = useState(null);
+  const [showReleaseConfirm, setShowReleaseConfirm] = useState(false);
 
   if (!record) return null;
 
@@ -174,10 +347,36 @@ export default function ViewDetailsModal({
     currentStep === 1 &&
     ((isQAAdmin && fullDetailsMissing.length > 0) || isClassificationInvalid);
 
-  const goNext = () => {
-    if (isNextBlocked) return;
+  // Current "Type Doc Released" value (edited takes precedence over record)
+  const typeDocReleasedVal =
+    "typeDocReleased" in editedFields
+      ? editedFields.typeDocReleased
+      : (record.typeDocReleased ?? "");
+
+  const advanceStep = () => {
     setCurrentStep((s) => Math.min(s + 1, totalSteps));
   };
+
+  const goNext = () => {
+    if (isNextBlocked) return;
+    // QA Admin leaving Step 1 → confirm the Type Doc Released value first,
+    // since it drives what gets pushed to the DBMS (and VerifiPortal for CPR).
+    if (isQAAdmin && currentStep === 1) {
+      setShowReleaseConfirm(true);
+      return;
+    }
+    advanceStep();
+  };
+
+  const handleConfirmRelease = () => {
+    setShowReleaseConfirm(false);
+    advanceStep();
+  };
+
+  const handleCancelRelease = () => {
+    setShowReleaseConfirm(false);
+  };
+
   const goPrev = () => setCurrentStep((s) => Math.max(s - 1, 1));
 
   const handleViewModeChange = (mode) => {
@@ -751,6 +950,17 @@ export default function ViewDetailsModal({
           )}
         </div>
       </div>
+
+      {/* Type Doc Released confirmation — only for QA Admin, leaving Step 1 */}
+      {showReleaseConfirm && (
+        <ReleaseConfirmModal
+          typeDocReleased={typeDocReleasedVal}
+          onCancel={handleCancelRelease}
+          onConfirm={handleConfirmRelease}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </>
