@@ -1,5 +1,5 @@
 // FILE: src/components/assignment/ReassignAllModal.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getUsersByGroup, getUser } from "../../api/auth";
 import { reassignApplication } from "../../api/application-logs";
 
@@ -36,8 +36,24 @@ const nowPHT = () => {
     .replace(" ", "T");
 };
 
-/* ── Compact per-row user dropdown ── */
+/* ── Compact per-row user dropdown, SEARCHABLE ── */
 function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const wrapperRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+        setOpen(false);
+        setQuery("");
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   if (loading) {
     return (
       <span style={{ fontSize: "0.7rem", color: colors.textTertiary }}>
@@ -52,28 +68,130 @@ function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
       </span>
     );
   }
+
+  const selectedUser = users.find((u) => u.username === value);
+  const displayLabel = selectedUser
+    ? `${selectedUser.username} — ${selectedUser.first_name} ${selectedUser.surname}`
+    : "";
+
+  const filtered = !query
+    ? users
+    : users.filter((u) => {
+        const haystack =
+          `${u.username} ${u.first_name} ${u.surname}`.toLowerCase();
+        return haystack.includes(query.toLowerCase());
+      });
+
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{
-        width: "100%",
-        padding: "0.3rem 0.5rem",
-        background: darkMode ? "#1a1a1a" : "#f5f5f5",
-        border: `1px solid ${value ? "#7c3aed" : colors.cardBorder}`,
-        borderRadius: 6,
-        color: colors.textPrimary,
-        fontSize: "0.72rem",
-        outline: "none",
-      }}
-    >
-      <option value="">— select —</option>
-      {users.map((u) => (
-        <option key={u.id} value={u.username}>
-          {u.username} — {u.first_name} {u.surname}
-        </option>
-      ))}
-    </select>
+    <div ref={wrapperRef} style={{ position: "relative", width: "100%" }}>
+      <input
+        ref={inputRef}
+        type="text"
+        value={open ? query : displayLabel}
+        placeholder="— search user —"
+        onFocus={() => {
+          setOpen(true);
+          setQuery("");
+        }}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          if (!open) setOpen(true);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            setOpen(false);
+            setQuery("");
+            inputRef.current?.blur();
+          }
+        }}
+        style={{
+          width: "100%",
+          padding: "0.3rem 0.5rem",
+          background: darkMode ? "#1a1a1a" : "#f5f5f5",
+          border: `1px solid ${value ? "#7c3aed" : colors.cardBorder}`,
+          borderRadius: 6,
+          color: colors.textPrimary,
+          fontSize: "0.72rem",
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+      />
+      {open && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 2px)",
+            left: 0,
+            right: 0,
+            maxHeight: 190,
+            overflowY: "auto",
+            background: darkMode ? "#1a1a1a" : "#fff",
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 6,
+            zIndex: 30,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+          }}
+        >
+          {value && (
+            <div
+              onMouseDown={() => {
+                onChange("");
+                setOpen(false);
+                setQuery("");
+              }}
+              style={{
+                padding: "0.35rem 0.6rem",
+                fontSize: "0.7rem",
+                cursor: "pointer",
+                color: colors.textTertiary,
+                borderBottom: `1px solid ${colors.cardBorder}`,
+              }}
+            >
+              — clear selection —
+            </div>
+          )}
+          {filtered.length === 0 ? (
+            <div
+              style={{
+                padding: "0.4rem 0.6rem",
+                fontSize: "0.7rem",
+                color: colors.textTertiary,
+              }}
+            >
+              No matches
+            </div>
+          ) : (
+            filtered.map((u) => (
+              <div
+                key={u.id}
+                onMouseDown={() => {
+                  onChange(u.username);
+                  setOpen(false);
+                  setQuery("");
+                }}
+                style={{
+                  padding: "0.35rem 0.6rem",
+                  fontSize: "0.72rem",
+                  cursor: "pointer",
+                  color: colors.textPrimary,
+                  background:
+                    u.username === value ? "#7c3aed22" : "transparent",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "#7c3aed22")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background =
+                    u.username === value ? "#7c3aed22" : "transparent")
+                }
+              >
+                {u.username} — {u.first_name} {u.surname}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -81,13 +199,38 @@ function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
 function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
   // records: [{ id, mainDbId, dtn, oldRsn, applicationStep, userName, updatedAt, applicationStatus }]
   const [rows, setRows] = useState(
-    records.map((r) => ({ ...r, reassignTo: "", reason: "" })),
+    records.map((r) => ({ ...r, reassignTo: "", reason: "", remarks: "" })),
   );
   const [usersByStep, setUsersByStep] = useState({});
   const [loadingSteps, setLoadingSteps] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const [phase, setPhase] = useState("form"); // "form" | "progress" | "done"
   const [results, setResults] = useState([]);
+
+  // ── Bulk-fill state (apply one value to every row) ──
+  const [bulkUser, setBulkUser] = useState("");
+  const [bulkReason, setBulkReason] = useState("");
+  const [bulkRemarks, setBulkRemarks] = useState("");
+
+  // union of users across all fetched groups, deduped by username —
+  // lets the bulk "Reassigned to" field search across every step at once
+  const combinedUsers = Object.values(usersByStep)
+    .flat()
+    .filter(Boolean)
+    .filter(
+      (u, idx, arr) => arr.findIndex((x) => x.username === u.username) === idx,
+    );
+  const combinedUsersLoading =
+    Object.keys(loadingSteps).length > 0 &&
+    Object.values(loadingSteps).some(Boolean) &&
+    combinedUsers.length === 0;
+
+  const applyReassignToAll = () =>
+    setRows((prev) => prev.map((r) => ({ ...r, reassignTo: bulkUser })));
+  const applyReasonToAll = () =>
+    setRows((prev) => prev.map((r) => ({ ...r, reason: bulkReason })));
+  const applyRemarksToAll = () =>
+    setRows((prev) => prev.map((r) => ({ ...r, remarks: bulkRemarks })));
 
   useEffect(() => {
     const u = getUser();
@@ -138,7 +281,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
           reassigned_to_user_id: userObj?.id ?? null,
           reassigned_to_user_name: row.reassignTo,
           reassignment_reason: row.reason,
-          reassignment_remarks: null,
+          reassignment_remarks: row.remarks || null,
           reassigned_by_user_id: currentUser?.id ?? null,
           reassigned_by_user_name: currentUser?.username ?? null,
           reassigned_at: nowPHT(),
@@ -181,7 +324,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: 14,
           width: "100%",
-          maxWidth: 980,
+          maxWidth: 1120,
           maxHeight: "88vh",
           display: "flex",
           flexDirection: "column",
@@ -234,6 +377,130 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
         {/* ── Body: form phase = editable table ── */}
         {phase === "form" && (
           <>
+            <div
+              style={{
+                padding: "0.75rem 1.4rem",
+                borderBottom: `1px solid ${colors.cardBorder}`,
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "flex-end",
+                gap: "0.75rem",
+                background: darkMode ? "#151515" : "#f3f0fb",
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  fontWeight: 700,
+                  color: colors.textTertiary,
+                  textTransform: "uppercase",
+                  marginRight: "0.25rem",
+                  alignSelf: "center",
+                }}
+              >
+                Fill all rows:
+              </span>
+
+              <div style={{ minWidth: 210 }}>
+                <RowUserSelect
+                  value={bulkUser}
+                  onChange={setBulkUser}
+                  users={combinedUsers}
+                  loading={combinedUsersLoading}
+                  colors={colors}
+                  darkMode={darkMode}
+                />
+              </div>
+              <button
+                onClick={applyReassignToAll}
+                disabled={!bulkUser}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  background: bulkUser ? "#7c3aed" : "#555",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#fff",
+                  fontSize: "0.68rem",
+                  fontWeight: 600,
+                  cursor: bulkUser ? "pointer" : "not-allowed",
+                  opacity: bulkUser ? 1 : 0.6,
+                }}
+              >
+                Apply to all
+              </button>
+
+              <select
+                value={bulkReason}
+                onChange={(e) => setBulkReason(e.target.value)}
+                style={{
+                  padding: "0.3rem 0.5rem",
+                  minWidth: 160,
+                  background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                  border: `1px solid ${bulkReason ? "#7c3aed" : colors.cardBorder}`,
+                  borderRadius: 6,
+                  color: colors.textPrimary,
+                  fontSize: "0.72rem",
+                }}
+              >
+                <option value="">— reason —</option>
+                {REASSIGN_REASONS.map((r) => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={applyReasonToAll}
+                disabled={!bulkReason}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  background: bulkReason ? "#7c3aed" : "#555",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#fff",
+                  fontSize: "0.68rem",
+                  fontWeight: 600,
+                  cursor: bulkReason ? "pointer" : "not-allowed",
+                  opacity: bulkReason ? 1 : 0.6,
+                }}
+              >
+                Apply to all
+              </button>
+
+              <input
+                type="text"
+                value={bulkRemarks}
+                onChange={(e) => setBulkRemarks(e.target.value)}
+                placeholder="remarks for all"
+                style={{
+                  padding: "0.3rem 0.5rem",
+                  minWidth: 180,
+                  background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: 6,
+                  color: colors.textPrimary,
+                  fontSize: "0.72rem",
+                  boxSizing: "border-box",
+                }}
+              />
+              <button
+                onClick={applyRemarksToAll}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  background: "#7c3aed",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#fff",
+                  fontSize: "0.68rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Apply to all
+              </button>
+            </div>
+
             <div style={{ flex: 1, overflow: "auto" }}>
               <table
                 style={{
@@ -260,6 +527,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                       "Last Modified",
                       "Reassigned to",
                       "Reason",
+                      "Remarks",
                     ].map((h) => (
                       <th
                         key={h}
@@ -343,7 +611,8 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                         style={{
                           padding: "0.4rem 0.6rem",
                           borderBottom: `1px solid ${colors.tableBorder}`,
-                          minWidth: 200,
+                          minWidth: 210,
+                          position: "relative",
                         }}
                       >
                         <RowUserSelect
@@ -384,6 +653,32 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                             </option>
                           ))}
                         </select>
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.4rem 0.6rem",
+                          borderBottom: `1px solid ${colors.tableBorder}`,
+                          minWidth: 180,
+                        }}
+                      >
+                        <input
+                          type="text"
+                          value={row.remarks}
+                          onChange={(e) =>
+                            updateRow(row.id, "remarks", e.target.value)
+                          }
+                          placeholder="optional remarks"
+                          style={{
+                            width: "100%",
+                            padding: "0.3rem 0.5rem",
+                            background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                            border: `1px solid ${colors.cardBorder}`,
+                            borderRadius: 6,
+                            color: colors.textPrimary,
+                            fontSize: "0.72rem",
+                            boxSizing: "border-box",
+                          }}
+                        />
                       </td>
                     </tr>
                   ))}
