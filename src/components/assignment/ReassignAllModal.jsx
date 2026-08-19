@@ -1,5 +1,6 @@
 // FILE: src/components/assignment/ReassignAllModal.jsx
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { getUsersByGroup, getUser } from "../../api/auth";
 import { reassignApplication } from "../../api/application-logs";
 
@@ -36,16 +37,39 @@ const nowPHT = () => {
     .replace(" ", "T");
 };
 
-/* ── Compact per-row user dropdown, SEARCHABLE ── */
+/* ── Compact per-row user dropdown, SEARCHABLE ──
+   Dropdown list renders in a fixed-position portal (document.body) so it
+   never gets clipped or hidden by the modal's scrollable table container —
+   no more "may selection ka na pero nasa ilalim, di mo makita" issue. */
 function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
   const wrapperRef = useRef(null);
   const inputRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const DROPDOWN_MAX_HEIGHT = 190;
+
+  const updateCoords = () => {
+    if (!wrapperRef.current) return;
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const openUpward =
+      spaceBelow < DROPDOWN_MAX_HEIGHT + 8 && rect.top > DROPDOWN_MAX_HEIGHT;
+    setCoords({
+      top: openUpward ? rect.top - DROPDOWN_MAX_HEIGHT - 4 : rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  };
 
   useEffect(() => {
     function handleClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      const insideWrapper =
+        wrapperRef.current && wrapperRef.current.contains(e.target);
+      const insideDropdown =
+        dropdownRef.current && dropdownRef.current.contains(e.target);
+      if (!insideWrapper && !insideDropdown) {
         setOpen(false);
         setQuery("");
       }
@@ -53,6 +77,19 @@ function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updateCoords();
+    const handle = () => updateCoords();
+    window.addEventListener("scroll", handle, true);
+    window.addEventListener("resize", handle);
+    return () => {
+      window.removeEventListener("scroll", handle, true);
+      window.removeEventListener("resize", handle);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (loading) {
     return (
@@ -92,6 +129,7 @@ function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
         onFocus={() => {
           setOpen(true);
           setQuery("");
+          updateCoords();
         }}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -116,81 +154,84 @@ function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
           boxSizing: "border-box",
         }}
       />
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 2px)",
-            left: 0,
-            right: 0,
-            maxHeight: 190,
-            overflowY: "auto",
-            background: darkMode ? "#1a1a1a" : "#fff",
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: 6,
-            zIndex: 30,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-          }}
-        >
-          {value && (
-            <div
-              onMouseDown={() => {
-                onChange("");
-                setOpen(false);
-                setQuery("");
-              }}
-              style={{
-                padding: "0.35rem 0.6rem",
-                fontSize: "0.7rem",
-                cursor: "pointer",
-                color: colors.textTertiary,
-                borderBottom: `1px solid ${colors.cardBorder}`,
-              }}
-            >
-              — clear selection —
-            </div>
-          )}
-          {filtered.length === 0 ? (
-            <div
-              style={{
-                padding: "0.4rem 0.6rem",
-                fontSize: "0.7rem",
-                color: colors.textTertiary,
-              }}
-            >
-              No matches
-            </div>
-          ) : (
-            filtered.map((u) => (
+      {open &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "fixed",
+              top: coords.top,
+              left: coords.left,
+              width: coords.width,
+              maxHeight: DROPDOWN_MAX_HEIGHT,
+              overflowY: "auto",
+              background: darkMode ? "#1a1a1a" : "#fff",
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 6,
+              zIndex: 100000,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            }}
+          >
+            {value && (
               <div
-                key={u.id}
                 onMouseDown={() => {
-                  onChange(u.username);
+                  onChange("");
                   setOpen(false);
                   setQuery("");
                 }}
                 style={{
                   padding: "0.35rem 0.6rem",
-                  fontSize: "0.72rem",
+                  fontSize: "0.7rem",
                   cursor: "pointer",
-                  color: colors.textPrimary,
-                  background:
-                    u.username === value ? "#7c3aed22" : "transparent",
+                  color: colors.textTertiary,
+                  borderBottom: `1px solid ${colors.cardBorder}`,
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "#7c3aed22")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background =
-                    u.username === value ? "#7c3aed22" : "transparent")
-                }
               >
-                {u.username} — {u.first_name} {u.surname}
+                — clear selection —
               </div>
-            ))
-          )}
-        </div>
-      )}
+            )}
+            {filtered.length === 0 ? (
+              <div
+                style={{
+                  padding: "0.4rem 0.6rem",
+                  fontSize: "0.7rem",
+                  color: colors.textTertiary,
+                }}
+              >
+                No matches
+              </div>
+            ) : (
+              filtered.map((u) => (
+                <div
+                  key={u.id}
+                  onMouseDown={() => {
+                    onChange(u.username);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  style={{
+                    padding: "0.35rem 0.6rem",
+                    fontSize: "0.72rem",
+                    cursor: "pointer",
+                    color: colors.textPrimary,
+                    background:
+                      u.username === value ? "#7c3aed22" : "transparent",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#7c3aed22")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background =
+                      u.username === value ? "#7c3aed22" : "transparent")
+                  }
+                >
+                  {u.username} — {u.first_name} {u.surname}
+                </div>
+              ))
+            )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
