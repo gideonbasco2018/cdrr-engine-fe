@@ -1,8 +1,6 @@
 // src/components/monitoring/records/AllRecords.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getAllRecords } from "../../../api/monitoring";
-import ReassignmentModal from "../../reports/actions/ReassignmentModal";
-import RerouteModal from "../../reports/actions/RerouteModal";
 import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
 import { getUploadReports } from "../../../api/reports";
 import { mapDataItem } from "../../reports/utils";
@@ -99,8 +97,6 @@ function ActionMenu({ row, ui, darkMode, onAction }) {
 
   const actions = [
     { key: "view", icon: "👁️", label: "View Details" },
-    { key: "reassign", icon: "🔄", label: "Re-assign" },
-    { key: "reroute", icon: "🔀", label: "Re-route" },
     { key: "applogs", icon: "📦", label: "Application Logs" },
     { key: "doctrack", icon: "📋", label: "Doctrack Details" },
   ];
@@ -1752,22 +1748,6 @@ export default function AllRecords({
           colors={colors}
           darkMode={darkMode}
           loading={modalLoading}
-        />
-      )}
-      {activeModal === "reassign" && selectedRecord && (
-        <ReassignmentModal
-          record={selectedRecord}
-          onClose={handleCloseModal}
-          colors={colors}
-          darkMode={darkMode}
-        />
-      )}
-      {activeModal === "reroute" && selectedRecord && (
-        <RerouteModal
-          record={selectedRecord}
-          onClose={handleCloseModal}
-          colors={colors}
-          darkMode={darkMode}
         />
       )}
       {activeModal === "applogs" && selectedRecord && (
