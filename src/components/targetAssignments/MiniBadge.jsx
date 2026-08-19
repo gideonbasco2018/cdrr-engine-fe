@@ -22,18 +22,20 @@ export function MiniBadge({ label, value, colors, tone }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: "2px",
-        fontSize: "0.58rem",
-        fontWeight: 700,
-        padding: "2px 6px",
+        gap: "4px",
+        fontSize: "0.66rem",
+        fontWeight: 600,
+        padding: "3px 8px",
         borderRadius: "9999px",
         background: s.bg,
         border: `1px solid ${s.border}`,
         color: s.color,
         whiteSpace: "nowrap",
+        lineHeight: 1.2,
       }}
     >
-      {value} {label}
+      <span style={{ fontWeight: 800, fontSize: "0.78rem" }}>{value}</span>
+      <span>{label}</span>
     </span>
   );
 }

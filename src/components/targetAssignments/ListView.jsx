@@ -26,6 +26,7 @@ export function ListView({
   const [searchDtn, setSearchDtn] = useState("");
   const [filterStep, setFilterStep] = useState("");
   const [filterStatus, setFilterStatus] = useState("IN PROGRESS");
+  const [showDirectorsOnly, setShowDirectorsOnly] = useState(false);
 
   // ── Pagination ──────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
@@ -39,13 +40,14 @@ export function ListView({
     setSearchDtn("");
     setFilterStep("");
     setFilterStatus("IN PROGRESS");
+    setShowDirectorsOnly(false);
     setSelectedLogIds(new Set());
     setCurrentPage(1);
   }, [selectedMemberId]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchDtn, filterStep, filterStatus]);
+  }, [searchDtn, filterStep, filterStatus, showDirectorsOnly]);
 
   // ── Derived: dropdown options from the current member's tasks ──
   const stepOptions = useMemo(
@@ -64,9 +66,10 @@ export function ListView({
       if (dtnQuery && !String(t.dtn ?? "").includes(dtnQuery)) return false;
       if (filterStep && t.step !== filterStep) return false;
       if (filterStatus && t.status !== filterStatus) return false;
+      if (showDirectorsOnly && !t.is_directors_target) return false;
       return true;
     });
-  }, [tasks, searchDtn, filterStep, filterStatus]);
+  }, [tasks, searchDtn, filterStep, filterStatus, showDirectorsOnly]);
 
   // ── Derived: paginated slice of filteredTasks ─────────────────────
   const totalPages = Math.max(1, Math.ceil(filteredTasks.length / rowsPerPage));
@@ -75,6 +78,13 @@ export function ListView({
   const paginatedTasks = filteredTasks.slice(
     indexOfFirstRow,
     indexOfFirstRow + rowsPerPage,
+  );
+
+  // ── Derived: header stats (based on all of this member's tasks, not filtered) ──
+  const totalTaskCount = tasks.length;
+  const inProgressTaskCount = useMemo(
+    () => tasks.filter((t) => t.status === "IN PROGRESS").length,
+    [tasks],
   );
 
   const allFilteredSelected =
@@ -203,21 +213,85 @@ export function ListView({
                       style={{
                         fontSize: "0.7rem",
                         color: colors.textTertiary,
-                        marginBottom: "0.3rem",
+                        marginBottom: "0.4rem",
                       }}
                     >
-                      {m.lead_role} · {m.task_count} task
-                      {m.task_count !== 1 ? "s" : ""}
+                      {m.lead_role}
                     </div>
                     <div
-                      style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "5px",
+                        alignItems: "center",
+                      }}
                     >
-                      <MiniBadge
-                        label="In Progress"
-                        value={m.in_progress_count}
-                        colors={colors}
-                        tone="blue"
-                      />
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          border: `1px solid ${colors.cardBorder}`,
+                          background: colors.rowHover,
+                          minWidth: 48,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "0.78rem",
+                            fontWeight: 800,
+                            color: colors.textPrimary,
+                            lineHeight: 1.1,
+                          }}
+                        >
+                          {m.task_count}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "0.52rem",
+                            color: colors.textTertiary,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.02em",
+                          }}
+                        >
+                          Total
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          padding: "2px 8px",
+                          borderRadius: "6px",
+                          border: "1px solid #3b82f6",
+                          background: "rgba(59, 130, 246, 0.12)",
+                          minWidth: 48,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "0.78rem",
+                            fontWeight: 800,
+                            color: "#60a5fa",
+                            lineHeight: 1.1,
+                          }}
+                        >
+                          {m.in_progress_count}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "0.52rem",
+                            color: "#60a5fa",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.02em",
+                          }}
+                        >
+                          In Progress
+                        </span>
+                      </div>
                       <MiniBadge
                         label="Completed"
                         value={m.completed_count}
@@ -286,6 +360,72 @@ export function ListView({
                   Currently assigned tasks — select which ones to mark as target
                 </div>
               </div>
+              <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    padding: "4px 12px",
+                    borderRadius: "8px",
+                    border: `1px solid ${colors.cardBorder}`,
+                    background: colors.rowHover,
+                    minWidth: 64,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.95rem",
+                      fontWeight: 700,
+                      color: colors.textPrimary,
+                    }}
+                  >
+                    {totalTaskCount}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.62rem",
+                      color: colors.textTertiary,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    Total Tasks
+                  </span>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    padding: "4px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #3b82f6",
+                    background: "rgba(59, 130, 246, 0.12)",
+                    minWidth: 64,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.95rem",
+                      fontWeight: 700,
+                      color: "#60a5fa",
+                    }}
+                  >
+                    {inProgressTaskCount}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.62rem",
+                      color: "#60a5fa",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.03em",
+                    }}
+                  >
+                    In Progress
+                  </span>
+                </div>
+              </div>
               {selectedLogIds.size > 0 && (
                 <button
                   onClick={handleOpenBulkModal}
@@ -314,6 +454,7 @@ export function ListView({
                 display: "flex",
                 gap: "0.6rem",
                 flexWrap: "wrap",
+                alignItems: "center",
               }}
             >
               <input
@@ -347,12 +488,68 @@ export function ListView({
                   </option>
                 ))}
               </select>
-              {(searchDtn || filterStep || filterStatus) && (
+
+              {/* Director's Target toggle */}
+              <button
+                type="button"
+                onClick={() => setShowDirectorsOnly((v) => !v)}
+                aria-pressed={showDirectorsOnly}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "5px 10px 5px 6px",
+                  borderRadius: "999px",
+                  border: `1px solid ${showDirectorsOnly ? "#a855f7" : colors.cardBorder}`,
+                  background: showDirectorsOnly
+                    ? "rgba(168, 85, 247, 0.15)"
+                    : "transparent",
+                  color: showDirectorsOnly ? "#c084fc" : colors.textSecondary,
+                  fontSize: "0.75rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span
+                  style={{
+                    position: "relative",
+                    width: 30,
+                    height: 16,
+                    borderRadius: "999px",
+                    background: showDirectorsOnly
+                      ? "#a855f7"
+                      : colors.cardBorder,
+                    transition: "background 0.15s",
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 2,
+                      left: showDirectorsOnly ? 16 : 2,
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      transition: "left 0.15s",
+                    }}
+                  />
+                </span>
+                🏛️ Director's Target only
+              </button>
+
+              {(searchDtn ||
+                filterStep ||
+                filterStatus ||
+                showDirectorsOnly) && (
                 <button
                   onClick={() => {
                     setSearchDtn("");
                     setFilterStep("");
                     setFilterStatus("");
+                    setShowDirectorsOnly(false);
                   }}
                   style={{
                     padding: "6px 10px",
@@ -411,7 +608,9 @@ export function ListView({
                   >
                     {tasks.length === 0
                       ? "No active tasks assigned to this user right now."
-                      : "No tasks match your search/filters."}
+                      : showDirectorsOnly
+                        ? "No Director's Target tasks match your search/filters."
+                        : "No tasks match your search/filters."}
                   </div>
                 ) : (
                   <table
