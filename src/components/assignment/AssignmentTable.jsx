@@ -1,6 +1,7 @@
 // src/components/assignment/AssignmentTable.jsx
 import { useState } from "react";
 import ReassignAllModal from "./ReassignAllModal";
+import RerouteAllModal from "./RerouteAllModal";
 import TablePagination from "../tasks/TablePagination";
 
 function AssignmentTable({
@@ -28,6 +29,7 @@ function AssignmentTable({
   onRowsPerPageChange,
 }) {
   const [showReassignModal, setShowReassignModal] = useState(false);
+  const [showRerouteModal, setShowRerouteModal] = useState(false);
 
   const selectedRecords = data.filter((r) => selectedRows.includes(r.id));
 
@@ -88,6 +90,23 @@ function AssignmentTable({
           })}
         >
           🔄 Reassign
+          {selectedRows.length > 0 ? ` (${selectedRows.length})` : ""}
+        </button>
+        <button
+          onClick={() => setShowRerouteModal(true)}
+          disabled={selectedRows.length === 0}
+          style={toolbarBtn({
+            background:
+              selectedRows.length === 0
+                ? "rgba(8,145,178,0.25)"
+                : "linear-gradient(135deg,#0891b2,#0e7490)",
+            color: "#fff",
+            border: "none",
+            cursor: selectedRows.length === 0 ? "not-allowed" : "pointer",
+            opacity: selectedRows.length === 0 ? 0.6 : 1,
+          })}
+        >
+          🔀 Reroute
           {selectedRows.length > 0 ? ` (${selectedRows.length})` : ""}
         </button>
 
@@ -340,6 +359,19 @@ function AssignmentTable({
           onClose={() => setShowReassignModal(false)}
           onSuccess={async () => {
             setShowReassignModal(false);
+            if (onRefresh) await onRefresh();
+          }}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {showRerouteModal && (
+        <RerouteAllModal
+          records={selectedRecords}
+          onClose={() => setShowRerouteModal(false)}
+          onSuccess={async () => {
+            setShowRerouteModal(false);
             if (onRefresh) await onRefresh();
           }}
           colors={colors}
