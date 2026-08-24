@@ -16,6 +16,7 @@ import CprTrendView from "../components/monitoring/cprTrend/CprTrendView";
 import ProcessingTrendView from "../components/monitoring/processingTrend/ProcessingTrendView";
 import FRPMonitoringView from "../components/monitoring/frpMonitoring/FRPMonitoringView";
 import TeamOverviewView from "../components/monitoring/teamOverview/TeamOverviewView";
+import GMPAnalyticsView from "../components/gmp/dashboard/GMPAnalyticsView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1045,6 +1046,8 @@ function renderContent(
       return <ProcessingTrendView ui={ui} darkMode={darkMode} />;
     case "teamoverview":
       return <TeamOverviewView darkMode={darkMode} />;
+    case "gmpanalytics":
+      return <GMPAnalyticsView ui={ui} darkMode={darkMode} />;
     default:
       return null;
   }
@@ -1241,12 +1244,35 @@ function MonitoringPage({ darkMode }) {
         <path d="M19 6l1-3" stroke="#f59e0b" />
       </svg>
     ),
+    gmpanalytics: () => (
+      <svg
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path
+          d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"
+          stroke="#0ea5e9"
+          fill="#e0f2fe"
+        />
+        <polyline points="9 12 11 14 15 10" stroke="#0284c7" />
+      </svg>
+    ),
   };
 
   const navItems = [
     { key: "overview", label: "Overview", subtitle: "Summary of all activity" },
     { key: "records", label: "Records", subtitle: "Browse all applications" },
     { key: "analytics", label: "Analytics", subtitle: "Charts & breakdowns" },
+    {
+      key: "gmpanalytics",
+      label: "GMP Analytics",
+      subtitle: "Certification workflow insights",
+    },
     { key: "deadlines", label: "Deadlines", comingSoon: true },
     { key: "compliance", label: "Compliance", comingSoon: true },
     { key: "workload", label: "Workload", comingSoon: true },
@@ -1503,7 +1529,7 @@ function MonitoringPage({ darkMode }) {
 
                   {/* Core group */}
                   {navItems
-                    .slice(0, 3)
+                    .slice(0, 4)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
@@ -1538,7 +1564,7 @@ function MonitoringPage({ darkMode }) {
                     Tracking
                   </p>
                   {navItems
-                    .slice(3, 6)
+                    .slice(4, 7)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
@@ -1573,7 +1599,7 @@ function MonitoringPage({ darkMode }) {
                     Admin
                   </p>
                   {navItems
-                    .slice(6)
+                    .slice(7)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}

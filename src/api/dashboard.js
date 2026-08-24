@@ -58,3 +58,24 @@ export async function getDashboardUploadHistory(params = {}) {
   const { data } = await axios.get("/main-db/upload-history", { params });
   return data;
 }
+
+// ─── GMP dashboard (Good Manufacturing Practices taskforce unit) ─────────────
+export const getGMPDashboardSummary = async (params = {}) => {
+  const response = await axios.get("/dashboard/gmp/stats/summary", { params });
+  return response.data;
+};
+
+export async function getGMPDashboardChart(params = {}) {
+  const { data } = await axios.get("/dashboard/gmp/stats/chart", { params });
+  return data;
+}
+
+export async function getGMPDashboardRecentApplications(params = {}) {
+  const { data } = await axios.get("/dashboard/gmp/stats/recent-applications", { params });
+  return data;
+}
+
+export async function getGMPDashboardDetail(params = {}) {
+  const { data } = await axios.get("/dashboard/gmp/stats/detail", { params });
+  return data;
+}

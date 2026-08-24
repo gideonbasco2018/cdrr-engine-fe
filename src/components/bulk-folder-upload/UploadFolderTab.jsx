@@ -17,6 +17,7 @@ import {
   formatBytes,
   kindOf,
   buildCategoryTree,
+  locateDtnInPathParts,
 } from "./utils/fileHelpers";
 import FolderTreeNode from "./FolderTreeNode";
 import KindIcon from "./KindIcon";
@@ -58,9 +59,7 @@ function UploadFolderTab({ colors, s }) {
   );
 
   const dtnInfo = useMemo(() => {
-    const names = Array.from(
-      new Set(entries.map((e) => e.relativePath.split("/")[0])),
-    );
+    const names = Array.from(new Set(entries.map((e) => e.dtn)));
     return {
       name: names[0] || "",
       mismatch: names.length > 1,
@@ -71,7 +70,7 @@ function UploadFolderTab({ colors, s }) {
   const dtnGroups = useMemo(() => {
     const groups = new Map();
     for (const entry of entries) {
-      const dtn = entry.relativePath.split("/")[0];
+      const dtn = entry.dtn;
       if (!groups.has(dtn)) {
         groups.set(dtn, { dtn, items: [] });
       }
@@ -115,13 +114,16 @@ function UploadFolderTab({ colors, s }) {
         skipped.push(file.name);
         continue;
       }
-      const category = parts.length > 2 ? parts.slice(1, -1).join("/") : null;
+      const { index: dtnIndex, dtn } = locateDtnInPathParts(parts);
+      const categoryParts = parts.slice(dtnIndex + 1, -1);
+      const category = categoryParts.length ? categoryParts.join("/") : null;
       newEntries.push({
         id: `${relativePath}-${file.size}-${Date.now()}-${Math.random()
           .toString(36)
           .slice(2, 8)}`,
         file,
         relativePath,
+        dtn,
         category,
         kind: kindOf(file),
         previewUrl: URL.createObjectURL(file),
@@ -265,7 +267,7 @@ function UploadFolderTab({ colors, s }) {
           const r = await uploadApplicationDocumentSingle(
             {
               dbEntryType,
-              dbDtn: entry.relativePath.split("/")[0],
+              dbDtn: entry.dtn,
               docCategory: entry.category,
               batchId,
               file: entry.file,
@@ -342,6 +344,7 @@ function UploadFolderTab({ colors, s }) {
               <option value="VALIDITY EXTENSION">VALIDITY EXTENSION</option>
               <option value="SURRENDER DUE TO PAC">SURRENDER DUE TO PAC</option>
               <option value="ORIGINAL">ORIGINAL</option>
+              <option value="FGMP">FGMP</option>
             </select>
           </Field>
         </div>
@@ -380,10 +383,11 @@ function UploadFolderTab({ colors, s }) {
             )}
           </p>
           <p style={s.dropzoneHint}>
-            The folder name becomes the DTN — subfolders become categories
+            Any folder in the path containing a 14-digit timestamp (e.g.
+            "20250307094701") becomes the DTN — you can select a single DTN
+            folder directly, or a batch folder containing many DTN
+            subfolders. Everything below the DTN becomes the category
             automatically. Zip and Rar files are auto-extracted for preview.
-            Browsers only allow selecting one folder per dialog — drag multiple
-            folders together, or click again to add another.
           </p>
           <input
             ref={folderInputRef}

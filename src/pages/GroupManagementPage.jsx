@@ -43,6 +43,7 @@ function GroupManagementPage({ darkMode, userRole }) {
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
   const isMobile = useIsMobile();
   const [memberSearch, setMemberSearch] = useState("");
+
   // ── DnD state ──────────────────────────────────────────────────
   // dragging: { userId, fromGroupId: number|null }
   // fromGroupId === null means user came from the "pool" (not yet in selectedGroup)
@@ -99,6 +100,9 @@ function GroupManagementPage({ darkMode, userRole }) {
       "otc-database": "CDR Reports",
       "for-decking": "Workflow",
       reassignment: "Workflow",
+      // ── GMP Task Queue & Workflow ────────────────────────────────────────────
+      "gmp-queue": "Workflow",
+      "gmp-tasks": "Workflow",
       task: "Workflow",
       "fda-verification": "Other Database",
       "cdrr-inspector-reports": "Other Database",
@@ -344,6 +348,7 @@ function GroupManagementPage({ darkMode, userRole }) {
     await fetchGroups();
     setActionLoading(null);
   };
+
   // ===== DnD HANDLERS =====
   // Called by UsersTable (dragging a member) or UserPool (dragging an unassigned user)
   const handleDragStart = useCallback((userId, fromGroupId) => {
@@ -378,13 +383,10 @@ function GroupManagementPage({ darkMode, userRole }) {
       if (!dragging) return;
       const { userId, fromGroupId } = dragging;
       setDragging(null);
-
       // Already in this group → no-op
       if (fromGroupId === targetGroupId) return;
-
       const user = allUsers.find((u) => u.id === userId);
       const targetGroup = groups.find((g) => g.id === targetGroupId);
-
       setActionLoading(`assign-${userId}`);
       try {
         const result = await assignUserToGroup(targetGroupId, userId);
@@ -418,9 +420,7 @@ function GroupManagementPage({ darkMode, userRole }) {
     if (!dragging || !selectedGroup) return;
     const { userId, fromGroupId } = dragging;
     setDragging(null);
-
     if (fromGroupId === selectedGroup.id) return; // already a member
-
     const user = allUsers.find((u) => u.id === userId);
     setActionLoading(`assign-${userId}`);
     try {
@@ -452,12 +452,9 @@ function GroupManagementPage({ darkMode, userRole }) {
     if (!dragging) return;
     const { userId, fromGroupId } = dragging;
     setDragging(null);
-
     if (!fromGroupId) return; // not in any group, nothing to remove
-
     const user = allUsers.find((u) => u.id === userId);
     const group = groups.find((g) => g.id === fromGroupId);
-
     setActionLoading(`remove-${userId}`);
     try {
       const result = await removeUserFromGroup(fromGroupId, userId);

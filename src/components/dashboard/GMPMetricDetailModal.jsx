@@ -1,14 +1,21 @@
+// GMP counterpart of MetricDetailModal — same paginated drill-down-by-KPI
+// pattern, scoped to GMP fields. No transmittal/export actions: those are a
+// licensing-unit concept (correction/reconstruction transmittals) that has
+// no GMP equivalent.
 import { useState, useEffect, useCallback } from "react";
-import { getDashboardAllRecentApplications } from "../../api/dashboard";
+import { getGMPDashboardDetail } from "../../api/dashboard";
 import { FB } from "./constants";
+import { statusBadge, fmtDateTime, formatDateRange } from "./utils";
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 10;
 
-export default function RecentApplicationsModal({
+export default function GMPMetricDetailModal({
+  metricKey,
+  metricLabel,
+  dateParams,
   onClose,
   onRowClick,
   ui,
-  fetcher = getDashboardAllRecentApplications,
 }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -17,29 +24,52 @@ export default function RecentApplicationsModal({
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
-  const fetchPage = useCallback(async (p) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetcher({
-        page: p,
-        page_size: PAGE_SIZE,
-      });
-      setData(res.data);
-      setTotal(res.total);
-      setTotalPages(res.total_pages);
-      setPage(res.page ?? p);
-    } catch (err) {
-      setError(err?.response?.data?.detail || err.message || "Failed to load");
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [fetcher]);
+  const fetchPage = useCallback(
+    async (p) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await getGMPDashboardDetail({
+          metric: metricKey,
+          page: p,
+          page_size: PAGE_SIZE,
+          ...dateParams,
+        });
+        setData(res.data);
+        setTotal(res.total);
+        setTotalPages(res.total_pages);
+        setPage(res.page);
+      } catch (err) {
+        setError(err?.response?.data?.detail || err.message || "Failed to load");
+        setData([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [metricKey, dateParams],
+  );
 
   useEffect(() => {
     fetchPage(1);
   }, [fetchPage]);
+
+  const accentColor =
+    metricKey === "received"
+      ? "#1877F2"
+      : metricKey === "completed"
+        ? "#36a420"
+        : metricKey === "on_process"
+          ? "#f59e0b"
+          : FB;
+
+  const metricIcon =
+    metricKey === "received"
+      ? "👁️"
+      : metricKey === "completed"
+        ? "✅"
+        : metricKey === "on_process"
+          ? "⏳"
+          : "🏭";
 
   const startRow = (page - 1) * PAGE_SIZE + 1;
   const endRow = Math.min(startRow + PAGE_SIZE - 1, total);
@@ -65,7 +95,7 @@ export default function RecentApplicationsModal({
           border: `1px solid ${ui.cardBorder}`,
           borderRadius: 14,
           width: "100%",
-          maxWidth: 1100,
+          maxWidth: 1050,
           maxHeight: "92vh",
           display: "flex",
           flexDirection: "column",
@@ -90,14 +120,14 @@ export default function RecentApplicationsModal({
                 width: 38,
                 height: 38,
                 borderRadius: 10,
-                background: `${FB}18`,
+                background: `${accentColor}18`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: "1.2rem",
               }}
             >
-              📋
+              {metricIcon}
             </div>
             <div>
               <h3
@@ -108,12 +138,15 @@ export default function RecentApplicationsModal({
                   color: ui.textPrimary,
                 }}
               >
-                Recent Applications
+                {metricLabel}
               </h3>
               <p style={{ margin: 0, fontSize: "0.75rem", color: ui.textSub }}>
                 {loading
                   ? "Loading…"
-                  : `${total.toLocaleString()} total record${total !== 1 ? "s" : ""}`}
+                  : `${total.toLocaleString()} GMP application${total !== 1 ? "s" : ""}`}
+                {dateParams?.date_from && dateParams?.date_to
+                  ? ` · ${formatDateRange(dateParams.date_from, dateParams.date_to)}`
+                  : ""}
               </p>
             </div>
           </div>
@@ -140,19 +173,12 @@ export default function RecentApplicationsModal({
         {/* Body */}
         <div style={{ overflowY: "auto", flex: 1, minHeight: 0 }}>
           {loading && (
-            <div
-              style={{
-                padding: 16,
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-              }}
-            >
-              {Array.from({ length: 8 }).map((_, i) => (
+            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+              {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
                   style={{
-                    height: 48,
+                    height: 44,
                     borderRadius: 8,
                     background: ui.progressBg,
                     animation: "cdrrPulse 1.2s ease-in-out infinite",
@@ -164,14 +190,7 @@ export default function RecentApplicationsModal({
           )}
 
           {!loading && error && (
-            <div
-              style={{
-                padding: "2rem",
-                textAlign: "center",
-                color: "#e02020",
-                fontSize: "0.84rem",
-              }}
-            >
+            <div style={{ padding: "2rem", textAlign: "center", color: "#e02020", fontSize: "0.84rem" }}>
               ⚠️ {error}&nbsp;
               <button
                 onClick={() => fetchPage(page)}
@@ -191,46 +210,26 @@ export default function RecentApplicationsModal({
           )}
 
           {!loading && !error && data.length === 0 && (
-            <div
-              style={{
-                padding: "3rem",
-                textAlign: "center",
-                color: ui.textMuted,
-                fontSize: "0.84rem",
-              }}
-            >
+            <div style={{ padding: "3rem", textAlign: "center", color: ui.textMuted, fontSize: "0.84rem" }}>
               No records found.
             </div>
           )}
 
           {!loading && !error && data.length > 0 && (
             <div style={{ overflowX: "auto" }}>
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: "0.8rem",
-                  fontFamily: "inherit",
-                }}
-              >
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", fontFamily: "inherit" }}>
                 <thead>
-                  <tr
-                    style={{
-                      background: ui.pageBg,
-                      position: "sticky",
-                      top: 0,
-                      zIndex: 1,
-                    }}
-                  >
+                  <tr style={{ background: ui.pageBg, position: "sticky", top: 0, zIndex: 1 }}>
                     {[
                       { label: "#", align: "center", width: 40 },
                       { label: "DTN", align: "left" },
                       { label: "Company", align: "left" },
-                      { label: "Brand Name", align: "left" },
-                      { label: "Generic Name", align: "left" },
+                      { label: "Transaction Type", align: "left" },
+                      { label: "Category", align: "left" },
                       { label: "Step", align: "left" },
                       { label: "Status", align: "center" },
-                      { label: "Date", align: "right" },
+                      { label: "Start Date", align: "right" },
+                      { label: "Accomplished Date", align: "right" },
                     ].map((col, ci) => (
                       <th
                         key={ci}
@@ -254,10 +253,12 @@ export default function RecentApplicationsModal({
                 </thead>
                 <tbody>
                   {data.map((row, ri) => {
+                    const badge = statusBadge(row.application_status, ui);
                     const isEven = ri % 2 === 0;
                     const isLast = ri === data.length - 1;
                     const border = !isLast ? `1px solid ${ui.divider}` : "none";
                     const rowNum = startRow + ri;
+
                     return (
                       <tr
                         key={row.log_id}
@@ -266,130 +267,40 @@ export default function RecentApplicationsModal({
                           background: isEven ? "transparent" : `${ui.pageBg}88`,
                           cursor: onRowClick ? "pointer" : "default",
                         }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = ui.hoverBg)
-                        }
+                        onMouseEnter={(e) => (e.currentTarget.style.background = ui.hoverBg)}
                         onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = isEven
-                            ? "transparent"
-                            : `${ui.pageBg}88`)
+                          (e.currentTarget.style.background = isEven ? "transparent" : `${ui.pageBg}88`)
                         }
                       >
-                        <td
-                          style={{
-                            padding: "9px 12px",
-                            textAlign: "center",
-                            color: ui.textMuted,
-                            fontSize: "0.73rem",
-                            borderBottom: border,
-                          }}
-                        >
+                        <td style={{ padding: "9px 12px", textAlign: "center", color: ui.textMuted, fontSize: "0.73rem", borderBottom: border }}>
                           {rowNum}
                         </td>
-                        <td
-                          style={{
-                            padding: "9px 12px",
-                            borderBottom: border,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              color: FB,
-                              fontSize: "0.82rem",
-                            }}
-                          >
+                        <td style={{ padding: "9px 12px", borderBottom: border, whiteSpace: "nowrap" }}>
+                          <span style={{ fontWeight: 700, color: accentColor, fontSize: "0.82rem" }}>
                             {row.dtn || "—"}
                           </span>
                         </td>
-                        <td
-                          style={{
-                            padding: "9px 12px",
-                            color: ui.textSub,
-                            borderBottom: border,
-                            minWidth: 180,
-                            maxWidth: 280,
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "block",
-                              fontSize: "0.76rem",
-                              lineHeight: 1.4,
-                              wordBreak: "break-word",
-                            }}
-                          >
+                        <td style={{ padding: "9px 12px", color: ui.textSub, borderBottom: border, minWidth: 160, maxWidth: 260 }}>
+                          <span style={{ display: "block", fontSize: "0.76rem", lineHeight: 1.4, wordBreak: "break-word" }}>
                             {row.lto_company || "—"}
                           </span>
                         </td>
-                        <td
-                          style={{
-                            padding: "9px 12px",
-                            color: ui.textPrimary,
-                            fontWeight: 500,
-                            borderBottom: border,
-                            maxWidth: 180,
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "block",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {row.brand_name || "—"}
+                        <td style={{ padding: "9px 12px", color: ui.textPrimary, borderBottom: border, maxWidth: 160 }}>
+                          <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {row.transaction_type || "—"}
                           </span>
                         </td>
-                        <td
-                          style={{
-                            padding: "9px 12px",
-                            color: ui.textSub,
-                            borderBottom: border,
-                            maxWidth: 160,
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "block",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {row.generic_name || "—"}
+                        <td style={{ padding: "9px 12px", color: ui.textSub, borderBottom: border, maxWidth: 140 }}>
+                          <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {row.est_category || "—"}
                           </span>
                         </td>
-                        <td
-                          style={{
-                            padding: "9px 12px",
-                            color: ui.textSub,
-                            borderBottom: border,
-                            maxWidth: 140,
-                          }}
-                        >
-                          <span
-                            style={{
-                              display: "block",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                              fontSize: "0.76rem",
-                            }}
-                          >
+                        <td style={{ padding: "9px 12px", color: ui.textSub, borderBottom: border, maxWidth: 140 }}>
+                          <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "0.76rem" }}>
                             {row.app_step || "—"}
                           </span>
                         </td>
-                        <td
-                          style={{
-                            padding: "9px 12px",
-                            textAlign: "center",
-                            borderBottom: border,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
+                        <td style={{ padding: "9px 12px", textAlign: "center", borderBottom: border, whiteSpace: "nowrap" }}>
                           <span
                             style={{
                               display: "inline-block",
@@ -397,24 +308,28 @@ export default function RecentApplicationsModal({
                               borderRadius: 99,
                               fontSize: "0.73rem",
                               fontWeight: 700,
-                              color: row.status_color,
-                              background: row.status_bg,
+                              color: badge.color,
+                              background: badge.bg,
+                              whiteSpace: "nowrap",
                             }}
                           >
-                            {row.status_label}
+                            {badge.label}
                           </span>
+                        </td>
+                        <td style={{ padding: "9px 12px", textAlign: "right", color: ui.textMuted, fontSize: "0.76rem", borderBottom: border, whiteSpace: "nowrap" }}>
+                          {fmtDateTime(row.start_date)}
                         </td>
                         <td
                           style={{
                             padding: "9px 12px",
                             textAlign: "right",
-                            color: ui.textMuted,
                             fontSize: "0.76rem",
                             borderBottom: border,
                             whiteSpace: "nowrap",
+                            color: row.end_date ? "#36a420" : ui.textMuted,
                           }}
                         >
-                          {row.date_display}
+                          {row.end_date ? fmtDateTime(row.end_date) : "—"}
                         </td>
                       </tr>
                     );
@@ -432,15 +347,13 @@ export default function RecentApplicationsModal({
             borderTop: `1px solid ${ui.divider}`,
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
+            justifyContent: "flex-end",
             flexShrink: 0,
             gap: 8,
           }}
         >
-          <span style={{ fontSize: "0.74rem", color: ui.textMuted }}>
-            {total > 0
-              ? `${startRow}–${endRow} of ${total.toLocaleString()} records`
-              : ""}
+          <span style={{ fontSize: "0.74rem", color: ui.textMuted, marginRight: "auto" }}>
+            {total > 0 ? `${startRow}–${endRow} of ${total.toLocaleString()} records` : ""}
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <button
@@ -461,14 +374,7 @@ export default function RecentApplicationsModal({
             >
               ‹ Prev
             </button>
-            <span
-              style={{
-                fontSize: "0.78rem",
-                color: ui.textSub,
-                padding: "0 8px",
-                whiteSpace: "nowrap",
-              }}
-            >
+            <span style={{ fontSize: "0.78rem", color: ui.textSub, padding: "0 8px", whiteSpace: "nowrap" }}>
               Page {page} of {totalPages}
             </span>
             <button

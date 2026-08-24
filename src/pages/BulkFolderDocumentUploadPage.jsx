@@ -1,10 +1,11 @@
 // FILE: src/pages/BulkFolderDocumentUploadPage.jsx
 import { useState } from "react";
-import { FolderOpen, ClipboardList, FilePlus2, BarChart3 } from "lucide-react";
+import { FolderOpen, ClipboardList, FilePlus2, ShieldCheck, BarChart3 } from "lucide-react";
 
 import { getColors, buildStyles } from "../components/bulk-folder-upload/theme";
 import UploadFolderTab from "../components/bulk-folder-upload/UploadFolderTab";
 import UploadBulkFilesTab from "../components/bulk-folder-upload/UploadBulkFilesTab";
+import UploadGMPTab from "../components/bulk-folder-upload/UploadGMPTab";
 import UploadLogsTab from "../components/bulk-folder-upload/UploadLogsTab";
 import BatchSummaryTab from "../components/bulk-folder-upload/BatchSummaryTab";
 
@@ -12,7 +13,7 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
   const colors = getColors(darkMode);
   const s = buildStyles(colors);
 
-  const [activeTab, setActiveTab] = useState("folder"); // "folder" | "files" | "logs" | "summary"
+  const [activeTab, setActiveTab] = useState("folder"); // "folder" | "files" | "gmp" | "logs" | "summary"
 
   return (
     <div style={s.page} className="bdu-page">
@@ -54,6 +55,17 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("gmp")}
+            className="bdu-tabBtn"
+            style={{
+              ...s.tabBtn,
+              ...(activeTab === "gmp" ? s.tabBtnActive : {}),
+            }}
+          >
+            <ShieldCheck size={14} /> GMP
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("logs")}
             className="bdu-tabBtn"
             style={{
@@ -78,6 +90,7 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
 
         {activeTab === "folder" && <UploadFolderTab colors={colors} s={s} />}
         {activeTab === "files" && <UploadBulkFilesTab colors={colors} s={s} />}
+        {activeTab === "gmp" && <UploadGMPTab colors={colors} s={s} />}
         {activeTab === "logs" && <UploadLogsTab colors={colors} s={s} />}
         {activeTab === "summary" && <BatchSummaryTab colors={colors} s={s} />}
       </div>
