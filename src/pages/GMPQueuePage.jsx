@@ -2,10 +2,10 @@
 // GMP Queue — Decker view. Owns all state, data fetching, and modals.
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { getGMPRecords, getGMPFilterCounts, downloadGMPTemplate } from "../api/gmp";
+import { getGMPRecords, getGMPFilterCounts, downloadGMPTemplate, exportFilteredGMPRecords } from "../api/gmp";
 import { getColorScheme } from "../components/gmp/shared/colorScheme";
 import { TopTabs, QuickFilterSidebar } from "../components/gmp/queue/QueueFilters";
-import QueueTable from "../components/gmp/queue/QueueTable";
+import QueueTable, { COLUMNS as GMP_QUEUE_COLUMNS } from "../components/gmp/queue/QueueTable";
 import DeckModal from "../components/gmp/queue/GMPDeckModal";
 import BulkDeckModal from "../components/gmp/queue/GMPBulkDeckModal";
 import UploadModal from "../components/gmp/queue/UploadModal";
@@ -15,9 +15,20 @@ import DoctrackModal from "../components/reports/actions/DoctrackModal";
 import GMPReassignmentModal from "../components/gmp/queue/GMPReassignmentModal";
 import GMPRerouteModal from "../components/gmp/queue/GMPRerouteModal";
 import GMPApplicationInfoModal from "../components/gmp/queue/GMPApplicationInfoModal";
+import GMPDocumentsModal from "../components/gmp/queue/GMPDocumentsModal";
+import {
+  generateGMPTransmittalPDF,
+  generateGMPTransmittalExcel,
+  generateGMPTransmittal,
+} from "../components/tasks/DataTable/TransmittalGenerator";
 import { FONT } from "../components/gmp/shared/constants";
 
 const ACCENT = "#6366f1";
+
+// Default queue sort — also what "reset sort" (QueueTable's ✕ next to the
+// active sort arrow) returns to.
+const DEFAULT_SORT_BY = "GMP_DATE_EXCEL_UPLOAD";
+const DEFAULT_SORT_ORDER = "desc";
 
 // NOTE: "Update Application Info" is intentionally omitted — GMP has no
 // record-edit modal yet. Add it here once one exists.
@@ -29,9 +40,19 @@ const DBL_CLICK_OPTIONS = [
 ];
 
 const ADV_DEFAULTS = {
-  related_dtn: "", transaction_type: "all", est_category: "all", lto_company: "",
+  related_dtn: "", transaction_type: "all", est_category: "all", type_of_issuance: "all", lto_company: "",
   uploaded_by: "", upload_date_from: "", upload_date_to: "",
   date_received_from: "", date_received_to: "",
+  // Extra per-column fields — one filterable field per GMP Queue column
+  // that isn't already covered above or by the sidebar quick filters.
+  reference_no: "", lto_number: "", address: "",
+  foreign_manufacturer: "", foreign_manufacturer_address: "",
+  secpa_number: "", certificate_number: "", certificate_validity: "",
+  decision: "", processed_time: "", timeline: "", remarks: "", product_line: "",
+  released_date_from: "", released_date_to: "",
+  end_date_from: "", end_date_to: "",
+  date_printed_from: "", date_printed_to: "",
+  compliance_docs_date_received_from: "", compliance_docs_date_received_to: "",
 };
 
 const QUICK_LABEL_MAP = {
@@ -41,9 +62,22 @@ const QUICK_LABEL_MAP = {
 
 const ADV_LABEL_MAP = {
   related_dtn: "Related DTN", transaction_type: "Entry Type", est_category: "Est. Category",
+  type_of_issuance: "Issuance Type",
   lto_company: "LTO Company", uploaded_by: "Uploaded By",
   upload_date_from: "Upload From", upload_date_to: "Upload To",
   date_received_from: "Received From", date_received_to: "Received To",
+  reference_no: "Reference No", lto_number: "LTO Number", address: "Address",
+  foreign_manufacturer: "Foreign Manufacturer",
+  foreign_manufacturer_address: "Foreign Manufacturer Address",
+  secpa_number: "SECPA Number", certificate_number: "Certificate Number",
+  certificate_validity: "Certificate Validity", decision: "Decision",
+  processed_time: "Processed Time", timeline: "Timeline", remarks: "Remarks",
+  product_line: "Product Line",
+  released_date_from: "Released From", released_date_to: "Released To",
+  end_date_from: "End Date From", end_date_to: "End Date To",
+  date_printed_from: "Printed From", date_printed_to: "Printed To",
+  compliance_docs_date_received_from: "Compliance Docs From",
+  compliance_docs_date_received_to: "Compliance Docs To",
 };
 
 // Strips time from any date/datetime string, keeping only YYYY-MM-DD.
@@ -211,6 +245,7 @@ function AdvancedFilterModal({ open, draft, onChange, onApply, onCancel, onReset
     { key: "related_dtn",      label: "Related DTN",  type: "text",   placeholder: "Enter related DTN" },
     { key: "transaction_type", label: "Entry Type",   type: "select", options: getOptions("transaction_type") },
     { key: "est_category",     label: "Est. Category",type: "select", options: getOptions("est_category") },
+    { key: "type_of_issuance", label: "Issuance Type",type: "select", options: getOptions("type_of_issuance") },
     { key: "lto_company",      label: "LTO Company",  type: "text",   placeholder: "Search LTO company" },
     { key: "uploaded_by",      label: "Uploaded By",  type: "text",   placeholder: "Search uploader name" },
     { key: "upload_date_from", label: "Upload Date From", type: "date" },
@@ -218,6 +253,70 @@ function AdvancedFilterModal({ open, draft, onChange, onApply, onCancel, onReset
     { key: "date_received_from", label: "Date Received From", type: "date" },
     { key: "date_received_to",   label: "Date Received To",   type: "date" },
   ];
+
+  // One filterable field per GMP Queue column not already covered above or
+  // by the sidebar quick filters (Status/Category/Transaction Type/Issuance
+  // Type) — keeps filtering as complete as the "which columns show" picker.
+  const columnFields = [
+    { key: "reference_no",                   label: "Reference No",                type: "text", placeholder: "Search reference no." },
+    { key: "lto_number",                     label: "LTO Number",                  type: "text", placeholder: "Search LTO number" },
+    { key: "address",                        label: "Address",                     type: "text", placeholder: "Search address" },
+    { key: "foreign_manufacturer",           label: "Foreign Manufacturer",        type: "text", placeholder: "Search foreign manufacturer" },
+    { key: "foreign_manufacturer_address",   label: "Foreign Manufacturer Address",type: "text", placeholder: "Search manufacturer address" },
+    { key: "secpa_number",                   label: "SECPA Number",                type: "text", placeholder: "Search SECPA number" },
+    { key: "certificate_number",             label: "Certificate Number",          type: "text", placeholder: "Search certificate number" },
+    { key: "certificate_validity",           label: "Certificate Validity",        type: "text", placeholder: "Search certificate validity" },
+    { key: "decision",                       label: "Decision",                    type: "text", placeholder: "Search decision" },
+    { key: "processed_time",                 label: "Processed Time",              type: "text", placeholder: "Search processed time" },
+    { key: "timeline",                       label: "Timeline",                    type: "text", placeholder: "Search timeline" },
+    { key: "remarks",                        label: "Remarks",                     type: "text", placeholder: "Search remarks" },
+    { key: "product_line",                   label: "Product Line",                type: "text", placeholder: "Search product line" },
+  ];
+
+  const columnDateFields = [
+    { key: "released_date_from", label: "Released Date From", type: "date" },
+    { key: "released_date_to",   label: "Released Date To",   type: "date" },
+    { key: "end_date_from",      label: "End Date From",      type: "date" },
+    { key: "end_date_to",        label: "End Date To",        type: "date" },
+    { key: "date_printed_from",  label: "Date Printed From",  type: "date" },
+    { key: "date_printed_to",    label: "Date Printed To",    type: "date" },
+    { key: "compliance_docs_date_received_from", label: "Compliance Docs Date From", type: "date" },
+    { key: "compliance_docs_date_received_to",   label: "Compliance Docs Date To",   type: "date" },
+  ];
+
+  const renderFieldGrid = (list) => (
+    <div style={{
+      display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+      gap: 12,
+    }}>
+      {list.map((f) => (
+        <div key={f.key}>
+          <label style={advLabelSt(colors)}>{f.label}</label>
+          {f.type === "select" ? (
+            <select
+              value={draft[f.key]}
+              onChange={(e) => set(f.key, e.target.value)}
+              style={{ ...advInputSt(colors), cursor: "pointer" }}>
+              <option value="all">All {f.label}</option>
+              {f.options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} ({(opt.count ?? 0).toLocaleString()})
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type={f.type}
+              value={draft[f.key]}
+              placeholder={f.placeholder}
+              onChange={(e) => set(f.key, e.target.value)}
+              style={advInputSt(colors)}
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
 
   return createPortal(
     <div
@@ -263,37 +362,23 @@ function AdvancedFilterModal({ open, draft, onChange, onApply, onCancel, onReset
           }}>
             General Filters
           </div>
+          {renderFieldGrid(fields)}
+
           <div style={{
-            display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-            gap: 12,
+            fontSize: "0.62rem", fontWeight: 800, textTransform: "uppercase",
+            letterSpacing: "0.06em", color: colors.textTertiary, margin: "18px 0 12px",
           }}>
-            {fields.map((f) => (
-              <div key={f.key}>
-                <label style={advLabelSt(colors)}>{f.label}</label>
-                {f.type === "select" ? (
-                  <select
-                    value={draft[f.key]}
-                    onChange={(e) => set(f.key, e.target.value)}
-                    style={{ ...advInputSt(colors), cursor: "pointer" }}>
-                    <option value="all">All {f.label}</option>
-                    {f.options.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label} ({(opt.count ?? 0).toLocaleString()})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={f.type}
-                    value={draft[f.key]}
-                    placeholder={f.placeholder}
-                    onChange={(e) => set(f.key, e.target.value)}
-                    style={advInputSt(colors)}
-                  />
-                )}
-              </div>
-            ))}
+            Column Filters
           </div>
+          {renderFieldGrid(columnFields)}
+
+          <div style={{
+            fontSize: "0.62rem", fontWeight: 800, textTransform: "uppercase",
+            letterSpacing: "0.06em", color: colors.textTertiary, margin: "18px 0 12px",
+          }}>
+            Column Date Filters
+          </div>
+          {renderFieldGrid(columnDateFields)}
 
           <div style={{
             marginTop: 14, padding: "8px 12px", borderRadius: 8,
@@ -318,7 +403,7 @@ function AdvancedFilterModal({ open, draft, onChange, onApply, onCancel, onReset
             }}>
             Reset
           </button>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
             <button onClick={onCancel}
               style={{
                 padding: "9px 16px", fontSize: "0.78rem", fontWeight: 600,
@@ -413,6 +498,79 @@ function ActiveFiltersNotice({ activeQuick, advFilters, onRemoveQuick, onRemoveA
   );
 }
 
+function GMPTransmittalModal({ open, count, generating, onGenerate, onClose, colors, darkMode }) {
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      onClick={() => !generating && onClose()}
+      style={{
+        position: "fixed", inset: 0, zIndex: 10001,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: 14,
+          padding: "2rem",
+          width: 380,
+          maxWidth: "90%",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
+        }}>
+        <div style={{ fontSize: "2rem", marginBottom: "0.75rem", textAlign: "center" }}>📄</div>
+        <h3 style={{
+          margin: "0 0 0.5rem", color: colors.textPrimary,
+          fontSize: "1.05rem", fontWeight: 700, textAlign: "center",
+        }}>
+          Generate Transmittal
+        </h3>
+        <p style={{ margin: "0 0 1.5rem", color: colors.textTertiary, fontSize: "0.85rem", textAlign: "center" }}>
+          Choose format for{" "}
+          <strong style={{ color: ACCENT }}>{count}</strong>{" "}
+          selected application{count > 1 ? "s" : ""}.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          {[
+            { fmt: "pdf",   label: "📕 PDF only",         bg: "linear-gradient(135deg,#dc2626,#b91c1c)" },
+            { fmt: "excel", label: "📗 Excel only",        bg: "linear-gradient(135deg,#16a34a,#15803d)" },
+            { fmt: "both",  label: "📄 Both PDF & Excel",  bg: "linear-gradient(135deg,#1976d2,#1565c0)" },
+          ].map((b) => (
+            <button
+              key={b.fmt}
+              onClick={() => onGenerate(b.fmt)}
+              disabled={generating}
+              style={{
+                padding: "0.65rem 1rem", borderRadius: 8, border: "none",
+                background: b.bg, color: "#fff", fontSize: "0.85rem", fontWeight: 700,
+                cursor: generating ? "not-allowed" : "pointer",
+                opacity: generating ? 0.6 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={onClose}
+          disabled={generating}
+          style={{
+            marginTop: "1rem", width: "100%", padding: "0.5rem", borderRadius: 8,
+            border: `1px solid ${colors.cardBorder}`, background: "transparent",
+            color: colors.textTertiary, fontSize: "0.8rem", cursor: generating ? "not-allowed" : "pointer",
+          }}>
+          Cancel
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function GMPQueuePage({ darkMode = false }) {
   const colors = getColorScheme(darkMode);
 
@@ -445,13 +603,39 @@ export default function GMPQueuePage({ darkMode = false }) {
   const [advFilters,     setAdvFilters]     = useState(ADV_DEFAULTS);
   const [advDraft,       setAdvDraft]       = useState(ADV_DEFAULTS);
   const [selected,       setSelected]       = useState([]);
-  const [collapsed,      setCollapsed]      = useState(false);
-  const [sortBy,         setSortBy]         = useState("GMP_DATE_EXCEL_UPLOAD");
-  const [sortOrder,      setSortOrder]      = useState("desc");
+  // Persisted across sessions — a refresh or navigating back should leave
+  // the Quick Filters sidebar exactly as the user last left it.
+  const [collapsed,      setCollapsed]      = useState(
+    () => localStorage.getItem("gmp_queue_quick_filters_collapsed") === "true"
+  );
+  useEffect(() => {
+    localStorage.setItem("gmp_queue_quick_filters_collapsed", String(collapsed));
+  }, [collapsed]);
+  const [sortBy,         setSortBy]         = useState(DEFAULT_SORT_BY);
+  const [sortOrder,      setSortOrder]      = useState(DEFAULT_SORT_ORDER);
   const [dblClickAction, setDblClickAction] = useState(
     () => localStorage.getItem("gmpQueueDblClickAction") || "viewInfo"
   );
   const [showDblClickConfig, setShowDblClickConfig] = useState(false);
+
+  // Which table columns the user wants to see — persisted across sessions
+  // so a refresh doesn't reset a deliberately trimmed-down view. Starts
+  // with every column checked.
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    try {
+      const stored = localStorage.getItem("gmpQueueVisibleColumns");
+      return stored ? JSON.parse(stored) : GMP_QUEUE_COLUMNS.map((c) => c.key);
+    } catch { return GMP_QUEUE_COLUMNS.map((c) => c.key); }
+  });
+  useEffect(() => {
+    localStorage.setItem("gmpQueueVisibleColumns", JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+  const [showColumnConfig, setShowColumnConfig] = useState(false);
+  const toggleColumn = (key) => {
+    setVisibleColumns((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
 
   // Modals
   const [logRecord,     setLogRecord]     = useState(null);
@@ -463,6 +647,9 @@ export default function GMPQueuePage({ darkMode = false }) {
   const [reassignRecord, setReassignRecord] = useState(null);
   const [rerouteRecord,  setRerouteRecord]  = useState(null);
   const [infoRecord, setInfoRecord] = useState(null);
+  const [docsRecord, setDocsRecord] = useState(null);
+  const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
+  const [generatingTransmittal, setGeneratingTransmittal] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -486,33 +673,59 @@ export default function GMPQueuePage({ darkMode = false }) {
 
   useEffect(() => { loadFilterCounts(); }, [loadFilterCounts]);
 
+  // Filter/search/sort params shared between the paginated list fetch and
+  // the "export everything matching the current view" button — keeping
+  // these in one place means Export can never drift out of sync with what
+  // the table is actually showing.
+  const buildFilterParams = useCallback(() => ({
+    sort_by:   sortBy,
+    sort_order: sortOrder,
+    ...(search && { search }),
+    ...(topTab !== "all" && { tab: topTab }),
+    ...(view !== "all" && { view }),
+    ...(view === "main" && duplicatesOnly && { duplicates_only: true }),
+    ...(activeQuick.app_status       && activeQuick.app_status       !== "all" && { app_status:       activeQuick.app_status }),
+    ...(activeQuick.est_category     && activeQuick.est_category     !== "all" && { est_category:     activeQuick.est_category }),
+    ...(activeQuick.transaction_type && activeQuick.transaction_type !== "all" && { transaction_type: activeQuick.transaction_type }),
+    ...(activeQuick.type_of_issuance && activeQuick.type_of_issuance !== "all" && { type_of_issuance: activeQuick.type_of_issuance }),
+    ...(advFilters.related_dtn && { related_dtn: advFilters.related_dtn }),
+    ...(advFilters.transaction_type !== "all" && { transaction_type: advFilters.transaction_type }),
+    ...(advFilters.est_category !== "all" && { est_category: advFilters.est_category }),
+    ...(advFilters.type_of_issuance !== "all" && { type_of_issuance: advFilters.type_of_issuance }),
+    ...(advFilters.lto_company && { lto_company: advFilters.lto_company }),
+    ...(advFilters.uploaded_by && { uploaded_by: advFilters.uploaded_by }),
+    ...(advFilters.upload_date_from && { upload_date_from: advFilters.upload_date_from }),
+    ...(advFilters.upload_date_to && { upload_date_to: advFilters.upload_date_to }),
+    ...(advFilters.date_received_from && { date_received_from: advFilters.date_received_from }),
+    ...(advFilters.date_received_to && { date_received_to: advFilters.date_received_to }),
+    ...(advFilters.reference_no && { reference_no: advFilters.reference_no }),
+    ...(advFilters.lto_number && { lto_number: advFilters.lto_number }),
+    ...(advFilters.address && { address: advFilters.address }),
+    ...(advFilters.foreign_manufacturer && { foreign_manufacturer: advFilters.foreign_manufacturer }),
+    ...(advFilters.foreign_manufacturer_address && { foreign_manufacturer_address: advFilters.foreign_manufacturer_address }),
+    ...(advFilters.secpa_number && { secpa_number: advFilters.secpa_number }),
+    ...(advFilters.certificate_number && { certificate_number: advFilters.certificate_number }),
+    ...(advFilters.certificate_validity && { certificate_validity: advFilters.certificate_validity }),
+    ...(advFilters.decision && { decision: advFilters.decision }),
+    ...(advFilters.processed_time && { processed_time: advFilters.processed_time }),
+    ...(advFilters.timeline && { timeline: advFilters.timeline }),
+    ...(advFilters.remarks && { remarks: advFilters.remarks }),
+    ...(advFilters.product_line && { product_line: advFilters.product_line }),
+    ...(advFilters.released_date_from && { released_date_from: advFilters.released_date_from }),
+    ...(advFilters.released_date_to && { released_date_to: advFilters.released_date_to }),
+    ...(advFilters.end_date_from && { end_date_from: advFilters.end_date_from }),
+    ...(advFilters.end_date_to && { end_date_to: advFilters.end_date_to }),
+    ...(advFilters.date_printed_from && { date_printed_from: advFilters.date_printed_from }),
+    ...(advFilters.date_printed_to && { date_printed_to: advFilters.date_printed_to }),
+    ...(advFilters.compliance_docs_date_received_from && { compliance_docs_date_received_from: advFilters.compliance_docs_date_received_from }),
+    ...(advFilters.compliance_docs_date_received_to && { compliance_docs_date_received_to: advFilters.compliance_docs_date_received_to }),
+  }), [search, topTab, view, duplicatesOnly, activeQuick, advFilters, sortBy, sortOrder]);
+
   // Load records
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const params = {
-        page,
-        page_size: pageSize,
-        sort_by:   sortBy,
-        sort_order: sortOrder,
-        ...(search && { search }),
-        ...(topTab !== "all" && { tab: topTab }),
-        ...(view !== "all" && { view }),
-        ...(view === "main" && duplicatesOnly && { duplicates_only: true }),
-        ...(activeQuick.app_status       && activeQuick.app_status       !== "all" && { app_status:       activeQuick.app_status }),
-        ...(activeQuick.est_category     && activeQuick.est_category     !== "all" && { est_category:     activeQuick.est_category }),
-        ...(activeQuick.transaction_type && activeQuick.transaction_type !== "all" && { transaction_type: activeQuick.transaction_type }),
-        ...(activeQuick.type_of_issuance && activeQuick.type_of_issuance !== "all" && { type_of_issuance: activeQuick.type_of_issuance }),
-        ...(advFilters.related_dtn && { related_dtn: advFilters.related_dtn }),
-        ...(advFilters.transaction_type !== "all" && { transaction_type: advFilters.transaction_type }),
-        ...(advFilters.est_category !== "all" && { est_category: advFilters.est_category }),
-        ...(advFilters.lto_company && { lto_company: advFilters.lto_company }),
-        ...(advFilters.uploaded_by && { uploaded_by: advFilters.uploaded_by }),
-        ...(advFilters.upload_date_from && { upload_date_from: advFilters.upload_date_from }),
-        ...(advFilters.upload_date_to && { upload_date_to: advFilters.upload_date_to }),
-        ...(advFilters.date_received_from && { date_received_from: advFilters.date_received_from }),
-        ...(advFilters.date_received_to && { date_received_to: advFilters.date_received_to }),
-      };
+      const params = { page, page_size: pageSize, ...buildFilterParams() };
       const data = await getGMPRecords(params);
       setRows((data.data ?? []).map(mapGMPRecord));
       setTotal(data.total ?? 0);
@@ -523,9 +736,47 @@ export default function GMPQueuePage({ darkMode = false }) {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, search, topTab, view, duplicatesOnly, activeQuick, advFilters, sortBy, sortOrder]);
+  }, [page, pageSize, buildFilterParams]);
+
+  const [exporting, setExporting] = useState(false);
+  const handleExport = async () => {
+    if (exporting || total === 0) return;
+    setExporting(true);
+    try {
+      await exportFilteredGMPRecords(buildFilterParams());
+    } catch (e) {
+      console.error("Failed to export GMP records", e);
+      alert("Failed to export records. Check that the backend is running.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
+
+  // Column-header sorting (QueueTable) — clicking an unsorted/different
+  // column sorts it ascending; clicking the already-active column flips
+  // asc/desc. `sortBy`/`sortOrder` already feed the backend query (see
+  // buildFilterParams), so this is purely wiring a UI trigger onto state
+  // that was already being sent — no backend changes needed.
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+    setPage(1);
+  };
+
+  // Explicit reset — the ✕ next to QueueTable's active sort arrow — since
+  // clicking a header only toggles asc/desc and never lands back on "no
+  // sort applied" on its own.
+  const handleResetSort = () => {
+    setSortBy(DEFAULT_SORT_BY);
+    setSortOrder(DEFAULT_SORT_ORDER);
+    setPage(1);
+  };
 
   const handleSidebarSelect = (key, value) => {
     setActiveQuick((prev) => ({
@@ -534,12 +785,13 @@ export default function GMPQueuePage({ darkMode = false }) {
       // Clicking a different item selects it (radio behaviour — 1 per group)
       [key]: prev[key] === value || value === "all" ? "all" : value,
     }));
-    // est_category/transaction_type also exist as Advanced filter fields —
-    // an Advanced value silently overrides the same key in fetchRecords'
-    // param spread, so a sidebar click here would highlight as active but
-    // have no effect on the actual results unless the Advanced value is
-    // cleared too (mirrors what applyAdvanced does in the other direction).
-    if (key === "est_category" || key === "transaction_type") {
+    // est_category/transaction_type/type_of_issuance also exist as Advanced
+    // filter fields — an Advanced value silently overrides the same key in
+    // fetchRecords' param spread, so a sidebar click here would highlight as
+    // active but have no effect on the actual results unless the Advanced
+    // value is cleared too (mirrors what applyAdvanced does in the other
+    // direction).
+    if (key === "est_category" || key === "transaction_type" || key === "type_of_issuance") {
       setAdvFilters((prev) => ({ ...prev, [key]: "all" }));
     }
     setPage(1);
@@ -554,6 +806,7 @@ export default function GMPQueuePage({ darkMode = false }) {
       ...prev,
       ...(advDraft.est_category     !== "all" && { est_category: "all" }),
       ...(advDraft.transaction_type !== "all" && { transaction_type: "all" }),
+      ...(advDraft.type_of_issuance !== "all" && { type_of_issuance: "all" }),
     }));
     setShowAdvanced(false);
     setPage(1);
@@ -590,6 +843,27 @@ export default function GMPQueuePage({ darkMode = false }) {
 
   const activeFilterCount = Object.values(activeQuick).filter((v) => v && v !== "all").length;
 
+  const handleGenerateTransmittal = async (format = "both") => {
+    const selectedData = rows.filter((r) => selected.includes(r.id));
+    if (!selectedData.length) return;
+    setGeneratingTransmittal(true);
+    try {
+      if (format === "pdf") {
+        await generateGMPTransmittalPDF(selectedData, topTab);
+      } else if (format === "excel") {
+        await generateGMPTransmittalExcel(selectedData, topTab);
+      } else {
+        await generateGMPTransmittal(selectedData, topTab);
+      }
+    } catch (err) {
+      console.error("GMP transmittal generation failed:", err);
+      alert("Failed to generate transmittal. Please try again or reduce the number of selected records.");
+    } finally {
+      setGeneratingTransmittal(false);
+      setShowTransmittalChoice(false);
+    }
+  };
+
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: FONT,
       background: colors.pageBg, color: colors.textPrimary }}>
@@ -602,14 +876,25 @@ export default function GMPQueuePage({ darkMode = false }) {
         colors={colors} darkMode={darkMode} />
 
       {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column", overflow: "hidden",
+        padding: "6px 8px 8px", gap: 8, boxSizing: "border-box", minWidth: 0,
+      }}>
+        {/* Toolbar card — top bar + search share one soft, rounded surface
+            instead of flush bars butted against the viewport edge. Record
+            count/filters live with the table below instead (its own card),
+            since that row is really the table's header, not toolbar chrome. */}
+        <div style={{
+          borderRadius: 14, overflow: "hidden", boxShadow: colors.cardShadow,
+          flexShrink: 0,
+        }}>
         {/* Top bar */}
         <div style={{
-          padding: "10px 18px", borderBottom: `1px solid ${colors.cardBorder}`,
+          padding: "9px 14px", borderBottom: `1px solid ${colors.cardBorder}`,
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          flexWrap: "wrap", gap: 10, background: colors.cardBg, flexShrink: 0,
+          flexWrap: "wrap", gap: 8, background: colors.cardBg, flexShrink: 0,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flexShrink: 1, minWidth: 0 }}>
             <TopTabs active={topTab} onChange={(v) => { setTopTab(v); setPage(1); setSelected([]); }}
               counts={counts} colors={colors} />
 
@@ -618,6 +903,7 @@ export default function GMPQueuePage({ darkMode = false }) {
             <div style={{
               display: "flex", gap: 2, padding: 2, borderRadius: 9,
               background: darkMode ? "rgba(255,255,255,0.05)" : "#f1f5f9",
+              flexShrink: 0,
             }}>
               {[
                 { id: "main", label: "Per DTN", icon: "🏢" },
@@ -628,8 +914,8 @@ export default function GMPQueuePage({ darkMode = false }) {
                   <button key={v.id}
                     onClick={() => { setView(v.id); if (v.id !== "main") setDuplicatesOnly(false); setPage(1); }}
                     style={{
-                      display: "flex", alignItems: "center", gap: 5,
-                      padding: "5px 11px", fontSize: "0.73rem", fontWeight: isActive ? 700 : 500,
+                      display: "flex", alignItems: "center", gap: 4,
+                      padding: "5px 9px", fontSize: "0.7rem", fontWeight: isActive ? 700 : 500,
                       fontFamily: FONT, border: "none", borderRadius: 7, cursor: "pointer",
                       background: isActive ? colors.cardBg : "transparent",
                       color: isActive ? colors.textPrimary : colors.textTertiary,
@@ -642,7 +928,7 @@ export default function GMPQueuePage({ darkMode = false }) {
               })}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
             {/* Download Template */}
             <button
               onClick={async () => {
@@ -653,7 +939,7 @@ export default function GMPQueuePage({ darkMode = false }) {
                 }
               }}
               style={{
-                padding: "7px 13px", fontSize: "0.75rem", fontWeight: 600,
+                padding: "7px 14px", fontSize: "0.75rem", fontWeight: 700,
                 fontFamily: FONT, borderRadius: 8,
                 border: `1px solid ${colors.cardBorder}`,
                 background: "transparent", color: colors.textPrimary,
@@ -667,36 +953,40 @@ export default function GMPQueuePage({ darkMode = false }) {
             <button
               onClick={() => setShowUpload(true)}
               style={{
-                padding: "7px 14px", fontSize: "0.75rem", fontWeight: 700,
+                padding: "6px 11px", fontSize: "0.72rem", fontWeight: 700,
                 fontFamily: FONT, borderRadius: 8, border: "none",
                 background: ACCENT, color: "#fff",
                 cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
                 boxShadow: `0 2px 8px ${ACCENT}44`,
               }}
             >
-              📤 Upload New Report
+              📤 Upload New Data
             </button>
 
-            {/* Refresh */}
-            <button onClick={() => { fetchRecords(); loadFilterCounts(); }}
+            {/* Export */}
+            <button
+              onClick={handleExport}
+              disabled={exporting || total === 0}
               style={{
                 padding: "7px 13px", fontSize: "0.75rem", fontWeight: 600,
                 fontFamily: FONT, borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
-                background: "transparent", color: colors.textTertiary, cursor: "pointer",
+                background: "transparent", color: colors.textTertiary,
+                cursor: exporting || total === 0 ? "not-allowed" : "pointer",
+                opacity: exporting || total === 0 ? 0.6 : 1,
                 display: "flex", alignItems: "center", gap: 5,
               }}>
-              🔄 Refresh
+              {exporting ? "⏳ Exporting…" : `📥 Export (${total.toLocaleString()})`}
             </button>
           </div>
         </div>
 
         {/* Search row */}
         <div style={{
-          padding: "10px 18px", borderBottom: `1px solid ${colors.cardBorder}`,
+          padding: "9px 14px",
           background: colors.cardBg, flexShrink: 0,
-          display: "flex", gap: 10, alignItems: "center",
+          display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap",
         }}>
-          <div style={{ flex: 1, minWidth: 260, position: "relative" }}>
+          <div style={{ flex: "1 1 220px", minWidth: 180, position: "relative" }}>
             <span style={{
               position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
               color: colors.textTertiary, fontSize: "0.82rem", pointerEvents: "none",
@@ -727,12 +1017,21 @@ export default function GMPQueuePage({ darkMode = false }) {
             ⚙️ Advanced
           </button>
         </div>
+        </div>
+        {/* end toolbar card */}
 
+        {/* Table card — record count/filters row is this card's header,
+            directly above the table it describes, instead of living with
+            the toolbar above. */}
+        <div style={{
+          flex: 1, overflow: "hidden", display: "flex", flexDirection: "column",
+          background: colors.cardBg, borderRadius: 14, boxShadow: colors.cardShadow,
+        }}>
         {/* Record count */}
         <div style={{
-          padding: "8px 18px", borderBottom: `1px solid ${colors.cardBorder}`,
+          padding: "9px 16px", borderBottom: `1px solid ${colors.divider}`,
           background: colors.cardBg, flexShrink: 0,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
+          display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: "0.78rem", fontWeight: 600, color: colors.textPrimary, flexShrink: 0 }}>
@@ -835,6 +1134,77 @@ export default function GMPQueuePage({ darkMode = false }) {
               )}
             </div>
 
+            {/* Toggle Columns — which of the 29 GMP fields actually render */}
+            <div style={{ position: "relative" }}>
+              <button onClick={() => setShowColumnConfig((v) => !v)}
+                title="Choose which columns to show"
+                style={{
+                  padding: "4px 9px", fontSize: "0.66rem", fontWeight: 600,
+                  fontFamily: FONT, borderRadius: 6,
+                  border: `1px solid ${showColumnConfig ? "#4CAF50" : colors.cardBorder}`,
+                  background: showColumnConfig ? "rgba(76,175,80,0.1)" : "transparent",
+                  color: showColumnConfig ? "#4CAF50" : colors.textTertiary,
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                🧩 Columns{" "}
+                <span style={{ fontSize: "0.68rem" }}>
+                  {visibleColumns.length}/{GMP_QUEUE_COLUMNS.length}
+                </span>
+              </button>
+
+              {showColumnConfig && (
+                <>
+                  <div onClick={() => setShowColumnConfig(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 9997 }} />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 6px)", right: 0,
+                    background: colors.cardBg, border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+                    minWidth: 240, maxHeight: 340, overflowY: "auto", zIndex: 9998,
+                  }}>
+                    <div style={{
+                      position: "sticky", top: 0, background: colors.cardBg,
+                      padding: "8px 14px", fontSize: "0.6rem", fontWeight: 700,
+                      color: colors.textTertiary, textTransform: "uppercase",
+                      letterSpacing: "0.08em", borderBottom: `1px solid ${colors.cardBorder}`,
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                    }}>
+                      <span>Columns to show</span>
+                      <span style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => setVisibleColumns(GMP_QUEUE_COLUMNS.map((c) => c.key))}
+                          style={{ border: "none", background: "transparent", color: "#4CAF50", fontSize: "0.6rem", fontWeight: 700, cursor: "pointer", padding: 0 }}>
+                          All
+                        </button>
+                        <button onClick={() => setVisibleColumns([])}
+                          style={{ border: "none", background: "transparent", color: "#ef4444", fontSize: "0.6rem", fontWeight: 700, cursor: "pointer", padding: 0 }}>
+                          None
+                        </button>
+                      </span>
+                    </div>
+                    {GMP_QUEUE_COLUMNS.map((col) => {
+                      const isChecked = visibleColumns.includes(col.key);
+                      return (
+                        <label key={col.key} onClick={() => toggleColumn(col.key)}
+                          style={{
+                            width: "100%", padding: "7px 14px",
+                            borderTop: `1px solid ${colors.cardBorder}`,
+                            display: "flex", alignItems: "center", gap: 8,
+                            fontSize: "0.78rem", cursor: "pointer",
+                            color: isChecked ? colors.textPrimary : colors.textTertiary,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = colors.badgeBg; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                          <input type="checkbox" checked={isChecked} readOnly style={{ cursor: "pointer", flexShrink: 0 }} />
+                          <span>{col.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
             {selected.length > 0 && topTab === "not_yet_decked" && (
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{
@@ -869,11 +1239,44 @@ export default function GMPQueuePage({ darkMode = false }) {
               </button>
             </div>
             )}
+
+            {selected.length > 0 && topTab === "all" && (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{
+                fontSize: "0.78rem", fontWeight: 700, color: ACCENT,
+                background: "rgba(99,102,241,0.12)",
+                border: `1px solid ${ACCENT}4d`,
+                padding: "6px 14px", borderRadius: 99,
+                display: "flex", alignItems: "center", gap: 5,
+              }}>
+                ✔ {selected.length} selected
+              </span>
+              <button
+                onClick={() => setShowTransmittalChoice(true)}
+                style={{
+                  padding: "8px 18px", fontSize: "0.8rem", fontWeight: 700,
+                  fontFamily: FONT, borderRadius: 10, cursor: "pointer",
+                  border: "none",
+                  background: "linear-gradient(135deg,#1976d2,#1565c0)",
+                  color: "#fff", display: "flex", alignItems: "center", gap: 7,
+                  boxShadow: "0 3px 10px rgba(25,118,210,0.4)",
+                  transition: "transform 0.12s, box-shadow 0.12s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-1px)";
+                  e.currentTarget.style.boxShadow = "0 5px 14px rgba(25,118,210,0.5)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.boxShadow = "0 3px 10px rgba(25,118,210,0.4)";
+                }}>
+                📄 Generate Transmittal
+              </button>
+            </div>
+            )}
           </div>
         </div>
 
-        {/* Table */}
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", background: colors.cardBg }}>
           <QueueTable
             rows={rows} loading={loading} selected={selected}
             onSelect={handleSelect} onSelectAll={handleSelectAll}
@@ -887,7 +1290,12 @@ export default function GMPQueuePage({ darkMode = false }) {
             onOpenReassign={(r) => setReassignRecord(r)}
             onOpenReroute={(r) => setRerouteRecord(r)}
             onOpenInfo={(r) => setInfoRecord(r)}
+            onOpenDocuments={(r) => setDocsRecord(r)}
             onDoubleClickRow={handleDoubleClickRow}
+            visibleColumns={visibleColumns}
+            sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}
+            isDefaultSort={sortBy === DEFAULT_SORT_BY && sortOrder === DEFAULT_SORT_ORDER}
+            onResetSort={handleResetSort}
           />
           <Pagination
             page={page} totalPages={totalPages} total={total} pageSize={pageSize}
@@ -957,9 +1365,26 @@ export default function GMPQueuePage({ darkMode = false }) {
         <GMPApplicationInfoModal
           record={infoRecord}
           onClose={() => setInfoRecord(null)}
+          onUpdated={fetchRecords}
           colors={colors} darkMode={darkMode}
         />
       )}
+      {docsRecord && (
+        <GMPDocumentsModal
+          record={docsRecord}
+          onClose={() => setDocsRecord(null)}
+          colors={colors} darkMode={darkMode}
+        />
+      )}
+
+      <GMPTransmittalModal
+        open={showTransmittalChoice}
+        count={selected.length}
+        generating={generatingTransmittal}
+        onGenerate={handleGenerateTransmittal}
+        onClose={() => !generatingTransmittal && setShowTransmittalChoice(false)}
+        colors={colors} darkMode={darkMode}
+      />
 
       <AdvancedFilterModal
         open={showAdvanced}

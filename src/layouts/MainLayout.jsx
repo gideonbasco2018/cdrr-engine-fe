@@ -81,6 +81,8 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("monitoring")) return "monitoring";
     if (path.includes("appCorrection")) return "appCorrection";
     if (path.includes("document-rename")) return "document-rename";
+    if (path.includes("bulk-folder-document-upload")) return "bulk-folder-document-upload";
+    if (path.includes("upload-document")) return "upload-document";
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
 
@@ -210,7 +212,7 @@ function MainLayout({ darkMode, setDarkMode }) {
         userGroup={userGroup}
       />
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"auto" }}>
-        <Navbar darkMode={darkMode} setDarkMode={setDarkMode} userRole={userRole} />
+        <Navbar darkMode={darkMode} setDarkMode={setDarkMode} userRole={userRole} activeMenu={activeMenu} />
         {renderContent()}
       </div>
     </div>

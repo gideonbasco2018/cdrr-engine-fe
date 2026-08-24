@@ -16,6 +16,10 @@ export function SectionCard({
         borderRadius: 16,
         overflow: "hidden",
         boxShadow: neuShadow(darkMode),
+        height: "100%",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div
@@ -25,6 +29,7 @@ export function SectionCard({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          flexShrink: 0,
         }}
       >
         <div>
@@ -53,7 +58,17 @@ export function SectionCard({
         </div>
         {action}
       </div>
-      <div style={{ padding: "16px 18px" }}>{children}</div>
+      <div
+        style={{
+          padding: "16px 18px",
+          flex: "1 1 auto",
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

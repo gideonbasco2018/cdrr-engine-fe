@@ -11,14 +11,10 @@ export const GMP_EVALUATOR_GROUP_ID = 31;
 
 const DECISIONS = [
   "Forwarded to Evaluator",
-  "Hold",
-  "Disapprove",
 ];
 
 const DOCTRACK_DEFAULTS = {
-  "Forwarded to Evaluator": "Forwarded to GMP Evaluator",
-  "Hold":                   "GMP Application placed on hold",
-  "Disapprove":             "GMP Application disapproved",
+  "Forwarded to Evaluator": "FGMP Application received, encoded and decked to evaluator",
 };
 
 const MODAL_CSS = `
@@ -197,7 +193,12 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
           action:              decision,
           recommendation:      "",
           remarks:             deckerRemarks,
-          doctrack_remarks:    doctrackEnabled ? doctrackRemarks.trim() : "",
+          // Always recorded on our own application log — mirrors WorkflowModal:
+          // `doctrackEnabled` only controls whether this text is ALSO pushed to
+          // the external FIS Doctrack system above; it must not gate our own
+          // history, or every deck submitted with the toggle off silently loses
+          // its remarks.
+          doctrack_remarks:    doctrackRemarks.trim(),
           next_assignee_name:  needsEvaluator ? evaluator : null,
           next_assignee_id:    null,
         });
@@ -212,7 +213,7 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
           action:              decision,
           recommendation:      "",
           remarks:             deckerRemarks,
-          doctrack_remarks:    doctrackEnabled ? doctrackRemarks.trim() : "",
+          doctrack_remarks:    doctrackRemarks.trim(),
           next_assignee_name:  needsEvaluator ? evaluator : null,
           next_assignee_id:    null,
         });
@@ -386,9 +387,6 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
                 style={{ ...inp, resize: "vertical", fontFamily: FONT, opacity: doctrackEnabled ? 1 : 0.45, cursor: doctrackEnabled ? "text" : "not-allowed" }}
                 onFocus={(e) => { if (doctrackEnabled) e.target.style.borderColor = "#2196F3"; }}
                 onBlur={(e)  => { e.target.style.borderColor = colors.inputBorder; }} />
-              <p style={{ fontSize: "0.67rem", color: colors.textTertiary, marginTop: 4, marginBottom: 0 }}>
-                💡 Default based on selected decision. Edit if needed.
-              </p>
             </div>
           )}
 

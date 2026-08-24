@@ -19,13 +19,8 @@ import {
   updateGMPIssuanceFields,
 } from "../../../api/gmp";
 import { getUsersByGroup } from "../../../api/auth";
-// ⚠️ Verify this import path + function signatures against your actual
-// src/api/application-documents.js file — adjust if different.
-import {
-  uploadApplicationDocumentsBatch,
-  getApplicationDocumentsByDtn,
-} from "../../../api/application-documents";
 import { FONT, GMP_STEPS, GMP_STATUS_COLORS } from "../shared/constants";
+import ApplicationDocumentsPanel from "../shared/ApplicationDocumentsPanel";
 
 const ACCENT = "#10b981";
 const MODAL_CSS = `
@@ -105,10 +100,16 @@ function isDarkColors(colors) {
   return colors.cardBg !== "#ffffff";
 }
 function editableFieldBg(colors) {
-  return isDarkColors(colors) ? "rgba(255,255,255,0.06)" : "#eef1f6";
+  return isDarkColors(colors) ? "rgba(255,255,255,0.045)" : "#ffffff";
 }
 function editableFieldInnerBg(colors) {
-  return isDarkColors(colors) ? "rgba(255,255,255,0.13)" : "#ffffff";
+  return isDarkColors(colors) ? "rgba(255,255,255,0.09)" : "#f6faf8";
+}
+// Soft-modern field-card shadow — replaces the old flat 1px border as the
+// primary surface cue, so cards read as gently lifted rather than boxed in.
+function fieldCardShadow(colors, isDirty) {
+  if (isDirty) return "0 4px 14px -6px rgba(245,158,11,0.35)";
+  return isDarkColors(colors) ? "0 2px 8px -4px rgba(0,0,0,0.4)" : "0 2px 10px -6px rgba(16,60,40,0.14)";
 }
 
 // Strips time from any date/datetime string down to YYYY-MM-DD, which is the
@@ -158,11 +159,13 @@ const GMP_DOCTRACK_REMARKS = {
   "Return to QA Admin":             "Returned to GMP QA Admin",
   "Endorsed to OD - Releasing":     "Received by CDRR - OD; Forwarded to CDRR OIC - Director for Signature",
   "Return to LRD Chief Admin":      "Returned to LRD Chief Admin",
+  "Forwarded to CDRR FGMP":          "Reviewed by FROO; Returned to GMP Evaluator",
 };
 
 // Workflow: Decking → Evaluator → Checker → Evaluator → QA Admin
 //           → LRD Chief Admin (For Signing) → OD Receiving (For Signing of Director)
-//           → OD Releasing
+//           → OD Releasing, which is the end of the workflow for every
+//           issuance type.
 // The "FGMP Supervisor" group/step has been removed — the Evaluator now
 // endorses directly to QA Admin after being cleared by the Checker.
 const GMP_STEP_DECISIONS = {
@@ -171,6 +174,13 @@ const GMP_STEP_DECISIONS = {
   "LRD Chief Admin":   ["Forwarded to OD Receiving", "Return to QA Admin", "Disapprove"],
   "OD Receiving":      ["Endorsed to OD - Releasing", "Return to LRD Chief Admin"],
   "OD Releasing":      ["Scanned, Stamped and Forwarded to AFO Records"],
+  // Legacy detour step — OD Releasing no longer routes new NFI submissions
+  // here (mirrors the removed redirect in app/crud/gmp_record.py's
+  // resolve_next_step()). Kept only so records already on this step from
+  // before that change can still be advanced: this action hands the
+  // application back to the Evaluator, which then runs the usual
+  // Evaluator ⇄ Checker → … → OD Releasing sequence to the end.
+  "FROO":              ["Forwarded to CDRR FGMP"],
 };
 
 // ── Evaluator ⇄ Checker loop ─────────────────────────────────────────
@@ -316,6 +326,9 @@ const GMP_ACTION_ASSIGNEE_GROUPS = {
   "Endorsed to LRD Chief Admin": { groupId: 17, shortLabel: "LRD Chief Admin",  groupLabel: "LRD Chief Admin Group" },
   "Forwarded to OD Receiving":   { groupId: 18, shortLabel: "OD Receiving",     groupLabel: "OD Receiving Group" },
   "Endorsed to OD - Releasing":  { groupId: 19, shortLabel: "OD Releasing",     groupLabel: "OD Releasing Group" },
+  // FROO hands the NFI back to the Evaluator — same target group as the
+  // Checker's "Endorsed to Evaluator", different action string.
+  "Forwarded to CDRR FGMP":       { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
 };
 // Resolves task.applicationStep to the canonical "Evaluator" / "Checker" key used
 // by GMP_EVAL_CHECKER_ACTIONS / GMP_REMARKS_PRESETS below. Accepts both the new
@@ -384,7 +397,7 @@ const FIELD_LABELS = {
   GMP_TIMELINE: "Timeline", GMP_REMARKS: "Remarks",
   GMP_CERTIFICATE_NUMBER: "Certificate Number", GMP_TYPE_OF_ISSUANCE: "Type of Issuance",
   GMP_CERTIFICATE_VALIDITY: "Certificate Validity", GMP_SECPA_NUMBER: "SECPA Number",
-  GMP_DECISION: "Decision", GMP_RELEASED_DATE: "Released Date", GMP_DATE_PRINTED: "Date Printed",
+  GMP_DECISION: "Recommendation", GMP_RELEASED_DATE: "Released Date", GMP_DATE_PRINTED: "Date Printed",
   GMP_END_DATE: "End Date", GMP_PROCESSED_TIME: "Processed Time", GMP_RELATED_DTN: "Related DTN",
   GMP_NOD_DATE_1: "1st Date of NOD", GMP_NOD_DATE_2: "2nd Date of NOD",
   GMP_NOD_DATE_3: "3rd Date of NOD", GMP_NOD_DATE_4: "4th Date of NOD", GMP_NOD_DATE_5: "5th Date of NOD",
@@ -404,8 +417,8 @@ const GMP_MODAL_STEP_LABELS = ["Details", "Documents", "Logs", "Action"];
 function StepTabs({ active, colors, darkMode }) {
   return (
     <div style={{
-      flexShrink: 0, padding: "8px 20px",
-      background: darkMode ? "#141516" : "#f8fafc",
+      flexShrink: 0, padding: "12px 22px",
+      background: darkMode ? "rgba(255,255,255,0.02)" : "rgba(16,185,129,0.03)",
       borderBottom: `1px solid ${colors.cardBorder}`,
       display: "flex", alignItems: "center",
     }}>
@@ -415,25 +428,32 @@ function StepTabs({ active, colors, darkMode }) {
         const isDone = active > id;
         return (
           <React.Fragment key={id}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 7, flexShrink: 0,
+              padding: "5px 10px 5px 5px", borderRadius: 999,
+              background: isActive ? (darkMode ? "rgba(16,185,129,0.14)" : "#e7f8f0") : "transparent",
+              transition: "background 0.18s",
+            }}>
               <span style={{
-                width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "0.6rem", fontWeight: 700,
-                background: isActive ? ACCENT : isDone ? `${ACCENT}18` : "transparent",
+                fontSize: "0.62rem", fontWeight: 700,
+                background: isActive
+                  ? `linear-gradient(145deg,${ACCENT},#059669)`
+                  : isDone ? `${ACCENT}18` : (darkMode ? "rgba(255,255,255,0.06)" : "#eef1f6"),
                 color: isActive ? "#fff" : isDone ? ACCENT : colors.textTertiary,
-                border: isActive ? "none" : `1px solid ${isDone ? `${ACCENT}60` : colors.cardBorder}`,
-                transition: "all 0.15s",
+                boxShadow: isActive ? `0 3px 8px -2px ${ACCENT}70` : "none",
+                transition: "all 0.18s",
               }}>{isDone ? "✓" : id}</span>
               <span style={{
-                fontSize: "0.68rem", fontWeight: isActive ? 700 : 500,
+                fontSize: "0.7rem", fontWeight: isActive ? 700 : 500,
                 color: isActive ? colors.textPrimary : colors.textTertiary,
                 whiteSpace: "nowrap",
               }}>{label}</span>
             </div>
             {id < GMP_MODAL_STEP_LABELS.length && (
               <div style={{
-                flex: 1, height: 1, margin: "0 12px", minWidth: 16,
+                flex: 1, height: 1, margin: "0 10px", minWidth: 16, borderRadius: 1,
                 background: isDone ? `${ACCENT}60` : colors.cardBorder,
                 transition: "background 0.15s",
               }} />
@@ -463,30 +483,31 @@ function ESelectField({ label, fieldKey, value, originalValue, options, onChange
   return (
     <div style={{
       gridColumn: fullWidth ? "1 / -1" : undefined,
-      padding: "0.5rem 0.65rem",
+      padding: "0.6rem 0.75rem",
       background: editableFieldBg(colors),
-      border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
-      borderLeft: isDirty ? "3px solid #f59e0b" : `1px solid ${colors.inputBorder}`,
-      borderRadius: 6,
-      display: "flex", flexDirection: "column", gap: 4,
+      border: `1px solid ${isDirty ? "rgba(245,158,11,0.4)" : "transparent"}`,
+      borderRadius: 12,
+      boxShadow: fieldCardShadow(colors, isDirty),
+      display: "flex", flexDirection: "column", gap: 5,
+      transition: "box-shadow 0.15s",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase",
           letterSpacing: "0.07em", color: colors.textTertiary }}>{label}</span>
         {isDirty && (
           <span style={{
-            fontSize: "0.55rem", fontWeight: 700, color: "#f59e0b",
-            background: "rgba(245,158,11,0.12)", padding: "0.05rem 0.3rem", borderRadius: 3,
-          }}>✎ EDITED</span>
+            fontSize: "0.55rem", fontWeight: 700, color: "#b45309",
+            background: "rgba(245,158,11,0.14)", padding: "0.05rem 0.4rem", borderRadius: 99,
+          }}>✎ edited</span>
         )}
       </div>
       <select
         value={selectValue}
         onChange={(e) => onChange(fieldKey, e.target.value)}
         style={{
-          width: "100%", padding: "0.3rem 0.4rem", background: editableFieldInnerBg(colors),
-          border: `1px solid ${isDirty ? "#f59e0b60" : colors.cardBorder}`,
-          borderRadius: 4, color: colors.textPrimary, fontSize: "0.8rem",
+          width: "100%", padding: "0.35rem 0.5rem", background: editableFieldInnerBg(colors),
+          border: "none",
+          borderRadius: 8, color: colors.textPrimary, fontSize: "0.8rem",
           fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT,
           cursor: "pointer",
         }}
@@ -509,21 +530,22 @@ function EField({ label, fieldKey, value, originalValue, onChange, colors, fullW
   return (
     <div style={{
       gridColumn: fullWidth ? "1 / -1" : undefined,
-      padding: "0.5rem 0.65rem",
+      padding: "0.6rem 0.75rem",
       background: editableFieldBg(colors),
-      border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
-      borderLeft: isDirty ? "3px solid #f59e0b" : `1px solid ${colors.inputBorder}`,
-      borderRadius: 6,
-      display: "flex", flexDirection: "column", gap: 4,
+      border: `1px solid ${isDirty ? "rgba(245,158,11,0.4)" : "transparent"}`,
+      borderRadius: 12,
+      boxShadow: fieldCardShadow(colors, isDirty),
+      display: "flex", flexDirection: "column", gap: 5,
+      transition: "box-shadow 0.15s",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase",
           letterSpacing: "0.07em", color: colors.textTertiary }}>{label}</span>
         {isDirty && (
           <span style={{
-            fontSize: "0.55rem", fontWeight: 700, color: "#f59e0b",
-            background: "rgba(245,158,11,0.12)", padding: "0.05rem 0.3rem", borderRadius: 3,
-          }}>✎ EDITED</span>
+            fontSize: "0.55rem", fontWeight: 700, color: "#b45309",
+            background: "rgba(245,158,11,0.14)", padding: "0.05rem 0.4rem", borderRadius: 99,
+          }}>✎ edited</span>
         )}
       </div>
       <input
@@ -531,9 +553,9 @@ function EField({ label, fieldKey, value, originalValue, onChange, colors, fullW
         value={value ?? ""}
         onChange={(e) => onChange(fieldKey, e.target.value)}
         style={{
-          width: "100%", padding: "0.3rem 0.4rem", background: editableFieldInnerBg(colors),
-          border: `1px solid ${isDirty ? "#f59e0b60" : colors.cardBorder}`,
-          borderRadius: 4, color: colors.textPrimary, fontSize: "0.8rem",
+          width: "100%", padding: "0.35rem 0.5rem", background: editableFieldInnerBg(colors),
+          border: "none",
+          borderRadius: 8, color: colors.textPrimary, fontSize: "0.8rem",
           fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT,
         }}
       />
@@ -552,21 +574,22 @@ function EDateField({ label, fieldKey, value, originalValue, onChange, colors, f
   return (
     <div style={{
       gridColumn: fullWidth ? "1 / -1" : undefined,
-      padding: "0.5rem 0.65rem",
+      padding: "0.6rem 0.75rem",
       background: editableFieldBg(colors),
-      border: `1px solid ${isDirty ? "#f59e0b" : colors.inputBorder}`,
-      borderLeft: isDirty ? "3px solid #f59e0b" : `1px solid ${colors.inputBorder}`,
-      borderRadius: 6,
-      display: "flex", flexDirection: "column", gap: 4,
+      border: `1px solid ${isDirty ? "rgba(245,158,11,0.4)" : "transparent"}`,
+      borderRadius: 12,
+      boxShadow: fieldCardShadow(colors, isDirty),
+      display: "flex", flexDirection: "column", gap: 5,
+      transition: "box-shadow 0.15s",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase",
           letterSpacing: "0.07em", color: colors.textTertiary }}>{label}</span>
         {isDirty && (
           <span style={{
-            fontSize: "0.55rem", fontWeight: 700, color: "#f59e0b",
-            background: "rgba(245,158,11,0.12)", padding: "0.05rem 0.3rem", borderRadius: 3,
-          }}>✎ EDITED</span>
+            fontSize: "0.55rem", fontWeight: 700, color: "#b45309",
+            background: "rgba(245,158,11,0.14)", padding: "0.05rem 0.4rem", borderRadius: 99,
+          }}>✎ edited</span>
         )}
       </div>
       <input
@@ -574,9 +597,9 @@ function EDateField({ label, fieldKey, value, originalValue, onChange, colors, f
         value={toDateInputValue(value)}
         onChange={(e) => onChange(fieldKey, e.target.value)}
         style={{
-          width: "100%", padding: "0.3rem 0.4rem", background: editableFieldInnerBg(colors),
-          border: `1px solid ${isDirty ? "#f59e0b60" : colors.cardBorder}`,
-          borderRadius: 4, color: dateInputColor(toDateInputValue(value), colors), fontSize: "0.8rem",
+          width: "100%", padding: "0.35rem 0.5rem", background: editableFieldInnerBg(colors),
+          border: "none",
+          borderRadius: 8, color: dateInputColor(toDateInputValue(value), colors), fontSize: "0.8rem",
           fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT,
           cursor: "pointer",
         }}
@@ -593,12 +616,16 @@ function EDateField({ label, fieldKey, value, originalValue, onChange, colors, f
 // ── Section — labeled divider used to group fields within the Details step ──
 function Section({ icon, title, colors, children }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-        <span style={{ fontSize: "0.85rem" }}>{icon}</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{
+          width: 22, height: 22, borderRadius: 8, flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: "0.72rem", background: `${ACCENT}14`,
+        }}>{icon}</span>
         <span style={{ fontSize: "0.66rem", fontWeight: 700, textTransform: "uppercase",
           letterSpacing: "0.07em", color: colors.textTertiary, whiteSpace: "nowrap" }}>{title}</span>
-        <div style={{ height: 1, flex: 1, background: colors.cardBorder }} />
+        <div style={{ height: 1, flex: 1, background: colors.cardBorder, borderRadius: 1 }} />
       </div>
       {children}
     </div>
@@ -640,9 +667,9 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
   return (
     <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{
-        padding: "14px 20px", borderRadius: 10,
-        background: "linear-gradient(135deg,rgba(59,130,246,0.06),rgba(59,130,246,0.02))",
-        border: "1px solid rgba(59,130,246,0.18)",
+        padding: "16px 22px", borderRadius: 18,
+        background: "linear-gradient(135deg,rgba(59,130,246,0.08),rgba(16,185,129,0.03))",
+        boxShadow: "0 10px 28px -18px rgba(37,99,235,0.45)",
         display: "flex", gap: 30, flexWrap: "wrap", alignItems: "center",
       }}>
         <div>
@@ -749,174 +776,17 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
   );
 }
 
-// ── Step 2 — Upload Documents (flat list, adapted from production) ─────────────
+// ── Step 2 — Upload Documents (shared with GMPDocumentsModal.jsx) ──────────────
 function StepDocsGMP({ task, colors, darkMode }) {
-  const [existingDocs, setExistingDocs] = useState([]);
-  const [isLoadingExisting, setIsLoadingExisting] = useState(true);
-  const [fetchError, setFetchError] = useState("");
-  const [stagedFiles, setStagedFiles] = useState([]);
-  const [docCategory, setDocCategory] = useState("GENERAL");
-  const [docError, setDocError] = useState("");
-  const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const fileInputRef = React.useRef(null);
-
-  const CATEGORY_OPTIONS = ["GENERAL", "PRODUCT FILE", "DOCUMENTARY REQUIREMENTS", "WORKSHEET"];
-  const MAX_FILE_SIZE = 5 * 1024 * 1024;
-  const ACCEPTED_TYPES = { "application/pdf": "pdf", "image/jpeg": "image", "image/png": "image" };
-
-  const loadExisting = async () => {
-    if (!task?.dtn) return;
-    setIsLoadingExisting(true); setFetchError("");
-    try {
-      const result = await getApplicationDocumentsByDtn(task.dtn);
-      setExistingDocs(result.data || []);
-    } catch (err) {
-      setFetchError(err?.message || "Failed to load existing documents.");
-    } finally {
-      setIsLoadingExisting(false);
-    }
-  };
-
-  useEffect(() => { loadExisting(); /* eslint-disable-next-line */ }, [task?.dtn]);
-
-  const addFiles = (fileList) => {
-    setDocError("");
-    const incoming = [];
-    for (const file of Array.from(fileList)) {
-      if (!(file.type in ACCEPTED_TYPES)) { setDocError(`"${file.name}" is not a supported file type.`); continue; }
-      if (file.size > MAX_FILE_SIZE) { setDocError(`"${file.name}" exceeds the 5MB limit.`); continue; }
-      incoming.push(file);
-    }
-    if (incoming.length) setStagedFiles((prev) => [...prev, ...incoming]);
-  };
-
-  const handleUpload = async () => {
-    if (stagedFiles.length === 0) return;
-    setIsUploading(true); setProgress(0); setDocError("");
-    try {
-      await uploadApplicationDocumentsBatch(
-        { dbEntryType: "GMP", dbDtn: task.dtn, docCategory: docCategory.trim() || undefined, files: stagedFiles },
-        (pct) => setProgress(pct),
-      );
-      setStagedFiles([]);
-      await loadExisting();
-    } catch (err) {
-      setDocError(err?.message || "Upload failed.");
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const formatBytes = (bytes) => {
-    if (!bytes) return "0 KB";
-    const kb = bytes / 1024;
-    return kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(2)} MB`;
-  };
-
   return (
-    <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ border: `1px solid ${colors.cardBorder}`, borderRadius: 10, padding: 12 }}>
-        <div style={{ fontSize: "0.7rem", fontWeight: 700, color: colors.textTertiary, marginBottom: 8 }}>
-          Add new files
-        </div>
-        <div style={{ marginBottom: 10 }}>
-          <label style={{ fontSize: "0.68rem", fontWeight: 700, color: colors.textPrimary, display: "block", marginBottom: 4 }}>
-            Category
-          </label>
-          <select value={docCategory} onChange={(e) => setDocCategory(e.target.value)}
-            style={{
-              width: "100%", padding: "0.5rem 0.7rem", borderRadius: 7,
-              border: `1px solid ${colors.inputBorder}`, background: editableFieldBg(colors),
-              color: colors.textPrimary, fontSize: "0.8rem", cursor: "pointer",
-            }}>
-            {CATEGORY_OPTIONS.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-          onDragLeave={() => setIsDragging(false)}
-          onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files); }}
-          style={{
-            border: `1.5px dashed ${isDragging ? ACCENT : colors.cardBorder}`,
-            borderRadius: 10, padding: 20, textAlign: "center", cursor: "pointer",
-          }}>
-          <div style={{ fontSize: "1.4rem" }}>⬆️</div>
-          <p style={{ fontSize: "0.78rem", color: colors.textSecondary, margin: "5px 0 0" }}>
-            Drop file here or click to upload
-          </p>
-          <small style={{ fontSize: "0.68rem", color: colors.textTertiary }}>PDF, JPG, PNG · max 5MB</small>
-          <input ref={fileInputRef} type="file" multiple accept=".pdf,.jpg,.jpeg,.png"
-            onChange={(e) => { if (e.target.files?.length) addFiles(e.target.files); e.target.value = ""; }}
-            onClick={(e) => e.stopPropagation()} style={{ display: "none" }} />
-        </div>
-        {docError && (
-          <div style={{ marginTop: 8, padding: "7px 10px", borderRadius: 7, background: "#fef2f2", border: "1px solid #fecaca", color: "#ef4444", fontSize: "0.72rem" }}>
-            {docError}
-          </div>
-        )}
-        {stagedFiles.length > 0 && (
-          <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-            {stagedFiles.map((f, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 7, border: `1px solid ${colors.cardBorder}`, fontSize: "0.75rem" }}>
-                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: colors.textPrimary }}>{f.name}</span>
-                <span style={{ color: colors.textTertiary, fontSize: "0.68rem" }}>{formatBytes(f.size)}</span>
-                <button onClick={() => setStagedFiles((p) => p.filter((_, idx) => idx !== i))}
-                  style={{ border: "none", background: "transparent", color: "#ef4444", cursor: "pointer" }}>✕</button>
-              </div>
-            ))}
-            {isUploading ? (
-              <div style={{ fontSize: "0.75rem", color: colors.textPrimary, display: "flex", alignItems: "center", gap: 6 }}>
-                <span style={{ width: 12, height: 12, border: "2px solid rgba(16,185,129,0.2)", borderTopColor: ACCENT, borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
-                Uploading {stagedFiles.length} file(s)… {progress}%
-              </div>
-            ) : (
-              <button onClick={handleUpload} style={{
-                padding: "8px 16px", background: `linear-gradient(135deg,${ACCENT},#059669)`, border: "none",
-                borderRadius: 7, color: "#fff", fontSize: "0.78rem", fontWeight: 700, cursor: "pointer",
-              }}>
-                Upload {stagedFiles.length} file(s)
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div style={{ border: `1px solid ${colors.cardBorder}`, borderRadius: 10, padding: 12 }}>
-        {isLoadingExisting ? (
-          <div style={{ fontSize: "0.75rem", color: colors.textTertiary }}>Loading documents…</div>
-        ) : fetchError ? (
-          <div style={{ fontSize: "0.75rem", color: "#ef4444" }}>{fetchError}</div>
-        ) : (
-          <>
-            <div style={{ fontSize: "0.72rem", color: colors.textTertiary, marginBottom: 8 }}>
-              {existingDocs.length} file(s) found for DTN <strong style={{ color: colors.textPrimary }}>{task?.dtn}</strong>
-            </div>
-            {existingDocs.length === 0 ? (
-              <p style={{ fontSize: "0.75rem", color: colors.textTertiary, margin: 0 }}>No documents uploaded yet.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {existingDocs.map((doc) => (
-                  <a key={doc.id} href={doc.drive_file_id ? `https://drive.google.com/file/d/${doc.drive_file_id}/view` : "#"}
-                    target="_blank" rel="noreferrer"
-                    style={{
-                      display: "flex", alignItems: "center", gap: 8, padding: "7px 10px",
-                      borderRadius: 7, border: `1px solid ${colors.cardBorder}`, fontSize: "0.75rem",
-                      textDecoration: "none", color: colors.textPrimary,
-                    }}>
-                    <span>📄</span>
-                    <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{doc.original_filename}</span>
-                    <span style={{ color: colors.textTertiary, fontSize: "0.65rem" }}>{doc.doc_category || "—"}</span>
-                    <span style={{ color: colors.textTertiary, fontSize: "0.65rem" }}>{formatBytes(doc.file_size_bytes)}</span>
-                  </a>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+    <div style={{ padding: "16px 20px" }}>
+      <ApplicationDocumentsPanel
+        dtn={task?.dtn}
+        dbEntryType="GMP"
+        mainDbId={task?.gmp_record_id}
+        colors={colors}
+        darkMode={darkMode}
+      />
     </div>
   );
 }
@@ -928,29 +798,29 @@ function LogCard({ log, isLast, colors }) {
   const stepDef  = GMP_STEPS.find(s => s.id === log.application_step || s.label === log.application_step);
   const color    = stepDef?.color ?? "#6366f1";
   return (
-    <div style={{ display: "flex", gap: 12 }}>
+    <div style={{ display: "flex", gap: 13 }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
         <div style={{
-          width: 30, height: 30, borderRadius: "50%", flexShrink: 0,
-          background: isDone ? ACCENT : isActive ? "#f97316" : "#e2e8f0",
+          width: 32, height: 32, borderRadius: "50%", flexShrink: 0,
+          background: isDone ? `linear-gradient(145deg,${ACCENT},#059669)` : isActive ? "linear-gradient(145deg,#fb923c,#f97316)" : "#eef1f6",
           display: "flex", alignItems: "center", justifyContent: "center",
-          color: "#fff", fontSize: "0.8rem", fontWeight: 800,
-          boxShadow: isActive ? "0 0 0 3px rgba(249,115,22,0.3)" : "none",
+          color: isDone || isActive ? "#fff" : "#9aa1ad", fontSize: "0.82rem", fontWeight: 800,
+          boxShadow: isActive ? "0 0 0 5px rgba(249,115,22,0.16)" : isDone ? `0 3px 10px -3px ${ACCENT}70` : "none",
         }}>{isDone ? "✓" : isActive ? "●" : "○"}</div>
-        {!isLast && <div style={{ width: 2, flex: 1, minHeight: 12, margin: "3px 0",
-          background: isDone ? `${ACCENT}40` : "rgba(0,0,0,0.08)" }} />}
+        {!isLast && <div style={{ width: 2, flex: 1, minHeight: 14, margin: "4px 0", borderRadius: 1,
+          background: isDone ? `${ACCENT}45` : "rgba(0,0,0,0.08)" }} />}
       </div>
-      <div style={{ flex: 1, marginBottom: isLast ? 0 : 14,
-        background: "#fff", borderRadius: 9, overflow: "hidden",
-        border: `1px solid ${isActive ? "#f9731640" : color + "25"}`,
-        borderLeft: `3px solid ${isActive ? "#f97316" : isDone ? color : "#94a3b8"}`,
-        boxShadow: isActive ? "0 2px 10px rgba(249,115,22,0.1)" : "0 1px 4px rgba(0,0,0,0.05)",
+      <div style={{ flex: 1, marginBottom: isLast ? 0 : 16,
+        background: "#fff", borderRadius: 16, overflow: "hidden",
+        borderLeft: `3px solid ${isActive ? "#f97316" : isDone ? color : "#cbd2dc"}`,
+        boxShadow: isActive ? "0 8px 22px -10px rgba(249,115,22,0.35)" : "0 4px 16px -10px rgba(16,24,20,0.16)",
       }}>
         {(() => {
-          // action_type doubles as a system tag (REASSIGNMENT/REROUTE) on some
-          // rows and as the Decision value (Approved/Disapproved/etc.) on
-          // eval/checker rows — tell them apart before rendering.
-          const isSystemTag = log.action_type === "REASSIGNMENT" || log.action_type === "REROUTE";
+          // action_type doubles as a system tag (REASSIGNMENT/REROUTE/
+          // ISSUANCE_ADDED) on some rows and as the Decision value
+          // (Approved/Disapproved/etc.) on eval/checker rows — tell them
+          // apart before rendering.
+          const isSystemTag = log.action_type === "REASSIGNMENT" || log.action_type === "REROUTE" || log.action_type === "ISSUANCE_ADDED";
           const decisionValue = isSystemTag ? null : log.action_type;
           return (
             <>
@@ -973,17 +843,20 @@ function LogCard({ log, isLast, colors }) {
                   </span>
                   {isSystemTag && <span style={{ fontSize: "0.63rem", fontWeight: 700, padding: "2px 8px",
                     borderRadius: 99, background: "rgba(99,102,241,0.08)", color: "#6366f1" }}>
-                    {log.action_type}
+                    {log.action_type === "ISSUANCE_ADDED" ? "Issuance Added" : log.action_type}
                   </span>}
                 </div>
               </div>
-              <div style={{ padding: "8px 14px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px 12px" }}>
+              <div style={{ padding: "8px 14px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "6px 12px" }}>
                 <div><p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
                   textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Action</p>
                   <p style={{ margin: 0, fontSize: "0.74rem", color: "#0f172a" }}>{log.application_decision || "—"}</p></div>
                 <div><p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Decision</p>
+                  textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Recommendation</p>
                   <p style={{ margin: 0, fontSize: "0.74rem", color: "#0f172a" }}>{decisionValue || "—"}</p></div>
+                <div><p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
+                  textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Forwarded On</p>
+                  <p style={{ margin: 0, fontSize: "0.72rem", color: "#0f172a" }}>{fmtDT(log.start_date)}</p></div>
                 <div><p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
                   textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Accomplished</p>
                   <p style={{ margin: 0, fontSize: "0.72rem", color: "#0f172a" }}>{fmtDT(log.accomplished_date)}</p></div>
@@ -1017,8 +890,8 @@ function LogCard({ log, isLast, colors }) {
                     : { label: "On Track", color: "#15803d", bg: "rgba(16,185,129,0.14)", dot: "#10b981" };
                 return (
                   <div style={{
-                    margin: "0 14px 12px", padding: "9px 12px", borderRadius: 8,
-                    background: status.bg, border: `1px solid ${status.color}30`,
+                    margin: "0 14px 14px", padding: "10px 13px", borderRadius: 12,
+                    background: status.bg,
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                     flexWrap: "wrap", gap: 8,
                   }}>
@@ -1100,7 +973,8 @@ function StepLogs({ gmpRecordId, dtn, colors }) {
   return (
     <div style={{ padding: "16px 20px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: 14, padding: "6px 10px", background: colors.badgeBg, borderRadius: 8 }}>
+        marginBottom: 16, padding: "9px 14px", background: colors.badgeBg, borderRadius: 14,
+        boxShadow: fieldCardShadow(colors, false) }}>
         <span style={{ fontSize: "0.75rem", color: colors.textTertiary }}>
           <strong style={{ color: colors.textPrimary }}>{logs.length}</strong> log{logs.length !== 1 ? "s" : ""} · DTN{" "}
           <strong style={{ color: ACCENT, fontFamily: "ui-monospace,monospace" }}>{dtn}</strong>
@@ -1143,8 +1017,9 @@ function RefNoTabBar({ siblings, record, activeRefTab, onChange, colors, darkMod
   const Tab = ({ isActive, onClick, children, badge }) => (
     <button onClick={onClick} style={{
       flexShrink: 0, display: "flex", alignItems: "center", gap: 7,
-      padding: "6px 2px", border: "none", background: "transparent",
-      borderBottom: `2px solid ${isActive ? ACCENT : "transparent"}`,
+      padding: "6px 12px", border: "none",
+      borderRadius: 999,
+      background: isActive ? (darkMode ? "rgba(16,185,129,0.16)" : "#e7f8f0") : "transparent",
       fontFamily: FONT, fontSize: "0.76rem", fontWeight: isActive ? 700 : 500,
       color: isActive ? colors.textPrimary : colors.textTertiary,
       cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s",
@@ -1153,7 +1028,7 @@ function RefNoTabBar({ siblings, record, activeRefTab, onChange, colors, darkMod
       {badge && (
         <span style={{
           fontSize: "0.56rem", fontWeight: 700, padding: "1px 6px", borderRadius: 99,
-          background: isActive ? `${ACCENT}18` : colors.badgeBg,
+          background: isActive ? `${ACCENT}20` : colors.badgeBg,
           color: isActive ? ACCENT : colors.textTertiary,
         }}>{badge}</span>
       )}
@@ -1162,12 +1037,12 @@ function RefNoTabBar({ siblings, record, activeRefTab, onChange, colors, darkMod
 
   return (
     <div style={{
-      flexShrink: 0, padding: "0 20px",
-      background: darkMode ? "#141516" : "#f8fafc",
+      flexShrink: 0, padding: "10px 20px",
+      background: darkMode ? "rgba(255,255,255,0.02)" : "rgba(16,185,129,0.03)",
       borderBottom: `1px solid ${colors.cardBorder}`,
     }}>
       <div className="gmpTabScroll" style={{
-        display: "flex", alignItems: "center", gap: 20, overflowX: "auto",
+        display: "flex", alignItems: "center", gap: 8, overflowX: "auto",
       }}>
         <span style={{ fontSize: "0.6rem", fontWeight: 700, color: colors.textTertiary,
           textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
@@ -1195,9 +1070,10 @@ function RefNoTabBar({ siblings, record, activeRefTab, onChange, colors, darkMod
 // ── Reference Number panel — sibling edit form / "All" stacked view ─────────
 function RefNoPanel({ siblings, activeRefTab, siblingEdits, setSiblingEdits, siblingSaving, siblingError, onSave, colors }) {
   const inp = {
-    width: "100%", padding: "0.45rem 0.65rem", fontFamily: FONT, fontSize: "0.78rem",
-    background: editableFieldBg(colors), border: `1px solid ${colors.inputBorder}`,
-    borderRadius: 6, color: colors.textPrimary, outline: "none", boxSizing: "border-box",
+    width: "100%", padding: "0.5rem 0.7rem", fontFamily: FONT, fontSize: "0.78rem",
+    background: editableFieldInnerBg(colors), border: "none",
+    borderRadius: 10, color: colors.textPrimary, outline: "none", boxSizing: "border-box",
+    boxShadow: fieldCardShadow(colors, false),
   };
   const lbl = {
     display: "block", fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase",
@@ -1297,8 +1173,9 @@ function RefNoPanel({ siblings, activeRefTab, siblingEdits, setSiblingEdits, sib
       )}
       <button onClick={() => onSave(rec)} disabled={siblingSaving === rec.GMP_ID}
         style={{
-          padding: "0.5rem 1rem", border: "none", borderRadius: 7,
-          background: siblingSaving === rec.GMP_ID ? "#c4b5fd" : "#7c3aed",
+          padding: "0.55rem 1.2rem", border: "none", borderRadius: 999,
+          background: siblingSaving === rec.GMP_ID ? "#c4b5fd" : "linear-gradient(145deg,#8b5cf6,#7c3aed)",
+          boxShadow: siblingSaving === rec.GMP_ID ? "none" : "0 8px 18px -8px rgba(124,58,237,0.55)",
           color: "#fff", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 700,
           cursor: siblingSaving === rec.GMP_ID ? "not-allowed" : "pointer", alignSelf: "flex-start",
         }}>
@@ -1329,11 +1206,13 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
   complianceRemainingDays, onComplianceWorkingDaysChange, onComplianceDeadlineChange,
   newIssuanceType, onNewIssuanceTypeChange, addIssuanceLoading, addIssuanceError,
   addIssuanceSuccess, onAddIssuance, currentIssuanceType, originalIssuanceType,
-  onCurrentIssuanceTypeChange, needsDifferentIssuanceType }) {
+  onCurrentIssuanceTypeChange, needsDifferentIssuanceType,
+  isFroo, currentRelatedDtn, originalRelatedDtn, onRelatedDtnChange }) {
   const inp = {
-    width: "100%", padding: "0.5rem 0.7rem", fontFamily: FONT, fontSize: "0.8rem",
-    background: editableFieldBg(colors), border: `1px solid ${colors.inputBorder}`,
-    borderRadius: 7, color: colors.textPrimary, outline: "none", boxSizing: "border-box",
+    width: "100%", padding: "0.55rem 0.75rem", fontFamily: FONT, fontSize: "0.8rem",
+    background: editableFieldInnerBg(colors), border: "none",
+    borderRadius: 10, color: colors.textPrimary, outline: "none", boxSizing: "border-box",
+    boxShadow: fieldCardShadow(colors, false),
   };
   const lbl = {
     display: "block", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase",
@@ -1341,6 +1220,35 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
   };
   return (
     <>
+      {isFroo && (
+        <div style={{
+          padding: "0.9rem 1.1rem", borderRadius: 16,
+          background: "linear-gradient(135deg,rgba(14,165,233,0.09),rgba(14,165,233,0.02))",
+          boxShadow: "0 8px 22px -14px rgba(14,165,233,0.5)",
+          display: "flex", flexDirection: "column", gap: 10,
+        }}>
+          <div>
+            <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#0369a1" }}>🔗 Related DTN</div>
+            <div style={{ fontSize: "0.66rem", color: colors.textTertiary }}>
+              Optional — fill this in if FROO has a related DTN for this NFI, otherwise
+              leave it blank. Saved to the record on Submit (same field as the Details tab).
+              This is a branch of the main DTN and is not the internal Reference No.
+            </div>
+          </div>
+          {/* Same editedFields path as the Details tab, so whichever one you
+              type into, the other reflects it and the dirty-fields banner
+              below picks it up. */}
+          <EField
+            label="Related DTN"
+            fieldKey="GMP_RELATED_DTN"
+            value={currentRelatedDtn}
+            originalValue={originalRelatedDtn}
+            onChange={(_key, v) => onRelatedDtnChange(v)}
+            colors={colors}
+          />
+        </div>
+      )}
+
       <div>
         {/* Editable — edits the application's own (first/primary) Type of
             Issuance directly via the same editedFields path as the Details
@@ -1363,9 +1271,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
       </div>
 
       <div style={{
-        padding: "0.85rem 1rem", borderRadius: 10,
-        background: "linear-gradient(135deg,rgba(59,130,246,0.06),rgba(59,130,246,0.02))",
-        border: "1px solid rgba(59,130,246,0.25)",
+        padding: "0.9rem 1.1rem", borderRadius: 16,
+        background: "linear-gradient(135deg,rgba(59,130,246,0.08),rgba(59,130,246,0.02))",
+        boxShadow: "0 8px 22px -14px rgba(37,99,235,0.5)",
         display: "flex", flexDirection: "column", gap: 10,
       }}>
         <div>
@@ -1398,8 +1306,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           </div>
           <button type="button" onClick={onAddIssuance} disabled={addIssuanceLoading || needsDifferentIssuanceType}
             style={{
-              padding: "0.5rem 1rem", border: "none", borderRadius: 7,
-              background: (addIssuanceLoading || needsDifferentIssuanceType) ? "#93c5fd" : "#2563eb",
+              padding: "0.55rem 1.1rem", border: "none", borderRadius: 999,
+              background: (addIssuanceLoading || needsDifferentIssuanceType) ? "#93c5fd" : "linear-gradient(145deg,#3b82f6,#2563eb)",
+              boxShadow: (addIssuanceLoading || needsDifferentIssuanceType) ? "none" : "0 8px 18px -8px rgba(37,99,235,0.55)",
               color: "#fff", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 700,
               cursor: (addIssuanceLoading || needsDifferentIssuanceType) ? "not-allowed" : "pointer",
               whiteSpace: "nowrap",
@@ -1408,14 +1317,14 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           </button>
         </div>
         {addIssuanceError && (
-          <div style={{ padding: "7px 10px", background: "#fef2f2", border: "1px solid #fecaca",
-            borderRadius: 7, fontSize: "0.72rem", color: "#ef4444" }}>
+          <div style={{ padding: "8px 12px", background: "#fef2f2",
+            borderRadius: 10, fontSize: "0.72rem", color: "#ef4444" }}>
             ⚠️ {addIssuanceError}
           </div>
         )}
         {addIssuanceSuccess && (
-          <div style={{ padding: "7px 10px", background: "#f0fdf4", border: "1px solid #bbf7d0",
-            borderRadius: 7, fontSize: "0.72rem", color: "#15803d" }}>
+          <div style={{ padding: "8px 12px", background: "#f0fdf4",
+            borderRadius: 10, fontSize: "0.72rem", color: "#15803d" }}>
             ✅ Added — Reference No <strong>{addIssuanceSuccess.GMP_REFERENCE_NO}</strong>{" "}
             ({addIssuanceSuccess.GMP_TYPE_OF_ISSUANCE})
           </div>
@@ -1433,9 +1342,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           </div>
           {needsComplianceDeadline && (
             <div style={{
-              padding: "0.85rem 1rem", borderRadius: 10,
-              background: "linear-gradient(135deg,rgba(168,85,247,0.06),rgba(168,85,247,0.02))",
-              border: "1px solid rgba(168,85,247,0.25)",
+              padding: "0.9rem 1.1rem", borderRadius: 16,
+              background: "linear-gradient(135deg,rgba(168,85,247,0.08),rgba(168,85,247,0.02))",
+              boxShadow: "0 8px 22px -14px rgba(147,51,234,0.5)",
               display: "flex", flexDirection: "column", gap: 10,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1453,8 +1362,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <button type="button"
                       onClick={() => onComplianceWorkingDaysChange(complianceWorkingDays - 1)}
-                      style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${colors.cardBorder}`,
-                        background: "transparent", color: colors.textPrimary, cursor: "pointer", fontWeight: 700 }}>
+                      style={{ width: 30, height: 30, borderRadius: "50%", border: "none",
+                        background: editableFieldInnerBg(colors), color: colors.textPrimary, cursor: "pointer", fontWeight: 700,
+                        boxShadow: fieldCardShadow(colors, false) }}>
                       −
                     </button>
                     <input type="number" min={1} value={complianceWorkingDays}
@@ -1462,20 +1372,22 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
                       style={{ ...inp, textAlign: "center", fontWeight: 700 }} />
                     <button type="button"
                       onClick={() => onComplianceWorkingDaysChange(complianceWorkingDays + 1)}
-                      style={{ width: 30, height: 30, borderRadius: 7, border: `1px solid ${colors.cardBorder}`,
-                        background: "transparent", color: colors.textPrimary, cursor: "pointer", fontWeight: 700 }}>
+                      style={{ width: 30, height: 30, borderRadius: "50%", border: "none",
+                        background: editableFieldInnerBg(colors), color: colors.textPrimary, cursor: "pointer", fontWeight: 700,
+                        boxShadow: fieldCardShadow(colors, false) }}>
                       +
                     </button>
                   </div>
-                  <div style={{ display: "flex", gap: 5, marginTop: 6, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 6, marginTop: 7, flexWrap: "wrap" }}>
                     {GMP_COMPLIANCE_DAY_PRESETS.map(d => (
                       <button type="button" key={d}
                         onClick={() => onComplianceWorkingDaysChange(d)}
                         style={{
-                          padding: "3px 9px", fontSize: "0.68rem", fontWeight: 700, borderRadius: 6, cursor: "pointer",
-                          border: `1px solid ${complianceWorkingDays === d ? "#a855f7" : colors.cardBorder}`,
-                          background: complianceWorkingDays === d ? "rgba(168,85,247,0.12)" : "transparent",
-                          color: complianceWorkingDays === d ? "#7e22ce" : colors.textTertiary,
+                          padding: "4px 11px", fontSize: "0.68rem", fontWeight: 700, borderRadius: 999, cursor: "pointer",
+                          border: "none",
+                          background: complianceWorkingDays === d ? "linear-gradient(145deg,#c084fc,#a855f7)" : editableFieldInnerBg(colors),
+                          boxShadow: complianceWorkingDays === d ? "0 4px 12px -4px rgba(168,85,247,0.6)" : fieldCardShadow(colors, false),
+                          color: complianceWorkingDays === d ? "#fff" : colors.textTertiary,
                         }}>
                         {d}d
                       </button>
@@ -1496,7 +1408,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
               </div>
               <div style={{
                 display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "7px 12px", borderRadius: 8, background: complianceStatus.bg,
+                padding: "8px 13px", borderRadius: 12, background: complianceStatus.bg,
               }}>
                 <span style={{ fontSize: "0.74rem", fontWeight: 700, color: complianceStatus.color,
                   display: "flex", alignItems: "center", gap: 6 }}>
@@ -1518,9 +1430,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           )}
           {actionValue !== "For Compliance" && (
             <div>
-              <label style={lbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
+              <label style={lbl}>Recommendation <span style={{ color: "#ef4444" }}>*</span></label>
               <select value={approvalDecision} onChange={e => onApprovalDecisionChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
-                <option value="">Select decision…</option>
+                <option value="">Select recommendation…</option>
                 {GMP_APPROVAL_DECISION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
@@ -1573,9 +1485,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
 
       {mode === "advance" && !isEvalOrChecker && (
         <div>
-          <label style={lbl}>{(isLrdChiefAdmin || isOdReceiving || isOdReleasing) ? "Action" : "Decision"} <span style={{ color: "#ef4444" }}>*</span></label>
+          <label style={lbl}>{(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "Action" : "Decision"} <span style={{ color: "#ef4444" }}>*</span></label>
           <select value={decision} onChange={e => onDecisionChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
-            <option value="">Select {(isLrdChiefAdmin || isOdReceiving || isOdReleasing) ? "action" : "decision"}…</option>
+            <option value="">Select {(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "action" : "decision"}…</option>
             {decisions.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
@@ -1644,7 +1556,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
       )}
 
       {needsApprovalFields && (
-        <div style={{ padding: "0.75rem 1rem", background: "rgba(16,185,129,0.05)", border: `1px solid ${ACCENT}30`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ padding: "0.85rem 1.1rem", background: "linear-gradient(135deg,rgba(16,185,129,0.09),rgba(16,185,129,0.02))", boxShadow: `0 8px 22px -14px ${ACCENT}80`, borderRadius: 16, display: "flex", flexDirection: "column", gap: 9 }}>
           <div style={{ fontSize: "0.68rem", fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.05em" }}>
             📋 Certificate Details
           </div>
@@ -1786,11 +1698,11 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
       </div>
 
       {error && (
-        <div style={{ padding: "8px 12px", background: "#fef2f2", border: "1px solid #fecaca",
-          borderRadius: 7, fontSize: "0.76rem", color: "#ef4444", whiteSpace: "pre-line" }}>⚠️ {error}</div>
+        <div style={{ padding: "9px 13px", background: "#fef2f2",
+          borderRadius: 12, fontSize: "0.76rem", color: "#ef4444", whiteSpace: "pre-line" }}>⚠️ {error}</div>
       )}
-      <div style={{ padding: "10px 14px", background: "rgba(16,185,129,0.06)",
-        border: "1px solid rgba(16,185,129,0.18)", borderRadius: 8,
+      <div style={{ padding: "11px 15px", background: "linear-gradient(135deg,rgba(16,185,129,0.08),rgba(16,185,129,0.02))",
+        borderRadius: 14,
         display: "flex", gap: 8, alignItems: "flex-start" }}>
         <span>ℹ️</span>
         <p style={{ margin: 0, fontSize: "0.74rem", color: colors.textSecondary, lineHeight: 1.5 }}>{infoText}</p>
@@ -1800,7 +1712,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           submitting, so the "what's about to be saved" summary belongs here,
           not buried near the top of the form. */}
       {dirtyFields.length > 0 && (
-        <div style={{ padding: "0.65rem 0.85rem", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 7 }}>
+        <div style={{ padding: "0.7rem 0.95rem", background: "linear-gradient(135deg,rgba(245,158,11,0.1),rgba(245,158,11,0.02))", borderRadius: 14 }}>
           <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#b45309", marginBottom: 6 }}>
             ✎ {dirtyFields.length} field{dirtyFields.length > 1 ? "s" : ""} edited — will be saved with this submission
           </div>
@@ -1819,12 +1731,13 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
 
       <button onClick={onSubmit} disabled={loading}
         style={{
-          width: "100%", padding: "0.65rem", border: "none", borderRadius: 8,
+          width: "100%", padding: "0.75rem", border: "none", borderRadius: 999,
           background: loading ? `${ACCENT}80` : `linear-gradient(135deg,${ACCENT},#059669)`,
-          color: "#fff", fontFamily: FONT, fontSize: "0.84rem", fontWeight: 700,
+          color: "#fff", fontFamily: FONT, fontSize: "0.86rem", fontWeight: 700,
           cursor: loading ? "not-allowed" : "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          boxShadow: loading ? "none" : `0 3px 10px ${ACCENT}40`,
+          boxShadow: loading ? "none" : `0 10px 24px -8px ${ACCENT}70`,
+          transition: "transform 0.12s, box-shadow 0.12s",
         }}>
         {loading
           ? <><span style={{ display: "inline-block", width: 13, height: 13, border: "2px solid #ffffff40",
@@ -1892,6 +1805,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const isLrdChiefAdmin = currentStep === "LRD Chief Admin";
   const isOdReceiving  = currentStep === "OD Receiving";
   const isOdReleasing  = currentStep === "OD Releasing";
+  const isFroo         = currentStep === "FROO";
   const stepDef     = GMP_STEPS.find(s => s.id === currentStep) ?? GMP_STEPS[0];
   const currentIdx  = GMP_STEPS.findIndex(s => s.id === currentStep);
   const nextStep    = currentIdx >= 0 && currentIdx < GMP_STEPS.length - 1 ? GMP_STEPS[currentIdx + 1] : null;
@@ -1968,11 +1882,12 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const [remarksPreset,    setRemarksPreset]    = useState("");
   const [finalTypeOfIssuance, setFinalTypeOfIssuance] = useState("");
   const remarksPresetOptions = GMP_REMARKS_PRESETS[evalCheckerStepKey]?.[action] ?? [];
+  // Approved no longer shows/requires this field here — Type of Issuance for
+  // the Approved path is already set via the Details tab's own selector, so
+  // this one only remains for Disapproved (locked to "Letter of Disapproval").
   const needsTypeOfIssuance = isEvalOrChecker && action !== "For Compliance" &&
-    (approvalDecision === "Approved" || approvalDecision === "Disapproved");
-  const typeOfIssuanceOptions = approvalDecision === "Disapproved"
-    ? [GMP_DISAPPROVED_TYPE_OF_ISSUANCE]
-    : GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS;
+    approvalDecision === "Disapproved";
+  const typeOfIssuanceOptions = [GMP_DISAPPROVED_TYPE_OF_ISSUANCE];
   const typeOfIssuanceLocked = approvalDecision === "Disapproved";
 
   // ── Auto-dated NOD / Date Printed fields, driven by the selected Remarks Preset ──
@@ -1998,6 +1913,13 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const currentIssuanceType = "GMP_TYPE_OF_ISSUANCE" in editedFields
     ? editedFields.GMP_TYPE_OF_ISSUANCE : originalIssuanceType;
   const needsDifferentIssuanceType = !newIssuanceType || newIssuanceType === currentIssuanceType;
+
+  // FROO's Related DTN, surfaced directly on the Action step. Reads through
+  // editedFields exactly like the Details tab's own Related DTN field, so both
+  // copies stay in sync and it's saved by the same recordPayload write below.
+  const originalRelatedDtn = record?.GMP_RELATED_DTN ?? "";
+  const currentRelatedDtn = "GMP_RELATED_DTN" in editedFields
+    ? editedFields.GMP_RELATED_DTN : originalRelatedDtn;
 
   const handleAddIssuance = async () => {
     if (needsDifferentIssuanceType) {
@@ -2064,10 +1986,23 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const [decisionAuthorityId, setDecisionAuthorityId] = useState(null);
   const [decisionAuthorityName, setDecisionAuthorityName] = useState("");
 
+  // Approval fields (Certificate)
+  const needsApprovalFields = mode === "advance" && GMP_APPROVAL_DECISIONS.includes(decision);
+  const [certNumber, setCertNumber] = useState("");
+  const [typeOfIssuance, setTypeOfIssuance] = useState("");
+  const [certValidity, setCertValidity] = useState("");
+
   // Required "assign to group" picker — resolved generically from the
   // selected Action (Evaluator/Checker) or Decision/Action value (every
   // other step) against GMP_ACTION_ASSIGNEE_GROUPS. Covers every
   // Forwarded-to / Endorsed-to action across the whole workflow uniformly.
+  // OD Releasing is now always the end of the workflow for every issuance
+  // type — it used to route NFI issuance types on to FROO (group 37) instead
+  // of terminating, but that detour has been removed (see resolve_next_step()
+  // in app/crud/gmp_record.py, the actual routing source of truth). Records
+  // already mid-detour from before this change still complete normally via
+  // the FROO step's own Action form (isFroo below); OD Releasing's own action
+  // simply has no assignee-group entry in GMP_ACTION_ASSIGNEE_GROUPS.
   const assigneeGroupConfig = isEvalOrChecker
     ? GMP_ACTION_ASSIGNEE_GROUPS[action]
     : (mode === "advance" ? GMP_ACTION_ASSIGNEE_GROUPS[decision] : undefined);
@@ -2076,12 +2011,6 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const [loadingAssigneeGroup, setLoadingAssigneeGroup] = useState(false);
   const [assigneeUserId,   setAssigneeUserId]   = useState(null);
   const [assigneeUserName, setAssigneeUserName] = useState("");
-
-  // Approval fields (Certificate)
-  const needsApprovalFields = mode === "advance" && GMP_APPROVAL_DECISIONS.includes(decision);
-  const [certNumber, setCertNumber] = useState("");
-  const [typeOfIssuance, setTypeOfIssuance] = useState("");
-  const [certValidity, setCertValidity] = useState("");
 
   const handleDecisionChange = (val) => {
   setDecision(val);
@@ -2231,6 +2160,17 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
 
   const selectedRemarksPreset = remarksPresetOptions.find((r) => r.value === remarksPreset);
 
+  // `nextStep` is purely positional (the next entry in GMP_STEPS), which is
+  // wrong for FROO (always hands back to the Evaluator — kept only so records
+  // mid-detour from before OD Releasing stopped routing there can still
+  // finish out) and for OD Releasing (now always the end of the workflow).
+  // Mirrors resolve_next_step() in app/crud/gmp_record.py.
+  const nextStepLabelForInfo = isFroo
+    ? "Evaluator"
+    : isOdReleasing
+      ? null
+      : (nextStep?.label ?? null);
+
   const infoText = mode === "advance"
     ? (isEvalOrChecker
         ? (!action ? "Select an Action to proceed."
@@ -2239,7 +2179,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
               ? "A new compliance entry will be logged and the task will remain assigned to you."
               : `Log will complete and forward per "${action}".`)
         : (!decision ? "Select a decision to proceed."
-            : nextStep ? `Log will complete and a new "${nextStep.label}" log will be created.`
+            : nextStepLabelForInfo ? `Log will complete and a new "${nextStepLabelForInfo}" log will be created.`
             : "This is the final step — log will complete with no further assignment."))
     : mode === "reassign"
     ? "The current log will close and a new one will open for the new assignee at the same step."
@@ -2306,9 +2246,9 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       } else if (!decision) {
         setSubmitError("Please select an action."); setSubmitLoading(false); return;
       }
-      if (needsLrdDecision && !lrdDecision) {
-        setSubmitError("Please select a Decision."); setSubmitLoading(false); return;
-      }
+      // FROO's Related DTN is optional — the field is right here on the Action
+      // step (and on the Details tab), but leaving it blank must not block the
+      // hand-back to the Evaluator.
       if (needsOdReceivingDecision && !odReceivingDecision) {
         setSubmitError("Please select a Decision."); setSubmitLoading(false); return;
       }
@@ -2444,31 +2384,43 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
 
   return (
     <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
-      backdropFilter: "blur(4px)", zIndex: 10000,
+      position: "fixed", inset: 0, background: "rgba(15,30,24,0.55)",
+      backdropFilter: "blur(6px)", zIndex: 10000,
       display: "flex", alignItems: "center", justifyContent: "center",
       padding: 16, fontFamily: FONT, animation: "gmpBackdropIn 0.2s ease forwards",
     }}>
       <style>{MODAL_CSS}</style>
       <div style={{
-        background: darkMode ? "#18191a" : "#ffffff", borderRadius: 16,
+        background: darkMode
+          ? "linear-gradient(180deg,#1a1c1f,#151718)"
+          : "linear-gradient(180deg,#fdfefe,#f4f9f6)",
+        borderRadius: 26,
         width: "100%", maxWidth: 860,
         // Fixed (not just capped) height — content scrolls internally instead
         // of the whole modal growing/shrinking as you move between steps.
         height: "min(88vh, 860px)",
         display: "flex", flexDirection: "column", overflow: "hidden",
-        boxShadow: "0 24px 64px rgba(0,0,0,0.35)",
+        border: darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(16,185,129,0.10)",
+        boxShadow: darkMode
+          ? "0 30px 70px -20px rgba(0,0,0,0.6)"
+          : "0 30px 70px -20px rgba(16,60,40,0.35)",
         animation: "gmpModalIn 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards",
       }}>
-        <div style={{ padding: "16px 20px", borderBottom: `1px solid ${colors.cardBorder}`,
+        <div style={{ padding: "18px 24px", borderBottom: `1px solid ${colors.cardBorder}`,
           display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: "1.3rem" }}>{stepDef.icon}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{
+              width: 38, height: 38, borderRadius: 13, flexShrink: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "1.15rem",
+              background: `linear-gradient(145deg,${ACCENT}22,${ACCENT}08)`,
+              boxShadow: `0 4px 12px -4px ${ACCENT}50`,
+            }}>{stepDef.icon}</span>
             <div>
-              <h2 style={{ margin: 0, fontSize: "0.98rem", fontWeight: 700, color: colors.textPrimary }}>
+              <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, letterSpacing: "-0.01em", color: colors.textPrimary }}>
                 GMP Workflow — {stepDef.label}
               </h2>
-              <p style={{ margin: "2px 0 0", fontSize: "0.72rem", color: colors.textTertiary }}>
+              <p style={{ margin: "3px 0 0", fontSize: "0.72rem", color: colors.textTertiary }}>
                 DTN: <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, color: ACCENT }}>{task?.dtn || "—"}</span>
                 {record?.GMP_REFERENCE_NO && (
                   <> · Ref: <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, color: "#a855f7" }}>{record.GMP_REFERENCE_NO}</span></>
@@ -2477,9 +2429,11 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
             </div>
           </div>
           <button onClick={onClose} style={{
-            width: 32, height: 32, borderRadius: 9, border: `1px solid ${colors.cardBorder}`,
-            background: "transparent", color: colors.textTertiary, cursor: "pointer",
+            width: 34, height: 34, borderRadius: "50%", border: "none",
+            background: darkMode ? "rgba(255,255,255,0.06)" : "rgba(16,24,20,0.05)",
+            color: colors.textTertiary, cursor: "pointer",
             fontSize: "1rem", display: "flex", alignItems: "center", justifyContent: "center",
+            transition: "background 0.15s",
           }}>✕</button>
         </div>
 
@@ -2540,9 +2494,9 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
           {activeRefTab === "primary" && activeStep === 3 && <StepLogs gmpRecordId={task?.gmp_record_id} dtn={task?.dtn} colors={colors} />}
           {activeStep === 4 && activeRefTab === "primary" && (
             <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ padding: "10px 14px", borderRadius: 9,
-                background: "linear-gradient(135deg,rgba(16,185,129,0.07),rgba(16,185,129,0.02))",
-                border: "1px solid rgba(16,185,129,0.2)", display: "flex", gap: 20, flexWrap: "wrap" }}>
+              <div style={{ padding: "12px 16px", borderRadius: 16,
+                background: "linear-gradient(135deg,rgba(16,185,129,0.09),rgba(16,185,129,0.02))",
+                boxShadow: `0 8px 22px -14px ${ACCENT}80`, display: "flex", gap: 20, flexWrap: "wrap" }}>
                 {[{ l: "DTN", v: task?.dtn, a: true }, { l: "Establishment", v: task?.ltoCompany },
                   { l: "Current Step", v: currentStep }].map(({ l, v, a }) => (
                   <div key={l}><div style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase",
@@ -2559,9 +2513,9 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                   Handled By
                 </label>
                 <input readOnly value={currentUser || "—"} style={{
-                  width: "100%", padding: "0.5rem 0.7rem", fontFamily: FONT, fontSize: "0.8rem",
-                  background: colors.badgeBg, border: `1px solid ${colors.inputBorder}`,
-                  borderRadius: 7, color: colors.textPrimary, outline: "none",
+                  width: "100%", padding: "0.55rem 0.75rem", fontFamily: FONT, fontSize: "0.8rem",
+                  background: colors.badgeBg, border: "none",
+                  borderRadius: 10, color: colors.textPrimary, outline: "none",
                   boxSizing: "border-box", cursor: "not-allowed",
                 }} />
               </div>
@@ -2620,17 +2574,24 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                 currentIssuanceType={currentIssuanceType} originalIssuanceType={originalIssuanceType}
                 onCurrentIssuanceTypeChange={(v) => handleFieldChange("GMP_TYPE_OF_ISSUANCE", v)}
                 needsDifferentIssuanceType={needsDifferentIssuanceType}
+                isFroo={isFroo}
+                currentRelatedDtn={currentRelatedDtn}
+                originalRelatedDtn={originalRelatedDtn}
+                onRelatedDtnChange={(v) => handleFieldChange("GMP_RELATED_DTN", v)}
               />
             </div>
           )}
         </div>
 
-        <div style={{ padding: "12px 20px", borderTop: `1px solid ${colors.cardBorder}`,
-          display: "flex", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{ padding: "14px 22px", borderTop: `1px solid ${colors.cardBorder}`,
+          background: darkMode ? "rgba(255,255,255,0.015)" : "rgba(16,185,129,0.02)",
+          display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
           <button onClick={() => setActiveStep(s => Math.max(1, s - 1))}
             disabled={activeStep === 1}
-            style={{ padding: "7px 18px", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 600,
-              border: `1px solid ${colors.cardBorder}`, borderRadius: 8, background: "transparent",
+            style={{ padding: "8px 20px", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 600,
+              border: "none", borderRadius: 999,
+              background: activeStep === 1 ? "transparent" : editableFieldInnerBg(colors),
+              boxShadow: activeStep === 1 ? "none" : fieldCardShadow(colors, false),
               color: activeStep === 1 ? colors.textTertiary : colors.textPrimary,
               cursor: activeStep === 1 ? "not-allowed" : "pointer", opacity: activeStep === 1 ? 0.4 : 1 }}>
             ← Back
@@ -2640,14 +2601,15 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
           </span>
           {activeStep < 4
             ? <button onClick={() => setActiveStep(s => Math.min(4, s + 1))}
-                style={{ padding: "7px 18px", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 600,
-                  border: "none", borderRadius: 8, background: ACCENT, color: "#fff",
-                  cursor: "pointer", boxShadow: `0 2px 8px ${ACCENT}44` }}>
+                style={{ padding: "8px 20px", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 700,
+                  border: "none", borderRadius: 999, background: `linear-gradient(145deg,${ACCENT},#059669)`, color: "#fff",
+                  cursor: "pointer", boxShadow: `0 8px 18px -8px ${ACCENT}80` }}>
                 Next →
               </button>
             : <button onClick={onClose}
-                style={{ padding: "7px 18px", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 600,
-                  border: `1px solid ${colors.cardBorder}`, borderRadius: 8, background: "transparent",
+                style={{ padding: "8px 20px", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 600,
+                  border: "none", borderRadius: 999, background: editableFieldInnerBg(colors),
+                  boxShadow: fieldCardShadow(colors, false),
                   color: colors.textTertiary, cursor: "pointer" }}>
                 Close
               </button>

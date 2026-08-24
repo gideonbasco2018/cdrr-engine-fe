@@ -1,7 +1,11 @@
 // src/components/gmp/shared/constants.js
-// GMP workflow — 7-step sequence matching backend GMP_LOG_STEPS
+// GMP workflow — 8-step sequence matching backend GMP_LOG_STEPS (FROO is a
+// conditional detour after OD Releasing — NFI issuance types only, and it
+// loops back to the Evaluator afterwards, see resolve_next_step()
+// in app/crud/gmp_record.py)
 // Group IDs: Decking=30, Evaluator=31, Checker=32,
-//            QA Admin=34, LRD Chief Admin=17, OD Receiving=18, OD Releasing=19
+//            QA Admin=34, LRD Chief Admin=17, OD Receiving=18, OD Releasing=19,
+//            FROO=37
 // NOTE: The "QA Supervisor" step/group (33) has been removed on the backend.
 // Evaluator now routes directly to QA Admin. Keep this file's `id` and
 // `actions` in sync with GMP_ACTION_ROUTES / GMP_LOG_STEPS in
@@ -44,12 +48,35 @@ export const GMP_STEPS = [
     group_id: 19,
     actions: ["Certificate Released", "Return to OD Receiving", "Hold"],
   },
+  // Detour step, NFI issuance types only (see GMP_NFI_ISSUANCE_TYPES /
+  // resolve_next_step() in app/crud/gmp_record.py) — OD Releasing already
+  // marks GMP_APP_STATUS "RELEASED"; FROO may supply the Related DTN
+  // (GMP_RELATED_DTN, a branch of the main DTN — distinct from the
+  // internal-only GMP_REFERENCE_NO), which is OPTIONAL, then hands the
+  // application back to the Evaluator. From there it runs the normal
+  // Evaluator ⇄ Checker → QA Admin → LRD Chief Admin → OD Receiving →
+  // OD Releasing sequence again, and OD Releasing is the real ending —
+  // the second pass does NOT come back here.
+  {
+    id: "FROO", label: "FROO", icon: "🔗", color: "#0ea5e9", del_index: 8,
+    group_id: 37,
+    actions: ["Forwarded to CDRR FGMP"],
+  },
 ];
 
 export const GMP_STEP_MAP = Object.fromEntries(GMP_STEPS.map((s) => [s.id, s]));
 
 // Group ID → step lookup (for resolving next assignee group)
 export const GMP_GROUP_MAP = Object.fromEntries(GMP_STEPS.map((s) => [s.group_id, s]));
+
+// The original 7-step sequence, without FROO — used by StepProgress (the dot
+// row shown in QueueTable/TasksTable). FROO only applies to NFI issuance
+// types (see GMP_NFI_ISSUANCE_TYPES / resolve_next_step() in
+// app/crud/gmp_record.py) and isn't part of the fixed sequence every
+// application walks through, so it doesn't get its own permanent dot —
+// StepProgress instead treats a record sitting on FROO as "back at Evaluator"
+// (that's where FROO hands the application to next).
+export const GMP_PROGRESS_STEPS = GMP_STEPS.filter((s) => s.id !== "FROO");
 
 export const GMP_STATUS_COLORS = {
   "ON-PROCESS":  { bg: "#dbeafe", color: "#1d4ed8" },

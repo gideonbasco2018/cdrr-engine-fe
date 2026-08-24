@@ -14,5 +14,14 @@ export function getColorScheme(darkMode) {
     divider:      darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
     tableBg:      darkMode ? "#1a1b1c" : "#ffffff",
     tableRowHover:darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+    // Zebra tint for borderless table rows — replaces per-cell divider lines.
+    // Solid (not rgba-on-transparent) so the sticky checkbox/actions columns
+    // stay fully opaque — a translucent sticky background lets whatever
+    // slides underneath during horizontal scroll bleed through, which is
+    // what made the Actions column look like it "vanished" on hover.
+    tableRowAlt:  darkMode ? "#202126" : "#f8f9fc",
+    tableRowAccentHover: darkMode ? "#242842" : "#eef0fd",
+    cardShadow:   darkMode ? "0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.3)"
+                            : "0 1px 2px rgba(15,23,42,0.04), 0 6px 16px rgba(15,23,42,0.05)",
   };
 }

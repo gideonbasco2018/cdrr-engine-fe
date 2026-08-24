@@ -58,20 +58,6 @@ function formatShortDate(raw) {
   } catch { return raw; }
 }
 
-function Avatar({ name, color }) {
-  const initial = name ? name.trim()[0].toUpperCase() : "?";
-  return (
-    <span style={{
-      width: 28, height: 28, borderRadius: "50%",
-      background: `${color}22`, color, fontSize: "0.75rem", fontWeight: 800,
-      display: "inline-flex", alignItems: "center", justifyContent: "center",
-      flexShrink: 0, border: `1px solid ${color}44`,
-    }}>
-      {initial}
-    </span>
-  );
-}
-
 function StepCard({ log, index, isLast, colors, darkMode }) {
   const isCompleted  = ["completed", "released"].includes(log.application_status?.toLowerCase());
   const isInProgress = log.application_status?.toLowerCase() === "in progress" ||
@@ -79,10 +65,11 @@ function StepCard({ log, index, isLast, colors, darkMode }) {
   const color  = stepColor(log.application_step);
   const dotIcon = isCompleted ? "✓" : isInProgress ? "●" : "○";
 
-  // action_type doubles as a system tag (REASSIGNMENT/REROUTE) on some rows
-  // and as the Decision value (Approved/Disapproved/etc.) on eval/checker
-  // rows — same distinction StepLogs/LogCard makes in WorkflowModal Step 4.
-  const isSystemTag = log.action_type === "REASSIGNMENT" || log.action_type === "REROUTE";
+  // action_type doubles as a system tag (REASSIGNMENT/REROUTE/ISSUANCE_ADDED)
+  // on some rows and as the Decision value (Approved/Disapproved/etc.) on
+  // eval/checker rows — same distinction StepLogs/LogCard makes in
+  // WorkflowModal Step 3.
+  const isSystemTag = log.action_type === "REASSIGNMENT" || log.action_type === "REROUTE" || log.action_type === "ISSUANCE_ADDED";
   const decisionValue = isSystemTag ? null : log.action_type;
 
   return (
@@ -90,39 +77,44 @@ function StepCard({ log, index, isLast, colors, darkMode }) {
       {/* Timeline column */}
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
         <div style={{
-          width: 34, height: 34, borderRadius: "50%",
+          width: 30, height: 30, borderRadius: "50%",
           background: isCompleted ? ACCENT : isInProgress ? "#f97316" : (darkMode ? "#2a2b2c" : "#e2e8f0"),
           display: "flex", alignItems: "center", justifyContent: "center",
-          color: "#fff", fontSize: "0.85rem", fontWeight: 800, zIndex: 1, position: "relative",
-          boxShadow: isCompleted ? `0 0 0 3px ${ACCENT}30` : isInProgress ? "0 0 0 3px #f9731630" : "none",
+          color: "#fff", fontSize: "0.8rem", fontWeight: 800, zIndex: 1, position: "relative",
+          boxShadow: isInProgress ? `0 0 0 3px rgba(249,115,22,0.3)` : "none",
         }}>
           {dotIcon}
         </div>
         {!isLast && (
           <div style={{
-            width: 2, flex: 1, minHeight: 16,
+            width: 2, flex: 1, minHeight: 12,
             background: isCompleted ? `${ACCENT}40` : (darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"),
-            margin: "2px 0",
+            margin: "3px 0",
           }} />
         )}
       </div>
       {/* Card */}
       <div style={{
-        flex: 1, marginBottom: isLast ? 0 : 16,
+        flex: 1, marginBottom: isLast ? 0 : 14,
         background: darkMode ? "#1e1f20" : "#fff",
         border: `1px solid ${isInProgress ? "#f9731640" : color + "25"}`,
         borderLeft: `3px solid ${isInProgress ? "#f97316" : isCompleted ? color : "#94a3b8"}`,
-        borderRadius: 10,
-        boxShadow: isInProgress ? "0 2px 12px rgba(249,115,22,0.12)" : "0 1px 6px rgba(0,0,0,0.06)",
+        borderRadius: 9,
+        boxShadow: isInProgress ? "0 2px 10px rgba(249,115,22,0.1)" : "0 1px 4px rgba(0,0,0,0.05)",
       }}>
-        {/* Header — step name + status badge, matches Step4's header row */}
+        {/* Header — step name + assignee + status badge, matches WorkflowModal Step 3's LogCard */}
         <div style={{
-          padding: "10px 16px 7px",
+          padding: "10px 14px 7px",
           borderBottom: `1px solid ${darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
           display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6,
         }}>
-          <span style={{ fontSize: "0.9rem", fontWeight: 700, color: colors.textPrimary }}>
-            {log.application_step || "—"}
+          <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontWeight: 700, fontSize: "0.85rem", color: colors.textPrimary }}>
+              {log.application_step || "—"}
+            </span>
+            {log.user_name && (
+              <span style={{ fontSize: "0.72rem", fontWeight: 600, color }}>· {log.user_name}</span>
+            )}
           </span>
           <div style={{ display: "flex", gap: 6 }}>
             <span style={{
@@ -137,25 +129,17 @@ function StepCard({ log, index, isLast, colors, darkMode }) {
                 fontSize: "0.63rem", fontWeight: 700, padding: "2px 9px",
                 borderRadius: 99, background: "rgba(99,102,241,0.08)", color: "#6366f1",
               }}>
-                {log.action_type}
+                {log.action_type === "ISSUANCE_ADDED" ? "Issuance Added" : log.action_type}
               </span>
             )}
           </div>
         </div>
-        {/* Meta — 4-column grid: Assigned To / Action / Decision / Accomplished */}
+        {/* Meta — 4-column grid: Action / Recommendation / Forwarded On / Accomplished
+            (who it's assigned to is now shown inline in the header, next to the step name) */}
         <div style={{
-          padding: "8px 16px",
+          padding: "8px 14px",
           display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "6px 12px",
         }}>
-          <div>
-            <p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-              textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>
-              Assigned To
-            </p>
-            <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 600, color: colors.textPrimary }}>
-              {log.user_name || "—"}
-            </p>
-          </div>
           <div>
             <p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
               textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>
@@ -168,10 +152,19 @@ function StepCard({ log, index, isLast, colors, darkMode }) {
           <div>
             <p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
               textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>
-              Decision
+              Recommendation
             </p>
             <p style={{ margin: 0, fontSize: "0.74rem", color: colors.textPrimary }}>
               {decisionValue || "—"}
+            </p>
+          </div>
+          <div>
+            <p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
+              textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>
+              Forwarded On
+            </p>
+            <p style={{ margin: 0, fontSize: "0.72rem", color: colors.textPrimary }}>
+              {formatDateTime(log.start_date)}
             </p>
           </div>
           <div>
@@ -226,7 +219,7 @@ function StepCard({ log, index, isLast, colors, darkMode }) {
               : { label: "On Track", color: "#15803d", bg: "rgba(16,185,129,0.14)", dot: "#10b981" };
           return (
             <div style={{
-              margin: "0 16px 14px", padding: "10px 14px", borderRadius: 9,
+              margin: "0 14px 12px", padding: "9px 12px", borderRadius: 8,
               background: status.bg, border: `1px solid ${status.color}30`,
               display: "flex", alignItems: "center", justifyContent: "space-between",
               flexWrap: "wrap", gap: 10,
@@ -348,13 +341,15 @@ export default function AppLogModal({ record, onClose, colors, darkMode }) {
               </span>
             </div>
             <p style={{ margin: "3px 0 0", fontSize: "0.76rem", color: colors.textTertiary,
-              display: "flex", alignItems: "center", gap: 8 }}>
+              display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               DTN:{" "}
               <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, color: ACCENT }}>
                 {record?.dtn || "—"}
               </span>
-              {completed > 0 && <span style={{ color: ACCENT, fontWeight: 600 }}>· {completed} completed</span>}
-              {inProgress > 0 && <span style={{ color: "#f97316", fontWeight: 600 }}>· {inProgress} in progress</span>}
+              {completed > 0 && <span style={{ fontSize: "0.63rem", fontWeight: 700, padding: "2px 8px",
+                borderRadius: 99, background: "#dcfce7", color: "#15803d" }}>{completed} completed</span>}
+              {inProgress > 0 && <span style={{ fontSize: "0.63rem", fontWeight: 700, padding: "2px 8px",
+                borderRadius: 99, background: "#fff7ed", color: "#c2410c" }}>{inProgress} in progress</span>}
             </p>
           </div>
           <button onClick={onClose}

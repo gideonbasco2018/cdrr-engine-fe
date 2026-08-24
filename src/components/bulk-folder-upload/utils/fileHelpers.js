@@ -40,6 +40,24 @@ export function kindOfMime(mimeType) {
   return ACCEPTED_TYPES[mimeType] || "other";
 }
 
+/** DTN pattern — a 14-digit timestamp (YYYYMMDDHHMMSS), e.g. "20250307094701". */
+export const DTN_PATTERN = /\d{14}/;
+
+/**
+ * Scans path segments (excluding the filename) for the first one containing
+ * a 14-digit timestamp — that segment's match becomes the DTN, regardless of
+ * how many container folders sit above it (e.g. a batch folder holding many
+ * DTN subfolders). Falls back to the first segment if none match, preserving
+ * the "selected folder itself is the DTN" behavior.
+ */
+export function locateDtnInPathParts(parts) {
+  for (let i = 0; i < parts.length - 1; i++) {
+    const match = parts[i].match(DTN_PATTERN);
+    if (match) return { index: i, dtn: match[0] };
+  }
+  return { index: 0, dtn: parts[0] };
+}
+
 /**
  * Google Drive "view"/"open" links (…/file/d/FILE_ID/view) can't be embedded
  * directly in an <iframe> — Drive returns X-Frame-Options: SAMEORIGIN for

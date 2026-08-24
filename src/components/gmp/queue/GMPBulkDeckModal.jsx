@@ -4,22 +4,21 @@
 import { useState, useEffect, useRef } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
-import { advanceStep, getGMPRecordLogs, assignEvaluator } from "../../../api/gmp";
+import { advanceStep, getGMPRecordLogs, assignEvaluator, getGMPTaskCounts } from "../../../api/gmp";
 import { FONT } from "../shared/constants";
 
 export const GMP_EVALUATOR_GROUP_ID = 31;
 
 // "Decision" was renamed to "Action" — the backend field this maps to
 // (GMPAdvanceStepRequest.action) was always called "action"; this just makes
-// the frontend naming match. "Disapprove" has been removed as an option.
+// the frontend naming match. "Disapprove" and "Hold" have both been removed
+// as options — bulk decking now only ever forwards to an Evaluator.
 const ACTIONS = [
   "Forwarded to Evaluator",
-  "Hold",
 ];
 
 const DOCTRACK_DEFAULTS = {
   "Forwarded to Evaluator": "FGMP Application received, encoded and decked to evaluator",
-  "Hold":                   "GMP Application placed on hold",
 };
 
 const CSS = `
@@ -38,81 +37,100 @@ function Spinner({ size = 13 }) {
   );
 }
 
-function UserSelect({ value, onChange, users, colors }) {
-  const [search, setSearch] = useState("");
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
-  const filtered = users.filter((u) => {
-    const q = search.toLowerCase();
-    return u.username.toLowerCase().includes(q) ||
-      `${u.first_name ?? ""} ${u.surname ?? u.last_name ?? ""}`.toLowerCase().includes(q);
+// Splits `records` into as-equal-as-possible contiguous blocks across
+// `evaluatorUsernames` — e.g. 15 applications / 3 evaluators = 5 each; any
+// remainder goes one-at-a-time to the first evaluators in the list. This is
+// only the PRESET starting point — handleAssignmentChange below lets any
+// individual row be reassigned to a different (checked) evaluator afterward.
+function distributeEvenly(records, evaluatorUsernames) {
+  const map = {};
+  const n = evaluatorUsernames.length;
+  if (n === 0) return map;
+  const base = Math.floor(records.length / n);
+  const extra = records.length % n;
+  let idx = 0;
+  evaluatorUsernames.forEach((name, i) => {
+    const count = base + (i < extra ? 1 : 0);
+    for (let k = 0; k < count && idx < records.length; k++, idx++) {
+      map[records[idx].id] = name;
+    }
   });
-  const selected = users.find((u) => u.username === value);
-  useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
+  return map;
+}
+
+function displayName(u) {
+  return `${u.first_name ?? ""} ${u.surname ?? u.last_name ?? ""}`.trim();
+}
+
+// ── Evaluator checklist — replaces the old single-select dropdown. Each row
+// shows the evaluator's current open-task workload so staff can see who's
+// already loaded up before the preset split runs. ─────────────────────────
+function EvaluatorChecklist({ evaluators, checked, onToggle, taskCounts, loadingCounts, colors, darkMode }) {
+  const [search, setSearch] = useState("");
+  const filtered = evaluators.filter((u) => {
+    const q = search.toLowerCase();
+    return u.username.toLowerCase().includes(q) || displayName(u).toLowerCase().includes(q);
+  });
   return (
-    <div ref={ref} style={{ position:"relative", width:"100%" }}>
-      <div onClick={() => users.length > 0 && setOpen(o => !o)} style={{
-        width:"100%", padding:"0.6rem 1rem", borderRadius:8,
-        border:`1px solid ${colors.inputBorder}`, background:colors.inputBg,
-        color: value ? colors.textPrimary : colors.textTertiary,
-        fontSize:"0.88rem", cursor: users.length === 0 ? "not-allowed":"pointer",
-        display:"flex", justifyContent:"space-between", alignItems:"center",
-        opacity: users.length===0 ? 0.55:1, boxSizing:"border-box",
-      }}>
-        <span>{selected
-          ? `${selected.username} — ${selected.first_name??""} ${selected.surname??selected.last_name??""}`
-          : users.length===0 ? "No users available" : "Select evaluator"}</span>
-        <span style={{ fontSize:"0.7rem", color:colors.textTertiary }}>{open?"▲":"▼"}</span>
+    <div style={{
+      border: `1px solid ${colors.inputBorder}`, borderRadius: 8,
+      background: colors.inputBg, overflow: "hidden",
+    }}>
+      <div style={{ padding: "0.4rem" }}>
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search evaluators…" style={{
+            width: "100%", padding: "0.4rem 0.65rem", borderRadius: 6, fontFamily: FONT,
+            border: `1px solid ${colors.inputBorder}`, background: colors.cardBg,
+            color: colors.textPrimary, fontSize: "0.8rem", outline: "none", boxSizing: "border-box",
+          }} />
       </div>
-      {open && (
-        <div style={{
-          position:"absolute", bottom:"calc(100% + 4px)", left:0, right:0,
-          background:colors.cardBg, border:`1px solid ${colors.cardBorder}`,
-          borderRadius:8, zIndex:9999, boxShadow:"0 8px 24px rgba(0,0,0,0.25)", overflow:"hidden",
-        }}>
-          <div style={{ padding:"0.45rem" }}>
-            <input autoFocus type="text" value={search} onChange={(e)=>setSearch(e.target.value)}
-              placeholder="Search user..." style={{
-                width:"100%", padding:"0.45rem 0.7rem", borderRadius:6,
-                border:`1px solid ${colors.inputBorder}`, background:colors.inputBg,
-                color:colors.textPrimary, fontSize:"0.82rem", outline:"none", boxSizing:"border-box",
-              }} />
-          </div>
-          <div style={{ maxHeight:200, overflowY:"auto" }}>
-            {filtered.length===0
-              ? <div style={{ padding:"0.7rem 1rem", fontSize:"0.8rem", color:colors.textTertiary }}>No users found</div>
-              : filtered.map(u => (
-                <div key={u.id} onClick={()=>{ onChange(u.username); setOpen(false); setSearch(""); }}
-                  style={{
-                    padding:"0.5rem 1rem", cursor:"pointer",
-                    background: value===u.username ? "rgba(76,175,80,0.1)":"transparent",
-                    borderLeft: value===u.username ? "3px solid #4CAF50":"3px solid transparent",
-                  }}
-                  onMouseEnter={(e)=>{ if(value!==u.username) e.currentTarget.style.background="rgba(255,255,255,0.05)"; }}
-                  onMouseLeave={(e)=>{ if(value!==u.username) e.currentTarget.style.background="transparent"; }}>
-                  <div style={{ fontSize:"0.82rem", fontWeight:700, color:colors.textPrimary }}>{u.username}</div>
-                  <div style={{ fontSize:"0.72rem", color:colors.textTertiary }}>{u.first_name} {u.surname??u.last_name}</div>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
+      <div style={{ maxHeight: 200, overflowY: "auto", borderTop: `1px solid ${colors.cardBorder}` }}>
+        {filtered.length === 0 ? (
+          <div style={{ padding: "0.7rem 1rem", fontSize: "0.8rem", color: colors.textTertiary }}>No evaluators found</div>
+        ) : filtered.map((u) => {
+          const isChecked = checked.includes(u.username);
+          const count = taskCounts[u.username] ?? 0;
+          return (
+            <label key={u.id} onClick={() => onToggle(u.username)} style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "0.5rem 0.9rem",
+              cursor: "pointer", background: isChecked ? "rgba(76,175,80,0.08)" : "transparent",
+              borderLeft: isChecked ? "3px solid #4CAF50" : "3px solid transparent",
+            }}
+              onMouseEnter={(e) => { if (!isChecked) e.currentTarget.style.background = darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)"; }}
+              onMouseLeave={(e) => { if (!isChecked) e.currentTarget.style.background = "transparent"; }}>
+              <input type="checkbox" checked={isChecked} readOnly style={{ cursor: "pointer", flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: "0.82rem", fontWeight: 700, color: colors.textPrimary }}>{u.username}</div>
+                <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>{displayName(u)}</div>
+              </div>
+              <span title="Applications currently assigned to this evaluator" style={{
+                flexShrink: 0, fontSize: "0.68rem", fontWeight: 700, padding: "2px 8px", borderRadius: 99,
+                background: count > 0 ? "rgba(245,158,11,0.14)" : "rgba(76,175,80,0.12)",
+                color: count > 0 ? "#b45309" : "#4CAF50",
+              }}>
+                {loadingCounts ? "…" : `${count} current`}
+              </span>
+            </label>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 export default function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   const [action,          setAction]           = useState("");
-  const [evaluator,       setEvaluator]       = useState("");
+  const [evaluators,      setEvaluators]       = useState([]);
+  const [loadingUsers,    setLoadingUsers]     = useState(false);
+  const [checkedEvaluators, setCheckedEvaluators] = useState([]);
+  const [taskCounts,      setTaskCounts]       = useState({});
+  const [loadingCounts,   setLoadingCounts]    = useState(false);
+  // record.id -> evaluator username. Seeded by distributeEvenly() whenever
+  // the checked evaluator set changes, then editable per-row afterward.
+  const [assignments,     setAssignments]      = useState({});
   const [deckerRemarks,   setDeckerRemarks]   = useState("");
   const [doctrackEnabled, setDoctrackEnabled] = useState(true);
   const [doctrackRemarks, setDoctrackRemarks] = useState("");
-  const [users,           setUsers]           = useState([]);
-  const [loadingUsers,    setLoadingUsers]    = useState(false);
   const [submitting,      setSubmitting]      = useState(false);
   const [progress,        setProgress]        = useState({ current:0, total:0 });
   const [error,           setError]           = useState("");
@@ -126,19 +144,59 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
   useEffect(() => { const u = getUser(); if (u) setCurrentUser(u); }, []);
 
   useEffect(() => {
-    setEvaluator("");
+    setCheckedEvaluators([]);
+    setAssignments({});
     setDoctrackRemarks(DOCTRACK_DEFAULTS[action] ?? "");
-    if (action !== "Forwarded to Evaluator") { setUsers([]); return; }
+    if (action !== "Forwarded to Evaluator") { setEvaluators([]); return; }
     (async () => {
-      try { setLoadingUsers(true); setUsers(await getUsersByGroup(GMP_EVALUATOR_GROUP_ID)); }
-      catch { setUsers([]); }
+      try {
+        setLoadingUsers(true);
+        const list = await getUsersByGroup(GMP_EVALUATOR_GROUP_ID);
+        setEvaluators(list);
+        // Auto-check every evaluator in the group so the applications are
+        // split (and the assignment list below populated) the moment the
+        // modal opens — still fully editable: uncheck anyone here, or
+        // reassign any individual application in the list below.
+        setCheckedEvaluators(list.map((u) => u.username));
+      }
+      catch { setEvaluators([]); }
       finally { setLoadingUsers(false); }
     })();
   }, [action]);
 
+  // Current workload per evaluator, fetched once the group's user list is in.
+  useEffect(() => {
+    if (evaluators.length === 0) { setTaskCounts({}); return; }
+    (async () => {
+      try {
+        setLoadingCounts(true);
+        setTaskCounts(await getGMPTaskCounts(evaluators.map((u) => u.username)));
+      } catch { setTaskCounts({}); }
+      finally { setLoadingCounts(false); }
+    })();
+  }, [evaluators]);
+
+  // Re-run the even split every time the checked evaluator set changes —
+  // this is only ever the PRESET; individual rows can still be reassigned
+  // by hand afterward via handleAssignmentChange.
+  useEffect(() => {
+    setAssignments(distributeEvenly(records, checkedEvaluators));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkedEvaluators.join(",")]);
+
   const needsEvaluator = action === "Forwarded to Evaluator";
+  const toggleEvaluator = (username) => {
+    setCheckedEvaluators((prev) =>
+      prev.includes(username) ? prev.filter((u) => u !== username) : [...prev, username]
+    );
+  };
+  const handleAssignmentChange = (recordId, username) => {
+    setAssignments((prev) => ({ ...prev, [recordId]: username }));
+  };
+
+  const unassignedCount = needsEvaluator ? records.filter((r) => !assignments[r.id]).length : 0;
   const isDisabled = submitting || !action
-    || (needsEvaluator && (loadingUsers || users.length===0 || !evaluator))
+    || (needsEvaluator && (loadingUsers || checkedEvaluators.length === 0 || unassignedCount > 0))
     || (doctrackEnabled && !doctrackRemarks.trim());
 
   const inp = {
@@ -153,10 +211,17 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
     color:colors.textPrimary, marginBottom:"0.4rem",
   };
 
+  // Per-evaluator totals under the current assignment map — shown in the
+  // confirmation modal so the split is legible before committing.
+  const assignmentSummary = checkedEvaluators.map((name) => ({
+    name, count: records.filter((r) => assignments[r.id] === name).length,
+  })).filter((s) => s.count > 0);
+
   const handleFormSubmit = (e) => {
     e.preventDefault();
     if (!action) { setAlertModal({ message:"Please select an action." }); return; }
-    if (needsEvaluator && !evaluator) { setAlertModal({ message:"Please assign an Evaluator." }); return; }
+    if (needsEvaluator && checkedEvaluators.length === 0) { setAlertModal({ message:"Please check at least one Evaluator." }); return; }
+    if (needsEvaluator && unassignedCount > 0) { setAlertModal({ message:`${unassignedCount} application(s) still have no evaluator assigned.` }); return; }
     setConfirmOpen(true);
   };
 
@@ -184,9 +249,10 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
         }
       }
 
-      // Step 2 — Application logs per record
+      // Step 2 — Application logs per record, each to its own assigned evaluator
       for (let i = 0; i < records.length; i++) {
         const record = records[i];
+        const evaluator = assignments[record.id];
         setProgress({ current:i+1, total:records.length });
         try {
           // Same "does this record already have an open Decking log?" check the
@@ -206,7 +272,12 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
             action:             action,
             recommendation:     "",
             remarks:            deckerRemarks,
-            doctrack_remarks:   doctrackEnabled ? doctrackRemarks.trim() : "",
+            // Always recorded on our own application log — mirrors WorkflowModal:
+            // `doctrackEnabled` only controls whether this text is ALSO pushed to
+            // the external FIS Doctrack system above; it must not gate our own
+            // history, or every deck submitted with the toggle off silently loses
+            // its remarks.
+            doctrack_remarks:   doctrackRemarks.trim(),
             next_assignee_name: needsEvaluator ? evaluator : null,
             next_assignee_id:   null,
           });
@@ -277,7 +348,7 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
       <div onClick={onClose} style={{ position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.6)",backdropFilter:"blur(4px)" }} />
       <style>{CSS}</style>
       <div style={{ position:"fixed",inset:0,zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem" }} onClick={e=>{ if(e.target===e.currentTarget) onClose(); }}>
-        <div onClick={e=>e.stopPropagation()} style={{ background:colors.cardBg,border:`1px solid ${colors.cardBorder}`,borderRadius:16,width:"100%",maxWidth:500,maxHeight:"92vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.4)",animation:"gmpSlideIn 0.3s ease" }}>
+        <div onClick={e=>e.stopPropagation()} style={{ background:colors.cardBg,border:`1px solid ${colors.cardBorder}`,borderRadius:16,width:"100%",maxWidth:560,maxHeight:"92vh",display:"flex",flexDirection:"column",overflow:"hidden",boxShadow:"0 20px 60px rgba(0,0,0,0.4)",animation:"gmpSlideIn 0.3s ease" }}>
           {/* Header */}
           <div style={{ padding:"1rem 1.25rem",borderBottom:`2px solid ${colors.cardBorder}`,display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0 }}>
             <div>
@@ -300,17 +371,21 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
           {/* Body */}
           <form onSubmit={handleFormSubmit} style={{ display:"flex",flexDirection:"column",flex:1,minHeight:0 }}>
             <div style={{ padding:"1.1rem 1.25rem",overflowY:"auto",flex:1,display:"flex",flexDirection:"column",gap:"1rem" }}>
-              {/* DTN list */}
-              <div>
-                <label style={lbl}>Selected Applications ({records.length})</label>
-                <div style={{ maxHeight:100,overflowY:"auto",background:colors.badgeBg,border:`1px solid ${colors.cardBorder}`,borderRadius:8,padding:"0.75rem" }}>
-                  <div style={{ display:"flex",flexWrap:"wrap",gap:"0.5rem" }}>
-                    {records.map(r => (
-                      <span key={r.id} style={{ padding:"0.3rem 0.7rem",background:"#4CAF5020",color:"#4CAF50",borderRadius:6,fontSize:"0.78rem",fontWeight:600,border:"1px solid #4CAF5040",fontFamily:"ui-monospace,monospace" }}>{r.dtn}</span>
-                    ))}
+              {/* Selected Applications — plain preview until evaluators are
+                  checked, at which point the per-application assignment list
+                  below takes over (same DTNs, now with an evaluator each). */}
+              {!(needsEvaluator && checkedEvaluators.length > 0) && (
+                <div>
+                  <label style={lbl}>Selected Applications ({records.length})</label>
+                  <div style={{ maxHeight:100,overflowY:"auto",background:colors.badgeBg,border:`1px solid ${colors.cardBorder}`,borderRadius:8,padding:"0.75rem" }}>
+                    <div style={{ display:"flex",flexWrap:"wrap",gap:"0.5rem" }}>
+                      {records.map(r => (
+                        <span key={r.id} style={{ padding:"0.3rem 0.7rem",background:"#4CAF5020",color:"#4CAF50",borderRadius:6,fontSize:"0.78rem",fontWeight:600,border:"1px solid #4CAF5040",fontFamily:"ui-monospace,monospace" }}>{r.dtn}</span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
               {/* Decker */}
               <div>
                 <label style={lbl}>Decker (You) <span style={{ color:"#4CAF50" }}>●</span></label>
@@ -325,17 +400,53 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
                   {ACTIONS.map(a=><option key={a} value={a}>{a}</option>)}
                 </select>
               </div>
-              {/* Evaluator */}
+              {/* Evaluator checklist */}
               {needsEvaluator && (
                 <div>
-                  <label style={lbl}>Assign Evaluator <span style={{ color:"#ef4444" }}>*</span>
+                  <label style={lbl}>Assign Evaluators <span style={{ color:"#ef4444" }}>*</span>
                     <span style={{ marginLeft:6,fontSize:"0.68rem",fontWeight:500,color:"#4CAF50",background:"#4CAF5015",border:"1px solid #4CAF5030",padding:"0.1rem 0.45rem",borderRadius:4 }}>FGMP Evaluator Group</span>
                   </label>
                   {loadingUsers
                     ? <div style={{ ...inp,display:"flex",alignItems:"center",gap:8,color:colors.textTertiary }}><span style={{ display:"inline-block",width:14,height:14,border:"2px solid #4CAF5030",borderTopColor:"#4CAF50",borderRadius:"50%",animation:"gmpSpin 0.6s linear infinite" }} />Loading evaluators…</div>
-                    : <UserSelect value={evaluator} onChange={setEvaluator} users={users} colors={colors} />
+                    : <EvaluatorChecklist evaluators={evaluators} checked={checkedEvaluators} onToggle={toggleEvaluator}
+                        taskCounts={taskCounts} loadingCounts={loadingCounts} colors={colors} darkMode={darkMode} />
                   }
-                  {!loadingUsers && users.length===0 && <p style={{ fontSize:"0.7rem",color:"#ef4444",marginTop:4,marginBottom:0 }}>⚠️ No users found in FGMP Evaluator group.</p>}
+                  {!loadingUsers && evaluators.length===0 && <p style={{ fontSize:"0.7rem",color:"#ef4444",marginTop:4,marginBottom:0 }}>⚠️ No users found in FGMP Evaluator group.</p>}
+                  {checkedEvaluators.length > 0 && (
+                    <p style={{ fontSize:"0.68rem",color:colors.textTertiary,marginTop:6,marginBottom:0 }}>
+                      💡 All evaluators are checked by default — {records.length} application{records.length!==1?"s":""} auto-split
+                      evenly across {checkedEvaluators.length} of them as a preset. Uncheck anyone here, or edit any row below, to change it.
+                    </p>
+                  )}
+                </div>
+              )}
+              {/* Per-application assignment preset */}
+              {needsEvaluator && checkedEvaluators.length > 0 && (
+                <div>
+                  <label style={lbl}>Application Assignments ({records.length})</label>
+                  <div style={{ maxHeight:220,overflowY:"auto",border:`1px solid ${colors.cardBorder}`,borderRadius:8 }}>
+                    {records.map((r, i) => (
+                      <div key={r.id} style={{
+                        display:"flex", alignItems:"center", gap:8, padding:"0.45rem 0.7rem",
+                        borderTop: i===0 ? "none" : `1px solid ${colors.cardBorder}`,
+                        background: colors.cardBg,
+                      }}>
+                        <span style={{
+                          fontFamily:"ui-monospace,monospace", fontSize:"0.74rem", fontWeight:700,
+                          color:"#4CAF50", flex:"1 1 auto", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                        }}>{r.dtn}</span>
+                        <select value={assignments[r.id] ?? ""} onChange={(e)=>handleAssignmentChange(r.id, e.target.value)}
+                          style={{
+                            flex:"0 0 auto", padding:"0.3rem 0.5rem", borderRadius:6, fontFamily:FONT,
+                            border:`1px solid ${assignments[r.id] ? colors.inputBorder : "#ef4444"}`,
+                            background:colors.inputBg, color:colors.textPrimary, fontSize:"0.76rem", cursor:"pointer",
+                          }}>
+                          <option value="">Unassigned</option>
+                          {checkedEvaluators.map((name) => <option key={name} value={name}>{name}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
               {/* Decker Remarks */}
@@ -370,7 +481,7 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
                 <div style={{ padding:"0.75rem 1rem",background:"rgba(76,175,80,0.06)",border:"1px solid rgba(76,175,80,0.2)",borderRadius:8,fontSize:"0.78rem",color:colors.textSecondary,lineHeight:1.5 }}>
                   <strong style={{ color:"#4CAF50" }}>ℹ</strong>{" "}
                   {needsEvaluator
-                    ? `${records.length*2} logs will be created — Decking (Completed) + Evaluator (In Progress) per record, assigned to ${evaluator||"selected user"}.`
+                    ? `${records.length*2} logs will be created — Decking (Completed) + Evaluator (In Progress) per record, split across ${checkedEvaluators.length || "the checked"} evaluator${checkedEvaluators.length!==1?"s":""}.`
                     : `${records.length} Decking logs will be created with action: "${action}".`}
                 </div>
               )}
@@ -391,9 +502,23 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
           <div onClick={e=>e.stopPropagation()} style={{ background:colors.cardBg,border:`1px solid ${colors.cardBorder}`,borderRadius:16,padding:"2rem",width:420,maxWidth:"90%",boxShadow:"0 16px 48px rgba(0,0,0,0.35)",animation:"gmpSlideIn 0.25s ease" }}>
             <div style={{ fontSize:"2rem",textAlign:"center",marginBottom:"0.75rem" }}>🎯</div>
             <h3 style={{ margin:"0 0 0.5rem",color:colors.textPrimary,fontSize:"1.1rem",fontWeight:700,textAlign:"center" }}>Confirm Decking</h3>
-            <p style={{ margin:"0 0 1.25rem",color:colors.textSecondary,fontSize:"0.85rem",lineHeight:1.6,textAlign:"center" }}>
-              You are about to deck <strong style={{ color:"#4CAF50" }}>{records.length} application{records.length!==1?"s":""}</strong>{needsEvaluator?<> and assign to <strong style={{ color:"#2196F3" }}>{evaluator}</strong></>:""}.
+            <p style={{ margin:"0 0 1rem",color:colors.textSecondary,fontSize:"0.85rem",lineHeight:1.6,textAlign:"center" }}>
+              You are about to deck <strong style={{ color:"#4CAF50" }}>{records.length} application{records.length!==1?"s":""}</strong>.
             </p>
+            {needsEvaluator && assignmentSummary.length > 0 && (
+              <div style={{ margin:"0 0 1.25rem", display:"flex", flexDirection:"column", gap:6 }}>
+                {assignmentSummary.map((s) => (
+                  <div key={s.name} style={{
+                    display:"flex", justifyContent:"space-between", alignItems:"center",
+                    padding:"0.4rem 0.7rem", borderRadius:7, background: darkMode ? "rgba(255,255,255,0.04)" : "#f8fafc",
+                    fontSize:"0.8rem",
+                  }}>
+                    <span style={{ color:colors.textPrimary, fontWeight:600 }}>{s.name}</span>
+                    <span style={{ color:"#4CAF50", fontWeight:700 }}>{s.count} application{s.count!==1?"s":""}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             <p style={{ margin:"0 0 1.25rem",fontSize:"0.78rem",color:colors.textTertiary,textAlign:"center" }}>This action cannot be undone.</p>
             <div style={{ display:"flex",gap:"0.75rem",justifyContent:"center" }}>
               <button onClick={()=>setConfirmOpen(false)} style={{ padding:"0.55rem 1.25rem",borderRadius:8,border:`1px solid ${colors.cardBorder}`,background:"transparent",color:colors.textSecondary,fontSize:"0.85rem",cursor:"pointer",fontWeight:500 }}>Go Back</button>

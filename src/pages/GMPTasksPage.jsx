@@ -2,15 +2,21 @@
 // GMP Tasks — personal task queue for evaluators, checkers, etc.
 // Mirrors the production TaskPage.jsx pattern exactly.
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { getMyGMPTasks, markTaskReceived, toggleTaskStar } from "../api/gmp";
 import { getColorScheme } from "../components/gmp/shared/colorScheme";
 import { GMP_STEPS, FONT } from "../components/gmp/shared/constants";
-import TasksTable from "../components/gmp/tasks/TasksTable";
+import TasksTable, { GMP_COLUMNS as GMP_TASKS_COLUMNS } from "../components/gmp/tasks/TasksTable";
 import AppLogModal from "../components/gmp/tasks/AppLogModal";
 import FieldAuditModal from "../components/gmp/tasks/FieldAuditModal";
 import WorkflowModal from "../components/gmp/tasks/WorkflowModal";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
 import { QuickFilterSidebar } from "../components/gmp/queue/QueueFilters";
+import {
+  generateGMPTransmittalPDF,
+  generateGMPTransmittalExcel,
+  generateGMPTransmittal,
+} from "../components/tasks/DataTable/TransmittalGenerator";
 
 const ACCENT = "#10b981";
 const QUICK_LABEL_MAP = {
@@ -18,6 +24,21 @@ const QUICK_LABEL_MAP = {
   status: "Application Status", type_of_issuance: "Issuance Type",
 };
 const QUICK_DEFAULTS = { category: "all", transaction_type: "all", status: "all", type_of_issuance: "all" };
+
+// GMP_APP_STATUS can be stale/blank while a record is actively moving
+// through the workflow (see app/crud/gmp_record.py) — every row on this
+// page is by definition an open, non-terminal task, so raw r.status is
+// unreliable here. Mirrors getEffectiveStatus() in QueueTable.jsx so the
+// "Application Status" filter behaves the same as on the GMP Queue page.
+const GMP_TERMINAL_STATUSES = new Set([
+  "COMPLETED", "RELEASED", "DISAPPROVED", "CANCELLED APPLICATION", "CANCELLED",
+]);
+function getEffectiveStatus(r) {
+  const raw = (r.status || "").trim().toUpperCase();
+  if (raw && GMP_TERMINAL_STATUSES.has(raw)) return r.status;
+  if (r.currentStep) return "IN PROGRESS";
+  return r.status;
+}
 
 // Map GMPApplicationLogs + embedded GMPRecord → flat task object
 function mapGMPTask(t) {
@@ -133,6 +154,81 @@ function workingDaysUntil(deadlineStr) {
   return forward ? count : -count;
 }
 
+// Same choice modal as GMPQueuePage.jsx's GMPTransmittalModal — PDF/Excel/
+// both, for whichever tasks are checked in TasksTable.
+function GMPTransmittalModal({ open, count, generating, onGenerate, onClose, colors, darkMode }) {
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      onClick={() => !generating && onClose()}
+      style={{
+        position: "fixed", inset: 0, zIndex: 10001,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: 14,
+          padding: "2rem",
+          width: 380,
+          maxWidth: "90%",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
+        }}>
+        <div style={{ fontSize: "2rem", marginBottom: "0.75rem", textAlign: "center" }}>📄</div>
+        <h3 style={{
+          margin: "0 0 0.5rem", color: colors.textPrimary,
+          fontSize: "1.05rem", fontWeight: 700, textAlign: "center",
+        }}>
+          Generate Transmittal
+        </h3>
+        <p style={{ margin: "0 0 1.5rem", color: colors.textTertiary, fontSize: "0.85rem", textAlign: "center" }}>
+          Choose format for{" "}
+          <strong style={{ color: ACCENT }}>{count}</strong>{" "}
+          selected task{count > 1 ? "s" : ""}.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          {[
+            { fmt: "pdf",   label: "📕 PDF only",         bg: "linear-gradient(135deg,#dc2626,#b91c1c)" },
+            { fmt: "excel", label: "📗 Excel only",        bg: "linear-gradient(135deg,#16a34a,#15803d)" },
+            { fmt: "both",  label: "📄 Both PDF & Excel",  bg: "linear-gradient(135deg,#1976d2,#1565c0)" },
+          ].map((b) => (
+            <button
+              key={b.fmt}
+              onClick={() => onGenerate(b.fmt)}
+              disabled={generating}
+              style={{
+                padding: "0.65rem 1rem", borderRadius: 8, border: "none",
+                background: b.bg, color: "#fff", fontSize: "0.85rem", fontWeight: 700,
+                cursor: generating ? "not-allowed" : "pointer",
+                opacity: generating ? 0.6 : 1,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
+              }}>
+              {b.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={onClose}
+          disabled={generating}
+          style={{
+            marginTop: "1rem", width: "100%", padding: "0.5rem", borderRadius: 8,
+            border: `1px solid ${colors.cardBorder}`, background: "transparent",
+            color: colors.textTertiary, fontSize: "0.8rem", cursor: generating ? "not-allowed" : "pointer",
+          }}>
+          Cancel
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export default function GMPTasksPage({ darkMode = false }) {
   const colors = getColorScheme(darkMode);
 
@@ -145,13 +241,46 @@ export default function GMPTasksPage({ darkMode = false }) {
   const [currentUser,    setCurrentUser]    = useState(null);
   const [currentPage,    setCurrentPage]    = useState(1);
   const [rowsPerPage,    setRowsPerPage]    = useState(10);
-  const [sortBy,         setSortBy]         = useState("created_at");
-  const [sortOrder,      setSortOrder]      = useState("desc");
+  // Client-side only — every task for the active tab is already fully
+  // loaded in `data` (see fetchAllSteps: page_size 10000, no server
+  // pagination here), so sorting is just a JS array sort, no backend call.
+  // null = no explicit sort applied (whatever order the backend returned).
+  const [sortBy,         setSortBy]         = useState(null);
+  const [sortOrder,      setSortOrder]      = useState("asc");
   const [readIds,        setReadIds]        = useState(new Set());
   const [searchInput,    setSearchInput]    = useState("");
   const [filters,        setFilters]        = useState({ starredOnly: false, sentBy: "" });
   const [activeQuick,    setActiveQuick]    = useState(QUICK_DEFAULTS);
-  const [collapsed,      setCollapsed]      = useState(false);
+  // Persisted across sessions — a refresh or navigating back should leave
+  // the Quick Filters sidebar exactly as the user last left it.
+  const [collapsed,      setCollapsed]      = useState(
+    () => localStorage.getItem("gmp_tasks_quick_filters_collapsed") === "true"
+  );
+  useEffect(() => {
+    localStorage.setItem("gmp_tasks_quick_filters_collapsed", String(collapsed));
+  }, [collapsed]);
+
+  // Which table columns the user wants to see — persisted across sessions
+  // so a refresh doesn't reset a deliberately trimmed-down view. Starts
+  // with every column checked.
+  const [visibleColumns, setVisibleColumns] = useState(() => {
+    try {
+      const stored = localStorage.getItem("gmpTasksVisibleColumns");
+      return stored ? JSON.parse(stored) : GMP_TASKS_COLUMNS.map((c) => c.key);
+    } catch { return GMP_TASKS_COLUMNS.map((c) => c.key); }
+  });
+  useEffect(() => {
+    localStorage.setItem("gmpTasksVisibleColumns", JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+  const [showColumnConfig, setShowColumnConfig] = useState(false);
+  const toggleColumn = (key) => {
+    setVisibleColumns((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
+  const [generatingTransmittal, setGeneratingTransmittal] = useState(false);
 
   // Modals
   const [logRecord,      setLogRecord]      = useState(null);
@@ -264,9 +393,20 @@ export default function GMPTasksPage({ darkMode = false }) {
   const matchesQuick = (r, quick, exceptKey) => {
     const mcat = exceptKey === "category" || quick.category === "all" || r.category === quick.category;
     const mtt  = exceptKey === "transaction_type" || quick.transaction_type === "all" || r.transaction_type === quick.transaction_type;
-    const mst  = exceptKey === "status" || quick.status === "all" || r.status === quick.status;
+    const mst  = exceptKey === "status" || quick.status === "all" || getEffectiveStatus(r) === quick.status;
     const mtoi = exceptKey === "type_of_issuance" || quick.type_of_issuance === "all" || (r.all_issuance_types || []).includes(quick.type_of_issuance);
     return mcat && mtt && mst && mtoi;
+  };
+
+  // Same "Starred Only" / "Sent By" predicate filteredData applies below —
+  // shared so the sidebar's counts always match what the table actually
+  // shows instead of just the quick filters (a count that ignored these two
+  // would stay showing the full tab's numbers even while the table itself
+  // was narrowed down by them).
+  const matchesTableFilters = (r) => {
+    const mstar = !filters.starredOnly || r.is_starred === 1;
+    const msb = !filters.sentBy || (r.sentByUsername ?? r.sentByFullName ?? "").toLowerCase().includes(filters.sentBy.toLowerCase());
+    return mstar && msb;
   };
 
   // Quick Filter sidebar groups — built client-side from tasks already loaded
@@ -275,7 +415,7 @@ export default function GMPTasksPage({ darkMode = false }) {
     // `getValues` returns an array so a multi-value field (all_issuance_types)
     // can count towards every value it carries, not just a single r[field].
     const buildGroup = (label, key, getValues, colorMap) => {
-      const base = data.filter((r) => matchesQuick(r, activeQuick, key));
+      const base = data.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick, key));
       const counts = {};
       base.forEach((r) => {
         for (const v of getValues(r)) {
@@ -293,7 +433,7 @@ export default function GMPTasksPage({ darkMode = false }) {
       return { label, key, items };
     };
     return [
-      buildGroup("Application Status", "status", (r) => [r.status], {
+      buildGroup("Application Status", "status", (r) => [getEffectiveStatus(r)], {
         "ON-PROCESS": "#3b82f6", COMPLETED: "#10b981", PENDING: "#f59e0b",
         "FOR DECKING": "#06b6d4", DECKED: "#6366f1", DISAPPROVED: "#ef4444",
       }),
@@ -301,7 +441,7 @@ export default function GMPTasksPage({ darkMode = false }) {
       buildGroup("Transaction Type", "transaction_type", (r) => [r.transaction_type]),
       buildGroup("Issuance Type", "type_of_issuance", (r) => r.all_issuance_types || []),
     ];
-  }, [data, activeQuick]);
+  }, [data, activeQuick, filters]);
 
   const handleSidebarSelect = (key, value) => {
     setActiveQuick((prev) => ({
@@ -312,17 +452,46 @@ export default function GMPTasksPage({ darkMode = false }) {
   };
 
   const filteredData = useMemo(() => {
-    return data.filter((r) => {
-      const mstar = !filters.starredOnly || r.is_starred === 1;
-      const msb = !filters.sentBy || (r.sentByUsername ?? r.sentByFullName ?? "").toLowerCase().includes(filters.sentBy.toLowerCase());
-      return mstar && msb && matchesQuick(r, activeQuick);
-    });
+    return data.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick));
   }, [data, filters, activeQuick]);
+
+  // Generic comparator — numeric-aware (so "10" sorts after "2", and DTNs
+  // compare correctly), nulls/blanks always sort last regardless of
+  // direction, dates compare fine as ISO-ish strings via localeCompare.
+  const compareValues = (a, b) => {
+    if (a === b) return 0;
+    if (a == null || a === "") return 1;
+    if (b == null || b === "") return -1;
+    const na = Number(a), nb = Number(b);
+    if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+    return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+  };
+
+  const sortedData = useMemo(() => {
+    if (!sortBy) return filteredData;
+    const sorted = [...filteredData].sort((a, b) => compareValues(a[sortBy], b[sortBy]));
+    return sortOrder === "asc" ? sorted : sorted.reverse();
+  }, [filteredData, sortBy, sortOrder]);
+
+  const handleSort = (field) => {
+    if (sortBy === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(field);
+      setSortOrder("asc");
+    }
+    setCurrentPage(1);
+  };
+  const handleResetSort = () => {
+    setSortBy(null);
+    setSortOrder("asc");
+    setCurrentPage(1);
+  };
 
   const indexOfFirst = (currentPage - 1) * rowsPerPage;
   const totalDisplayed = filteredData.length;
   const totalDisplayedPages = Math.ceil(totalDisplayed / rowsPerPage) || 1;
-  const paginatedData = filteredData.slice(indexOfFirst, indexOfFirst + rowsPerPage);
+  const paginatedData = sortedData.slice(indexOfFirst, indexOfFirst + rowsPerPage);
 
   // Surfaces which quick filters are active — without this a stuck filter
   // (e.g. left on from before a tab switch) is invisible; there's no other
@@ -365,6 +534,30 @@ export default function GMPTasksPage({ darkMode = false }) {
     else setSelectedRows((p) => p.filter((id) => !ids.includes(id)));
   };
 
+  // Same generator GMPQueuePage.jsx uses — task rows are mapped from the
+  // same shape as GMP Queue's records (see mapGMPTask above), so no
+  // field-name translation is needed here.
+  const handleGenerateTransmittal = async (format = "both") => {
+    const selectedData = data.filter((r) => selectedRows.includes(r.id));
+    if (!selectedData.length) return;
+    setGeneratingTransmittal(true);
+    try {
+      if (format === "pdf") {
+        await generateGMPTransmittalPDF(selectedData, activeTab);
+      } else if (format === "excel") {
+        await generateGMPTransmittalExcel(selectedData, activeTab);
+      } else {
+        await generateGMPTransmittal(selectedData, activeTab);
+      }
+    } catch (err) {
+      console.error("GMP transmittal generation failed:", err);
+      alert("Failed to generate transmittal. Please try again or reduce the number of selected tasks.");
+    } finally {
+      setGeneratingTransmittal(false);
+      setShowTransmittalChoice(false);
+    }
+  };
+
   const divider = { width: 1, height: 22, background: colors.cardBorder, flexShrink: 0 };
   const inputSt = {
     padding: "0.25rem 0.5rem", background: colors.inputBg,
@@ -385,15 +578,25 @@ export default function GMPTasksPage({ darkMode = false }) {
         onToggle={() => setCollapsed((v) => !v)}
         colors={colors} darkMode={darkMode} />
 
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div style={{
+        flex: 1, display: "flex", flexDirection: "column", overflow: "hidden",
+        padding: "6px 8px 8px", gap: 8, boxSizing: "border-box", minWidth: 0,
+      }}>
 
+        {/* Toolbar card — step tabs + search/filter row share one soft,
+            rounded surface instead of flush bars butted against the
+            viewport edge (mirrors GMPQueuePage.jsx). */}
+        <div style={{
+          borderRadius: 14, overflow: "hidden", boxShadow: colors.cardShadow,
+          flexShrink: 0,
+        }}>
         {/* Top bar — matches GMPQueuePage's top bar exactly */}
         <div style={{
-          padding: "10px 18px", borderBottom: `1px solid ${colors.cardBorder}`,
+          padding: "8px 14px", borderBottom: `1px solid ${colors.cardBorder}`,
           display: "flex", alignItems: "center", justifyContent: "space-between",
           flexWrap: "wrap", gap: 10, background: colors.cardBg, flexShrink: 0,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
             {steps.map((step) => {
               const isActive = activeTab === step;
               const count = stepCounts[step] ?? 0;
@@ -433,7 +636,7 @@ export default function GMPTasksPage({ darkMode = false }) {
         {/* Search / filter row — matches GMPQueuePage's search row */}
         {!loading && steps.length > 0 && data.length > 0 && (
           <div style={{
-            padding: "6px 18px", borderBottom: `1px solid ${colors.cardBorder}`,
+            padding: "8px 14px",
             background: colors.cardBg, flexShrink: 0,
             display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
           }}>
@@ -468,26 +671,51 @@ export default function GMPTasksPage({ darkMode = false }) {
             </button>
 
             {selectedRows.length > 0 && (
-              <span style={{
-                fontSize: "0.7rem", fontWeight: 700, color: "#2e7d32",
-                background: "rgba(76,175,80,0.12)", border: "1px solid rgba(76,175,80,0.3)",
-                padding: "4px 10px", borderRadius: 99,
-                display: "flex", alignItems: "center", gap: 6,
-              }}>
-                ✔ {selectedRows.length} selected
-                <button onClick={() => setSelectedRows([])}
-                  style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "0.68rem" }}>
-                  ✕
+              <>
+                <span style={{
+                  fontSize: "0.7rem", fontWeight: 700, color: "#2e7d32",
+                  background: "rgba(76,175,80,0.12)", border: "1px solid rgba(76,175,80,0.3)",
+                  padding: "4px 10px", borderRadius: 99,
+                  display: "flex", alignItems: "center", gap: 6,
+                }}>
+                  ✔ {selectedRows.length} selected
+                  <button onClick={() => setSelectedRows([])}
+                    style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "0.68rem" }}>
+                    ✕
+                  </button>
+                </span>
+                <button
+                  onClick={() => setShowTransmittalChoice(true)}
+                  style={{
+                    padding: "6px 14px", fontSize: "0.72rem", fontWeight: 700,
+                    fontFamily: FONT, borderRadius: 8, cursor: "pointer",
+                    border: "none",
+                    background: "linear-gradient(135deg,#1976d2,#1565c0)",
+                    color: "#fff", display: "flex", alignItems: "center", gap: 6,
+                    boxShadow: "0 2px 8px rgba(25,118,210,0.35)",
+                  }}>
+                  📄 Generate Transmittal
                 </button>
-              </span>
+              </>
             )}
           </div>
         )}
+        </div>
+        {/* end toolbar card */}
+
+        {/* Table card — record count/filters row is this card's header,
+            directly above the table it describes (mirrors GMPQueuePage.jsx).
+            Stays a flex column so the empty-state / table blocks below can
+            still flex to fill remaining height. */}
+        <div style={{
+          flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden",
+          background: colors.cardBg, borderRadius: 14, boxShadow: colors.cardShadow,
+        }}>
 
         {/* Record count row */}
         {!loading && data.length > 0 && (
           <div style={{
-            padding: "8px 18px", borderBottom: `1px solid ${colors.cardBorder}`,
+            padding: "8px 16px", borderBottom: `1px solid ${colors.divider}`,
             background: colors.cardBg, flexShrink: 0,
             display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
           }}>
@@ -538,6 +766,77 @@ export default function GMPTasksPage({ darkMode = false }) {
                 </button>
               </div>
             )}
+
+            {/* Toggle Columns — which of the GMP fields actually render */}
+            <div style={{ position: "relative", marginLeft: "auto" }}>
+              <button onClick={() => setShowColumnConfig((v) => !v)}
+                title="Choose which columns to show"
+                style={{
+                  padding: "4px 9px", fontSize: "0.66rem", fontWeight: 600,
+                  fontFamily: FONT, borderRadius: 6,
+                  border: `1px solid ${showColumnConfig ? ACCENT : colors.cardBorder}`,
+                  background: showColumnConfig ? "rgba(16,185,129,0.1)" : "transparent",
+                  color: showColumnConfig ? ACCENT : colors.textTertiary,
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                🧩 Columns{" "}
+                <span style={{ fontSize: "0.68rem" }}>
+                  {visibleColumns.length}/{GMP_TASKS_COLUMNS.length}
+                </span>
+              </button>
+
+              {showColumnConfig && (
+                <>
+                  <div onClick={() => setShowColumnConfig(false)}
+                    style={{ position: "fixed", inset: 0, zIndex: 9997 }} />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 6px)", right: 0,
+                    background: colors.cardBg, border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+                    minWidth: 240, maxHeight: 340, overflowY: "auto", zIndex: 9998,
+                  }}>
+                    <div style={{
+                      position: "sticky", top: 0, background: colors.cardBg,
+                      padding: "8px 14px", fontSize: "0.6rem", fontWeight: 700,
+                      color: colors.textTertiary, textTransform: "uppercase",
+                      letterSpacing: "0.08em", borderBottom: `1px solid ${colors.cardBorder}`,
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                    }}>
+                      <span>Columns to show</span>
+                      <span style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => setVisibleColumns(GMP_TASKS_COLUMNS.map((c) => c.key))}
+                          style={{ border: "none", background: "transparent", color: ACCENT, fontSize: "0.6rem", fontWeight: 700, cursor: "pointer", padding: 0 }}>
+                          All
+                        </button>
+                        <button onClick={() => setVisibleColumns([])}
+                          style={{ border: "none", background: "transparent", color: "#ef4444", fontSize: "0.6rem", fontWeight: 700, cursor: "pointer", padding: 0 }}>
+                          None
+                        </button>
+                      </span>
+                    </div>
+                    {GMP_TASKS_COLUMNS.map((col) => {
+                      const isChecked = visibleColumns.includes(col.key);
+                      return (
+                        <label key={col.key} onClick={() => toggleColumn(col.key)}
+                          style={{
+                            width: "100%", padding: "7px 14px",
+                            borderTop: `1px solid ${colors.cardBorder}`,
+                            display: "flex", alignItems: "center", gap: 8,
+                            fontSize: "0.78rem", cursor: "pointer",
+                            color: isChecked ? colors.textPrimary : colors.textTertiary,
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = colors.badgeBg; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
+                          <input type="checkbox" checked={isChecked} readOnly style={{ cursor: "pointer", flexShrink: 0 }} />
+                          <span>{col.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -586,6 +885,10 @@ export default function GMPTasksPage({ darkMode = false }) {
               onMarkAsRead={(id) => setReadIds((p) => { const n = new Set(p); n.add(id); return n; })}
               onToggleStar={handleToggleStar}
               onDoubleClickRow={(row) => setWorkflowTask(row)}
+              visibleColumns={visibleColumns}
+              sortBy={sortBy} sortOrder={sortOrder} onSort={handleSort}
+              isDefaultSort={sortBy === null}
+              onResetSort={handleResetSort}
             />
 
             {/* Pagination — matches GMPQueuePage's Pagination component styling */}
@@ -637,6 +940,8 @@ export default function GMPTasksPage({ darkMode = false }) {
             </div>
           </div>
         )}
+        </div>
+        {/* end table card */}
       </div>
 
       {/* Modals */}
@@ -668,6 +973,15 @@ export default function GMPTasksPage({ darkMode = false }) {
           colors={colors}
         />
       )}
+
+      <GMPTransmittalModal
+        open={showTransmittalChoice}
+        count={selectedRows.length}
+        generating={generatingTransmittal}
+        onGenerate={handleGenerateTransmittal}
+        onClose={() => !generatingTransmittal && setShowTransmittalChoice(false)}
+        colors={colors} darkMode={darkMode}
+      />
     </div>
   );
 }

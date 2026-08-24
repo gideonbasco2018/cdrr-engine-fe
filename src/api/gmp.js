@@ -23,6 +23,14 @@ export async function getGMPFilterCounts(tab, view) {
   return res.data;
 }
 
+// Current open-task count per username — powers the Bulk Deck modal's
+// evaluator checklist workload display.
+export async function getGMPTaskCounts(usernames) {
+  if (!usernames || usernames.length === 0) return {};
+  const res = await API.get("/gmp/tasks/task-counts", { params: { usernames: usernames.join(",") } });
+  return res.data;
+}
+
 export async function getGMPRecord(id) {
   const res = await API.get(`/gmp/${id}`);
   return res.data;
@@ -108,6 +116,17 @@ export async function addGMPIssuance(recordId, data) {
   return res.data;
 }
 
+// ── Reopen to Decking ────────────────────────────────────────────────────────
+// Sends THIS SAME record back to Decking (no new record/reference number) —
+// records the Related DTN, clears terminal status + issuance/certificate
+// fields, and opens a fresh Decking/IN PROGRESS log. Used when a follow-up
+// DTN (e.g. an NFI's physical inspection) comes back in and this same
+// application needs to continue.
+export async function reopenGMPRecord(recordId, relatedDtn) {
+  const res = await API.post(`/gmp/${recordId}/reopen`, { related_dtn: relatedDtn });
+  return res.data;
+}
+
 // ── Sibling reference numbers (same DTN) ────────────────────────────────────
 export async function getGMPSiblings(recordId) {
   const res = await API.get(`/gmp/${recordId}/siblings`);
@@ -190,4 +209,33 @@ export async function uploadGMPExcel(file) {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return res.data;
+}
+
+// Exports every record matching the given filters (not just the current
+// page) to an .xlsx file and triggers a browser download. `params` takes
+// the same filter keys as getGMPRecords (minus page/page_size).
+export async function exportFilteredGMPRecords(params = {}) {
+  const clean = Object.fromEntries(
+    Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== "")
+  );
+  const res = await API.get("/gmp/export-filtered", {
+    params: clean,
+    responseType: "blob",
+  });
+
+  const url = window.URL.createObjectURL(new Blob([res.data]));
+  const link = document.createElement("a");
+  link.href = url;
+
+  const contentDisposition = res.headers["content-disposition"];
+  let filename = "gmp_records_export.xlsx";
+  if (contentDisposition) {
+    const match = contentDisposition.match(/filename="?([^"]+)"?/);
+    if (match && match[1]) filename = match[1];
+  }
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }

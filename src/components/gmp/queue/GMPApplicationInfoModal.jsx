@@ -3,7 +3,7 @@
 // color throughout. Address fields wrap in full (no truncation). Remarks is
 // a compact single-line bar with ellipsis + hover tooltip for long text.
 import { useState, useEffect } from "react";
-import { getGMPSiblings } from "../../../api/gmp";
+import { getGMPSiblings, reopenGMPRecord } from "../../../api/gmp";
 import { FONT, GMP_STATUS_COLORS } from "../shared/constants";
 
 const ACCENT = "#2196F3";
@@ -44,6 +44,116 @@ function FieldRow({ label, value, colors, darkMode, wrap = false }) {
       }} title={!wrap ? (clean ?? undefined) : undefined}>
         {clean ?? "—"}
       </span>
+    </div>
+  );
+}
+
+// Related DTN is the one field on this otherwise-read-only view that stays
+// actionable no matter how the record's task has already ended. Typing a
+// follow-up DTN here and reopening calls reopenGMPRecord() on THIS SAME
+// record — no new record/reference number is created. It records the
+// Related DTN, clears the terminal status and issuance/certificate fields
+// (the follow-up may resolve to a different issuance type, picked fresh at
+// Decking), and opens a new Decking/IN PROGRESS log so the application is
+// back in front of whoever decks it next.
+function RelatedDtnRow({ record, colors, darkMode, onUpdated }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [reopened, setReopened] = useState(false);
+
+  useEffect(() => {
+    setEditing(false); setValue(""); setError(""); setReopened(false);
+  }, [record.id]);
+
+  const inp = {
+    width: "100%", padding: "0.25rem 0.4rem", fontFamily: FONT, fontSize: "0.7rem",
+    border: `1px solid ${colors.inputBorder}`, borderRadius: 4,
+    background: darkMode ? "rgba(255,255,255,0.06)" : "#fff",
+    color: colors.textPrimary, outline: "none", boxSizing: "border-box",
+  };
+
+  const handleReopen = async () => {
+    const dtn = value.trim();
+    if (!dtn) return;
+    setSaving(true); setError("");
+    try {
+      await reopenGMPRecord(record.id, dtn);
+      setReopened(true);
+      setEditing(false);
+      onUpdated?.();
+    } catch (e) {
+      setError(e?.response?.data?.detail ?? e?.message ?? "Failed to reopen.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div style={{
+        padding: "0.32rem 0.5rem", background: darkMode ? "rgba(255,255,255,0.025)" : "#ffffff",
+        border: `1px solid ${ACCENT}`, borderRadius: 6,
+        display: "flex", flexDirection: "column", gap: 3, minWidth: 0,
+      }}>
+        <span style={{ fontSize: "0.52rem", fontWeight: 700, textTransform: "uppercase",
+          letterSpacing: "0.05em", color: colors.textTertiary }}>Reopen with Related DTN</span>
+        <input autoFocus value={value} onChange={(e) => setValue(e.target.value)}
+          placeholder="Enter follow-up DTN…" style={inp}
+          onKeyDown={(e) => { if (e.key === "Enter") handleReopen(); if (e.key === "Escape") { setValue(""); setEditing(false); } }} />
+        <p style={{ margin: 0, fontSize: "0.58rem", color: colors.textTertiary, lineHeight: 1.4 }}>
+          Sends this same application back to Decking — no new reference number.
+          Type of Issuance and certificate fields are cleared to be picked fresh.
+        </p>
+        <div style={{ display: "flex", gap: 5 }}>
+          <button onClick={handleReopen} disabled={saving || !value.trim()} style={{
+            flex: 1, padding: "0.2rem 0", fontSize: "0.62rem", fontWeight: 700,
+            border: "none", borderRadius: 4, cursor: (saving || !value.trim()) ? "not-allowed" : "pointer",
+            background: (saving || !value.trim()) ? `${ACCENT}80` : ACCENT, color: "#fff",
+          }}>{saving ? "Reopening…" : "Reopen to Decking"}</button>
+          <button onClick={() => { setValue(""); setEditing(false); setError(""); }} disabled={saving} style={{
+            flex: "0 0 auto", padding: "0.2rem 0.6rem", fontSize: "0.62rem", fontWeight: 600,
+            border: `1px solid ${colors.cardBorder}`, borderRadius: 4, cursor: "pointer",
+            background: "transparent", color: colors.textSecondary,
+          }}>Cancel</button>
+        </div>
+        {error && <span style={{ fontSize: "0.6rem", color: "#ef4444" }}>{error}</span>}
+      </div>
+    );
+  }
+
+  const clean = cleanValue(record.related_dtn);
+  return (
+    <div style={{
+      padding: "0.32rem 0.5rem",
+      background: reopened ? `${ACCENT}0c` : (darkMode ? "rgba(255,255,255,0.025)" : "#ffffff"),
+      border: `1px solid ${reopened ? ACCENT : colors.cardBorder}`, borderRadius: 6,
+      display: "flex", flexDirection: "column", gap: 1, minWidth: 0,
+    }}>
+      <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
+        <span style={{ fontSize: "0.52rem", fontWeight: 700, textTransform: "uppercase",
+          letterSpacing: "0.05em", color: colors.textTertiary, whiteSpace: "nowrap",
+          overflow: "hidden", textOverflow: "ellipsis" }}>Related DTN</span>
+        <button onClick={() => setEditing(true)} title="Reopen this application back to Decking" style={{
+          border: "none", background: "transparent", color: ACCENT, cursor: "pointer",
+          fontSize: "0.62rem", padding: 0, flexShrink: 0, fontWeight: 700,
+        }}>🔁 Reopen</button>
+      </span>
+      {reopened ? (
+        <span style={{ fontSize: "0.68rem", fontWeight: 600, color: ACCENT, lineHeight: 1.4 }}>
+          ✓ Reopened — back at Decking, related to <span style={{ fontFamily: "ui-monospace,monospace" }}>{value || record.related_dtn}</span>
+        </span>
+      ) : (
+        <span style={{
+          fontSize: "0.7rem", fontWeight: clean ? 600 : 400,
+          color: clean ? colors.textPrimary : colors.textTertiary,
+          fontStyle: clean ? "normal" : "italic",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }} title={clean ?? undefined}>
+          {clean ?? "—"}
+        </span>
+      )}
     </div>
   );
 }
@@ -126,7 +236,7 @@ function AddedIssuancesTable({ rows, colors, darkMode }) {
   );
 }
 
-export default function GMPApplicationInfoModal({ record, onClose, colors, darkMode }) {
+export default function GMPApplicationInfoModal({ record, onClose, onUpdated, colors, darkMode }) {
   // Siblings = other Type of Issuance records added under the same DTN via
   // "Add Issuance" (WorkflowModal.jsx) — this modal only ever receives the
   // primary record as `record`, so those never showed up here before.
@@ -257,7 +367,7 @@ export default function GMPApplicationInfoModal({ record, onClose, colors, darkM
             <FieldRow label="LTO Number" value={record.lto_number} colors={colors} darkMode={darkMode} />
             <FieldRow label="Category" value={record.category} colors={colors} darkMode={darkMode} />
             <FieldRow label="Transaction Type" value={record.transaction_type} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Related DTN" value={record.related_dtn} colors={colors} darkMode={darkMode} />
+            <RelatedDtnRow record={record} colors={colors} darkMode={darkMode} onUpdated={onUpdated} />
             <FieldRow label="Address" value={record.address} colors={colors} darkMode={darkMode} wrap />
           </Section>
 

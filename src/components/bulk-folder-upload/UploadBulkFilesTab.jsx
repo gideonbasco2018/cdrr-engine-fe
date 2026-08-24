@@ -31,6 +31,13 @@ const DOC_CATEGORY_OPTIONS = [
   "COMPLIANCE DOCUMENTS",
 ];
 
+const FGMP_CATEGORY_OPTIONS = [
+  "GENERAL",
+  "PRODUCT FILE",
+  "DOCUMENTARY REQUIREMENTS",
+  "WORKSHEET",
+];
+
 /* ================================================================== */
 /*  Tab 3 — Upload Files (Auto-Folder)                                  */
 /*                                                                      */
@@ -102,6 +109,9 @@ function UploadBulkFilesTab({ colors, s }) {
     () => entries.find((e) => e.id === activeEntryId) || null,
     [entries, activeEntryId],
   );
+
+  const categoryOptions =
+    dbEntryType === "FGMP" ? FGMP_CATEGORY_OPTIONS : DOC_CATEGORY_OPTIONS;
 
   // Build the full relative path from the per-file DTN + the currently
   // selected Category. This is computed on the fly (not stored on the
@@ -338,7 +348,10 @@ function UploadBulkFilesTab({ colors, s }) {
             <Field label="Entry Type" required colors={colors}>
               <select
                 value={dbEntryType}
-                onChange={(e) => setDbEntryType(e.target.value)}
+                onChange={(e) => {
+                  setDbEntryType(e.target.value);
+                  setDocCategory("");
+                }}
                 style={s.input}
               >
                 <option value="">Select entry type</option>
@@ -350,6 +363,7 @@ function UploadBulkFilesTab({ colors, s }) {
                   SURRENDER DUE TO PAC
                 </option>
                 <option value="ORIGINAL">ORIGINAL</option>
+                <option value="FGMP">FGMP</option>
               </select>
             </Field>
             <Field label="Category" required colors={colors}>
@@ -359,7 +373,7 @@ function UploadBulkFilesTab({ colors, s }) {
                 style={s.input}
               >
                 <option value="">Select category</option>
-                {DOC_CATEGORY_OPTIONS.map((opt) => (
+                {categoryOptions.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt}
                   </option>

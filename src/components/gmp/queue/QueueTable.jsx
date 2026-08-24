@@ -1,6 +1,7 @@
 // src/components/gmp/queue/QueueTable.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { ArrowUpDown, ChevronUp, X } from "lucide-react";
 import { FONT, GMP_STATUS_COLORS, GMP_STEPS, GMP_FIELD_ACCENTS } from "../shared/constants";
 import StepProgress from "../shared/StepProgress";
 
@@ -42,6 +43,43 @@ export const COLUMNS = [
   { key: "uploaded_date",                 label: "Upload Date",                               width: 140 },
   { key: "uploaded_by",                   label: "Uploaded By",                               width: 140 },
 ];
+
+// Column key → backend GMPRecord field name, for click-to-sort headers.
+// Columns not listed here (synthetic/derived ones) simply aren't sortable.
+const SORT_FIELD_MAP = {
+  dtn: "GMP_DTN",
+  reference_no: "GMP_REFERENCE_NO",
+  related_dtn: "GMP_RELATED_DTN",
+  category: "GMP_EST_CATEGORY",
+  date_received: "GMP_DATE_RECEIVED",
+  name_of_establishment: "GMP_LTO_COMPANY",
+  lto_number: "GMP_LTO_NUMBER",
+  address: "GMP_LTO_ADDRESS",
+  transaction_type: "GMP_TRANSACTION_TYPE",
+  foreign_manufacturer: "GMP_FOREIGN_MANUFACTURER",
+  foreign_manufacturer_address: "GMP_FOREIGN_MANUFACTURER_ADDRESS",
+  secpa_number: "GMP_SECPA_NUMBER",
+  certificate_number: "GMP_CERTIFICATE_NUMBER",
+  type_of_issuance: "GMP_TYPE_OF_ISSUANCE",
+  certificate_validity: "GMP_CERTIFICATE_VALIDITY",
+  decision: "GMP_DECISION",
+  status: "GMP_APP_STATUS",
+  released_date: "GMP_RELEASED_DATE",
+  processed_time: "GMP_PROCESSED_TIME",
+  end_date: "GMP_END_DATE",
+  timeline: "GMP_TIMELINE",
+  remarks: "GMP_REMARKS",
+  nod_date_1: "GMP_NOD_DATE_1",
+  nod_date_2: "GMP_NOD_DATE_2",
+  nod_date_3: "GMP_NOD_DATE_3",
+  nod_date_4: "GMP_NOD_DATE_4",
+  nod_date_5: "GMP_NOD_DATE_5",
+  date_printed: "GMP_DATE_PRINTED",
+  compliance_docs_date_received: "GMP_COMPLIANCE_DOCS_DATE_RECEIVED",
+  product_line: "GMP_PRODUCT_LINE",
+  uploaded_date: "GMP_DATE_EXCEL_UPLOAD",
+  uploaded_by: "GMP_USER_UPLOADER",
+};
 
 const TRUNCATE_FIELDS = new Set([
   "name_of_establishment", "address",
@@ -157,9 +195,9 @@ function FieldChip({ value, field }) {
   );
 }
 
-function SkeletonRows({ n = 8, darkMode }) {
+function SkeletonRows({ n = 8, darkMode, colCount }) {
   const base = darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
-  const COL_COUNT = COLUMNS.length + 5; // checkbox + # + actions + workflow progress + current step
+  const COL_COUNT = colCount ?? (COLUMNS.length + 5); // checkbox + # + actions + workflow progress + current step
   return (
     <>
       {[...Array(n)].map((_, i) => (
@@ -184,6 +222,7 @@ const ACTION_ITEMS_DECKED   = [
   { id: "app_info",  label: "Application Information", icon: "🔎" },
   { id: "app_log",   label: "Application Logs",  icon: "📋" },
   { id: "audit_log", label: "Field Audit Logs",   icon: "🕐" },
+  { id: "documents", label: "Documents",         icon: "📎" },
   { id: "doctrack",  label: "Doctrack Details",  icon: "📋" },
   { id: "divider1",  label: "---" },
   { id: "reassign",  label: "Application Re-assignment", icon: "🔄", color: "#7c3aed" },
@@ -195,6 +234,7 @@ const ACTION_ITEMS_NOT_DECKED = [
   { id: "app_info",  label: "Application Information", icon: "🔎" },
   { id: "app_log",   label: "Application Logs",  icon: "📋" },
   { id: "audit_log", label: "Field Audit Logs",   icon: "🕐" },
+  { id: "documents", label: "Documents",         icon: "📎" },
   { id: "doctrack",  label: "Doctrack Details",  icon: "📋" },
   { id: "divider1",  label: "---" },
   { id: "reassign",  label: "Application Re-assignment", icon: "🔄", color: "#7c3aed" },
@@ -305,11 +345,20 @@ function ActionMenu({ record, onAction, colors, darkMode, showDeck }) {
 // ── Main table ────────────────────────────────────────────────────────────────
 export default function QueueTable({
   rows, loading, selected, onSelect, onSelectAll,
-  onOpenLog, onOpenAudit, onOpenDoctrack, onOpenReassign, onOpenReroute, onOpenInfo,
+  onOpenLog, onOpenAudit, onOpenDoctrack, onOpenReassign, onOpenReroute, onOpenInfo, onOpenDocuments,
   onDeck, onBulkDeck, colors, darkMode, page, pageSize, topTab, onDoubleClickRow,
+  visibleColumns, sortBy, sortOrder, onSort, isDefaultSort, onResetSort,
 }) {
   const isNotYetDecked = topTab !== "not_yet_decked";
   const selectedCount  = selected.length;
+  const [hoveredRowKey, setHoveredRowKey] = useState(null);
+  // `visibleColumns` is a list of column keys the user chose to show (via
+  // the "Toggle Columns" panel in GMPQueuePage.jsx) — falls back to every
+  // column so this table still works if a caller doesn't pass it.
+  const visibleCols = visibleColumns
+    ? COLUMNS.filter((c) => visibleColumns.includes(c.key))
+    : COLUMNS;
+  const extraColCount = visibleCols.some((c) => c.key === "status") ? 2 : 0; // Workflow Progress + Current Step
 
   const thSt = {
     padding: "9px 12px", fontSize: "0.59rem", fontWeight: 700,
@@ -318,13 +367,13 @@ export default function QueueTable({
     position: "sticky", top: 0, background: colors.cardBg, textAlign: "center", zIndex: 1,
   };
   const tdSt = {
-    padding: "9px 12px", borderBottom: `1px solid ${colors.divider}`,
+    padding: "9px 12px", borderBottom: "1px solid transparent",
     fontSize: "0.76rem", color: colors.textPrimary, lineHeight: 1.35,
     whiteSpace: "normal", wordBreak: "break-word",
     textAlign: "center", verticalAlign: "middle",
   };
   const tdCompactSt = {
-    padding: "9px 12px", borderBottom: `1px solid ${colors.divider}`,
+    padding: "9px 12px", borderBottom: "1px solid transparent",
     fontSize: "0.76rem", color: colors.textPrimary, lineHeight: 1,
     whiteSpace: "nowrap", textAlign: "center", verticalAlign: "middle",
   };
@@ -336,12 +385,25 @@ export default function QueueTable({
   };
   const tdWrapSt = { ...tdSt };
 
+  // Only the very first load (no rows yet) shows the full skeleton — once
+  // there's data on screen, a re-sort/re-filter/page-change just dims the
+  // existing rows in place instead of blanking the table into skeleton rows
+  // again, so sorting reads as an update rather than a jarring reset.
+  const isRefetching = loading && rows.length > 0;
+
   return (
     <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      <style>{`
+        .qt-sortable-th:hover .qt-sort-icon { opacity: 0.9 !important; }
+      `}</style>
 
       {/* ── Scrollable table ── */}
       <div style={{ flex: 1, overflow: "auto" }}>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "0.76rem" }}>
+      <table style={{
+        borderCollapse: "separate", borderSpacing: 0, width: "100%", fontSize: "0.76rem",
+        opacity: isRefetching ? 0.5 : 1,
+        transition: "opacity 0.15s ease",
+      }}>
         <thead>
           <tr>
             <th style={{ ...thSt, width: 40, position: "sticky", left: 0, zIndex: 2, background: colors.cardBg }}>
@@ -351,10 +413,62 @@ export default function QueueTable({
                 style={{ cursor: "pointer" }} />
             </th>
             <th style={{ ...thSt, width: 42 }}>#</th>
-            {COLUMNS.map((col) => (
+            {visibleCols.map((col) => {
+              const sortField = SORT_FIELD_MAP[col.key];
+              const isSorted = sortField && sortBy === sortField;
+              return (
               <React.Fragment key={col.key}>
-                <th style={{ ...thSt, width: col.width ?? "auto", minWidth: col.width ?? 100 }}>
-                  {col.label}
+                <th
+                  className={sortField ? "qt-sortable-th" : undefined}
+                  style={{
+                    ...thSt, width: col.width ?? "auto", minWidth: col.width ?? 100,
+                    cursor: sortField ? "pointer" : "default",
+                    userSelect: "none",
+                  }}
+                  onClick={sortField ? () => onSort?.(sortField) : undefined}
+                  title={sortField ? "Click to sort" : undefined}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    {col.label}
+                    {sortField && (
+                      <span
+                        className="qt-sort-icon"
+                        style={{
+                          display: "inline-flex", flexShrink: 0,
+                          color: isSorted ? ACCENT : colors.textTertiary,
+                          opacity: isSorted ? 1 : 0.45,
+                          transition: "opacity 0.15s ease, color 0.15s ease",
+                        }}
+                      >
+                        {isSorted ? (
+                          <ChevronUp
+                            size={12}
+                            style={{
+                              transform: sortOrder === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                              transition: "transform 0.18s ease",
+                            }}
+                          />
+                        ) : (
+                          <ArrowUpDown size={11} />
+                        )}
+                      </span>
+                    )}
+                    {isSorted && !isDefaultSort && (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); onResetSort?.(); }}
+                        title="Reset sort"
+                        style={{
+                          display: "inline-flex", flexShrink: 0, marginLeft: 1,
+                          color: colors.textTertiary, opacity: 0.6,
+                          transition: "opacity 0.15s ease, color 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = "#ef4444"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.6; e.currentTarget.style.color = colors.textTertiary; }}
+                      >
+                        <X size={11} />
+                      </span>
+                    )}
+                  </span>
                 </th>
                 {col.key === "status" && (
                   <>
@@ -367,22 +481,23 @@ export default function QueueTable({
                   </>
                 )}
               </React.Fragment>
-            ))}
+              );
+            })}
             <th style={{
               ...thSt, width: 56, textAlign: "center",
               position: "sticky", right: 0, zIndex: 2, background: colors.cardBg,
-              boxShadow: "-4px 0 8px rgba(0,0,0,0.07)",
+              boxShadow: darkMode ? "-4px 0 8px rgba(0,0,0,0.25)" : "-4px 0 8px rgba(15,23,42,0.05)",
             }}>
               Actions
             </th>
           </tr>
         </thead>
         <tbody>
-          {loading ? (
-            <SkeletonRows n={10} darkMode={darkMode} />
+          {loading && rows.length === 0 ? (
+            <SkeletonRows n={10} darkMode={darkMode} colCount={visibleCols.length + extraColCount + 3} />
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={COLUMNS.length + 5}
+              <td colSpan={visibleCols.length + extraColCount + 3}
                 style={{ padding: "48px 24px", textAlign: "center", color: colors.textTertiary }}>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: "2rem" }}>📭</span>
@@ -393,52 +508,57 @@ export default function QueueTable({
           ) : (
             rows.map((r, i) => {
               const isSel = selected.includes(r.id);
-              const rowBg = isSel
-                ? (darkMode ? "rgba(99,102,241,0.12)" : "rgba(99,102,241,0.06)")
-                : "transparent";
+              const rowKey = r.id ?? i;
+              // No cell border lines — rows separate via zebra tint instead,
+              // with a stronger accent wash on hover/selection. Every cell's
+              // background is driven from React state (rowBg) rather than
+              // mutated imperatively, so a theme toggle mid-hover can't leave
+              // a stale color stuck on a <td> that React isn't tracking.
+              const zebraBg = i % 2 === 1 ? colors.tableRowAlt : colors.cardBg;
+              const isHovered = !isSel && hoveredRowKey === rowKey;
+              const rowBg = isSel || isHovered ? colors.tableRowAccentHover : zebraBg;
+              const rowTdSt = { ...tdSt, background: rowBg };
+              const rowTdCompactSt = { ...tdCompactSt, background: rowBg };
+              const rowTdWrapSt = { ...tdWrapSt, background: rowBg };
               return (
-                <tr key={r.id ?? i}
+                <tr key={rowKey}
                   onDoubleClick={() => onDoubleClickRow?.(r)}
-                  style={{ cursor: onDoubleClickRow ? "pointer" : "default" }}
-                  onMouseEnter={(e) => {
-                    if (!isSel) e.currentTarget.style.background =
-                      darkMode ? "rgba(255,255,255,0.025)" : "rgba(99,102,241,0.03)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSel) e.currentTarget.style.background = "transparent";
-                  }}>
+                  style={{ cursor: onDoubleClickRow ? "pointer" : "default", background: rowBg }}
+                  onMouseEnter={() => setHoveredRowKey(rowKey)}
+                  onMouseLeave={() => setHoveredRowKey((k) => (k === rowKey ? null : k))}>
                   {/* Checkbox */}
-                  <td style={{ ...tdCompactSt, position: "sticky", left: 0, background: isSel ? rowBg : colors.cardBg }}>
+                  <td style={{ ...rowTdCompactSt, position: "sticky", left: 0 }}>
                     <input type="checkbox" checked={isSel}
                       onChange={(e) => onSelect(r.id, e.target.checked)}
                       style={{ cursor: "pointer" }} />
                   </td>
                   {/* Row number */}
-                  <td style={{ ...tdCompactSt, color: colors.textTertiary, fontSize: "0.7rem" }}>
+                  <td style={{ ...rowTdCompactSt, color: colors.textTertiary, fontSize: "0.7rem" }}>
                     {(page - 1) * pageSize + i + 1}
                   </td>
                   {/* Dynamic columns */}
-                  {COLUMNS.map((col) => {
+                  {visibleCols.map((col) => {
                     const val = r[col.key];
                     let cell;
                     const hasSiblings = r.all_issuances && r.all_issuances.length > 0;
-                    if (col.key === "dtn") cell = <td key={col.key} style={tdSt}><DtnPill value={val} /></td>;
+                    if (col.key === "dtn") cell = <td key={col.key} style={rowTdSt}><DtnPill value={val} /></td>;
+                    else if (col.key === "related_dtn") cell = <td key={col.key} style={rowTdSt}><DtnPill value={val} /></td>;
                     else if (col.key === "reference_no") {
                       cell = (
-                        <td key={col.key} style={tdSt}>
+                        <td key={col.key} style={rowTdSt}>
                           {hasSiblings ? <ReferenceNoStack items={r.all_issuances} /> : <ReferenceNoPill value={val} />}
                         </td>
                       );
                     }
                     else if (col.key === "type_of_issuance" && hasSiblings) {
-                      cell = <td key={col.key} style={tdSt}><IssuanceTypeStack items={r.all_issuances} /></td>;
+                      cell = <td key={col.key} style={rowTdSt}><IssuanceTypeStack items={r.all_issuances} /></td>;
                     }
-                    else if (GMP_FIELD_ACCENTS[col.key]) cell = <td key={col.key} style={tdSt}><FieldChip value={val} field={col.key} /></td>;
-                    else if (col.isStatus) cell = <td key={col.key} style={tdSt}><StatusBadge value={getEffectiveStatus(r)} /></td>;
+                    else if (GMP_FIELD_ACCENTS[col.key]) cell = <td key={col.key} style={rowTdSt}><FieldChip value={val} field={col.key} /></td>;
+                    else if (col.isStatus) cell = <td key={col.key} style={rowTdSt}><StatusBadge value={getEffectiveStatus(r)} /></td>;
                     else if (TRUNCATE_FIELDS.has(col.key)) {
                       cell = (
                         <td key={col.key}
-                          style={{ ...tdWrapSt, maxWidth: col.width, minWidth: col.width }}
+                          style={{ ...rowTdWrapSt, maxWidth: col.width, minWidth: col.width }}
                           title={val || ""}>
                           <div style={clampSt}>
                             {val || <span style={{ color: "#94a3b8" }}>—</span>}
@@ -447,7 +567,7 @@ export default function QueueTable({
                       );
                     } else {
                       cell = (
-                        <td key={col.key} style={tdSt}>
+                        <td key={col.key} style={rowTdSt}>
                           {val || <span style={{ color: "#94a3b8" }}>—</span>}
                         </td>
                       );
@@ -458,12 +578,12 @@ export default function QueueTable({
                       return (
                         <React.Fragment key={col.key}>
                           {cell}
-                          <td style={tdSt}>
+                          <td style={rowTdSt}>
                             <div style={{ display: "flex", justifyContent: "center" }}>
-                              <StepProgress currentStep={r.current_step} darkMode={darkMode} />
+                              <StepProgress currentStep={r.current_step} appStatus={r.status} darkMode={darkMode} />
                             </div>
                           </td>
-                          <td style={tdSt}>
+                          <td style={rowTdSt}>
                             {step ? (
                               <span style={{
                                 fontSize: "0.68rem", fontWeight: 700, padding: "3px 9px",
@@ -483,11 +603,10 @@ export default function QueueTable({
                   })}
                   {/* Actions */}
                   <td style={{
-                    ...tdSt, padding: "9px 8px", textAlign: "center", verticalAlign: "middle",
+                    ...rowTdSt, padding: "9px 8px", textAlign: "center", verticalAlign: "middle",
                     width: 56, minWidth: 56, maxWidth: 56,
                     position: "sticky", right: 0,
-                    background: isSel ? rowBg : colors.cardBg,
-                    boxShadow: "-4px 0 8px rgba(0,0,0,0.07)",
+                    boxShadow: darkMode ? "-4px 0 8px rgba(0,0,0,0.25)" : "-4px 0 8px rgba(15,23,42,0.05)",
                   }}>
                     <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
                       <ActionMenu record={r} colors={colors} darkMode={darkMode}
@@ -497,6 +616,7 @@ export default function QueueTable({
                           if (actionId === "app_info")  { onOpenInfo?.(rec);     return; }
                           if (actionId === "app_log")   { onOpenLog(rec);        return; }
                           if (actionId === "audit_log") { onOpenAudit(rec);      return; }
+                          if (actionId === "documents") { onOpenDocuments?.(rec);return; }
                           if (actionId === "doctrack")  { onOpenDoctrack?.(rec); return; }
                           if (actionId === "reassign")  { onOpenReassign?.(rec); return; }
                           if (actionId === "reroute")   { onOpenReroute?.(rec);  return; }

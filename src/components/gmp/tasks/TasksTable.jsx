@@ -1,15 +1,35 @@
 // src/components/gmp/tasks/TasksTable.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { ArrowUpDown, ChevronUp, X } from "lucide-react";
 import { FONT, GMP_STATUS_COLORS, GMP_FIELD_ACCENTS } from "../shared/constants";
 import StepProgress from "../shared/StepProgress";
 
 const ACCENT = "#10b981";
 
+// Column key → row field to sort by (see mapGMPTask in GMPTasksPage.jsx).
+// Sorting here is a plain client-side array sort (every task for the tab is
+// already loaded), so this just needs to match the row object's own keys —
+// only "sent_by" and "forwarded_on" render from a differently-named field.
+const SORT_FIELD_MAP = Object.fromEntries(
+  [
+    "dtn", "related_dtn", "category", "date_received", "name_of_establishment",
+    "lto_number", "address", "transaction_type", "foreign_manufacturer",
+    "foreign_manufacturer_address", "secpa_number", "certificate_number",
+    "type_of_issuance", "certificate_validity", "decision", "status",
+    "released_date", "processed_time", "end_date", "timeline", "remarks",
+    "nod_date_1", "nod_date_2", "nod_date_3", "nod_date_4", "nod_date_5",
+    "date_printed", "compliance_docs_date_received", "product_line",
+  ].map((k) => [k, k]),
+);
+SORT_FIELD_MAP.sent_by = "sentByFullName";
+SORT_FIELD_MAP.forwarded_on = "startDate";
+
 // ── Column definitions — mirrors QueueTable.jsx exactly (widths, wrapping) ──
-const GMP_COLUMNS = [
+export const GMP_COLUMNS = [
+  { key: "sent_by",                       label: "Sent By",                                   width: 190 },
+  { key: "forwarded_on",                  label: "Forwarded On",                              width: 140 },
   { key: "dtn",                           label: "DTN",                                       width: 160 },
-  { key: "reference_no",                  label: "Reference No",                              width: 160 },
   { key: "related_dtn",                   label: "Related DTN",                               width: 130 },
   { key: "category",                      label: "Category",                                  width: 110 },
   { key: "date_received",                 label: "Date Received",                             width: 120 },
@@ -44,6 +64,15 @@ const TRUNCATE_FIELDS = new Set([
   "name_of_establishment", "address",
   "foreign_manufacturer", "foreign_manufacturer_address", "remarks",
 ]);
+
+function fmtDT(raw) {
+  if (!raw) return "—";
+  try {
+    const d = new Date(raw);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  } catch { return raw; }
+}
 
 function SentByPill({ fullName, username, alias, colors }) {
   const displayName = (fullName && fullName.trim()) || username || "—";
@@ -132,21 +161,6 @@ function IssuanceTypeChips({ values }) {
         </span>
       ))}
     </div>
-  );
-}
-
-function ReferenceNoPill({ value }) {
-  if (!value) return <span style={{ color: "#94a3b8" }}>—</span>;
-  // Distinct purple accent from DTN's green — makes it visually obvious this
-  // is the per-issuance identifier, not the (now non-unique) DTN itself.
-  return (
-    <span style={{
-      fontFamily: "ui-monospace,monospace", fontSize: "0.71rem", fontWeight: 700,
-      padding: "3px 9px", borderRadius: 6, background: "rgba(168,85,247,0.12)", color: "#a855f7",
-      whiteSpace: "nowrap",
-    }}>
-      {value}
-    </span>
   );
 }
 
@@ -306,7 +320,8 @@ export default function TasksTable({
   onOpenLog, onOpenAudit, onAdvanceStep, onViewDoctrack,
   currentPage, rowsPerPage, colors, darkMode,
   readIds, onMarkAsRead, onToggleStar, onDoubleClickRow,
-  isComplianceView = false,
+  isComplianceView = false, visibleColumns,
+  sortBy, sortOrder, onSort, isDefaultSort, onResetSort,
 }) {
   const thSt = {
     padding: "9px 12px", fontSize: "0.59rem", fontWeight: 700,
@@ -315,13 +330,13 @@ export default function TasksTable({
     position: "sticky", top: 0, background: colors.cardBg, textAlign: "center", zIndex: 1,
   };
   const tdSt = {
-    padding: "9px 12px", borderBottom: `1px solid ${colors.divider}`,
+    padding: "9px 12px", borderBottom: "1px solid transparent",
     fontSize: "0.76rem", color: colors.textPrimary, lineHeight: 1.35,
     whiteSpace: "normal", wordBreak: "break-word",
     textAlign: "center", verticalAlign: "middle",
   };
   const tdCompactSt = {
-    padding: "9px 12px", borderBottom: `1px solid ${colors.divider}`,
+    padding: "9px 12px", borderBottom: "1px solid transparent",
     fontSize: "0.76rem", color: colors.textPrimary, lineHeight: 1,
     whiteSpace: "nowrap", textAlign: "center", verticalAlign: "middle",
   };
@@ -329,13 +344,23 @@ export default function TasksTable({
     display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
   };
 
+  const [hoveredRowKey, setHoveredRowKey] = useState(null);
   const filteredIds = rows.map((r) => r.id);
   const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedRows.includes(id));
-  const colCount = GMP_COLUMNS.length + 3 + (isComplianceView ? 1 : 0); // checkbox + # + sentBy + [compliance deadline] + actions
+  // `visibleColumns` is a list of column keys the user chose to show (via
+  // the "Toggle Columns" panel in GMPTasksPage.jsx) — falls back to every
+  // column so this table still works if a caller doesn't pass it.
+  const visibleCols = visibleColumns
+    ? GMP_COLUMNS.filter((c) => visibleColumns.includes(c.key))
+    : GMP_COLUMNS;
+  const colCount = visibleCols.length + 4 + (isComplianceView ? 1 : 0); // checkbox + star + # + [compliance deadline] + actions
 
   return (
     <div style={{ flex: 1, overflow: "auto" }}>
-      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: "0.76rem" }}>
+      <style>{`
+        .gt-sortable-th:hover .gt-sort-icon { opacity: 0.9 !important; }
+      `}</style>
+      <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%", fontSize: "0.76rem" }}>
         <thead>
           <tr>
             <th style={{ ...thSt, width: 40, position: "sticky", left: 0, zIndex: 2, background: colors.cardBg }}>
@@ -345,18 +370,72 @@ export default function TasksTable({
             </th>
             <th style={{ ...thSt, width: 34 }}>★</th>
             <th style={{ ...thSt, width: 42 }}>#</th>
-            <th style={{ ...thSt, width: 190, minWidth: 190 }}>Sent By</th>
             {isComplianceView && (
               <th style={{ ...thSt, width: 140, minWidth: 140 }}>Compliance Deadline</th>
             )}
-            {GMP_COLUMNS.map((col) => (
-              <th key={col.key} style={{ ...thSt, width: col.width ?? "auto", minWidth: col.width ?? 100 }}>
-                {col.label}
-              </th>
-            ))}
+            {visibleCols.map((col) => {
+              const sortField = SORT_FIELD_MAP[col.key];
+              const isSorted = sortField && sortBy === sortField;
+              return (
+                <th
+                  key={col.key}
+                  className={sortField ? "gt-sortable-th" : undefined}
+                  style={{
+                    ...thSt, width: col.width ?? "auto", minWidth: col.width ?? 100,
+                    cursor: sortField ? "pointer" : "default",
+                    userSelect: "none",
+                  }}
+                  onClick={sortField ? () => onSort?.(sortField) : undefined}
+                  title={sortField ? "Click to sort" : undefined}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    {col.label}
+                    {sortField && (
+                      <span
+                        className="gt-sort-icon"
+                        style={{
+                          display: "inline-flex", flexShrink: 0,
+                          color: isSorted ? ACCENT : colors.textTertiary,
+                          opacity: isSorted ? 1 : 0.45,
+                          transition: "opacity 0.15s ease, color 0.15s ease",
+                        }}
+                      >
+                        {isSorted ? (
+                          <ChevronUp
+                            size={12}
+                            style={{
+                              transform: sortOrder === "asc" ? "rotate(0deg)" : "rotate(180deg)",
+                              transition: "transform 0.18s ease",
+                            }}
+                          />
+                        ) : (
+                          <ArrowUpDown size={11} />
+                        )}
+                      </span>
+                    )}
+                    {isSorted && !isDefaultSort && (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); onResetSort?.(); }}
+                        title="Reset sort"
+                        style={{
+                          display: "inline-flex", flexShrink: 0, marginLeft: 1,
+                          color: colors.textTertiary, opacity: 0.6,
+                          transition: "opacity 0.15s ease, color 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.opacity = 1; e.currentTarget.style.color = "#ef4444"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.opacity = 0.6; e.currentTarget.style.color = colors.textTertiary; }}
+                      >
+                        <X size={11} />
+                      </span>
+                    )}
+                  </span>
+                </th>
+              );
+            })}
             <th style={{
               ...thSt, width: 56, position: "sticky", right: 0, zIndex: 2,
-              background: colors.cardBg, boxShadow: "-4px 0 8px rgba(0,0,0,0.07)",
+              background: colors.cardBg,
+              boxShadow: darkMode ? "-4px 0 8px rgba(0,0,0,0.25)" : "-4px 0 8px rgba(15,23,42,0.05)",
             }}>
               Actions
             </th>
@@ -382,26 +461,36 @@ export default function TasksTable({
             rows.map((r, i) => {
               const isSel  = selectedRows.includes(r.id);
               const isRead = readIds ? readIds.has(r.id) : true;
-              const rowBg = isSel
-                ? (darkMode ? "rgba(16,185,129,0.12)" : "rgba(16,185,129,0.06)")
-                : "transparent";
+              const rowKey = r.id ?? i;
+              // No cell border lines — rows separate via zebra tint instead,
+              // with a stronger emerald wash on hover/selection. Every cell's
+              // background comes from React state (rowBg) rather than being
+              // mutated imperatively, so a theme toggle mid-hover can't leave
+              // a stale color stuck on a <td> React isn't tracking. Solid
+              // (not rgba-on-transparent) colors so the sticky checkbox/
+              // actions columns stay fully opaque during horizontal scroll —
+              // a translucent sticky background lets whatever's underneath
+              // bleed through, which looked like the Actions column vanishing.
+              const zebraBg = i % 2 === 1 ? colors.tableRowAlt : colors.cardBg;
+              const accentHover = darkMode ? "#16302a" : "#e6f7f1";
+              const isHovered = !isSel && hoveredRowKey === rowKey;
+              const rowBg = isSel || isHovered ? accentHover : zebraBg;
+              const rowTdSt = { ...tdSt, background: rowBg };
+              const rowTdCompactSt = { ...tdCompactSt, background: rowBg };
               return (
-                <tr key={r.id ?? i}
+                <tr key={rowKey}
                   onClick={() => { if (onMarkAsRead && !isRead) onMarkAsRead(r.id); }}
                   onDoubleClick={() => onDoubleClickRow?.(r)}
                   style={{ cursor: onMarkAsRead ? "pointer" : "default", background: rowBg }}
-                  onMouseEnter={(e) => {
-                    if (!isSel) e.currentTarget.style.background =
-                      darkMode ? "rgba(255,255,255,0.025)" : "rgba(16,185,129,0.035)";
-                  }}
-                  onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.background = "transparent"; }}>
-                  <td style={{ ...tdCompactSt, position: "sticky", left: 0, background: isSel ? rowBg : colors.cardBg }}>
+                  onMouseEnter={() => setHoveredRowKey(rowKey)}
+                  onMouseLeave={() => setHoveredRowKey((k) => (k === rowKey ? null : k))}>
+                  <td style={{ ...rowTdCompactSt, position: "sticky", left: 0 }}>
                     <input type="checkbox" checked={isSel}
                       onChange={() => onSelectRow(r.id)}
                       onClick={(e) => e.stopPropagation()}
                       style={{ cursor: "pointer" }} />
                   </td>
-                  <td style={{ ...tdCompactSt, padding: "9px 4px" }} onClick={(e) => e.stopPropagation()}>
+                  <td style={{ ...rowTdCompactSt, padding: "9px 4px" }} onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => onToggleStar?.(r)}
                       title={r.is_starred ? "Unstar" : "Star"}
@@ -413,27 +502,38 @@ export default function TasksTable({
                       {r.is_starred ? "★" : "☆"}
                     </button>
                   </td>
-                  <td style={{ ...tdCompactSt, color: colors.textTertiary, fontSize: "0.7rem" }}>
+                  <td style={{ ...rowTdCompactSt, color: colors.textTertiary, fontSize: "0.7rem" }}>
                     {(currentPage - 1) * rowsPerPage + i + 1}
                   </td>
-                  <td style={{ ...tdSt, width: 190, minWidth: 190, whiteSpace: "nowrap" }}>
-                    <SentByPill fullName={r.sentByFullName} username={r.sentByUsername} alias={r.sentByAlias} colors={colors} />
-                  </td>
                   {isComplianceView && (
-                    <td style={{ ...tdSt, width: 140, minWidth: 140 }}>
+                    <td style={{ ...rowTdSt, width: 140, minWidth: 140 }}>
                       <ComplianceDeadlineBadge deadlineDate={r.deadlineDate} colors={colors} />
                     </td>
                   )}
-                  {GMP_COLUMNS.map((col) => {
+                  {visibleCols.map((col) => {
                     const val = r[col.key];
-                    if (col.key === "dtn") return <td key={col.key} style={tdSt}><DtnPill value={val} /></td>;
-                    if (col.key === "type_of_issuance") return <td key={col.key} style={tdSt}><IssuanceTypeChips values={r.all_issuance_types} /></td>;
-                    if (col.key === "category" || col.key === "transaction_type") return <td key={col.key} style={tdSt}><FieldChip value={val} field={col.key} /></td>;
-                    if (col.isStatus) return <td key={col.key} style={tdSt}><StatusBadge value={val} /></td>;
+                    if (col.key === "sent_by") {
+                      return (
+                        <td key={col.key} style={{ ...rowTdSt, width: col.width, minWidth: col.width, whiteSpace: "nowrap" }}>
+                          <SentByPill fullName={r.sentByFullName} username={r.sentByUsername} alias={r.sentByAlias} colors={colors} />
+                        </td>
+                      );
+                    }
+                    if (col.key === "forwarded_on") {
+                      return (
+                        <td key={col.key} style={{ ...rowTdSt, width: col.width, minWidth: col.width, whiteSpace: "nowrap", fontSize: "0.72rem", color: colors.textSecondary }}>
+                          {fmtDT(r.startDate)}
+                        </td>
+                      );
+                    }
+                    if (col.key === "dtn") return <td key={col.key} style={rowTdSt}><DtnPill value={val} /></td>;
+                    if (col.key === "type_of_issuance") return <td key={col.key} style={rowTdSt}><IssuanceTypeChips values={r.all_issuance_types} /></td>;
+                    if (col.key === "category" || col.key === "transaction_type") return <td key={col.key} style={rowTdSt}><FieldChip value={val} field={col.key} /></td>;
+                    if (col.isStatus) return <td key={col.key} style={rowTdSt}><StatusBadge value={val} /></td>;
                     if (TRUNCATE_FIELDS.has(col.key)) {
                       return (
                         <td key={col.key}
-                          style={{ ...tdSt, maxWidth: col.width, minWidth: col.width }}
+                          style={{ ...rowTdSt, maxWidth: col.width, minWidth: col.width }}
                           title={val || ""}>
                           <div style={clampSt}>
                             {val || <span style={{ color: "#94a3b8" }}>—</span>}
@@ -442,17 +542,16 @@ export default function TasksTable({
                       );
                     }
                     return (
-                      <td key={col.key} style={tdSt}>
+                      <td key={col.key} style={rowTdSt}>
                         {val || <span style={{ color: "#94a3b8" }}>—</span>}
                       </td>
                     );
                   })}
                   <td style={{
-                    ...tdCompactSt, padding: "9px 8px",
+                    ...rowTdCompactSt, padding: "9px 8px",
                     width: 56, minWidth: 56, maxWidth: 56,
                     position: "sticky", right: 0,
-                    background: isSel ? rowBg : colors.cardBg,
-                    boxShadow: "-4px 0 8px rgba(0,0,0,0.07)",
+                    boxShadow: darkMode ? "-4px 0 8px rgba(0,0,0,0.25)" : "-4px 0 8px rgba(15,23,42,0.05)",
                   }}
                     onClick={(e) => e.stopPropagation()}>
                     <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
