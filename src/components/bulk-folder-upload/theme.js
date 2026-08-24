@@ -76,7 +76,7 @@ export function buildStyles(colors) {
       marginBottom: 12,
       borderBottom: `1px solid ${colors.cardBorder}`,
     },
-    tabBtn: {
+        tabBtn: {
       display: "flex",
       alignItems: "center",
       gap: 6,
@@ -92,7 +92,7 @@ export function buildStyles(colors) {
     },
     tabBtnActive: {
       color: colors.accent,
-      borderBottomColor: colors.accent,
+      borderBottom: `2px solid ${colors.accent}`,
     },
     layout: {
       display: "grid",

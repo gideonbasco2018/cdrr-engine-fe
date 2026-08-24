@@ -9,10 +9,9 @@ import BulkDeckModal from "./actions/BulkDeckModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 import ChangeLogModal from "../tasks/ChangeLogModal";
-import ReassignmentModal from "./actions/ReassignmentModal";
-import RerouteModal from "./actions/RerouteModal";
 import UpdateCPRModal from "./actions/UpdateCPRModal";
 import { BulkCompleteModal } from "../tasks/DataTable/BulkCompleteModal";
+import { BulkCancelModal } from "../tasks/DataTable/BulkCancelModal";
 import { closeTasksBulk, getCurrentUser } from "../../api/closed-tasks";
 import { getDuplicateRecords } from "../../api/duplicate-records";
 
@@ -149,13 +148,12 @@ function DataTable({
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
   const [appLogsRecord, setAppLogsRecord] = useState(null);
   const [changeLogRecord, setChangeLogRecord] = useState(null);
-  const [reassignmentRecord, setReassignmentRecord] = useState(null);
-  const [rerouteRecord, setRerouteRecord] = useState(null);
   const [cprUpdateRecord, setCprUpdateRecord] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
 
   const [bulkCompleteModalRecords, setBulkCompleteModalRecords] =
     useState(null);
+  const [bulkCancelModalRecords, setBulkCancelModalRecords] = useState(null);
   const [dblClickAction, setDblClickAction] = useState(
     () => localStorage.getItem("dblClickAction") || "viewDetails",
   );
@@ -730,6 +728,12 @@ function DataTable({
         sh: "rgba(239,68,68,0.3)",
         icon: "✗",
         label: "Rejected",
+      },
+      CANCELLED: {
+        bg: "linear-gradient(135deg,#6b7280,#4b5563)",
+        sh: "rgba(107,114,128,0.3)",
+        icon: "🚫",
+        label: "Cancelled",
       },
     };
     const c = map[u] || {
@@ -1600,6 +1604,56 @@ function DataTable({
               </button>
             )}
 
+            {showAppLogs && selectedRows.length > 0 && (
+              <button
+                onClick={() =>
+                  setBulkCancelModalRecords(
+                    data.filter((row) => selectedRows.includes(row.id)),
+                  )
+                }
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  background: "linear-gradient(135deg,#f59e0b,#d97706)",
+                  border: "1px solid #b45309",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  fontSize: "0.75rem",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  boxShadow: "0 2px 8px rgba(217,119,6,0.40)",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 4px 14px rgba(217,119,6,0.55)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.boxShadow =
+                    "0 2px 8px rgba(217,119,6,0.40)")
+                }
+              >
+                <span>🚫</span> Cancel Application
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minWidth: "1.1rem",
+                    height: "1.1rem",
+                    padding: "0 0.25rem",
+                    background: "rgba(255,255,255,0.20)",
+                    borderRadius: 999,
+                    fontSize: "0.65rem",
+                    fontWeight: 800,
+                  }}
+                >
+                  {selectedRows.length}
+                </span>
+              </button>
+            )}
+
             {selectedRows.length > 0 && (
               <div
                 style={{
@@ -2196,32 +2250,6 @@ function DataTable({
                                     hoverBg: "rgba(25,118,210,0.1)",
                                   },
 
-                                  ...(row.appStatus?.toUpperCase() !==
-                                  "COMPLETED"
-                                    ? [
-                                        {
-                                          label: "Application Re-assignment",
-                                          icon: "🔄",
-                                          handler: () => {
-                                            setOpenMenuId(null);
-                                            setReassignmentRecord(row);
-                                          },
-                                          color: "#7c3aed",
-                                          hoverBg: "rgba(124,58,237,0.1)",
-                                        },
-                                        {
-                                          label: "Application Re-route",
-                                          icon: "🔀",
-                                          handler: () => {
-                                            setOpenMenuId(null);
-                                            setRerouteRecord(row);
-                                          },
-                                          color: "#0891b2",
-                                          hoverBg: "rgba(8,145,178,0.1)",
-                                        },
-                                      ]
-                                    : []),
-
                                   // {
                                   //   label: "Delete",
                                   //   icon: "🗑️",
@@ -2366,23 +2394,6 @@ function DataTable({
         />
       )}
 
-      {reassignmentRecord && (
-        <ReassignmentModal
-          record={reassignmentRecord}
-          onClose={() => setReassignmentRecord(null)}
-          colors={colors}
-          darkMode={darkMode}
-        />
-      )}
-      {rerouteRecord && (
-        <RerouteModal
-          record={rerouteRecord}
-          onClose={() => setRerouteRecord(null)}
-          colors={colors}
-          darkMode={darkMode}
-        />
-      )}
-
       {cprUpdateRecord && (
         <UpdateCPRModal
           record={cprUpdateRecord}
@@ -2472,6 +2483,68 @@ function DataTable({
             if (onRefresh) await onRefresh();
           }}
           currentUser={getCurrentUser()}
+        />
+      )}
+
+      {bulkCancelModalRecords && (
+        <BulkCancelModal
+          selectedCount={bulkCancelModalRecords.length}
+          selectedDtns={bulkCancelModalRecords.map((r) => r.dtn || r.id)}
+          colors={colors}
+          darkMode={darkMode}
+          onClose={() => setBulkCancelModalRecords(null)}
+          onConfirm={async ({ remarks, reason }) => {
+            const me = getCurrentUser();
+            if (!me?.id) throw new Error("No logged-in user found.");
+
+            const closedAt = new Date(
+              Date.now() + 8 * 60 * 60 * 1000,
+            ).toISOString();
+
+            const mainDbIds = bulkCancelModalRecords.map(
+              (r) => r.mainDbId ?? r.id,
+            );
+
+            await closeTasksBulk({
+              main_db_ids: mainDbIds,
+              reason_for_closing: reason,
+              remarks: remarks || null,
+              closed_by_user_id: me.id,
+              closed_by_user_name: me.username,
+              closed_at: closedAt,
+              cpr_api_enabled: null,
+              cpr_insert_success: null,
+              cpr_insert_error: null,
+              cpr_skipped_by_user: false,
+            });
+
+            const { updateUploadReport: updateReport } =
+              await import("../../api/reports");
+
+            let success = 0;
+            let failed = 0;
+
+            await Promise.allSettled(
+              bulkCancelModalRecords.map(async (row) => {
+                try {
+                  await updateReport(row.mainDbId ?? row.id, {
+                    DB_APP_STATUS: "CANCELLED",
+                  });
+                  success++;
+                } catch (e) {
+                  console.error(`updateReport failed for id ${row.id}:`, e);
+                  failed++;
+                }
+              }),
+            );
+
+            return { success, failed };
+          }}
+          onDone={async () => {
+            setBulkCancelModalRecords(null);
+            if (onClearSelections) onClearSelections();
+            if (onRefresh) await onRefresh();
+          }}
         />
       )}
     </>

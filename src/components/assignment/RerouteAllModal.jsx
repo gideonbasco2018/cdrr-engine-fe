@@ -1,34 +1,56 @@
-// FILE: src/components/assignment/ReassignAllModal.jsx
+// FILE: src/components/assignment/RerouteAllModal.jsx
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getUsersByGroup, getUser } from "../../api/auth";
-import { reassignApplication } from "../../api/application-logs";
+import { rerouteApplication } from "../../api/application-logs";
 
-// ⚠️ TODO: palitan ito ng import mula sa shared config kapag na-extract na
-//    natin yung STEP_GROUP_MAP (see note sa dulo)
-const STEP_GROUP_MAP = {
-  Decking: 2,
-  "S&E": 13,
-  "S&E Supervisor": 20,
-  "S&E Checker": 21,
-  "Quality Evaluation": 3,
-  Checking: 4,
-  Supervisor: 5,
-  "QA Admin": 16,
-  "LRD Chief Admin": 17,
-  "OD-Receiving": 18,
-  "OD-Releasing": 19,
-  "Releasing Officer": 8,
-};
+// ⚠️ TODO: same as ReassignAllModal — extract WORKFLOW_STEPS/REROUTE_REASONS
+//    into a shared config once RerouteModal.jsx (reports/actions) and this
+//    file both need it. Kept duplicated here for now to avoid a cross-folder
+//    import dependency.
+const WORKFLOW_STEPS = [
+  { key: "Decking", label: "Decking", icon: "🎯", groupId: 2 },
+  { key: "S&E", label: "S&E", icon: "🧪", groupId: 13 },
+  { key: "S&E Supervisor", label: "S&E Supervisor", icon: "🧑‍💼", groupId: 20 },
+  { key: "S&E Checker", label: "S&E Checker", icon: "🔬", groupId: 21 },
+  {
+    key: "Quality Evaluation",
+    label: "Quality Evaluation",
+    icon: "🔍",
+    groupId: 3,
+  },
+  { key: "Checking", label: "Checking", icon: "✅", groupId: 4 },
+  { key: "Supervisor", label: "Supervisor", icon: "👤", groupId: 5 },
+  { key: "QA Admin", label: "QA Admin", icon: "🛡️", groupId: 16 },
+  {
+    key: "LRD Chief Admin",
+    label: "LRD Chief Admin",
+    icon: "📌",
+    groupId: 17,
+  },
+  { key: "OD-Receiving", label: "OD-Receiving", icon: "📥", groupId: 18 },
+  { key: "OD-Releasing", label: "OD-Releasing", icon: "📤", groupId: 19 },
+  {
+    key: "Releasing Officer",
+    label: "Releasing Officer",
+    icon: "🏁",
+    groupId: 8,
+  },
+];
 
-const REASSIGN_REASONS = [
-  "Evaluator on leave",
-  "Workload balancing",
-  "Expertise mismatch",
-  "Evaluator request",
-  "Supervisory directive",
+const REROUTE_REASONS = [
+  "Missing documents",
+  "Incorrect classification",
+  "Additional evaluation needed",
+  "Compliance issue",
+  "Director directive",
+  "Applicant request",
+  "System correction",
   "Others",
 ];
+
+const stepObjFor = (key) => WORKFLOW_STEPS.find((s) => s.key === key);
+const stepIndexFor = (key) => WORKFLOW_STEPS.findIndex((s) => s.key === key);
 
 const nowPHT = () => {
   const now = new Date();
@@ -37,10 +59,9 @@ const nowPHT = () => {
     .replace(" ", "T");
 };
 
-/* ── Compact per-row user dropdown, SEARCHABLE ──
+/* ── Compact per-row searchable user dropdown (same pattern as ReassignAllModal) ──
    Dropdown list renders in a fixed-position portal (document.body) so it
-   never gets clipped or hidden by the modal's scrollable table container —
-   no more "may selection ka na pero nasa ilalim, di mo makita" issue. */
+   never gets clipped or hidden by the modal's scrollable table container. */
 function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -146,7 +167,7 @@ function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
           width: "100%",
           padding: "0.3rem 0.5rem",
           background: darkMode ? "#1a1a1a" : "#f5f5f5",
-          border: `1px solid ${value ? "#7c3aed" : colors.cardBorder}`,
+          border: `1px solid ${value ? "#0891b2" : colors.cardBorder}`,
           borderRadius: 6,
           color: colors.textPrimary,
           fontSize: "0.72rem",
@@ -215,14 +236,14 @@ function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
                     cursor: "pointer",
                     color: colors.textPrimary,
                     background:
-                      u.username === value ? "#7c3aed22" : "transparent",
+                      u.username === value ? "#0891b222" : "transparent",
                   }}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = "#7c3aed22")
+                    (e.currentTarget.style.background = "#0891b222")
                   }
                   onMouseLeave={(e) =>
                     (e.currentTarget.style.background =
-                      u.username === value ? "#7c3aed22" : "transparent")
+                      u.username === value ? "#0891b222" : "transparent")
                   }
                 >
                   {u.username} — {u.first_name} {u.surname}
@@ -237,10 +258,16 @@ function RowUserSelect({ value, onChange, users, loading, colors, darkMode }) {
 }
 
 /* ── Main modal ── */
-function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
+function RerouteAllModal({ records, onClose, onSuccess, colors, darkMode }) {
   // records: [{ id, mainDbId, dtn, oldRsn, applicationStep, userName, updatedAt, applicationStatus }]
   const [rows, setRows] = useState(
-    records.map((r) => ({ ...r, reassignTo: "", reason: "", remarks: "" })),
+    records.map((r) => ({
+      ...r,
+      targetStep: "",
+      assignTo: "",
+      reason: "",
+      remarks: "",
+    })),
   );
   const [usersByStep, setUsersByStep] = useState({});
   const [loadingSteps, setLoadingSteps] = useState({});
@@ -249,12 +276,50 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
   const [results, setResults] = useState([]);
 
   // ── Bulk-fill state (apply one value to every row) ──
-  const [bulkUser, setBulkUser] = useState("");
+  const [bulkTargetStep, setBulkTargetStep] = useState("");
+  const [bulkAssignTo, setBulkAssignTo] = useState("");
   const [bulkReason, setBulkReason] = useState("");
   const [bulkRemarks, setBulkRemarks] = useState("");
 
-  // union of users across all fetched groups, deduped by username —
-  // lets the bulk "Reassigned to" field search across every step at once
+  useEffect(() => {
+    const u = getUser();
+    if (u) setCurrentUser(u);
+  }, []);
+
+  // fetch users for a target step's group, once, on demand
+  const ensureUsersForStep = (stepKey) => {
+    if (!stepKey || usersByStep[stepKey] || loadingSteps[stepKey]) return;
+    const groupId = stepObjFor(stepKey)?.groupId;
+    if (!groupId) return;
+    setLoadingSteps((prev) => ({ ...prev, [stepKey]: true }));
+    getUsersByGroup(groupId)
+      .then((users) =>
+        setUsersByStep((prev) => ({ ...prev, [stepKey]: users })),
+      )
+      .catch(() => setUsersByStep((prev) => ({ ...prev, [stepKey]: [] })))
+      .finally(() =>
+        setLoadingSteps((prev) => ({ ...prev, [stepKey]: false })),
+      );
+  };
+
+  const updateRow = (id, field, value) => {
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              [field]: value,
+              // changing target step invalidates whatever was picked before
+              ...(field === "targetStep" ? { assignTo: "" } : {}),
+            }
+          : r,
+      ),
+    );
+    if (field === "targetStep") ensureUsersForStep(value);
+  };
+
+  // union of users across every target-step group touched so far —
+  // used by the bulk "Assign To" field
   const combinedUsers = Object.values(usersByStep)
     .flat()
     .filter(Boolean)
@@ -262,46 +327,30 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
       (u, idx, arr) => arr.findIndex((x) => x.username === u.username) === idx,
     );
   const combinedUsersLoading =
-    Object.keys(loadingSteps).length > 0 &&
-    Object.values(loadingSteps).some(Boolean) &&
-    combinedUsers.length === 0;
+    Object.values(loadingSteps).some(Boolean) && combinedUsers.length === 0;
 
-  const applyReassignToAll = () =>
-    setRows((prev) => prev.map((r) => ({ ...r, reassignTo: bulkUser })));
+  const applyTargetStepToAll = () => {
+    setRows((prev) =>
+      prev.map((r) => ({ ...r, targetStep: bulkTargetStep, assignTo: "" })),
+    );
+    ensureUsersForStep(bulkTargetStep);
+  };
+  const applyAssignToAll = () =>
+    setRows((prev) => prev.map((r) => ({ ...r, assignTo: bulkAssignTo })));
   const applyReasonToAll = () =>
     setRows((prev) => prev.map((r) => ({ ...r, reason: bulkReason })));
   const applyRemarksToAll = () =>
     setRows((prev) => prev.map((r) => ({ ...r, remarks: bulkRemarks })));
 
-  useEffect(() => {
-    const u = getUser();
-    if (u) setCurrentUser(u);
-  }, []);
+  const rowIsReady = (r) => {
+    if (!r.targetStep || !r.reason) return false;
+    const hasGroup = !!stepObjFor(r.targetStep)?.groupId;
+    return hasGroup ? !!r.assignTo : true;
+  };
+  const readyRows = rows.filter(rowIsReady);
+  const canReroute = readyRows.length > 0;
 
-  // fetch users once per distinct application_step present in selection
-  useEffect(() => {
-    const steps = [...new Set(records.map((r) => r.applicationStep))];
-    steps.forEach((step) => {
-      const groupId = STEP_GROUP_MAP[step];
-      if (!groupId) return;
-      setLoadingSteps((prev) => ({ ...prev, [step]: true }));
-      getUsersByGroup(groupId)
-        .then((users) => setUsersByStep((prev) => ({ ...prev, [step]: users })))
-        .catch(() => setUsersByStep((prev) => ({ ...prev, [step]: [] })))
-        .finally(() => setLoadingSteps((prev) => ({ ...prev, [step]: false })));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const updateRow = (id, field, value) =>
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [field]: value } : r)),
-    );
-
-  const readyRows = rows.filter((r) => r.reassignTo && r.reason);
-  const canReassign = readyRows.length > 0;
-
-  const handleReassign = async () => {
+  const handleReroute = async () => {
     setPhase("progress");
     const initial = readyRows.map((r) => ({ ...r, status: "pending" }));
     setResults(initial);
@@ -309,23 +358,23 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
 
     for (let i = 0; i < readyRows.length; i++) {
       const row = readyRows[i];
-      const userObj = (usersByStep[row.applicationStep] || []).find(
-        (u) => u.username === row.reassignTo,
+      const assignedUserObj = (usersByStep[row.targetStep] || []).find(
+        (u) => u.username === row.assignTo,
       );
       try {
-        await reassignApplication({
-          main_db_id: row.mainDbId, // ✅ correct FK — not row.id
-          action_type: "REASSIGNMENT",
+        await rerouteApplication({
+          main_db_id: row.mainDbId,
+          action_type: "REROUTE",
           application_step: row.applicationStep,
-          reassigned_from_user_id: null,
-          reassigned_from_user_name: row.userName,
-          reassigned_to_user_id: userObj?.id ?? null,
-          reassigned_to_user_name: row.reassignTo,
-          reassignment_reason: row.reason,
-          reassignment_remarks: row.remarks || null,
-          reassigned_by_user_id: currentUser?.id ?? null,
-          reassigned_by_user_name: currentUser?.username ?? null,
-          reassigned_at: nowPHT(),
+          reroute_from_step: row.applicationStep,
+          reroute_target_step: row.targetStep,
+          reroute_reason: row.reason,
+          reroute_remarks: row.remarks || null,
+          rerouted_by_user_id: currentUser?.id ?? null,
+          rerouted_by_user_name: currentUser?.username ?? null,
+          rerouted_at: nowPHT(),
+          user_name: row.assignTo || null,
+          user_id: assignedUserObj?.id ?? null,
         });
         updated[i] = { ...updated[i], status: "success" };
       } catch (err) {
@@ -365,7 +414,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: 14,
           width: "100%",
-          maxWidth: 1120,
+          maxWidth: 1240,
           maxHeight: "88vh",
           display: "flex",
           flexDirection: "column",
@@ -377,7 +426,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
         <div
           style={{
             padding: "1rem 1.4rem",
-            background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+            background: "linear-gradient(135deg,#0891b2,#0e7490)",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -388,7 +437,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
             <div
               style={{ color: "#fff", fontWeight: 700, fontSize: "0.95rem" }}
             >
-              🔄 Reassign All by Task
+              🔀 Re-route All by Task
             </div>
             <div
               style={{ color: "rgba(255,255,255,0.75)", fontSize: "0.72rem" }}
@@ -418,6 +467,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
         {/* ── Body: form phase = editable table ── */}
         {phase === "form" && (
           <>
+            {/* ── Bulk-fill bar ── */}
             <div
               style={{
                 padding: "0.75rem 1.4rem",
@@ -426,7 +476,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                 flexWrap: "wrap",
                 alignItems: "flex-end",
                 gap: "0.75rem",
-                background: darkMode ? "#151515" : "#f3f0fb",
+                background: darkMode ? "#151515" : "#eef7f9",
                 flexShrink: 0,
               }}
             >
@@ -443,10 +493,48 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                 Fill all rows:
               </span>
 
+              <select
+                value={bulkTargetStep}
+                onChange={(e) => setBulkTargetStep(e.target.value)}
+                style={{
+                  padding: "0.3rem 0.5rem",
+                  minWidth: 170,
+                  background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                  border: `1px solid ${bulkTargetStep ? "#0891b2" : colors.cardBorder}`,
+                  borderRadius: 6,
+                  color: colors.textPrimary,
+                  fontSize: "0.72rem",
+                }}
+              >
+                <option value="">— target step —</option>
+                {WORKFLOW_STEPS.map((s) => (
+                  <option key={s.key} value={s.key}>
+                    {s.icon} {s.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={applyTargetStepToAll}
+                disabled={!bulkTargetStep}
+                style={{
+                  padding: "0.35rem 0.7rem",
+                  background: bulkTargetStep ? "#0891b2" : "#555",
+                  border: "none",
+                  borderRadius: 6,
+                  color: "#fff",
+                  fontSize: "0.68rem",
+                  fontWeight: 600,
+                  cursor: bulkTargetStep ? "pointer" : "not-allowed",
+                  opacity: bulkTargetStep ? 1 : 0.6,
+                }}
+              >
+                Apply to all
+              </button>
+
               <div style={{ minWidth: 210 }}>
                 <RowUserSelect
-                  value={bulkUser}
-                  onChange={setBulkUser}
+                  value={bulkAssignTo}
+                  onChange={setBulkAssignTo}
                   users={combinedUsers}
                   loading={combinedUsersLoading}
                   colors={colors}
@@ -454,18 +542,18 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                 />
               </div>
               <button
-                onClick={applyReassignToAll}
-                disabled={!bulkUser}
+                onClick={applyAssignToAll}
+                disabled={!bulkAssignTo}
                 style={{
                   padding: "0.35rem 0.7rem",
-                  background: bulkUser ? "#7c3aed" : "#555",
+                  background: bulkAssignTo ? "#0891b2" : "#555",
                   border: "none",
                   borderRadius: 6,
                   color: "#fff",
                   fontSize: "0.68rem",
                   fontWeight: 600,
-                  cursor: bulkUser ? "pointer" : "not-allowed",
-                  opacity: bulkUser ? 1 : 0.6,
+                  cursor: bulkAssignTo ? "pointer" : "not-allowed",
+                  opacity: bulkAssignTo ? 1 : 0.6,
                 }}
               >
                 Apply to all
@@ -478,14 +566,14 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                   padding: "0.3rem 0.5rem",
                   minWidth: 160,
                   background: darkMode ? "#1a1a1a" : "#f5f5f5",
-                  border: `1px solid ${bulkReason ? "#7c3aed" : colors.cardBorder}`,
+                  border: `1px solid ${bulkReason ? "#0891b2" : colors.cardBorder}`,
                   borderRadius: 6,
                   color: colors.textPrimary,
                   fontSize: "0.72rem",
                 }}
               >
                 <option value="">— reason —</option>
-                {REASSIGN_REASONS.map((r) => (
+                {REROUTE_REASONS.map((r) => (
                   <option key={r} value={r}>
                     {r}
                   </option>
@@ -496,7 +584,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                 disabled={!bulkReason}
                 style={{
                   padding: "0.35rem 0.7rem",
-                  background: bulkReason ? "#7c3aed" : "#555",
+                  background: bulkReason ? "#0891b2" : "#555",
                   border: "none",
                   borderRadius: 6,
                   color: "#fff",
@@ -529,7 +617,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                 onClick={applyRemarksToAll}
                 style={{
                   padding: "0.35rem 0.7rem",
-                  background: "#7c3aed",
+                  background: "#0891b2",
                   border: "none",
                   borderRadius: 6,
                   color: "#fff",
@@ -563,10 +651,11 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                       "#",
                       "DTN",
                       "OLD RSN",
-                      "Task",
-                      "Assigned To",
+                      "Current Step",
+                      "Current User",
                       "Last Modified",
-                      "Reassigned to",
+                      "Target Step",
+                      "Assign To",
                       "Reason",
                       "Remarks",
                     ].map((h) => (
@@ -588,141 +677,226 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, idx) => (
-                    <tr
-                      key={row.id}
-                      style={{
-                        background:
-                          idx % 2 ? colors.tableRowOdd : colors.tableRowEven,
-                      }}
-                    >
-                      <td
+                  {rows.map((row, idx) => {
+                    const targetObj = stepObjFor(row.targetStep);
+                    const stepHasGroup = !!targetObj?.groupId;
+                    const currentIdx = stepIndexFor(row.applicationStep);
+                    const targetIdx = stepIndexFor(row.targetStep);
+                    const isBackward =
+                      row.targetStep &&
+                      currentIdx > -1 &&
+                      targetIdx > -1 &&
+                      targetIdx < currentIdx;
+
+                    return (
+                      <tr
+                        key={row.id}
                         style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
+                          background:
+                            idx % 2 ? colors.tableRowOdd : colors.tableRowEven,
                         }}
                       >
-                        {idx + 1}
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {row.dtn}
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                        }}
-                      >
-                        {row.oldRsn ?? "N/A"}
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                        }}
-                      >
-                        {row.applicationStep}
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                        }}
-                      >
-                        {row.userName ?? "Unassigned"}
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {row.updatedAt
-                          ? new Date(row.updatedAt).toLocaleString()
-                          : "N/A"}
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          minWidth: 210,
-                          position: "relative",
-                        }}
-                      >
-                        <RowUserSelect
-                          value={row.reassignTo}
-                          onChange={(v) => updateRow(row.id, "reassignTo", v)}
-                          users={usersByStep[row.applicationStep]}
-                          loading={loadingSteps[row.applicationStep]}
-                          colors={colors}
-                          darkMode={darkMode}
-                        />
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          minWidth: 160,
-                        }}
-                      >
-                        <select
-                          value={row.reason}
-                          onChange={(e) =>
-                            updateRow(row.id, "reason", e.target.value)
-                          }
+                        <td
                           style={{
-                            width: "100%",
-                            padding: "0.3rem 0.5rem",
-                            background: darkMode ? "#1a1a1a" : "#f5f5f5",
-                            border: `1px solid ${row.reason ? "#7c3aed" : colors.cardBorder}`,
-                            borderRadius: 6,
-                            color: colors.textPrimary,
-                            fontSize: "0.72rem",
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
                           }}
                         >
-                          <option value="">— reason —</option>
-                          {REASSIGN_REASONS.map((r) => (
-                            <option key={r} value={r}>
-                              {r}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td
-                        style={{
-                          padding: "0.4rem 0.6rem",
-                          borderBottom: `1px solid ${colors.tableBorder}`,
-                          minWidth: 180,
-                        }}
-                      >
-                        <input
-                          type="text"
-                          value={row.remarks}
-                          onChange={(e) =>
-                            updateRow(row.id, "remarks", e.target.value)
-                          }
-                          placeholder="optional remarks"
+                          {idx + 1}
+                        </td>
+                        <td
                           style={{
-                            width: "100%",
-                            padding: "0.3rem 0.5rem",
-                            background: darkMode ? "#1a1a1a" : "#f5f5f5",
-                            border: `1px solid ${colors.cardBorder}`,
-                            borderRadius: 6,
-                            color: colors.textPrimary,
-                            fontSize: "0.72rem",
-                            boxSizing: "border-box",
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                            fontWeight: 600,
                           }}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                        >
+                          {row.dtn}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                          }}
+                        >
+                          {row.oldRsn ?? "N/A"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                          }}
+                        >
+                          {row.applicationStep}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                          }}
+                        >
+                          {row.userName ?? "Unassigned"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {row.updatedAt
+                            ? new Date(row.updatedAt).toLocaleString()
+                            : "N/A"}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                            minWidth: 170,
+                          }}
+                        >
+                          <select
+                            value={row.targetStep}
+                            onChange={(e) =>
+                              updateRow(row.id, "targetStep", e.target.value)
+                            }
+                            style={{
+                              width: "100%",
+                              padding: "0.3rem 0.5rem",
+                              background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                              border: `1px solid ${row.targetStep ? "#0891b2" : colors.cardBorder}`,
+                              borderRadius: 6,
+                              color: colors.textPrimary,
+                              fontSize: "0.72rem",
+                            }}
+                          >
+                            <option value="">— target step —</option>
+                            {WORKFLOW_STEPS.map((s) => (
+                              <option key={s.key} value={s.key}>
+                                {s.icon} {s.label}
+                                {s.key === row.applicationStep
+                                  ? " (current)"
+                                  : ""}
+                              </option>
+                            ))}
+                          </select>
+                          {isBackward && (
+                            <div
+                              style={{
+                                fontSize: "0.62rem",
+                                color: "#ef4444",
+                                marginTop: "0.2rem",
+                              }}
+                            >
+                              ⚠️ backward — needs approval
+                            </div>
+                          )}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                            minWidth: 210,
+                          }}
+                        >
+                          {!row.targetStep ? (
+                            <span
+                              style={{
+                                fontSize: "0.7rem",
+                                color: colors.textTertiary,
+                              }}
+                            >
+                              — pick target step first —
+                            </span>
+                          ) : stepHasGroup ? (
+                            <RowUserSelect
+                              value={row.assignTo}
+                              onChange={(v) => updateRow(row.id, "assignTo", v)}
+                              users={usersByStep[row.targetStep]}
+                              loading={loadingSteps[row.targetStep]}
+                              colors={colors}
+                              darkMode={darkMode}
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={row.assignTo}
+                              onChange={(e) =>
+                                updateRow(row.id, "assignTo", e.target.value)
+                              }
+                              placeholder="username (optional)"
+                              style={{
+                                width: "100%",
+                                padding: "0.3rem 0.5rem",
+                                background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                                border: `1px solid ${colors.cardBorder}`,
+                                borderRadius: 6,
+                                color: colors.textPrimary,
+                                fontSize: "0.72rem",
+                                boxSizing: "border-box",
+                              }}
+                            />
+                          )}
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                            minWidth: 160,
+                          }}
+                        >
+                          <select
+                            value={row.reason}
+                            onChange={(e) =>
+                              updateRow(row.id, "reason", e.target.value)
+                            }
+                            style={{
+                              width: "100%",
+                              padding: "0.3rem 0.5rem",
+                              background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                              border: `1px solid ${row.reason ? "#0891b2" : colors.cardBorder}`,
+                              borderRadius: 6,
+                              color: colors.textPrimary,
+                              fontSize: "0.72rem",
+                            }}
+                          >
+                            <option value="">— reason —</option>
+                            {REROUTE_REASONS.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td
+                          style={{
+                            padding: "0.4rem 0.6rem",
+                            borderBottom: `1px solid ${colors.tableBorder}`,
+                            minWidth: 180,
+                          }}
+                        >
+                          <input
+                            type="text"
+                            value={row.remarks}
+                            onChange={(e) =>
+                              updateRow(row.id, "remarks", e.target.value)
+                            }
+                            placeholder="optional remarks"
+                            style={{
+                              width: "100%",
+                              padding: "0.3rem 0.5rem",
+                              background: darkMode ? "#1a1a1a" : "#f5f5f5",
+                              border: `1px solid ${colors.cardBorder}`,
+                              borderRadius: 6,
+                              color: colors.textPrimary,
+                              fontSize: "0.72rem",
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -738,8 +912,12 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
               }}
             >
               <span style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
-                {readyRows.length} of {rows.length} ready (needs assignee +
-                reason)
+                {readyRows.length} of {rows.length} ready (needs target step +
+                reason{" "}
+                {rows.some((r) => stepObjFor(r.targetStep)?.groupId)
+                  ? "+ assignee for grouped steps"
+                  : ""}
+                )
               </span>
               <div style={{ display: "flex", gap: "0.6rem" }}>
                 <button
@@ -756,22 +934,22 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                   Close
                 </button>
                 <button
-                  onClick={handleReassign}
-                  disabled={!canReassign}
+                  onClick={handleReroute}
+                  disabled={!canReroute}
                   style={{
                     padding: "0.55rem 1.3rem",
-                    background: canReassign
-                      ? "linear-gradient(135deg,#7c3aed,#6d28d9)"
+                    background: canReroute
+                      ? "linear-gradient(135deg,#0891b2,#0e7490)"
                       : "#555",
                     border: "none",
                     borderRadius: 8,
                     color: "#fff",
                     fontWeight: 600,
-                    cursor: canReassign ? "pointer" : "not-allowed",
-                    opacity: canReassign ? 1 : 0.6,
+                    cursor: canReroute ? "pointer" : "not-allowed",
+                    opacity: canReroute ? 1 : 0.6,
                   }}
                 >
-                  🔄 Reassign {readyRows.length || ""}
+                  🔀 Re-route {readyRows.length || ""}
                 </button>
               </div>
             </div>
@@ -808,7 +986,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                   fontSize: "0.75rem",
                 }}
               >
-                <span style={{ fontWeight: 600, color: "#7c3aed" }}>
+                <span style={{ fontWeight: 600, color: "#0891b2" }}>
                   {r.dtn}
                 </span>
                 <span
@@ -824,7 +1002,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                   {r.status === "pending"
                     ? "Processing…"
                     : r.status === "success"
-                      ? "Reassigned"
+                      ? "Rerouted"
                       : r.message}
                 </span>
               </div>
@@ -841,7 +1019,7 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
                   onClick={onClose}
                   style={{
                     padding: "0.6rem 1.5rem",
-                    background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                    background: "linear-gradient(135deg,#0891b2,#0e7490)",
                     border: "none",
                     borderRadius: 8,
                     color: "#fff",
@@ -860,4 +1038,4 @@ function ReassignAllModal({ records, onClose, onSuccess, colors, darkMode }) {
   );
 }
 
-export default ReassignAllModal;
+export default RerouteAllModal;

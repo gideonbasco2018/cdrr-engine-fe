@@ -27,7 +27,8 @@ import Field from "./Field";
 /*  Tab 2 — Upload Logs — success + failed history, filterable         */
 /* ================================================================== */
 
-const LOGS_PAGE_SIZE = 20;
+const BATCH_PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const DEFAULT_BATCH_PAGE_SIZE = 10;
 
 const formatBytes = (bytes) => {
   if (bytes === null || bytes === undefined) return null;
@@ -113,13 +114,14 @@ function UploadLogsTab({ colors, s }) {
 
   const [uploaders, setUploaders] = useState([]);
   const [logs, setLogs] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(0); // total_batches, from the API
   // Page-based pagination — 1-indexed. offset sent to the API is derived
-  // from this: (page - 1) * LOGS_PAGE_SIZE.
+  // from this: (page - 1) * batchPageSize.
   const [page, setPage] = useState(1);
+  const [batchPageSize, setBatchPageSize] = useState(DEFAULT_BATCH_PAGE_SIZE);
   const [expandedBatches, setExpandedBatches] = useState(() => new Set());
-  // Mga folder-node na naka-COLLAPSE (default: expanded lahat pagbukas
-  // ng isang batch, gaya ng behavior sa BulkDocumentUploadPage.jsx).
+  // Collapsed folder nodes (default: all expanded when a batch is opened,
+  // same behavior as BulkDocumentUploadPage.jsx).
   const [collapsedFolders, setCollapsedFolders] = useState(() => new Set());
   const [activeLogId, setActiveLogId] = useState(null);
 
@@ -132,21 +134,13 @@ function UploadLogsTab({ colors, s }) {
       .catch(() => setUploaders([]));
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(total / LOGS_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(total / batchPageSize));
 
   const fetchLogs = useCallback(
     async (pageNum) => {
       setIsLoading(true);
       setLoadError("");
       try {
-        // dateFrom/dateTo mula sa <input type="date"> ay date-only
-        // (YYYY-MM-DD, walang time). Kapag pinasa natin ito ng ganon
-        // sa backend at ang column doon ay may laman na timestamp
-        // (e.g. "2026-07-08 15:45:00"), yung dateTo == "2026-07-08"
-        // ay effectively nagiging midnight (00:00:00) — kaya lahat ng
-        // entries sa mismong araw na yun (na may oras na) ay
-        // na-eexclude. Kaya i-normalize natin dito bago i-send:
-        // dateFrom -> start of day, dateTo -> end of day.
         const normalizedDateFrom = dateFrom
           ? `${dateFrom}T00:00:00.000`
           : undefined;
@@ -158,11 +152,11 @@ function UploadLogsTab({ colors, s }) {
           dbDtn: dtnFilterApplied || undefined,
           dateFrom: normalizedDateFrom,
           dateTo: normalizedDateTo,
-          limit: LOGS_PAGE_SIZE,
-          offset: (pageNum - 1) * LOGS_PAGE_SIZE,
+          limit: batchPageSize,
+          offset: (pageNum - 1) * batchPageSize,
         });
-        setLogs(result.data || []);
-        setTotal(result.total || 0);
+        setLogs(result.data || []); // full logs for the batches on this page
+        setTotal(result.total || 0); // total_batches
         setPage(pageNum);
       } catch (err) {
         setLoadError(err.message || "Failed to load upload logs.");
@@ -170,7 +164,14 @@ function UploadLogsTab({ colors, s }) {
         setIsLoading(false);
       }
     },
-    [statusFilter, uploaderFilter, dtnFilterApplied, dateFrom, dateTo],
+    [
+      statusFilter,
+      uploaderFilter,
+      dtnFilterApplied,
+      dateFrom,
+      dateTo,
+      batchPageSize,
+    ],
   );
 
   useEffect(() => {
@@ -178,7 +179,14 @@ function UploadLogsTab({ colors, s }) {
     setExpandedBatches(new Set());
     setCollapsedFolders(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, uploaderFilter, dtnFilterApplied, dateFrom, dateTo]);
+  }, [
+    statusFilter,
+    uploaderFilter,
+    dtnFilterApplied,
+    dateFrom,
+    dateTo,
+    batchPageSize,
+  ]);
 
   const activeLog = useMemo(
     () => logs.find((l) => l.id === activeLogId) || null,
@@ -562,9 +570,9 @@ function UploadLogsTab({ colors, s }) {
         <div style={s.fileListCard}>
           <div style={s.fileListHeader}>
             <span>
-              {total} log entr{total === 1 ? "y" : "ies"} total · showing page{" "}
-              {page} of {totalPages} ({batchGroups.length} batch
-              {batchGroups.length === 1 ? "" : "es"} this page)
+              {total} batch{total === 1 ? "" : "es"} total · showing page {page}{" "}
+              of {totalPages} ({logs.length} log entr
+              {logs.length === 1 ? "y" : "ies"} this page)
             </span>
             {isLoading && (
               <Loader2
@@ -647,9 +655,23 @@ function UploadLogsTab({ colors, s }) {
               >
                 Previous
               </button>
+
               <span style={s.pageIndicator}>
                 Page {page} of {totalPages}
               </span>
+
+              <select
+                value={batchPageSize}
+                onChange={(e) => setBatchPageSize(Number(e.target.value))}
+                style={{ ...s.input, width: "auto", padding: "0.25rem 0.5rem" }}
+              >
+                {BATCH_PAGE_SIZE_OPTIONS.map((n) => (
+                  <option key={n} value={n}>
+                    {n} / page
+                  </option>
+                ))}
+              </select>
+
               <button
                 type="button"
                 onClick={handleNextPage}

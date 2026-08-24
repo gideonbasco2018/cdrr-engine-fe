@@ -174,6 +174,24 @@ function UnitNode({ unit, isSelected, onClick, colors, severity }) {
         )}
       </div>
 
+      {/* ⬅️ NEW — team-wide Director's Target progress */}
+      {unit.target_total > 0 && (
+        <span
+          style={{
+            alignSelf: "flex-start",
+            fontSize: "0.66rem",
+            fontWeight: 700,
+            padding: "2px 8px",
+            borderRadius: 5,
+            background: "rgba(168, 85, 247, 0.15)",
+            color: "#a855f7",
+          }}
+          title={`${unit.target_completed} of ${unit.target_total} Director's Target completed team-wide`}
+        >
+          🏛️ {unit.target_completed}/{unit.target_total} team target
+        </span>
+      )}
+
       {/* ── Hover popover — list of members, so you don't need to click
             the unit card just to see who's in it ── */}
       {showMembers && unit.members.length > 0 && (
@@ -299,18 +317,23 @@ function MemberNode({ member, isSelected, onClick, colors }) {
         >
           ⏳ {member.in_progress_count} In Progress
         </span>
-        <span
-          style={{
-            fontSize: "0.62rem",
-            fontWeight: 700,
-            padding: "2px 7px",
-            borderRadius: 5,
-            background: "rgba(168, 85, 247, 0.15)",
-            color: "#a855f7",
-          }}
-        >
-          🏛️ {member.directors_target_count}
-        </span>
+        {/* ⬅️ CHANGED: dating "🏛️ {count}" lang, ngayon "completed/total" */}
+        {(member.directors_target_count || 0) > 0 && (
+          <span
+            style={{
+              fontSize: "0.62rem",
+              fontWeight: 700,
+              padding: "2px 7px",
+              borderRadius: 5,
+              background: "rgba(168, 85, 247, 0.15)",
+              color: "#a855f7",
+            }}
+            title={`${member.directors_target_completed_count || 0} of ${member.directors_target_count || 0} Director's Target completed`}
+          >
+            🏛️ {member.directors_target_completed_count || 0}/
+            {member.directors_target_count || 0}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -491,12 +514,16 @@ function TaskTable({
       {
         key: "prod_class_prescrip",
         label: "Product Class",
-        filterType: "text",
+        filterType: "select",
       },
-      { key: "app_type", label: "App Type", filterType: "text" },
-      { key: "processing_type", label: "Processing Type", filterType: "text" },
-      { key: "entry_type", label: "Entry Type", filterType: "text" },
-      { key: "step", label: "Step", filterType: "text" },
+      { key: "app_type", label: "App Type", filterType: "select" },
+      {
+        key: "processing_type",
+        label: "Processing Type",
+        filterType: "select",
+      },
+      { key: "entry_type", label: "Entry Type", filterType: "select" },
+      { key: "step", label: "Step", filterType: "select" },
       { key: "status", label: "Status", filterType: "none" },
       {
         key: "directors_target",
@@ -507,6 +534,24 @@ function TaskTable({
     return cols;
   }, [showMemberColumn]);
 
+  // ── Distinct values for each "select" column, derived from the
+  //    currently loaded page of tasks. Add the current filter's own
+  //    value too, in case it's not present on this page (e.g. user
+  //    filtered, page reloaded, value still valid server-side). ──
+  const filterOptions = useMemo(() => {
+    const opts = {};
+    columns.forEach((col) => {
+      if (col.filterType !== "select") return;
+      const set = new Set();
+      tasks.forEach((t) => {
+        const val = t[col.key];
+        if (val) set.add(val);
+      });
+      if (filters[col.key]) set.add(filters[col.key]);
+      opts[col.key] = Array.from(set).sort((a, b) => a.localeCompare(b));
+    });
+    return opts;
+  }, [tasks, columns, filters]);
   // ── Every row here already matches the active filters — the backend
   //    only returns matching rows — so all rows on this page are
   //    selectable candidates by definition, no local filtering needed. ──
@@ -704,6 +749,20 @@ function TaskTable({
                       onChange={(v) => onFilterChange(col.key, v)}
                       colors={colors}
                     />
+                  ) : col.filterType === "select" ? (
+                    <select
+                      value={filters[col.key] || ""}
+                      onChange={(e) => onFilterChange(col.key, e.target.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      style={filterFieldStyle(colors)}
+                    >
+                      <option value="">All</option>
+                      {(filterOptions[col.key] || []).map((val) => (
+                        <option key={val} value={val}>
+                          {val}
+                        </option>
+                      ))}
+                    </select>
                   ) : (
                     <input
                       type="text"
@@ -1198,12 +1257,17 @@ export function DirectorsTeamDiagramView({ colors }) {
           unit_name: m.unit_name,
           members: [],
           total_in_progress: 0,
+          target_total: 0,
+          target_completed: 0,
           unit_head_name: null,
         });
       }
       const unit = map.get(m.unit_id);
       unit.members.push(m);
       unit.total_in_progress += m.in_progress_count || 0;
+      unit.target_total += m.directors_target_count || 0;
+      unit.target_completed +=
+        m.directors_target_supervisor_completed_count || 0;
       unit.unit_head_name = m.lead_name || unit.unit_head_name;
     });
     return Array.from(map.values()).sort(

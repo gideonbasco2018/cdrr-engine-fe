@@ -148,19 +148,8 @@ export const uploadApplicationDocumentsFolder = async (
 };
 
 /**
- * Get a filterable, paginated list of ALL upload logs (success + failed),
- * across every batch. Used by the "Upload Logs" tab.
- * GET /api/application-documents/upload-folder/logs
- *
- * @param {Object} [params]
- * @param {"success"|"failed"} [params.status]
- * @param {string} [params.uploadedBy] - exact match on uploader's username
- * @param {string} [params.dbDtn] - partial match
- * @param {string} [params.dbEntryType]
- * @param {string} [params.dateFrom] - ISO-8601 datetime string, inclusive lower bound on created_at
- * @param {string} [params.dateTo] - ISO-8601 datetime string, inclusive upper bound on created_at
- * @param {number} [params.limit]
- * @param {number} [params.offset]
+ * @param {number} [params.limit] - number of BATCHES per page (not rows)
+ * @param {number} [params.offset] - batch offset
  */
 export const getUploadLogs = async ({
   status,
@@ -169,7 +158,7 @@ export const getUploadLogs = async ({
   dbEntryType,
   dateFrom,
   dateTo,
-  limit = 100,
+  limit = 10,
   offset = 0,
 } = {}) => {
   try {
@@ -185,7 +174,7 @@ export const getUploadLogs = async ({
         offset,
       },
     });
-    return response.data; // { data: [...], total }
+    return response.data; // { data: [...], total (=total_batches), total_logs }
   } catch (error) {
     throw new Error(extractErrorMessage(error, "Failed to fetch upload logs"));
   }
@@ -320,5 +309,57 @@ export const uploadApplicationDocumentSingle = async (
     // Returns: { filename, success, document?, error? }
   } catch (error) {
     throw new Error(extractErrorMessage(error, "Failed to upload document"));
+  }
+};
+
+/**
+ * Global summary counts (total batches / success / failed) across ALL
+ * matching logs — used for the Batch Summary tab's top badges.
+ * GET /api/application-documents/upload-folder/logs/stats
+ */
+export const getUploadLogStats = async ({ dbDtn, dateFrom, dateTo } = {}) => {
+  try {
+    const response = await API.get("/application-documents/upload-folder/logs/stats", {
+      params: {
+        db_dtn: dbDtn || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+      },
+    });
+    return response.data; // { total_batches, total_success, total_failed }
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "Failed to fetch upload log stats"));
+  }
+};
+
+/**
+ * One summary row per calendar day (total files / success / failed /
+ * batches). Used by the Batch Summary tab's top-level date list.
+ * GET /api/application-documents/upload-folder/logs/by-date
+ */
+export const getUploadLogsByDate = async ({
+  uploadedBy,
+  dbDtn,
+  dbEntryType,
+  dateFrom,
+  dateTo,
+  limit = 30,
+  offset = 0,
+} = {}) => {
+  try {
+    const response = await API.get("/application-documents/upload-folder/logs/by-date", {
+      params: {
+        uploaded_by: uploadedBy || undefined,
+        db_dtn: dbDtn || undefined,
+        db_entry_type: dbEntryType || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        limit,
+        offset,
+      },
+    });
+    return response.data; // { data: [{ date, total_files, total_success, total_failed, total_batches }], total }
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "Failed to fetch date summary"));
   }
 };

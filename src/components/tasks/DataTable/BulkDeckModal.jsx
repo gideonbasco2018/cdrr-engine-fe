@@ -1,7 +1,7 @@
 /* ================================================================== */
 /*  DataTable — BulkDeckModal.jsx                                      */
 /* ================================================================== */
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
 import { getUploadReport } from "../../../api/reports";
@@ -101,6 +101,16 @@ const DECISION_RESULT_TO_DOC_TYPE = {
   "Letter (Withdrawal)": "Letter (Withdrawal)",
   "Letter (Re-routed)": "Letter (Re-routed)",
 };
+
+/* Records whose own "Type Doc Released" field (set earlier, per-record,
+   e.g. in QA Admin's Full Details step) equals CPR — these are the ONLY
+   ones that should be pushed to VerifiPortal during a bulk action.
+   Bulk actions no longer rely on a single shared "Decision Result" to
+   decide this; each record decides for itself. */
+const isRecordCPR = (record) =>
+  String(record?.typeDocReleased ?? "")
+    .trim()
+    .toUpperCase() === "CPR";
 
 const formatSignedDate = (dateStr) => {
   if (!dateStr) return "";
@@ -289,6 +299,24 @@ export function BulkDeckModal({
 
   const needsAssignee = !config.isEndTask && !isReturnDecision;
 
+  // ── Which selected records are eligible for VerifiPortal (CPR) posting ──
+  // This is now purely per-record: whatever "Type Doc Released" was already
+  // saved on the record itself (e.g. set by QA Admin in Full Details).
+  // The shared "Decision Result" dropdown no longer gates this.
+  const isCPRStep =
+    (config.currentStep === "Releasing Officer" && decision === "Released") ||
+    (config.currentStep === "OD-Releasing" &&
+      decision === "Stamped and Scanned, forwarded to AFO Records");
+
+  const cprEligibleRecords = useMemo(
+    () => (selectedRecords ?? []).filter(isRecordCPR),
+    [selectedRecords],
+  );
+  const cprEligibleDtns = useMemo(
+    () => cprEligibleRecords.map((r) => r.dtn),
+    [cprEligibleRecords],
+  );
+
   const isDisabled =
     submitting ||
     !decision ||
@@ -302,19 +330,16 @@ export function BulkDeckModal({
     setSubmitting(true);
     try {
       // ── STEP 1: CPR API — OD-Releasing & Releasing Officer ──
+      // Only records whose own "Type Doc Released" is CPR are sent to
+      // VerifiPortal. e.g. selected DTN1=CPR, DTN2=CPR, DTN3=Certificate
+      // → only DTN1 and DTN2 get posted; DTN3 is skipped entirely.
       let aborted = false;
-      const isCPRStep =
-        (config.currentStep === "Releasing Officer" &&
-          decision === "Released") ||
-        (config.currentStep === "OD-Releasing" &&
-          decision === "Stamped and Scanned, forwarded to AFO Records");
 
-      if (isCPRStep && decisionResult === "For issuance of CPR") {
-        const dtnList = (selectedRecords ?? []).map((r) => r.dtn);
-        console.log("🚀 CPR API running for DTNs:", dtnList);
+      if (isCPRStep && cprEligibleDtns.length > 0) {
+        console.log("🚀 CPR API running for DTNs:", cprEligibleDtns);
         try {
           const cprResult = await bulkCreateFromDtns(
-            dtnList,
+            cprEligibleDtns,
             currentUser?.username ?? null,
           );
           console.log("✅ CPR insert result:", cprResult);
@@ -935,42 +960,114 @@ export function BulkDeckModal({
                   background: colors.inputBg,
                 }}
               >
-                {selectedDtns.map((dtn, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.6rem",
-                      padding: "0.5rem 0.85rem",
-                      borderBottom:
-                        i < selectedDtns.length - 1
-                          ? `1px solid ${colors.cardBorder}`
-                          : "none",
-                    }}
-                  >
-                    <span
+                {(selectedRecords && selectedRecords.length
+                  ? selectedRecords
+                  : selectedDtns.map((dtn) => ({ dtn }))
+                ).map((rec, i) => {
+                  const dtn = rec.dtn ?? selectedDtns[i];
+                  const cpr = isRecordCPR(rec);
+                  return (
+                    <div
+                      key={i}
                       style={{
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        background: config.isEndTask ? "#10b981" : "#7c3aed",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: "0.82rem",
-                        fontWeight: 600,
-                        color: colors.textPrimary,
-                        fontVariantNumeric: "tabular-nums",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.6rem",
+                        padding: "0.5rem 0.85rem",
+                        borderBottom:
+                          i < selectedDtns.length - 1
+                            ? `1px solid ${colors.cardBorder}`
+                            : "none",
                       }}
                     >
-                      {dtn}
-                    </span>
-                  </div>
-                ))}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.6rem",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            background: config.isEndTask
+                              ? "#10b981"
+                              : "#7c3aed",
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: "0.82rem",
+                            fontWeight: 600,
+                            color: colors.textPrimary,
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {dtn}
+                        </span>
+                      </div>
+                      {cpr && (
+                        <span
+                          title="Type Doc Released = CPR — will post to VerifiPortal"
+                          style={{
+                            fontSize: "0.6rem",
+                            fontWeight: 700,
+                            padding: "0.1rem 0.4rem",
+                            borderRadius: 5,
+                            background: "rgba(124,58,237,0.12)",
+                            color: "#7c3aed",
+                            border: "1px solid rgba(124,58,237,0.3)",
+                            flexShrink: 0,
+                          }}
+                        >
+                          CPR → VerifiPortal
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* CPR / VerifiPortal preview — only surfaced when this bulk
+                  action is a CPR-eligible releasing step */}
+              {isCPRStep && (
+                <div
+                  style={{
+                    marginTop: "0.5rem",
+                    padding: "0.6rem 0.8rem",
+                    background: "rgba(124,58,237,0.06)",
+                    border: "1px solid rgba(124,58,237,0.25)",
+                    borderRadius: 8,
+                    fontSize: "0.74rem",
+                    color: colors.textSecondary,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {cprEligibleDtns.length > 0 ? (
+                    <>
+                      <strong style={{ color: "#7c3aed" }}>
+                        {cprEligibleDtns.length} of {selectedDtns.length}
+                      </strong>{" "}
+                      record{cprEligibleDtns.length !== 1 ? "s" : ""} —{" "}
+                      <strong>{cprEligibleDtns.join(", ")}</strong> —{" "}
+                      {cprEligibleDtns.length !== 1 ? "have" : "has"}{" "}
+                      <strong>Type Doc Released = CPR</strong> and will be
+                      posted to <strong>VerifiPortal</strong>. The rest will be
+                      skipped from that step.
+                    </>
+                  ) : (
+                    <>
+                      None of the selected records have{" "}
+                      <strong>Type Doc Released = CPR</strong>, so nothing will
+                      be posted to <strong>VerifiPortal</strong> for this batch.
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* ── Decision replace to action only field name not variable/value ── */}
@@ -1087,6 +1184,19 @@ export function BulkDeckModal({
                     ⚠️ Decision Result is required.
                   </p>
                 )}
+                <p
+                  style={{
+                    fontSize: "0.68rem",
+                    color: colors.textTertiary,
+                    marginTop: "0.3rem",
+                    marginBottom: 0,
+                  }}
+                >
+                  ℹ️ This is used for logging/doc-type purposes only. Posting to
+                  VerifiPortal is decided per-record by each record's own{" "}
+                  <strong>Type Doc Released</strong> value, not by this
+                  dropdown.
+                </p>
               </div>
             )}
 
