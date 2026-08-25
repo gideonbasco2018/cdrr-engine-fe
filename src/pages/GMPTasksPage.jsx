@@ -56,6 +56,7 @@ function mapGMPTask(t) {
     delThread:           t.del_thread,
     is_received:         t.is_received ?? 0,
     is_starred:          t.is_starred  ?? 0,
+    starred_at:          t.starred_at  ?? null,
     is_read:             t.is_read     ?? 0,
     createdAt:   t.created_at,
     updatedAt:   t.updated_at,
@@ -468,10 +469,23 @@ export default function GMPTasksPage({ darkMode = false }) {
   };
 
   const sortedData = useMemo(() => {
+    // "Starred Only" is meant to reflect the order the user worked through
+    // and starred each task — not whatever column the table happens to be
+    // sorted by. Order by starred_at (earliest-starred first) so the list —
+    // and anything generated from it, like a transmittal — matches that
+    // work sequence.
+    if (filters.starredOnly) {
+      return [...filteredData].sort((a, b) => {
+        const ta = a.starred_at ? new Date(a.starred_at).getTime() : 0;
+        const tb = b.starred_at ? new Date(b.starred_at).getTime() : 0;
+        if (ta !== tb) return ta - tb;
+        return a.id - b.id;
+      });
+    }
     if (!sortBy) return filteredData;
     const sorted = [...filteredData].sort((a, b) => compareValues(a[sortBy], b[sortBy]));
     return sortOrder === "asc" ? sorted : sorted.reverse();
-  }, [filteredData, sortBy, sortOrder]);
+  }, [filteredData, sortBy, sortOrder, filters.starredOnly]);
 
   const handleSort = (field) => {
     if (sortBy === field) {
@@ -538,7 +552,9 @@ export default function GMPTasksPage({ darkMode = false }) {
   // same shape as GMP Queue's records (see mapGMPTask above), so no
   // field-name translation is needed here.
   const handleGenerateTransmittal = async (format = "both") => {
-    const selectedData = data.filter((r) => selectedRows.includes(r.id));
+    // Use sortedData (not the raw `data`) so row order/numbering matches
+    // whatever arrangement is currently shown in the GMP Task table.
+    const selectedData = sortedData.filter((r) => selectedRows.includes(r.id));
     if (!selectedData.length) return;
     setGeneratingTransmittal(true);
     try {
@@ -870,6 +886,7 @@ export default function GMPTasksPage({ darkMode = false }) {
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: colors.cardBg }}>
             <TasksTable
               rows={paginatedData}
+              allIds={sortedData.map((r) => r.id)}
               loading={false}
               isComplianceView={activeTab === GMP_COMPLIANCE_TAB}
               selectedRows={selectedRows}

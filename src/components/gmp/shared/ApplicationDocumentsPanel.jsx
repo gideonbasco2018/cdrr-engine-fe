@@ -59,6 +59,17 @@ function isDarkColors(colors) {
 function panelBg(colors, darkMode) {
   return isDarkColors(colors) || darkMode ? "rgba(255,255,255,0.06)" : "#eef1f6";
 }
+// Same shadow+emboss language as the field-card family in WorkflowModal.jsx
+// (fieldCardShadow / LogCard) — this panel used to be the odd one out with
+// flat 1px-border cards instead of a lifted surface. Duplicated locally
+// rather than imported since this file is shared with GMPDocumentsModal.jsx
+// too, which doesn't share a module boundary with WorkflowModal.
+function cardShadow(colors) {
+  const emboss = isDarkColors(colors)
+    ? "inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.4)"
+    : "inset 0 1px 0 rgba(255,255,255,0.8), inset 0 -1px 0 rgba(15,23,42,0.08)";
+  return (isDarkColors(colors) ? "0 2px 8px -4px rgba(0,0,0,0.4)" : "0 2px 10px -6px rgba(16,60,40,0.14)") + `, ${emboss}`;
+}
 
 function generateBatchId() {
   return crypto?.randomUUID
@@ -626,7 +637,10 @@ export default function ApplicationDocumentsPanel({
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 360px)", gap: 14, alignItems: "start" }}>
     <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
-      <div style={{ border: `1px solid ${colors.cardBorder}`, borderRadius: 10, padding: 12 }}>
+      <div className="wfFieldBox" style={{
+        border: `1px solid ${colors.cardBorder}`, borderRadius: 12, padding: 12,
+        background: colors.cardBg, boxShadow: cardShadow(colors),
+      }}>
         <div style={{ fontSize: "0.7rem", fontWeight: 700, color: colors.textTertiary, marginBottom: 8 }}>
           Add new files
         </div>
@@ -869,7 +883,10 @@ export default function ApplicationDocumentsPanel({
         )}
       </div>
 
-      <div style={{ border: `1px solid ${colors.cardBorder}`, borderRadius: 10, padding: 12 }}>
+      <div className="wfFieldBox" style={{
+        border: `1px solid ${colors.cardBorder}`, borderRadius: 12, padding: 12,
+        background: colors.cardBg, boxShadow: cardShadow(colors),
+      }}>
         {isLoadingExisting ? (
           <div style={{ fontSize: "0.75rem", color: colors.textTertiary }}>Loading documents…</div>
         ) : fetchError ? (
@@ -901,15 +918,18 @@ export default function ApplicationDocumentsPanel({
 
       {/* ── Right: preview panel ── */}
       <div
+        className="wfFieldBox"
         style={{
           border: `1px solid ${colors.cardBorder}`,
-          borderRadius: 10,
+          borderRadius: 12,
           minHeight: 380,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
           position: "sticky",
           top: 0,
+          background: colors.cardBg,
+          boxShadow: cardShadow(colors),
         }}
       >
         {!activeItem ? (

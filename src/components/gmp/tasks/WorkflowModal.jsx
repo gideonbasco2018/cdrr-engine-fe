@@ -51,6 +51,22 @@ const MODAL_CSS = `
 }
 .gmpTabScroll::-webkit-scrollbar-thumb:hover {
   background: rgba(0,0,0,0.28);
+}
+.wfFieldBox {
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+.wfFieldBox:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px -8px rgba(16,185,129,0.4);
+}
+.wfFieldBox:focus-within {
+  box-shadow: 0 0 0 2px rgba(16,185,129,0.35), 0 6px 18px -8px rgba(16,185,129,0.4);
+}
+.wfLogCard {
+  transition: box-shadow 0.18s ease, transform 0.18s ease;
+}
+.wfLogCard:hover {
+  transform: translateY(-1px);
 }`;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -86,6 +102,14 @@ function getEffectiveStatusWM(record) {
 function dateInputColor(value, colors) {
   return value ? colors.textPrimary : colors.textTertiary;
 }
+// Color dimming alone wasn't enough to keep an empty "mm/dd/yyyy" from
+// reading as a real value — Chrome renders it at the same bold weight as a
+// filled-in date, so it still looked "picked" at a glance. Dropping the
+// weight when empty (paired with dateInputColor's dimmer color) is what
+// actually makes it read as a placeholder.
+function dateInputWeight(value) {
+  return value ? 600 : 400;
+}
 
 // `colors.inputBg`/`colors.badgeBg` (getColorScheme.js) are very subtle tints —
 // barely different from the modal's own card background, so editable fields
@@ -107,9 +131,18 @@ function editableFieldInnerBg(colors) {
 }
 // Soft-modern field-card shadow — replaces the old flat 1px border as the
 // primary surface cue, so cards read as gently lifted rather than boxed in.
+// Previously layered a hairline inset highlight/shade on top of the drop
+// shadow as a faux-emboss, but that inset rendered as a hard 1px line along
+// the bottom of every card instead of a soft edge — dropped it in favor of
+// a plain, wider-blurred drop shadow that actually reads as a shadow.
 function fieldCardShadow(colors, isDirty) {
-  if (isDirty) return "0 4px 14px -6px rgba(245,158,11,0.35)";
-  return isDarkColors(colors) ? "0 2px 8px -4px rgba(0,0,0,0.4)" : "0 2px 10px -6px rgba(16,60,40,0.14)";
+  const dark = isDarkColors(colors);
+  if (isDirty) return dark
+    ? "0 6px 18px -6px rgba(245,158,11,0.4)"
+    : "0 6px 18px -6px rgba(245,158,11,0.35)";
+  return dark
+    ? "0 4px 14px -4px rgba(0,0,0,0.45)"
+    : "0 4px 14px -4px rgba(16,60,40,0.16)";
 }
 
 // Strips time from any date/datetime string down to YYYY-MM-DD, which is the
@@ -481,7 +514,7 @@ function ESelectField({ label, fieldKey, value, originalValue, options, onChange
   const hasUnknownValue = rawValue !== "" && !matchedOption;
   const selectValue = matchedOption ?? rawValue;
   return (
-    <div style={{
+    <div className="wfFieldBox" style={{
       gridColumn: fullWidth ? "1 / -1" : undefined,
       padding: "0.6rem 0.75rem",
       background: editableFieldBg(colors),
@@ -489,7 +522,7 @@ function ESelectField({ label, fieldKey, value, originalValue, options, onChange
       borderRadius: 12,
       boxShadow: fieldCardShadow(colors, isDirty),
       display: "flex", flexDirection: "column", gap: 5,
-      transition: "box-shadow 0.15s",
+      transition: "box-shadow 0.15s, transform 0.15s",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase",
@@ -528,7 +561,7 @@ function ESelectField({ label, fieldKey, value, originalValue, options, onChange
 function EField({ label, fieldKey, value, originalValue, onChange, colors, fullWidth }) {
   const isDirty = String(value ?? "") !== String(originalValue ?? "");
   return (
-    <div style={{
+    <div className="wfFieldBox" style={{
       gridColumn: fullWidth ? "1 / -1" : undefined,
       padding: "0.6rem 0.75rem",
       background: editableFieldBg(colors),
@@ -536,7 +569,7 @@ function EField({ label, fieldKey, value, originalValue, onChange, colors, fullW
       borderRadius: 12,
       boxShadow: fieldCardShadow(colors, isDirty),
       display: "flex", flexDirection: "column", gap: 5,
-      transition: "box-shadow 0.15s",
+      transition: "box-shadow 0.15s, transform 0.15s",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase",
@@ -572,7 +605,7 @@ function EField({ label, fieldKey, value, originalValue, onChange, colors, fullW
 function EDateField({ label, fieldKey, value, originalValue, onChange, colors, fullWidth }) {
   const isDirty = String(value ?? "") !== String(originalValue ?? "");
   return (
-    <div style={{
+    <div className="wfFieldBox" style={{
       gridColumn: fullWidth ? "1 / -1" : undefined,
       padding: "0.6rem 0.75rem",
       background: editableFieldBg(colors),
@@ -580,7 +613,7 @@ function EDateField({ label, fieldKey, value, originalValue, onChange, colors, f
       borderRadius: 12,
       boxShadow: fieldCardShadow(colors, isDirty),
       display: "flex", flexDirection: "column", gap: 5,
-      transition: "box-shadow 0.15s",
+      transition: "box-shadow 0.15s, transform 0.15s",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase",
@@ -600,7 +633,7 @@ function EDateField({ label, fieldKey, value, originalValue, onChange, colors, f
           width: "100%", padding: "0.35rem 0.5rem", background: editableFieldInnerBg(colors),
           border: "none",
           borderRadius: 8, color: dateInputColor(toDateInputValue(value), colors), fontSize: "0.8rem",
-          fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT,
+          fontWeight: dateInputWeight(toDateInputValue(value)), outline: "none", boxSizing: "border-box", fontFamily: FONT,
           cursor: "pointer",
         }}
       />
@@ -808,10 +841,16 @@ function LogCard({ log, isLast, colors }) {
           boxShadow: isActive ? "0 0 0 5px rgba(249,115,22,0.16)" : isDone ? `0 3px 10px -3px ${ACCENT}70` : "none",
         }}>{isDone ? "✓" : isActive ? "●" : "○"}</div>
         {!isLast && <div style={{ width: 2, flex: 1, minHeight: 14, margin: "4px 0", borderRadius: 1,
-          background: isDone ? `${ACCENT}45` : "rgba(0,0,0,0.08)" }} />}
+          background: isDone ? `${ACCENT}45` : colors.divider }} />}
       </div>
-      <div style={{ flex: 1, marginBottom: isLast ? 0 : 16,
-        background: "#fff", borderRadius: 16, overflow: "hidden",
+      {/* A full hairline border (not just the drop shadow) is what actually
+          reads as "separate surface" at rest against a same-tone page
+          background — the shadow alone was too easy to miss without
+          hovering. borderLeft is re-declared after the shorthand so its
+          thicker step-colored accent wins over the shorthand's left edge. */}
+      <div className="wfLogCard" style={{ flex: 1, marginBottom: isLast ? 0 : 16,
+        background: colors.cardBg, borderRadius: 16, overflow: "hidden",
+        border: `1px solid ${colors.cardBorder}`,
         borderLeft: `3px solid ${isActive ? "#f97316" : isDone ? color : "#cbd2dc"}`,
         boxShadow: isActive ? "0 8px 22px -10px rgba(249,115,22,0.35)" : "0 4px 16px -10px rgba(16,24,20,0.16)",
       }}>
@@ -824,10 +863,10 @@ function LogCard({ log, isLast, colors }) {
           const decisionValue = isSystemTag ? null : log.action_type;
           return (
             <>
-              <div style={{ padding: "10px 14px 7px", borderBottom: "1px solid rgba(0,0,0,0.06)",
+              <div style={{ padding: "10px 14px 7px", borderBottom: `1px solid ${colors.divider}`,
                 display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                 <span style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 700, fontSize: "0.85rem", color: "#0f172a" }}>{log.application_step}</span>
+                  <span style={{ fontWeight: 700, fontSize: "0.85rem", color: colors.textPrimary }}>{log.application_step}</span>
                   {/* No "Assigned To" label — just the name in the step's own
                       color, tying it to who's handling/handled this step
                       without implying a live, ongoing assignment. */}
@@ -849,36 +888,36 @@ function LogCard({ log, isLast, colors }) {
               </div>
               <div style={{ padding: "8px 14px", display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "6px 12px" }}>
                 <div><p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Action</p>
-                  <p style={{ margin: 0, fontSize: "0.74rem", color: "#0f172a" }}>{log.application_decision || "—"}</p></div>
+                  textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>Action</p>
+                  <p style={{ margin: 0, fontSize: "0.74rem", color: colors.textPrimary }}>{log.application_decision || "—"}</p></div>
                 <div><p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Recommendation</p>
-                  <p style={{ margin: 0, fontSize: "0.74rem", color: "#0f172a" }}>{decisionValue || "—"}</p></div>
+                  textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>Recommendation</p>
+                  <p style={{ margin: 0, fontSize: "0.74rem", color: colors.textPrimary }}>{decisionValue || "—"}</p></div>
                 <div><p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Forwarded On</p>
-                  <p style={{ margin: 0, fontSize: "0.72rem", color: "#0f172a" }}>{fmtDT(log.start_date)}</p></div>
+                  textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>Forwarded On</p>
+                  <p style={{ margin: 0, fontSize: "0.72rem", color: colors.textPrimary }}>{fmtDT(log.start_date)}</p></div>
                 <div><p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Accomplished</p>
-                  <p style={{ margin: 0, fontSize: "0.72rem", color: "#0f172a" }}>{fmtDT(log.accomplished_date)}</p></div>
+                  textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>Accomplished</p>
+                  <p style={{ margin: 0, fontSize: "0.72rem", color: colors.textPrimary }}>{fmtDT(log.accomplished_date)}</p></div>
                 {log.decision_result && <div style={{ gridColumn: "1/-1" }}>
                   <p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                    textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Type of Issuance</p>
-                  <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 600, color: "#0f172a" }}>{log.decision_result}</p>
+                    textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>Type of Issuance</p>
+                  <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 600, color: colors.textPrimary }}>{log.decision_result}</p>
                 </div>}
                 {log.decision_authority_name && <div style={{ gridColumn: "1/-1" }}>
                   <p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                    textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Decision Authority (Signed By)</p>
-                  <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 600, color: "#0f172a" }}>{log.decision_authority_name}</p>
+                    textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>Decision Authority (Signed By)</p>
+                  <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 600, color: colors.textPrimary }}>{log.decision_authority_name}</p>
                 </div>}
                 {log.doctrack_remarks && <div style={{ gridColumn: "1/-1" }}>
                   <p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                    textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Remarks Preset (Doctrack)</p>
-                  <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 600, color: "#0f172a" }}>{log.doctrack_remarks}</p>
+                    textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>Remarks Preset (Doctrack)</p>
+                  <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 600, color: colors.textPrimary }}>{log.doctrack_remarks}</p>
                 </div>}
                 {log.application_remarks && <div style={{ gridColumn: "1/-1" }}>
                   <p style={{ margin: "0 0 2px", fontSize: "0.58rem", fontWeight: 700,
-                    textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>Remarks</p>
-                  <p style={{ margin: 0, fontSize: "0.72rem", color: "#374151", fontStyle: "italic" }}>{log.application_remarks}</p>
+                    textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>Remarks</p>
+                  <p style={{ margin: 0, fontSize: "0.72rem", color: colors.textSecondary, fontStyle: "italic" }}>{log.application_remarks}</p>
                 </div>}
               </div>
               {log.deadline_date && (() => {
@@ -908,27 +947,27 @@ function LogCard({ log, isLast, colors }) {
                       {log.working_days != null && (
                         <div>
                           <p style={{ margin: "0 0 2px", fontSize: "0.56rem", fontWeight: 700,
-                            textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>
+                            textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>
                             Allotted
                           </p>
-                          <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 700, color: "#0f172a" }}>
+                          <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 700, color: colors.textPrimary }}>
                             {log.working_days}d
                           </p>
                         </div>
                       )}
                       <div>
                         <p style={{ margin: "0 0 2px", fontSize: "0.56rem", fontWeight: 700,
-                          textTransform: "uppercase", letterSpacing: "0.07em", color: "#64748b" }}>
+                          textTransform: "uppercase", letterSpacing: "0.07em", color: colors.textTertiary }}>
                           Remaining
                         </p>
-                        <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 700, color: "#0f172a" }}>
+                        <p style={{ margin: 0, fontSize: "0.74rem", fontWeight: 700, color: colors.textPrimary }}>
                           {remaining < 0 ? `${Math.abs(remaining)}d overdue` : `${remaining}d left`}
                         </p>
                       </div>
                     </div>
                     <span style={{
                       fontSize: "0.65rem", fontWeight: 700, padding: "3px 10px", borderRadius: 99,
-                      background: "#fff", color: status.color, border: `1px solid ${status.color}50`,
+                      background: colors.cardBg, color: status.color, border: `1px solid ${status.color}50`,
                       display: "flex", alignItems: "center", gap: 5, whiteSpace: "nowrap",
                     }}>
                       <span style={{ width: 6, height: 6, borderRadius: "50%", background: status.dot, display: "inline-block" }} />
@@ -1218,6 +1257,28 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
     display: "block", fontSize: "0.65rem", fontWeight: 700, textTransform: "uppercase",
     letterSpacing: "0.05em", color: colors.textPrimary, marginBottom: "0.4rem",
   };
+  // Boxed field shell — matches EField/ESelectField/EDateField (Steps 1-2)
+  // so a plain label+control pair on this step reads as the same kind of
+  // surface, not a bare form row. Only used for top-level fields; fields
+  // already nested inside a tinted callout card (FROO, Add Issuance,
+  // Compliance Deadline, Certificate Details) keep the original inp/lbl —
+  // double-boxing inside an already-colored card just adds clutter.
+  const box = {
+    padding: "0.6rem 0.75rem",
+    background: editableFieldBg(colors),
+    borderRadius: 12,
+    boxShadow: fieldCardShadow(colors, false),
+    display: "flex", flexDirection: "column", gap: 5,
+  };
+  const boxLbl = {
+    display: "block", fontSize: "0.58rem", fontWeight: 700, textTransform: "uppercase",
+    letterSpacing: "0.07em", color: colors.textTertiary,
+  };
+  const boxInp = {
+    width: "100%", padding: "0.35rem 0.5rem", fontFamily: FONT, fontSize: "0.8rem",
+    background: editableFieldInnerBg(colors), border: "none",
+    borderRadius: 8, color: colors.textPrimary, outline: "none", boxSizing: "border-box",
+  };
   return (
     <>
       {isFroo && (
@@ -1333,9 +1394,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
 
       {mode === "advance" && isEvalOrChecker && (
         <>
-          <div>
-            <label style={lbl}>Action <span style={{ color: "#ef4444" }}>*</span></label>
-            <select value={actionValue} onChange={e => onActionChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+          <div className="wfFieldBox" style={box}>
+            <label style={boxLbl}>Action <span style={{ color: "#ef4444" }}>*</span></label>
+            <select value={actionValue} onChange={e => onActionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
               <option value="">Select action…</option>
               {actionOptions.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
@@ -1429,52 +1490,52 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
             </div>
           )}
           {actionValue !== "For Compliance" && (
-            <div>
-              <label style={lbl}>Recommendation <span style={{ color: "#ef4444" }}>*</span></label>
-              <select value={approvalDecision} onChange={e => onApprovalDecisionChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+            <div className="wfFieldBox" style={box}>
+              <label style={boxLbl}>Recommendation <span style={{ color: "#ef4444" }}>*</span></label>
+              <select value={approvalDecision} onChange={e => onApprovalDecisionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
                 <option value="">Select recommendation…</option>
                 {GMP_APPROVAL_DECISION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
           )}
           {needsTypeOfIssuance && (
-            <div>
-              <label style={lbl}>Type of Issuance <span style={{ color: "#ef4444" }}>*</span></label>
+            <div className="wfFieldBox" style={box}>
+              <label style={boxLbl}>Type of Issuance <span style={{ color: "#ef4444" }}>*</span></label>
               {typeOfIssuanceLocked ? (
                 <input readOnly value={typeOfIssuanceValue}
-                  style={{ ...inp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
+                  style={{ ...boxInp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
               ) : (
-                <select value={typeOfIssuanceValue} onChange={e => onTypeOfIssuanceChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+                <select value={typeOfIssuanceValue} onChange={e => onTypeOfIssuanceChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
                   <option value="">Select type of issuance…</option>
                   {typeOfIssuanceOptions.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               )}
             </div>
           )}
-          <div>
-            <label style={lbl}>Remarks Preset <span style={{ color: "#ef4444" }}>*</span></label>
-            <select value={remarksPresetValue} onChange={e => onRemarksPresetChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+          <div className="wfFieldBox" style={box}>
+            <label style={boxLbl}>Remarks Preset <span style={{ color: "#ef4444" }}>*</span></label>
+            <select value={remarksPresetValue} onChange={e => onRemarksPresetChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
               <option value="">Select remarks…</option>
               {remarksPresetOptions.map(r => <option key={r.value} value={r.value}>{r.value}</option>)}
             </select>
           </div>
           {needsNodDate && (
-            <div style={{ maxWidth: 220 }}>
-              <label style={lbl}>{nodDateLabel} <span style={{ color: "#ef4444" }}>*</span></label>
+            <div className="wfFieldBox" style={{ ...box, maxWidth: 220 }}>
+              <label style={boxLbl}>{nodDateLabel} <span style={{ color: "#ef4444" }}>*</span></label>
               <input type="date" value={nodDateValue}
                 onChange={e => onNodDateChange(e.target.value)}
-                style={{ ...inp, width: "auto", cursor: "pointer", color: dateInputColor(nodDateValue, colors) }} />
+                style={{ ...boxInp, width: "auto", cursor: "pointer", color: dateInputColor(nodDateValue, colors) }} />
               <p style={{ margin: "3px 0 0", fontSize: "0.6rem", color: colors.textTertiary }}>
                 Not saved until you click Submit below.
               </p>
             </div>
           )}
           {needsDatePrinted && (
-            <div style={{ maxWidth: 220 }}>
-              <label style={lbl}>Date Printed <span style={{ color: "#ef4444" }}>*</span></label>
+            <div className="wfFieldBox" style={{ ...box, maxWidth: 220 }}>
+              <label style={boxLbl}>Date Printed <span style={{ color: "#ef4444" }}>*</span></label>
               <input type="date" value={datePrintedValue}
                 onChange={e => onDatePrintedChange(e.target.value)}
-                style={{ ...inp, width: "auto", cursor: "pointer", color: dateInputColor(datePrintedValue, colors) }} />
+                style={{ ...boxInp, width: "auto", cursor: "pointer", color: dateInputColor(datePrintedValue, colors) }} />
               <p style={{ margin: "3px 0 0", fontSize: "0.6rem", color: colors.textTertiary }}>
                 Not saved until you click Submit below.
               </p>
@@ -1484,9 +1545,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
       )}
 
       {mode === "advance" && !isEvalOrChecker && (
-        <div>
-          <label style={lbl}>{(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "Action" : "Decision"} <span style={{ color: "#ef4444" }}>*</span></label>
-          <select value={decision} onChange={e => onDecisionChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+        <div className="wfFieldBox" style={box}>
+          <label style={boxLbl}>{(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "Action" : "Decision"} <span style={{ color: "#ef4444" }}>*</span></label>
+          <select value={decision} onChange={e => onDecisionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
             <option value="">Select {(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "action" : "decision"}…</option>
             {decisions.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -1494,9 +1555,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
       )}
 
       {mode === "advance" && isOdReceiving && needsOdReceivingDecision && (
-        <div>
-          <label style={lbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
-          <select value={odReceivingDecisionValue} onChange={e => onOdReceivingDecisionChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+        <div className="wfFieldBox" style={box}>
+          <label style={boxLbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
+          <select value={odReceivingDecisionValue} onChange={e => onOdReceivingDecisionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
             <option value="">Select decision…</option>
             {GMP_OD_RECEIVING_DECISION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
@@ -1505,37 +1566,37 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
 
       {mode === "advance" && isOdReleasing && needsOdReleasingDecision && (
         <>
-          <div>
-            <label style={lbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
-            <select value={odReleasingDecisionValue} onChange={e => onOdReleasingDecisionChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+          <div className="wfFieldBox" style={box}>
+            <label style={boxLbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
+            <select value={odReleasingDecisionValue} onChange={e => onOdReleasingDecisionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
               <option value="">Select decision…</option>
               {GMP_OD_RELEASING_DECISION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
-          <div>
-            <label style={lbl}>Type of Issuance</label>
+          <div className="wfFieldBox" style={box}>
+            <label style={boxLbl}>Type of Issuance</label>
             <input readOnly value={typeOfIssuance || "—"}
-              style={{ ...inp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
+              style={{ ...boxInp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
           </div>
-          <div style={{ maxWidth: 200 }}>
-            <label style={lbl}>Signed Date <span style={{ color: "#ef4444" }}>*</span></label>
+          <div className="wfFieldBox" style={{ ...box, maxWidth: 200 }}>
+            <label style={boxLbl}>Signed Date <span style={{ color: "#ef4444" }}>*</span></label>
             <input type="date" value={odReleasingSignedDateValue}
               onChange={e => onOdReleasingSignedDateChange(e.target.value)}
-              style={{ ...inp, width: "auto", cursor: "pointer", color: dateInputColor(odReleasingSignedDateValue, colors) }} />
+              style={{ ...boxInp, width: "auto", cursor: "pointer", color: dateInputColor(odReleasingSignedDateValue, colors) }} />
           </div>
         </>
       )}
 
       {needsAuthority && (
-        <div>
-          <label style={lbl}>Decision Authority (Signer) <span style={{ color: "#ef4444" }}>*</span></label>
+        <div className="wfFieldBox" style={box}>
+          <label style={boxLbl}>Decision Authority (Signer) <span style={{ color: "#ef4444" }}>*</span></label>
           {loadingAuthority ? (
-            <div style={{ ...inp, display: "flex", alignItems: "center", gap: 8, color: colors.textTertiary }}>
+            <div style={{ ...boxInp, display: "flex", alignItems: "center", gap: 8, color: colors.textTertiary }}>
               <span style={{ width: 12, height: 12, border: "2px solid rgba(16,185,129,0.2)", borderTopColor: ACCENT, borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
               Loading authority users…
             </div>
           ) : (
-            <select value={decisionAuthorityId ?? ""} onChange={(e) => onAuthorityChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+            <select value={decisionAuthorityId ?? ""} onChange={(e) => onAuthorityChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
               <option value="">Select authority…</option>
               {authorityOptions.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -1576,8 +1637,8 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
       )}
 
       {mode === "advance" && needsAssigneeGroup && (
-        <div>
-          <label style={lbl}>
+        <div className="wfFieldBox" style={box}>
+          <label style={boxLbl}>
             Assign to {assigneeGroupConfig?.shortLabel}{" "}
             <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>
               ({assigneeGroupConfig?.groupLabel})
@@ -1585,12 +1646,12 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
             <span style={{ color: "#ef4444" }}>*</span>
           </label>
           {loadingAssigneeGroup ? (
-            <div style={{ ...inp, display: "flex", alignItems: "center", gap: 8, color: colors.textTertiary }}>
+            <div style={{ ...boxInp, display: "flex", alignItems: "center", gap: 8, color: colors.textTertiary }}>
               <span style={{ width: 12, height: 12, border: "2px solid rgba(16,185,129,0.2)", borderTopColor: ACCENT, borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
               Loading {assigneeGroupConfig?.groupLabel} users…
             </div>
           ) : (
-            <select value={assigneeUserId ?? ""} onChange={(e) => onAssigneeGroupChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+            <select value={assigneeUserId ?? ""} onChange={(e) => onAssigneeGroupChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
               <option value="">Select assignee…</option>
               {assigneeGroupOptions.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -1607,44 +1668,44 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         </div>
       )}
       {mode === "reassign" && (
-        <div>
-          <label style={lbl}>New Assignee <span style={{ color: "#ef4444" }}>*</span></label>
+        <div className="wfFieldBox" style={box}>
+          <label style={boxLbl}>New Assignee <span style={{ color: "#ef4444" }}>*</span></label>
           <input value={assignee} onChange={e => setAssignee(e.target.value)}
-            placeholder="Enter username to reassign to…" style={inp} />
+            placeholder="Enter username to reassign to…" style={boxInp} />
         </div>
       )}
       {mode === "reroute" && (
         <>
-          <div>
-            <label style={lbl}>Target Step <span style={{ color: "#ef4444" }}>*</span></label>
-            <select value={rerouteTo} onChange={e => setRerouteTo(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
+          <div className="wfFieldBox" style={box}>
+            <label style={boxLbl}>Target Step <span style={{ color: "#ef4444" }}>*</span></label>
+            <select value={rerouteTo} onChange={e => setRerouteTo(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
               <option value="">Select target step…</option>
               {GMP_STEPS_LIST.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
           </div>
-          <div>
-            <label style={lbl}>Assign To <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
+          <div className="wfFieldBox" style={box}>
+            <label style={boxLbl}>Assign To <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
             <input value={rerouteUser} onChange={e => setRerouteUser(e.target.value)}
-              placeholder="Username for target step…" style={inp} />
+              placeholder="Username for target step…" style={boxInp} />
           </div>
         </>
       )}
       {(mode === "reassign" || mode === "reroute") && (
-        <div>
-          <label style={lbl}>Reason</label>
+        <div className="wfFieldBox" style={box}>
+          <label style={boxLbl}>Reason</label>
           <input value={reason} onChange={e => setReason(e.target.value)}
-            placeholder="Reason for reassignment / reroute…" style={inp} />
+            placeholder="Reason for reassignment / reroute…" style={boxInp} />
         </div>
       )}
-      <div>
-        <label style={lbl}>Remarks <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
+      <div className="wfFieldBox" style={box}>
+        <label style={boxLbl}>Remarks <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
         <textarea value={remarks} onChange={e => setRemarks(e.target.value)} rows={3}
           placeholder="Add any notes…"
-          style={{ ...inp, resize: "vertical", fontFamily: FONT }} />
+          style={{ ...boxInp, resize: "vertical", fontFamily: FONT }} />
       </div>
 
-      <div>
-        <label style={{ ...lbl, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+      <div className="wfFieldBox" style={box}>
+        <label style={{ ...boxLbl, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
           <span>Doctrack Remarks {doctrackEnabled && <span style={{ color: "#ef4444" }}>*</span>}</span>
           <span
             onClick={() => setDoctrackEnabled(p => !p)}
@@ -1685,7 +1746,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           rows={2}
           placeholder={doctrackEnabled ? "Doctrack remarks for FIS…" : "Doctrack disabled — FIS will not be updated"}
           style={{
-            ...inp, resize: "vertical", fontFamily: FONT,
+            ...boxInp, resize: "vertical", fontFamily: FONT,
             opacity: doctrackEnabled ? 1 : 0.45,
             cursor: doctrackEnabled ? "text" : "not-allowed",
           }}
@@ -2392,18 +2453,18 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       <style>{MODAL_CSS}</style>
       <div style={{
         background: darkMode
-          ? "linear-gradient(180deg,#1a1c1f,#151718)"
-          : "linear-gradient(180deg,#fdfefe,#f4f9f6)",
-        borderRadius: 26,
+          ? "#1a1c1f"
+          : "#f7f8fa",
+        borderRadius: 16,
         width: "100%", maxWidth: 860,
         // Fixed (not just capped) height — content scrolls internally instead
         // of the whole modal growing/shrinking as you move between steps.
         height: "min(88vh, 860px)",
         display: "flex", flexDirection: "column", overflow: "hidden",
-        border: darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid rgba(16,185,129,0.10)",
+        border: darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid #e4e6eb",
         boxShadow: darkMode
-          ? "0 30px 70px -20px rgba(0,0,0,0.6)"
-          : "0 30px 70px -20px rgba(16,60,40,0.35)",
+          ? "0 4px 20px rgba(0,0,0,0.3)"
+          : "0 8px 24px rgba(0,0,0,0.12)",
         animation: "gmpModalIn 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards",
       }}>
         <div style={{ padding: "18px 24px", borderBottom: `1px solid ${colors.cardBorder}`,

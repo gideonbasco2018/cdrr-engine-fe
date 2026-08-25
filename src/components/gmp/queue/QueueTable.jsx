@@ -517,9 +517,9 @@ export default function QueueTable({
               const zebraBg = i % 2 === 1 ? colors.tableRowAlt : colors.cardBg;
               const isHovered = !isSel && hoveredRowKey === rowKey;
               const rowBg = isSel || isHovered ? colors.tableRowAccentHover : zebraBg;
-              const rowTdSt = { ...tdSt, background: rowBg };
-              const rowTdCompactSt = { ...tdCompactSt, background: rowBg };
-              const rowTdWrapSt = { ...tdWrapSt, background: rowBg };
+              const rowTdSt = { ...tdSt, background: rowBg, borderBottom: `1px solid ${colors.divider}` };
+              const rowTdCompactSt = { ...tdCompactSt, background: rowBg, borderBottom: `1px solid ${colors.divider}` };
+              const rowTdWrapSt = { ...tdWrapSt, background: rowBg, borderBottom: `1px solid ${colors.divider}` };
               return (
                 <tr key={rowKey}
                   onDoubleClick={() => onDoubleClickRow?.(r)}
