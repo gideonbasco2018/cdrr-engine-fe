@@ -6,7 +6,6 @@ import Navbar from "../components/Navbar";
 import DashboardPage from "../pages/DashboardPage";
 import DeckingPage from "../pages/DeckingPage";
 import ProfilePage from "../pages/ProfilePage";
-import ForEvaluationPage from "../pages/ForEvaluationPage";
 import FDAVerificationPortalPage from "../pages/FDAVerificationPortalPage";
 import ReportsPage from "../pages/ReportsPage";
 import UserManagementPage from "../pages/UserManagementPage";
@@ -27,6 +26,7 @@ import ReassignmentPage from "../pages/ReassignmentPage";
 // ── GMP ────────────────────────────────────────────────────────────────────────
 import GMPQueuePage from "../pages/GMPQueuePage";
 import GMPTasksPage from "../pages/GMPTasksPage";
+import EApplicationPage from "../pages/EApplicationPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -44,44 +44,39 @@ function MainLayout({ darkMode, setDarkMode }) {
   const getActiveMenuFromUrl = () => {
     const path = location.pathname;
 
-    if (path.includes("announcements"))          return "announcements";
-    if (path.includes("support"))                return "support";
-    if (path.includes("access"))                 return "access";
-    if (path.includes("users"))                  return "users";
-    if (path.includes("settings"))               return "settings";
-    if (path.includes("lead-assignments"))       return "lead-assignments";
+    if (path.includes("announcements")) return "announcements";
+    if (path.includes("support")) return "support";
+    if (path.includes("access")) return "access";
+    if (path.includes("users")) return "users";
+    if (path.includes("settings")) return "settings";
+    if (path.includes("lead-assignments")) return "lead-assignments";
     if (path.includes("target-assignments")) return "target-assignments";
 
     // Workflow paths
     if (path.includes("for-decking")) return "for-decking";
     if (path.includes("reassignment")) return "reassignment";
+    if (path.includes("eapplication-tasks")) return "eapplication-tasks";
     // ── GMP checks MUST come before "task", since "gmp-tasks" contains "task" ──
     if (path.includes("gmp-queue")) return "gmp-queue";
     if (path.includes("gmp-tasks")) return "gmp-tasks";
     if (path.includes("task")) return "task";
-    if (path.includes("for-evaluation")) return "for-evaluation";
-    if (path.includes("for-compliance")) return "for-compliance";
-    if (path.includes("for-checking")) return "for-checking";
-    if (path.includes("supervisor")) return "supervisor";
-    if (path.includes("for-qa")) return "for-qa";
-    if (path.includes("for-director-signature"))
-      return "for-director-signature";
-    if (path.includes("for-releasing")) return "for-releasing";
 
     // Other databases
-    if (path.includes("fda-verification"))       return "fda-verification";
-    if (path.includes("otc-database"))           return "otc-database";
-    if (path.includes("cdrr-inspector-reports")) return "cdrr-inspector-reports";
-    if (path.includes("doctrack-magic"))         return "doctrack-magic";
-    if (path.includes("reports"))                return "reports";
-    if (path.includes("records-report"))         return "records-report";
+    if (path.includes("fda-verification")) return "fda-verification";
+    if (path.includes("otc-database")) return "otc-database";
+    if (path.includes("cdrr-inspector-reports"))
+      return "cdrr-inspector-reports";
+    if (path.includes("doctrack-magic")) return "doctrack-magic";
+    if (path.includes("reports")) return "reports";
+    if (path.includes("records-report")) return "records-report";
 
     // Profile
     if (path.includes("profile")) return "profile";
     if (path.includes("monitoring")) return "monitoring";
     if (path.includes("appCorrection")) return "appCorrection";
     if (path.includes("document-rename")) return "document-rename";
-    if (path.includes("bulk-folder-document-upload")) return "bulk-folder-document-upload";
+    if (path.includes("bulk-folder-document-upload"))
+      return "bulk-folder-document-upload";
     if (path.includes("upload-document")) return "upload-document";
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
@@ -110,6 +105,8 @@ function MainLayout({ darkMode, setDarkMode }) {
         return <DeckingPage darkMode={darkMode} userRole={userRole} />;
       case "reassignment":
         return <ReassignmentPage darkMode={darkMode} userRole={userRole} />;
+      case "eapplication-tasks":
+        return <EApplicationPage darkMode={darkMode} userRole={userRole} />;
       // ── GMP ───────────────────────────────────────────────────────────────
       case "gmp-queue":
         return <GMPQueuePage darkMode={darkMode} userRole={userRole} />;
@@ -211,8 +208,20 @@ function MainLayout({ darkMode, setDarkMode }) {
         userRole={userRole}
         userGroup={userGroup}
       />
-      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"auto" }}>
-        <Navbar darkMode={darkMode} setDarkMode={setDarkMode} userRole={userRole} activeMenu={activeMenu} />
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "auto",
+        }}
+      >
+        <Navbar
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          userRole={userRole}
+          activeMenu={activeMenu}
+        />
         {renderContent()}
       </div>
     </div>

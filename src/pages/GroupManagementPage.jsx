@@ -100,6 +100,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       "otc-database": "CDR Reports",
       "for-decking": "Workflow",
       reassignment: "Workflow",
+      "eapplication-tasks": "E-Application",
       // ── GMP Task Queue & Workflow ────────────────────────────────────────────
       "gmp-queue": "Workflow",
       "gmp-tasks": "Workflow",
