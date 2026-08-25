@@ -51,7 +51,7 @@ function FDAVerificationPortalPage({ darkMode }) {
   });
   const [openDropdown, setOpenDropdown] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
-
+  const [bulkConfirmModal, setBulkConfirmModal] = useState({ open: false });
   // ✅ Advanced filters expanded state
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
@@ -588,18 +588,20 @@ function FDAVerificationPortalPage({ darkMode }) {
     }
   };
 
-  // ✅ NEW — bulk cancel/restore (loops per row since walang bulk endpoint sa backend pa)
-  const handleBulkAction = async () => {
+  // Opens the confirmation modal for the current selection
+  const handleBulkAction = () => {
     if (selectedIds.size === 0) return;
+    setBulkConfirmModal({ open: true });
+  };
+
+  // Executes the bulk cancel/restore after the user confirms
+  // (loops per row since there's no bulk endpoint on the backend yet)
+  const executeBulkAction = async () => {
+    setBulkConfirmModal({ open: false });
 
     const selectedRows = filteredData.filter((d) => selectedIds.has(d.id));
     const toCancel = selectedRows.filter((d) => d.is_canceled !== "Y");
     const toRestore = selectedRows.filter((d) => d.is_canceled === "Y");
-
-    const parts = [];
-    if (toCancel.length) parts.push(`Cancel ${toCancel.length} record(s)`);
-    if (toRestore.length) parts.push(`Restore ${toRestore.length} record(s)`);
-    if (!window.confirm(`${parts.join(" at ")}. Sigurado ka ba?`)) return;
 
     setLoading(true);
     let successCount = 0;
@@ -680,6 +682,16 @@ function FDAVerificationPortalPage({ darkMode }) {
     activeTab === "duplicates"
       ? drugsData.map((d) => d.registration_number?.trim()).filter(Boolean)
       : [];
+
+  // ✅ Bulk action breakdown — used by the confirmation modal
+  const bulkSelectedRows = filteredData.filter((d) => selectedIds.has(d.id));
+  const bulkToCancelCount = bulkSelectedRows.filter(
+    (d) => d.is_canceled !== "Y",
+  ).length;
+  const bulkToRestoreCount = bulkSelectedRows.filter(
+    (d) => d.is_canceled === "Y",
+  ).length;
+
   if (userLoading) {
     return (
       <div
@@ -1775,34 +1787,44 @@ function FDAVerificationPortalPage({ darkMode }) {
               })()}
             </div>
 
-            {selectedIds.size > 0 && (
-              <button
-                onClick={handleBulkAction}
-                disabled={loading}
-                style={{
-                  padding: "0.28rem 0.6rem",
-                  background:
-                    "linear-gradient(135deg, #f44336 0%, #d32f2f 100%)",
-                  border: "none",
-                  borderRadius: "6px",
-                  color: "#fff",
-                  fontSize: "0.65rem",
-                  fontWeight: "700",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  opacity: loading ? 0.6 : 1,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.3rem",
-                  whiteSpace: "nowrap",
-                }}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.6rem",
+              }}
+            >
+              {selectedIds.size > 0 && (
+                <button
+                  onClick={handleBulkAction}
+                  disabled={loading}
+                  style={{
+                    padding: "0.28rem 0.6rem",
+                    background:
+                      "linear-gradient(135deg, #f44336 0%, #d32f2f 100%)",
+                    border: "none",
+                    borderRadius: "6px",
+                    color: "#fff",
+                    fontSize: "0.65rem",
+                    fontWeight: "700",
+                    cursor: loading ? "not-allowed" : "pointer",
+                    opacity: loading ? 0.6 : 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.3rem",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  🚫 Bulk Cancel/Restore ({selectedIds.size})
+                </button>
+              )}
+              <span
+                style={{ fontSize: "0.66rem", color: colors.textSecondary }}
               >
-                🚫 Bulk Cancel/Restore ({selectedIds.size})
-              </button>
-            )}
-            <span style={{ fontSize: "0.66rem", color: colors.textSecondary }}>
-              Showing {filteredData.length} record
-              {filteredData.length !== 1 ? "s" : ""}
-            </span>
+                Showing {filteredData.length} record
+                {filteredData.length !== 1 ? "s" : ""}
+              </span>
+            </div>
           </div>
           <FDADataTable
             filteredData={filteredData}
@@ -1845,6 +1867,146 @@ function FDAVerificationPortalPage({ darkMode }) {
         </div>
       </div>
       {/* end main content */}
+
+      {/* Bulk Cancel/Restore Confirmation Modal */}
+      {bulkConfirmModal.open && (
+        <div
+          onClick={() => setBulkConfirmModal({ open: false })}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            zIndex: 10000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "1rem",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: "14px",
+              padding: "1.5rem",
+              maxWidth: "380px",
+              width: "100%",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "50%",
+                background: "rgba(244,67,54,0.12)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.3rem",
+                marginBottom: "0.85rem",
+              }}
+            >
+              🚫
+            </div>
+
+            <h3
+              style={{
+                margin: "0 0 0.5rem",
+                fontSize: "0.95rem",
+                fontWeight: "700",
+                color: colors.textPrimary,
+              }}
+            >
+              Confirm Bulk Action
+            </h3>
+
+            <p
+              style={{
+                margin: "0 0 0.4rem",
+                fontSize: "0.75rem",
+                color: colors.textSecondary,
+                lineHeight: 1.5,
+              }}
+            >
+              You are about to update{" "}
+              <strong style={{ color: colors.textPrimary }}>
+                {selectedIds.size} record{selectedIds.size !== 1 ? "s" : ""}
+              </strong>
+              :
+            </p>
+
+            <ul
+              style={{
+                margin: "0 0 1.1rem",
+                paddingLeft: "1.1rem",
+                fontSize: "0.72rem",
+                color: colors.textSecondary,
+                lineHeight: 1.6,
+              }}
+            >
+              {bulkToCancelCount > 0 && (
+                <li>
+                  <strong style={{ color: "#f44336" }}>
+                    {bulkToCancelCount}
+                  </strong>{" "}
+                  record{bulkToCancelCount !== 1 ? "s" : ""} will be canceled
+                </li>
+              )}
+              {bulkToRestoreCount > 0 && (
+                <li>
+                  <strong style={{ color: "#4CAF50" }}>
+                    {bulkToRestoreCount}
+                  </strong>{" "}
+                  record{bulkToRestoreCount !== 1 ? "s" : ""} will be restored
+                </li>
+              )}
+            </ul>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "0.5rem",
+              }}
+            >
+              <button
+                onClick={() => setBulkConfirmModal({ open: false })}
+                style={{
+                  padding: "0.5rem 1rem",
+                  background: "transparent",
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "8px",
+                  color: colors.textPrimary,
+                  fontSize: "0.75rem",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBulkAction}
+                style={{
+                  padding: "0.5rem 1.1rem",
+                  background:
+                    "linear-gradient(135deg, #f44336 0%, #d32f2f 100%)",
+                  border: "none",
+                  borderRadius: "8px",
+                  color: "#fff",
+                  fontSize: "0.75rem",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(244,67,54,0.3)",
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       <FDAViewModal

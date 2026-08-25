@@ -131,7 +131,7 @@ function FDADataTable({
             <th
               style={{
                 position: "sticky",
-                left: 0,
+                left: "36px",
                 zIndex: 21,
                 padding: "0.25rem 0.4rem",
                 textAlign: "center",
@@ -302,7 +302,7 @@ function FDADataTable({
                 <td
                   style={{
                     position: "sticky",
-                    left: "84px",
+                    left: "36px",
                     zIndex: 10,
                     padding: "0.2rem 0.4rem",
                     fontSize: "0.64rem",
@@ -321,7 +321,7 @@ function FDADataTable({
                 <td
                   style={{
                     position: "sticky",
-                    left: "48px",
+                    left: "84px",
                     zIndex: 10,
                     padding: "0.2rem 0.4rem",
                     fontSize: "0.65rem",
