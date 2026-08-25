@@ -69,46 +69,13 @@ export const menuDefinitions = {
       label: "CPR Modification Services",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+  ],
+
+  eApplicationItems: [
     {
-      id: "for-evaluation",
-      icon: "📊", // improved
-      label: "Evaluation",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-compliance",
-      icon: "⚠️", // improved
-      label: "For Compliance", // fixed spacing
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-checking",
-      icon: "🔍",
-      label: "Checking",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "supervisor",
-      icon: "👔",
-      label: "Supervisor",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-qa",
-      icon: "✅", // improved
-      label: "QA",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-director-signature",
-      icon: "🖊️", // improved
-      label: "Director Signature",
-      roles: ["User", "Admin", "SuperAdmin"],
-    },
-    {
-      id: "for-releasing",
-      icon: "📤",
-      label: "Releasing",
+      id: "eapplication-tasks",
+      icon: "📥",
+      label: "E-Application Tasks",
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],
@@ -198,7 +165,7 @@ export const menuDefinitions = {
     },
     {
       id: "support",
-      icon: "🛠️", // improved
+      icon: "🛠️",
       label: "Support",
       roles: ["User", "Admin", "SuperAdmin"],
     },
