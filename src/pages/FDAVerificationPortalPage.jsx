@@ -50,6 +50,7 @@ function FDAVerificationPortalPage({ darkMode }) {
     duplicateProducts: 0,
   });
   const [openDropdown, setOpenDropdown] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
 
   // ✅ Advanced filters expanded state
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -125,6 +126,10 @@ function FDAVerificationPortalPage({ darkMode }) {
     };
     fetchStats();
   }, [currentUser]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [activeTab, currentPage, pageSize, searchTerm, columnFilters, sortConfig]);
 
   // Color scheme
   const colors = darkMode
@@ -542,6 +547,94 @@ function FDAVerificationPortalPage({ darkMode }) {
 
   const toggleDropdown = (drugId) =>
     setOpenDropdown(openDropdown === drugId ? null : drugId);
+  const handleToggleRow = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleToggleAll = (ids) => {
+    setSelectedIds((prev) => {
+      const allSelected = ids.every((id) => prev.has(id));
+      if (allSelected) {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      }
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const refreshStatsOnly = async () => {
+    try {
+      const dashboardData = await getDashboardStats(currentUser.username);
+      setStats({
+        totalProducts: dashboardData.total_manual_application_released || 0,
+        activeProducts: dashboardData.active_products || 0,
+        expiredProducts: dashboardData.expired_products || 0,
+        uploadedToday: dashboardData.uploads_today || 0,
+        uploadedYesterday: dashboardData.uploads_yesterday || 0,
+        uploadedThisMonth: dashboardData.uploads_this_month || 0,
+        duplicateProducts: dashboardData.duplicate_records || 0,
+        canceledProducts: dashboardData.cancelled_records || 0,
+      });
+    } catch (err) {
+      console.error("❌ Failed to refresh stats:", err);
+    }
+  };
+
+  // ✅ NEW — bulk cancel/restore (loops per row since walang bulk endpoint sa backend pa)
+  const handleBulkAction = async () => {
+    if (selectedIds.size === 0) return;
+
+    const selectedRows = filteredData.filter((d) => selectedIds.has(d.id));
+    const toCancel = selectedRows.filter((d) => d.is_canceled !== "Y");
+    const toRestore = selectedRows.filter((d) => d.is_canceled === "Y");
+
+    const parts = [];
+    if (toCancel.length) parts.push(`Cancel ${toCancel.length} record(s)`);
+    if (toRestore.length) parts.push(`Restore ${toRestore.length} record(s)`);
+    if (!window.confirm(`${parts.join(" at ")}. Sigurado ka ba?`)) return;
+
+    setLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const drug of toCancel) {
+      try {
+        await cancelDrug(drug.id, currentUser.username);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to cancel ${drug.id}:`, err);
+        failCount++;
+      }
+    }
+    for (const drug of toRestore) {
+      try {
+        await restoreDrug(drug.id);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to restore ${drug.id}:`, err);
+        failCount++;
+      }
+    }
+
+    alert(
+      `✅ ${successCount} record(s) updated successfully.${
+        failCount ? `\n❌ ${failCount} record(s) failed.` : ""
+      }`,
+    );
+
+    setSelectedIds(new Set());
+    setLoading(false);
+    await fetchDrugs();
+    await refreshStatsOnly();
+  };
 
   useEffect(() => {
     const handleClickOutside = () => {
@@ -1681,6 +1774,31 @@ function FDAVerificationPortalPage({ darkMode }) {
                 ) : null;
               })()}
             </div>
+
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleBulkAction}
+                disabled={loading}
+                style={{
+                  padding: "0.28rem 0.6rem",
+                  background:
+                    "linear-gradient(135deg, #f44336 0%, #d32f2f 100%)",
+                  border: "none",
+                  borderRadius: "6px",
+                  color: "#fff",
+                  fontSize: "0.65rem",
+                  fontWeight: "700",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.6 : 1,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.3rem",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                🚫 Bulk Cancel/Restore ({selectedIds.size})
+              </button>
+            )}
             <span style={{ fontSize: "0.66rem", color: colors.textSecondary }}>
               Showing {filteredData.length} record
               {filteredData.length !== 1 ? "s" : ""}
@@ -1709,6 +1827,10 @@ function FDAVerificationPortalPage({ darkMode }) {
             onSort={handleSort}
             hasActiveColumnFilters={hasActiveColumnFilters}
             onClearColumnFilters={handleClearColumnFilters}
+            // ✅ NEW
+            selectedIds={selectedIds}
+            onToggleRow={handleToggleRow}
+            onToggleAll={handleToggleAll}
           />
 
           <FDATablePagination
