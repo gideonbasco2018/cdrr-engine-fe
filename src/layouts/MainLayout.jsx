@@ -220,7 +220,6 @@ function MainLayout({ darkMode, setDarkMode }) {
           darkMode={darkMode}
           setDarkMode={setDarkMode}
           userRole={userRole}
-          activeMenu={activeMenu}
         />
         {renderContent()}
       </div>

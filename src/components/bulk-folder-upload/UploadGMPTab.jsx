@@ -25,7 +25,6 @@ import {
 import { getGMPRecords, createGMPRecord } from "../../api/gmp";
 import { expandArchiveEntries, traverseFileTree } from "./utils/archiveUtils";
 import {
-  MAX_FILE_SIZE,
   ACCEPTED_TYPES,
   formatBytes,
   kindOf,
@@ -37,6 +36,8 @@ import KindIcon from "./KindIcon";
 import Field from "./Field";
 
 const CONCURRENCY = 3;
+// GMP folder uploads allow larger files than the shared 200 MB default.
+const GMP_MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 const DTN_FULL_PATTERN = /^\d{14}$/;
 const TRANSACTION_TYPES = [
   "CANCELLATION OF CPR",
@@ -78,12 +79,16 @@ function UploadGMPTab({ colors, s }) {
 
   const folderInputRef = useRef(null);
   const resolvingRef = useRef(new Set());
+  // Keeps the latest entries reachable from the unmount cleanup below without
+  // re-subscribing the effect on every change (which would revoke URLs still
+  // in use).
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
 
   useEffect(() => {
     return () => {
-      entries.forEach((e) => URL.revokeObjectURL(e.previewUrl));
+      entriesRef.current.forEach((e) => URL.revokeObjectURL(e.previewUrl));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const activeEntry = useMemo(
@@ -303,11 +308,9 @@ function UploadGMPTab({ colors, s }) {
 
   const validate = () => {
     if (entries.length === 0) return "Select a folder with at least one file.";
-    for (const { file } of entries) {
-      if (!(file.type in ACCEPTED_TYPES))
-        return `"${file.name}" is not a supported file type.`;
-      if (file.size > MAX_FILE_SIZE) return `"${file.name}" exceeds the 200MB limit.`;
-    }
+    // Unsupported / oversized files are no longer a hard block — they are
+    // filtered out at upload time and reported per-file (see handleUpload),
+    // so one bad file can't stop the rest of the batch.
     const stillChecking = dtnGroups.some(
       (g) => !dtnResolutions[g.dtn] || dtnResolutions[g.dtn].status === "checking",
     );
@@ -322,15 +325,7 @@ function UploadGMPTab({ colors, s }) {
     return "";
   };
 
-  const handleUpload = async () => {
-    setFormError("");
-    const validationError = validate();
-    if (validationError) {
-      setFormError(validationError);
-      return;
-    }
-
-    setIsUploading(true);
+  const runUploadBatch = async () => {
     setLiveStatuses({});
 
     // Create GMP records for any brand-new, user-confirmed DTNs first — one
@@ -398,10 +393,21 @@ function UploadGMPTab({ colors, s }) {
 
     const sentEntries = [];
     const alreadyUploadedEntries = [];
+    const invalidEntries = []; // unsupported type / over the size limit
     for (const entry of resolvedEntries) {
       const key = `${(entry.category || "").toLowerCase()}::${entry.file.name.toLowerCase()}`;
-      if (existingKeysByDtn[entry.dtn]?.has(key)) alreadyUploadedEntries.push(entry);
-      else sentEntries.push(entry);
+      if (existingKeysByDtn[entry.dtn]?.has(key)) {
+        alreadyUploadedEntries.push(entry);
+      } else if (!(entry.file.type in ACCEPTED_TYPES)) {
+        invalidEntries.push({
+          ...entry,
+          uploadError: `Unsupported file type${entry.file.type ? ` (${entry.file.type})` : ""}.`,
+        });
+      } else if (entry.file.size > GMP_MAX_FILE_SIZE) {
+        invalidEntries.push({ ...entry, uploadError: "File exceeds the 500 MB limit." });
+      } else {
+        sentEntries.push(entry);
+      }
     }
 
     const batchId = generateBatchId();
@@ -422,54 +428,83 @@ function UploadGMPTab({ colors, s }) {
 
     const results = new Array(total);
     let doneCount = 0;
-    let cursor = 0;
 
-    const worker = async () => {
-      while (cursor < total) {
-        const idx = cursor++;
-        const entry = sentEntries[idx];
-        try {
-          const r = await uploadApplicationDocumentSingle(
-            {
-              dbEntryType: "GMP",
-              dbDtn: entry.dtn,
-              docCategory: entry.category,
-              mainDbId: mainDbIdByDtn[entry.dtn],
-              batchId,
-              file: entry.file,
-              relativePath: entry.relativePath,
-            },
-            (loaded) => {
-              loadedBytes[idx] = loaded;
-              updateOverallProgress();
-            },
-          );
-          results[idx] = r;
-          setLiveStatuses((prev) => ({
-            ...prev,
-            [entry.relativePath]: { success: r.success, error: r.error },
-          }));
-        } catch (err) {
-          results[idx] = {
-            filename: entry.file.name,
-            success: false,
-            error: err.message || "Upload failed.",
-          };
-          setLiveStatuses((prev) => ({
-            ...prev,
-            [entry.relativePath]: { success: false, error: err.message },
-          }));
-        } finally {
-          loadedBytes[idx] = totalBytesArr[idx];
-          doneCount += 1;
-          setUploadCounts({ done: doneCount, total });
-          updateOverallProgress();
-        }
+    const uploadOne = async (idx) => {
+      const entry = sentEntries[idx];
+      try {
+        const r = await uploadApplicationDocumentSingle(
+          {
+            dbEntryType: "GMP",
+            dbDtn: entry.dtn,
+            docCategory: entry.category,
+            mainDbId: mainDbIdByDtn[entry.dtn],
+            batchId,
+            file: entry.file,
+            relativePath: entry.relativePath,
+          },
+          (loaded) => {
+            loadedBytes[idx] = loaded;
+            updateOverallProgress();
+          },
+        );
+        results[idx] = r;
+        setLiveStatuses((prev) => ({
+          ...prev,
+          [entry.relativePath]: { success: r.success, error: r.error },
+        }));
+      } catch (err) {
+        results[idx] = {
+          filename: entry.file.name,
+          success: false,
+          error: err.message || "Upload failed.",
+        };
+        setLiveStatuses((prev) => ({
+          ...prev,
+          [entry.relativePath]: { success: false, error: err.message },
+        }));
+      } finally {
+        loadedBytes[idx] = totalBytesArr[idx];
+        doneCount += 1;
+        setUploadCounts({ done: doneCount, total });
+        updateOverallProgress();
       }
     };
 
-    if (total > 0) {
-      const workers = Array.from({ length: Math.min(CONCURRENCY, total) }, () => worker());
+    // Phase 1 — warm-up: upload the FIRST file of each distinct DTN/category
+    // folder one at a time. Uploading concurrently into a Drive folder that
+    // doesn't exist yet makes each request create its own copy of it; doing
+    // the first file per folder serially means the folder is already there
+    // (and gets reused) when the rest run in parallel.
+    const folderKeyOf = (e) => `${e.dtn}::${(e.category || "").toLowerCase()}`;
+    const seenFolders = new Set();
+    const warmupIdx = [];
+    const restIdx = [];
+    sentEntries.forEach((entry, idx) => {
+      const k = folderKeyOf(entry);
+      if (seenFolders.has(k)) {
+        restIdx.push(idx);
+      } else {
+        seenFolders.add(k);
+        warmupIdx.push(idx);
+      }
+    });
+
+    for (const idx of warmupIdx) {
+      await uploadOne(idx);
+    }
+
+    // Phase 2 — the rest, CONCURRENCY at a time; their folders exist now.
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < restIdx.length) {
+        await uploadOne(restIdx[cursor++]);
+      }
+    };
+    if (restIdx.length > 0) {
+      const workers = Array.from(
+        { length: Math.min(CONCURRENCY, restIdx.length) },
+        () => worker(),
+      );
       await Promise.all(workers);
     }
 
@@ -481,10 +516,21 @@ function UploadGMPTab({ colors, s }) {
         [entry.relativePath]: { success: true, error: null, alreadyUploaded: true },
       }));
     });
+    // Invalid files (unsupported type / too big) — mark red with the reason.
+    invalidEntries.forEach((entry) => {
+      setLiveStatuses((prev) => ({
+        ...prev,
+        [entry.relativePath]: { success: false, error: entry.uploadError },
+      }));
+    });
 
     const uploadedNow = results.filter((r) => r && r.success).length;
     const succeeded = uploadedNow + alreadyUploadedEntries.length;
-    const grandTotal = total + alreadyUploadedEntries.length + skippedEntries.length;
+    const grandTotal =
+      total +
+      alreadyUploadedEntries.length +
+      skippedEntries.length +
+      invalidEntries.length;
     const failed = grandTotal - succeeded;
     setUploadResults({
       total: grandTotal,
@@ -508,11 +554,31 @@ function UploadGMPTab({ colors, s }) {
         uploadError: dtnResolutions[entry.dtn]?.error || "GMP record creation failed.",
       });
     });
+    // Keep invalid files in the list (with their reason) so the user can
+    // remove or replace them, then upload again.
+    invalidEntries.forEach((entry) => failedEntries.push(entry));
 
     setEntries(failedEntries);
     setActiveEntryId(failedEntries[0]?.id ?? null);
     setCollapsedFolders(new Set());
-    setIsUploading(false);
+  };
+
+  const handleUpload = async () => {
+    setFormError("");
+    const validationError = validate();
+    if (validationError) {
+      setFormError(validationError);
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      await runUploadBatch();
+    } finally {
+      // Always clear the uploading state, even if something threw after the
+      // workers finished — otherwise the button stays stuck on "Uploading…".
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -895,6 +961,7 @@ function UploadGMPTab({ colors, s }) {
                 )}
                 {(activeEntry.kind === "doc" ||
                   activeEntry.kind === "sheet" ||
+                  activeEntry.kind === "ppt" ||
                   activeEntry.kind === "archive" ||
                   activeEntry.kind === "other") && (
                   <div style={s.previewUnsupported}>

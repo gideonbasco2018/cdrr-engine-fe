@@ -171,23 +171,9 @@ export async function getMyGMPTaskCount() {
 }
 
 // ── Doctrack integration ──────────────────────────────────────────────────────
-// Calls POST /api/doctrack/log/by-rsn to log a step action in the FIS system.
-// The GMP DTN is used as the RSN (must be 14 numeric digits).
-export async function createGMPDoctrackLog(dtn, remarks, userId, alias = "") {
-  try {
-    const res = await API.post("/doctrack/log/by-rsn", {
-      rsn:     String(dtn),
-      remarks: remarks,
-      userID:  userId,
-      alias:   alias,
-    });
-    return res.data;
-  } catch (e) {
-    // Return null so the caller can decide whether to block or warn
-    console.error("Doctrack log failed:", e?.response?.data?.detail ?? e.message);
-    return null;
-  }
-}
+// GMP shares the licensing Doctrack helpers — use `createDoctrackLogByRsn`
+// (single) and `createBulkDoctrackLogsByRsn` (bulk) from src/api/doctrack.js.
+// The GMP DTN is passed as the RSN (must be 14 numeric digits).
 
 // ── Excel template & upload ───────────────────────────────────────────────────
 export async function downloadGMPTemplate() {

@@ -264,17 +264,181 @@ function DashboardNavItem({ label, subtitle, active, onClick, ui, darkMode }) {
   );
 }
 
+// ─── Sub-sidebar: collapsible "Dashboards" rail ───────────────────────────────
+// Same collapse/expand pattern as the tasks page Quick Filters sidebar:
+// a thin icon rail when closed, a labelled panel when open.
+function DashboardSubSidebar({
+  open,
+  setOpen,
+  navItems,
+  activeDashboard,
+  setActiveDashboard,
+  ui,
+  darkMode,
+}) {
+  const iconBtn = (onClick, title, children) => (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: 24,
+        height: 24,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "transparent",
+        border: `1px solid ${ui.cardBorder}`,
+        borderRadius: 6,
+        cursor: "pointer",
+        color: ui.textMuted,
+        fontSize: "0.7rem",
+        transition: "all 0.2s ease",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = ui.hoverBg;
+        e.currentTarget.style.color = ui.textPrimary;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.color = ui.textMuted;
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  // ── Collapsed rail ──
+  if (!open) {
+    return (
+      <div
+        style={{
+          width: 34,
+          minWidth: 34,
+          height: "100%",
+          background: ui.sidebarBg,
+          borderRight: `1px solid ${ui.cardBorder}`,
+          padding: "0.7rem 0",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.8rem",
+          flexShrink: 0,
+        }}
+      >
+        {iconBtn(() => setOpen(true), "Show dashboards", "▶")}
+        {navItems.map((item) => (
+          <span
+            key={item.key}
+            title={item.label}
+            aria-hidden="true"
+            style={{
+              fontSize: "0.85rem",
+              lineHeight: 1,
+              opacity: activeDashboard === item.key ? 1 : 0.3,
+              userSelect: "none",
+            }}
+          >
+            {item.icon}
+          </span>
+        ))}
+      </div>
+    );
+  }
+
+  // ── Expanded panel ──
+  return (
+    <div
+      style={{
+        width: 190,
+        minWidth: 190,
+        height: "100%",
+        background: ui.sidebarBg,
+        borderRight: `1px solid ${ui.cardBorder}`,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        flexShrink: 0,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0.6rem 0.75rem 0.6rem 0.85rem",
+          borderBottom: `1px solid ${ui.cardBorder}`,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={FB}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="3" y="3" width="7" height="9" />
+            <rect x="14" y="3" width="7" height="5" />
+            <rect x="14" y="12" width="7" height="9" />
+            <rect x="3" y="16" width="7" height="5" />
+          </svg>
+          <h2
+            style={{
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              color: ui.textPrimary,
+              margin: 0,
+              letterSpacing: "0.01em",
+            }}
+          >
+            Dashboards
+          </h2>
+        </div>
+        {iconBtn(() => setOpen(false), "Hide dashboards", "◀")}
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          overflowX: "hidden",
+          padding: "0.6rem 0 1rem",
+          display: "flex",
+          flexDirection: "column",
+          gap: "0.15rem",
+        }}
+      >
+        {navItems.map((item) => (
+          <DashboardNavItem
+            key={item.key}
+            label={item.label}
+            subtitle={item.subtitle}
+            active={activeDashboard === item.key}
+            onClick={() => setActiveDashboard(item.key)}
+            ui={ui}
+            darkMode={darkMode}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function DashboardPage({ darkMode: darkModeProp }) {
   const [internalDark, setInternalDark] = useState(true);
   const darkMode = darkModeProp !== undefined ? darkModeProp : internalDark;
   const ui = useMemo(() => makeUI(darkMode), [darkMode]);
 
-  // ── Sub-sidebar ───────────────────────────────────────────────────────────
+  // ── Sub-sidebar (collapsible rail — starts closed) ────────────────────────
   const [activeDashboard, setActiveDashboard] = useState("main");
-  const [subSidebarHidden, setSubSidebarHidden] = useState(() => {
+  const [subSidebarOpen, setSubSidebarOpen] = useState(() => {
     try {
-      return localStorage.getItem("dashboardSubSidebarHidden") === "true";
+      return localStorage.getItem("dashboardSubSidebarOpen") === "true";
     } catch {
       return false;
     }
@@ -282,16 +446,9 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem("dashboardSubSidebarHidden", String(subSidebarHidden));
+      localStorage.setItem("dashboardSubSidebarOpen", String(subSidebarOpen));
     } catch {}
-  }, [subSidebarHidden]);
-
-  // Toggled from the hamburger button in the Navbar
-  useEffect(() => {
-    const handler = () => setSubSidebarHidden((h) => !h);
-    window.addEventListener("toggleDashboardSidebar", handler);
-    return () => window.removeEventListener("toggleDashboardSidebar", handler);
-  }, []);
+  }, [subSidebarOpen]);
 
   // ── Impersonation state ───────────────────────────────────────────────────
   const [showImpersonationPrompt, setShowImpersonationPrompt] = useState(() => isImpersonating());
@@ -332,8 +489,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
   }, []);
 
   const navItems = [
-    { key: "main", label: "Main Dashboard", subtitle: "Licensing unit" },
-    { key: "gmp", label: "GMP Dashboard", subtitle: "GMP taskforce unit" },
+    { key: "main", label: "Main Dashboard", subtitle: "Licensing unit", icon: "📊" },
+    { key: "gmp", label: "GMP Dashboard", subtitle: "GMP taskforce unit", icon: "🏭" },
   ];
 
   return (
@@ -370,81 +527,26 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
           }}
         >
           {/* ── Sub-sidebar ── */}
-          {!isMobile && !subSidebarHidden && (
+          {!isMobile && (
             <div
               style={{
                 flexShrink: 0,
-                width: 170,
                 position: "sticky",
                 top: 0,
                 alignSelf: "stretch",
                 maxHeight: "100vh",
-                overflowY: "auto",
+                overflow: "hidden",
               }}
             >
-              <div
-                style={{
-                  width: "100%",
-                  height: "100%",
-                  minHeight: "100%",
-                  background: ui.sidebarBg,
-                  borderRight: `1px solid ${ui.cardBorder}`,
-                  display: "flex",
-                  flexDirection: "column",
-                }}
-              >
-                <div style={{ padding: "20px 6px 10px 0" }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      margin: "0 8px 6px 14px",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontSize: "0.7rem",
-                        fontWeight: 700,
-                        color: ui.textMuted,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.1em",
-                        margin: 0,
-                      }}
-                    >
-                      Dashboards
-                    </p>
-                    <button
-                      onClick={() => setSubSidebarHidden(true)}
-                      title="Hide panel"
-                      aria-label="Hide Dashboards panel"
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        color: ui.textMuted,
-                        fontSize: "0.85rem",
-                        lineHeight: 1,
-                        padding: 2,
-                      }}
-                    >
-                      «
-                    </button>
-                  </div>
-                  <div style={{ height: "0.5px", background: ui.divider, margin: "0 8px 10px" }} />
-                  {navItems.map((item) => (
-                    <DashboardNavItem
-                      key={item.key}
-                      label={item.label}
-                      subtitle={item.subtitle}
-                      active={activeDashboard === item.key}
-                      onClick={() => setActiveDashboard(item.key)}
-                      ui={ui}
-                      darkMode={darkMode}
-                    />
-                  ))}
-                </div>
-              </div>
+              <DashboardSubSidebar
+                open={subSidebarOpen}
+                setOpen={setSubSidebarOpen}
+                navItems={navItems}
+                activeDashboard={activeDashboard}
+                setActiveDashboard={setActiveDashboard}
+                ui={ui}
+                darkMode={darkMode}
+              />
             </div>
           )}
 

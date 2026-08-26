@@ -5,7 +5,8 @@
 // Step 2: Upload Documents
 // Step 3: Application logs timeline
 // Step 4: Action form (advance / reassign / reroute)
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect, useId } from "react";
+import { createPortal } from "react-dom";
 import {
   getGMPRecord,
   getGMPRecordLogs,
@@ -13,12 +14,12 @@ import {
   updateGMPRecord,
   reassignGMPStep,
   rerouteGMPStep,
-  createGMPDoctrackLog,
   addGMPIssuance,
   getGMPSiblings,
   updateGMPIssuanceFields,
 } from "../../../api/gmp";
-import { getUsersByGroup } from "../../../api/auth";
+import { createDoctrackLogByRsn } from "../../../api/doctrack";
+import { getUsersByGroup, getUser } from "../../../api/auth";
 import { FONT, GMP_STEPS, GMP_STATUS_COLORS } from "../shared/constants";
 import ApplicationDocumentsPanel from "../shared/ApplicationDocumentsPanel";
 
@@ -94,22 +95,6 @@ function getEffectiveStatusWM(record) {
   return record.GMP_APP_STATUS ?? "";
 }
 
-// <input type="date"> renders its "mm/dd/yyyy" placeholder digits at the same
-// full-contrast color as a real picked date, so an empty field reads as if it
-// already has a value. Dimming the color while empty (browsers paint the
-// date-edit segments using the input's own `color`) fixes that without any
-// browser-specific pseudo-element hacks.
-function dateInputColor(value, colors) {
-  return value ? colors.textPrimary : colors.textTertiary;
-}
-// Color dimming alone wasn't enough to keep an empty "mm/dd/yyyy" from
-// reading as a real value — Chrome renders it at the same bold weight as a
-// filled-in date, so it still looked "picked" at a glance. Dropping the
-// weight when empty (paired with dateInputColor's dimmer color) is what
-// actually makes it read as a placeholder.
-function dateInputWeight(value) {
-  return value ? 600 : 400;
-}
 
 // `colors.inputBg`/`colors.badgeBg` (getColorScheme.js) are very subtle tints —
 // barely different from the modal's own card background, so editable fields
@@ -155,6 +140,45 @@ function toDateInputValue(value) {
   const d = new Date(str);
   return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
 }
+
+// ── GmpDatePicker date helpers (all local-time, YYYY-MM-DD strings) ──────────
+const _pad2 = (n) => String(n).padStart(2, "0");
+const isoToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}`;
+};
+const isoParts = (iso) => {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  return { y, m: m - 1, d };
+};
+const isoFromDate = (dt) =>
+  `${dt.getFullYear()}-${_pad2(dt.getMonth() + 1)}-${_pad2(dt.getDate())}`;
+const shiftMonth = ({ y, m }, delta) => {
+  const d = new Date(y, m + delta, 1);
+  return { y: d.getFullYear(), m: d.getMonth() };
+};
+const monthGrid = ({ y, m }) => {
+  const start = new Date(y, m, 1);
+  start.setDate(1 - start.getDay()); // rewind to the Sunday of that week
+  return Array.from({ length: 42 }, (_, i) => {
+    const dt = new Date(start);
+    dt.setDate(start.getDate() + i);
+    return dt;
+  });
+};
+const fmtDateLong = (iso) => {
+  const { y, m, d } = isoParts(iso);
+  return new Date(y, m, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+const DOW = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 function isWeekendDateWM(d) {
   const day = d.getDay();
@@ -450,7 +474,7 @@ const GMP_MODAL_STEP_LABELS = ["Details", "Documents", "Logs", "Action"];
 function StepTabs({ active, colors, darkMode }) {
   return (
     <div style={{
-      flexShrink: 0, padding: "12px 22px",
+      flexShrink: 0, padding: "7px 20px",
       background: darkMode ? "rgba(255,255,255,0.02)" : "rgba(16,185,129,0.03)",
       borderBottom: `1px solid ${colors.cardBorder}`,
       display: "flex", alignItems: "center",
@@ -463,14 +487,14 @@ function StepTabs({ active, colors, darkMode }) {
           <React.Fragment key={id}>
             <div style={{
               display: "flex", alignItems: "center", gap: 7, flexShrink: 0,
-              padding: "5px 10px 5px 5px", borderRadius: 999,
+              padding: "3px 9px 3px 3px", borderRadius: 999,
               background: isActive ? (darkMode ? "rgba(16,185,129,0.14)" : "#e7f8f0") : "transparent",
               transition: "background 0.18s",
             }}>
               <span style={{
-                width: 20, height: 20, borderRadius: "50%", flexShrink: 0,
+                width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: "0.62rem", fontWeight: 700,
+                fontSize: "0.6rem", fontWeight: 700,
                 background: isActive
                   ? `linear-gradient(145deg,${ACCENT},#059669)`
                   : isDone ? `${ACCENT}18` : (darkMode ? "rgba(255,255,255,0.06)" : "#eef1f6"),
@@ -495,6 +519,590 @@ function StepTabs({ active, colors, darkMode }) {
         );
       })}
     </div>
+  );
+}
+
+// ── Custom dropdown ────────────────────────────────────────────────────────
+// Replaces the native <select> for the action/decision fields so the OPEN
+// list matches the modal (rounded panel, hover highlight, checkmark on the
+// selected row, full theming) instead of the OS chrome. The panel is
+// portalled to <body> so it isn't clipped by the modal's scroll area or
+// shifted by the .wfFieldBox:hover transform.
+//
+//  props: value (string), onChange(value) → same as the old e.target.value,
+//         options (string[] OR {value,label}[]), placeholder, colors,
+//         disabled, invalid.
+function GmpSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "Select…",
+  colors,
+  disabled = false,
+  invalid = false,
+  allowClear = true, // show the placeholder as a selectable "clear" row
+  ariaLabel,
+}) {
+  const norm = options.map((o) =>
+    o && typeof o === "object"
+      ? { value: String(o.value), label: o.label }
+      : { value: String(o), label: String(o) },
+  );
+  const strValue = String(value ?? "");
+  const selected = norm.find((o) => o.value === strValue) || null;
+
+  const [open, setOpen] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const [rect, setRect] = useState(null);
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+  const typeBuf = useRef({ str: "", t: 0 });
+  const listId = useId();
+  const dark = isDarkColors(colors);
+
+  const place = useCallback(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) {
+      setOpen(false);
+      return;
+    }
+    // Keep the panel inside the modal card, not spilling onto the page behind it.
+    const card = el.closest("[data-gmp-modal-card]")?.getBoundingClientRect();
+    const topLimit = Math.max(8, card ? card.top + 8 : 8);
+    const bottomLimit = Math.min(window.innerHeight - 8, card ? card.bottom - 8 : window.innerHeight - 8);
+    const GAP = 4;
+    const spaceBelow = bottomLimit - r.bottom - GAP;
+    const spaceAbove = r.top - topLimit - GAP;
+    const up = spaceBelow < 180 && spaceAbove > spaceBelow;
+    const room = up ? spaceAbove : spaceBelow;
+    setRect({
+      left: Math.round(r.left),
+      width: Math.round(r.width),
+      top: up ? undefined : Math.round(r.bottom + GAP),
+      bottom: up ? Math.round(window.innerHeight - r.top + GAP) : undefined,
+      maxHeight: Math.max(120, Math.min(320, Math.round(room))),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const onDocDown = (e) => {
+      if (btnRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    document.addEventListener("mousedown", onDocDown);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      document.removeEventListener("mousedown", onDocDown);
+    };
+  }, [open, place]);
+
+  useEffect(() => {
+    if (open) setActiveIdx(norm.findIndex((o) => o.value === strValue));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || activeIdx < 0) return;
+    panelRef.current
+      ?.querySelector(`[data-idx="${activeIdx}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeIdx, open]);
+
+  const commit = (opt, refocus = true) => {
+    onChange(opt.value);
+    setOpen(false);
+    if (refocus) btnRef.current?.focus();
+  };
+
+  const onKeyDown = (e) => {
+    if (disabled) return;
+    if (!open) {
+      if (["Enter", " ", "ArrowDown", "ArrowUp"].includes(e.key)) {
+        e.preventDefault();
+        setOpen(true);
+      }
+      return;
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      btnRef.current?.focus();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.min(norm.length - 1, i + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.max(allowClear ? -1 : 0, i - 1));
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      setActiveIdx(0);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      setActiveIdx(norm.length - 1);
+    } else if (e.key === "Enter" || e.key === "Tab") {
+      const keepFocus = e.key === "Enter"; // Tab must be free to move focus on
+      if (e.key === "Enter") e.preventDefault();
+      if (activeIdx === -1) {
+        if (allowClear) commit({ value: "" }, keepFocus);
+        else setOpen(false);
+      } else if (activeIdx >= 0) commit(norm[activeIdx], keepFocus);
+      else setOpen(false);
+    } else if (e.key.length === 1 && /\S/.test(e.key)) {
+      const now = Date.now();
+      typeBuf.current.str = now - typeBuf.current.t > 700 ? e.key : typeBuf.current.str + e.key;
+      typeBuf.current.t = now;
+      const q = typeBuf.current.str.toLowerCase();
+      const hit = norm.findIndex((o) => String(o.label).toLowerCase().startsWith(q));
+      if (hit >= 0) setActiveIdx(hit);
+    }
+  };
+
+  const trigger = {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "0.35rem 0.5rem",
+    fontFamily: FONT,
+    fontSize: "0.8rem",
+    textAlign: "left",
+    background: editableFieldInnerBg(colors),
+    border: `1px solid ${invalid ? "#ef4444" : "transparent"}`,
+    borderRadius: 8,
+    color: selected ? colors.textPrimary : colors.textTertiary,
+    outline: "none",
+    boxSizing: "border-box",
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.55 : 1,
+    boxShadow: open ? `0 0 0 2px ${ACCENT}55` : "none",
+    transition: "box-shadow 0.12s",
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={btnRef}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        onKeyDown={onKeyDown}
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-label={ariaLabel}
+        style={trigger}
+      >
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {selected ? selected.label : placeholder}
+        </span>
+        <span
+          aria-hidden
+          style={{
+            flexShrink: 0,
+            transition: "transform 0.15s",
+            transform: open ? "rotate(180deg)" : "none",
+            color: colors.textTertiary,
+            fontSize: "0.62rem",
+            lineHeight: 1,
+          }}
+        >
+          ▼
+        </span>
+      </button>
+
+      {open && rect &&
+        createPortal(
+          <div
+            ref={panelRef}
+            id={listId}
+            role="listbox"
+            className="gmpTabScroll"
+            style={{
+              position: "fixed",
+              left: rect.left,
+              width: rect.width,
+              top: rect.top,
+              bottom: rect.bottom,
+              maxHeight: rect.maxHeight,
+              overflowY: "auto",
+              zIndex: 11000,
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 10,
+              boxShadow: dark
+                ? "0 18px 44px -12px rgba(0,0,0,0.6)"
+                : "0 18px 44px -12px rgba(15,23,42,0.28)",
+              padding: 4,
+              fontFamily: FONT,
+              animation: "gmpBackdropIn 0.1s ease",
+            }}
+          >
+            {allowClear && (
+              <GmpSelectRow
+                idx={-1}
+                label={placeholder}
+                muted
+                selected={strValue === ""}
+                active={activeIdx === -1}
+                onMouseEnter={() => setActiveIdx(-1)}
+                onSelect={() => commit({ value: "" })}
+                colors={colors}
+              />
+            )}
+            {norm.map((o, i) => (
+              <GmpSelectRow
+                key={o.value || i}
+                idx={i}
+                label={o.label}
+                selected={o.value === strValue}
+                active={i === activeIdx}
+                onMouseEnter={() => setActiveIdx(i)}
+                onSelect={() => commit(o)}
+                colors={colors}
+              />
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+function GmpSelectRow({ idx, label, muted, selected, active, onSelect, onMouseEnter, colors }) {
+  return (
+    <div
+      role="option"
+      data-idx={idx}
+      aria-selected={selected}
+      onMouseEnter={onMouseEnter}
+      onClick={onSelect}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "0.45rem 0.55rem",
+        borderRadius: 7,
+        fontSize: "0.8rem",
+        cursor: "pointer",
+        color: muted && !selected ? colors.textTertiary : colors.textPrimary,
+        fontWeight: selected ? 700 : 500,
+        background: active ? `${ACCENT}22` : selected ? `${ACCENT}12` : "transparent",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          flexShrink: 0,
+          width: 13,
+          color: ACCENT,
+          fontSize: "0.72rem",
+          visibility: selected ? "visible" : "hidden",
+        }}
+      >
+        ✓
+      </span>
+      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ── Custom date picker ─────────────────────────────────────────────────────
+// Same idea as GmpSelect: replaces <input type="date"> so the calendar
+// matches the modal instead of the OS chrome. Value in / out is the same
+// "YYYY-MM-DD" string the native input used, so it's a drop-in.
+function GmpDatePicker({
+  value,
+  onChange,
+  colors,
+  placeholder = "Pick a date…",
+  disabled = false,
+  fullWidth = false,
+  ariaLabel,
+}) {
+  const iso = toDateInputValue(value);
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState(() => {
+    const p = isoParts(iso || isoToday());
+    return { y: p.y, m: p.m };
+  });
+  const [focusISO, setFocusISO] = useState(iso || isoToday());
+  const [rect, setRect] = useState(null);
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+  const dark = isDarkColors(colors);
+  const today = isoToday();
+
+  useEffect(() => {
+    if (!open) return;
+    const base = iso || isoToday();
+    const p = isoParts(base);
+    setView({ y: p.y, m: p.m });
+    setFocusISO(base);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const place = useCallback(() => {
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight) {
+      setOpen(false);
+      return;
+    }
+    const card = el.closest("[data-gmp-modal-card]")?.getBoundingClientRect();
+    const topLimit = Math.max(8, card ? card.top + 8 : 8);
+    const bottomLimit = Math.min(
+      window.innerHeight - 8,
+      card ? card.bottom - 8 : window.innerHeight - 8,
+    );
+    const cardLeft = card ? card.left + 8 : 8;
+    const cardRight = card ? card.right - 8 : window.innerWidth - 8;
+    const W = 260;
+    const PANEL_H = 316;
+    const GAP = 4;
+    const below = bottomLimit - r.bottom - GAP;
+    const above = r.top - topLimit - GAP;
+    const up = below < PANEL_H && above > below;
+    setRect({
+      left: Math.round(Math.max(cardLeft, Math.min(r.left, cardRight - W))),
+      width: W,
+      top: up ? undefined : Math.round(r.bottom + GAP),
+      bottom: up ? Math.round(window.innerHeight - r.top + GAP) : undefined,
+      maxHeight: Math.max(240, Math.min(PANEL_H, Math.round(up ? above : below))),
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const onDocDown = (e) => {
+      if (btnRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    document.addEventListener("mousedown", onDocDown);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+      document.removeEventListener("mousedown", onDocDown);
+    };
+  }, [open, place]);
+
+  const pick = (dISO) => {
+    onChange(dISO);
+    setOpen(false);
+    btnRef.current?.focus();
+  };
+
+  const onKeyDown = (e) => {
+    if (disabled) return;
+    if (!open) {
+      if (["Enter", " ", "ArrowDown"].includes(e.key)) {
+        e.preventDefault();
+        setOpen(true);
+      }
+      return;
+    }
+    const p = isoParts(focusISO);
+    const move = (days) => {
+      e.preventDefault();
+      const ni = isoFromDate(new Date(p.y, p.m, p.d + days));
+      setFocusISO(ni);
+      const np = isoParts(ni);
+      setView({ y: np.y, m: np.m });
+    };
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setOpen(false);
+      btnRef.current?.focus();
+    } else if (e.key === "ArrowLeft") move(-1);
+    else if (e.key === "ArrowRight") move(1);
+    else if (e.key === "ArrowUp") move(-7);
+    else if (e.key === "ArrowDown") move(7);
+    else if (e.key === "PageUp") {
+      e.preventDefault();
+      setView((v) => shiftMonth(v, e.shiftKey ? -12 : -1));
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      setView((v) => shiftMonth(v, e.shiftKey ? 12 : 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      pick(focusISO);
+    }
+  };
+
+  const navBtn = {
+    border: "none",
+    background: "transparent",
+    color: colors.textSecondary,
+    cursor: "pointer",
+    fontSize: "1rem",
+    lineHeight: 1,
+    padding: "4px 8px",
+    borderRadius: 7,
+    fontFamily: FONT,
+  };
+  const footBtn = {
+    flex: 1,
+    border: `1px solid ${colors.cardBorder}`,
+    background: "transparent",
+    color: colors.textSecondary,
+    cursor: "pointer",
+    fontSize: "0.72rem",
+    fontWeight: 600,
+    padding: "5px 0",
+    borderRadius: 7,
+    fontFamily: FONT,
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        ref={btnRef}
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        onKeyDown={onKeyDown}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        style={{
+          width: fullWidth ? "100%" : "auto",
+          minWidth: fullWidth ? undefined : 150,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "0.35rem 0.5rem",
+          fontFamily: FONT,
+          fontSize: "0.8rem",
+          textAlign: "left",
+          background: editableFieldInnerBg(colors),
+          border: "1px solid transparent",
+          borderRadius: 8,
+          color: iso ? colors.textPrimary : colors.textTertiary,
+          fontWeight: iso ? 600 : 400,
+          outline: "none",
+          boxSizing: "border-box",
+          cursor: disabled ? "not-allowed" : "pointer",
+          opacity: disabled ? 0.55 : 1,
+          boxShadow: open ? `0 0 0 2px ${ACCENT}55` : "none",
+          transition: "box-shadow 0.12s",
+        }}
+      >
+        <span aria-hidden style={{ flexShrink: 0, fontSize: "0.82rem", lineHeight: 1 }}>📅</span>
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {iso ? fmtDateLong(iso) : placeholder}
+        </span>
+      </button>
+
+      {open && rect &&
+        createPortal(
+          <div
+            ref={panelRef}
+            role="dialog"
+            aria-label={ariaLabel || "Choose date"}
+            onKeyDown={onKeyDown}
+            style={{
+              position: "fixed",
+              left: rect.left,
+              width: rect.width,
+              top: rect.top,
+              bottom: rect.bottom,
+              maxHeight: rect.maxHeight,
+              overflowY: "auto",
+              zIndex: 11000,
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: 12,
+              padding: 10,
+              fontFamily: FONT,
+              boxShadow: dark
+                ? "0 18px 44px -12px rgba(0,0,0,0.6)"
+                : "0 18px 44px -12px rgba(15,23,42,0.28)",
+              animation: "gmpBackdropIn 0.1s ease",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <button type="button" tabIndex={-1} aria-label="Previous month"
+                onClick={() => setView((v) => shiftMonth(v, -1))} style={navBtn}>‹</button>
+              <div style={{ fontSize: "0.78rem", fontWeight: 700, color: colors.textPrimary }}>
+                {MONTH_NAMES[view.m]} {view.y}
+              </div>
+              <button type="button" tabIndex={-1} aria-label="Next month"
+                onClick={() => setView((v) => shiftMonth(v, 1))} style={navBtn}>›</button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2, marginBottom: 2 }}>
+              {DOW.map((d) => (
+                <div key={d} style={{
+                  textAlign: "center", fontSize: "0.58rem", fontWeight: 700,
+                  color: colors.textTertiary, padding: "2px 0",
+                }}>{d}</div>
+              ))}
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 2 }}>
+              {monthGrid(view).map((dt) => {
+                const cellISO = isoFromDate(dt);
+                const inMonth = dt.getMonth() === view.m;
+                const isSel = !!iso && cellISO === iso;
+                const isToday = cellISO === today;
+                const isFocus = cellISO === focusISO;
+                return (
+                  <button
+                    key={cellISO}
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => pick(cellISO)}
+                    onMouseEnter={() => setFocusISO(cellISO)}
+                    aria-current={isToday ? "date" : undefined}
+                    aria-selected={isSel}
+                    style={{
+                      border: "none",
+                      borderRadius: 7,
+                      padding: "6px 0",
+                      fontFamily: FONT,
+                      fontSize: "0.74rem",
+                      cursor: "pointer",
+                      fontWeight: isSel || isToday ? 700 : 500,
+                      color: isSel ? "#fff" : inMonth ? colors.textPrimary : colors.textTertiary,
+                      opacity: inMonth ? 1 : 0.45,
+                      background: isSel
+                        ? ACCENT
+                        : isFocus
+                          ? `${ACCENT}22`
+                          : isToday
+                            ? `${ACCENT}14`
+                            : "transparent",
+                    }}
+                  >
+                    {dt.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <button type="button" tabIndex={-1} onClick={() => pick(today)} style={footBtn}>Today</button>
+              {iso && (
+                <button type="button" tabIndex={-1} onClick={() => pick("")} style={footBtn}>Clear</button>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -534,21 +1142,18 @@ function ESelectField({ label, fieldKey, value, originalValue, options, onChange
           }}>✎ edited</span>
         )}
       </div>
-      <select
+      <GmpSelect
         value={selectValue}
-        onChange={(e) => onChange(fieldKey, e.target.value)}
-        style={{
-          width: "100%", padding: "0.35rem 0.5rem", background: editableFieldInnerBg(colors),
-          border: "none",
-          borderRadius: 8, color: colors.textPrimary, fontSize: "0.8rem",
-          fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT,
-          cursor: "pointer",
-        }}
-      >
-        <option value="">Select…</option>
-        {hasUnknownValue && <option value={rawValue}>{rawValue} (current)</option>}
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
+        onChange={(v) => onChange(fieldKey, v)}
+        placeholder="Select…"
+        options={
+          hasUnknownValue
+            ? [{ value: rawValue, label: `${rawValue} (current)` }, ...options]
+            : options
+        }
+        colors={colors}
+        ariaLabel={label}
+      />
       {isDirty && (
         <span style={{ fontSize: "0.62rem", color: colors.textTertiary, fontStyle: "italic" }}>
           Original: {originalValue || "empty"}
@@ -625,17 +1230,13 @@ function EDateField({ label, fieldKey, value, originalValue, onChange, colors, f
           }}>✎ edited</span>
         )}
       </div>
-      <input
-        type="date"
-        value={toDateInputValue(value)}
-        onChange={(e) => onChange(fieldKey, e.target.value)}
-        style={{
-          width: "100%", padding: "0.35rem 0.5rem", background: editableFieldInnerBg(colors),
-          border: "none",
-          borderRadius: 8, color: dateInputColor(toDateInputValue(value), colors), fontSize: "0.8rem",
-          fontWeight: dateInputWeight(toDateInputValue(value)), outline: "none", boxSizing: "border-box", fontFamily: FONT,
-          cursor: "pointer",
-        }}
+      <GmpDatePicker
+        value={value}
+        onChange={(v) => onChange(fieldKey, v)}
+        colors={colors}
+        fullWidth
+        placeholder="Pick a date…"
+        ariaLabel={label}
       />
       {isDirty && (
         <span style={{ fontSize: "0.62rem", color: colors.textTertiary, fontStyle: "italic" }}>
@@ -1055,8 +1656,8 @@ function RefNoTabBar({ siblings, record, activeRefTab, onChange, colors, darkMod
 
   const Tab = ({ isActive, onClick, children, badge }) => (
     <button onClick={onClick} style={{
-      flexShrink: 0, display: "flex", alignItems: "center", gap: 7,
-      padding: "6px 12px", border: "none",
+      flexShrink: 0, display: "flex", alignItems: "center", gap: 6,
+      padding: "4px 10px", border: "none",
       borderRadius: 999,
       background: isActive ? (darkMode ? "rgba(16,185,129,0.16)" : "#e7f8f0") : "transparent",
       fontFamily: FONT, fontSize: "0.76rem", fontWeight: isActive ? 700 : 500,
@@ -1076,12 +1677,12 @@ function RefNoTabBar({ siblings, record, activeRefTab, onChange, colors, darkMod
 
   return (
     <div style={{
-      flexShrink: 0, padding: "10px 20px",
+      flexShrink: 0, padding: "5px 18px 6px",
       background: darkMode ? "rgba(255,255,255,0.02)" : "rgba(16,185,129,0.03)",
       borderBottom: `1px solid ${colors.cardBorder}`,
     }}>
       <div className="gmpTabScroll" style={{
-        display: "flex", alignItems: "center", gap: 8, overflowX: "auto",
+        display: "flex", alignItems: "center", gap: 6, overflowX: "auto",
       }}>
         <span style={{ fontSize: "0.6rem", fontWeight: 700, color: colors.textTertiary,
           textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
@@ -1180,10 +1781,10 @@ function RefNoPanel({ siblings, activeRefTab, siblingEdits, setSiblingEdits, sib
       </div>
       <div>
         <label style={lbl}>Type of Issuance</label>
-        <select value={type} onChange={e => setField("GMP_TYPE_OF_ISSUANCE", e.target.value)} style={{ ...inp, cursor: "pointer" }}>
-          {GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-          <option value={GMP_DISAPPROVED_TYPE_OF_ISSUANCE}>{GMP_DISAPPROVED_TYPE_OF_ISSUANCE}</option>
-        </select>
+        <GmpSelect value={type} onChange={(v) => setField("GMP_TYPE_OF_ISSUANCE", v)} allowClear={false}
+          placeholder="Select type of issuance…"
+          options={[...GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS, GMP_DISAPPROVED_TYPE_OF_ISSUANCE]}
+          colors={colors} ariaLabel="Type of Issuance" />
       </div>
       {showCertFields && (
         <div>
@@ -1348,12 +1949,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 220px" }}>
             <label style={lbl}>New Type of Issuance</label>
-            <select value={newIssuanceType} onChange={e => onNewIssuanceTypeChange(e.target.value)}
-              style={{ ...inp, cursor: "pointer" }}>
-              <option value="">Select type of issuance…</option>
-              {GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS.map(t => <option key={t} value={t}>{t}</option>)}
-              <option value={GMP_DISAPPROVED_TYPE_OF_ISSUANCE}>{GMP_DISAPPROVED_TYPE_OF_ISSUANCE}</option>
-            </select>
+            <GmpSelect value={newIssuanceType} onChange={onNewIssuanceTypeChange} placeholder="Select type of issuance…"
+              options={[...GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS, GMP_DISAPPROVED_TYPE_OF_ISSUANCE]}
+              colors={colors} ariaLabel="New Type of Issuance" />
             {newIssuanceType && certNoteFor(newIssuanceType) && (
               <p style={{ margin: "4px 0 0", fontSize: "0.63rem", color: colors.textTertiary }}>
                 ℹ️ {certNoteFor(newIssuanceType)}
@@ -1396,10 +1994,8 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         <>
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Action <span style={{ color: "#ef4444" }}>*</span></label>
-            <select value={actionValue} onChange={e => onActionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-              <option value="">Select action…</option>
-              {actionOptions.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
+            <GmpSelect value={actionValue} onChange={onActionChange} placeholder="Select action…"
+              options={actionOptions} colors={colors} ariaLabel="Action" />
           </div>
           {needsComplianceDeadline && (
             <div style={{
@@ -1457,9 +2053,8 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
                 </div>
                 <div style={{ flex: "1 1 200px" }}>
                   <label style={{ ...lbl, fontSize: "0.6rem" }}>Deadline Date</label>
-                  <input type="date" value={complianceDeadline}
-                    onChange={e => onComplianceDeadlineChange(e.target.value)}
-                    style={{ ...inp, cursor: "pointer", color: dateInputColor(complianceDeadline, colors) }} />
+                  <GmpDatePicker value={complianceDeadline} onChange={onComplianceDeadlineChange}
+                    colors={colors} fullWidth placeholder="Pick a deadline…" ariaLabel="Deadline Date" />
                   {complianceDeadline && (
                     <div style={{ fontSize: "0.66rem", color: colors.textTertiary, marginTop: 4 }}>
                       📅 {new Date(`${complianceDeadline}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
@@ -1492,10 +2087,8 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           {actionValue !== "For Compliance" && (
             <div className="wfFieldBox" style={box}>
               <label style={boxLbl}>Recommendation <span style={{ color: "#ef4444" }}>*</span></label>
-              <select value={approvalDecision} onChange={e => onApprovalDecisionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-                <option value="">Select recommendation…</option>
-                {GMP_APPROVAL_DECISION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-              </select>
+              <GmpSelect value={approvalDecision} onChange={onApprovalDecisionChange} placeholder="Select recommendation…"
+                options={GMP_APPROVAL_DECISION_OPTIONS} colors={colors} ariaLabel="Recommendation" />
             </div>
           )}
           {needsTypeOfIssuance && (
@@ -1505,26 +2098,21 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
                 <input readOnly value={typeOfIssuanceValue}
                   style={{ ...boxInp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
               ) : (
-                <select value={typeOfIssuanceValue} onChange={e => onTypeOfIssuanceChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-                  <option value="">Select type of issuance…</option>
-                  {typeOfIssuanceOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <GmpSelect value={typeOfIssuanceValue} onChange={onTypeOfIssuanceChange} placeholder="Select type of issuance…"
+                  options={typeOfIssuanceOptions} colors={colors} ariaLabel="Type of Issuance" />
               )}
             </div>
           )}
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Remarks Preset <span style={{ color: "#ef4444" }}>*</span></label>
-            <select value={remarksPresetValue} onChange={e => onRemarksPresetChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-              <option value="">Select remarks…</option>
-              {remarksPresetOptions.map(r => <option key={r.value} value={r.value}>{r.value}</option>)}
-            </select>
+            <GmpSelect value={remarksPresetValue} onChange={onRemarksPresetChange} placeholder="Select remarks…"
+              options={remarksPresetOptions.map(r => r.value)} colors={colors} ariaLabel="Remarks Preset" />
           </div>
           {needsNodDate && (
             <div className="wfFieldBox" style={{ ...box, maxWidth: 220 }}>
               <label style={boxLbl}>{nodDateLabel} <span style={{ color: "#ef4444" }}>*</span></label>
-              <input type="date" value={nodDateValue}
-                onChange={e => onNodDateChange(e.target.value)}
-                style={{ ...boxInp, width: "auto", cursor: "pointer", color: dateInputColor(nodDateValue, colors) }} />
+              <GmpDatePicker value={nodDateValue} onChange={onNodDateChange}
+                colors={colors} placeholder="Pick a date…" ariaLabel={nodDateLabel} />
               <p style={{ margin: "3px 0 0", fontSize: "0.6rem", color: colors.textTertiary }}>
                 Not saved until you click Submit below.
               </p>
@@ -1533,9 +2121,8 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           {needsDatePrinted && (
             <div className="wfFieldBox" style={{ ...box, maxWidth: 220 }}>
               <label style={boxLbl}>Date Printed <span style={{ color: "#ef4444" }}>*</span></label>
-              <input type="date" value={datePrintedValue}
-                onChange={e => onDatePrintedChange(e.target.value)}
-                style={{ ...boxInp, width: "auto", cursor: "pointer", color: dateInputColor(datePrintedValue, colors) }} />
+              <GmpDatePicker value={datePrintedValue} onChange={onDatePrintedChange}
+                colors={colors} placeholder="Pick a date…" ariaLabel="Date Printed" />
               <p style={{ margin: "3px 0 0", fontSize: "0.6rem", color: colors.textTertiary }}>
                 Not saved until you click Submit below.
               </p>
@@ -1547,20 +2134,17 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
       {mode === "advance" && !isEvalOrChecker && (
         <div className="wfFieldBox" style={box}>
           <label style={boxLbl}>{(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "Action" : "Decision"} <span style={{ color: "#ef4444" }}>*</span></label>
-          <select value={decision} onChange={e => onDecisionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-            <option value="">Select {(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "action" : "decision"}…</option>
-            {decisions.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
+          <GmpSelect value={decision} onChange={onDecisionChange}
+            placeholder={`Select ${(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "action" : "decision"}…`}
+            options={decisions} colors={colors} ariaLabel="Decision" />
         </div>
       )}
 
       {mode === "advance" && isOdReceiving && needsOdReceivingDecision && (
         <div className="wfFieldBox" style={box}>
           <label style={boxLbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
-          <select value={odReceivingDecisionValue} onChange={e => onOdReceivingDecisionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-            <option value="">Select decision…</option>
-            {GMP_OD_RECEIVING_DECISION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-          </select>
+          <GmpSelect value={odReceivingDecisionValue} onChange={onOdReceivingDecisionChange} placeholder="Select decision…"
+            options={GMP_OD_RECEIVING_DECISION_OPTIONS} colors={colors} ariaLabel="Decision" />
         </div>
       )}
 
@@ -1568,10 +2152,8 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         <>
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
-            <select value={odReleasingDecisionValue} onChange={e => onOdReleasingDecisionChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-              <option value="">Select decision…</option>
-              {GMP_OD_RELEASING_DECISION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            <GmpSelect value={odReleasingDecisionValue} onChange={onOdReleasingDecisionChange} placeholder="Select decision…"
+              options={GMP_OD_RELEASING_DECISION_OPTIONS} colors={colors} ariaLabel="Decision" />
           </div>
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Type of Issuance</label>
@@ -1580,9 +2162,8 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           </div>
           <div className="wfFieldBox" style={{ ...box, maxWidth: 200 }}>
             <label style={boxLbl}>Signed Date <span style={{ color: "#ef4444" }}>*</span></label>
-            <input type="date" value={odReleasingSignedDateValue}
-              onChange={e => onOdReleasingSignedDateChange(e.target.value)}
-              style={{ ...boxInp, width: "auto", cursor: "pointer", color: dateInputColor(odReleasingSignedDateValue, colors) }} />
+            <GmpDatePicker value={odReleasingSignedDateValue} onChange={onOdReleasingSignedDateChange}
+              colors={colors} placeholder="Pick a date…" ariaLabel="Signed Date" />
           </div>
         </>
       )}
@@ -1596,14 +2177,13 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
               Loading authority users…
             </div>
           ) : (
-            <select value={decisionAuthorityId ?? ""} onChange={(e) => onAuthorityChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-              <option value="">Select authority…</option>
-              {authorityOptions.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.first_name && (u.surname || u.last_name) ? `${u.username} — ${u.first_name} ${u.surname ?? u.last_name}` : u.username}
-                </option>
-              ))}
-            </select>
+            <GmpSelect value={String(decisionAuthorityId ?? "")} onChange={onAuthorityChange} placeholder="Select authority…"
+              options={authorityOptions.map((u) => ({
+                value: String(u.id),
+                label: u.first_name && (u.surname || u.last_name)
+                  ? `${u.username} — ${u.first_name} ${u.surname ?? u.last_name}` : u.username,
+              }))}
+              colors={colors} ariaLabel="Decision Authority" />
           )}
           {!loadingAuthority && authorityOptions.length === 0 && (
             <p style={{ fontSize: "0.68rem", color: "#ef4444", marginTop: 4, marginBottom: 0 }}>⚠️ No authority users found for {currentStep}.</p>
@@ -1651,14 +2231,13 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
               Loading {assigneeGroupConfig?.groupLabel} users…
             </div>
           ) : (
-            <select value={assigneeUserId ?? ""} onChange={(e) => onAssigneeGroupChange(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-              <option value="">Select assignee…</option>
-              {assigneeGroupOptions.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.first_name && (u.surname || u.last_name) ? `${u.username} — ${u.first_name} ${u.surname ?? u.last_name}` : u.username}
-                </option>
-              ))}
-            </select>
+            <GmpSelect value={String(assigneeUserId ?? "")} onChange={onAssigneeGroupChange} placeholder="Select assignee…"
+              options={assigneeGroupOptions.map((u) => ({
+                value: String(u.id),
+                label: u.first_name && (u.surname || u.last_name)
+                  ? `${u.username} — ${u.first_name} ${u.surname ?? u.last_name}` : u.username,
+              }))}
+              colors={colors} ariaLabel="Assignee" />
           )}
           {!loadingAssigneeGroup && assigneeGroupOptions.length === 0 && (
             <p style={{ fontSize: "0.68rem", color: "#ef4444", marginTop: 4, marginBottom: 0 }}>
@@ -1678,10 +2257,9 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         <>
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Target Step <span style={{ color: "#ef4444" }}>*</span></label>
-            <select value={rerouteTo} onChange={e => setRerouteTo(e.target.value)} style={{ ...boxInp, cursor: "pointer" }}>
-              <option value="">Select target step…</option>
-              {GMP_STEPS_LIST.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
-            </select>
+            <GmpSelect value={rerouteTo} onChange={setRerouteTo} placeholder="Select target step…"
+              options={GMP_STEPS_LIST.map(s => ({ value: s.id, label: s.label }))}
+              colors={colors} ariaLabel="Target Step" />
           </div>
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Assign To <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
@@ -2170,10 +2748,10 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     }
   };
 
-  const currentUser = (() => {
-    try { const u = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-      return u.username || u.email || null; } catch { return null; }
+  const currentUserObj = (() => {
+    try { return getUser() || {}; } catch { return {}; }
   })();
+  const currentUser = currentUserObj.username || currentUserObj.email || null;
 
   useEffect(() => {
     if (!task?.gmp_record_id) { setLoadingRec(false); return; }
@@ -2327,7 +2905,27 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         setSubmitLoading(false); return;
       }
 
-      // ── Step A: Save any dirty record fields first (auto-audit-logged server-side) ──
+      // ── Step A: Doctrack (if enabled) — push to FIS FIRST, before we mutate
+      //    the record or advance the log, so a Doctrack failure leaves nothing
+      //    half-applied (mirrors GMPDeckModal). ────────────────────────────────
+      if (doctrackEnabled) {
+        if (!doctrackRemarks.trim()) {
+          setSubmitError("Doctrack Remarks are required. Turn off the Doctrack toggle if you already updated FIS manually.");
+          setSubmitLoading(false); return;
+        }
+        const dtResult = await createDoctrackLogByRsn(
+          String(task.dtn),
+          doctrackRemarks.trim(),
+          currentUserObj.id ?? null,
+          currentUserObj.alias ?? "",
+        );
+        if (!dtResult) {
+          setSubmitError("❌ Failed to insert Doctrack log. Submission cancelled.\nIf FIS was already updated manually, turn OFF the Doctrack toggle and resubmit.");
+          setSubmitLoading(false); return;
+        }
+      }
+
+      // ── Step B: Save any dirty record fields (auto-audit-logged server-side) ──
       const recordPayload = { ...editedFields };
       if (needsApprovalFields) {
         recordPayload.GMP_CERTIFICATE_NUMBER = certNumber;
@@ -2369,28 +2967,6 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       }
       if (Object.keys(recordPayload).length > 0) {
         await updateGMPRecord(task.gmp_record_id, recordPayload);
-      }
-
-      // ── Step B: Doctrack (if enabled) ───────────────────────────────────────
-      if (doctrackEnabled) {
-        if (!doctrackRemarks.trim()) {
-          setSubmitError("Doctrack Remarks are required. Turn off the Doctrack toggle if you already updated FIS manually.");
-          setSubmitLoading(false); return;
-        }
-        const currentUserObj = (() => {
-          try { return JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}"); }
-          catch { return {}; }
-        })();
-        const dtResult = await createGMPDoctrackLog(
-          task.dtn,
-          doctrackRemarks.trim(),
-          currentUserObj.id ?? null,
-          currentUserObj.alias ?? "",
-        );
-        if (!dtResult) {
-          setSubmitError("❌ Failed to insert Doctrack log. Submission cancelled.\nIf FIS was already updated manually, turn OFF the Doctrack toggle and resubmit.");
-          setSubmitLoading(false); return;
-        }
       }
 
       // ── Step C: Advance ──────────────────────────────────────────────────
@@ -2451,7 +3027,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       padding: 16, fontFamily: FONT, animation: "gmpBackdropIn 0.2s ease forwards",
     }}>
       <style>{MODAL_CSS}</style>
-      <div style={{
+      <div data-gmp-modal-card style={{
         background: darkMode
           ? "#1a1c1f"
           : "#f7f8fa",
