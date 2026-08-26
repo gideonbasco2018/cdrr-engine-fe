@@ -1,21 +1,26 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   getMyTeam,
   getMemberTasks,
+  getMemberTargetedTasks,
   markAsTarget,
   bulkMarkAsTarget,
   unmarkAsTarget,
 } from "../api/targetAssignments";
 import { getCurrentUser } from "../api/auth";
 import { useColors } from "../components/targetAssignments/useColors";
-import { ListView } from "../components/targetAssignments/ListView";
+import {
+  ListView,
+  ALL_MEMBERS_ID,
+} from "../components/targetAssignments/ListView";
 import { TeamDiagramView } from "../components/targetAssignments/TeamDiagramView";
 import { TargetTableView } from "../components/targetAssignments/TargetTableView";
+import { TargetMonitoringView } from "../components/targetAssignments/TargetMonitoringView";
 import { DirectorsTargetView } from "../components/targetAssignments/DirectorsTargetView";
 import { TargetModal } from "../components/targetAssignments/TargetModal";
 import { DirectorsTeamDiagramView } from "../components/targetAssignments/DirectorsTeamDiagramView";
 import { DirectorsMonitoringView } from "../components/targetAssignments/DirectorsMonitoringView";
-// ── Groups na pwedeng makakita ng "Directors Target" tab ────────────
+// ── Groups allowed to see the CDRR Target tabs ──────────────────────
 const ALLOWED_DIRECTORS_TARGET_GROUPS = ["OD", "Director", "IT"];
 
 function userInAllowedGroups(user, allowedNames) {
@@ -47,6 +52,14 @@ export default function TargetAssignmentsPage({ darkMode }) {
   const [activeView, setActiveView] = useState("list");
   const [diagramData, setDiagramData] = useState({}); // { [member_user_id]: tasks[] }
   const [diagramLoading, setDiagramLoading] = useState(false);
+
+  // ── Team Diagram ONLY — lightweight, targeted-tasks-only fetch.
+  //    Kept separate from diagramData/loadDiagramData above (which
+  //    TargetTableView still uses) since the diagram only ever renders
+  //    targeted cards and gets its Total/Completed/In Progress stats
+  //    from `team`'s own count fields, not from a full task list. ──
+  const [targetedData, setTargetedData] = useState({});
+  const [targetedLoading, setTargetedLoading] = useState(false);
 
   useEffect(() => {
     getCurrentUser()
@@ -90,9 +103,6 @@ export default function TargetAssignmentsPage({ darkMode }) {
     }
   }, []);
 
-  // ── Diagram/Table views: fetch ALL tasks for EVERY team member ──
-  // (kumpletong list — kailangan para sa Total/Completed/On Process counts;
-  //  yung mga naka-target lang ang lalabas bilang children sa ilalim)
   const loadDiagramData = useCallback(async (members) => {
     if (!members || members.length === 0) {
       setDiagramData({});
@@ -113,27 +123,86 @@ export default function TargetAssignmentsPage({ darkMode }) {
     }
   }, []);
 
+  // ── Lightweight loader for the Team Diagram — targeted tasks only,
+  //    per member, in parallel. Much smaller payload than
+  //    loadDiagramData above since it skips every non-targeted task. ──
+  const loadTargetedData = useCallback(async (members) => {
+    if (!members || members.length === 0) {
+      setTargetedData({});
+      return;
+    }
+    setTargetedLoading(true);
+    try {
+      const results = await Promise.all(
+        members.map((m) =>
+          getMemberTargetedTasks(m.member_user_id).catch(() => []),
+        ),
+      );
+      const map = {};
+      members.forEach((m, i) => {
+        map[m.member_user_id] = results[i] || [];
+      });
+      setTargetedData(map);
+    } finally {
+      setTargetedLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadTeam();
   }, [loadTeam]);
 
   useEffect(() => {
+    if (selectedMemberId === ALL_MEMBERS_ID) {
+      setTasks([]);
+      return;
+    }
     loadTasks(selectedMemberId);
   }, [selectedMemberId, loadTasks]);
 
+  // ── Full task-history loader (loadDiagramData) — ONLY for Table view
+  //    and the List view's "All Members" combined table. The Diagram
+  //    view uses loadTargetedData instead (lightweight, targeted-only),
+  //    triggered separately below — it should NOT also trigger this
+  //    heavier loader. ──
   useEffect(() => {
-    if (
-      (activeView === "diagram" || activeView === "table") &&
-      team.length > 0
-    ) {
+    const needsDiagramData =
+      activeView === "table" ||
+      (activeView === "list" && selectedMemberId === ALL_MEMBERS_ID);
+    if (needsDiagramData && team.length > 0) {
       loadDiagramData(team);
     }
-  }, [activeView, team, loadDiagramData]);
+  }, [activeView, selectedMemberId, team, loadDiagramData]);
+
+  // ── Lightweight targeted-only loader — Diagram view only. ──
+  useEffect(() => {
+    if (activeView === "diagram" && team.length > 0) {
+      loadTargetedData(team);
+    }
+  }, [activeView, team, loadTargetedData]);
+
+  const allTeamTasks = useMemo(() => {
+    const combined = [];
+    team.forEach((m) => {
+      const memberTasks = diagramData[m.member_user_id] || [];
+      memberTasks.forEach((t) => {
+        combined.push({
+          ...t,
+          member_user_id: m.member_user_id,
+          member_name: m.member_name,
+        });
+      });
+    });
+    return combined;
+  }, [team, diagramData]);
 
   const refreshAfterChange = async () => {
-    await Promise.all([loadTasks(selectedMemberId), loadTeam()]);
+    const tasksRefresh =
+      selectedMemberId === ALL_MEMBERS_ID
+        ? loadDiagramData(team)
+        : loadTasks(selectedMemberId);
+    await Promise.all([tasksRefresh, loadTeam()]);
   };
-
   const openTargetModal = (task) => setModalTasks([task]);
   const openBulkModal = (selectedTasks) => setModalTasks(selectedTasks);
   const closeModal = () => {
@@ -187,15 +256,15 @@ export default function TargetAssignmentsPage({ darkMode }) {
     { key: "list", label: "📋 List View" },
     { key: "diagram", label: "🗺️ Team Diagram" },
     { key: "table", label: "📊 Target Table" },
+    { key: "monitoring", label: "📈 Target Monitoring" },
     ...(canSeeDirectorsTarget
       ? [
-          { key: "directors", label: "🏛️ Director's Task Assignment" },
-          { key: "directorsDiagram", label: "🏛️🗺️ Director's Team Assignment" },
-          { key: "directorsMonitoring", label: "📈 Director's Monitoring" },
+          { key: "directors", label: "🏛️ CDRR Task Assignment" },
+          { key: "directorsDiagram", label: "🏛️🗺️ CDRR Team Assignment" },
+          { key: "directorsMonitoring", label: "📈 CDRR Monitoring" },
         ]
       : []),
   ];
-
   return (
     <div
       style={{
@@ -269,8 +338,10 @@ export default function TargetAssignmentsPage({ darkMode }) {
           teamError={teamError}
           selectedMemberId={selectedMemberId}
           onSelectMember={setSelectedMemberId}
-          tasks={tasks}
-          tasksLoading={tasksLoading}
+          tasks={selectedMemberId === ALL_MEMBERS_ID ? allTeamTasks : tasks}
+          tasksLoading={
+            selectedMemberId === ALL_MEMBERS_ID ? diagramLoading : tasksLoading
+          }
           tasksError={tasksError}
           onOpenTargetModal={openTargetModal}
           onOpenBulkModal={openBulkModal}
@@ -280,8 +351,8 @@ export default function TargetAssignmentsPage({ darkMode }) {
           colors={colors}
           darkMode={darkMode}
           team={team}
-          diagramData={diagramData}
-          diagramLoading={diagramLoading}
+          diagramData={targetedData}
+          diagramLoading={targetedLoading}
         />
       ) : activeView === "table" ? (
         <TargetTableView
@@ -289,6 +360,13 @@ export default function TargetAssignmentsPage({ darkMode }) {
           team={team}
           diagramData={diagramData}
           diagramLoading={diagramLoading}
+        />
+      ) : activeView === "monitoring" ? (
+        <TargetMonitoringView
+          colors={colors}
+          team={team}
+          teamLoading={teamLoading}
+          teamError={teamError}
         />
       ) : activeView === "directors" && canSeeDirectorsTarget ? (
         <DirectorsTargetView colors={colors} />

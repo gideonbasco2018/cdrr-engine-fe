@@ -543,7 +543,7 @@ export function DirectorsMonitoringView({ colors }) {
               color: colors.textPrimary,
             }}
           >
-            All Director's Targets
+            All CDRR Targets
             {activeUnitFilter ? ` — ${activeUnitFilter}` : ""} (
             {displayedRows.length} of {total})
           </span>

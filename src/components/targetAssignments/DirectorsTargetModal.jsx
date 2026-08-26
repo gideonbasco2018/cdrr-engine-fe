@@ -1,10 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { labelStyle, inputStyle } from "./sharedStyles";
 
-// ── Modal specific to Director's Target (bulk or single mark).
-//    Hiwalay ito sa TargetModal, na ginagamit ng lead → team member
-//    targeting (ListView.jsx) — iba ang mechanism/table (directors_target
-//    vs target_assignment), kaya hiwalay din ang UI component. ─────────
 export function DirectorsTargetModal({
   colors,
   tasks,
@@ -39,9 +35,6 @@ export function DirectorsTargetModal({
     return out;
   }, []);
 
-  // ── Quick semester picker: H1 (Jan–Jun) / H2 (Jul–Dec) — kasalukuyang
-  //    taon at susunod na taon, para may option kahit malapit na sa
-  //    dulo ng taon ────────────────────────────────────────────────
   const semesterChoices = useMemo(() => {
     const out = [];
     const year = new Date().getFullYear();
@@ -130,8 +123,8 @@ export function DirectorsTargetModal({
         >
           🏛️{" "}
           {isBulk
-            ? `Mark ${tasks.length} Tasks as Director's Target`
-            : "Mark as Director's Target"}
+            ? `Mark ${tasks.length} Tasks as CDRR Target`
+            : "Mark as CDRR Target"}
         </div>
         <div
           style={{

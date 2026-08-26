@@ -368,7 +368,7 @@ export function DirectorsTargetView({ colors }) {
               whiteSpace: "nowrap",
             }}
           >
-            🎯 Mark {selectedIds.size} as Director's Target
+            🎯 Mark {selectedIds.size} as CDRR Target
           </button>
         )}
       </div>
@@ -526,7 +526,7 @@ export function DirectorsTargetView({ colors }) {
                 <th style={thStyle(colors)}>Date Received (Center)</th>
                 <th style={thStyle(colors)}>Last Modified</th>
                 <th style={thStyle(colors)}>Status</th>
-                <th style={thStyle(colors)}>Director's Target</th>
+                <th style={thStyle(colors)}>CDRR Target</th>
               </tr>
             </thead>
             <tbody>
