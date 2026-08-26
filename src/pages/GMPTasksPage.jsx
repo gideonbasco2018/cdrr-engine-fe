@@ -237,8 +237,9 @@ export default function GMPTasksPage({ darkMode = false }) {
   const [allStepsData,   setAllStepsData]   = useState([]);
   const [activeTab,      setActiveTab]      = useState(null);
   const [selectedRows,   setSelectedRows]   = useState([]);
-  const [loading,        setLoading]        = useState(false);
-  const [loadProgress,   setLoadProgress]   = useState(0);
+  // Starts true so the first paint is skeleton rows (matches GMPQueuePage),
+  // not a blank card, while the user is resolved + the fetch runs.
+  const [loading,        setLoading]        = useState(true);
   const [currentUser,    setCurrentUser]    = useState(null);
   const [currentPage,    setCurrentPage]    = useState(1);
   const [rowsPerPage,    setRowsPerPage]    = useState(10);
@@ -306,12 +307,11 @@ export default function GMPTasksPage({ darkMode = false }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const fetchAllSteps = useCallback(async () => {
     if (!currentUser) return;
-    setLoading(true); setLoadProgress(0);
+    setLoading(true);
     try {
       const res = await getMyGMPTasks({ page: 1, page_size: 10000 });
       const mapped = (res.data || []).map(mapGMPTask);
       setAllStepsData(mapped);
-      setLoadProgress(50);
 
       // Only auto-select first tab on the very first load (when activeTab is null)
       let nextActiveTab = activeTab;
@@ -334,7 +334,10 @@ export default function GMPTasksPage({ darkMode = false }) {
     } catch (e) {
       console.error(e); setAllStepsData([]); setData([]);
     } finally {
-      setLoadProgress(100); setTimeout(() => setLoading(false), 300);
+      // No artificial delay — clearing loading in the same batch as the data
+      // updates above means the search / count rows appear together with the
+      // table, instead of the table showing 300 ms early without them.
+      setLoading(false);
     }
   }, [currentUser]); // activeTab deliberately excluded — see note above
 
@@ -613,7 +616,17 @@ export default function GMPTasksPage({ darkMode = false }) {
           flexWrap: "wrap", gap: 10, background: colors.cardBg, flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-            {steps.map((step) => {
+            {steps.length === 0 ? (
+              <span style={{
+                display: "flex", alignItems: "center", gap: 8, padding: "7px 12px",
+                fontSize: "0.8rem", fontFamily: FONT, fontWeight: 600, color: colors.textPrimary,
+              }}>
+                📝 GMP Tasks
+                <span style={{ fontSize: "0.72rem", fontWeight: 400, color: colors.textTertiary }}>
+                  {loading ? "Loading your tasks…" : "No active step queues"}
+                </span>
+              </span>
+            ) : steps.map((step) => {
               const isActive = activeTab === step;
               const count = stepCounts[step] ?? 0;
               const isCompliance = step === GMP_COMPLIANCE_TAB;
@@ -649,12 +662,15 @@ export default function GMPTasksPage({ darkMode = false }) {
           </div>
         </div>
 
-        {/* Search / filter row — matches GMPQueuePage's search row */}
-        {!loading && steps.length > 0 && data.length > 0 && (
+        {/* Search / filter row — matches GMPQueuePage's search row. Stays put
+            during a re-fetch (just dims), so the toolbar card doesn't lose a
+            row mid-refresh. */}
+        {steps.length > 0 && data.length > 0 && (
           <div style={{
             padding: "8px 14px",
             background: colors.cardBg, flexShrink: 0,
             display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
+            opacity: loading ? 0.5 : 1, transition: "opacity 0.15s ease",
           }}>
             <div style={{ position: "relative", minWidth: 170 }}>
               <span style={{
@@ -728,12 +744,13 @@ export default function GMPTasksPage({ darkMode = false }) {
           background: colors.cardBg, borderRadius: 14, boxShadow: colors.cardShadow,
         }}>
 
-        {/* Record count row */}
-        {!loading && data.length > 0 && (
+        {/* Record count row — stays put during a re-fetch (just dims). */}
+        {data.length > 0 && (
           <div style={{
             padding: "8px 16px", borderBottom: `1px solid ${colors.divider}`,
             background: colors.cardBg, flexShrink: 0,
             display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
+            opacity: loading ? 0.5 : 1, transition: "opacity 0.15s ease",
           }}>
             <span style={{ fontSize: "0.78rem", fontWeight: 600, color: colors.textPrimary, flexShrink: 0 }}>
               GMP Tasks{" "}
@@ -881,13 +898,20 @@ export default function GMPTasksPage({ darkMode = false }) {
           </div>
         )}
 
-        {/* Table */}
-        {!loading && filteredData.length > 0 && (
-          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", background: colors.cardBg }}>
+        {/* Table — real rows, or skeleton rows on the first load (mirrors the
+            GMP Queue). On a re-fetch (rows already on screen) the table stays
+            put and just dims to 0.5, instead of flashing back to skeletons. */}
+        {(filteredData.length > 0 || (loading && data.length === 0)) && (
+          <div style={{
+            flex: 1, minHeight: 0, display: "flex", flexDirection: "column",
+            background: colors.cardBg,
+            opacity: loading && data.length > 0 ? 0.5 : 1,
+            transition: "opacity 0.15s ease",
+          }}>
             <TasksTable
-              rows={paginatedData}
-              allIds={sortedData.map((r) => r.id)}
-              loading={false}
+              rows={loading && data.length === 0 ? [] : paginatedData}
+              allIds={loading && data.length === 0 ? [] : sortedData.map((r) => r.id)}
+              loading={loading && data.length === 0}
               isComplianceView={activeTab === GMP_COMPLIANCE_TAB}
               selectedRows={selectedRows}
               onSelectRow={(id) => setSelectedRows((p) => p.includes(id) ? p.filter((r) => r !== id) : [...p, id])}
@@ -908,7 +932,9 @@ export default function GMPTasksPage({ darkMode = false }) {
               onResetSort={handleResetSort}
             />
 
-            {/* Pagination — matches GMPQueuePage's Pagination component styling */}
+            {/* Pagination — matches GMPQueuePage's Pagination component styling.
+                Hidden during the first-load skeleton (no rows to page yet). */}
+            {filteredData.length > 0 && (
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "8px 14px", borderTop: `1px solid ${colors.cardBorder}`,
@@ -955,6 +981,7 @@ export default function GMPTasksPage({ darkMode = false }) {
                 </span>
               </div>
             </div>
+            )}
           </div>
         )}
         </div>

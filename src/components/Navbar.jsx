@@ -3,43 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { logout, getUser } from "../api/auth";
 import NotificationBell from "./NotificationBell"; // ← BAGO
 
-function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User", activeMenu }) {
+function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User" }) {
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
   const [user, setUser] = useState(null);
   const dropdownRef = useRef(null);
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== "undefined" ? window.innerWidth < 768 : false,
-  );
-
-  useEffect(() => {
-    const handler = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
-  }, []);
-
-  // ── Dashboards panel toggle (visual state only — DashboardPage owns the source of truth) ──
-  const [panelHidden, setPanelHidden] = useState(() => {
-    try {
-      return localStorage.getItem("dashboardSubSidebarHidden") === "true";
-    } catch {
-      return false;
-    }
-  });
-  const [panelHover, setPanelHover] = useState(false);
-
-  // Re-sync in case it changed elsewhere (e.g. the panel's own close button) before landing back here
-  useEffect(() => {
-    if (activeMenu !== "dashboard") return;
-    try {
-      setPanelHidden(localStorage.getItem("dashboardSubSidebarHidden") === "true");
-    } catch {}
-  }, [activeMenu]);
-
-  const toggleDashboardPanel = () => {
-    setPanelHidden((h) => !h);
-    window.dispatchEvent(new Event("toggleDashboardSidebar"));
-  };
 
   useEffect(() => {
     const userData = getUser();
@@ -160,52 +128,6 @@ function Navbar({ darkMode, setDarkMode, setActiveMenu, userRole = "User", activ
       <div style={{ flex: 1 }} />
 
       <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-        {/* Dashboards Panel Toggle */}
-        {!isMobile && activeMenu === "dashboard" && (
-          <button
-            onClick={toggleDashboardPanel}
-            onMouseEnter={() => setPanelHover(true)}
-            onMouseLeave={() => setPanelHover(false)}
-            style={{
-              width: "40px",
-              height: "40px",
-              background: !panelHidden
-                ? (darkMode ? "rgba(33,150,243,0.18)" : "rgba(33,150,243,0.12)")
-                : panelHover
-                  ? colors.buttonBgHover
-                  : colors.buttonBg,
-              border: !panelHidden ? "1px solid rgba(33,150,243,0.4)" : "1px solid transparent",
-              borderRadius: "8px",
-              color: !panelHidden ? "#2196F3" : panelHover ? colors.buttonColorHover : colors.buttonColor,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.2s",
-              transform: panelHover ? "translateY(-1px)" : "none",
-            }}
-            title={panelHidden ? "Show Dashboards panel" : "Hide Dashboards panel"}
-            aria-label="Toggle Dashboards panel"
-            aria-pressed={!panelHidden}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="4.5" width="18" height="15" rx="2.5" />
-              <path d="M9.5 4.5v15" />
-              <rect
-                x="4.3"
-                y="6"
-                width="4"
-                height="12"
-                rx="1"
-                fill="currentColor"
-                stroke="none"
-                opacity={panelHidden ? 0 : 1}
-                style={{ transition: "opacity 0.2s" }}
-              />
-            </svg>
-          </button>
-        )}
-
         {/* Dark Mode Toggle */}
         <button
           onClick={() => setDarkMode(!darkMode)}

@@ -23,6 +23,17 @@ const GROUP_ACCENT = {
   status:           "#10b981",
 };
 
+// Small glyph per filter group — shown in the collapsed rail so each filter
+// stays recognizable at 24px wide. Falls back to a neutral tag glyph.
+const GROUP_ICON = {
+  app_status:       "📌",
+  status:           "📌",
+  est_category:     "🏭",
+  category:         "🏷️",
+  transaction_type: "🔁",
+  type_of_issuance: "📜",
+};
+
 // Reusable chevron icon — clearer than a text glyph, rotates smoothly
 function Chevron({ open, size = 9 }) {
   return (
@@ -231,46 +242,91 @@ export function QuickFilterSidebar({ filters, active, onSelect, collapsed, onTog
       background: colors.sidebarBg, borderRight: `1px solid ${colors.cardBorder}`,
       display: "flex", flexDirection: "column", overflow: "hidden",
     }}>
-      {/* Header */}
-      <div style={{
-        padding: collapsed ? "10px 4px" : "9px 10px 8px",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        borderBottom: `1px solid ${colors.cardBorder}`, flexShrink: 0,
-      }}>
-       {!collapsed && (
-          <span style={{
-            fontSize: "0.72rem", fontWeight: 700, textTransform: "none",
-            letterSpacing: "0", color: colors.textPrimary,
-            display: "flex", alignItems: "center", gap: 6,
-          }}>
-            <FunnelIcon size={13} color={ACCENT} />
-            Quick Filters
-          </span>
-        )}
-        <button onClick={onToggle}
-          style={{
-            background: "transparent", border: "none", cursor: "pointer",
-            color: colors.textTertiary, fontSize: "0.72rem", padding: 2,
-            marginLeft: collapsed ? "auto" : 0, lineHeight: 1,
-          }}>
-          {collapsed ? "▶" : "◀"}
-        </button>
-      </div>
+      {collapsed ? (
+        /* Collapsed rail — an expand affordance plus one glyph per filter
+           group, so each filter stays recognizable at 24px wide. */
+        <div style={{
+          flex: 1, display: "flex", flexDirection: "column", alignItems: "center",
+          overflow: "hidden",
+        }}>
+          <button
+            type="button"
+            onClick={onToggle}
+            title="Show Quick Filters"
+            style={{
+              alignSelf: "stretch", display: "flex", justifyContent: "center",
+              padding: "9px 0 8px", borderBottom: `1px solid ${colors.cardBorder}`,
+              background: "transparent", border: "none", cursor: "pointer",
+              color: colors.textTertiary, fontSize: "0.6rem", lineHeight: 1,
+            }}
+          >
+            ▶
+          </button>
 
-      {/* Groups */}
-      {!collapsed && (
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
-          {filters.map((group) => (
-            <FilterGroup
-              key={group.key}
-              group={group}
-              active={active}
-              onSelect={onSelect}
-              colors={colors}
-              darkMode={darkMode}
-            />
-          ))}
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 10,
+          }}>
+            {filters.map((group) => {
+              const on = !!(active && active[group.key] && active[group.key] !== "all");
+              const accent = GROUP_ACCENT[group.key] ?? ACCENT;
+              return (
+                <button
+                  key={group.key}
+                  type="button"
+                  onClick={onToggle}
+                  title={on ? `${group.label}: ${active[group.key]}` : group.label}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                    padding: "6px 0", background: "transparent", border: "none", cursor: "pointer",
+                    fontSize: "0.8rem", lineHeight: 1, opacity: on ? 1 : 0.4,
+                    boxShadow: on ? `inset 2px 0 0 ${accent}` : "none",
+                  }}
+                >
+                  {GROUP_ICON[group.key] ?? "🏷️"}
+                </button>
+              );
+            })}
+          </div>
         </div>
+      ) : (
+        <>
+          {/* Header */}
+          <div style={{
+            padding: "9px 10px 8px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            borderBottom: `1px solid ${colors.cardBorder}`, flexShrink: 0,
+          }}>
+            <span style={{
+              fontSize: "0.72rem", fontWeight: 700, textTransform: "none",
+              letterSpacing: "0", color: colors.textPrimary,
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <FunnelIcon size={13} color={ACCENT} />
+              Quick Filters
+            </span>
+            <button onClick={onToggle}
+              style={{
+                background: "transparent", border: "none", cursor: "pointer",
+                color: colors.textTertiary, fontSize: "0.72rem", padding: 2, lineHeight: 1,
+              }}>
+              ◀
+            </button>
+          </div>
+
+          {/* Groups */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "8px 0" }}>
+            {filters.map((group) => (
+              <FilterGroup
+                key={group.key}
+                group={group}
+                active={active}
+                onSelect={onSelect}
+                colors={colors}
+                darkMode={darkMode}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
