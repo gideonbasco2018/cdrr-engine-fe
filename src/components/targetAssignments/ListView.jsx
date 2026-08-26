@@ -4,6 +4,48 @@ import { MiniBadge } from "./MiniBadge";
 import { StatusPill } from "./StatusPill";
 import { inputStyle, thStyle, tdStyle } from "./sharedStyles";
 
+export const ALL_MEMBERS_ID = "__ALL_MEMBERS__";
+
+function TargetStatusFilterToggle({ value, onChange, colors }) {
+  const states = ["", "targeted", "not_targeted"];
+  const labels = {
+    "": "All",
+    targeted: "🎯 Targeted",
+    not_targeted: "Not targeted",
+  };
+  const styles = {
+    "": { background: "transparent", color: colors.textSecondary },
+    targeted: {
+      background: "rgba(34, 197, 94, 0.15)",
+      color: colors.targetBorder,
+    },
+    not_targeted: { background: colors.rowHover, color: colors.textSecondary },
+  };
+  const cycle = () => {
+    const idx = states.indexOf(value || "");
+    onChange(states[(idx + 1) % states.length]);
+  };
+  return (
+    <button
+      type="button"
+      onClick={cycle}
+      style={{
+        padding: "6px 12px",
+        borderRadius: "6px",
+        border: `1px solid ${colors.cardBorder}`,
+        fontSize: "0.75rem",
+        fontWeight: 700,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        ...styles[value || ""],
+      }}
+      title="Click to cycle: All → Targeted → Not targeted"
+    >
+      {labels[value || ""]}
+    </button>
+  );
+}
+
 // ── List View tab: left = My Team, right = selected member's tasks
 // (search/filter/pagination/bulk-select + Mark as Target actions) ───
 export function ListView({
@@ -28,6 +70,8 @@ export function ListView({
   const [filterStatus, setFilterStatus] = useState("IN PROGRESS");
   const [showDirectorsOnly, setShowDirectorsOnly] = useState(false);
 
+  const [targetStatusFilter, setTargetStatusFilter] = useState("");
+
   // ── Pagination ──────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -35,19 +79,28 @@ export function ListView({
   // ── Bulk selection ──────────────────────────────────────────────
   const [selectedLogIds, setSelectedLogIds] = useState(new Set());
 
+  const isAllMembersView = selectedMemberId === ALL_MEMBERS_ID;
+
   // Reset per-member UI state when switching members
   useEffect(() => {
     setSearchDtn("");
     setFilterStep("");
     setFilterStatus("IN PROGRESS");
     setShowDirectorsOnly(false);
+    setTargetStatusFilter("");
     setSelectedLogIds(new Set());
     setCurrentPage(1);
   }, [selectedMemberId]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchDtn, filterStep, filterStatus, showDirectorsOnly]);
+  }, [
+    searchDtn,
+    filterStep,
+    filterStatus,
+    showDirectorsOnly,
+    targetStatusFilter,
+  ]);
 
   // ── Derived: dropdown options from the current member's tasks ──
   const stepOptions = useMemo(
@@ -67,9 +120,18 @@ export function ListView({
       if (filterStep && t.step !== filterStep) return false;
       if (filterStatus && t.status !== filterStatus) return false;
       if (showDirectorsOnly && !t.is_directors_target) return false;
+      if (targetStatusFilter === "targeted" && !t.is_targeted) return false;
+      if (targetStatusFilter === "not_targeted" && t.is_targeted) return false;
       return true;
     });
-  }, [tasks, searchDtn, filterStep, filterStatus, showDirectorsOnly]);
+  }, [
+    tasks,
+    searchDtn,
+    filterStep,
+    filterStatus,
+    showDirectorsOnly,
+    targetStatusFilter,
+  ]);
 
   // ── Derived: paginated slice of filteredTasks ─────────────────────
   const totalPages = Math.max(1, Math.ceil(filteredTasks.length / rowsPerPage));
@@ -178,139 +240,186 @@ export function ListView({
               No team members assigned to you yet.
             </div>
           ) : (
-            team.map((m) => {
-              const isSelected = m.member_user_id === selectedMemberId;
-              return (
+            <>
+              <div
+                onClick={() => onSelectMember(ALL_MEMBERS_ID)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.65rem",
+                  padding: "0.65rem 1rem",
+                  cursor: "pointer",
+                  background: isAllMembersView
+                    ? colors.selectedBg
+                    : "transparent",
+                  borderLeft: `3px solid ${isAllMembersView ? colors.selectedBorder : "transparent"}`,
+                  borderBottom: `1px solid ${colors.cardBorder}`,
+                  transition: "background 0.15s",
+                }}
+              >
                 <div
-                  key={m.lead_assignment_id}
-                  onClick={() => onSelectMember(m.member_user_id)}
                   style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: colors.rowHover,
+                    border: `1px solid ${colors.cardBorder}`,
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.65rem",
-                    padding: "0.65rem 1rem",
-                    cursor: "pointer",
-                    background: isSelected ? colors.selectedBg : "transparent",
-                    borderLeft: `3px solid ${isSelected ? colors.selectedBorder : "transparent"}`,
-                    borderBottom: `1px solid ${colors.cardBorder}`,
-                    transition: "background 0.15s",
+                    justifyContent: "center",
+                    fontSize: "0.9rem",
+                    flexShrink: 0,
                   }}
                 >
-                  <Avatar name={m.member_name} colors={colors} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {m.member_name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.7rem",
-                        color: colors.textTertiary,
-                        marginBottom: "0.4rem",
-                      }}
-                    >
-                      {m.lead_role}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "5px",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          padding: "2px 8px",
-                          borderRadius: "6px",
-                          border: `1px solid ${colors.cardBorder}`,
-                          background: colors.rowHover,
-                          minWidth: 48,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.78rem",
-                            fontWeight: 800,
-                            color: colors.textPrimary,
-                            lineHeight: 1.1,
-                          }}
-                        >
-                          {m.task_count}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.52rem",
-                            color: colors.textTertiary,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.02em",
-                          }}
-                        >
-                          Total
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          padding: "2px 8px",
-                          borderRadius: "6px",
-                          border: "1px solid #3b82f6",
-                          background: "rgba(59, 130, 246, 0.12)",
-                          minWidth: 48,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.78rem",
-                            fontWeight: 800,
-                            color: "#60a5fa",
-                            lineHeight: 1.1,
-                          }}
-                        >
-                          {m.in_progress_count}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.52rem",
-                            color: "#60a5fa",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.02em",
-                          }}
-                        >
-                          In Progress
-                        </span>
-                      </div>
-                      <MiniBadge
-                        label="Completed"
-                        value={m.completed_count}
-                        colors={colors}
-                        tone="green"
-                      />
-                      {m.target_count > 0 && (
-                        <MiniBadge
-                          label="🎯"
-                          value={m.target_count}
-                          colors={colors}
-                          tone="target"
-                        />
-                      )}
-                    </div>
+                  👥
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700 }}>
+                    All Members
+                  </div>
+                  <div
+                    style={{ fontSize: "0.7rem", color: colors.textTertiary }}
+                  >
+                    View every member's tasks together
                   </div>
                 </div>
-              );
-            })
+              </div>
+              {team.map((m) => {
+                const isSelected = m.member_user_id === selectedMemberId;
+                return (
+                  <div
+                    key={m.lead_assignment_id}
+                    onClick={() => onSelectMember(m.member_user_id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.65rem",
+                      padding: "0.65rem 1rem",
+                      cursor: "pointer",
+                      background: isSelected
+                        ? colors.selectedBg
+                        : "transparent",
+                      borderLeft: `3px solid ${isSelected ? colors.selectedBorder : "transparent"}`,
+                      borderBottom: `1px solid ${colors.cardBorder}`,
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    <Avatar name={m.member_name} colors={colors} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {m.member_name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.7rem",
+                          color: colors.textTertiary,
+                          marginBottom: "0.4rem",
+                        }}
+                      >
+                        {m.lead_role}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "5px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                            border: `1px solid ${colors.cardBorder}`,
+                            background: colors.rowHover,
+                            minWidth: 48,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: 800,
+                              color: colors.textPrimary,
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            {m.task_count}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "0.52rem",
+                              color: colors.textTertiary,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            Total
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                            border: "1px solid #3b82f6",
+                            background: "rgba(59, 130, 246, 0.12)",
+                            minWidth: 48,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: 800,
+                              color: "#60a5fa",
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            {m.in_progress_count}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "0.52rem",
+                              color: "#60a5fa",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            In Progress
+                          </span>
+                        </div>
+                        <MiniBadge
+                          label="Completed"
+                          value={m.completed_count}
+                          colors={colors}
+                          tone="green"
+                        />
+                        {m.target_count > 0 && (
+                          <MiniBadge
+                            label="🎯"
+                            value={m.target_count}
+                            colors={colors}
+                            tone="target"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
       </div>
@@ -328,7 +437,7 @@ export function ListView({
           minWidth: 0,
         }}
       >
-        {!selectedMember ? (
+        {!selectedMember && !isAllMembersView ? (
           <div
             style={{
               padding: "2rem",
@@ -349,15 +458,38 @@ export function ListView({
                 gap: "0.75rem",
               }}
             >
-              <Avatar name={selectedMember.member_name} colors={colors} />
+              {isAllMembersView ? (
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: colors.rowHover,
+                    border: `1px solid ${colors.cardBorder}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "1rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  👥
+                </div>
+              ) : (
+                <Avatar name={selectedMember.member_name} colors={colors} />
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: "0.95rem", fontWeight: 700 }}>
-                  {selectedMember.member_name}
+                  {isAllMembersView
+                    ? "All Members"
+                    : selectedMember.member_name}
                 </div>
                 <div
                   style={{ fontSize: "0.75rem", color: colors.textSecondary }}
                 >
-                  Currently assigned tasks — select which ones to mark as target
+                  {isAllMembersView
+                    ? `Tasks across all ${team.length} team members — select which ones to mark as target`
+                    : "Currently assigned tasks — select which ones to mark as target"}
                 </div>
               </div>
               <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
@@ -489,7 +621,13 @@ export function ListView({
                 ))}
               </select>
 
-              {/* Director's Target toggle */}
+              <TargetStatusFilterToggle
+                value={targetStatusFilter}
+                onChange={setTargetStatusFilter}
+                colors={colors}
+              />
+
+              {/* CDRR Target toggle */}
               <button
                 type="button"
                 onClick={() => setShowDirectorsOnly((v) => !v)}
@@ -537,19 +675,21 @@ export function ListView({
                     }}
                   />
                 </span>
-                🏛️ Director's Target only
+                🏛️ CDRR Target only
               </button>
 
               {(searchDtn ||
                 filterStep ||
                 filterStatus ||
-                showDirectorsOnly) && (
+                showDirectorsOnly ||
+                targetStatusFilter) && (
                 <button
                   onClick={() => {
                     setSearchDtn("");
                     setFilterStep("");
                     setFilterStatus("");
                     setShowDirectorsOnly(false);
+                    setTargetStatusFilter("");
                   }}
                   style={{
                     padding: "6px 10px",
@@ -609,7 +749,7 @@ export function ListView({
                     {tasks.length === 0
                       ? "No active tasks assigned to this user right now."
                       : showDirectorsOnly
-                        ? "No Director's Target tasks match your search/filters."
+                        ? "No CDRR Target tasks match your search/filters."
                         : "No tasks match your search/filters."}
                   </div>
                 ) : (
@@ -634,6 +774,9 @@ export function ListView({
                             onChange={toggleSelectAll}
                           />
                         </th>
+                        {isAllMembersView && (
+                          <th style={thStyle(colors)}>Member</th>
+                        )}
                         <th style={thStyle(colors)}>DTN</th>
                         <th style={thStyle(colors)}>Brand Name</th>
                         <th style={thStyle(colors)}>Step</th>
@@ -642,7 +785,7 @@ export function ListView({
                         <th style={thStyle(colors)}>Processing Type</th>
                         <th style={thStyle(colors)}>Timeline</th>
                         <th style={thStyle(colors)}>Date Received (Center)</th>
-                        <th style={thStyle(colors)}>Director's Target</th>
+                        <th style={thStyle(colors)}>CDRR Target</th>
                         <th style={thStyle(colors)}></th>
                       </tr>
                     </thead>
@@ -664,6 +807,16 @@ export function ListView({
                               onChange={() => toggleSelectOne(t.log_id)}
                             />
                           </td>
+                          {isAllMembersView && (
+                            <td
+                              style={{
+                                ...tdStyle(colors),
+                                color: colors.textSecondary,
+                              }}
+                            >
+                              {t.member_name}
+                            </td>
+                          )}
                           <td style={tdStyle(colors)}>{t.dtn}</td>
                           <td style={{ ...tdStyle(colors), fontWeight: 600 }}>
                             {t.brand_name}
@@ -712,7 +865,7 @@ export function ListView({
                                     whiteSpace: "nowrap",
                                   }}
                                 >
-                                  🏛️ Director's Target
+                                  🏛️ CDRR Target
                                 </span>
                                 {(t.directors_target_start_date ||
                                   t.directors_target_end_date) && (

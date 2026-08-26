@@ -158,26 +158,6 @@ function UnitNode({ unit, isSelected, onClick, colors, severity, accent }) {
         transition: "border-color 0.15s, box-shadow 0.15s",
       }}
     >
-      {severity === "high" && (
-        <span
-          style={{
-            position: "absolute",
-            top: -9,
-            right: -9,
-            fontSize: "0.62rem",
-            fontWeight: 800,
-            padding: "2px 8px",
-            borderRadius: 9999,
-            background: accent.dangerSolidBg,
-            color: accent.dangerSolidText,
-            boxShadow: `0 2px 6px ${accent.dangerSolidShadow}`,
-            whiteSpace: "nowrap",
-          }}
-        >
-          ⚠️ Bottleneck
-        </span>
-      )}
-
       <div
         style={{
           fontSize: "0.8rem",
@@ -247,7 +227,7 @@ function UnitNode({ unit, isSelected, onClick, colors, severity, accent }) {
             background: accent.purpleBg,
             color: accent.purpleText,
           }}
-          title={`${unit.target_completed} of ${unit.target_total} Director's Target completed team-wide`}
+          title={`${unit.target_completed} of ${unit.target_total} CDRR Target completed team-wide`}
         >
           🏛️ {unit.target_completed}/{unit.target_total} team target
         </span>
@@ -389,7 +369,7 @@ function MemberNode({ member, isSelected, onClick, colors, accent }) {
               background: accent.purpleBg,
               color: accent.purpleText,
             }}
-            title={`${member.directors_target_completed_count || 0} of ${member.directors_target_count || 0} Director's Target completed`}
+            title={`${member.directors_target_completed_count || 0} of ${member.directors_target_count || 0} CDRR Target completed`}
           >
             🏛️ {member.directors_target_completed_count || 0}/
             {member.directors_target_count || 0}
@@ -686,7 +666,7 @@ function TaskTable({
       { key: "status", label: "Status", filterType: "none" },
       {
         key: "directors_target",
-        label: "Director's Target",
+        label: "CDRR Target",
         filterType: "toggle",
       },
     );
@@ -949,7 +929,7 @@ function TaskTable({
                 title={
                   t.is_directors_target
                     ? undefined
-                    : "Double-click to mark as Director's Target"
+                    : "Double-click to mark as CDRR Target"
                 }
                 style={{
                   borderTop: `1px solid ${colors.cardBorder}`,
@@ -1071,7 +1051,7 @@ function TaskTable({
                         cursor: "pointer",
                         whiteSpace: "nowrap",
                       }}
-                      title="Unmark as Director's Target"
+                      title="Unmark as CDRR Target"
                     >
                       ✕ Unmark
                     </button>
@@ -1255,7 +1235,7 @@ function UnmarkConfirmModal({
             marginBottom: "0.5rem",
           }}
         >
-          Unmark Director's Target?
+          Unmark CDRR Target?
         </div>
         <div
           style={{
@@ -1265,7 +1245,7 @@ function UnmarkConfirmModal({
             lineHeight: 1.5,
           }}
         >
-          This will remove the Director's Target flag from{" "}
+          This will remove the CDRR Target flag from{" "}
           <strong style={{ color: colors.textPrimary }}>
             {task.dtn}
             {task.brand_name ? ` — ${task.brand_name}` : ""}
@@ -2226,7 +2206,7 @@ export function DirectorsTeamDiagramView({ colors, darkMode }) {
                           cursor: "pointer",
                         }}
                       >
-                        🏛️ Mark {selectedUnitTaskIds.size} as Director's Target
+                        🏛️ Mark {selectedUnitTaskIds.size} as CDRR Target
                       </button>
                     )}
                   </div>
@@ -2339,7 +2319,7 @@ export function DirectorsTeamDiagramView({ colors, darkMode }) {
                     cursor: "pointer",
                   }}
                 >
-                  🏛️ Mark {selectedTaskIds.size} as Director's Target
+                  🏛️ Mark {selectedTaskIds.size} as CDRR Target
                 </button>
               )}
             </div>
