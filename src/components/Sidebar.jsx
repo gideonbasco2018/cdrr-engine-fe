@@ -130,12 +130,7 @@ function Sidebar({
     }
     return items.filter((item) => {
       const hasRole = item.roles.includes(userRole);
-      if (
-        ["access", "users", "settings", "gmp-queue", "gmp-tasks"].includes(
-          item.id,
-        )
-      )
-        return hasRole;
+      if (["access", "users", "settings"].includes(item.id)) return hasRole;
       const menuData = menuPermissions[item.id];
       const allowedGroups = menuData?.group_ids;
       if (

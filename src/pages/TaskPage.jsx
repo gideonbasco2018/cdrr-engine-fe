@@ -560,6 +560,20 @@ function TaskPage({ darkMode }) {
       });
     }
 
+    // "Starred Only" is meant to reflect the order the user worked through
+    // and starred each task — not whatever column the table happens to be
+    // sorted by. Order by starred_at (earliest-starred first) so the list —
+    // and anything generated from it, like a transmittal — matches that
+    // work sequence.
+    if (filters.starredOnly) {
+      filtered.sort((a, b) => {
+        const ta = a.starred_at ? new Date(a.starred_at).getTime() : 0;
+        const tb = b.starred_at ? new Date(b.starred_at).getTime() : 0;
+        if (ta !== tb) return ta - tb;
+        return a.id - b.id;
+      });
+    }
+
     return filtered;
   }, [subTabData, filters, sortBy, sortOrder]);
 

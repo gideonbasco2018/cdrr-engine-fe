@@ -316,7 +316,7 @@ function ActionMenu({ row, onAction, colors, darkMode }) {
 }
 
 export default function TasksTable({
-  rows, loading, selectedRows, onSelectRow, onSelectAll,
+  rows, allIds, loading, selectedRows, onSelectRow, onSelectAll,
   onOpenLog, onOpenAudit, onAdvanceStep, onViewDoctrack,
   currentPage, rowsPerPage, colors, darkMode,
   readIds, onMarkAsRead, onToggleStar, onDoubleClickRow,
@@ -345,7 +345,10 @@ export default function TasksTable({
   };
 
   const [hoveredRowKey, setHoveredRowKey] = useState(null);
-  const filteredIds = rows.map((r) => r.id);
+  // Select-all should cover every row matching the current filters/sort —
+  // not just the rows on the current page — so it falls back to `rows`
+  // (current page) only when a caller doesn't pass the full `allIds` list.
+  const filteredIds = allIds ?? rows.map((r) => r.id);
   const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedRows.includes(id));
   // `visibleColumns` is a list of column keys the user chose to show (via
   // the "Toggle Columns" panel in GMPTasksPage.jsx) — falls back to every
@@ -475,8 +478,8 @@ export default function TasksTable({
               const accentHover = darkMode ? "#16302a" : "#e6f7f1";
               const isHovered = !isSel && hoveredRowKey === rowKey;
               const rowBg = isSel || isHovered ? accentHover : zebraBg;
-              const rowTdSt = { ...tdSt, background: rowBg };
-              const rowTdCompactSt = { ...tdCompactSt, background: rowBg };
+              const rowTdSt = { ...tdSt, background: rowBg, borderBottom: `1px solid ${colors.divider}` };
+              const rowTdCompactSt = { ...tdCompactSt, background: rowBg, borderBottom: `1px solid ${colors.divider}` };
               return (
                 <tr key={rowKey}
                   onClick={() => { if (onMarkAsRead && !isRead) onMarkAsRead(r.id); }}
