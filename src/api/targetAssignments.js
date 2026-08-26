@@ -360,3 +360,23 @@ export const getDirectorsTargetsList = async ({
     throw new Error(errorMessage);
   }
 };
+
+// ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/all-teams/units/{unitId}/in-progress-summary-by-member
+// Per-member counts for one specific breakdown bar (e.g. step="Quality Evaluation")
+// ─────────────────────────────────────────────
+export const getUnitInProgressSummaryByMember = async (unitId, groupBy, label) => {
+  try {
+    const response = await API.get(
+      `/target_assignments/lead-assignments/all-teams/units/${unitId}/in-progress-summary-by-member`,
+      { params: { group_by: groupBy, label } }
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch member breakdown";
+    throw new Error(errorMessage);
+  }
+};

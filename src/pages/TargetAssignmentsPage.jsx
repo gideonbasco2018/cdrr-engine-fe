@@ -293,7 +293,7 @@ export default function TargetAssignmentsPage({ darkMode }) {
       ) : activeView === "directors" && canSeeDirectorsTarget ? (
         <DirectorsTargetView colors={colors} />
       ) : activeView === "directorsDiagram" && canSeeDirectorsTarget ? (
-        <DirectorsTeamDiagramView colors={colors} />
+        <DirectorsTeamDiagramView colors={colors} darkMode={darkMode} />
       ) : activeView === "directorsMonitoring" && canSeeDirectorsTarget ? (
         <DirectorsMonitoringView colors={colors} />
       ) : null}
