@@ -3,6 +3,7 @@ import {
   getAllTeams,
   getAllTeamsMemberInProgressTasks,
   getUnitInProgressSummary,
+  getUnitInProgressSummaryByMember,
   getUnitInProgressTasks,
   bulkMarkAsDirectorsTarget,
   markAsDirectorsTarget,
@@ -22,6 +23,16 @@ function useDebouncedValue(value, delayMs = 350) {
   }, [value, delayMs]);
   return debounced;
 }
+
+// ⬅️ NEW — maps each summary tab to the group_by key the new
+//    per-member-breakdown endpoint expects (short keys, not the
+//    TaskTable filter column names used by SUMMARY_TAB_TO_COLUMN).
+const SUMMARY_TAB_TO_GROUP_BY = {
+  by_step: "step",
+  by_app_type: "app_type",
+  by_product_class: "product_class",
+  by_processing_type: "processing_type",
+};
 
 const DEFAULT_TASK_FILTERS = {
   dtn: "",
@@ -64,17 +75,67 @@ function getSeverity(total, maxTotal) {
   return "low";
 }
 
-const SEVERITY_COLORS = {
-  high: { bg: "#fee2e2", text: "#dc2626", border: "#f87171" },
-  medium: { bg: "#ffedd5", text: "#ea580c", border: "#fb923c" },
-  low: { bg: "#dbeafe", text: "#3b82f6", border: "#93c5fd" },
-};
+// ── Accent colors not covered by useColors.js — badges, severity
+//    indicators, and highlight overlays. Split by darkMode on purpose:
+//    the solid/vivid variants that glow nicely on a near-black card
+//    look too harsh on a white one, so light mode uses soft tints +
+//    darker text instead of solid fills. Dark mode values are UNCHANGED
+//    from before — only light mode was softened. ──
+function getAccentColors(darkMode) {
+  return darkMode
+    ? {
+        dangerText: "#dc2626",
+        dangerBorder: "#f87171",
+        dangerSolidBg: "#dc2626",
+        dangerSolidText: "#ffffff",
+        dangerSolidShadow: "rgba(220,38,38,0.4)",
+        warningText: "#ea580c",
+        warningBorder: "#fb923c",
+        infoBg: "#dbeafe",
+        infoText: "#3b82f6",
+        infoBorder: "#93c5fd",
+        purpleBg: "rgba(168, 85, 247, 0.15)",
+        purpleText: "#a855f7",
+        purpleBgStrong: "rgba(168, 85, 247, 0.18)",
+        blueOverlayActive: "rgba(59, 130, 246, 0.15)",
+        blueOverlayFilterBar: "rgba(59, 130, 246, 0.10)",
+        barTopColor: "#dc2626",
+        barDefaultColor: "#3b82f6",
+      }
+    : {
+        dangerText: "#b91c1c",
+        dangerBorder: "#fca5a5",
+        dangerSolidBg: "#fee2e2",
+        dangerSolidText: "#b91c1c",
+        dangerSolidShadow: "rgba(185,28,28,0.15)",
+        warningText: "#c2410c",
+        warningBorder: "#fdba74",
+        infoBg: "#eff6ff",
+        infoText: "#2563eb",
+        infoBorder: "#bfdbfe",
+        purpleBg: "rgba(168, 85, 247, 0.10)",
+        purpleText: "#7e22ce",
+        purpleBgStrong: "rgba(168, 85, 247, 0.14)",
+        blueOverlayActive: "#eff6ff",
+        blueOverlayFilterBar: "#eff6ff",
+        barTopColor: "#ef4444",
+        barDefaultColor: "#3b82f6",
+      };
+}
 
-// ── Unit node — root level of the org diagram, aggregate load of the
-//    whole unit. Shows the unit head, and has a hover popover of members ──
-function UnitNode({ unit, isSelected, onClick, colors, severity }) {
+// ── Bottleneck severity — now derived from accent instead of a fixed
+//    module-level object, so it follows darkMode. ──
+function getSeverityStyles(accent) {
+  return {
+    high: { text: accent.dangerText, border: accent.dangerBorder },
+    medium: { text: accent.warningText, border: accent.warningBorder },
+    low: { text: accent.infoText, border: accent.infoBorder },
+  };
+}
+
+function UnitNode({ unit, isSelected, onClick, colors, severity, accent }) {
   const [showMembers, setShowMembers] = useState(false);
-  const sev = SEVERITY_COLORS[severity];
+  const sev = getSeverityStyles(accent)[severity];
   return (
     <div
       onClick={onClick}
@@ -107,9 +168,9 @@ function UnitNode({ unit, isSelected, onClick, colors, severity }) {
             fontWeight: 800,
             padding: "2px 8px",
             borderRadius: 9999,
-            background: "#dc2626",
-            color: "#fff",
-            boxShadow: "0 2px 6px rgba(220,38,38,0.4)",
+            background: accent.dangerSolidBg,
+            color: accent.dangerSolidText,
+            boxShadow: `0 2px 6px ${accent.dangerSolidShadow}`,
             whiteSpace: "nowrap",
           }}
         >
@@ -183,8 +244,8 @@ function UnitNode({ unit, isSelected, onClick, colors, severity }) {
             fontWeight: 700,
             padding: "2px 8px",
             borderRadius: 5,
-            background: "rgba(168, 85, 247, 0.15)",
-            color: "#a855f7",
+            background: accent.purpleBg,
+            color: accent.purpleText,
           }}
           title={`${unit.target_completed} of ${unit.target_total} Director's Target completed team-wide`}
         >
@@ -243,7 +304,7 @@ function UnitNode({ unit, isSelected, onClick, colors, severity }) {
 }
 
 // ── Member node — diagram-card style, no drag, static grid ────
-function MemberNode({ member, isSelected, onClick, colors }) {
+function MemberNode({ member, isSelected, onClick, colors, accent }) {
   const initials = (member.member_name || "")
     .split(" ")
     .map((n) => n[0])
@@ -311,8 +372,8 @@ function MemberNode({ member, isSelected, onClick, colors }) {
             fontWeight: 700,
             padding: "2px 7px",
             borderRadius: 5,
-            background: "#dbeafe",
-            color: "#3b82f6",
+            background: accent.infoBg,
+            color: accent.infoText,
           }}
         >
           ⏳ {member.in_progress_count} In Progress
@@ -325,8 +386,8 @@ function MemberNode({ member, isSelected, onClick, colors }) {
               fontWeight: 700,
               padding: "2px 7px",
               borderRadius: 5,
-              background: "rgba(168, 85, 247, 0.15)",
-              color: "#a855f7",
+              background: accent.purpleBg,
+              color: accent.purpleText,
             }}
             title={`${member.directors_target_completed_count || 0} of ${member.directors_target_count || 0} Director's Target completed`}
           >
@@ -338,32 +399,45 @@ function MemberNode({ member, isSelected, onClick, colors }) {
     </div>
   );
 }
-
-// ── Generic breakdown bar — reused for By Step / By App Type /
-//    By Product Class / By Processing Type. Clickable: clicking a bar
-//    filters the "All Tasks" table below by that value. ──
-function SummaryBar({ label, count, maxCount, colors, onClick, isActive }) {
+function SummaryBar({
+  label,
+  count,
+  maxCount,
+  colors,
+  onClick,
+  isActive,
+  breakdown,
+  onHoverStart,
+  accent,
+}) {
+  const [showBreakdown, setShowBreakdown] = useState(false);
   const pct = maxCount === 0 ? 0 : Math.round((count / maxCount) * 100);
   const isTop = count === maxCount && maxCount > 0;
   return (
     <div
       onClick={onClick}
+      onMouseEnter={() => {
+        setShowBreakdown(true);
+        onHoverStart && onHoverStart();
+      }}
+      onMouseLeave={() => setShowBreakdown(false)}
       title="Click to filter the table below"
       style={{
+        position: "relative",
         display: "flex",
         alignItems: "center",
         gap: "0.6rem",
         cursor: onClick ? "pointer" : "default",
         padding: "2px 4px",
         borderRadius: 6,
-        background: isActive ? "rgba(59, 130, 246, 0.15)" : "transparent",
+        background: isActive ? accent.blueOverlayActive : "transparent",
       }}
     >
       <span
         style={{
           fontSize: "0.72rem",
           fontWeight: isTop ? 800 : 600,
-          color: isTop ? "#dc2626" : colors.textSecondary,
+          color: isTop ? accent.dangerText : colors.textSecondary,
           minWidth: 160,
           whiteSpace: "nowrap",
           overflow: "hidden",
@@ -386,11 +460,12 @@ function SummaryBar({ label, count, maxCount, colors, onClick, isActive }) {
           style={{
             width: `${pct}%`,
             height: "100%",
-            background: isTop ? "#dc2626" : "#3b82f6",
+            background: isTop ? accent.barTopColor : accent.barDefaultColor,
             borderRadius: 4,
           }}
         />
       </div>
+
       <span
         style={{
           fontSize: "0.72rem",
@@ -402,6 +477,91 @@ function SummaryBar({ label, count, maxCount, colors, onClick, isActive }) {
       >
         {count}
       </span>
+
+      {/* ── Per-member breakdown popover for this specific bar — shows
+            who contributes to this label's count and how many each ── */}
+      {showBreakdown && (
+        <div
+          onClick={(e) => e.stopPropagation()} // don't trigger the bar's onClick
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            marginTop: 4,
+            minWidth: 220,
+            maxWidth: 280,
+            maxHeight: 260,
+            overflowY: "auto",
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 8,
+            boxShadow: "0 6px 18px rgba(0,0,0,0.25)",
+            padding: "0.5rem 0.6rem",
+            zIndex: 30,
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.3rem",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.66rem",
+              fontWeight: 700,
+              color: colors.textTertiary,
+              textTransform: "uppercase",
+              letterSpacing: "0.03em",
+              marginBottom: "0.15rem",
+            }}
+          >
+            {label}
+          </div>
+
+          {breakdown?.loading && (
+            <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
+              Loading…
+            </div>
+          )}
+          {breakdown?.error && (
+            <div style={{ fontSize: "0.72rem", color: "#dc2626" }}>
+              ⚠️ {breakdown.error}
+            </div>
+          )}
+          {!breakdown?.loading &&
+            !breakdown?.error &&
+            (breakdown?.data?.length ?? 0) === 0 && (
+              <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
+                No members found.
+              </div>
+            )}
+          {!breakdown?.loading &&
+            !breakdown?.error &&
+            breakdown?.data?.map((m) => (
+              <div
+                key={m.member_name}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: "0.5rem",
+                  fontSize: "0.72rem",
+                  color: colors.textSecondary,
+                }}
+              >
+                <span
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {m.member_name}
+                </span>
+                <span style={{ fontWeight: 700, color: colors.textPrimary }}>
+                  {m.count}
+                </span>
+              </div>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -422,9 +582,7 @@ const SUMMARY_TAB_TO_COLUMN = {
   by_processing_type: "processing_type",
 };
 
-// ── Small cycling toggle button used as the filter for the Director's
-//    Target column: All -> Targeted -> Not targeted -> All ──
-function DirectorsTargetFilterToggle({ value, onChange, colors }) {
+function DirectorsTargetFilterToggle({ value, onChange, colors, accent }) {
   const states = ["", "targeted", "not_targeted"];
   const labels = {
     "": "All",
@@ -433,7 +591,7 @@ function DirectorsTargetFilterToggle({ value, onChange, colors }) {
   };
   const styles = {
     "": { background: "transparent", color: colors.textSecondary },
-    targeted: { background: "rgba(168, 85, 247, 0.18)", color: "#a855f7" },
+    targeted: { background: accent.purpleBgStrong, color: accent.purpleText },
     not_targeted: { background: colors.rowHover, color: colors.textSecondary },
   };
   const cycle = () => {
@@ -498,6 +656,7 @@ function TaskTable({
   sortKey,
   sortDir,
   onSortChange, // (columnKey) => void
+  accent,
 }) {
   const columns = useMemo(() => {
     const cols = [];
@@ -617,7 +776,7 @@ function TaskTable({
             flexWrap: "wrap",
             gap: "0.5rem",
             padding: "0.5rem 0.9rem",
-            background: "rgba(59, 130, 246, 0.10)",
+            background: accent.blueOverlayFilterBar,
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
         >
@@ -748,6 +907,7 @@ function TaskTable({
                       value={filters[col.key] || ""}
                       onChange={(v) => onFilterChange(col.key, v)}
                       colors={colors}
+                      accent={accent}
                     />
                   ) : col.filterType === "select" ? (
                     <select
@@ -873,7 +1033,7 @@ function TaskTable({
                       style={{
                         fontSize: "0.72rem",
                         fontWeight: 700,
-                        color: "#a855f7",
+                        color: accent.purpleText,
                       }}
                     >
                       🏛️ Targeted
@@ -905,7 +1065,7 @@ function TaskTable({
                         borderRadius: 6,
                         border: `1px solid ${colors.cardBorder}`,
                         background: "transparent",
-                        color: "#dc2626",
+                        color: accent.dangerText,
                         fontSize: "0.68rem",
                         fontWeight: 700,
                         cursor: "pointer",
@@ -1168,7 +1328,10 @@ function UnmarkConfirmModal({
   );
 }
 
-export function DirectorsTeamDiagramView({ colors }) {
+export function DirectorsTeamDiagramView({ colors, darkMode }) {
+  // ── Computed once per darkMode change — see getAccentColors above ──
+  const accent = useMemo(() => getAccentColors(darkMode), [darkMode]);
+
   const [allMembers, setAllMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1301,6 +1464,42 @@ export function DirectorsTeamDiagramView({ colors }) {
       setUnitSummaryLoading(false);
     }
   }, []);
+
+  // ── Per-bar member breakdown cache — keyed by "groupBy:label", so
+  //    hovering the same bar twice doesn't re-fetch. Reset whenever a
+  //    different unit is opened (see openUnit below). ──
+  const [summaryMemberBreakdown, setSummaryMemberBreakdown] = useState({});
+
+  const loadSummaryMemberBreakdown = useCallback(
+    async (unitId, groupBy, label) => {
+      const cacheKey = `${groupBy}:${label}`;
+      setSummaryMemberBreakdown((prev) => ({
+        ...prev,
+        [cacheKey]: {
+          loading: true,
+          error: null,
+          data: prev[cacheKey]?.data || [],
+        },
+      }));
+      try {
+        const data = await getUnitInProgressSummaryByMember(
+          unitId,
+          groupBy,
+          label,
+        );
+        setSummaryMemberBreakdown((prev) => ({
+          ...prev,
+          [cacheKey]: { loading: false, error: null, data },
+        }));
+      } catch (err) {
+        setSummaryMemberBreakdown((prev) => ({
+          ...prev,
+          [cacheKey]: { loading: false, error: err.message, data: [] },
+        }));
+      }
+    },
+    [],
+  );
 
   // ── Fetch paginated, server-filtered/sorted in-progress tasks for one
   //    member. Called whenever member, page, page size, filters, or sort
@@ -1471,6 +1670,7 @@ export function DirectorsTeamDiagramView({ colors }) {
     setUnitTasksPage(1);
     setSelectedUnitTaskIds(new Set());
     setSummaryTab("by_step");
+    setSummaryMemberBreakdown({});
     setUnitTasksFilters(DEFAULT_UNIT_TASK_FILTERS);
     setUnitTasksSortKey(null);
     setUnitTasksSortDir("asc");
@@ -1692,7 +1892,13 @@ export function DirectorsTeamDiagramView({ colors }) {
 
   if (error) {
     return (
-      <div style={{ padding: "1.5rem", color: "#dc2626", fontSize: "0.85rem" }}>
+      <div
+        style={{
+          padding: "1.5rem",
+          color: accent.dangerText,
+          fontSize: "0.85rem",
+        }}
+      >
         ⚠️ {error}
       </div>
     );
@@ -1759,6 +1965,7 @@ export function DirectorsTeamDiagramView({ colors }) {
               onClick={() => openUnit(u.unit_id)}
               colors={colors}
               severity={getSeverity(u.total_in_progress, maxUnitTotal)}
+              accent={accent}
             />
           ))}
         </div>
@@ -1835,7 +2042,7 @@ export function DirectorsTeamDiagramView({ colors }) {
                 <div
                   style={{
                     fontSize: "0.76rem",
-                    color: "#dc2626",
+                    color: accent.dangerText,
                     marginBottom: "0.9rem",
                   }}
                 >
@@ -1873,23 +2080,38 @@ export function DirectorsTeamDiagramView({ colors }) {
                       marginBottom: "1rem",
                     }}
                   >
-                    {currentSummaryList.map((item) => (
-                      <SummaryBar
-                        key={item.label}
-                        label={item.label}
-                        count={item.count}
-                        maxCount={currentSummaryMax}
-                        colors={colors}
-                        onClick={() =>
-                          applySummaryFilter(summaryTab, item.label)
-                        }
-                        isActive={
-                          unitTasksFilters[
-                            SUMMARY_TAB_TO_COLUMN[summaryTab]
-                          ] === item.label
-                        }
-                      />
-                    ))}
+                    {currentSummaryList.map((item) => {
+                      const groupBy = SUMMARY_TAB_TO_GROUP_BY[summaryTab];
+                      const breakdownCacheKey = `${groupBy}:${item.label}`;
+                      return (
+                        <SummaryBar
+                          key={item.label}
+                          label={item.label}
+                          count={item.count}
+                          maxCount={currentSummaryMax}
+                          colors={colors}
+                          onClick={() =>
+                            applySummaryFilter(summaryTab, item.label)
+                          }
+                          isActive={
+                            unitTasksFilters[
+                              SUMMARY_TAB_TO_COLUMN[summaryTab]
+                            ] === item.label
+                          }
+                          breakdown={summaryMemberBreakdown[breakdownCacheKey]}
+                          onHoverStart={() => {
+                            if (!summaryMemberBreakdown[breakdownCacheKey]) {
+                              loadSummaryMemberBreakdown(
+                                selectedUnitId,
+                                groupBy,
+                                item.label,
+                              );
+                            }
+                          }}
+                          accent={accent}
+                        />
+                      );
+                    })}
                   </div>
                 )
               )}
@@ -1951,6 +2173,7 @@ export function DirectorsTeamDiagramView({ colors }) {
                       isSelected={selectedMemberId === m.member_user_id}
                       onClick={() => openMember(m.member_user_id)}
                       colors={colors}
+                      accent={accent}
                     />
                   ))}
                 </div>
@@ -2012,14 +2235,13 @@ export function DirectorsTeamDiagramView({ colors }) {
                     <div
                       style={{
                         padding: "0.75rem 1rem",
-                        color: "#dc2626",
+                        color: accent.dangerText,
                         fontSize: "0.8rem",
                       }}
                     >
                       ⚠️ {unitTasksError}
                     </div>
                   )}
-
                   {unitTasksLoading ? (
                     <div
                       style={{
@@ -2047,6 +2269,7 @@ export function DirectorsTeamDiagramView({ colors }) {
                       sortKey={unitTasksSortKey}
                       sortDir={unitTasksSortDir}
                       onSortChange={changeUnitTasksSort}
+                      accent={accent}
                     />
                   )}
 
@@ -2125,7 +2348,7 @@ export function DirectorsTeamDiagramView({ colors }) {
               <div
                 style={{
                   padding: "0.75rem 1rem",
-                  color: "#dc2626",
+                  color: accent.dangerText,
                   fontSize: "0.8rem",
                 }}
               >
@@ -2160,6 +2383,7 @@ export function DirectorsTeamDiagramView({ colors }) {
                 sortKey={tasksSortKey}
                 sortDir={tasksSortDir}
                 onSortChange={changeTasksSort}
+                accent={accent}
               />
             )}
 

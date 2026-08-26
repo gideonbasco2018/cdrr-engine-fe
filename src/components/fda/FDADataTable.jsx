@@ -40,8 +40,11 @@ function FDADataTable({
   duplicateRegNums,
   sortConfig = { key: null, direction: "asc" },
   onSort = () => {},
-  hasActiveColumnFilters = false, // ✅ NEW
-  onClearColumnFilters = () => {}, // ✅ NEW
+  hasActiveColumnFilters = false,
+  onClearColumnFilters = () => {},
+  selectedIds = new Set(),
+  onToggleRow = () => {},
+  onToggleAll = () => {},
 }) {
   const isDuplicateRecord = (drug) => {
     return (
@@ -98,10 +101,37 @@ function FDADataTable({
         >
           {/* ── Row 1: labels + sort ─────────────────────────── */}
           <tr>
+            {/* ✅ NEW — select all checkbox */}
             <th
               style={{
                 position: "sticky",
                 left: 0,
+                zIndex: 21,
+                padding: "0.25rem 0.3rem",
+                textAlign: "center",
+                borderBottom: `1px solid ${colors.tableBorder}`,
+                background: colors.tableBg,
+                width: "36px",
+                minWidth: "36px",
+                maxWidth: "36px",
+                boxShadow: "2px 0 5px rgba(0,0,0,0.1)",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={
+                  filteredData.length > 0 &&
+                  filteredData.every((row) => selectedIds.has(row.id))
+                }
+                onChange={() => onToggleAll(filteredData.map((row) => row.id))}
+                style={{ cursor: "pointer", width: "13px", height: "13px" }}
+              />
+            </th>
+
+            <th
+              style={{
+                position: "sticky",
+                left: "36px",
                 zIndex: 21,
                 padding: "0.25rem 0.4rem",
                 textAlign: "center",
@@ -125,7 +155,7 @@ function FDADataTable({
               onClick={() => onSort("registration_number")}
               style={{
                 position: "sticky",
-                left: "48px",
+                left: "84px",
                 zIndex: 21,
                 padding: "0.25rem 0.4rem",
                 textAlign: "left",
@@ -246,11 +276,33 @@ function FDADataTable({
                   e.currentTarget.style.background = rowBg;
                 }}
               >
-                {/* Frozen: # */}
+                {/* ✅ NEW — row checkbox */}
                 <td
                   style={{
                     position: "sticky",
                     left: 0,
+                    zIndex: 10,
+                    padding: "0.2rem 0.3rem",
+                    borderBottom: `1px solid ${colors.tableBorder}`,
+                    textAlign: "center",
+                    background: rowBg,
+                    boxShadow: "2px 0 5px rgba(0,0,0,0.05)",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(row.id)}
+                    onChange={() => onToggleRow(row.id)}
+                    style={{ cursor: "pointer", width: "13px", height: "13px" }}
+                  />
+                </td>
+
+                {/* Frozen: # */}
+                <td
+                  style={{
+                    position: "sticky",
+                    left: "36px",
                     zIndex: 10,
                     padding: "0.2rem 0.4rem",
                     fontSize: "0.64rem",
@@ -269,7 +321,7 @@ function FDADataTable({
                 <td
                   style={{
                     position: "sticky",
-                    left: "48px",
+                    left: "84px",
                     zIndex: 10,
                     padding: "0.2rem 0.4rem",
                     fontSize: "0.65rem",
