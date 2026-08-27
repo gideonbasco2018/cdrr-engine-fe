@@ -4,6 +4,162 @@ import { MiniBadge } from "./MiniBadge";
 import { StatusPill } from "./StatusPill";
 import { inputStyle, thStyle, tdStyle } from "./sharedStyles";
 
+export const ALL_MEMBERS_ID = "__ALL_MEMBERS__";
+
+function TargetStatusFilterToggle({ value, onChange, colors }) {
+  const states = ["", "targeted", "not_targeted"];
+  const labels = {
+    "": "All",
+    targeted: "🎯 Targeted",
+    not_targeted: "Not targeted",
+  };
+  const styles = {
+    "": { background: "transparent", color: colors.textSecondary },
+    targeted: {
+      background: "rgba(34, 197, 94, 0.15)",
+      color: colors.targetBorder,
+    },
+    not_targeted: { background: colors.rowHover, color: colors.textSecondary },
+  };
+  const cycle = () => {
+    const idx = states.indexOf(value || "");
+    onChange(states[(idx + 1) % states.length]);
+  };
+  return (
+    <button
+      type="button"
+      onClick={cycle}
+      style={{
+        padding: "6px 12px",
+        borderRadius: "6px",
+        border: `1px solid ${colors.cardBorder}`,
+        fontSize: "0.75rem",
+        fontWeight: 700,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        ...styles[value || ""],
+      }}
+      title="Click to cycle: All → Targeted → Not targeted"
+    >
+      {labels[value || ""]}
+    </button>
+  );
+}
+
+// ── Confirmation modal before bulk-removing the "Target" flag from
+//    several tasks at once — same idea as UnmarkConfirmModal on the
+//    Directors diagram, prevents an accidental click from instantly
+//    removing targets with no way to undo it. ─────────────────────
+function BulkRemoveConfirmModal({
+  colors,
+  count,
+  onClose,
+  onConfirm,
+  submitting,
+  error,
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 380,
+          maxWidth: "90vw",
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "10px",
+          padding: "1.25rem",
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            color: colors.textPrimary,
+            marginBottom: "0.5rem",
+          }}
+        >
+          Remove Target from {count} task{count === 1 ? "" : "s"}?
+        </div>
+        <div
+          style={{
+            fontSize: "0.8rem",
+            color: colors.textSecondary,
+            marginBottom: "1rem",
+            lineHeight: 1.5,
+          }}
+        >
+          This will remove the Target flag from all {count} selected task
+          {count === 1 ? "" : "s"}. You can mark them again later if needed.
+        </div>
+
+        {error && (
+          <div
+            style={{
+              fontSize: "0.76rem",
+              color: "#ef4444",
+              marginBottom: "0.75rem",
+            }}
+          >
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
+        >
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "6px",
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textSecondary,
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              cursor: submitting ? "default" : "pointer",
+              opacity: submitting ? 0.6 : 1,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "6px",
+              border: "none",
+              background: "#ef4444",
+              color: "#fff",
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              cursor: submitting ? "default" : "pointer",
+              opacity: submitting ? 0.7 : 1,
+            }}
+          >
+            {submitting ? "Removing…" : "✕ Remove Target"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── List View tab: left = My Team, right = selected member's tasks
 // (search/filter/pagination/bulk-select + Mark as Target actions) ───
 export function ListView({
@@ -18,6 +174,7 @@ export function ListView({
   tasksError,
   onOpenTargetModal,
   onOpenBulkModal,
+  onBulkRemoveTarget,
 }) {
   const selectedMember =
     team.find((m) => m.member_user_id === selectedMemberId) || null;
@@ -28,6 +185,8 @@ export function ListView({
   const [filterStatus, setFilterStatus] = useState("IN PROGRESS");
   const [showDirectorsOnly, setShowDirectorsOnly] = useState(false);
 
+  const [targetStatusFilter, setTargetStatusFilter] = useState("");
+
   // ── Pagination ──────────────────────────────────────────────────
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -35,19 +194,33 @@ export function ListView({
   // ── Bulk selection ──────────────────────────────────────────────
   const [selectedLogIds, setSelectedLogIds] = useState(new Set());
 
+  // ── Bulk-remove-target confirmation modal state ──────────────────
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removeSubmitting, setRemoveSubmitting] = useState(false);
+  const [removeError, setRemoveError] = useState(null);
+
+  const isAllMembersView = selectedMemberId === ALL_MEMBERS_ID;
+
   // Reset per-member UI state when switching members
   useEffect(() => {
     setSearchDtn("");
     setFilterStep("");
     setFilterStatus("IN PROGRESS");
     setShowDirectorsOnly(false);
+    setTargetStatusFilter("");
     setSelectedLogIds(new Set());
     setCurrentPage(1);
   }, [selectedMemberId]);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchDtn, filterStep, filterStatus, showDirectorsOnly]);
+  }, [
+    searchDtn,
+    filterStep,
+    filterStatus,
+    showDirectorsOnly,
+    targetStatusFilter,
+  ]);
 
   // ── Derived: dropdown options from the current member's tasks ──
   const stepOptions = useMemo(
@@ -67,9 +240,18 @@ export function ListView({
       if (filterStep && t.step !== filterStep) return false;
       if (filterStatus && t.status !== filterStatus) return false;
       if (showDirectorsOnly && !t.is_directors_target) return false;
+      if (targetStatusFilter === "targeted" && !t.is_targeted) return false;
+      if (targetStatusFilter === "not_targeted" && t.is_targeted) return false;
       return true;
     });
-  }, [tasks, searchDtn, filterStep, filterStatus, showDirectorsOnly]);
+  }, [
+    tasks,
+    searchDtn,
+    filterStep,
+    filterStatus,
+    showDirectorsOnly,
+    targetStatusFilter,
+  ]);
 
   // ── Derived: paginated slice of filteredTasks ─────────────────────
   const totalPages = Math.max(1, Math.ceil(filteredTasks.length / rowsPerPage));
@@ -116,6 +298,29 @@ export function ListView({
   const handleOpenBulkModal = () => {
     const selectedTasks = tasks.filter((t) => selectedLogIds.has(t.log_id));
     if (selectedTasks.length > 0) onOpenBulkModal(selectedTasks);
+  };
+
+  // ── Selected tasks that are ALREADY targeted — the only ones a bulk
+  //    "Remove Target" action actually applies to. Mixed selections
+  //    (some targeted, some not) are fine — this just filters down to
+  //    the relevant subset. ──────────────────────────────────────────
+  const selectedTargetedTasks = tasks.filter(
+    (t) => selectedLogIds.has(t.log_id) && t.is_targeted,
+  );
+
+  const handleConfirmBulkRemove = async () => {
+    if (selectedTargetedTasks.length === 0) return;
+    setRemoveSubmitting(true);
+    setRemoveError(null);
+    try {
+      await onBulkRemoveTarget(selectedTargetedTasks.map((t) => t.log_id));
+      setSelectedLogIds(new Set());
+      setRemoveConfirmOpen(false);
+    } catch (err) {
+      setRemoveError(err.message);
+    } finally {
+      setRemoveSubmitting(false);
+    }
   };
 
   return (
@@ -178,139 +383,194 @@ export function ListView({
               No team members assigned to you yet.
             </div>
           ) : (
-            team.map((m) => {
-              const isSelected = m.member_user_id === selectedMemberId;
-              return (
+            <>
+              <div
+                onClick={() => onSelectMember(ALL_MEMBERS_ID)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.65rem",
+                  padding: "0.65rem 1rem",
+                  cursor: "pointer",
+                  background: isAllMembersView
+                    ? colors.selectedBg
+                    : "transparent",
+                  borderLeft: `3px solid ${isAllMembersView ? colors.selectedBorder : "transparent"}`,
+                  borderBottom: `1px solid ${colors.cardBorder}`,
+                  transition: "background 0.15s",
+                }}
+              >
                 <div
-                  key={m.lead_assignment_id}
-                  onClick={() => onSelectMember(m.member_user_id)}
                   style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: colors.rowHover,
+                    border: `1px solid ${colors.cardBorder}`,
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.65rem",
-                    padding: "0.65rem 1rem",
-                    cursor: "pointer",
-                    background: isSelected ? colors.selectedBg : "transparent",
-                    borderLeft: `3px solid ${isSelected ? colors.selectedBorder : "transparent"}`,
-                    borderBottom: `1px solid ${colors.cardBorder}`,
-                    transition: "background 0.15s",
+                    justifyContent: "center",
+                    fontSize: "0.9rem",
+                    flexShrink: 0,
                   }}
                 >
-                  <Avatar name={m.member_name} colors={colors} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "0.85rem",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    >
-                      {m.member_name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.7rem",
-                        color: colors.textTertiary,
-                        marginBottom: "0.4rem",
-                      }}
-                    >
-                      {m.lead_role}
-                    </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "5px",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          padding: "2px 8px",
-                          borderRadius: "6px",
-                          border: `1px solid ${colors.cardBorder}`,
-                          background: colors.rowHover,
-                          minWidth: 48,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.78rem",
-                            fontWeight: 800,
-                            color: colors.textPrimary,
-                            lineHeight: 1.1,
-                          }}
-                        >
-                          {m.task_count}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.52rem",
-                            color: colors.textTertiary,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.02em",
-                          }}
-                        >
-                          Total
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          padding: "2px 8px",
-                          borderRadius: "6px",
-                          border: "1px solid #3b82f6",
-                          background: "rgba(59, 130, 246, 0.12)",
-                          minWidth: 48,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.78rem",
-                            fontWeight: 800,
-                            color: "#60a5fa",
-                            lineHeight: 1.1,
-                          }}
-                        >
-                          {m.in_progress_count}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.52rem",
-                            color: "#60a5fa",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.02em",
-                          }}
-                        >
-                          In Progress
-                        </span>
-                      </div>
-                      <MiniBadge
-                        label="Completed"
-                        value={m.completed_count}
-                        colors={colors}
-                        tone="green"
-                      />
-                      {m.target_count > 0 && (
-                        <MiniBadge
-                          label="🎯"
-                          value={m.target_count}
-                          colors={colors}
-                          tone="target"
-                        />
-                      )}
-                    </div>
+                  👥
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700 }}>
+                    All Members
+                  </div>
+                  <div
+                    style={{ fontSize: "0.7rem", color: colors.textTertiary }}
+                  >
+                    View every member's tasks together
                   </div>
                 </div>
-              );
-            })
+              </div>
+              {team.map((m) => {
+                const isSelected = m.member_user_id === selectedMemberId;
+                return (
+                  <div
+                    key={m.lead_assignment_id}
+                    onClick={() => onSelectMember(m.member_user_id)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.65rem",
+                      padding: "0.65rem 1rem",
+                      cursor: "pointer",
+                      background: isSelected
+                        ? colors.selectedBg
+                        : "transparent",
+                      borderLeft: `3px solid ${isSelected ? colors.selectedBorder : "transparent"}`,
+                      borderBottom: `1px solid ${colors.cardBorder}`,
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    <Avatar name={m.member_name} colors={colors} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: "0.85rem",
+                          fontWeight: 600,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {m.member_name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.7rem",
+                          color: colors.textTertiary,
+                          marginBottom: "0.4rem",
+                        }}
+                      >
+                        {m.lead_role}
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: "5px",
+                          alignItems: "center",
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                            border: `1px solid ${colors.cardBorder}`,
+                            background: colors.rowHover,
+                            minWidth: 48,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: 800,
+                              color: colors.textPrimary,
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            {m.task_count}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "0.52rem",
+                              color: colors.textTertiary,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            Total
+                          </span>
+                        </div>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            padding: "2px 8px",
+                            borderRadius: "6px",
+                            border: "1px solid #3b82f6",
+                            background: "rgba(59, 130, 246, 0.12)",
+                            minWidth: 48,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: 800,
+                              color: "#60a5fa",
+                              lineHeight: 1.1,
+                            }}
+                          >
+                            {m.in_progress_count}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "0.52rem",
+                              color: "#60a5fa",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            In Progress
+                          </span>
+                        </div>
+                        <MiniBadge
+                          label="Completed"
+                          value={m.completed_count}
+                          colors={colors}
+                          tone="green"
+                        />
+                        {m.target_count > 0 && (
+                          <MiniBadge
+                            label="🎯"
+                            value={m.target_count}
+                            colors={colors}
+                            tone="target"
+                          />
+                        )}
+                        {m.directors_target_count > 0 && (
+                          <MiniBadge
+                            label="🏛️"
+                            value={m.directors_target_count}
+                            colors={colors}
+                            tone="directors"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
           )}
         </div>
       </div>
@@ -328,7 +588,7 @@ export function ListView({
           minWidth: 0,
         }}
       >
-        {!selectedMember ? (
+        {!selectedMember && !isAllMembersView ? (
           <div
             style={{
               padding: "2rem",
@@ -349,15 +609,38 @@ export function ListView({
                 gap: "0.75rem",
               }}
             >
-              <Avatar name={selectedMember.member_name} colors={colors} />
+              {isAllMembersView ? (
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "50%",
+                    background: colors.rowHover,
+                    border: `1px solid ${colors.cardBorder}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "1rem",
+                    flexShrink: 0,
+                  }}
+                >
+                  👥
+                </div>
+              ) : (
+                <Avatar name={selectedMember.member_name} colors={colors} />
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: "0.95rem", fontWeight: 700 }}>
-                  {selectedMember.member_name}
+                  {isAllMembersView
+                    ? "All Members"
+                    : selectedMember.member_name}
                 </div>
                 <div
                   style={{ fontSize: "0.75rem", color: colors.textSecondary }}
                 >
-                  Currently assigned tasks — select which ones to mark as target
+                  {isAllMembersView
+                    ? `Tasks across all ${team.length} team members — select which ones to mark as target`
+                    : "Currently assigned tasks — select which ones to mark as target"}
                 </div>
               </div>
               <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
@@ -427,22 +710,45 @@ export function ListView({
                 </div>
               </div>
               {selectedLogIds.size > 0 && (
-                <button
-                  onClick={handleOpenBulkModal}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: colors.targetBorder,
-                    color: "#fff",
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  🎯 Target {selectedLogIds.size} Selected
-                </button>
+                <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                  {selectedTargetedTasks.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setRemoveError(null);
+                        setRemoveConfirmOpen(true);
+                      }}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: "6px",
+                        border: "1px solid #ef4444",
+                        background: "transparent",
+                        color: "#ef4444",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      ✕ Remove Target ({selectedTargetedTasks.length})
+                    </button>
+                  )}
+                  <button
+                    onClick={handleOpenBulkModal}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background: colors.targetBorder,
+                      color: "#fff",
+                      fontSize: "0.78rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    🎯 Target {selectedLogIds.size} Selected
+                  </button>
+                </div>
               )}
             </div>
 
@@ -489,7 +795,13 @@ export function ListView({
                 ))}
               </select>
 
-              {/* Director's Target toggle */}
+              <TargetStatusFilterToggle
+                value={targetStatusFilter}
+                onChange={setTargetStatusFilter}
+                colors={colors}
+              />
+
+              {/* CDRR Target toggle */}
               <button
                 type="button"
                 onClick={() => setShowDirectorsOnly((v) => !v)}
@@ -537,19 +849,21 @@ export function ListView({
                     }}
                   />
                 </span>
-                🏛️ Director's Target only
+                🏛️ CDRR Target only
               </button>
 
               {(searchDtn ||
                 filterStep ||
                 filterStatus ||
-                showDirectorsOnly) && (
+                showDirectorsOnly ||
+                targetStatusFilter) && (
                 <button
                   onClick={() => {
                     setSearchDtn("");
                     setFilterStep("");
                     setFilterStatus("");
                     setShowDirectorsOnly(false);
+                    setTargetStatusFilter("");
                   }}
                   style={{
                     padding: "6px 10px",
@@ -609,7 +923,7 @@ export function ListView({
                     {tasks.length === 0
                       ? "No active tasks assigned to this user right now."
                       : showDirectorsOnly
-                        ? "No Director's Target tasks match your search/filters."
+                        ? "No CDRR Target tasks match your search/filters."
                         : "No tasks match your search/filters."}
                   </div>
                 ) : (
@@ -634,6 +948,9 @@ export function ListView({
                             onChange={toggleSelectAll}
                           />
                         </th>
+                        {isAllMembersView && (
+                          <th style={thStyle(colors)}>Member</th>
+                        )}
                         <th style={thStyle(colors)}>DTN</th>
                         <th style={thStyle(colors)}>Brand Name</th>
                         <th style={thStyle(colors)}>Step</th>
@@ -642,7 +959,7 @@ export function ListView({
                         <th style={thStyle(colors)}>Processing Type</th>
                         <th style={thStyle(colors)}>Timeline</th>
                         <th style={thStyle(colors)}>Date Received (Center)</th>
-                        <th style={thStyle(colors)}>Director's Target</th>
+                        <th style={thStyle(colors)}>CDRR Target</th>
                         <th style={thStyle(colors)}></th>
                       </tr>
                     </thead>
@@ -664,6 +981,16 @@ export function ListView({
                               onChange={() => toggleSelectOne(t.log_id)}
                             />
                           </td>
+                          {isAllMembersView && (
+                            <td
+                              style={{
+                                ...tdStyle(colors),
+                                color: colors.textSecondary,
+                              }}
+                            >
+                              {t.member_name}
+                            </td>
+                          )}
                           <td style={tdStyle(colors)}>{t.dtn}</td>
                           <td style={{ ...tdStyle(colors), fontWeight: 600 }}>
                             {t.brand_name}
@@ -712,7 +1039,7 @@ export function ListView({
                                     whiteSpace: "nowrap",
                                   }}
                                 >
-                                  🏛️ Director's Target
+                                  🏛️ CDRR Target
                                 </span>
                                 {(t.directors_target_start_date ||
                                   t.directors_target_end_date) && (
@@ -928,6 +1255,19 @@ export function ListView({
           </>
         )}
       </div>
+
+      {removeConfirmOpen && (
+        <BulkRemoveConfirmModal
+          colors={colors}
+          count={selectedTargetedTasks.length}
+          onClose={() => {
+            if (!removeSubmitting) setRemoveConfirmOpen(false);
+          }}
+          onConfirm={handleConfirmBulkRemove}
+          submitting={removeSubmitting}
+          error={removeError}
+        />
+      )}
     </div>
   );
 }

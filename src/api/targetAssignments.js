@@ -32,6 +32,26 @@ export const getMemberTasks = async (memberUserId) => {
 };
 
 // ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/my-team/{memberUserId}/tasks/targeted
+// Lightweight — only tasks with an active target. Used by the Team Diagram.
+// ─────────────────────────────────────────────
+export const getMemberTargetedTasks = async (memberUserId) => {
+  try {
+    const response = await API.get(
+      `/target_assignments/lead-assignments/my-team/${memberUserId}/tasks/targeted`
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch targeted tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+
+// ─────────────────────────────────────────────
 // GET /api/target_assignments/lead-assignments/all-teams
 // Admin/monitoring view — every active team across all leads
 // ─────────────────────────────────────────────

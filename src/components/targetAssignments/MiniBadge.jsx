@@ -15,6 +15,11 @@ export function MiniBadge({ label, value, colors, tone }) {
       border: colors.targetBorder,
       color: colors.targetBorder,
     },
+    directors: {
+      bg: "rgba(168, 85, 247, 0.15)",
+      border: "#a855f7",
+      color: "#c084fc",
+    },
   };
   const s = toneStyles[tone] || toneStyles.neutral;
   return (

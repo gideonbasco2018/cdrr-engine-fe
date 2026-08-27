@@ -6,7 +6,11 @@ import React, {
   useRef,
 } from "react";
 import { MiniBadge } from "./MiniBadge";
-import { STATUS_KIND_MAP, STATUS_KIND_STYLES, isCompletedStatus, formatMonthLabel } from "./statusHelpers";
+import {
+  STATUS_KIND_MAP,
+  STATUS_KIND_STYLES,
+  formatMonthLabel,
+} from "./statusHelpers";
 
 const DIAGRAM_STORAGE_KEY = "targetDiagramPositions";
 
@@ -69,9 +73,24 @@ function MemberNode({ member, colors, loading, total, completed, onProcess }) {
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "3px" }}>
         <MiniBadge label="Total" value={total} colors={colors} tone="neutral" />
-        <MiniBadge label="Completed" value={completed} colors={colors} tone="green" />
-        <MiniBadge label="In Progress" value={onProcess} colors={colors} tone="blue" />
-        <MiniBadge label="🎯" value={member.target_count} colors={colors} tone="target" />
+        <MiniBadge
+          label="Completed"
+          value={completed}
+          colors={colors}
+          tone="green"
+        />
+        <MiniBadge
+          label="In Progress"
+          value={onProcess}
+          colors={colors}
+          tone="blue"
+        />
+        <MiniBadge
+          label="🎯"
+          value={member.target_count}
+          colors={colors}
+          tone="target"
+        />
       </div>
 
       {loading && member.target_count > 0 && (
@@ -129,7 +148,9 @@ function TaskNode({ task, colors }) {
         {task.status || "—"}
       </div>
       {task.target_end_date && (
-        <div style={{ fontSize: "0.58rem", fontWeight: 600, color: statusColor }}>
+        <div
+          style={{ fontSize: "0.58rem", fontWeight: 600, color: statusColor }}
+        >
           until {task.target_end_date}
         </div>
       )}
@@ -139,7 +160,13 @@ function TaskNode({ task, colors }) {
 
 // ── Diagram view: draggable member + task cards, connected by lines,
 //    filterable by month tabs (based on target_start_date) ──────────
-export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLoading }) {
+export function TeamDiagramView({
+  colors,
+  darkMode,
+  team,
+  diagramData,
+  diagramLoading,
+}) {
   const containerRef = useRef(null);
 
   const [positions, setPositions] = useState(() => {
@@ -177,10 +204,17 @@ export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLo
     return Array.from(keys).sort(); // chronological
   }, [diagramData]);
 
+  // ── diagramData is now TARGETED-ONLY (see loadTargetedData in
+  //    TargetAssignmentsPage) — every row already has is_targeted true,
+  //    but the filter is kept as a harmless safety net. Total/Completed/
+  //    In Progress stats no longer come from this list at all — they
+  //    come straight from the member's own count fields on `team`
+  //    (already fetched cheaply via getMyTeam), so MemberNode never
+  //    needs the member's full task history just to show a count. ──
   const nodes = useMemo(() => {
     return team.map((m) => {
-      const memberTasks = diagramData[m.member_user_id] || [];
-      const allTargeted = memberTasks.filter((t) => t.is_targeted);
+      const memberTargetedTasks = diagramData[m.member_user_id] || [];
+      const allTargeted = memberTargetedTasks.filter((t) => t.is_targeted);
       const visibleTargeted =
         monthTab === "all"
           ? allTargeted
@@ -192,7 +226,6 @@ export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLo
       return {
         id: `m-${m.member_user_id}`,
         member: m,
-        tasks: memberTasks, // full list — stats (Total/Done/On Proc) stay overall
         targeted: visibleTargeted, // filtered — only this month's targets show as cards
       };
     });
@@ -225,13 +258,26 @@ export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLo
           };
         });
 
-        const blockHeight = Math.max(CARD_H, rows * TASK_H + (rows - 1) * TASK_ROW_GAP);
+        const blockHeight = Math.max(
+          CARD_H,
+          rows * TASK_H + (rows - 1) * TASK_ROW_GAP,
+        );
         y = my + blockHeight + V_GAP;
       });
 
       return layout;
     },
-    [CARD_W, CARD_H, TASK_W, TASK_H, H_GAP, V_GAP, TASK_ROW_GAP, TASK_COL_GAP, MAX_TASK_COLS],
+    [
+      CARD_W,
+      CARD_H,
+      TASK_W,
+      TASK_H,
+      H_GAP,
+      V_GAP,
+      TASK_ROW_GAP,
+      TASK_COL_GAP,
+      MAX_TASK_COLS,
+    ],
   );
 
   // Backfill: only adds positions for nodes that don't have one yet
@@ -357,8 +403,12 @@ export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLo
               padding: "4px 11px",
               borderRadius: "9999px",
               border: `1px solid ${monthTab === "all" ? colors.selectedBorder : colors.cardBorder}`,
-              background: monthTab === "all" ? colors.selectedBg : "transparent",
-              color: monthTab === "all" ? colors.selectedBorder : colors.textSecondary,
+              background:
+                monthTab === "all" ? colors.selectedBg : "transparent",
+              color:
+                monthTab === "all"
+                  ? colors.selectedBorder
+                  : colors.textSecondary,
               fontSize: "0.7rem",
               fontWeight: 700,
               cursor: "pointer",
@@ -390,7 +440,13 @@ export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLo
             );
           })}
           {monthOptions.length === 0 && (
-            <span style={{ fontSize: "0.7rem", color: colors.textTertiary, padding: "4px 4px" }}>
+            <span
+              style={{
+                fontSize: "0.7rem",
+                color: colors.textTertiary,
+                padding: "4px 4px",
+              }}
+            >
               No targeted tasks yet.
             </span>
           )}
@@ -415,12 +471,20 @@ export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLo
       </div>
 
       <div style={{ flex: 1, overflow: "auto" }}>
-        <div ref={containerRef} style={{ position: "relative", width: canvasW, height: canvasH }}>
+        <div
+          ref={containerRef}
+          style={{ position: "relative", width: canvasW, height: canvasH }}
+        >
           {/* connecting lines */}
           <svg
             width={canvasW}
             height={canvasH}
-            style={{ position: "absolute", top: 0, left: 0, pointerEvents: "none" }}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              pointerEvents: "none",
+            }}
           >
             {nodes.map((n) => {
               const mp = positions[n.id];
@@ -446,10 +510,8 @@ export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLo
               });
             })}
           </svg>
-
           {nodes.map((n) => {
             const pos = positions[n.id] || { x: 0, y: 0 };
-            const completed = n.tasks.filter((t) => isCompletedStatus(t.status)).length;
             return (
               <div key={n.id}>
                 <div
@@ -468,9 +530,9 @@ export function TeamDiagramView({ colors, darkMode, team, diagramData, diagramLo
                     member={n.member}
                     colors={colors}
                     loading={diagramLoading}
-                    total={n.tasks.length}
-                    completed={completed}
-                    onProcess={n.tasks.length - completed}
+                    total={n.member.task_count}
+                    completed={n.member.completed_count}
+                    onProcess={n.member.in_progress_count}
                   />
                 </div>
 
