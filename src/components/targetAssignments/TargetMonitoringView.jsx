@@ -1,4 +1,5 @@
 import React, { useMemo } from "react";
+import { getTargetOutcome, TARGET_OUTCOME_STYLES } from "./statusHelpers";
 
 // ── Small KPI card — used for the top-line totals ────────────────────
 function SummaryCard({ label, value, colors, accent }) {
@@ -41,10 +42,9 @@ function SummaryCard({ label, value, colors, accent }) {
   );
 }
 
-// ── One labeled bar — reused for both the "Current" and "Target" rows
-//    under a member. `maxValue` is shared across ALL members and BOTH
-//    bar kinds, so bar lengths are directly comparable to each other,
-//    not just within one member's own two bars. ──────────────────────
+// ── Plain single-color bar — used for the "Current" (workload) row.
+//    Scaled against `maxValue`, shared across every bar (Current AND
+//    Target, every member) so bar lengths stay comparable. ──────────
 function MonitoringBar({ label, value, maxValue, color, colors }) {
   const pct = maxValue === 0 ? 0 : Math.round((value / maxValue) * 100);
   return (
@@ -94,14 +94,84 @@ function MonitoringBar({ label, value, maxValue, color, colors }) {
   );
 }
 
+// ── Segmented "Target" bar — within (green) / missed (red, i.e. beyond
+//    or overdue) / pending (blue, still on track) — using the exact
+//    same colors as TARGET_OUTCOME_STYLES, so this matches the
+//    TargetOutcomeBadge colors seen on the Target Table tab. Scaled
+//    against the SAME maxValue as the Current bar above it. ──────────
+function SegmentedTargetBar({ within, missed, pending, maxValue, colors }) {
+  const total = within + missed + pending;
+  const pct = (n) => (maxValue === 0 ? 0 : (n / maxValue) * 100);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+      <span
+        style={{
+          fontSize: "0.68rem",
+          fontWeight: 700,
+          color: colors.textSecondary,
+          minWidth: 64,
+          whiteSpace: "nowrap",
+        }}
+      >
+        Target
+      </span>
+      <div
+        style={{
+          flex: 1,
+          height: 10,
+          borderRadius: 5,
+          background: colors.rowHover,
+          overflow: "hidden",
+          display: "flex",
+        }}
+      >
+        <div
+          style={{
+            width: `${pct(within)}%`,
+            background: TARGET_OUTCOME_STYLES.within.border,
+          }}
+          title={`${within} within target`}
+        />
+        <div
+          style={{
+            width: `${pct(missed)}%`,
+            background: TARGET_OUTCOME_STYLES.beyond.border,
+          }}
+          title={`${missed} beyond target / overdue`}
+        />
+        <div
+          style={{
+            width: `${pct(pending)}%`,
+            background: TARGET_OUTCOME_STYLES.pending.border,
+          }}
+          title={`${pending} pending (on track)`}
+        />
+      </div>
+      <span
+        style={{
+          fontSize: "0.72rem",
+          fontWeight: 700,
+          color: colors.textPrimary,
+          minWidth: 22,
+          textAlign: "right",
+        }}
+      >
+        {total}
+      </span>
+    </div>
+  );
+}
+
 // ── One member's row: name/role on the left, two stacked comparison
-//    bars (Current vs Target) on the right. ──────────────────────────
-function MemberMonitoringRow({ member, maxValue, colors }) {
-  const current = member.in_progress_count || 0;
-  const target = member.target_count || 0;
-  const total = member.task_count || 0;
-  const completed = member.completed_count || 0;
-  const completionPct = total === 0 ? 0 : Math.round((completed / total) * 100);
+//    bars (Current vs Target-with-outcome-breakdown) on the right. ──
+function MemberMonitoringRow({
+  member,
+  targetStats,
+  current,
+  maxValue,
+  colors,
+}) {
+  const { within, missed, pending, total } = targetStats;
 
   return (
     <div
@@ -128,7 +198,13 @@ function MemberMonitoringRow({ member, maxValue, colors }) {
           {member.member_name}
         </div>
         <div style={{ fontSize: "0.66rem", color: colors.textTertiary }}>
-          {member.lead_role} · {completionPct}% completed overall
+          {member.lead_role}
+          {total > 0 && (
+            <>
+              {" "}
+              · {within}/{total} within target
+            </>
+          )}
         </div>
       </div>
 
@@ -148,11 +224,11 @@ function MemberMonitoringRow({ member, maxValue, colors }) {
           color={colors.btnPrimary}
           colors={colors}
         />
-        <MonitoringBar
-          label="Target"
-          value={target}
+        <SegmentedTargetBar
+          within={within}
+          missed={missed}
+          pending={pending}
           maxValue={maxValue}
-          color={colors.targetBorder}
           colors={colors}
         />
       </div>
@@ -162,18 +238,70 @@ function MemberMonitoringRow({ member, maxValue, colors }) {
 
 // ── Target Monitoring tab — for a lead/supervisor to see, at a glance,
 //    how each of their team members' CURRENT workload (in-progress
-//    task count) compares against their TARGET task count. Purely a
-//    client-side view over `team` (already fetched via getMyTeam by
-//    the parent page) — no additional API calls needed, since
-//    in_progress_count/target_count/task_count/completed_count are
-//    already included on each team member record. ───────────────────
-export function TargetMonitoringView({ colors, team, teamLoading, teamError }) {
-  // ── Sort by target_count desc, so members with the heaviest target
+//    task count) compares against their TARGET tasks, and how those
+//    targets break down into within-target / missed / still-pending.
+//
+//    Derives everything from `diagramData` (the same full per-member
+//    task list already used by TargetTableView) via getTargetOutcome,
+//    so the numbers here are guaranteed to match what's shown on the
+//    Target Table tab — no separate backend "completed"/"overdue"
+//    computation to keep in sync. ─────────────────────────────────────
+export function TargetMonitoringView({
+  colors,
+  team,
+  diagramData,
+  diagramLoading,
+}) {
+  // ── Per-member targeted-task breakdown, deduped by db_id — a
+  //    TargetAssignment is scoped to an APPLICATION (db_id), not a
+  //    step, but diagramData has one row per step. If a member touched
+  //    the same targeted application at more than one step, keep only
+  //    the most recent row (highest log_id) so it's counted once. ──
+  const memberStats = useMemo(() => {
+    const map = {};
+    team.forEach((m) => {
+      const memberTasks = diagramData[m.member_user_id] || [];
+      const targetedRaw = memberTasks.filter((t) => t.is_targeted);
+
+      const byDbId = new Map();
+      targetedRaw.forEach((t) => {
+        const existing = byDbId.get(t.db_id);
+        if (!existing || t.log_id > existing.log_id) {
+          byDbId.set(t.db_id, t);
+        }
+      });
+      const targeted = Array.from(byDbId.values());
+
+      let within = 0;
+      let missed = 0; // beyond target OR overdue
+      let pending = 0; // still on track, or unknown target date
+      targeted.forEach((t) => {
+        const outcome = getTargetOutcome(t);
+        if (outcome === "within") within++;
+        else if (outcome === "beyond" || outcome === "overdue") missed++;
+        else pending++; // "pending" or "unknown"
+      });
+
+      map[m.member_user_id] = {
+        within,
+        missed,
+        pending,
+        total: targeted.length,
+      };
+    });
+    return map;
+  }, [team, diagramData]);
+
+  // ── Sort by target total desc, so members with the heaviest target
   //    load surface first — the people most worth checking on. ──────
   const sortedTeam = useMemo(
     () =>
-      [...team].sort((a, b) => (b.target_count || 0) - (a.target_count || 0)),
-    [team],
+      [...team].sort(
+        (a, b) =>
+          (memberStats[b.member_user_id]?.total || 0) -
+          (memberStats[a.member_user_id]?.total || 0),
+      ),
+    [team, memberStats],
   );
 
   // ── Shared scale across every bar (Current AND Target, every
@@ -182,26 +310,40 @@ export function TargetMonitoringView({ colors, team, teamLoading, teamError }) {
     () =>
       team.reduce(
         (max, m) =>
-          Math.max(max, m.in_progress_count || 0, m.target_count || 0),
+          Math.max(
+            max,
+            m.in_progress_count || 0,
+            memberStats[m.member_user_id]?.total || 0,
+          ),
         0,
       ),
-    [team],
+    [team, memberStats],
   );
 
   const totals = useMemo(
     () =>
       team.reduce(
-        (acc, m) => ({
-          inProgress: acc.inProgress + (m.in_progress_count || 0),
-          target: acc.target + (m.target_count || 0),
-          completed: acc.completed + (m.completed_count || 0),
-        }),
-        { inProgress: 0, target: 0, completed: 0 },
+        (acc, m) => {
+          const s = memberStats[m.member_user_id] || {
+            within: 0,
+            missed: 0,
+            pending: 0,
+            total: 0,
+          };
+          return {
+            current: acc.current + (m.in_progress_count || 0),
+            target: acc.target + s.total,
+            within: acc.within + s.within,
+            missed: acc.missed + s.missed,
+            pending: acc.pending + s.pending,
+          };
+        },
+        { current: 0, target: 0, within: 0, missed: 0, pending: 0 },
       ),
-    [team],
+    [team, memberStats],
   );
 
-  if (teamLoading) {
+  if (diagramLoading) {
     return (
       <div
         style={{
@@ -213,15 +355,7 @@ export function TargetMonitoringView({ colors, team, teamLoading, teamError }) {
           fontSize: "0.85rem",
         }}
       >
-        Loading team…
-      </div>
-    );
-  }
-
-  if (teamError) {
-    return (
-      <div style={{ padding: "1.5rem", color: "#ef4444", fontSize: "0.85rem" }}>
-        {teamError}
+        Loading targets…
       </div>
     );
   }
@@ -257,28 +391,28 @@ export function TargetMonitoringView({ colors, team, teamLoading, teamError }) {
       {/* Top-line totals */}
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
         <SummaryCard
-          label="Team Members"
-          value={team.length}
+          label="Total Active Targets"
+          value={totals.target}
           colors={colors}
           accent={colors.textPrimary}
         />
         <SummaryCard
-          label="Total Current"
-          value={totals.inProgress}
+          label="Within Target"
+          value={totals.within}
           colors={colors}
-          accent={colors.btnPrimary}
+          accent={TARGET_OUTCOME_STYLES.within.border}
         />
         <SummaryCard
-          label="Total Target"
-          value={totals.target}
+          label="Missed (Beyond/Overdue)"
+          value={totals.missed}
           colors={colors}
-          accent={colors.targetBorder}
+          accent={TARGET_OUTCOME_STYLES.beyond.border}
         />
         <SummaryCard
-          label="Total Completed"
-          value={totals.completed}
+          label="Pending (On Track)"
+          value={totals.pending}
           colors={colors}
-          accent={colors.targetBorder}
+          accent={TARGET_OUTCOME_STYLES.pending.border}
         />
       </div>
 
@@ -286,6 +420,7 @@ export function TargetMonitoringView({ colors, team, teamLoading, teamError }) {
       <div
         style={{
           display: "flex",
+          flexWrap: "wrap",
           gap: "1.2rem",
           fontSize: "0.7rem",
           color: colors.textTertiary,
@@ -311,11 +446,37 @@ export function TargetMonitoringView({ colors, team, teamLoading, teamError }) {
               width: 8,
               height: 8,
               borderRadius: 2,
-              background: colors.targetBorder,
+              background: TARGET_OUTCOME_STYLES.within.border,
               marginRight: 4,
             }}
           />
-          Target — tasks marked as target
+          Target: Within
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: 2,
+              background: TARGET_OUTCOME_STYLES.beyond.border,
+              marginRight: 4,
+            }}
+          />
+          Target: Beyond / Overdue
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: 2,
+              background: TARGET_OUTCOME_STYLES.pending.border,
+              marginRight: 4,
+            }}
+          />
+          Target: Pending (On Track)
         </span>
       </div>
 
@@ -343,6 +504,15 @@ export function TargetMonitoringView({ colors, team, teamLoading, teamError }) {
           <MemberMonitoringRow
             key={m.lead_assignment_id}
             member={m}
+            targetStats={
+              memberStats[m.member_user_id] || {
+                within: 0,
+                missed: 0,
+                pending: 0,
+                total: 0,
+              }
+            }
+            current={m.in_progress_count || 0}
             maxValue={maxValue}
             colors={colors}
           />
