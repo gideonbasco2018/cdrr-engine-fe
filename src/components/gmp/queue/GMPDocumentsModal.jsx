@@ -29,74 +29,51 @@ export default function GMPDocumentsModal({ record, onClose, colors, darkMode })
       position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)",
       backdropFilter: "blur(4px)", zIndex: 10000,
       display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 16, fontFamily: FONT, animation: "gmpBackdropIn 0.2s ease forwards",
+      padding: 20, fontFamily: FONT, animation: "gmpBackdropIn 0.2s ease forwards",
     }}>
       <style>{MODAL_CSS}</style>
       <div onClick={(e) => e.stopPropagation()} style={{
-        background: darkMode ? "#18191a" : "#ffffff", borderRadius: 16,
-        width: "100%", maxWidth: 640, maxHeight: "90vh",
+        background: darkMode ? "#18191a" : "#ffffff", borderRadius: 14,
+        width: "90%", maxWidth: 1240, height: "94vh", maxHeight: "94vh",
         display: "flex", flexDirection: "column", overflow: "hidden",
         boxShadow: "0 24px 64px rgba(0,0,0,0.35)",
         animation: "gmpModalIn 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards",
       }}>
-        {/* Header */}
+        {/* Header — slim, single row; the ✕ closes the modal (no separate footer) */}
         <div style={{
-          padding: "18px 22px", borderBottom: `1px solid ${colors.cardBorder}`,
-          display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
+          padding: "8px 14px", borderBottom: `1px solid ${colors.cardBorder}`,
+          display: "flex", alignItems: "center", gap: 10, flexShrink: 0,
         }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: 12, background: `${ACCENT}18`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "1.3rem", flexShrink: 0,
-          }}>
-            📎
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: colors.textPrimary }}>
-              Documents
-            </h2>
-            <p style={{ margin: "3px 0 0", fontSize: "0.76rem", color: colors.textTertiary,
-              display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              DTN:{" "}
-              <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, color: ACCENT }}>
-                {record.dtn || "—"}
-              </span>
-              {record.name_of_establishment && <span>· {record.name_of_establishment}</span>}
-            </p>
-          </div>
+          <span style={{ fontSize: "1rem", flexShrink: 0 }}>📎</span>
+          <h2 style={{ margin: 0, fontSize: "0.9rem", fontWeight: 700, color: colors.textPrimary, flexShrink: 0 }}>
+            Documents
+          </h2>
+          <span style={{ fontSize: "0.75rem", color: colors.textTertiary,
+            display: "flex", alignItems: "center", gap: 8, minWidth: 0, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis" }}>
+            DTN:{" "}
+            <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, color: ACCENT }}>
+              {record.dtn || "—"}
+            </span>
+            {record.name_of_establishment && <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>· {record.name_of_establishment}</span>}
+          </span>
           <button onClick={onClose} style={{
-            width: 34, height: 34, borderRadius: 10, border: `1px solid ${colors.cardBorder}`,
+            marginLeft: "auto", width: 30, height: 30, borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
             background: "transparent", color: colors.textTertiary, cursor: "pointer",
-            fontSize: "1rem", display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "0.95rem", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
           }}>
             ✕
           </button>
         </div>
 
         {/* Body — shared with WorkflowModal.jsx's Step 2 (ApplicationDocumentsPanel) */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px" }}>
           <ApplicationDocumentsPanel
             dtn={record.dtn}
-            dbEntryType="GMP"
+            dbEntryType="FGMP"
             mainDbId={record.id}
             colors={colors}
             darkMode={darkMode}
           />
-        </div>
-
-        {/* Footer */}
-        <div style={{
-          padding: "12px 22px", borderTop: `1px solid ${colors.cardBorder}`,
-          display: "flex", alignItems: "center", justifyContent: "flex-end",
-          flexShrink: 0, background: darkMode ? "#18191a" : "#fff",
-        }}>
-          <button onClick={onClose} style={{
-            padding: "7px 22px", fontSize: "0.78rem", fontWeight: 600, fontFamily: FONT,
-            borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
-            background: "transparent", color: colors.textPrimary, cursor: "pointer",
-          }}>
-            Close
-          </button>
         </div>
       </div>
     </div>

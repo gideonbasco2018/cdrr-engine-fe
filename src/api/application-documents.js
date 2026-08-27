@@ -281,8 +281,30 @@ export const getApplicationDocumentsByDtn = async (dbDtn) => {
   }
 };
 
+/**
+ * Pre-create every distinct Drive folder for a batch in one request, so the
+ * file uploads that follow can all run concurrently.
+ * @param {string} params.dbEntryType
+ * @param {{dtn: string, category: string|null}[]} params.items
+ * @returns {Promise<Record<string,string>>} map of "<dtn>|<category>" -> folder_id
+ */
+export const prepareApplicationFolders = async ({ dbEntryType, items }) => {
+  try {
+    const res = await API.post("/application-documents/folders/prepare", {
+      db_entry_type: dbEntryType,
+      items: items.map(({ dtn, category }) => ({
+        db_dtn: dtn,
+        doc_category: category || null,
+      })),
+    });
+    return res.data.folders || {};
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "Failed to prepare folders"));
+  }
+};
+
 export const uploadApplicationDocumentSingle = async (
-  { dbEntryType, dbDtn, docCategory, mainDbId, batchId, file, relativePath },
+  { dbEntryType, dbDtn, docCategory, mainDbId, batchId, file, relativePath, folderId },
   onProgress,
 ) => {
   try {
@@ -293,6 +315,7 @@ export const uploadApplicationDocumentSingle = async (
     formData.append("batch_id", batchId);
     if (docCategory) formData.append("doc_category", docCategory);
     if (mainDbId) formData.append("main_db_id", mainDbId);
+    if (folderId) formData.append("drive_folder_id", folderId);
     formData.append("file", file);
 
     const response = await API.post(

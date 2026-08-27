@@ -206,17 +206,17 @@ function formatShortDateWM(raw) {
 }
 
 const GMP_DOCTRACK_REMARKS = {
-  "Forwarded to Evaluator": "Forwarded to GMP Evaluator for evaluation",
-  "Disapprove":                     "GMP Application disapproved",
-  "Endorsed to QA Admin":           "Endorsed to GMP QA Admin",
-  "Return to Checker":              "Returned to GMP Checker",
+  "Forwarded to Evaluator": "Forwarded to FGMP Evaluator for evaluation",
+  "Disapprove":                     "FGMP Application disapproved",
+  "Endorsed to QA Admin":           "Endorsed to FGMP QA Admin",
+  "Return to Checker":              "Returned to FGMP Checker",
   "Endorsed to LRD Chief Admin":    "Endorsed to LRD Chief Admin for signing",
-  "Return to Evaluator":            "Returned to GMP Evaluator",
+  "Return to Evaluator":            "Returned to FGMP Evaluator",
   "Forwarded to OD Receiving":      "Signed by LRD Chief and forwarded to CDRR Director for signing",
-  "Return to QA Admin":             "Returned to GMP QA Admin",
+  "Return to QA Admin":             "Returned to FGMP QA Admin",
   "Endorsed to OD - Releasing":     "Received by CDRR - OD; Forwarded to CDRR OIC - Director for Signature",
   "Return to LRD Chief Admin":      "Returned to LRD Chief Admin",
-  "Forwarded to CDRR FGMP":          "Reviewed by FROO; Returned to GMP Evaluator",
+  "Forwarded to CDRR FGMP":          "Reviewed by FROO; Returned to FGMP Evaluator",
 };
 
 // Workflow: Decking → Evaluator → Checker → Evaluator → QA Admin
@@ -1416,7 +1416,7 @@ function StepDocsGMP({ task, colors, darkMode }) {
     <div style={{ padding: "16px 20px" }}>
       <ApplicationDocumentsPanel
         dtn={task?.dtn}
-        dbEntryType="GMP"
+        dbEntryType="FGMP"
         mainDbId={task?.gmp_record_id}
         colors={colors}
         darkMode={darkMode}
@@ -3055,7 +3055,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
             }}>{stepDef.icon}</span>
             <div>
               <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, letterSpacing: "-0.01em", color: colors.textPrimary }}>
-                GMP Workflow — {stepDef.label}
+                FGMP Workflow — {stepDef.label}
               </h2>
               <p style={{ margin: "3px 0 0", fontSize: "0.72rem", color: colors.textTertiary }}>
                 DTN: <span style={{ fontFamily: "ui-monospace,monospace", fontWeight: 700, color: ACCENT }}>{task?.dtn || "—"}</span>
@@ -3238,7 +3238,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
           </span>
           {activeStep < 4
             ? <button onClick={() => setActiveStep(s => Math.min(4, s + 1))}
-                style={{ padding: "8px 20px", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 700,
+                style={{ padding: "8px 20px",  fontFamily: FONT, fontSize: "0.78rem", fontWeight: 700,
                   border: "none", borderRadius: 999, background: `linear-gradient(145deg,${ACCENT},#059669)`, color: "#fff",
                   cursor: "pointer", boxShadow: `0 8px 18px -8px ${ACCENT}80` }}>
                 Next →

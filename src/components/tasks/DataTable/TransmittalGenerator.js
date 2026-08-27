@@ -750,7 +750,7 @@ export const generateGMPTransmittalPDF = async (selectedData, activeTab) => {
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("GMP TRANSMITTAL SLIP", 10, 7.5);
+  doc.text("FGMP TRANSMITTAL SLIP", 10, 7.5);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
@@ -857,7 +857,7 @@ export const generateGMPTransmittalPDF = async (selectedData, activeTab) => {
     doc.setFontSize(6.5);
     doc.setTextColor(130);
     doc.text(
-      `Page ${pg} of ${totalPgs}  |  FDA-CDRR DBMS — GMP Transmittal Slip`,
+      `Page ${pg} of ${totalPgs}  |  FDA-CDRR DBMS — FGMP Transmittal Slip`,
       pageW / 2,
       pageH - 3,
       { align: "center" },
@@ -898,7 +898,7 @@ export const generateGMPTransmittalPDF = async (selectedData, activeTab) => {
   }
 
   doc.save(
-    `gmp_transmittal_${activeTab ?? "all"}_${now.toISOString().slice(0, 10)}.pdf`,
+    `fgmp_transmittal_${activeTab ?? "all"}_${now.toISOString().slice(0, 10)}.pdf`,
   );
 };
 
@@ -922,7 +922,7 @@ export const generateGMPTransmittalExcel = async (selectedData, activeTab) => {
   });
 
   const wsData = [
-    ["GMP TRANSMITTAL SLIP — FDA Center for Drug Regulation and Research (CDRR)"],
+    ["FGMP TRANSMITTAL SLIP — FDA Center for Drug Regulation and Research (CDRR)"],
     [
       `Generated: ${dateStr} ${timeStr}`,
       "", "", "",
@@ -955,10 +955,10 @@ export const generateGMPTransmittalExcel = async (selectedData, activeTab) => {
   ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 5 } }];
 
   const wb = window.XLSX.utils.book_new();
-  window.XLSX.utils.book_append_sheet(wb, ws, "GMP Transmittal");
+  window.XLSX.utils.book_append_sheet(wb, ws, "FGMP Transmittal");
   window.XLSX.writeFile(
     wb,
-    `gmp_transmittal_${activeTab ?? "all"}_${now.toISOString().slice(0, 10)}.xlsx`,
+    `fgmp_transmittal_${activeTab ?? "all"}_${now.toISOString().slice(0, 10)}.xlsx`,
   );
 };
 

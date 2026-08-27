@@ -143,7 +143,7 @@ export default function GMPMetricDetailModal({
               <p style={{ margin: 0, fontSize: "0.75rem", color: ui.textSub }}>
                 {loading
                   ? "Loading…"
-                  : `${total.toLocaleString()} GMP application${total !== 1 ? "s" : ""}`}
+                  : `${total.toLocaleString()} FGMP application${total !== 1 ? "s" : ""}`}
                 {dateParams?.date_from && dateParams?.date_to
                   ? ` · ${formatDateRange(dateParams.date_from, dateParams.date_to)}`
                   : ""}

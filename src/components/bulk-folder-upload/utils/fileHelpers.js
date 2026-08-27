@@ -59,6 +59,41 @@ export function locateDtnInPathParts(parts) {
 }
 
 /**
+ * Google Drive's "Download folder" / "Download selected" action names the
+ * archive (and, once unpacked, the wrapper folder) as
+ *   <name>-<YYYYMMDD>T<HHMMSS>Z-<vol>-<part>   e.g. "Foo-20260603T065956Z-3-001"
+ * These carry no meaning for us — without stripping them, uploading a Drive
+ * export (often a zip nested inside a zip inside a zip) mirrors every throwaway
+ * wrapper into our Drive as a real sub-folder.
+ *
+ * Matches just the "-<ts>Z-<vol>-<part>" tail, so `.replace()` keeps whatever
+ * real name preceded it (which may be the DTN) and `.test()` still flags a
+ * whole segment that ends with such a tail as a wrapper to drop.
+ */
+export const DRIVE_EXPORT_SUFFIX = /-\d{8}T\d{6}Z-\d+-\d+$/;
+
+/**
+ * Turns the raw folder segments BETWEEN the DTN folder and the file into the
+ * single `doc_category` we store / recreate in Drive.
+ *
+ * Drops export wrappers (see above) and any segment that just repeats the DTN,
+ * then keeps ONLY the file's immediate folder — everything above it is
+ * container / export noise.
+ *
+ * NOTE: this assumes one DTN maps to exactly one application, so a single
+ * category level is enough. If a DTN is ever allowed to hold multiple
+ * applications, keep more of the path here instead — e.g.
+ *   return cleaned.length ? cleaned.join("/") : null;
+ * (which preserves the application-name folder above the annex/category).
+ */
+export function resolveCategory(categoryParts, dtn) {
+  const cleaned = categoryParts.filter(
+    (seg) => !DRIVE_EXPORT_SUFFIX.test(seg) && seg !== dtn,
+  );
+  return cleaned.length ? cleaned[cleaned.length - 1] : null;
+}
+
+/**
  * Google Drive "view"/"open" links (…/file/d/FILE_ID/view) can't be embedded
  * directly in an <iframe> — Drive returns X-Frame-Options: SAMEORIGIN for
  * that route. The `/preview` route, however, is meant for embedding. This

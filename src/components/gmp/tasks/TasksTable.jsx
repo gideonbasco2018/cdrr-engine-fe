@@ -220,6 +220,7 @@ function SkeletonRows({ n = 6, darkMode, colCount }) {
 
 const TASK_ACTION_ITEMS = [
   { id: "view_details", label: "View Details",         icon: "👁️" },
+  { id: "documents",    label: "Documents",            icon: "📎" },
   { id: "app_logs",     label: "Application Logs",      icon: "📋" },
   { id: "change_log",   label: "Change Log",            icon: "🕐" },
   { id: "doctrack",     label: "View Doctrack Details", icon: "📄" },
@@ -317,7 +318,7 @@ function ActionMenu({ row, onAction, colors, darkMode }) {
 
 export default function TasksTable({
   rows, allIds, loading, selectedRows, onSelectRow, onSelectAll,
-  onOpenLog, onOpenAudit, onAdvanceStep, onViewDoctrack,
+  onOpenLog, onOpenAudit, onAdvanceStep, onViewDoctrack, onOpenDocuments,
   currentPage, rowsPerPage, colors, darkMode,
   readIds, onMarkAsRead, onToggleStar, onDoubleClickRow,
   isComplianceView = false, visibleColumns,
@@ -456,7 +457,7 @@ export default function TasksTable({
                   <span style={{ fontSize: "0.9rem", fontWeight: 600, color: colors.textPrimary }}>
                     No tasks assigned
                   </span>
-                  <span style={{ fontSize: "0.8rem" }}>You have no pending GMP tasks right now.</span>
+                  <span style={{ fontSize: "0.8rem" }}>You have no pending FGMP tasks right now.</span>
                 </div>
               </td>
             </tr>
@@ -561,6 +562,7 @@ export default function TasksTable({
                       <ActionMenu row={r} colors={colors} darkMode={darkMode}
                         onAction={(actionId, row) => {
                           if (actionId === "view_details") { onAdvanceStep(row); return; }
+                          if (actionId === "documents")    { onOpenDocuments?.(row); return; }
                           if (actionId === "app_logs")     { onOpenLog(row);     return; }
                           if (actionId === "change_log")   { onOpenAudit(row);   return; }
                           if (actionId === "doctrack")     { onViewDoctrack?.(row); return; }

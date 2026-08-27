@@ -42,13 +42,13 @@ export const menuDefinitions = {
     {
       id: "gmp-queue",
       icon: "🏭",
-      label: "GMP Queue",
+      label: "FGMP Queue",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
       id: "gmp-tasks",
       icon: "📝",
-      label: "GMP Tasks",
+      label: "FGMP Tasks",
       roles: ["User", "Admin", "SuperAdmin"],
     },
     {
