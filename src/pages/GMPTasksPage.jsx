@@ -11,6 +11,7 @@ import AppLogModal from "../components/gmp/tasks/AppLogModal";
 import FieldAuditModal from "../components/gmp/tasks/FieldAuditModal";
 import WorkflowModal from "../components/gmp/tasks/WorkflowModal";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
+import GMPDocumentsModal from "../components/gmp/queue/GMPDocumentsModal";
 import { QuickFilterSidebar } from "../components/gmp/queue/QueueFilters";
 import {
   generateGMPTransmittalPDF,
@@ -289,6 +290,7 @@ export default function GMPTasksPage({ darkMode = false }) {
   const [auditRecord,    setAuditRecord]    = useState(null);
   const [workflowTask,   setWorkflowTask]   = useState(null);
   const [doctrackRecord, setDoctrackRecord] = useState(null);
+  const [docsRecord,     setDocsRecord]     = useState(null);
 
   // Resolve current user from localStorage (same pattern as TaskPage.jsx)
   useEffect(() => {
@@ -621,7 +623,7 @@ export default function GMPTasksPage({ darkMode = false }) {
                 display: "flex", alignItems: "center", gap: 8, padding: "7px 12px",
                 fontSize: "0.8rem", fontFamily: FONT, fontWeight: 600, color: colors.textPrimary,
               }}>
-                📝 GMP Tasks
+                📝 FGMP Tasks
                 <span style={{ fontSize: "0.72rem", fontWeight: 400, color: colors.textTertiary }}>
                   {loading ? "Loading your tasks…" : "No active step queues"}
                 </span>
@@ -753,7 +755,7 @@ export default function GMPTasksPage({ darkMode = false }) {
             opacity: loading ? 0.5 : 1, transition: "opacity 0.15s ease",
           }}>
             <span style={{ fontSize: "0.78rem", fontWeight: 600, color: colors.textPrimary, flexShrink: 0 }}>
-              GMP Tasks{" "}
+              FGMP Tasks{" "}
               <span style={{ color: colors.textTertiary, fontWeight: 400 }}>
                 {totalDisplayed.toLocaleString()} total
               </span>
@@ -920,6 +922,7 @@ export default function GMPTasksPage({ darkMode = false }) {
               onOpenAudit={(t) => setAuditRecord({ id: t.gmp_record_id, dtn: t.dtn })}
               onAdvanceStep={(t) => setWorkflowTask(t)}
               onViewDoctrack={(t) => setDoctrackRecord({ dtn: t.dtn })}
+              onOpenDocuments={(t) => setDocsRecord({ id: t.gmp_record_id, dtn: t.dtn, name_of_establishment: t.name_of_establishment })}
               currentPage={currentPage} rowsPerPage={rowsPerPage}
               colors={colors} darkMode={darkMode}
               readIds={readIds}
@@ -1015,6 +1018,13 @@ export default function GMPTasksPage({ darkMode = false }) {
           record={doctrackRecord}
           onClose={() => setDoctrackRecord(null)}
           colors={colors}
+        />
+      )}
+      {docsRecord && (
+        <GMPDocumentsModal
+          record={docsRecord}
+          onClose={() => setDocsRecord(null)}
+          colors={colors} darkMode={darkMode}
         />
       )}
 

@@ -1,6 +1,7 @@
 // FILE: src/components/bulk-folder-upload/utils/archiveUtils.js
 import JSZip from "jszip";
 import { createExtractorFromData } from "node-unrar-js";
+import { DRIVE_EXPORT_SUFFIX } from "./fileHelpers";
 
 const EXT_MIME = {
   pdf: "application/pdf",
@@ -81,8 +82,15 @@ export async function expandArchiveEntries(flat) {
       .filter(Boolean);
     const prefix = parts.slice(0, -1).join("/");
 
+    // Strip Google Drive's "-<ts>Z-<vol>-<part>" export tail from the archive
+    // name so a zip-in-zip-in-zip export doesn't add a throwaway wrapper folder
+    // per nesting level. Whatever real name preceded the tail (often the DTN)
+    // is kept and resolved downstream by locateDtnInPathParts / resolveCategory.
     const archiveBaseName =
-      item.file.name.replace(/\.(zip|rar)$/i, "").trim() || "archive";
+      item.file.name
+        .replace(/\.(zip|rar)$/i, "")
+        .replace(DRIVE_EXPORT_SUFFIX, "")
+        .trim() || "archive";
     const pathPrefix = prefix
       ? `${prefix}/${archiveBaseName}/`
       : `${archiveBaseName}/`;

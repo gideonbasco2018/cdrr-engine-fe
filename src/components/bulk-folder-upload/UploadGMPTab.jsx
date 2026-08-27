@@ -21,6 +21,7 @@ import {
 import {
   uploadApplicationDocumentSingle,
   getApplicationDocumentsByDtn,
+  prepareApplicationFolders,
 } from "../../api/application-documents";
 import { getGMPRecords, createGMPRecord } from "../../api/gmp";
 import { expandArchiveEntries, traverseFileTree } from "./utils/archiveUtils";
@@ -30,12 +31,13 @@ import {
   kindOf,
   buildCategoryTree,
   locateDtnInPathParts,
+  resolveCategory,
 } from "./utils/fileHelpers";
 import FolderTreeNode from "./FolderTreeNode";
 import KindIcon from "./KindIcon";
 import Field from "./Field";
 
-const CONCURRENCY = 3;
+const CONCURRENCY = 6;
 // GMP folder uploads allow larger files than the shared 200 MB default.
 const GMP_MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 const DTN_FULL_PATTERN = /^\d{14}$/;
@@ -91,6 +93,19 @@ function UploadGMPTab({ colors, s }) {
     };
   }, []);
 
+  // Warn before a full page unload (refresh / close / typing a new URL) while
+  // an upload is running — the browser can't resume it once the page is gone.
+  // In-app tab switches don't unmount this component anymore, so those are safe.
+  useEffect(() => {
+    if (!isUploading) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isUploading]);
+
   const activeEntry = useMemo(
     () => entries.find((e) => e.id === activeEntryId) || null,
     [entries, activeEntryId],
@@ -119,7 +134,7 @@ function UploadGMPTab({ colors, s }) {
         ...prev,
         [dtn]: {
           status: "error",
-          error: `"${dtn}" isn't a 14-digit DTN — can't match or create a GMP record.`,
+          error: `"${dtn}" isn't a 14-digit DTN — can't match or create a FGMP record.`,
         },
       }));
       return;
@@ -144,7 +159,7 @@ function UploadGMPTab({ colors, s }) {
     } catch (err) {
       setDtnResolutions((prev) => ({
         ...prev,
-        [dtn]: { status: "error", error: err.message || "GMP lookup failed." },
+        [dtn]: { status: "error", error: err.message || "FGMP lookup failed." },
       }));
     }
   }, []);
@@ -213,8 +228,7 @@ function UploadGMPTab({ colors, s }) {
         continue;
       }
       const { index: dtnIndex, dtn } = locateDtnInPathParts(parts);
-      const categoryParts = parts.slice(dtnIndex + 1, -1);
-      const category = categoryParts.length ? categoryParts.join("/") : null;
+      const category = resolveCategory(parts.slice(dtnIndex + 1, -1), dtn);
       newEntries.push({
         id: `${relativePath}-${file.size}-${Date.now()}-${Math.random()
           .toString(36)
@@ -315,13 +329,13 @@ function UploadGMPTab({ colors, s }) {
       (g) => !dtnResolutions[g.dtn] || dtnResolutions[g.dtn].status === "checking",
     );
     if (stillChecking)
-      return "Still looking up GMP records for the detected DTN(s) — try again in a moment.";
+      return "Still looking up FGMP records for the detected DTN(s) — try again in a moment.";
     const unconfirmedNew = dtnGroups.some((g) => {
       const r = dtnResolutions[g.dtn];
       return r?.status === "new" && !newRecordDrafts[g.dtn]?.confirmed;
     });
     if (unconfirmedNew)
-      return "Confirm the new GMP record details below for each DTN with no existing match before uploading.";
+      return "Confirm the new FGMP record details below for each DTN with no existing match before uploading.";
     return "";
   };
 
@@ -358,7 +372,7 @@ function UploadGMPTab({ colors, s }) {
         } catch (err) {
           setDtnResolutions((prev) => ({
             ...prev,
-            [dtn]: { status: "error", error: err.message || "Failed to create GMP record." },
+            [dtn]: { status: "error", error: err.message || "Failed to create FGMP record." },
           }));
         }
       }
@@ -415,6 +429,36 @@ function UploadGMPTab({ colors, s }) {
     setUploadCounts({ done: 0, total });
     setUploadProgress(total ? 1 : 0);
 
+    // Folder key MUST match the backend's ("<dtn>|<category>") so each file
+    // can look up its pre-created folder id below.
+    const folderKeyOf = (e) => `${e.dtn}|${e.category || ""}`;
+
+    // Create every distinct Drive folder ONCE, up front. Replaces the old
+    // serial "upload the first file of each folder one at a time" warm-up:
+    // with the folders already in place, all file uploads can run concurrently
+    // without racing to create the same folder.
+    let folderIdByKey = {};
+    if (total > 0) {
+      const seen = new Set();
+      const folderItems = [];
+      for (const e of sentEntries) {
+        const k = folderKeyOf(e);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        folderItems.push({ dtn: e.dtn, category: e.category || null });
+      }
+      try {
+        folderIdByKey = await prepareApplicationFolders({
+          dbEntryType: "FGMP",
+          items: folderItems,
+        });
+      } catch {
+        // Non-fatal: the upload endpoint still resolves the folder itself when
+        // no id is supplied — just without the concurrency head start.
+        folderIdByKey = {};
+      }
+    }
+
     const loadedBytes = new Array(total).fill(0);
     const totalBytesArr = sentEntries.map((e) => e.file.size);
     const totalBytesSum = totalBytesArr.reduce((a, b) => a + b, 0) || 1;
@@ -434,13 +478,14 @@ function UploadGMPTab({ colors, s }) {
       try {
         const r = await uploadApplicationDocumentSingle(
           {
-            dbEntryType: "GMP",
+            dbEntryType: "FGMP",
             dbDtn: entry.dtn,
             docCategory: entry.category,
             mainDbId: mainDbIdByDtn[entry.dtn],
             batchId,
             file: entry.file,
             relativePath: entry.relativePath,
+            folderId: folderIdByKey[folderKeyOf(entry)],
           },
           (loaded) => {
             loadedBytes[idx] = loaded;
@@ -470,39 +515,18 @@ function UploadGMPTab({ colors, s }) {
       }
     };
 
-    // Phase 1 — warm-up: upload the FIRST file of each distinct DTN/category
-    // folder one at a time. Uploading concurrently into a Drive folder that
-    // doesn't exist yet makes each request create its own copy of it; doing
-    // the first file per folder serially means the folder is already there
-    // (and gets reused) when the rest run in parallel.
-    const folderKeyOf = (e) => `${e.dtn}::${(e.category || "").toLowerCase()}`;
-    const seenFolders = new Set();
-    const warmupIdx = [];
-    const restIdx = [];
-    sentEntries.forEach((entry, idx) => {
-      const k = folderKeyOf(entry);
-      if (seenFolders.has(k)) {
-        restIdx.push(idx);
-      } else {
-        seenFolders.add(k);
-        warmupIdx.push(idx);
-      }
-    });
-
-    for (const idx of warmupIdx) {
-      await uploadOne(idx);
-    }
-
-    // Phase 2 — the rest, CONCURRENCY at a time; their folders exist now.
+    // Single phase — every file, CONCURRENCY at a time. All folders were
+    // pre-created above, so there's no folder-creation race and no need for
+    // the old serial "first file per folder" warm-up.
     let cursor = 0;
     const worker = async () => {
-      while (cursor < restIdx.length) {
-        await uploadOne(restIdx[cursor++]);
+      while (cursor < total) {
+        await uploadOne(cursor++);
       }
     };
-    if (restIdx.length > 0) {
+    if (total > 0) {
       const workers = Array.from(
-        { length: Math.min(CONCURRENCY, restIdx.length) },
+        { length: Math.min(CONCURRENCY, total) },
         () => worker(),
       );
       await Promise.all(workers);
@@ -551,7 +575,7 @@ function UploadGMPTab({ colors, s }) {
     skippedEntries.forEach((entry) => {
       failedEntries.push({
         ...entry,
-        uploadError: dtnResolutions[entry.dtn]?.error || "GMP record creation failed.",
+        uploadError: dtnResolutions[entry.dtn]?.error || "FGMP record creation failed.",
       });
     });
     // Keep invalid files in the list (with their reason) so the user can
@@ -612,10 +636,10 @@ function UploadGMPTab({ colors, s }) {
             )}
           </p>
           <p style={s.dropzoneHint}>
-            Files are matched to GMP records by DTN (a 14-digit timestamp
-            found in the folder path). A DTN that already has a GMP record
+            Files are matched to FGMP records by DTN (a 14-digit timestamp
+            found in the folder path). A DTN that already has a FGMP record
             links straight to it; a DTN with no matching record needs your
-            confirmation before a brand-new GMP record is created for it —
+            confirmation before a brand-new FGMP record is created for it —
             files are never linked onto a different DTN's record.
           </p>
           <input
@@ -681,7 +705,7 @@ function UploadGMPTab({ colors, s }) {
                       {resolution.status === "checking" && (
                         <span style={s.badgeInfo}>
                           <Loader2 size={11} style={{ animation: "bdu-spin 1s linear infinite" }} />
-                          Checking GMP records…
+                          Checking FGMP records…
                         </span>
                       )}
                       {resolution.status === "existing" && (
@@ -722,7 +746,7 @@ function UploadGMPTab({ colors, s }) {
                           <span style={draft.confirmed ? s.badgeSuccess : s.badgeInfo}>
                             {draft.confirmed ? <CheckCircle2 size={11} /> : <FilePlus2 size={11} />}
                             {draft.confirmed
-                              ? "New GMP record confirmed — will be created on upload"
+                              ? "New FGMP record confirmed — will be created on upload"
                               : "No matching record — confirm details to create a new one"}
                           </span>
 

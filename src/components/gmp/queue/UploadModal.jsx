@@ -97,7 +97,7 @@ export default function UploadModal({ onClose, onSuccess, colors, darkMode }) {
                 Upload New Report
               </h2>
               <p style={{ margin: "2px 0 0", fontSize: "0.73rem", color: colors.textTertiary }}>
-                Upload a filled GMP Excel template to add records
+                Upload a filled FGMP Excel template to add records
               </p>
             </div>
           </div>
@@ -220,7 +220,7 @@ export default function UploadModal({ onClose, onSuccess, colors, darkMode }) {
               border: `1px solid ${colors.cardBorder}`,
             }}>
               💡 Use the <strong>Download Template</strong> button to get the correct Excel format.
-              Each row in the file becomes one GMP record. The ID is assigned automatically.
+              Each row in the file becomes one FGMP record. The ID is assigned automatically.
             </p>
           )}
         </div>
