@@ -168,6 +168,7 @@ export default function TargetAssignmentsPage({ darkMode }) {
   useEffect(() => {
     const needsDiagramData =
       activeView === "table" ||
+      activeView === "monitoring" ||
       (activeView === "list" && selectedMemberId === ALL_MEMBERS_ID);
     if (needsDiagramData && team.length > 0) {
       loadDiagramData(team);
@@ -203,6 +204,17 @@ export default function TargetAssignmentsPage({ darkMode }) {
         : loadTasks(selectedMemberId);
     await Promise.all([tasksRefresh, loadTeam()]);
   };
+
+  // ── Bulk-remove-target — unmarks several tasks' Target flag at once.
+  //    Reuses the existing single-task unmarkAsTarget endpoint, fired
+  //    in parallel per log_id (no dedicated bulk-unmark endpoint exists
+  //    yet). Throws if any individual unmark fails, which the caller
+  //    (ListView's confirm modal) surfaces as an error. ───────────────
+  const handleBulkRemoveTarget = async (logIds) => {
+    await Promise.all(logIds.map((id) => unmarkAsTarget(id)));
+    await refreshAfterChange();
+  };
+
   const openTargetModal = (task) => setModalTasks([task]);
   const openBulkModal = (selectedTasks) => setModalTasks(selectedTasks);
   const closeModal = () => {
@@ -345,6 +357,7 @@ export default function TargetAssignmentsPage({ darkMode }) {
           tasksError={tasksError}
           onOpenTargetModal={openTargetModal}
           onOpenBulkModal={openBulkModal}
+          onBulkRemoveTarget={handleBulkRemoveTarget}
         />
       ) : activeView === "diagram" ? (
         <TeamDiagramView
@@ -365,8 +378,8 @@ export default function TargetAssignmentsPage({ darkMode }) {
         <TargetMonitoringView
           colors={colors}
           team={team}
-          teamLoading={teamLoading}
-          teamError={teamError}
+          diagramData={diagramData}
+          diagramLoading={diagramLoading}
         />
       ) : activeView === "directors" && canSeeDirectorsTarget ? (
         <DirectorsTargetView colors={colors} />

@@ -46,6 +46,120 @@ function TargetStatusFilterToggle({ value, onChange, colors }) {
   );
 }
 
+// ── Confirmation modal before bulk-removing the "Target" flag from
+//    several tasks at once — same idea as UnmarkConfirmModal on the
+//    Directors diagram, prevents an accidental click from instantly
+//    removing targets with no way to undo it. ─────────────────────
+function BulkRemoveConfirmModal({
+  colors,
+  count,
+  onClose,
+  onConfirm,
+  submitting,
+  error,
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 380,
+          maxWidth: "90vw",
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "10px",
+          padding: "1.25rem",
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            color: colors.textPrimary,
+            marginBottom: "0.5rem",
+          }}
+        >
+          Remove Target from {count} task{count === 1 ? "" : "s"}?
+        </div>
+        <div
+          style={{
+            fontSize: "0.8rem",
+            color: colors.textSecondary,
+            marginBottom: "1rem",
+            lineHeight: 1.5,
+          }}
+        >
+          This will remove the Target flag from all {count} selected task
+          {count === 1 ? "" : "s"}. You can mark them again later if needed.
+        </div>
+
+        {error && (
+          <div
+            style={{
+              fontSize: "0.76rem",
+              color: "#ef4444",
+              marginBottom: "0.75rem",
+            }}
+          >
+            ⚠️ {error}
+          </div>
+        )}
+
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
+        >
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "6px",
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textSecondary,
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              cursor: submitting ? "default" : "pointer",
+              opacity: submitting ? 0.6 : 1,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "6px",
+              border: "none",
+              background: "#ef4444",
+              color: "#fff",
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              cursor: submitting ? "default" : "pointer",
+              opacity: submitting ? 0.7 : 1,
+            }}
+          >
+            {submitting ? "Removing…" : "✕ Remove Target"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── List View tab: left = My Team, right = selected member's tasks
 // (search/filter/pagination/bulk-select + Mark as Target actions) ───
 export function ListView({
@@ -60,6 +174,7 @@ export function ListView({
   tasksError,
   onOpenTargetModal,
   onOpenBulkModal,
+  onBulkRemoveTarget,
 }) {
   const selectedMember =
     team.find((m) => m.member_user_id === selectedMemberId) || null;
@@ -78,6 +193,11 @@ export function ListView({
 
   // ── Bulk selection ──────────────────────────────────────────────
   const [selectedLogIds, setSelectedLogIds] = useState(new Set());
+
+  // ── Bulk-remove-target confirmation modal state ──────────────────
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removeSubmitting, setRemoveSubmitting] = useState(false);
+  const [removeError, setRemoveError] = useState(null);
 
   const isAllMembersView = selectedMemberId === ALL_MEMBERS_ID;
 
@@ -178,6 +298,29 @@ export function ListView({
   const handleOpenBulkModal = () => {
     const selectedTasks = tasks.filter((t) => selectedLogIds.has(t.log_id));
     if (selectedTasks.length > 0) onOpenBulkModal(selectedTasks);
+  };
+
+  // ── Selected tasks that are ALREADY targeted — the only ones a bulk
+  //    "Remove Target" action actually applies to. Mixed selections
+  //    (some targeted, some not) are fine — this just filters down to
+  //    the relevant subset. ──────────────────────────────────────────
+  const selectedTargetedTasks = tasks.filter(
+    (t) => selectedLogIds.has(t.log_id) && t.is_targeted,
+  );
+
+  const handleConfirmBulkRemove = async () => {
+    if (selectedTargetedTasks.length === 0) return;
+    setRemoveSubmitting(true);
+    setRemoveError(null);
+    try {
+      await onBulkRemoveTarget(selectedTargetedTasks.map((t) => t.log_id));
+      setSelectedLogIds(new Set());
+      setRemoveConfirmOpen(false);
+    } catch (err) {
+      setRemoveError(err.message);
+    } finally {
+      setRemoveSubmitting(false);
+    }
   };
 
   return (
@@ -414,6 +557,14 @@ export function ListView({
                             tone="target"
                           />
                         )}
+                        {m.directors_target_count > 0 && (
+                          <MiniBadge
+                            label="🏛️"
+                            value={m.directors_target_count}
+                            colors={colors}
+                            tone="directors"
+                          />
+                        )}
                       </div>
                     </div>
                   </div>
@@ -559,22 +710,45 @@ export function ListView({
                 </div>
               </div>
               {selectedLogIds.size > 0 && (
-                <button
-                  onClick={handleOpenBulkModal}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: "6px",
-                    border: "none",
-                    background: colors.targetBorder,
-                    color: "#fff",
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  🎯 Target {selectedLogIds.size} Selected
-                </button>
+                <div style={{ display: "flex", gap: "8px", flexShrink: 0 }}>
+                  {selectedTargetedTasks.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setRemoveError(null);
+                        setRemoveConfirmOpen(true);
+                      }}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: "6px",
+                        border: "1px solid #ef4444",
+                        background: "transparent",
+                        color: "#ef4444",
+                        fontSize: "0.78rem",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      ✕ Remove Target ({selectedTargetedTasks.length})
+                    </button>
+                  )}
+                  <button
+                    onClick={handleOpenBulkModal}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background: colors.targetBorder,
+                      color: "#fff",
+                      fontSize: "0.78rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    🎯 Target {selectedLogIds.size} Selected
+                  </button>
+                </div>
               )}
             </div>
 
@@ -1081,6 +1255,19 @@ export function ListView({
           </>
         )}
       </div>
+
+      {removeConfirmOpen && (
+        <BulkRemoveConfirmModal
+          colors={colors}
+          count={selectedTargetedTasks.length}
+          onClose={() => {
+            if (!removeSubmitting) setRemoveConfirmOpen(false);
+          }}
+          onConfirm={handleConfirmBulkRemove}
+          submitting={removeSubmitting}
+          error={removeError}
+        />
+      )}
     </div>
   );
 }
