@@ -17,6 +17,7 @@ import ProcessingTrendView from "../components/monitoring/processingTrend/Proces
 import FRPMonitoringView from "../components/monitoring/frpMonitoring/FRPMonitoringView";
 import TeamOverviewView from "../components/monitoring/teamOverview/TeamOverviewView";
 import GMPAnalyticsView from "../components/gmp/dashboard/GMPAnalyticsView";
+import PriorityMedsView from "../components/monitoring/priorityMeds/PriorityMedsView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1048,6 +1049,8 @@ function renderContent(
       return <TeamOverviewView darkMode={darkMode} />;
     case "gmpanalytics":
       return <GMPAnalyticsView ui={ui} darkMode={darkMode} />;
+    case "prioritymeds":
+      return <PriorityMedsView ui={ui} darkMode={darkMode} />;
     default:
       return null;
   }
@@ -1276,6 +1279,11 @@ function MonitoringPage({ darkMode }) {
     { key: "deadlines", label: "Deadlines", comingSoon: true },
     { key: "compliance", label: "Compliance", comingSoon: true },
     { key: "workload", label: "Workload", comingSoon: true },
+    {
+      key: "prioritymeds",
+      label: "Priority Meds",
+      subtitle: "Cancer, vaccines & rare disease",
+    },
     { key: "activity", label: "Activity Feed", subtitle: "Live event stream" },
     { key: "users", label: "Users", subtitle: "Manage evaluators" },
     { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
@@ -1585,6 +1593,41 @@ function MonitoringPage({ darkMode }) {
                     }}
                   />
 
+                  {/* Priority Programs group */}
+                  <p
+                    style={{
+                      fontSize: "0.6rem",
+                      fontWeight: 700,
+                      color: ui.textMuted,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      margin: "0 0 6px 14px",
+                    }}
+                  >
+                    Priority Programs
+                  </p>
+                  {navItems
+                    .slice(7, 8)
+                    .map(({ key, comingSoon, icon, ...rest }) => (
+                      <NavItem
+                        key={key}
+                        {...rest}
+                        active={activeNav === key}
+                        onClick={() => setActiveNav(key)}
+                        ui={ui}
+                        comingSoon={comingSoon}
+                        darkMode={darkMode}
+                      />
+                    ))}
+
+                  <div
+                    style={{
+                      height: "0.5px",
+                      background: ui.divider,
+                      margin: "10px 8px",
+                    }}
+                  />
+
                   {/* Admin group */}
                   <p
                     style={{
@@ -1599,7 +1642,7 @@ function MonitoringPage({ darkMode }) {
                     Admin
                   </p>
                   {navItems
-                    .slice(7)
+                    .slice(8)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
