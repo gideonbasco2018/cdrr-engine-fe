@@ -16,6 +16,7 @@
     "lucide-react": "^1.23.0",
     "node-unrar-js": "^2.0.2",
     "react": "^18.2.0",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.2.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^6.30.2",
