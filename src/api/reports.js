@@ -232,7 +232,13 @@ export const downloadTemplate = async () => {
   link.remove();
 };
 
+export const getExportColumns = async () => {
+  const response = await API.get("/main-db/export-columns");
+  return response.data.columns;
+};
+
 // ✅ Export filtered records to Excel — now includes supply chain params
+// ✅ Export filtered records to Excel — now includes supply chain params + column selection
 export const exportFilteredRecords = async ({
   search = '',
   status = '',
@@ -269,6 +275,7 @@ export const exportFilteredRecords = async ({
   date_excel_upload_to = '',
   null_date_released = false,     
   null_date_received_cent = false,
+  columns = null,   // ✅ BAGO — array ng column ids na pipiliin, null = lahat
 }) => {
   const params = {};
 
@@ -308,6 +315,8 @@ export const exportFilteredRecords = async ({
   if (date_excel_upload_to) params.date_excel_upload_to = date_excel_upload_to;
   if (null_date_released) params.null_date_released = 'true';      
   if (null_date_received_cent) params.null_date_received_cent = 'true';
+  if (columns && columns.length > 0) params.columns = columns.join(','); // ✅ BAGO
+
   const response = await API.get('/main-db/export-filtered', {
     params,
     responseType: 'blob',
