@@ -38,7 +38,7 @@ import MetricDetailModal from "../../components/dashboard/MetricDetailModal";
 import RecentApplicationsModal from "../../components/dashboard/RecentApplicationsModal";
 import TargetModal from "../../components/dashboard/TargetModal";
 import AccomplishmentReport from "../../components/dashboard/AccomplishmentReport";
-import SystemStatusCard from "../../components/dashboard/SystemStatusCard";
+
 import UploadHistoryCard from "../../components/dashboard/UploadHistoryCard";
 
 const font =
@@ -47,8 +47,6 @@ const font =
 // ─── Right panel ──────────────────────────────────────────────────────────────
 function RightPanel({
   ui,
-  dbConnections,
-  toggleConn,
   canGenReport,
   reportStart,
   reportEnd,
@@ -57,17 +55,36 @@ function RightPanel({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <SystemStatusCard connections={dbConnections} onToggle={toggleConn} ui={ui} />
       <Card ui={ui}>
         <div style={{ padding: "14px 16px 10px" }}>
-          <h3 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 700, color: ui.textPrimary }}>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "0.95rem",
+              fontWeight: 700,
+              color: ui.textPrimary,
+            }}
+          >
             Accomplishment Report
           </h3>
-          <p style={{ margin: "2px 0 0", fontSize: "0.72rem", color: ui.textMuted }}>
+          <p
+            style={{
+              margin: "2px 0 0",
+              fontSize: "0.72rem",
+              color: ui.textMuted,
+            }}
+          >
             Select a date range to generate
           </p>
         </div>
-        <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+        <div
+          style={{
+            padding: "0 16px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
           <button
             onClick={() =>
               canGenReport &&
@@ -149,16 +166,6 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState(null);
 
-  // ── DB connections ────────────────────────────────────────────────────────
-  const [dbConnections, setDbConnections] = useState([
-    { id: "doctrack", label: "Doctrack", desc: "Document Tracking DB", icon: "🗂️", active: true },
-    { id: "aws", label: "AWS", desc: "Cloud Storage & Services", icon: "☁️", active: true },
-    { id: "maindb", label: "Main DB", desc: "Primary Application DB", icon: "🗄️", active: true },
-  ]);
-
-  const toggleConn = (id) =>
-    setDbConnections((prev) => prev.map((c) => (c.id === id ? { ...c, active: !c.active } : c)));
-
   // ── Fetches ───────────────────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
     setStatsLoading(true);
@@ -170,7 +177,9 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
       if (p.date_to) params.date_to = p.date_to;
       setLiveStats(await getDashboardSummary(params));
     } catch (err) {
-      setStatsError(err?.response?.data?.detail || err.message || "Failed to load stats");
+      setStatsError(
+        err?.response?.data?.detail || err.message || "Failed to load stats",
+      );
       setLiveStats(null);
     } finally {
       setStatsLoading(false);
@@ -195,7 +204,11 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
       if (breakdown === "month") setChartSubtitle(selYear);
       if (breakdown === "year") setChartSubtitle("All Years");
     } catch (err) {
-      setChartError(err?.response?.data?.detail || err.message || "Failed to load chart data");
+      setChartError(
+        err?.response?.data?.detail ||
+          err.message ||
+          "Failed to load chart data",
+      );
       setChartData([]);
     } finally {
       setChartLoading(false);
@@ -209,7 +222,9 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
       const res = await getDashboardRecentApplications({ limit: 10 });
       setRecentApps(res.data);
     } catch (err) {
-      setRecentError(err?.response?.data?.detail || err.message || "Failed to load");
+      setRecentError(
+        err?.response?.data?.detail || err.message || "Failed to load",
+      );
       setRecentApps([]);
     } finally {
       setRecentLoading(false);
@@ -293,8 +308,6 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
 
   const rightPanelProps = {
     ui,
-    dbConnections,
-    toggleConn,
     canGenReport,
     reportStart,
     reportEnd,
@@ -412,7 +425,14 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
                 }}
               >
                 <div>
-                  <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: ui.textPrimary, margin: 0 }}>
+                  <h2
+                    style={{
+                      fontSize: "1.1rem",
+                      fontWeight: 700,
+                      color: ui.textPrimary,
+                      margin: 0,
+                    }}
+                  >
                     Insights
                   </h2>
                   <p
@@ -445,8 +465,12 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
                         textDecoration: "underline",
                         textUnderlineOffset: "2px",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-                      onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.85")}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.opacity = "1")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.opacity = "0.85")
+                      }
                     >
                       ? How to use
                     </button>
@@ -484,7 +508,8 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
                           padding: "4px 11px",
                           borderRadius: 6,
                           border: "none",
-                          background: breakdown === opt.key ? FB : "transparent",
+                          background:
+                            breakdown === opt.key ? FB : "transparent",
                           color: breakdown === opt.key ? "#fff" : ui.textSub,
                           fontSize: "0.76rem",
                           fontWeight: breakdown === opt.key ? 700 : 500,
@@ -504,7 +529,8 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
                         setSelYear(e.target.value);
                         if (breakdown === "day") {
                           const months = MONTHS_BY_YEAR[e.target.value] || [];
-                          if (!months.includes(selMonth)) setSelMonth(months[months.length - 1] || "Jan");
+                          if (!months.includes(selMonth))
+                            setSelMonth(months[months.length - 1] || "Jan");
                         }
                       }}
                       style={{
@@ -563,7 +589,13 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: isMobile ? 6 : 10, marginBottom: 14 }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: isMobile ? 6 : 10,
+                  marginBottom: 14,
+                }}
+              >
                 {metrics.map((m, i) => (
                   <MetricTile
                     key={i}
@@ -598,7 +630,9 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
                     borderRadius: 8,
                   }}
                 >
-                  <span style={{ fontSize: "0.82rem", color: ui.textMuted }}>⏳ Loading chart…</span>
+                  <span style={{ fontSize: "0.82rem", color: ui.textMuted }}>
+                    ⏳ Loading chart…
+                  </span>
                 </div>
               )}
               <AreaChart data={chartData} subtitle={chartSubtitle} ui={ui} />
@@ -632,7 +666,11 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
       </div>
 
       {/* ── Modals ── */}
-      <TargetModal target={activeTarget} onClose={() => setActiveTarget(null)} ui={ui} />
+      <TargetModal
+        target={activeTarget}
+        onClose={() => setActiveTarget(null)}
+        ui={ui}
+      />
       {detailModal && (
         <MetricDetailModal
           metricKey={detailModal.metricKey}
@@ -680,7 +718,13 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
           colors={ui}
         />
       )}
-      {showGuide && <HowToUseDashboardModal darkMode={darkMode} colors={ui} onClose={closeGuide} />}
+      {showGuide && (
+        <HowToUseDashboardModal
+          darkMode={darkMode}
+          colors={ui}
+          onClose={closeGuide}
+        />
+      )}
     </>
   );
 }

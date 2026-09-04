@@ -20,6 +20,7 @@ import EditRecordModal from "../components/reports/actions/EditRecordModal";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
 import UploadErrorModal from "../components/reports/UploadErrorModal";
 import ExportColumnsModal from "../components/reports/ExportColumnsModal";
+import AddTaskModal from "../components/reports/actions/AddTaskModal";
 
 function buildFilterParams(filters) {
   const p = {};
@@ -561,6 +562,7 @@ function DeckingPage({ darkMode }) {
   const [exportProgress, setExportProgress] = useState(null);
   // null = hidden, or { step: 0-3, pct: 0-100 }
   const [showColumnsModal, setShowColumnsModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const colors = getColorScheme(darkMode);
 
   const activeFilterCount =
@@ -1454,6 +1456,28 @@ function DeckingPage({ darkMode }) {
                   </button>
                 </div>
               )}
+              {selectedRows.length > 0 && (
+                <button
+                  onClick={() => setShowAddTaskModal(true)}
+                  style={{
+                    padding: "5px 14px",
+                    background: "linear-gradient(135deg,#6366f1,#4f46e5)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    height: "30px",
+                  }}
+                >
+                  <span>🎯</span>
+                  <span>Add New Task</span>
+                </button>
+              )}
               <button
                 onClick={() => setShowColumnsModal(true)}
                 disabled={exporting || totalRecords === 0}
@@ -1620,6 +1644,19 @@ function DeckingPage({ darkMode }) {
             setShowColumnsModal(false);
             handleExport(cols);
           }}
+        />
+      )}
+
+      {showAddTaskModal && (
+        <AddTaskModal
+          selectedIds={selectedRows}
+          onClose={() => setShowAddTaskModal(false)}
+          onSuccess={async () => {
+            await refreshData();
+            clearSelections();
+          }}
+          colors={colors}
+          darkMode={darkMode}
         />
       )}
 

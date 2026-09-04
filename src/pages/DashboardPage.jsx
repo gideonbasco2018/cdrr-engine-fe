@@ -89,7 +89,14 @@ function ImpersonationPrompt({ ui, onClose }) {
             >
               Impersonation Mode Active
             </p>
-            <p style={{ margin: 0, fontSize: "1rem", fontWeight: 700, color: "#fff" }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: "1rem",
+                fontWeight: 700,
+                color: "#fff",
+              }}
+            >
               Viewing as {name}
             </p>
           </div>
@@ -114,9 +121,19 @@ function ImpersonationPrompt({ ui, onClose }) {
               ].map(({ label, value }) => (
                 <div
                   key={label}
-                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
                 >
-                  <span style={{ fontSize: "0.75rem", color: ui.textMuted, fontWeight: 600 }}>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color: ui.textMuted,
+                      fontWeight: 600,
+                    }}
+                  >
                     {label}
                   </span>
                   <span
@@ -143,10 +160,18 @@ function ImpersonationPrompt({ ui, onClose }) {
               marginBottom: 16,
             }}
           >
-            <p style={{ margin: 0, fontSize: "0.78rem", color: "#92400e", lineHeight: 1.5 }}>
-              ⚠️ You are currently <strong>viewing this dashboard as {name}</strong>. All data
-              shown reflects their account perspective. <strong>No changes will be made</strong>{" "}
-              to their account.
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.78rem",
+                color: "#92400e",
+                lineHeight: 1.5,
+              }}
+            >
+              ⚠️ You are currently{" "}
+              <strong>viewing this dashboard as {name}</strong>. All data shown
+              reflects their account perspective.{" "}
+              <strong>No changes will be made</strong> to their account.
             </p>
           </div>
 
@@ -195,12 +220,16 @@ function ImpersonationBar({ ui, onStop }) {
     >
       <span style={{ fontSize: "1.1rem" }}>👁</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ margin: 0, fontSize: "0.8rem", fontWeight: 700, color: FB }}>
-          Impersonation Mode — Viewing as <span style={{ color: ui.textPrimary }}>{name}</span>
+        <p
+          style={{ margin: 0, fontSize: "0.8rem", fontWeight: 700, color: FB }}
+        >
+          Impersonation Mode — Viewing as{" "}
+          <span style={{ color: ui.textPrimary }}>{name}</span>
         </p>
         <p style={{ margin: 0, fontSize: "0.7rem", color: ui.textMuted }}>
-          User ID: <strong style={{ fontFamily: "monospace" }}>#{userId}</strong> · Username:{" "}
-          <strong>{username}</strong>
+          User ID:{" "}
+          <strong style={{ fontFamily: "monospace" }}>#{userId}</strong> ·
+          Username: <strong>{username}</strong>
         </p>
       </div>
       <button
@@ -234,29 +263,45 @@ function DashboardNavItem({ label, subtitle, active, onClick, ui, darkMode }) {
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
-        padding: "9px 12px 9px 14px",
-        borderRadius: "0 8px 8px 0",
-        borderLeft: `3px solid ${active ? FB : "transparent"}`,
-        background: active ? (darkMode ? "#1c2e45" : "#E7F0FD") : hov ? ui.hoverBg : "transparent",
+        padding: "7px 10px 7px 12px",
+        borderRadius: "0 6px 6px 0",
+        borderLeft: `3px solid ${active ? "#6d94ff" : "transparent"}`,
+        background: active
+          ? darkMode
+            ? "#2b2b2b"
+            : "#f1f1f1"
+          : hov
+            ? ui.hoverBg
+            : "transparent",
         cursor: "pointer",
         transition: "all 0.12s",
         display: "flex",
         flexDirection: "column",
         gap: 2,
-        margin: "2px 6px 2px 0",
+        margin: "1px 6px 1px 0",
       }}
     >
       <span
         style={{
-          fontSize: "0.84rem",
-          fontWeight: active ? 700 : 500,
-          color: active ? FB : hov ? ui.textPrimary : ui.textSub,
+          fontSize: "0.8rem",
+          fontWeight: active ? 600 : 400,
+          color: active
+            ? darkMode
+              ? "#d8d8d8"
+              : "#3d3d3d"
+            : hov
+              ? ui.textPrimary
+              : ui.textSub,
+          lineHeight: 1.2,
+          transition: "color 0.12s",
         }}
       >
         {label}
       </span>
       {subtitle && (
-        <span style={{ fontSize: "0.68rem", color: ui.textMuted, lineHeight: 1.3 }}>
+        <span
+          style={{ fontSize: "0.67rem", color: ui.textMuted, lineHeight: 1.2 }}
+        >
           {subtitle}
         </span>
       )}
@@ -365,51 +410,41 @@ function DashboardSubSidebar({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0.6rem 0.75rem 0.6rem 0.85rem",
-          borderBottom: `1px solid ${ui.cardBorder}`,
+          padding: "20px 10px 6px 14px",
           flexShrink: 0,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.45rem" }}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={FB}
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <rect x="3" y="3" width="7" height="9" />
-            <rect x="14" y="3" width="7" height="5" />
-            <rect x="14" y="12" width="7" height="9" />
-            <rect x="3" y="16" width="7" height="5" />
-          </svg>
-          <h2
-            style={{
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              color: ui.textPrimary,
-              margin: 0,
-              letterSpacing: "0.01em",
-            }}
-          >
-            Dashboards
-          </h2>
-        </div>
+        <p
+          style={{
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            color: ui.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.1em",
+            margin: 0,
+          }}
+        >
+          Dashboards
+        </p>
         {iconBtn(() => setOpen(false), "Hide dashboards", "◀")}
       </div>
+      <div
+        style={{
+          height: "0.5px",
+          background: ui.cardBorder,
+          margin: "0 8px 10px",
+        }}
+      />
 
       <div
         style={{
           flex: 1,
           overflowY: "auto",
           overflowX: "hidden",
-          padding: "0.6rem 0 1rem",
+          padding: "0 6px 1rem",
           display: "flex",
           flexDirection: "column",
-          gap: "0.15rem",
+          gap: "0.1rem",
         }}
       >
         {navItems.map((item) => (
@@ -451,8 +486,12 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
   }, [subSidebarOpen]);
 
   // ── Impersonation state ───────────────────────────────────────────────────
-  const [showImpersonationPrompt, setShowImpersonationPrompt] = useState(() => isImpersonating());
-  const [impersonationActive, setImpersonationActive] = useState(() => isImpersonating());
+  const [showImpersonationPrompt, setShowImpersonationPrompt] = useState(() =>
+    isImpersonating(),
+  );
+  const [impersonationActive, setImpersonationActive] = useState(() =>
+    isImpersonating(),
+  );
 
   const navigate = useNavigate();
 
@@ -497,7 +536,10 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
     <>
       <TawkChat />
       {showImpersonationPrompt && (
-        <ImpersonationPrompt ui={ui} onClose={() => setShowImpersonationPrompt(false)} />
+        <ImpersonationPrompt
+          ui={ui}
+          onClose={() => setShowImpersonationPrompt(false)}
+        />
       )}
 
       <div
@@ -581,7 +623,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
                       padding: "7px 0",
                       borderRadius: 6,
                       border: "none",
-                      background: activeDashboard === item.key ? FB : "transparent",
+                      background:
+                        activeDashboard === item.key ? FB : "transparent",
                       color: activeDashboard === item.key ? "#fff" : ui.textSub,
                       fontSize: "0.76rem",
                       fontWeight: activeDashboard === item.key ? 700 : 500,
@@ -596,9 +639,17 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
             )}
 
             {activeDashboard === "main" ? (
-              <LicensingDashboardView darkMode={darkMode} ui={ui} isMobile={isMobile} />
+              <LicensingDashboardView
+                darkMode={darkMode}
+                ui={ui}
+                isMobile={isMobile}
+              />
             ) : (
-              <GMPDashboardView darkMode={darkMode} ui={ui} isMobile={isMobile} />
+              <GMPDashboardView
+                darkMode={darkMode}
+                ui={ui}
+                isMobile={isMobile}
+              />
             )}
           </div>
         </div>
