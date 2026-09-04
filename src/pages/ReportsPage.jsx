@@ -12,6 +12,7 @@ import {
 import FilterBar from "../components/reports/FilterBar";
 import ReportsDataTable from "../components/reports/ReportsDataTable";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
+import ExportColumnsModal from "../components/reports/ExportColumnsModal";
 
 function buildFilterParams(filters) {
   const p = {};
@@ -154,7 +155,6 @@ function SidebarSection({
   totalCount,
 }) {
   const [isOpen, setIsOpen] = useState(true);
-
   const activeBg = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
   const activeBorder = darkMode ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.1)";
   const hoverBg = darkMode ? "#161616" : "#f0f0f0";
@@ -434,6 +434,7 @@ function ReportsPage({ darkMode }) {
   const [sortBy, setSortBy] = useState("DB_DATE_EXCEL_UPLOAD");
   const [sortOrder, setSortOrder] = useState("desc");
   const [exportProgress, setExportProgress] = useState(null);
+  const [showColumnsModal, setShowColumnsModal] = useState(false);
 
   const colors = getColorScheme(darkMode);
 
@@ -599,7 +600,7 @@ function ReportsPage({ darkMode }) {
     sortBy,
     sortOrder,
   ]);
-  const handleExport = async () => {
+  const handleExport = async (selectedColumns) => {
     if (totalRecords === 0) {
       alert("❌ No records to export");
       return;
@@ -630,7 +631,8 @@ function ReportsPage({ darkMode }) {
         label: "Querying records...",
         sub: `Fetching ${totalRecords.toLocaleString()} records`,
       });
-      await exportFilteredRecords(params);
+      // ✅ same shape DeckingPage uses — columns travel with the rest of the params
+      await exportFilteredRecords({ ...params, columns: selectedColumns });
 
       setExportProgress({
         step: 2,
@@ -1043,7 +1045,7 @@ function ReportsPage({ darkMode }) {
               }}
             >
               <button
-                onClick={handleExport}
+                onClick={() => setShowColumnsModal(true)}
                 disabled={exporting || totalRecords === 0}
                 style={{
                   padding: "4px 12px",
@@ -1293,6 +1295,18 @@ function ReportsPage({ darkMode }) {
             </div>
           )}
         </div>
+
+        {showColumnsModal && (
+          <ExportColumnsModal
+            colors={colors}
+            darkMode={darkMode}
+            onClose={() => setShowColumnsModal(false)}
+            onConfirm={(cols) => {
+              setShowColumnsModal(false);
+              handleExport(cols);
+            }}
+          />
+        )}
       </div>
     </div>
   );
