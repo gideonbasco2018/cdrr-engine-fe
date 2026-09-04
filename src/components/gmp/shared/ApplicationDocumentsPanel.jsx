@@ -208,7 +208,7 @@ function CategoryTree({ tree, groupKey, collapsed, toggleFolder, renderItem, col
 
 export default function ApplicationDocumentsPanel({
   dtn,
-  dbEntryType = "GMP",
+  dbEntryType = "FGMP",
   mainDbId,
   colors,
   darkMode,
@@ -635,7 +635,7 @@ export default function ApplicationDocumentsPanel({
       : null;
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(260px, 360px)", gap: 14, alignItems: "start" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 360px) minmax(0, 1fr)", gap: 14, alignItems: "start" }}>
     <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
       <div className="wfFieldBox" style={{
         border: `1px solid ${colors.cardBorder}`, borderRadius: 12, padding: 12,
@@ -922,7 +922,8 @@ export default function ApplicationDocumentsPanel({
         style={{
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: 12,
-          minHeight: 380,
+          minHeight: 420,
+          height: "calc(94vh - 95px)",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
@@ -999,7 +1000,9 @@ export default function ApplicationDocumentsPanel({
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
             {activeItem.doc.kind === "pdf" && (
               <iframe
-                src={activeItem.doc.previewUrl}
+                // #navpanes=0 collapses the browser PDF viewer's thumbnail /
+                // page-selector rail so the page itself gets the full width.
+                src={`${activeItem.doc.previewUrl}#toolbar=1&navpanes=0&view=FitH`}
                 title={activeItem.doc.file.name}
                 style={{ width: "100%", height: "100%", border: "none", minHeight: 380 }}
               />

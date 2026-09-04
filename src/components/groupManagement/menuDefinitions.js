@@ -15,8 +15,8 @@ export const allMenuItems = [
   { id: "eapplication-tasks", label: "E-Application Tasks", icon: "📥", category: "E-Application" },
 
   // GMP Task Queue & Workflow
-  { id: "gmp-queue", label: "GMP Queue", icon: "🏭", category: "Workflow" },
-  { id: "gmp-tasks", label: "GMP Tasks", icon: "📝", category: "Workflow" },
+  { id: "gmp-queue", label: "FGMP Queue", icon: "🏭", category: "Workflow" },
+  { id: "gmp-tasks", label: "FGMP Tasks", icon: "📝", category: "Workflow" },
 
   { id: "task", label: "Tasks", icon: "📝", category: "Workflow" },
   { id: "appCorrection", label: "Manual CPR Correction", icon: "📝", category: "Workflow" },

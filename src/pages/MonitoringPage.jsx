@@ -1273,7 +1273,7 @@ function MonitoringPage({ darkMode }) {
     { key: "analytics", label: "Analytics", subtitle: "Charts & breakdowns" },
     {
       key: "gmpanalytics",
-      label: "GMP Analytics",
+      label: "FGMP Analytics",
       subtitle: "Certification workflow insights",
     },
     { key: "deadlines", label: "Deadlines", comingSoon: true },

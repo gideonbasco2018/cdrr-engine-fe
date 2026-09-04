@@ -68,7 +68,7 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
   const [dbConnections, setDbConnections] = useState([
     { id: "doctrack", label: "Doctrack", desc: "Document Tracking DB", icon: "🗂️", active: true },
     { id: "aws", label: "AWS", desc: "Cloud Storage & Services", icon: "☁️", active: true },
-    { id: "gmpdb", label: "GMP DB", desc: "GMP Records Database", icon: "🏭", active: true },
+    { id: "gmpdb", label: "FGMP DB", desc: "FGMP Records Database", icon: "🏭", active: true },
   ]);
 
   const toggleConn = (id) =>
@@ -312,10 +312,10 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
               >
                 <div>
                   <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: ui.textPrimary, margin: 0 }}>
-                    GMP Insights
+                    FGMP Insights
                   </h2>
                   <p style={{ fontSize: "0.8rem", color: ui.textSub, margin: "2px 0 0" }}>
-                    Learn how GMP certification applications are performing.
+                    Learn how FGMP certification applications are performing.
                   </p>
                 </div>
                 <div
@@ -488,7 +488,7 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
             onRetry={fetchRecentApps}
             onSeeAll={() => setShowRecentModal(true)}
             onRowClick={handleRowClick}
-            emptyLabel="No recent GMP applications found."
+            emptyLabel="No recent FGMP applications found."
           />
 
           {isMobile && (
@@ -507,7 +507,7 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
       {detailModal && (
         <GMPMetricDetailModal
           metricKey={detailModal.metricKey}
-          metricLabel={`GMP ${detailModal.metricLabel}`}
+          metricLabel={`FGMP ${detailModal.metricLabel}`}
           dateParams={detailModal.dateParams}
           onClose={() => setDetailModal(null)}
           onRowClick={handleRowClick}

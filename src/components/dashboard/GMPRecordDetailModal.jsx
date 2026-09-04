@@ -149,7 +149,7 @@ export default function GMPRecordDetailModal({ gmpId, onClose, ui, darkMode }) {
                   color: ui.textPrimary,
                 }}
               >
-                GMP Record {record?.GMP_DTN ? `— DTN ${record.GMP_DTN}` : ""}
+                FGMP Record {record?.GMP_DTN ? `— DTN ${record.GMP_DTN}` : ""}
               </h3>
               <p style={{ margin: 0, fontSize: "0.75rem", color: ui.textSub }}>
                 {record?.GMP_REFERENCE_NO || "—"}

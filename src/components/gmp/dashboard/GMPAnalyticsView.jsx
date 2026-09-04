@@ -565,7 +565,7 @@ export default function GMPAnalyticsView({ ui, darkMode }) {
         setNod(nodRes);
         setPicsCountry(picsCountryRes);
       })
-      .catch(() => setError("Failed to load GMP analytics. Please try again."))
+      .catch(() => setError("Failed to load FGMP analytics. Please try again."))
       .finally(() => setLoading(false));
   }, [year, month]);
 
@@ -626,7 +626,7 @@ export default function GMPAnalyticsView({ ui, darkMode }) {
             letterSpacing: "-0.01em",
           }}
         >
-          GMP Analytics
+          FGMP Analytics
         </h2>
         <p style={{ margin: "3px 0 0", fontSize: "0.82rem", color: ui.textMuted }}>
           Certification workflow volume, breakdowns, workload and compliance in one place

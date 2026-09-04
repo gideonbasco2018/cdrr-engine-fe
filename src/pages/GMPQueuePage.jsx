@@ -1035,7 +1035,7 @@ export default function GMPQueuePage({ darkMode = false }) {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <span style={{ fontSize: "0.78rem", fontWeight: 600, color: colors.textPrimary, flexShrink: 0 }}>
-              GMP Records{" "}
+              FGMP Records{" "}
               <span style={{ color: colors.textTertiary, fontWeight: 400 }}>
                 {total.toLocaleString()} total
               </span>

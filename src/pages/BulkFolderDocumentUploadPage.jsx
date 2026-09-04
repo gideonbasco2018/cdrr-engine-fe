@@ -15,6 +15,18 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
 
   const [activeTab, setActiveTab] = useState("folder"); // "folder" | "files" | "gmp" | "logs" | "summary"
 
+  // The three upload tabs hold unsaved work (staged files, in-flight uploads).
+  // Once visited, keep them mounted and just hide the inactive one, so
+  // switching tabs mid-upload doesn't wipe everything. Logs/Summary are
+  // read-only, so they stay conditionally rendered.
+  const [visitedUploadTabs, setVisitedUploadTabs] = useState(() => new Set(["folder"]));
+  const openTab = (tab) => {
+    setActiveTab(tab);
+    if (tab === "folder" || tab === "files" || tab === "gmp") {
+      setVisitedUploadTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+    }
+  };
+
   return (
     <div style={s.page} className="bdu-page">
       <div style={s.shell}>
@@ -33,7 +45,7 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
         <div style={s.tabBar} className="bdu-tabBar">
           <button
             type="button"
-            onClick={() => setActiveTab("folder")}
+            onClick={() => openTab("folder")}
             className="bdu-tabBtn"
             style={{
               ...s.tabBtn,
@@ -44,7 +56,7 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("files")}
+            onClick={() => openTab("files")}
             className="bdu-tabBtn"
             style={{
               ...s.tabBtn,
@@ -55,18 +67,18 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("gmp")}
+            onClick={() => openTab("gmp")}
             className="bdu-tabBtn"
             style={{
               ...s.tabBtn,
               ...(activeTab === "gmp" ? s.tabBtnActive : {}),
             }}
           >
-            <ShieldCheck size={14} /> GMP
+            <ShieldCheck size={14} /> FGMP
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("logs")}
+            onClick={() => openTab("logs")}
             className="bdu-tabBtn"
             style={{
               ...s.tabBtn,
@@ -77,7 +89,7 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("summary")}
+            onClick={() => openTab("summary")}
             className="bdu-tabBtn"
             style={{
               ...s.tabBtn,
@@ -88,9 +100,21 @@ function BulkFolderDocumentUploadPage({ darkMode }) {
           </button>
         </div>
 
-        {activeTab === "folder" && <UploadFolderTab colors={colors} s={s} />}
-        {activeTab === "files" && <UploadBulkFilesTab colors={colors} s={s} />}
-        {activeTab === "gmp" && <UploadGMPTab colors={colors} s={s} />}
+        {visitedUploadTabs.has("folder") && (
+          <div style={{ display: activeTab === "folder" ? "block" : "none" }}>
+            <UploadFolderTab colors={colors} s={s} />
+          </div>
+        )}
+        {visitedUploadTabs.has("files") && (
+          <div style={{ display: activeTab === "files" ? "block" : "none" }}>
+            <UploadBulkFilesTab colors={colors} s={s} />
+          </div>
+        )}
+        {visitedUploadTabs.has("gmp") && (
+          <div style={{ display: activeTab === "gmp" ? "block" : "none" }}>
+            <UploadGMPTab colors={colors} s={s} />
+          </div>
+        )}
         {activeTab === "logs" && <UploadLogsTab colors={colors} s={s} />}
         {activeTab === "summary" && <BatchSummaryTab colors={colors} s={s} />}
       </div>

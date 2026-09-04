@@ -181,7 +181,7 @@ export async function downloadGMPTemplate() {
   const url  = window.URL.createObjectURL(new Blob([res.data]));
   const link = document.createElement("a");
   link.href  = url;
-  link.setAttribute("download", "GMP_Upload_Template.xlsx");
+  link.setAttribute("download", "FGMP_Upload_Template.xlsx");
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -214,7 +214,7 @@ export async function exportFilteredGMPRecords(params = {}) {
   link.href = url;
 
   const contentDisposition = res.headers["content-disposition"];
-  let filename = "gmp_records_export.xlsx";
+  let filename = "fgmp_records_export.xlsx";
   if (contentDisposition) {
     const match = contentDisposition.match(/filename="?([^"]+)"?/);
     if (match && match[1]) filename = match[1];

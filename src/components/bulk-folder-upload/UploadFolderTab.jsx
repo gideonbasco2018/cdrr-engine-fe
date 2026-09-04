@@ -18,6 +18,7 @@ import {
   kindOf,
   buildCategoryTree,
   locateDtnInPathParts,
+  resolveCategory,
 } from "./utils/fileHelpers";
 import FolderTreeNode from "./FolderTreeNode";
 import KindIcon from "./KindIcon";
@@ -115,8 +116,7 @@ function UploadFolderTab({ colors, s }) {
         continue;
       }
       const { index: dtnIndex, dtn } = locateDtnInPathParts(parts);
-      const categoryParts = parts.slice(dtnIndex + 1, -1);
-      const category = categoryParts.length ? categoryParts.join("/") : null;
+      const category = resolveCategory(parts.slice(dtnIndex + 1, -1), dtn);
       newEntries.push({
         id: `${relativePath}-${file.size}-${Date.now()}-${Math.random()
           .toString(36)

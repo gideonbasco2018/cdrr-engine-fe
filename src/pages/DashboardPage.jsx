@@ -528,18 +528,8 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
   }, []);
 
   const navItems = [
-    {
-      key: "main",
-      label: "Main Dashboard",
-      subtitle: "Licensing unit",
-      icon: "📊",
-    },
-    {
-      key: "gmp",
-      label: "GMP Dashboard",
-      subtitle: "GMP taskforce unit",
-      icon: "🏭",
-    },
+    { key: "main", label: "Main Dashboard", subtitle: "Licensing unit", icon: "📊" },
+    { key: "gmp", label: "FGMP Dashboard", subtitle: "FGMP taskforce unit", icon: "🏭" },
   ];
 
   return (
