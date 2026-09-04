@@ -4,24 +4,24 @@
 //         DTN, Reference No, Related DTN, and Status all up front
 // Step 2: Upload Documents
 // Step 3: Application logs timeline
-// Step 4: Action form (advance / reassign / reroute)
-import React, { useState, useEffect, useCallback, useRef, useLayoutEffect, useId } from "react";
+// Step 4: Action form (advance the workflow)
+import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import {
   getGMPRecord,
   getGMPRecordLogs,
   advanceStep,
   updateGMPRecord,
-  reassignGMPStep,
-  rerouteGMPStep,
   addGMPIssuance,
   getGMPSiblings,
   updateGMPIssuanceFields,
+  getGMPLogSteps,
 } from "../../../api/gmp";
 import { createDoctrackLogByRsn } from "../../../api/doctrack";
 import { getUsersByGroup, getUser } from "../../../api/auth";
-import { FONT, GMP_STEPS, GMP_STATUS_COLORS } from "../shared/constants";
+import { FONT, GMP_STEPS, GMP_STATUS_COLORS, GMP_TRANSACTION_TYPE_OPTIONS } from "../shared/constants";
 import ApplicationDocumentsPanel from "../shared/ApplicationDocumentsPanel";
+import { categoryTimelineDays } from "../shared/StatusTimelineBadge";
 
 const ACCENT = "#10b981";
 const MODAL_CSS = `
@@ -225,20 +225,13 @@ const GMP_DOCTRACK_REMARKS = {
 //           issuance type.
 // The "FGMP Supervisor" group/step has been removed — the Evaluator now
 // endorses directly to QA Admin after being cleared by the Checker.
-const GMP_STEP_DECISIONS = {
-  "Decking":           ["Forwarded to Evaluator", "Disapprove"],
-  "QA Admin":          ["Endorsed to LRD Chief Admin", "Return to Evaluator", "Disapprove"],
-  "LRD Chief Admin":   ["Forwarded to OD Receiving", "Return to QA Admin", "Disapprove"],
-  "OD Receiving":      ["Endorsed to OD - Releasing", "Return to LRD Chief Admin"],
-  "OD Releasing":      ["Scanned, Stamped and Forwarded to AFO Records"],
-  // Legacy detour step — OD Releasing no longer routes new NFI submissions
-  // here (mirrors the removed redirect in app/crud/gmp_record.py's
-  // resolve_next_step()). Kept only so records already on this step from
-  // before that change can still be advanced: this action hands the
-  // application back to the Evaluator, which then runs the usual
-  // Evaluator ⇄ Checker → … → OD Releasing sequence to the end.
-  "FROO":              ["Forwarded to CDRR FGMP"],
-};
+//
+// The per-step Action lists are NOT hardcoded here any more — they are fetched
+// from GET /api/gmp/log-steps (backend GMP_ACTION_ROUTES), so the dropdown can
+// never offer an action advance-step will reject. See `stepActions` in the
+// WorkflowModal component. The Evaluator ⇄ Checker path still uses its own
+// GMP_EVAL_CHECKER_ACTIONS below for field-form ordering — a dev-mode check
+// asserts it stays a subset of the fetched list.
 
 // ── Evaluator ⇄ Checker loop ─────────────────────────────────────────
 // The Checker can now send the application back to the Evaluator instead of
@@ -357,9 +350,8 @@ const GMP_LRD_DECISION_OPTIONS = ["Signed"];
 
 // ── OD Receiving: Action → optional Decision ("For Signature") ──────────────
 // Mirrors the LRD Chief Admin pattern above: picking the forwarding Action
-// ("Endorsed to OD - Releasing", per GMP_STEP_DECISIONS above) reveals a
-// required Decision confirmation and a required assignee picker scoped to
-// the OD Releasing group.
+// ("Endorsed to OD - Releasing") reveals a required Decision confirmation and
+// a required assignee picker scoped to the OD Releasing group.
 const GMP_OD_RECEIVING_SIGN_TRIGGER_ACTION = "Endorsed to OD - Releasing";
 const GMP_OD_RECEIVING_DECISION_OPTIONS = ["For Signature"];
 
@@ -411,6 +403,7 @@ const GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS = [
   "NFI due to Non-compliance",
   "Extension of Validity",
   "Permit to Register",
+  "Acknowledgement Letter",
 ];
 const GMP_DISAPPROVED_TYPE_OF_ISSUANCE = "Letter of Disapproval";
 
@@ -423,6 +416,7 @@ const GMP_NO_CERT_ISSUANCE_TYPES = new Set([
   "NFI due to Non-compliance",
   "Permit to Register",
   "Letter of Disapproval",
+  "Acknowledgement Letter",
 ]);
 const GMP_NO_SECPA_ONLY_TYPES = new Set(["Extension of Validity"]);
 function certNoteFor(type) {
@@ -443,13 +437,12 @@ const GMP_APPROVAL_DECISIONS = ["Certificate Released"];
 
 
 // Details step dropdown options
-const GMP_TRANSACTION_TYPE_OPTIONS = ["INITIAL", "RENEWAL", "RECONSTRUCTION", "CORRECTION", "COMPLIANCE DOCUMENTS"];
 const GMP_CATEGORY_OPTIONS = ["PIC/S", "NON PIC/S", "LETTER and CORRECTION"];
 
 const FIELD_LABELS = {
   GMP_LTO_COMPANY: "Name of Establishment", GMP_LTO_NUMBER: "LTO Number",
   GMP_TRANSACTION_TYPE: "Transaction Type", GMP_EST_CATEGORY: "Category",
-  GMP_PRODUCT_LINE: "Product Line", GMP_DATE_RECEIVED: "Date Received",
+  GMP_PRODUCT_LINE: "Product Line / Manufacturing Operation", GMP_DATE_RECEIVED: "Date Received",
   GMP_FOREIGN_MANUFACTURER: "Foreign Manufacturer", GMP_PICS_NONPICS: "PIC/S",
   GMP_TIMELINE: "Timeline", GMP_REMARKS: "Remarks",
   GMP_CERTIFICATE_NUMBER: "Certificate Number", GMP_TYPE_OF_ISSUANCE: "Type of Issuance",
@@ -828,6 +821,10 @@ function GmpDatePicker({
   disabled = false,
   fullWidth = false,
   ariaLabel,
+  // When true the trigger is a real text field — you can type the date
+  // (YYYY-MM-DD, or "Feb 16, 2026", or 2/16/2026) instead of only clicking
+  // the calendar. Value in/out stays the same "YYYY-MM-DD" string.
+  typable = false,
 }) {
   const iso = toDateInputValue(value);
   const [open, setOpen] = useState(false);
@@ -838,9 +835,51 @@ function GmpDatePicker({
   const [focusISO, setFocusISO] = useState(iso || isoToday());
   const [rect, setRect] = useState(null);
   const btnRef = useRef(null);
+  const inputRef = useRef(null);
   const panelRef = useRef(null);
   const dark = isDarkColors(colors);
   const today = isoToday();
+
+  // Typable-mode local text state — only live while the field has focus;
+  // otherwise the input shows the formatted (MM/DD/YYYY) saved value.
+  const [text, setText] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [badText, setBadText] = useState(false);
+
+  // "YYYY-MM-DD" -> "MM/DD/YYYY" for display / seeding the editable text.
+  const isoToMDY = (isoStr) => {
+    if (!isoStr) return "";
+    const { y, m, d } = isoParts(isoStr); // m is 0-based
+    return `${_pad2(m + 1)}/${_pad2(d)}/${y}`;
+  };
+
+  const parseTyped = (raw) => {
+    const s = String(raw).trim();
+    if (!s) return "";
+    let mm, dd, yy;
+    let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);   // MM/DD/YYYY
+    if (m) { mm = +m[1]; dd = +m[2]; yy = +m[3]; }
+    else {
+      m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);          // ISO fallback
+      if (m) { yy = +m[1]; mm = +m[2]; dd = +m[3]; }
+    }
+    if (mm != null) {
+      if (yy < 100) yy += 2000;
+      const dt = new Date(yy, mm - 1, dd);
+      return (dt.getFullYear() === yy && dt.getMonth() === mm - 1 && dt.getDate() === dd)
+        ? isoFromDate(dt) : null;
+    }
+    const dt = new Date(s);                                   // "Feb 16, 2026" etc.
+    return isNaN(dt.getTime()) ? null : isoFromDate(dt);
+  };
+  const restoreFocus = () => (typable ? inputRef.current : btnRef.current)?.focus();
+  const commitText = () => {
+    const parsed = parseTyped(text);
+    if (parsed === null) { setBadText(true); return; }
+    setBadText(false);
+    setEditing(false);
+    onChange(parsed);
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -902,7 +941,11 @@ function GmpDatePicker({
   const pick = (dISO) => {
     onChange(dISO);
     setOpen(false);
-    btnRef.current?.focus();
+    setEditing(false);
+    setBadText(false);
+    // In typable mode, leave focus off the input after a calendar pick so it
+    // settles on the formatted value instead of snapping back into edit mode.
+    if (!typable) restoreFocus();
   };
 
   const onKeyDown = (e) => {
@@ -925,7 +968,7 @@ function GmpDatePicker({
     if (e.key === "Escape") {
       e.preventDefault();
       setOpen(false);
-      btnRef.current?.focus();
+      restoreFocus();
     } else if (e.key === "ArrowLeft") move(-1);
     else if (e.key === "ArrowRight") move(1);
     else if (e.key === "ArrowUp") move(-7);
@@ -966,8 +1009,82 @@ function GmpDatePicker({
     fontFamily: FONT,
   };
 
+  const shellBorder = badText ? "#ef4444" : "transparent";
+  const shellShadow = badText
+    ? "0 0 0 2px rgba(239,68,68,0.45)"
+    : (open || editing) ? `0 0 0 2px ${ACCENT}55` : "none";
+
   return (
     <>
+      {typable ? (
+        <div
+          ref={btnRef}
+          style={{
+            width: fullWidth ? "100%" : "auto",
+            minWidth: fullWidth ? undefined : 150,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            padding: "0.15rem 0.2rem 0.15rem 0.5rem",
+            background: editableFieldInnerBg(colors),
+            border: `1px solid ${shellBorder}`,
+            borderRadius: 8,
+            boxSizing: "border-box",
+            opacity: disabled ? 0.55 : 1,
+            boxShadow: shellShadow,
+            transition: "box-shadow 0.12s",
+          }}
+        >
+          <input
+            ref={inputRef}
+            type="text"
+            inputMode="numeric"
+            disabled={disabled}
+            aria-label={ariaLabel}
+            placeholder={placeholder}
+            value={editing ? text : isoToMDY(iso)}
+            onFocus={() => { setEditing(true); setText(isoToMDY(iso)); setBadText(false); }}
+            onChange={(e) => { setText(e.target.value); setBadText(false); }}
+            onBlur={commitText}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commitText(); }
+              else if (e.key === "Escape") {
+                setEditing(false); setBadText(false);
+                if (open) setOpen(false);
+                inputRef.current?.blur();
+              } else if (e.key === "ArrowDown" && !open) {
+                e.preventDefault(); setOpen(true);
+              }
+            }}
+            style={{
+              flex: 1, minWidth: 0,
+              border: "none", outline: "none", background: "transparent",
+              padding: "0.2rem 0",
+              fontFamily: FONT, fontSize: "0.8rem",
+              color: iso || editing ? colors.textPrimary : colors.textTertiary,
+              fontWeight: iso ? 600 : 400,
+            }}
+          />
+          <button
+            type="button"
+            tabIndex={-1}
+            disabled={disabled}
+            onClick={() => !disabled && setOpen((o) => !o)}
+            onKeyDown={onKeyDown}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            aria-label="Open calendar to pick a date"
+            style={{
+              flexShrink: 0, border: "none", background: "transparent",
+              cursor: disabled ? "not-allowed" : "pointer",
+              color: colors.textSecondary, fontSize: "0.9rem", lineHeight: 1,
+              padding: "4px 5px", borderRadius: 6,
+            }}
+          >
+            📅
+          </button>
+        </div>
+      ) : (
       <button
         type="button"
         ref={btnRef}
@@ -1005,6 +1122,7 @@ function GmpDatePicker({
           {iso ? fmtDateLong(iso) : placeholder}
         </span>
       </button>
+      )}
 
       {open && rect &&
         createPortal(
@@ -1163,8 +1281,14 @@ function ESelectField({ label, fieldKey, value, originalValue, options, onChange
   );
 }
 // ── Editable field helper (Step 1 / Step 2) ────────────────────────────────────
-function EField({ label, fieldKey, value, originalValue, onChange, colors, fullWidth }) {
+function EField({ label, fieldKey, value, originalValue, onChange, colors, fullWidth, placeholder, hint, multiline, rows = 4 }) {
   const isDirty = String(value ?? "") !== String(originalValue ?? "");
+  const controlStyle = {
+    width: "100%", padding: "0.35rem 0.5rem", background: editableFieldInnerBg(colors),
+    border: "none",
+    borderRadius: 8, color: colors.textPrimary, fontSize: "0.8rem",
+    fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT,
+  };
   return (
     <div className="wfFieldBox" style={{
       gridColumn: fullWidth ? "1 / -1" : undefined,
@@ -1186,17 +1310,28 @@ function EField({ label, fieldKey, value, originalValue, onChange, colors, fullW
           }}>✎ edited</span>
         )}
       </div>
-      <input
-        type="text"
-        value={value ?? ""}
-        onChange={(e) => onChange(fieldKey, e.target.value)}
-        style={{
-          width: "100%", padding: "0.35rem 0.5rem", background: editableFieldInnerBg(colors),
-          border: "none",
-          borderRadius: 8, color: colors.textPrimary, fontSize: "0.8rem",
-          fontWeight: 600, outline: "none", boxSizing: "border-box", fontFamily: FONT,
-        }}
-      />
+      {multiline ? (
+        <textarea
+          value={value ?? ""}
+          placeholder={placeholder}
+          rows={rows}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          style={{ ...controlStyle, resize: "vertical", lineHeight: 1.45, minHeight: 72 }}
+        />
+      ) : (
+        <input
+          type="text"
+          value={value ?? ""}
+          placeholder={placeholder}
+          onChange={(e) => onChange(fieldKey, e.target.value)}
+          style={controlStyle}
+        />
+      )}
+      {hint && !isDirty && (
+        <span style={{ fontSize: "0.62rem", color: colors.textTertiary, fontStyle: "italic" }}>
+          {hint}
+        </span>
+      )}
       {isDirty && (
         <span style={{ fontSize: "0.62rem", color: colors.textTertiary, fontStyle: "italic" }}>
           Original: {originalValue || "empty"}
@@ -1235,7 +1370,8 @@ function EDateField({ label, fieldKey, value, originalValue, onChange, colors, f
         onChange={(v) => onChange(fieldKey, v)}
         colors={colors}
         fullWidth
-        placeholder="Pick a date…"
+        typable
+        placeholder="MM/DD/YYYY"
         ariaLabel={label}
       />
       {isDirty && (
@@ -1277,14 +1413,23 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
     : (GMP_STATUS_COLORS[effectiveStatus.toUpperCase()] ?? { bg: "#f1f5f9", color: "#64748b" });
   const val = (k) => (k in editedFields ? editedFields[k] : (record[k] ?? ""));
 
-  // Timeline = total working days allotted from Date Received. Reuses the
-  // same working-day math as the Compliance Deadline widget elsewhere in
-  // this file (addWorkingDays / workingDaysUntilWM) to show how many of
-  // those days are left, so this stays consistent with that calculation.
-  const timelineDays = parseInt(record.GMP_TIMELINE, 10);
+  // Timeline = total working days allotted from Date Received. An explicit
+  // GMP_TIMELINE always wins; when it's blank we fall back to the Citizen's-
+  // Charter default for the establishment category (PIC/S 60 / NON PIC/S 153)
+  // — same rule the Queue / Tasks "Timeline" column uses (effectiveTimelineDays
+  // in StatusTimelineBadge.jsx) and the same seeding the backend applies on
+  // save (_apply_category_timeline in gmp_record.py). Reads through `val()` so
+  // it reacts live to a Category the user picks here before submitting.
+  const rawTimeline = String(val("GMP_TIMELINE") || "").trim();
+  const explicitTimelineMatch = rawTimeline.match(/\d+/);
+  const explicitTimelineDays = explicitTimelineMatch ? parseInt(explicitTimelineMatch[0], 10) : null;
+  const categoryDays = categoryTimelineDays(val("GMP_EST_CATEGORY"));
+  const effTimelineDays = explicitTimelineDays ?? categoryDays;
+  const timelineFromCategory = explicitTimelineDays == null && categoryDays != null;
+
   let timelineBadge = null;
-  if (!isNaN(timelineDays) && timelineDays > 0 && record.GMP_DATE_RECEIVED) {
-    const deadline = addWorkingDays(new Date(record.GMP_DATE_RECEIVED), timelineDays);
+  if (effTimelineDays != null && effTimelineDays > 0 && record.GMP_DATE_RECEIVED) {
+    const deadline = addWorkingDays(new Date(record.GMP_DATE_RECEIVED), effTimelineDays);
     const remaining = workingDaysUntilWM(toISODate(deadline));
     const isOverdue = remaining < 0;
     timelineBadge = {
@@ -1304,19 +1449,21 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
         padding: "16px 22px", borderRadius: 18,
         background: "linear-gradient(135deg,rgba(59,130,246,0.08),rgba(16,185,129,0.03))",
         boxShadow: "0 10px 28px -18px rgba(37,99,235,0.45)",
-        display: "flex", gap: 30, flexWrap: "wrap", alignItems: "center",
+        display: "flex", gap: 30, flexWrap: "wrap", alignItems: "flex-start",
       }}>
         <div>
           {label("Document Tracking No.", "#2563eb")}
           <div style={{ fontSize: "1.05rem", fontWeight: 800, color: "#2563eb",
-            textDecoration: "underline", fontFamily: "ui-monospace,monospace" }}>
+            textDecoration: "underline", fontFamily: "ui-monospace,monospace",
+            minHeight: 22, display: "flex", alignItems: "center" }}>
             {task?.dtn || "—"}
           </div>
         </div>
         <div>
           {label("Reference No.", "#16a34a")}
           <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#16a34a",
-            fontFamily: "ui-monospace,monospace" }}>
+            fontFamily: "ui-monospace,monospace",
+            minHeight: 22, display: "flex", alignItems: "center" }}>
             {record.GMP_REFERENCE_NO || "N/A"}
           </div>
         </div>
@@ -1324,7 +1471,8 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
           <div>
             {label("Related DTN", "#16a34a")}
             <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#16a34a",
-              fontFamily: "ui-monospace,monospace" }}>
+              fontFamily: "ui-monospace,monospace",
+              minHeight: 22, display: "flex", alignItems: "center" }}>
               {record.GMP_RELATED_DTN}
             </div>
           </div>
@@ -1332,25 +1480,29 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
         <div>
           {label("App Status", colors.textTertiary)}
           <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "4px 12px",
-            borderRadius: 99, background: statusCfg.color, color: "#fff", display: "inline-block" }}>
+            borderRadius: 99, background: statusCfg.color, color: "#fff",
+            display: "inline-flex", alignItems: "center", height: 22, boxSizing: "border-box" }}>
             {fmt(effectiveStatus)}
           </span>
         </div>
-        {record.GMP_TIMELINE && (
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
-            <div>
-              {label("Timeline", colors.textTertiary)}
-              <div style={{ fontSize: "0.9rem", color: colors.textPrimary }}>
-                <span style={{ fontWeight: 800 }}>{record.GMP_TIMELINE}</span>{" "}
-                <span style={{ fontSize: "0.72rem", color: colors.textTertiary, fontWeight: 500 }}>working days</span>
-              </div>
-            </div>
-            {timelineBadge && (
-              <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "5px 12px",
-                borderRadius: 99, background: timelineBadge.color, color: "#fff", whiteSpace: "nowrap" }}>
-                {timelineBadge.icon} {timelineBadge.label}
+        {effTimelineDays != null && (
+          <div style={{ marginLeft: "auto" }}>
+            {label("Timeline", colors.textTertiary)}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 22 }}>
+              <span style={{ fontSize: "0.9rem", color: colors.textPrimary, whiteSpace: "nowrap" }}>
+                <span style={{ fontWeight: 800 }}>{timelineFromCategory ? effTimelineDays : rawTimeline}</span>{" "}
+                <span style={{ fontSize: "0.72rem", color: colors.textTertiary, fontWeight: 500 }}>
+                  working days
+                </span>
               </span>
-            )}
+              {timelineBadge && (
+                <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "0 10px",
+                  borderRadius: 99, background: timelineBadge.color, color: "#fff", whiteSpace: "nowrap",
+                  display: "inline-flex", alignItems: "center", height: 22, boxSizing: "border-box" }}>
+                  {timelineBadge.icon} {timelineBadge.label}
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1358,16 +1510,20 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
       <Section icon="🏢" title="Application Info" colors={colors}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <EField label="Name of Establishment" fieldKey="GMP_LTO_COMPANY" value={val("GMP_LTO_COMPANY")} originalValue={record.GMP_LTO_COMPANY} onChange={onFieldChange} colors={colors} fullWidth />
+          <EField label="Address" fieldKey="GMP_LTO_ADDRESS" value={val("GMP_LTO_ADDRESS")} originalValue={record.GMP_LTO_ADDRESS} onChange={onFieldChange} colors={colors} fullWidth />
           <EField label="LTO Number" fieldKey="GMP_LTO_NUMBER" value={val("GMP_LTO_NUMBER")} originalValue={record.GMP_LTO_NUMBER} onChange={onFieldChange} colors={colors} />
           <ESelectField label="Transaction Type" fieldKey="GMP_TRANSACTION_TYPE" value={val("GMP_TRANSACTION_TYPE")} originalValue={record.GMP_TRANSACTION_TYPE} options={GMP_TRANSACTION_TYPE_OPTIONS} onChange={onFieldChange} colors={colors} />
           <ESelectField label="Category" fieldKey="GMP_EST_CATEGORY" value={val("GMP_EST_CATEGORY")} originalValue={record.GMP_EST_CATEGORY} options={GMP_CATEGORY_OPTIONS} onChange={onFieldChange} colors={colors} />
-          <EField label="Product Line" fieldKey="GMP_PRODUCT_LINE" value={val("GMP_PRODUCT_LINE")} originalValue={record.GMP_PRODUCT_LINE} onChange={onFieldChange} colors={colors} />
           <EDateField label="Date Received" fieldKey="GMP_DATE_RECEIVED" value={val("GMP_DATE_RECEIVED")} originalValue={record.GMP_DATE_RECEIVED} onChange={onFieldChange} colors={colors} />
           <EField label="Foreign Manufacturer" fieldKey="GMP_FOREIGN_MANUFACTURER" value={val("GMP_FOREIGN_MANUFACTURER")} originalValue={record.GMP_FOREIGN_MANUFACTURER} onChange={onFieldChange} colors={colors} />
           <EField label="Related DTN" fieldKey="GMP_RELATED_DTN" value={val("GMP_RELATED_DTN")} originalValue={record.GMP_RELATED_DTN} onChange={onFieldChange} colors={colors} />
-          <EField label="Timeline" fieldKey="GMP_TIMELINE" value={val("GMP_TIMELINE")} originalValue={record.GMP_TIMELINE} onChange={onFieldChange} colors={colors} />
+          <EField label="Timeline" fieldKey="GMP_TIMELINE" value={val("GMP_TIMELINE")} originalValue={record.GMP_TIMELINE} onChange={onFieldChange} colors={colors}
+            placeholder={timelineFromCategory ? `${effTimelineDays} (from category)` : undefined}
+            hint={timelineFromCategory
+              ? `Not set — showing ${effTimelineDays} working days from the "${val("GMP_EST_CATEGORY")}" category. Type a value to override.`
+              : undefined} />
           <EField label="Foreign Manufacturer Address" fieldKey="GMP_FOREIGN_MANUFACTURER_ADDRESS" value={val("GMP_FOREIGN_MANUFACTURER_ADDRESS")} originalValue={record.GMP_FOREIGN_MANUFACTURER_ADDRESS} onChange={onFieldChange} colors={colors} fullWidth />
-          <EField label="Address" fieldKey="GMP_LTO_ADDRESS" value={val("GMP_LTO_ADDRESS")} originalValue={record.GMP_LTO_ADDRESS} onChange={onFieldChange} colors={colors} fullWidth />
+          <EField label="Product Line / Manufacturing Operation" fieldKey="GMP_PRODUCT_LINE" value={val("GMP_PRODUCT_LINE")} originalValue={record.GMP_PRODUCT_LINE} onChange={onFieldChange} colors={colors} fullWidth multiline rows={5} />
           <EField label="Remarks" fieldKey="GMP_REMARKS" value={val("GMP_REMARKS")} originalValue={record.GMP_REMARKS} onChange={onFieldChange} colors={colors} fullWidth />
         </div>
       </Section>
@@ -1826,10 +1982,9 @@ function RefNoPanel({ siblings, activeRefTab, siblingEdits, setSiblingEdits, sib
 }
 
 // ── Step 4 — Action form fields ──────────────────────────────────────────────
-function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
-  assignee, setAssignee, rerouteTo, setRerouteTo, rerouteUser, setRerouteUser,
-  reason, setReason, doctrackEnabled, setDoctrackEnabled, doctrackRemarks,
-  setDoctrackRemarks, task, currentStep, infoText, error, loading, onSubmit, colors, decisions, GMP_STEPS_LIST,
+function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
+  doctrackEnabled, setDoctrackEnabled, doctrackRemarks,
+  setDoctrackRemarks, task, currentStep, infoText, error, loading, onSubmit, colors, decisions,
   needsAuthority, authorityOptions, loadingAuthority, decisionAuthorityId, onAuthorityChange,
   needsApprovalFields, certNumber, setCertNumber, typeOfIssuance, setTypeOfIssuance, certValidity, setCertValidity,
   dirtyFields, isEvalOrChecker, actionOptions, actionValue, onActionChange,
@@ -1847,7 +2002,8 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
   newIssuanceType, onNewIssuanceTypeChange, addIssuanceLoading, addIssuanceError,
   addIssuanceSuccess, onAddIssuance, currentIssuanceType, originalIssuanceType,
   onCurrentIssuanceTypeChange, needsDifferentIssuanceType,
-  isFroo, currentRelatedDtn, originalRelatedDtn, onRelatedDtnChange }) {
+  isFroo, currentRelatedDtn, originalRelatedDtn, onRelatedDtnChange,
+  blockedReason, stepActionsError, onRetryStepActions, submitDisabled }) {
   const inp = {
     width: "100%", padding: "0.55rem 0.75rem", fontFamily: FONT, fontSize: "0.8rem",
     background: editableFieldInnerBg(colors), border: "none",
@@ -1990,12 +2146,12 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         )}
       </div>
 
-      {mode === "advance" && isEvalOrChecker && (
+      {isEvalOrChecker && (
         <>
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Action <span style={{ color: "#ef4444" }}>*</span></label>
             <GmpSelect value={actionValue} onChange={onActionChange} placeholder="Select action…"
-              options={actionOptions} colors={colors} ariaLabel="Action" />
+              options={actionOptions} colors={colors} ariaLabel="Action" allowClear={false} />
           </div>
           {needsComplianceDeadline && (
             <div style={{
@@ -2054,7 +2210,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
                 <div style={{ flex: "1 1 200px" }}>
                   <label style={{ ...lbl, fontSize: "0.6rem" }}>Deadline Date</label>
                   <GmpDatePicker value={complianceDeadline} onChange={onComplianceDeadlineChange}
-                    colors={colors} fullWidth placeholder="Pick a deadline…" ariaLabel="Deadline Date" />
+                    colors={colors} fullWidth typable placeholder="MM/DD/YYYY" ariaLabel="Deadline Date" />
                   {complianceDeadline && (
                     <div style={{ fontSize: "0.66rem", color: colors.textTertiary, marginTop: 4 }}>
                       📅 {new Date(`${complianceDeadline}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
@@ -2088,7 +2244,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
             <div className="wfFieldBox" style={box}>
               <label style={boxLbl}>Recommendation <span style={{ color: "#ef4444" }}>*</span></label>
               <GmpSelect value={approvalDecision} onChange={onApprovalDecisionChange} placeholder="Select recommendation…"
-                options={GMP_APPROVAL_DECISION_OPTIONS} colors={colors} ariaLabel="Recommendation" />
+                options={GMP_APPROVAL_DECISION_OPTIONS} colors={colors} ariaLabel="Recommendation" allowClear={false} />
             </div>
           )}
           {needsTypeOfIssuance && (
@@ -2099,20 +2255,20 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
                   style={{ ...boxInp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
               ) : (
                 <GmpSelect value={typeOfIssuanceValue} onChange={onTypeOfIssuanceChange} placeholder="Select type of issuance…"
-                  options={typeOfIssuanceOptions} colors={colors} ariaLabel="Type of Issuance" />
+                  options={typeOfIssuanceOptions} colors={colors} ariaLabel="Type of Issuance" allowClear={false} />
               )}
             </div>
           )}
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Remarks Preset <span style={{ color: "#ef4444" }}>*</span></label>
             <GmpSelect value={remarksPresetValue} onChange={onRemarksPresetChange} placeholder="Select remarks…"
-              options={remarksPresetOptions.map(r => r.value)} colors={colors} ariaLabel="Remarks Preset" />
+              options={remarksPresetOptions.map(r => r.value)} colors={colors} ariaLabel="Remarks Preset" allowClear={false} />
           </div>
           {needsNodDate && (
             <div className="wfFieldBox" style={{ ...box, maxWidth: 220 }}>
               <label style={boxLbl}>{nodDateLabel} <span style={{ color: "#ef4444" }}>*</span></label>
               <GmpDatePicker value={nodDateValue} onChange={onNodDateChange}
-                colors={colors} placeholder="Pick a date…" ariaLabel={nodDateLabel} />
+                colors={colors} fullWidth typable placeholder="MM/DD/YYYY" ariaLabel={nodDateLabel} />
               <p style={{ margin: "3px 0 0", fontSize: "0.6rem", color: colors.textTertiary }}>
                 Not saved until you click Submit below.
               </p>
@@ -2122,7 +2278,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
             <div className="wfFieldBox" style={{ ...box, maxWidth: 220 }}>
               <label style={boxLbl}>Date Printed <span style={{ color: "#ef4444" }}>*</span></label>
               <GmpDatePicker value={datePrintedValue} onChange={onDatePrintedChange}
-                colors={colors} placeholder="Pick a date…" ariaLabel="Date Printed" />
+                colors={colors} fullWidth typable placeholder="MM/DD/YYYY" ariaLabel="Date Printed" />
               <p style={{ margin: "3px 0 0", fontSize: "0.6rem", color: colors.textTertiary }}>
                 Not saved until you click Submit below.
               </p>
@@ -2131,29 +2287,57 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         </>
       )}
 
-      {mode === "advance" && !isEvalOrChecker && (
+      {!isEvalOrChecker && stepActionsError && (
+        <div style={{
+          padding: "0.8rem 1rem", borderRadius: 12,
+          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.35)",
+          fontSize: "0.75rem", lineHeight: 1.5, color: "#b91c1c",
+          display: "flex", flexDirection: "column", gap: 8,
+        }}>
+          <span>⚠️ Couldn't load the workflow actions for this step. Check your connection and try again.</span>
+          <button type="button" onClick={onRetryStepActions} style={{
+            alignSelf: "flex-start", border: "none", borderRadius: 999, cursor: "pointer",
+            padding: "5px 14px", fontFamily: FONT, fontSize: "0.72rem", fontWeight: 700,
+            background: "#b91c1c", color: "#fff",
+          }}>
+            ↻ Retry
+          </button>
+        </div>
+      )}
+
+      {!isEvalOrChecker && !blockedReason && !stepActionsError && (
         <div className="wfFieldBox" style={box}>
           <label style={boxLbl}>{(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "Action" : "Decision"} <span style={{ color: "#ef4444" }}>*</span></label>
           <GmpSelect value={decision} onChange={onDecisionChange}
             placeholder={`Select ${(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "action" : "decision"}…`}
-            options={decisions} colors={colors} ariaLabel="Decision" />
+            options={decisions} colors={colors} ariaLabel="Decision" allowClear={false} />
         </div>
       )}
 
-      {mode === "advance" && isOdReceiving && needsOdReceivingDecision && (
+      {!isEvalOrChecker && blockedReason && (
+        <div style={{
+          padding: "0.8rem 1rem", borderRadius: 12,
+          background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.35)",
+          fontSize: "0.75rem", lineHeight: 1.5, color: "#b91c1c",
+        }}>
+          ⚠️ {blockedReason}
+        </div>
+      )}
+
+      {isOdReceiving && needsOdReceivingDecision && (
         <div className="wfFieldBox" style={box}>
           <label style={boxLbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
           <GmpSelect value={odReceivingDecisionValue} onChange={onOdReceivingDecisionChange} placeholder="Select decision…"
-            options={GMP_OD_RECEIVING_DECISION_OPTIONS} colors={colors} ariaLabel="Decision" />
+            options={GMP_OD_RECEIVING_DECISION_OPTIONS} colors={colors} ariaLabel="Decision" allowClear={false} />
         </div>
       )}
 
-      {mode === "advance" && isOdReleasing && needsOdReleasingDecision && (
+      {isOdReleasing && needsOdReleasingDecision && (
         <>
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Decision <span style={{ color: "#ef4444" }}>*</span></label>
             <GmpSelect value={odReleasingDecisionValue} onChange={onOdReleasingDecisionChange} placeholder="Select decision…"
-              options={GMP_OD_RELEASING_DECISION_OPTIONS} colors={colors} ariaLabel="Decision" />
+              options={GMP_OD_RELEASING_DECISION_OPTIONS} colors={colors} ariaLabel="Decision" allowClear={false} />
           </div>
           <div className="wfFieldBox" style={box}>
             <label style={boxLbl}>Type of Issuance</label>
@@ -2163,7 +2347,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
           <div className="wfFieldBox" style={{ ...box, maxWidth: 200 }}>
             <label style={boxLbl}>Signed Date <span style={{ color: "#ef4444" }}>*</span></label>
             <GmpDatePicker value={odReleasingSignedDateValue} onChange={onOdReleasingSignedDateChange}
-              colors={colors} placeholder="Pick a date…" ariaLabel="Signed Date" />
+              colors={colors} fullWidth typable placeholder="MM/DD/YYYY" ariaLabel="Signed Date" />
           </div>
         </>
       )}
@@ -2183,7 +2367,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
                 label: u.first_name && (u.surname || u.last_name)
                   ? `${u.username} — ${u.first_name} ${u.surname ?? u.last_name}` : u.username,
               }))}
-              colors={colors} ariaLabel="Decision Authority" />
+              colors={colors} ariaLabel="Decision Authority" allowClear={false} />
           )}
           {!loadingAuthority && authorityOptions.length === 0 && (
             <p style={{ fontSize: "0.68rem", color: "#ef4444", marginTop: 4, marginBottom: 0 }}>⚠️ No authority users found for {currentStep}.</p>
@@ -2216,7 +2400,7 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         </div>
       )}
 
-      {mode === "advance" && needsAssigneeGroup && (
+      {needsAssigneeGroup && (
         <div className="wfFieldBox" style={box}>
           <label style={boxLbl}>
             Assign to {assigneeGroupConfig?.shortLabel}{" "}
@@ -2237,42 +2421,13 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
                 label: u.first_name && (u.surname || u.last_name)
                   ? `${u.username} — ${u.first_name} ${u.surname ?? u.last_name}` : u.username,
               }))}
-              colors={colors} ariaLabel="Assignee" />
+              colors={colors} ariaLabel="Assignee" allowClear={false} />
           )}
           {!loadingAssigneeGroup && assigneeGroupOptions.length === 0 && (
             <p style={{ fontSize: "0.68rem", color: "#ef4444", marginTop: 4, marginBottom: 0 }}>
               ⚠️ No users found in {assigneeGroupConfig?.groupLabel}.
             </p>
           )}
-        </div>
-      )}
-      {mode === "reassign" && (
-        <div className="wfFieldBox" style={box}>
-          <label style={boxLbl}>New Assignee <span style={{ color: "#ef4444" }}>*</span></label>
-          <input value={assignee} onChange={e => setAssignee(e.target.value)}
-            placeholder="Enter username to reassign to…" style={boxInp} />
-        </div>
-      )}
-      {mode === "reroute" && (
-        <>
-          <div className="wfFieldBox" style={box}>
-            <label style={boxLbl}>Target Step <span style={{ color: "#ef4444" }}>*</span></label>
-            <GmpSelect value={rerouteTo} onChange={setRerouteTo} placeholder="Select target step…"
-              options={GMP_STEPS_LIST.map(s => ({ value: s.id, label: s.label }))}
-              colors={colors} ariaLabel="Target Step" />
-          </div>
-          <div className="wfFieldBox" style={box}>
-            <label style={boxLbl}>Assign To <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
-            <input value={rerouteUser} onChange={e => setRerouteUser(e.target.value)}
-              placeholder="Username for target step…" style={boxInp} />
-          </div>
-        </>
-      )}
-      {(mode === "reassign" || mode === "reroute") && (
-        <div className="wfFieldBox" style={box}>
-          <label style={boxLbl}>Reason</label>
-          <input value={reason} onChange={e => setReason(e.target.value)}
-            placeholder="Reason for reassignment / reroute…" style={boxInp} />
         </div>
       )}
       <div className="wfFieldBox" style={box}>
@@ -2368,31 +2523,91 @@ function Step5Fields({ mode, decision, onDecisionChange, remarks, setRemarks,
         </div>
       )}
 
-      <button onClick={onSubmit} disabled={loading}
+      {(() => {
+        const blocked = loading || !!blockedReason || !!submitDisabled ||
+          (!isEvalOrChecker && !!stepActionsError);
+        return (
+      <button onClick={onSubmit} disabled={blocked}
         style={{
           width: "100%", padding: "0.75rem", border: "none", borderRadius: 999,
-          background: loading ? `${ACCENT}80` : `linear-gradient(135deg,${ACCENT},#059669)`,
+          background: blocked ? `${ACCENT}80` : `linear-gradient(135deg,${ACCENT},#059669)`,
           color: "#fff", fontFamily: FONT, fontSize: "0.86rem", fontWeight: 700,
-          cursor: loading ? "not-allowed" : "pointer",
+          cursor: blocked ? "not-allowed" : "pointer",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-          boxShadow: loading ? "none" : `0 10px 24px -8px ${ACCENT}70`,
+          boxShadow: blocked ? "none" : `0 10px 24px -8px ${ACCENT}70`,
           transition: "transform 0.12s, box-shadow 0.12s",
         }}>
         {loading
           ? <><span style={{ display: "inline-block", width: 13, height: 13, border: "2px solid #ffffff40",
               borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
               {submitLabel === "✅ Released" ? "Releasing…" : "Submitting…"}</>
+          : submitDisabled ? "Loading application…"
           : (submitLabel ?? "▶ Submit")}
       </button>
+        );
+      })()}
     </>
   );
 }
 
 // ── Main WorkflowModal ────────────────────────────────────────────────────────
 export default function WorkflowModal({ record: recordProp, log: task, onClose, onSuccess, colors, darkMode }) {
-  const [activeStep,  setActiveStep]  = useState(1);
   const [record,      setRecord]      = useState(null);
   const [loadingRec,  setLoadingRec]  = useState(true);
+
+  // ── Draft persistence ─────────────────────────────────────────────────────
+  // Every edit/addition made in this modal (Details-tab field edits + the
+  // Step 4 action form) is auto-saved to localStorage, keyed by record, so
+  // closing the modal — deliberately, to go do something else, or by mistake
+  // — never loses the work. The draft is wiped on a successful submit or an
+  // explicit "Discard draft". Per-viewer only; never leaves this browser.
+  const draftKey = task?.gmp_record_id ? `gmpWorkflowDraft:${task.gmp_record_id}` : null;
+  const loadedDraft = useMemo(() => {
+    if (!draftKey) return null;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch { return null; }
+  }, [draftKey]);
+  const d = loadedDraft ?? {};
+  // Holds the latest draft snapshot for the unmount flush below; nulled here so
+  // a wiped draft can't be resurrected by that flush (submit success / discard).
+  const draftSnapshotRef = useRef(null);
+  const clearDraft = useCallback(() => {
+    draftSnapshotRef.current = null;
+    if (!draftKey) return;
+    try { localStorage.removeItem(draftKey); } catch { /* private mode / disabled */ }
+  }, [draftKey]);
+
+  const [activeStep,  setActiveStep]  = useState(() => d.activeStep ?? 1);
+
+  // Per-step valid actions, fetched from the backend (GMP_ACTION_ROUTES) so the
+  // Action dropdown can never offer something advance-step will 400 on.
+  // null = still loading OR the fetch failed; {} would mean "loaded, no steps".
+  // A failed fetch also flips `stepActionsError` so Step 4 can offer a Retry
+  // instead of the misleading "no actions defined — contact an admin" notice.
+  const [stepActions, setStepActions] = useState(null);
+  const [stepActionsError, setStepActionsError] = useState(false);
+  const [stepActionsReloadKey, setStepActionsReloadKey] = useState(0);
+  const retryStepActions = useCallback(() => {
+    setStepActions(null);
+    setStepActionsError(false);
+    setStepActionsReloadKey((k) => k + 1);
+  }, []);
+  useEffect(() => {
+    let alive = true;
+    getGMPLogSteps()
+      .then((res) => {
+        if (!alive) return;
+        const map = {};
+        (res?.steps ?? []).forEach((s) => { map[s.label] = s.actions ?? []; });
+        setStepActions(map);
+        setStepActionsError(false);
+      })
+      .catch(() => { if (alive) { setStepActions(null); setStepActionsError(true); } });
+    return () => { alive = false; };
+  }, [stepActionsReloadKey]);
 
   // ── Reference number siblings (same DTN, different issuance types) ─────
   // "primary" = the '-01' reference — the only one with a real workflow.
@@ -2407,7 +2622,6 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const [siblingError, setSiblingError] = useState("");
 
   const primarySibling = siblings.find(s => (s.GMP_REFERENCE_NO || "").endsWith("-01")) ?? null;
-  const isPrimaryRecordId = (id) => primarySibling ? id === primarySibling.GMP_ID : true;
 
   // If this modal was somehow opened directly on a non-primary reference
   // (shouldn't happen once the Queue only lists primaries — see backend fix
@@ -2438,8 +2652,8 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
 
   const rawStep     = task?.applicationStep || "Decking";
   // Normalize legacy step names (e.g. "Quality Evaluator") to the canonical id
-  // used by GMP_STEPS/GMP_STEP_DECISIONS/GMP_AUTHORITY_STEPS, so a stored legacy
-  // value doesn't silently fall through to GMP_STEPS[0] ("Decking") below.
+  // used by GMP_STEPS/GMP_AUTHORITY_STEPS, so a stored legacy value doesn't
+  // silently fall through to GMP_STEPS[0] ("Decking") below.
   const currentStep = resolveEvalCheckerStep(rawStep) ?? rawStep;
   const isLrdChiefAdmin = currentStep === "LRD Chief Admin";
   const isOdReceiving  = currentStep === "OD Receiving";
@@ -2448,52 +2662,95 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const stepDef     = GMP_STEPS.find(s => s.id === currentStep) ?? GMP_STEPS[0];
   const currentIdx  = GMP_STEPS.findIndex(s => s.id === currentStep);
   const nextStep    = currentIdx >= 0 && currentIdx < GMP_STEPS.length - 1 ? GMP_STEPS[currentIdx + 1] : null;
-  const decisions   = GMP_STEP_DECISIONS[currentStep] ?? ["Approved", "Rejected"];
-  
+
+  // Actions come from the backend (see `stepActions`). No local fallback list —
+  // an unknown/legacy step yields [] and the Action field renders a blocked
+  // notice instead of offering choices that would 400 on submit.
+  const stepActionsLoaded = stepActions !== null;
+  const decisions   = stepActions?.[currentStep] ?? [];
+
   const evalCheckerStepKey = resolveEvalCheckerStep(currentStep);
   const isEvalOrChecker    = !!evalCheckerStepKey;
   const actionOptions      = GMP_EVAL_CHECKER_ACTIONS[evalCheckerStepKey] ?? [];
 
+  // Non-eval/checker advance with no known action for this step — block submit
+  // and point the user at an admin rather than showing an empty/rejectable list.
+  const noValidActions = !isEvalOrChecker && stepActionsLoaded && decisions.length === 0;
+
+  // Dev-only drift check: the eval/checker form keeps its own action ordering in
+  // GMP_EVAL_CHECKER_ACTIONS — warn if it ever lists something the backend won't
+  // route (the fetched list is the source of truth).
+  useEffect(() => {
+    if (!import.meta.env?.DEV || !isEvalOrChecker || !stepActionsLoaded) return;
+    const allowed = new Set(decisions);
+    const stray = actionOptions.filter((a) => !allowed.has(a));
+    if (stray.length) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[WorkflowModal] GMP_EVAL_CHECKER_ACTIONS["${evalCheckerStepKey}"] lists `
+        + `action(s) not in the backend routing table for "${currentStep}": `
+        + `${stray.join(", ")}. Update GMP_ACTION_ROUTES or this constant.`,
+      );
+    }
+  }, [isEvalOrChecker, stepActionsLoaded, evalCheckerStepKey, currentStep, decisions, actionOptions]);
+
   // Evaluator ⇄ Checker steps use the 3-field Action/Decision/Remarks-preset form
-  const [doctrackEnabled, setDoctrackEnabled] = useState(true);
-  const [doctrackRemarks, setDoctrackRemarks] = useState("");
+  const [doctrackEnabled, setDoctrackEnabled] = useState(() => d.doctrackEnabled ?? true);
+  const [doctrackRemarks, setDoctrackRemarks] = useState(() => d.doctrackRemarks ?? "");
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError,   setSubmitError]   = useState("");
 
+  // Details step editable fields
+  const [editedFields, setEditedFields] = useState(() =>
+    d.editedFields && typeof d.editedFields === "object" ? d.editedFields : {});
+
+  // The record's own stored timeline is authoritative — a category change in
+  // this modal only ever drives GMP_TIMELINE when the record itself has none
+  // (mirrors the backend's _apply_category_timeline). Once the user types in
+  // the Timeline field it's a manual override and the category stops driving it.
+  const recordHadTimeline = !!String(record?.GMP_TIMELINE || "").trim();
+  const timelineManualRef = useRef(
+    !!(d.editedFields && "GMP_TIMELINE" in d.editedFields),
+  );
+
+  const handleFieldChange = (fieldKey, value) => {
+    if (fieldKey === "GMP_TIMELINE") {
+      timelineManualRef.current = String(value || "").trim() !== "";
+    }
+    setEditedFields((p) => {
+      const next = { ...p, [fieldKey]: value };
+      // Category-driven Citizen's-Charter default (PIC/S 60 / NON PIC/S 153),
+      // shown as a normal edit. Re-runs on every category change so switching
+      // back to the previous category restores its default; a category with no
+      // default (LETTER and CORRECTION) clears the auto value.
+      if (fieldKey === "GMP_EST_CATEGORY" && !recordHadTimeline && !timelineManualRef.current) {
+        const days = categoryTimelineDays(value);
+        if (days != null) next.GMP_TIMELINE = String(days);
+        else delete next.GMP_TIMELINE;
+      }
+      return next;
+    });
+  };
+
+  // Step 4 action form — OD Releasing's advance is the only "release" here.
+  const submitLabel = isOdReleasing ? "✅ Released" : "▶ Submit";
+  const [decision, setDecision] = useState(() => d.decision ?? "");
+  const [remarks, setRemarks] = useState(() => d.remarks ?? "");
   // LRD Chief Admin — Decision ("Signed"), only required when Action is the
   // OD-Receiving-forwarding one.
-
-  // Details step editable fields
-  const [editedFields, setEditedFields] = useState({});
-  const handleFieldChange = (fieldKey, value) => setEditedFields((p) => ({ ...p, [fieldKey]: value }));
-
-  // Step5 state
-  const [mode, setMode] = useState("advance");
-  // Reassign/reroute at OD Releasing don't finalize anything (per the note
-  // that OD Releasing isn't always the true end of the line) — only the
-  // actual advance action there represents a release.
-  const submitLabel = (mode === "advance" && isOdReleasing) ? "✅ Released" : "▶ Submit";
-  const [decision, setDecision] = useState("");
-  const [remarks, setRemarks] = useState("");
-  const [assignee, setAssignee] = useState("");
-  const [rerouteTo, setRerouteTo] = useState("");
-  const [rerouteUser, setRerouteUser] = useState("");
-  const [reason, setReason] = useState("");
-// LRD Chief Admin — Decision ("Signed"), only required when Action is the
-  // OD-Receiving-forwarding one.
-  const [lrdDecision, setLrdDecision] = useState("");
+  const [lrdDecision, setLrdDecision] = useState(() => d.lrdDecision ?? "");
   const needsLrdDecision = isLrdChiefAdmin && decision === GMP_LRD_SIGN_TRIGGER_ACTION;
 
   // OD Receiving — Decision ("For Signature"), only required when Action is
   // the OD-Releasing-forwarding one.
-  const [odReceivingDecision, setOdReceivingDecision] = useState("");
+  const [odReceivingDecision, setOdReceivingDecision] = useState(() => d.odReceivingDecision ?? "");
   const needsOdReceivingDecision = isOdReceiving && decision === GMP_OD_RECEIVING_SIGN_TRIGGER_ACTION;
 
   // OD Releasing — Decision ("Signed") + Signed Date, both required once the
   // (single) Action is selected. Doctrack Remarks auto-recompute whenever
   // either the Decision or the Signed Date changes.
-  const [odReleasingDecision, setOdReleasingDecision] = useState("");
-  const [odReleasingSignedDate, setOdReleasingSignedDate] = useState("");
+  const [odReleasingDecision, setOdReleasingDecision] = useState(() => d.odReleasingDecision ?? "");
+  const [odReleasingSignedDate, setOdReleasingSignedDate] = useState(() => d.odReleasingSignedDate ?? "");
   const needsOdReleasingDecision = isOdReleasing && decision === GMP_OD_RELEASING_ACTION;
 
   const fmtSignedDate = (dateStr) => {
@@ -2516,10 +2773,10 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   };
 
   // Evaluator ⇄ Checker Step 5 fields
-  const [action,           setAction]           = useState("");
-  const [approvalDecision, setApprovalDecision] = useState("");
-  const [remarksPreset,    setRemarksPreset]    = useState("");
-  const [finalTypeOfIssuance, setFinalTypeOfIssuance] = useState("");
+  const [action,           setAction]           = useState(() => d.action ?? "");
+  const [approvalDecision, setApprovalDecision] = useState(() => d.approvalDecision ?? "");
+  const [remarksPreset,    setRemarksPreset]    = useState(() => d.remarksPreset ?? "");
+  const [finalTypeOfIssuance, setFinalTypeOfIssuance] = useState(() => d.finalTypeOfIssuance ?? "");
   const remarksPresetOptions = GMP_REMARKS_PRESETS[evalCheckerStepKey]?.[action] ?? [];
   // Approved no longer shows/requires this field here — Type of Issuance for
   // the Approved path is already set via the Details tab's own selector, so
@@ -2530,14 +2787,14 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const typeOfIssuanceLocked = approvalDecision === "Disapproved";
 
   // ── Auto-dated NOD / Date Printed fields, driven by the selected Remarks Preset ──
-  const [nodDateField, setNodDateField] = useState(null);   // e.g. "GMP_NOD_DATE_2"
-  const [nodDateValue, setNodDateValue] = useState("");
-  const [datePrintedValue, setDatePrintedValue] = useState("");
+  const [nodDateField, setNodDateField] = useState(() => d.nodDateField ?? null);   // e.g. "GMP_NOD_DATE_2"
+  const [nodDateValue, setNodDateValue] = useState(() => d.nodDateValue ?? "");
+  const [datePrintedValue, setDatePrintedValue] = useState(() => d.datePrintedValue ?? "");
 
   // ── Add Issuance — duplicate this record under the same DTN with a
   // different Type of Issuance. Shown unconditionally in Step 5, independent
-  // of mode/decision/action — its own self-contained mini-form.
-  const [newIssuanceType, setNewIssuanceType] = useState("");
+  // of decision/action — its own self-contained mini-form.
+  const [newIssuanceType, setNewIssuanceType] = useState(() => d.newIssuanceType ?? "");
   const [addIssuanceLoading, setAddIssuanceLoading] = useState(false);
   const [addIssuanceError, setAddIssuanceError] = useState("");
   const [addIssuanceSuccess, setAddIssuanceSuccess] = useState(null); // { GMP_REFERENCE_NO, GMP_TYPE_OF_ISSUANCE }
@@ -2580,8 +2837,8 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   };
 
   // ── Compliance Deadline (Evaluator "For Compliance") ────────────────────
-  const [complianceWorkingDays, setComplianceWorkingDays] = useState(GMP_COMPLIANCE_DEFAULT_DAYS);
-  const [complianceDeadline, setComplianceDeadline] = useState("");
+  const [complianceWorkingDays, setComplianceWorkingDays] = useState(() => d.complianceWorkingDays ?? GMP_COMPLIANCE_DEFAULT_DAYS);
+  const [complianceDeadline, setComplianceDeadline] = useState(() => d.complianceDeadline ?? "");
   const needsComplianceDeadline = isEvalOrChecker && action === "For Compliance";
 
   const handleComplianceWorkingDaysChange = (n) => {
@@ -2619,14 +2876,14 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   };
 
   // Decision Authority
-  const needsAuthority = mode === "advance" && GMP_AUTHORITY_STEPS.includes(currentStep);
+  const needsAuthority = GMP_AUTHORITY_STEPS.includes(currentStep);
   const [authorityOptions, setAuthorityOptions] = useState([]);
   const [loadingAuthority, setLoadingAuthority] = useState(false);
-  const [decisionAuthorityId, setDecisionAuthorityId] = useState(null);
-  const [decisionAuthorityName, setDecisionAuthorityName] = useState("");
+  const [decisionAuthorityId, setDecisionAuthorityId] = useState(() => d.decisionAuthorityId ?? null);
+  const [decisionAuthorityName, setDecisionAuthorityName] = useState(() => d.decisionAuthorityName ?? "");
 
   // Approval fields (Certificate)
-  const needsApprovalFields = mode === "advance" && GMP_APPROVAL_DECISIONS.includes(decision);
+  const needsApprovalFields = GMP_APPROVAL_DECISIONS.includes(decision);
   const [certNumber, setCertNumber] = useState("");
   const [typeOfIssuance, setTypeOfIssuance] = useState("");
   const [certValidity, setCertValidity] = useState("");
@@ -2644,17 +2901,22 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   // simply has no assignee-group entry in GMP_ACTION_ASSIGNEE_GROUPS.
   const assigneeGroupConfig = isEvalOrChecker
     ? GMP_ACTION_ASSIGNEE_GROUPS[action]
-    : (mode === "advance" ? GMP_ACTION_ASSIGNEE_GROUPS[decision] : undefined);
-  const needsAssigneeGroup  = mode === "advance" && !!assigneeGroupConfig;
+    : GMP_ACTION_ASSIGNEE_GROUPS[decision];
+  const needsAssigneeGroup  = !!assigneeGroupConfig;
   const [assigneeGroupOptions, setAssigneeGroupOptions] = useState([]);
   const [loadingAssigneeGroup, setLoadingAssigneeGroup] = useState(false);
-  const [assigneeUserId,   setAssigneeUserId]   = useState(null);
-  const [assigneeUserName, setAssigneeUserName] = useState("");
+  const [assigneeUserId,   setAssigneeUserId]   = useState(() => d.assigneeUserId ?? null);
+  const [assigneeUserName, setAssigneeUserName] = useState(() => d.assigneeUserName ?? "");
 
   const handleDecisionChange = (val) => {
   setDecision(val);
   const preset = GMP_DOCTRACK_REMARKS[val] ?? "";
   setDoctrackRemarks(preset);
+  // The target group is derived from the Decision, so a previously picked
+  // assignee no longer belongs to the right group — clear it (mirrors
+  // handleActionChange) so a stale user can't be submitted after a re-pick.
+  setAssigneeUserId(null);
+  setAssigneeUserName("");
   // Decision only applies to the signing/forwarding action — clear stale picks
   if (val !== GMP_LRD_SIGN_TRIGGER_ACTION) setLrdDecision("");
   if (val !== GMP_OD_RECEIVING_SIGN_TRIGGER_ACTION) setOdReceivingDecision("");
@@ -2771,8 +3033,12 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       // stays disabled until they actually pick something different (see
       // needsDifferentIssuanceType below), so simply opening the modal or
       // leaving this untouched can never create an accidental duplicate.
-      setNewIssuanceType(record.GMP_TYPE_OF_ISSUANCE ?? "");
+      // A restored draft's own pick wins over the record default.
+      if (loadedDraft?.newIssuanceType == null) {
+        setNewIssuanceType(record.GMP_TYPE_OF_ISSUANCE ?? "");
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record]);
 
   useEffect(() => {
@@ -2810,19 +3076,15 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       ? null
       : (nextStep?.label ?? null);
 
-  const infoText = mode === "advance"
-    ? (isEvalOrChecker
-        ? (!action ? "Select an Action to proceed."
-            : !remarksPreset ? "Select a Remarks preset to see what happens next."
-            : selectedRemarksPreset?.staysOpen
-              ? "A new compliance entry will be logged and the task will remain assigned to you."
-              : `Log will complete and forward per "${action}".`)
-        : (!decision ? "Select a decision to proceed."
-            : nextStepLabelForInfo ? `Log will complete and a new "${nextStepLabelForInfo}" log will be created.`
-            : "This is the final step — log will complete with no further assignment."))
-    : mode === "reassign"
-    ? "The current log will close and a new one will open for the new assignee at the same step."
-    : "The current log will close and a new log will open at the target step.";
+  const infoText = isEvalOrChecker
+    ? (!action ? "Select an Action to proceed."
+        : !remarksPreset ? "Select a Remarks preset to see what happens next."
+        : selectedRemarksPreset?.staysOpen
+          ? "A new compliance entry will be logged and the task will remain assigned to you."
+          : `Log will complete and forward per "${action}".`)
+    : (!decision ? "Select a decision to proceed."
+        : nextStepLabelForInfo ? `Log will complete and a new "${nextStepLabelForInfo}" log will be created.`
+        : "This is the final step — log will complete with no further assignment.");
 
   // Compute dirty fields for Step5 banner
   const dirtyFields = (() => {
@@ -2856,10 +3118,130 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     return out;
   })();
 
+  // ── Auto-save the draft (debounced) ─────────────────────────────────────
+  // Anything the user has layered on top of the saved record is worth
+  // keeping. A pristine form writes nothing and wipes any stale draft.
+  const hasDraftContent =
+    Object.keys(editedFields).length > 0 ||
+    !!decision || !!action || !!approvalDecision || !!remarksPreset ||
+    !!finalTypeOfIssuance || !!remarks.trim() ||
+    !!nodDateValue || !!datePrintedValue ||
+    !!lrdDecision || !!odReceivingDecision || !!odReleasingDecision || !!odReleasingSignedDate ||
+    decisionAuthorityId != null || assigneeUserId != null ||
+    (!!newIssuanceType && record != null && newIssuanceType !== (record.GMP_TYPE_OF_ISSUANCE ?? ""));
+
+  useEffect(() => {
+    if (!draftKey) return;
+    if (!hasDraftContent) {
+      // Don't wipe the stored draft while the record is still hydrating —
+      // some draft-only signals (e.g. a changed newIssuanceType) can't be
+      // recognised as "content" until `record` is in hand.
+      draftSnapshotRef.current = null;
+      if (!loadingRec) clearDraft();
+      return;
+    }
+    const snapshot = {
+      v: 1, savedAt: Date.now(), activeStep,
+      editedFields, decision, remarks,
+      action, approvalDecision, remarksPreset, finalTypeOfIssuance,
+      nodDateField, nodDateValue, datePrintedValue,
+      complianceWorkingDays, complianceDeadline,
+      lrdDecision, odReceivingDecision, odReleasingDecision, odReleasingSignedDate,
+      decisionAuthorityId, decisionAuthorityName,
+      assigneeUserId, assigneeUserName,
+      doctrackEnabled, doctrackRemarks, newIssuanceType,
+    };
+    draftSnapshotRef.current = snapshot;
+    const t = setTimeout(() => {
+      try { localStorage.setItem(draftKey, JSON.stringify(snapshot)); } catch { /* private mode / quota */ }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [
+    draftKey, hasDraftContent, activeStep, editedFields, decision, remarks,
+    action, approvalDecision, remarksPreset, finalTypeOfIssuance,
+    nodDateField, nodDateValue, datePrintedValue, complianceWorkingDays, complianceDeadline,
+    lrdDecision, odReceivingDecision, odReleasingDecision, odReleasingSignedDate,
+    decisionAuthorityId, decisionAuthorityName, assigneeUserId, assigneeUserName,
+    doctrackEnabled, doctrackRemarks, newIssuanceType, clearDraft, loadingRec,
+  ]);
+
+  // Flush the pending draft on unmount — otherwise an edit made within the
+  // 400ms debounce window right before closing the modal is lost.
+  useEffect(() => {
+    if (!draftKey) return undefined;
+    return () => {
+      try {
+        if (draftSnapshotRef.current) {
+          localStorage.setItem(draftKey, JSON.stringify(draftSnapshotRef.current));
+        }
+      } catch { /* private mode / quota */ }
+    };
+  }, [draftKey]);
+
+  const [draftRestored, setDraftRestored] = useState(!!loadedDraft);
+  const discardDraft = () => {
+    clearDraft();
+    setDraftRestored(false);
+    setEditedFields({});
+    setDecision(""); setRemarks("");
+    setAction(""); setApprovalDecision(""); setRemarksPreset(""); setFinalTypeOfIssuance("");
+    setNodDateField(null); setNodDateValue(""); setDatePrintedValue("");
+    setComplianceWorkingDays(GMP_COMPLIANCE_DEFAULT_DAYS); setComplianceDeadline("");
+    setLrdDecision(""); setOdReceivingDecision(""); setOdReleasingDecision(""); setOdReleasingSignedDate("");
+    setDecisionAuthorityId(null); setDecisionAuthorityName("");
+    setAssigneeUserId(null); setAssigneeUserName("");
+    setDoctrackEnabled(true); setDoctrackRemarks("");
+    setNewIssuanceType(record?.GMP_TYPE_OF_ISSUANCE ?? "");
+    timelineManualRef.current = false;
+  };
+
+  // ── Irreversible-step guards ───────────────────────────────────────────
+  // Step A (FIS/Doctrack) and Step B (advanceStep) can't be undone. If a
+  // later step fails and the user retries, these refs make the retry resume
+  // from the step that actually failed instead of replaying FIS/advance and
+  // creating duplicates. Any edit that changes what would be submitted
+  // resets them (see the effect below).
+  const doctrackSentRef = useRef(false);
+  const advanceDoneRef = useRef(false);
+  useEffect(() => {
+    doctrackSentRef.current = false;
+    advanceDoneRef.current = false;
+  }, [
+    doctrackEnabled, doctrackRemarks, action, decision, approvalDecision,
+    remarksPreset, assigneeUserId, decisionAuthorityId, lrdDecision,
+    odReceivingDecision, odReleasingDecision, odReleasingSignedDate,
+  ]);
+
+  // ── Modal shell: Escape closes, background scroll is locked, focus lands
+  //    inside on open. Backdrop click deliberately does NOT close — the draft
+  //    auto-save already covers accidental dismissal, and a stray click
+  //    shouldn't drop someone out of a long form.
+  const cardRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onCloseRef.current?.(); };
+    document.addEventListener("keydown", onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = setTimeout(() => {
+      cardRef.current?.querySelector("[data-gmp-close]")?.focus();
+    }, 0);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      clearTimeout(focusTimer);
+    };
+  }, []);
+
   const handleSubmit = async () => {
     setSubmitError(""); setSubmitLoading(true);
     try {
       // ── Validation ────────────────────────────────────────────────────────
+      if (!record) {
+        setSubmitError("The application is still loading — please wait a moment and try again.");
+        setSubmitLoading(false); return;
+      }
       if (isEvalOrChecker) {
         if (!action) {
           setSubmitError("Please select an Action."); setSubmitLoading(false); return;
@@ -2882,8 +3264,27 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         if (needsComplianceDeadline && !complianceDeadline) {
           setSubmitError("Please set a Compliance Deadline."); setSubmitLoading(false); return;
         }
+      } else if (stepActionsError) {
+        setSubmitError(
+          `Couldn't load the workflow actions for step "${currentStep}". `
+          + `Use the Retry button above, or reload the page.`,
+        );
+        setSubmitLoading(false); return;
+      } else if (noValidActions) {
+        setSubmitError(
+          `No workflow actions are defined for step "${currentStep}". Contact an admin.`,
+        );
+        setSubmitLoading(false); return;
       } else if (!decision) {
         setSubmitError("Please select an action."); setSubmitLoading(false); return;
+      } else if (stepActionsLoaded && !decisions.includes(decision)) {
+        // Defensive: the dropdown only offers `decisions`, so this only trips if
+        // the fetched list changed under the open modal. Bail before any write.
+        setSubmitError(
+          `"${decision}" is not a valid action for step "${currentStep}". `
+          + `Reload the page and try again.`,
+        );
+        setSubmitLoading(false); return;
       }
       // FROO's Related DTN is optional — the field is right here on the Action
       // step (and on the Details tab), but leaving it blank must not block the
@@ -2907,8 +3308,9 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
 
       // ── Step A: Doctrack (if enabled) — push to FIS FIRST, before we mutate
       //    the record or advance the log, so a Doctrack failure leaves nothing
-      //    half-applied (mirrors GMPDeckModal). ────────────────────────────────
-      if (doctrackEnabled) {
+      //    half-applied (mirrors GMPDeckModal). The `doctrackSentRef` guard
+      //    means a retry after a *later* failure won't re-insert the FIS log.
+      if (doctrackEnabled && !doctrackSentRef.current) {
         if (!doctrackRemarks.trim()) {
           setSubmitError("Doctrack Remarks are required. Turn off the Doctrack toggle if you already updated FIS manually.");
           setSubmitLoading(false); return;
@@ -2923,9 +3325,72 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
           setSubmitError("❌ Failed to insert Doctrack log. Submission cancelled.\nIf FIS was already updated manually, turn OFF the Doctrack toggle and resubmit.");
           setSubmitLoading(false); return;
         }
+        doctrackSentRef.current = true;
       }
 
-      // ── Step B: Save any dirty record fields (auto-audit-logged server-side) ──
+      // ── Step B: Advance ─────────────────────────────────────────────────
+      // Advance BEFORE writing record fields, so a rejected route (400) or any
+      // other advance failure leaves the record un-mutated — the user keeps the
+      // task and can retry. The record-field writes (Step C) run only once the
+      // advance has succeeded. `advanceDoneRef` keeps a retry after a Step C
+      // failure from advancing the log a second time.
+      // "For Compliance" now self-loops back to "Evaluator" on the backend,
+      // so it's no longer skipped — every eval/checker action creates a
+      // logged, auto-incrementing entry. There's no manual assignee picker
+      // for the self-loop, so it stays with the same evaluator submitting it.
+      const isSelfLoop = isEvalOrChecker && action === "For Compliance";
+      const advancePayload = {
+        current_step: currentStep,
+        action: isEvalOrChecker ? action : decision,
+        recommendation: "",
+        remarks,
+        // Always recorded on our own log — this is what actually shows up as
+        // "Remarks Preset" in the Logs step. `doctrackEnabled` only controls
+        // whether that same text is ALSO pushed to the external FIS Doctrack
+        // system below; it must not gate our own history, or every step
+        // submitted with the toggle off silently loses its remarks preset.
+        doctrack_remarks: doctrackRemarks.trim(),
+        // No more freeform fallback — every Forwarded-to/Endorsed-to action
+        // is now required to go through GMP_ACTION_ASSIGNEE_GROUPS above.
+        // Actions with no group mapping (Return to X, Disapprove, OD
+        // Releasing's final action) simply carry no next assignee.
+        next_assignee_name: needsAssigneeGroup
+          ? assigneeUserName
+          : isSelfLoop
+            ? (currentUser || task?.user_name || null)
+            : null,
+        // The self-loop stays with the submitter — carry their user_id too so
+        // the task survives a later username change (matched by id-or-name).
+        next_assignee_id: needsAssigneeGroup
+          ? assigneeUserId
+          : isSelfLoop
+            ? (currentUserObj.id ?? null)
+            : null,
+        action_type: isEvalOrChecker && approvalDecision
+          ? approvalDecision
+          : (needsLrdDecision && lrdDecision ? lrdDecision
+            : (needsOdReceivingDecision && odReceivingDecision ? odReceivingDecision
+              : (needsOdReleasingDecision && odReleasingDecision ? odReleasingDecision : undefined))),
+        decision_result: needsTypeOfIssuance
+          ? finalTypeOfIssuance
+          : (needsOdReleasingDecision ? typeOfIssuance : undefined),
+        completion_status: needsOdReleasingDecision ? "RELEASED" : undefined,
+        deadline_date: needsComplianceDeadline ? `${complianceDeadline}T00:00:00` : undefined,
+        working_days: needsComplianceDeadline ? complianceWorkingDays : undefined,
+        ...(needsAuthority ? {
+          decision_authority_id: decisionAuthorityId,
+          decision_authority_name: decisionAuthorityName,
+        } : {}),
+      };
+      if (!advanceDoneRef.current) {
+        await advanceStep(task.gmp_record_id, advancePayload);
+        advanceDoneRef.current = true;
+      }
+
+      // ── Step C: Save any dirty record fields (auto-audit-logged server-side) ──
+      // Runs after a successful advance. A failure here leaves the log advanced
+      // but a field or two unsaved — recoverable by editing the next log — which
+      // is a far rarer and milder failure than advancing on a stale route.
       const recordPayload = { ...editedFields };
       if (needsApprovalFields) {
         recordPayload.GMP_CERTIFICATE_NUMBER = certNumber;
@@ -2969,49 +3434,13 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         await updateGMPRecord(task.gmp_record_id, recordPayload);
       }
 
-      // ── Step C: Advance ──────────────────────────────────────────────────
-      // "For Compliance" now self-loops back to "Evaluator" on the backend,
-      // so it's no longer skipped — every eval/checker action creates a
-      // logged, auto-incrementing entry. There's no manual assignee picker
-      // for the self-loop, so it stays with the same evaluator submitting it.
-      const isSelfLoop = isEvalOrChecker && action === "For Compliance";
-      await advanceStep(task.gmp_record_id, {
-        current_step: currentStep,
-        action: isEvalOrChecker ? action : decision,
-        recommendation: "",
-        remarks,
-        // Always recorded on our own log — this is what actually shows up as
-        // "Remarks Preset" in the Logs step. `doctrackEnabled` only controls
-        // whether that same text is ALSO pushed to the external FIS Doctrack
-        // system below; it must not gate our own history, or every step
-        // submitted with the toggle off silently loses its remarks preset.
-        doctrack_remarks: doctrackRemarks.trim(),
-        // No more freeform fallback — every Forwarded-to/Endorsed-to action
-        // is now required to go through GMP_ACTION_ASSIGNEE_GROUPS above.
-        // Actions with no group mapping (Return to X, Disapprove, OD
-        // Releasing's final action) simply carry no next assignee.
-        next_assignee_name: needsAssigneeGroup
-          ? assigneeUserName
-          : isSelfLoop
-            ? (currentUser || task?.user_name || null)
-            : null,
-        next_assignee_id: needsAssigneeGroup ? assigneeUserId : null,
-        action_type: isEvalOrChecker && approvalDecision
-          ? approvalDecision
-          : (needsLrdDecision && lrdDecision ? lrdDecision
-            : (needsOdReceivingDecision && odReceivingDecision ? odReceivingDecision
-              : (needsOdReleasingDecision && odReleasingDecision ? odReleasingDecision : undefined))),
-        decision_result: needsTypeOfIssuance
-          ? finalTypeOfIssuance
-          : (needsOdReleasingDecision ? typeOfIssuance : undefined),
-        completion_status: needsOdReleasingDecision ? "RELEASED" : undefined,
-        deadline_date: needsComplianceDeadline ? `${complianceDeadline}T00:00:00` : undefined,
-        working_days: needsComplianceDeadline ? complianceWorkingDays : undefined,
-        ...(needsAuthority ? {
-          decision_authority_id: decisionAuthorityId,
-          decision_authority_name: decisionAuthorityName,
-        } : {}),
-      });
+      // Submitted cleanly — drop the draft and the resume guards, and release
+      // the button in case the parent keeps this modal mounted.
+      clearDraft();
+      setDraftRestored(false);
+      doctrackSentRef.current = false;
+      advanceDoneRef.current = false;
+      setSubmitLoading(false);
       onSuccess();
     } catch (e) {
       setSubmitError(e?.response?.data?.detail ?? "Submission failed. Please try again.");
@@ -3027,7 +3456,9 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       padding: 16, fontFamily: FONT, animation: "gmpBackdropIn 0.2s ease forwards",
     }}>
       <style>{MODAL_CSS}</style>
-      <div data-gmp-modal-card style={{
+      <div data-gmp-modal-card ref={cardRef}
+        role="dialog" aria-modal="true" aria-labelledby="gmpWorkflowModalTitle"
+        style={{
         background: darkMode
           ? "#1a1c1f"
           : "#f7f8fa",
@@ -3054,7 +3485,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
               boxShadow: `0 4px 12px -4px ${ACCENT}50`,
             }}>{stepDef.icon}</span>
             <div>
-              <h2 style={{ margin: 0, fontSize: "1rem", fontWeight: 800, letterSpacing: "-0.01em", color: colors.textPrimary }}>
+              <h2 id="gmpWorkflowModalTitle" style={{ margin: 0, fontSize: "1rem", fontWeight: 800, letterSpacing: "-0.01em", color: colors.textPrimary }}>
                 FGMP Workflow — {stepDef.label}
               </h2>
               <p style={{ margin: "3px 0 0", fontSize: "0.72rem", color: colors.textTertiary }}>
@@ -3065,7 +3496,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
               </p>
             </div>
           </div>
-          <button onClick={onClose} style={{
+          <button onClick={onClose} data-gmp-close aria-label="Close workflow modal" style={{
             width: 34, height: 34, borderRadius: "50%", border: "none",
             background: darkMode ? "rgba(255,255,255,0.06)" : "rgba(16,24,20,0.05)",
             color: colors.textTertiary, cursor: "pointer",
@@ -3073,6 +3504,28 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
             transition: "background 0.15s",
           }}>✕</button>
         </div>
+
+        {draftRestored && (
+          <div style={{
+            flexShrink: 0, display: "flex", alignItems: "center", gap: 10,
+            padding: "8px 20px", fontSize: "0.72rem",
+            background: darkMode ? "rgba(245,158,11,0.12)" : "#fef7ec",
+            borderBottom: `1px solid ${colors.cardBorder}`, color: "#b45309",
+          }}>
+            <span aria-hidden>🗒️</span>
+            <span style={{ flex: 1 }}>
+              <strong>Draft restored</strong> — your earlier unsaved edits on this application were kept
+              {loadedDraft?.savedAt ? ` (${fmtDT(loadedDraft.savedAt)})` : ""}.
+            </span>
+            <button type="button" onClick={discardDraft} style={{
+              flexShrink: 0, border: "none", borderRadius: 999, cursor: "pointer",
+              padding: "4px 12px", fontFamily: FONT, fontSize: "0.68rem", fontWeight: 700,
+              background: "rgba(180,83,9,0.14)", color: "#b45309",
+            }}>
+              Discard draft
+            </button>
+          </div>
+        )}
 
         {hasMultipleIssuances && (
           <RefNoTabBar
@@ -3157,18 +3610,19 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                 }} />
               </div>
               <Step5Fields
-                mode={mode} decision={decision} onDecisionChange={handleDecisionChange}
+                decision={decision} onDecisionChange={handleDecisionChange}
+                blockedReason={noValidActions
+                  ? `No workflow actions are defined for step "${currentStep}". Contact an admin.`
+                  : ""}
+                stepActionsError={stepActionsError} onRetryStepActions={retryStepActions}
+                submitDisabled={loadingRec}
                 remarks={remarks} setRemarks={setRemarks}
-                assignee={assignee} setAssignee={setAssignee}
-                rerouteTo={rerouteTo} setRerouteTo={setRerouteTo}
-                rerouteUser={rerouteUser} setRerouteUser={setRerouteUser}
-                reason={reason} setReason={setReason}
                 doctrackEnabled={doctrackEnabled} setDoctrackEnabled={setDoctrackEnabled}
                 doctrackRemarks={doctrackRemarks} setDoctrackRemarks={setDoctrackRemarks}
                 task={task} currentStep={currentStep}
                 infoText={infoText} error={submitError} loading={submitLoading}
                 onSubmit={handleSubmit} colors={colors}
-                decisions={decisions} GMP_STEPS_LIST={GMP_STEPS}
+                decisions={decisions}
                 needsAuthority={needsAuthority} authorityOptions={authorityOptions}
                 loadingAuthority={loadingAuthority} decisionAuthorityId={decisionAuthorityId}
                 onAuthorityChange={handleAuthorityChange}

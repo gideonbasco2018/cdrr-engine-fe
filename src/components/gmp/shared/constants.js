@@ -7,46 +7,43 @@
 //            QA Admin=34, LRD Chief Admin=17, OD Receiving=18, OD Releasing=19,
 //            FROO=37
 // NOTE: The "QA Supervisor" step/group (33) has been removed on the backend.
-// Evaluator now routes directly to QA Admin. Keep this file's `id` and
-// `actions` in sync with GMP_ACTION_ROUTES / GMP_LOG_STEPS in
-// app/crud/gmp_record.py — that table is the single source of truth for
-// routing, and advance-step will 400 on any action not registered there.
+// Evaluator now routes directly to QA Admin. Keep this file's `id` values in
+// sync with GMP_LOG_STEPS in app/crud/gmp_record.py.
+//
+// The per-step ACTION lists are NOT defined here — they live only in the
+// backend's GMP_ACTION_ROUTES and are fetched by WorkflowModal via
+// GET /api/gmp/log-steps (see api/gmp.js getGMPLogSteps). That table is the
+// single source of truth for routing; advance-step 400s on any action not in
+// it, so the UI must never carry its own copy of the list.
 
 export const GMP_STEPS = [
   {
     id: "Decking", label: "Decking", icon: "📋", color: "#6366f1", del_index: 1,
     group_id: 30,
-    actions: ["Forwarded to Evaluator", "Hold", "Disapprove"],
   },
   {
     id: "Evaluator", label: "Evaluator", icon: "🔬", color: "#f59e0b", del_index: 2,
     group_id: 31,
-    actions: ["Endorsed to Checker", "Endorsed to QA Admin", "For Compliance"],
   },
   {
     id: "Checker", label: "Checker", icon: "✅", color: "#10b981", del_index: 3,
     group_id: 32,
-    actions: ["Endorsed to Evaluator"],
   },
   {
     id: "QA Admin", label: "QA Admin", icon: "🏢", color: "#8b5cf6", del_index: 4,
     group_id: 34,
-    actions: ["Endorsed to LRD Chief Admin", "Return to Evaluator", "Disapprove"],
   },
   {
     id: "LRD Chief Admin", label: "LRD Chief Admin", icon: "🏛️", color: "#ec4899", del_index: 5,
     group_id: 17,
-    actions: ["Forwarded to OD Receiving", "Return to QA Admin", "Disapprove"],
   },
   {
     id: "OD Receiving", label: "OD Receiving", icon: "📥", color: "#06b6d4", del_index: 6,
     group_id: 18,
-    actions: ["Endorsed to OD - Releasing", "Return to LRD Chief Admin", "Hold"],
   },
   {
     id: "OD Releasing", label: "OD Releasing", icon: "📤", color: "#f97316", del_index: 7,
     group_id: 19,
-    actions: ["Certificate Released", "Return to OD Receiving", "Hold"],
   },
   // Detour step, NFI issuance types only (see GMP_NFI_ISSUANCE_TYPES /
   // resolve_next_step() in app/crud/gmp_record.py) — OD Releasing already
@@ -60,7 +57,6 @@ export const GMP_STEPS = [
   {
     id: "FROO", label: "FROO", icon: "🔗", color: "#0ea5e9", del_index: 8,
     group_id: 37,
-    actions: ["Forwarded to CDRR FGMP"],
   },
 ];
 
@@ -89,6 +85,17 @@ export const GMP_STATUS_COLORS = {
 };
 
 export const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+// Canonical FGMP transaction types — the single list used by BOTH the Workflow
+// modal's Details dropdown and the batch folder upload's "new record" form, so
+// a record created in one place never shows an unrecognized value in the other.
+export const GMP_TRANSACTION_TYPE_OPTIONS = [
+  "INITIAL",
+  "RENEWAL",
+  "RECONSTRUCTION",
+  "CORRECTION",
+  "COMPLIANCE DOCUMENTS",
+];
 
 // Shared per-field accent colors for Category / Transaction Type / Issuance
 // Type chips — used by both QueueTable.jsx and TasksTable.jsx so the same

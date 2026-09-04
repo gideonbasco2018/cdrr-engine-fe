@@ -8,6 +8,7 @@
 // application), so there's no DTN detection — dropping a folder just
 // contributes its subfolder names as the category path for each file.
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import {
   Loader2,
   AlertCircle,
@@ -19,6 +20,8 @@ import {
   FileText,
   Image as ImageIcon,
   File as FileIcon,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import {
   uploadApplicationDocumentSingle,
@@ -230,6 +233,23 @@ export default function ApplicationDocumentsPanel({
   const [collapsedExisting, setCollapsedExisting] = useState(() => new Set());
   const [collapsedStaged, setCollapsedStaged] = useState(() => new Set());
   const [activeItem, setActiveItem] = useState(null); // { type: "existing"|"staged", doc }
+  const [fullscreen, setFullscreen] = useState(false);
+
+  // While full screen, Esc should collapse the overlay — not bubble up to the
+  // WorkflowModal's own Esc handler and close the whole modal. Capture phase +
+  // stopPropagation intercepts it before that bubble-phase listener runs.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        e.preventDefault();
+        setFullscreen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [fullscreen]);
 
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -634,8 +654,36 @@ export default function ApplicationDocumentsPanel({
       ? activeItem.doc.kind
       : null;
 
-  return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 360px) minmax(0, 1fr)", gap: 14, alignItems: "start" }}>
+  const activeFilename = activeItem?.type === "existing"
+    ? activeItem.doc.original_filename
+    : activeItem?.type === "staged"
+      ? activeItem.doc.file.name
+      : "";
+
+  const fsToggleBtn = (
+    <button
+      type="button"
+      onClick={() => setFullscreen((f) => !f)}
+      title={fullscreen ? "Exit full screen (Esc)" : "View full screen"}
+      style={{
+        flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5,
+        border: `1px solid ${colors.cardBorder}`, background: "transparent",
+        color: colors.textSecondary, borderRadius: 7, padding: "4px 9px",
+        fontSize: "0.68rem", fontWeight: 700, cursor: "pointer",
+      }}
+    >
+      {fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+      {fullscreen ? "Exit full screen" : "Full screen"}
+    </button>
+  );
+
+  const content = (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: fullscreen ? "minmax(280px, 320px) minmax(0, 1fr)" : "minmax(300px, 360px) minmax(0, 1fr)",
+      gap: 14, alignItems: "start",
+      height: fullscreen ? "100%" : undefined,
+    }}>
     <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
       <div className="wfFieldBox" style={{
         border: `1px solid ${colors.cardBorder}`, borderRadius: 12, padding: 12,
@@ -922,17 +970,29 @@ export default function ApplicationDocumentsPanel({
         style={{
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: 12,
-          minHeight: 420,
-          height: "calc(94vh - 95px)",
+          minHeight: fullscreen ? 0 : 420,
+          height: fullscreen ? "100%" : "calc(94vh - 95px)",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          position: "sticky",
+          position: fullscreen ? "static" : "sticky",
           top: 0,
           background: colors.cardBg,
           boxShadow: cardShadow(colors),
         }}
       >
+        <div style={{
+          flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 10, padding: "7px 8px 7px 12px", borderBottom: `1px solid ${colors.cardBorder}`,
+        }}>
+          <span style={{
+            fontSize: "0.7rem", fontWeight: 700, color: colors.textTertiary,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }} title={activeFilename || undefined}>
+            {activeFilename || "Preview"}
+          </span>
+          {fsToggleBtn}
+        </div>
         {!activeItem ? (
           <div
             style={{
@@ -982,19 +1042,6 @@ export default function ApplicationDocumentsPanel({
                 />
               )}
             </div>
-            <div
-              style={{
-                padding: "8px 12px",
-                borderTop: `1px solid ${colors.cardBorder}`,
-                fontSize: "0.7rem",
-                color: colors.textTertiary,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {activeItem.doc.original_filename}
-            </div>
           </>
         ) : (
           <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
@@ -1031,4 +1078,21 @@ export default function ApplicationDocumentsPanel({
       </div>
     </div>
   );
+
+  if (fullscreen) {
+    return createPortal(
+      <div
+        style={{
+          position: "fixed", inset: 0, zIndex: 12000,
+          background: isDarkColors(colors) || darkMode ? "#141618" : "#eef1f5",
+          padding: 16, boxSizing: "border-box", overflow: "auto",
+        }}
+      >
+        {content}
+      </div>,
+      document.body,
+    );
+  }
+
+  return content;
 }

@@ -186,37 +186,33 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
       const logs = await getGMPRecordLogs(record.id);
       const openDeckLog = logs.find(l => l.application_step === "Decking" && l.application_status === "IN PROGRESS");
 
+      // Carry the evaluator's numeric id (not just the username) so the task
+      // survives a later username change — the tasks list matches id-or-name.
+      const evalUser = needsEvaluator ? users.find(u => u.username === evaluator) : null;
+      const advancePayload = {
+        current_step:        "Decking",
+        action:              decision,
+        recommendation:      "",
+        remarks:             deckerRemarks,
+        // Always recorded on our own application log — mirrors WorkflowModal:
+        // `doctrackEnabled` only controls whether this text is ALSO pushed to
+        // the external FIS Doctrack system above; it must not gate our own
+        // history, or every deck submitted with the toggle off silently loses
+        // its remarks.
+        doctrack_remarks:    doctrackRemarks.trim(),
+        next_assignee_name:  needsEvaluator ? evaluator : null,
+        next_assignee_id:    evalUser?.id ?? null,
+      };
+
       if (openDeckLog) {
         // Already has an open decking log — advance it
-        await advanceStep(record.id, {
-          current_step:        "Decking",
-          action:              decision,
-          recommendation:      "",
-          remarks:             deckerRemarks,
-          // Always recorded on our own application log — mirrors WorkflowModal:
-          // `doctrackEnabled` only controls whether this text is ALSO pushed to
-          // the external FIS Doctrack system above; it must not gate our own
-          // history, or every deck submitted with the toggle off silently loses
-          // its remarks.
-          doctrack_remarks:    doctrackRemarks.trim(),
-          next_assignee_name:  needsEvaluator ? evaluator : null,
-          next_assignee_id:    null,
-        });
+        await advanceStep(record.id, advancePayload);
       } else {
         // No open decking log — create one via the assign endpoint then advance
         // Use the assign-evaluator endpoint which sets GMP_EVALUATOR on the record
         const { assignEvaluator } = await import("../../../api/gmp");
         if (needsEvaluator) await assignEvaluator(record.id, evaluator);
-        // Then call advance-step to create the log chain
-        await advanceStep(record.id, {
-          current_step:        "Decking",
-          action:              decision,
-          recommendation:      "",
-          remarks:             deckerRemarks,
-          doctrack_remarks:    doctrackRemarks.trim(),
-          next_assignee_name:  needsEvaluator ? evaluator : null,
-          next_assignee_id:    null,
-        });
+        await advanceStep(record.id, advancePayload);
       }
 
       setScreen("done");

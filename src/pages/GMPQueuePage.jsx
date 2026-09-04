@@ -25,6 +25,13 @@ import { FONT } from "../components/gmp/shared/constants";
 
 const ACCENT = "#6366f1";
 
+// All queue-table column keys, and the ones added recently enough that existing
+// users' saved column prefs won't include them — those get force-shown once
+// (see the visibleColumns initializer). Move a key out of NEW once everyone has
+// had a release cycle to see it.
+const GMP_QUEUE_COL_KEYS = GMP_QUEUE_COLUMNS.map((c) => c.key);
+const GMP_QUEUE_NEW_COL_KEYS = ["status_timeline"];
+
 // Default queue sort — also what "reset sort" (QueueTable's ✕ next to the
 // active sort arrow) returns to.
 const DEFAULT_SORT_BY = "GMP_DATE_EXCEL_UPLOAD";
@@ -624,11 +631,21 @@ export default function GMPQueuePage({ darkMode = false }) {
   const [visibleColumns, setVisibleColumns] = useState(() => {
     try {
       const stored = localStorage.getItem("gmpQueueVisibleColumns");
-      return stored ? JSON.parse(stored) : GMP_QUEUE_COLUMNS.map((c) => c.key);
-    } catch { return GMP_QUEUE_COLUMNS.map((c) => c.key); }
+      if (!stored) return GMP_QUEUE_COL_KEYS;
+      const visible = JSON.parse(stored);
+      // Reveal columns added to the app since this user's prefs were saved.
+      // `gmpQueueKnownColumns` records which keys the user has already had in
+      // the toggle list; first run of this mechanism seeds it with every key
+      // EXCEPT the newly-added ones so only those get force-shown, once.
+      const known = JSON.parse(localStorage.getItem("gmpQueueKnownColumns") || "null")
+        ?? GMP_QUEUE_COL_KEYS.filter((k) => !GMP_QUEUE_NEW_COL_KEYS.includes(k));
+      const newlyAdded = GMP_QUEUE_COL_KEYS.filter((k) => !known.includes(k));
+      return [...new Set([...visible, ...newlyAdded])];
+    } catch { return GMP_QUEUE_COL_KEYS; }
   });
   useEffect(() => {
     localStorage.setItem("gmpQueueVisibleColumns", JSON.stringify(visibleColumns));
+    localStorage.setItem("gmpQueueKnownColumns", JSON.stringify(GMP_QUEUE_COL_KEYS));
   }, [visibleColumns]);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const toggleColumn = (key) => {

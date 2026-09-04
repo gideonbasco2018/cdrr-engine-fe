@@ -40,22 +40,42 @@ export function kindOfMime(mimeType) {
   return ACCEPTED_TYPES[mimeType] || "other";
 }
 
-/** DTN pattern — a 14-digit timestamp (YYYYMMDDHHMMSS), e.g. "20250307094701". */
-export const DTN_PATTERN = /\d{14}/;
+/**
+ * DTN pattern — EXACTLY 14 digits (YYYYMMDDHHMMSS, e.g. "20250307094701"),
+ * as a whole token: bounded by a non-digit (or the string edge) on each side.
+ * "20250307094701", "20250307094701 - Company", "Foo-20250307094701" match
+ * (DTN in capture group 1); a 15+ digit run does NOT, so we never silently
+ * take the first 14 digits of a longer number. (No look-behind — keeps it
+ * working on older Safari.)
+ */
+export const DTN_PATTERN = /(?:^|\D)(\d{14})(?:\D|$)/;
 
 /**
- * Scans path segments (excluding the filename) for the first one containing
- * a 14-digit timestamp — that segment's match becomes the DTN, regardless of
- * how many container folders sit above it (e.g. a batch folder holding many
- * DTN subfolders). Falls back to the first segment if none match, preserving
- * the "selected folder itself is the DTN" behavior.
+ * Scans path segments (excluding the filename) for the first one carrying a
+ * standalone 14-digit DTN token, regardless of how many container folders sit
+ * above it. Falls back to the first segment if none match, preserving the
+ * generic folder tab's "the selected folder itself is the DTN" behavior.
  */
 export function locateDtnInPathParts(parts) {
   for (let i = 0; i < parts.length - 1; i++) {
     const match = parts[i].match(DTN_PATTERN);
-    if (match) return { index: i, dtn: match[0] };
+    if (match) return { index: i, dtn: match[1] };
   }
   return { index: 0, dtn: parts[0] };
+}
+
+/**
+ * Strict variant for the FGMP tab: a real 14-digit DTN token must be present
+ * somewhere in the folder path. Returns { index: -1, dtn: null } when there
+ * is none — the caller surfaces that as "no DTN detected", never invents one
+ * from a folder name (which would then fail the whole pseudo-group).
+ */
+export function locateGmpDtn(parts) {
+  for (let i = 0; i < parts.length - 1; i++) {
+    const match = parts[i].match(DTN_PATTERN);
+    if (match) return { index: i, dtn: match[1] };
+  }
+  return { index: -1, dtn: null };
 }
 
 /**

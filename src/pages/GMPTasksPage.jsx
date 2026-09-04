@@ -7,9 +7,11 @@ import { getMyGMPTasks, markTaskReceived, toggleTaskStar } from "../api/gmp";
 import { getColorScheme } from "../components/gmp/shared/colorScheme";
 import { GMP_STEPS, FONT } from "../components/gmp/shared/constants";
 import TasksTable, { GMP_COLUMNS as GMP_TASKS_COLUMNS } from "../components/gmp/tasks/TasksTable";
+import { computeStatusTimeline } from "../components/gmp/shared/StatusTimelineBadge";
 import AppLogModal from "../components/gmp/tasks/AppLogModal";
 import FieldAuditModal from "../components/gmp/tasks/FieldAuditModal";
 import WorkflowModal from "../components/gmp/tasks/WorkflowModal";
+import GMPBulkEndorseModal, { GMP_BULK_ENDORSE_CONFIG } from "../components/gmp/tasks/GMPBulkEndorseModal";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
 import GMPDocumentsModal from "../components/gmp/queue/GMPDocumentsModal";
 import { QuickFilterSidebar } from "../components/gmp/queue/QueueFilters";
@@ -20,6 +22,14 @@ import {
 } from "../components/tasks/DataTable/TransmittalGenerator";
 
 const ACCENT = "#10b981";
+
+// All task-table column keys, and the ones added recently enough that existing
+// users' saved column prefs won't include them — those get force-shown once
+// (see the visibleColumns initializer). Move a key out of NEW once it's been
+// shipped long enough that everyone has seen it.
+const GMP_TASKS_COL_KEYS = GMP_TASKS_COLUMNS.map((c) => c.key);
+const GMP_TASKS_NEW_COL_KEYS = ["status_timeline"];
+
 const QUICK_LABEL_MAP = {
   category: "Category", transaction_type: "Transaction Type",
   status: "Application Status", type_of_issuance: "Issuance Type",
@@ -39,6 +49,22 @@ function getEffectiveStatus(r) {
   if (raw && GMP_TERMINAL_STATUSES.has(raw)) return r.status;
   if (r.currentStep) return "IN PROGRESS";
   return r.status;
+}
+
+// Free-text search — matches the fields the FGMP Queue's backend `search` param
+// covers (DTN, LTO company, LTO number, certificate no., SECPA no., category),
+// plus Reference No which is more useful on a task queue. Case-insensitive
+// substring; blank query matches everything.
+const GMP_TASK_SEARCH_FIELDS = [
+  "dtn", "name_of_establishment", "lto_number", "reference_no",
+  "certificate_number", "secpa_number", "category", "foreign_manufacturer",
+];
+function taskMatchesSearch(r, q) {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return GMP_TASK_SEARCH_FIELDS.some((k) =>
+    String(r[k] ?? "").toLowerCase().includes(needle)
+  );
 }
 
 // Map GMPApplicationLogs + embedded GMPRecord → flat task object
@@ -251,8 +277,16 @@ export default function GMPTasksPage({ darkMode = false }) {
   const [sortBy,         setSortBy]         = useState(null);
   const [sortOrder,      setSortOrder]      = useState("asc");
   const [readIds,        setReadIds]        = useState(new Set());
+  // Free-text search box (mirrors the FGMP Queue). `searchInput` is the live
+  // field value; `search` is the debounced value the filter actually reads.
+  // Everything here is client-side — every task for the tab is already loaded
+  // (fetchAllSteps: page_size 10000) — so this is a plain string match, no
+  // backend call.
   const [searchInput,    setSearchInput]    = useState("");
-  const [filters,        setFilters]        = useState({ starredOnly: false, sentBy: "" });
+  const [search,         setSearch]         = useState("");
+  // `nearDeadline` / `beyond` = the timeline-risk toggles (light-yellow /
+  // light-red rows). When both are on, show near OR beyond.
+  const [filters,        setFilters]        = useState({ starredOnly: false, sentBy: "", nearDeadline: false, beyond: false });
   const [activeQuick,    setActiveQuick]    = useState(QUICK_DEFAULTS);
   // Persisted across sessions — a refresh or navigating back should leave
   // the Quick Filters sidebar exactly as the user last left it.
@@ -263,17 +297,34 @@ export default function GMPTasksPage({ darkMode = false }) {
     localStorage.setItem("gmp_tasks_quick_filters_collapsed", String(collapsed));
   }, [collapsed]);
 
+  // Debounce the search box (mirrors GMPQueuePage) — 300 ms after the last
+  // keystroke, commit it to `search` and jump back to page 1.
+  useEffect(() => {
+    const t = setTimeout(() => { setSearch(searchInput); setCurrentPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   // Which table columns the user wants to see — persisted across sessions
   // so a refresh doesn't reset a deliberately trimmed-down view. Starts
   // with every column checked.
   const [visibleColumns, setVisibleColumns] = useState(() => {
     try {
       const stored = localStorage.getItem("gmpTasksVisibleColumns");
-      return stored ? JSON.parse(stored) : GMP_TASKS_COLUMNS.map((c) => c.key);
-    } catch { return GMP_TASKS_COLUMNS.map((c) => c.key); }
+      if (!stored) return GMP_TASKS_COL_KEYS;
+      const visible = JSON.parse(stored);
+      // Reveal columns added to the app since this user's prefs were saved.
+      // `gmpTasksKnownColumns` records which keys the user has already had in
+      // the toggle list; on the first run of this mechanism, seed it with every
+      // key EXCEPT the newly-added ones so only those get force-shown, once.
+      const known = JSON.parse(localStorage.getItem("gmpTasksKnownColumns") || "null")
+        ?? GMP_TASKS_COL_KEYS.filter((k) => !GMP_TASKS_NEW_COL_KEYS.includes(k));
+      const newlyAdded = GMP_TASKS_COL_KEYS.filter((k) => !known.includes(k));
+      return [...new Set([...visible, ...newlyAdded])];
+    } catch { return GMP_TASKS_COL_KEYS; }
   });
   useEffect(() => {
     localStorage.setItem("gmpTasksVisibleColumns", JSON.stringify(visibleColumns));
+    localStorage.setItem("gmpTasksKnownColumns", JSON.stringify(GMP_TASKS_COL_KEYS));
   }, [visibleColumns]);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const toggleColumn = (key) => {
@@ -284,6 +335,7 @@ export default function GMPTasksPage({ darkMode = false }) {
 
   const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
   const [generatingTransmittal, setGeneratingTransmittal] = useState(false);
+  const [showBulkEndorse, setShowBulkEndorse] = useState(false);
 
   // Modals
   const [logRecord,      setLogRecord]      = useState(null);
@@ -412,7 +464,16 @@ export default function GMPTasksPage({ darkMode = false }) {
   const matchesTableFilters = (r) => {
     const mstar = !filters.starredOnly || r.is_starred === 1;
     const msb = !filters.sentBy || (r.sentByUsername ?? r.sentByFullName ?? "").toLowerCase().includes(filters.sentBy.toLowerCase());
-    return mstar && msb;
+    const msearch = taskMatchesSearch(r, search);
+    let mrisk = true;
+    if (filters.nearDeadline || filters.beyond) {
+      const st = computeStatusTimeline(r);
+      mrisk = !!st && !st.released && (
+        (filters.nearDeadline && st.level === "near") ||
+        (filters.beyond && st.level === "beyond")
+      );
+    }
+    return mstar && msb && msearch && mrisk;
   };
 
   // Quick Filter sidebar groups — built client-side from tasks already loaded
@@ -447,7 +508,7 @@ export default function GMPTasksPage({ darkMode = false }) {
       buildGroup("Transaction Type", "transaction_type", (r) => [r.transaction_type]),
       buildGroup("Issuance Type", "type_of_issuance", (r) => r.all_issuance_types || []),
     ];
-  }, [data, activeQuick, filters]);
+  }, [data, activeQuick, filters, search]);
 
   const handleSidebarSelect = (key, value) => {
     setActiveQuick((prev) => ({
@@ -459,7 +520,7 @@ export default function GMPTasksPage({ darkMode = false }) {
 
   const filteredData = useMemo(() => {
     return data.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick));
-  }, [data, filters, activeQuick]);
+  }, [data, filters, activeQuick, search]);
 
   // Generic comparator — numeric-aware (so "10" sorts after "2", and DTNs
   // compare correctly), nulls/blanks always sort last regardless of
@@ -521,10 +582,11 @@ export default function GMPTasksPage({ darkMode = false }) {
 
   const handleTabChange = (step) => {
     setActiveTab(step); setSelectedRows([]);
-    // Quick filters are scoped to the currently visible tab's data — keeping
-    // e.g. category="DRUG" selected across a tab switch commonly filters the
-    // new tab down to nothing, showing a misleading "No tasks assigned yet".
+    // Quick filters and search are scoped to the currently visible tab's data —
+    // keeping e.g. category="DRUG" or a search term across a tab switch commonly
+    // filters the new tab down to nothing, showing a misleading empty state.
     setActiveQuick(QUICK_DEFAULTS);
+    setSearchInput(""); setSearch("");
     setCurrentPage(1);
   };
 
@@ -674,6 +736,34 @@ export default function GMPTasksPage({ darkMode = false }) {
             display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
             opacity: loading ? 0.5 : 1, transition: "opacity 0.15s ease",
           }}>
+            <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
+              <span style={{
+                position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                color: colors.textTertiary, fontSize: "0.78rem", pointerEvents: "none",
+              }}>
+                🔍
+              </span>
+              <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search by DTN, company, certificate number…"
+                style={{
+                  width: "100%", padding: "6px 26px 6px 30px", fontSize: "0.72rem",
+                  fontFamily: FONT, borderRadius: 6, border: `1px solid ${colors.cardBorder}`,
+                  background: colors.inputBg, color: colors.textPrimary, outline: "none",
+                  boxSizing: "border-box",
+                }} />
+              {searchInput && (
+                <button onClick={() => setSearchInput("")}
+                  title="Clear search"
+                  style={{
+                    position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)",
+                    background: "transparent", border: "none", color: colors.textTertiary,
+                    cursor: "pointer", fontSize: "0.7rem", padding: 0, lineHeight: 1,
+                  }}>
+                  ✕
+                </button>
+              )}
+            </div>
+
             <div style={{ position: "relative", minWidth: 170 }}>
               <span style={{
                 position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)",
@@ -704,6 +794,35 @@ export default function GMPTasksPage({ darkMode = false }) {
               ★ Starred Only
             </button>
 
+            {/* Timeline-risk toggles — mirror the row wash: near = light yellow
+                (≥80% of allotted working days elapsed), beyond = light red. */}
+            <button
+              onClick={() => setFilters({ ...filters, nearDeadline: !filters.nearDeadline })}
+              title="Open tasks that have used ≥80% of their allotted timeline"
+              style={{
+                padding: "5px 10px", fontSize: "0.68rem", fontWeight: 600,
+                fontFamily: FONT, borderRadius: 6,
+                border: `1px solid ${filters.nearDeadline ? "#ca8a04" : colors.cardBorder}`,
+                background: filters.nearDeadline ? "rgba(202,138,4,0.15)" : "transparent",
+                color: filters.nearDeadline ? "#ca8a04" : colors.textTertiary,
+                cursor: "pointer",
+              }}>
+              ⚠ Near Deadline
+            </button>
+            <button
+              onClick={() => setFilters({ ...filters, beyond: !filters.beyond })}
+              title="Open tasks already past their allotted timeline"
+              style={{
+                padding: "5px 10px", fontSize: "0.68rem", fontWeight: 600,
+                fontFamily: FONT, borderRadius: 6,
+                border: `1px solid ${filters.beyond ? "#dc2626" : colors.cardBorder}`,
+                background: filters.beyond ? "rgba(220,38,38,0.15)" : "transparent",
+                color: filters.beyond ? "#dc2626" : colors.textTertiary,
+                cursor: "pointer",
+              }}>
+              🔴 Beyond
+            </button>
+
             {selectedRows.length > 0 && (
               <>
                 <span style={{
@@ -730,6 +849,24 @@ export default function GMPTasksPage({ darkMode = false }) {
                   }}>
                   📄 Generate Transmittal
                 </button>
+                {GMP_BULK_ENDORSE_CONFIG[activeTab] && (
+                  <button
+                    onClick={() => setShowBulkEndorse(true)}
+                    style={{
+                      padding: "6px 14px", fontSize: "0.72rem", fontWeight: 700,
+                      fontFamily: FONT, borderRadius: 8, cursor: "pointer", border: "none",
+                      background: GMP_BULK_ENDORSE_CONFIG[activeTab].isEndTask
+                        ? "linear-gradient(135deg,#10b981,#059669)"
+                        : "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                      color: "#fff", display: "flex", alignItems: "center", gap: 6,
+                      boxShadow: GMP_BULK_ENDORSE_CONFIG[activeTab].isEndTask
+                        ? "0 2px 8px rgba(16,185,129,0.35)"
+                        : "0 2px 8px rgba(124,58,237,0.35)",
+                    }}>
+                    {GMP_BULK_ENDORSE_CONFIG[activeTab].isEndTask ? "✅" : "📋"}{" "}
+                    {GMP_BULK_ENDORSE_CONFIG[activeTab].buttonLabel}
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -886,9 +1023,14 @@ export default function GMPTasksPage({ darkMode = false }) {
             <p style={{ fontSize: "0.84rem", fontWeight: 600, color: colors.textPrimary, margin: 0 }}>
               {data.length === 0 ? "No tasks assigned yet" : "No tasks match your filters"}
             </p>
-            {data.length > 0 && activeQuickChips.length > 0 && (
+            {data.length > 0 && (activeQuickChips.length > 0 || searchInput || filters.nearDeadline || filters.beyond || filters.starredOnly || filters.sentBy) && (
               <button
-                onClick={() => { setActiveQuick(QUICK_DEFAULTS); setCurrentPage(1); }}
+                onClick={() => {
+                  setActiveQuick(QUICK_DEFAULTS);
+                  setSearchInput(""); setSearch("");
+                  setFilters((f) => ({ ...f, starredOnly: false, sentBy: "", nearDeadline: false, beyond: false }));
+                  setCurrentPage(1);
+                }}
                 style={{
                   fontSize: "0.74rem", fontWeight: 600, color: ACCENT,
                   background: "transparent", border: `1px solid ${ACCENT}50`, borderRadius: 8,
@@ -1036,6 +1178,20 @@ export default function GMPTasksPage({ darkMode = false }) {
         onClose={() => !generatingTransmittal && setShowTransmittalChoice(false)}
         colors={colors} darkMode={darkMode}
       />
+
+      {showBulkEndorse && GMP_BULK_ENDORSE_CONFIG[activeTab] && (
+        <GMPBulkEndorseModal
+          config={GMP_BULK_ENDORSE_CONFIG[activeTab]}
+          records={sortedData.filter((r) => selectedRows.includes(r.id))}
+          onClose={() => setShowBulkEndorse(false)}
+          onSuccess={async () => {
+            setSelectedRows([]);
+            await fetchAllSteps();
+            await fetchTasks();
+          }}
+          colors={colors} darkMode={darkMode}
+        />
+      )}
     </div>
   );
 }

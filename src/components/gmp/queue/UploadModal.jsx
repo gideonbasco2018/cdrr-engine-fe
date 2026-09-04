@@ -134,13 +134,25 @@ export default function UploadModal({ onClose, onSuccess, colors, darkMode }) {
               {result.errors?.length > 0 && (
                 <div style={{ marginTop: 8 }}>
                   <p style={{ margin: "0 0 4px", fontSize: "0.72rem", fontWeight: 700, color: "#b91c1c" }}>
-                    Row errors:
+                    Rows not imported:
                   </p>
                   <ul style={{ margin: 0, paddingLeft: 16 }}>
-                    {result.errors.map((e, i) => (
-                      <li key={i} style={{ fontSize: "0.71rem", color: "#b91c1c", marginBottom: 2 }}>{e}</li>
-                    ))}
+                    {result.errors.map((e, i) => {
+                      // Backend sends objects: { row_number, dtn, reason }.
+                      // Tolerate a plain string too, just in case.
+                      const text = typeof e === "string"
+                        ? e
+                        : `Row ${e.row_number ?? "?"}${e.dtn && e.dtn !== "-" ? ` · DTN ${e.dtn}` : ""} — ${e.reason ?? "could not be imported."}`;
+                      return (
+                        <li key={i} style={{ fontSize: "0.71rem", color: "#b91c1c", marginBottom: 2 }}>{text}</li>
+                      );
+                    })}
                   </ul>
+                  {result.errors.length >= 20 && (
+                    <p style={{ margin: "4px 0 0", fontSize: "0.68rem", color: colors.textTertiary }}>
+                      Showing the first 20.
+                    </p>
+                  )}
                 </div>
               )}
               <button onClick={reset} style={{
@@ -220,7 +232,9 @@ export default function UploadModal({ onClose, onSuccess, colors, darkMode }) {
               border: `1px solid ${colors.cardBorder}`,
             }}>
               💡 Use the <strong>Download Template</strong> button to get the correct Excel format.
-              Each row in the file becomes one FGMP record. The ID is assigned automatically.
+              Each row becomes one FGMP record (ID assigned automatically). A row whose
+              <strong> DTN already exists</strong> in the system — including a deleted one — is skipped,
+              never updated.
             </p>
           )}
         </div>

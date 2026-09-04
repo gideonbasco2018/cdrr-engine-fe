@@ -143,6 +143,7 @@ export default function GMPReassignmentModal({ record, onClose, onSuccess, color
       await reassignGMPStep(record.id, {
         application_step: currentStep,
         reassigned_to_user_name: selectedUser,
+        reassigned_to_user_id: users.find((u) => u.username === selectedUser)?.id ?? null,
         reassignment_reason: reason,
         reassignment_remarks: remarks || null,
       });

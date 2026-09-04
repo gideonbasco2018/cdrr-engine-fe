@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { ArrowUpDown, ChevronUp, X } from "lucide-react";
 import { FONT, GMP_STATUS_COLORS, GMP_STEPS, GMP_FIELD_ACCENTS } from "../shared/constants";
 import StepProgress from "../shared/StepProgress";
+import StatusTimelineBadge, { rowTimelineTint, effectiveTimelineDays } from "../shared/StatusTimelineBadge";
 
 
 const ACCENT = "#6366f1";
@@ -31,6 +32,7 @@ export const COLUMNS = [
   { key: "processed_time",                label: "Processed Time",                            width: 120 },
   { key: "end_date",                      label: "End Date",                                  width: 110 },
   { key: "timeline",                      label: "Timeline",                                  width: 100 },
+  { key: "status_timeline",               label: "Status Timeline",                           width: 160 },
   { key: "remarks",                       label: "Remarks",                                   width: 180 },
   { key: "nod_date_1",                    label: "1st Date of NOD",                          width: 120 },
   { key: "nod_date_2",                    label: "2nd Date of NOD",                          width: 120 },
@@ -515,8 +517,12 @@ export default function QueueTable({
               // mutated imperatively, so a theme toggle mid-hover can't leave
               // a stale color stuck on a <td> that React isn't tracking.
               const zebraBg = i % 2 === 1 ? colors.tableRowAlt : colors.cardBg;
+              // Light-yellow / light-red wash for a still-open application near
+              // or past its allotted timeline (PIC/S 60 / NON PIC/S 153 working
+              // days, or an explicit GMP_TIMELINE). Yields to hover/selection.
+              const riskTint = rowTimelineTint(r, darkMode);
               const isHovered = !isSel && hoveredRowKey === rowKey;
-              const rowBg = isSel || isHovered ? colors.tableRowAccentHover : zebraBg;
+              const rowBg = isSel || isHovered ? colors.tableRowAccentHover : (riskTint ?? zebraBg);
               const rowTdSt = { ...tdSt, background: rowBg, borderBottom: `1px solid ${colors.divider}` };
               const rowTdCompactSt = { ...tdCompactSt, background: rowBg, borderBottom: `1px solid ${colors.divider}` };
               const rowTdWrapSt = { ...tdWrapSt, background: rowBg, borderBottom: `1px solid ${colors.divider}` };
@@ -555,6 +561,21 @@ export default function QueueTable({
                     }
                     else if (GMP_FIELD_ACCENTS[col.key]) cell = <td key={col.key} style={rowTdSt}><FieldChip value={val} field={col.key} /></td>;
                     else if (col.isStatus) cell = <td key={col.key} style={rowTdSt}><StatusBadge value={getEffectiveStatus(r)} /></td>;
+                    else if (col.key === "status_timeline") cell = <td key={col.key} style={rowTdSt}><StatusTimelineBadge row={r} /></td>;
+                    else if (col.key === "timeline") {
+                      // Raw GMP_TIMELINE if set; otherwise the value derived
+                      // from the establishment category, muted.
+                      const eff = val ? null : effectiveTimelineDays(r);
+                      cell = (
+                        <td key={col.key} style={rowTdSt}>
+                          {val
+                            ? val
+                            : eff != null
+                              ? <span style={{ color: "#94a3b8", fontStyle: "italic" }} title="From establishment category">{eff}</span>
+                              : <span style={{ color: "#94a3b8" }}>—</span>}
+                        </td>
+                      );
+                    }
                     else if (TRUNCATE_FIELDS.has(col.key)) {
                       cell = (
                         <td key={col.key}
