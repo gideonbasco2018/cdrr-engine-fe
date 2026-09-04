@@ -19,6 +19,8 @@ import DataTable from "../components/reports/DataTable";
 import EditRecordModal from "../components/reports/actions/EditRecordModal";
 import { mapDataItem, getColorScheme } from "../components/reports/utils.js";
 import UploadErrorModal from "../components/reports/UploadErrorModal";
+import ExportColumnsModal from "../components/reports/ExportColumnsModal";
+import AddTaskModal from "../components/reports/actions/AddTaskModal";
 
 function buildFilterParams(filters) {
   const p = {};
@@ -559,6 +561,8 @@ function DeckingPage({ darkMode }) {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [exportProgress, setExportProgress] = useState(null);
   // null = hidden, or { step: 0-3, pct: 0-100 }
+  const [showColumnsModal, setShowColumnsModal] = useState(false);
+  const [showAddTaskModal, setShowAddTaskModal] = useState(false);
   const colors = getColorScheme(darkMode);
 
   const activeFilterCount =
@@ -1046,11 +1050,9 @@ function DeckingPage({ darkMode }) {
     setCurrentPage(1);
   };
 
-  const handleExport = async () => {
+  const handleExport = async (selectedColumns) => {
     try {
       setExporting(true);
-
-      // Step 1 — instant
       setExportProgress({ step: 0, pct: 0 });
 
       const params = {
@@ -1071,17 +1073,16 @@ function DeckingPage({ darkMode }) {
         params.processing_type =
           processingTypeTab === "" ? "__EMPTY__" : processingTypeTab;
 
-      // Step 2 — fire the real call, overlay animates independently
       setExportProgress({ step: 1, pct: 0 });
-      await exportFilteredRecords(params);
+      // ✅ IMPORTANT — object-style param, columns kasama sa loob ng object
+      await exportFilteredRecords({ ...params, columns: selectedColumns });
 
-      // Steps 3 & 4 — quick finish
       setExportProgress({ step: 2, pct: 90 });
       await new Promise((r) => setTimeout(r, 400));
       setExportProgress({ step: 3, pct: 100 });
       await new Promise((r) => setTimeout(r, 700));
     } catch (error) {
-      // your existing error handling
+      console.error("Export error:", error);
     } finally {
       setExportProgress(null);
       setExporting(false);
@@ -1455,8 +1456,30 @@ function DeckingPage({ darkMode }) {
                   </button>
                 </div>
               )}
+              {selectedRows.length > 0 && (
+                <button
+                  onClick={() => setShowAddTaskModal(true)}
+                  style={{
+                    padding: "5px 14px",
+                    background: "linear-gradient(135deg,#6366f1,#4f46e5)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    height: "30px",
+                  }}
+                >
+                  <span>🎯</span>
+                  <span>Add New Task</span>
+                </button>
+              )}
               <button
-                onClick={handleExport}
+                onClick={() => setShowColumnsModal(true)}
                 disabled={exporting || totalRecords === 0}
                 style={{
                   padding: "5px 14px",
@@ -1606,6 +1629,31 @@ function DeckingPage({ darkMode }) {
           onClose={() => {
             setShowErrorModal(false);
             setFailedRecords([]);
+          }}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {showColumnsModal && (
+        <ExportColumnsModal
+          colors={colors}
+          darkMode={darkMode}
+          onClose={() => setShowColumnsModal(false)}
+          onConfirm={(cols) => {
+            setShowColumnsModal(false);
+            handleExport(cols);
+          }}
+        />
+      )}
+
+      {showAddTaskModal && (
+        <AddTaskModal
+          selectedIds={selectedRows}
+          onClose={() => setShowAddTaskModal(false)}
+          onSuccess={async () => {
+            await refreshData();
+            clearSelections();
           }}
           colors={colors}
           darkMode={darkMode}

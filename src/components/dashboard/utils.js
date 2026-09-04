@@ -7,7 +7,7 @@ const FB_LIGHT = "#E7F0FD";
 export function makeUI(dark) {
   return dark
     ? {
-        pageBg: "#18191a", sidebarBg: "#141414", cardBg: "#242526",
+              pageBg: "#18191a", sidebarBg: "#1d1d1d", cardBg: "#242526",
         cardBorder: "#3a3b3c", inputBg: "#3a3b3c", textPrimary: "#e4e6ea",
         textSub: "#b0b3b8", textMuted: "#65676b", divider: "#3a3b3c",
         hoverBg: "#2d2e2f", activeNavBg: "#263951", gridLine: "#2d2e2f",

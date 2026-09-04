@@ -336,3 +336,94 @@ export const getOpenTaskUsers = async () => {
     );
   }
 };
+
+
+/**
+ * Add New Task — creates a new IN PROGRESS log for each selected main_db_id.
+ * user_name is resolved on the backend based on user_id (not typed manually).
+ *
+ * POST /api/application-logs/add-task
+ *
+ * @param {Object} payload
+ * @param {number[]} payload.main_db_ids
+ * @param {string} payload.application_step
+ * @param {string} payload.application_status
+ * @param {number} payload.user_id
+ * @param {boolean} [payload.close_previous=false]
+ * @returns {Promise<{created:number, failed:number, results:Array}>}
+ */
+export const addTaskForSelected = async ({
+  main_db_ids,
+  application_step,
+  application_status,
+  user_id,
+  remarks = null,
+  close_previous = false,
+}) => {
+  try {
+    const response = await API.post("/application-logs/add-task", {
+      main_db_ids,
+      application_step,
+      application_status,
+      user_id,
+      remarks,
+      close_previous,
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error adding task:", error);
+    const errorMessage =
+      error.response?.data?.detail || error.message || "Failed to add task";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Distinct application_step values (all, not just open tasks) — for the Add Task modal dropdown.
+ * GET /api/application-logs/steps/all
+ */
+export const getAllApplicationSteps = async () => {
+  try {
+    const response = await API.get("/application-logs/steps/all");
+    return response.data.steps || [];
+  } catch (error) {
+    console.error("Error fetching all application steps:", error);
+    throw new Error(
+      error.response?.data?.detail || error.message || "Failed to fetch steps",
+    );
+  }
+};
+
+/**
+ * Distinct application_status values (all) — for the Add Task modal dropdown.
+ * GET /api/application-logs/statuses/all
+ */
+export const getAllApplicationStatuses = async () => {
+  try {
+    const response = await API.get("/application-logs/statuses/all");
+    return response.data.statuses || [];
+  } catch (error) {
+    console.error("Error fetching all application statuses:", error);
+    throw new Error(
+      error.response?.data?.detail || error.message || "Failed to fetch statuses",
+    );
+  }
+};
+
+/**
+ * Active users for the "Assign to" dropdown in the Add Task modal.
+ * GET /api/auth/users/select-list
+ */
+export const getUsersForSelect = async (search = "") => {
+  try {
+    const response = await API.get("/auth/users/select-list", {
+      params: search ? { search } : {},
+    });
+    return response.data || [];
+  } catch (error) {
+    console.error("Error fetching users for select:", error);
+    throw new Error(
+      error.response?.data?.detail || error.message || "Failed to fetch users",
+    );
+  }
+};
