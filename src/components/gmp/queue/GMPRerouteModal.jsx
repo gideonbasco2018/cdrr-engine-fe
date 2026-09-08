@@ -69,6 +69,7 @@ export default function GMPRerouteModal({ record, onClose, onSuccess, colors, da
         reroute_from_step: currentStep,
         reroute_target_step: targetStep,
         target_user_name: assignedUser || null,
+        target_user_id: users.find((u) => u.username === assignedUser)?.id ?? null,
         reroute_reason: reason,
         reroute_remarks: remarks || null,
       });

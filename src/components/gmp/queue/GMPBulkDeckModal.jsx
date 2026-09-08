@@ -253,6 +253,10 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
       for (let i = 0; i < records.length; i++) {
         const record = records[i];
         const evaluator = assignments[record.id];
+        // id alongside the username so the task survives a username change
+        const evalId = needsEvaluator
+          ? (evaluators.find((u) => u.username === evaluator)?.id ?? null)
+          : null;
         setProgress({ current:i+1, total:records.length });
         try {
           // Same "does this record already have an open Decking log?" check the
@@ -279,7 +283,7 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
             // its remarks.
             doctrack_remarks:   doctrackRemarks.trim(),
             next_assignee_name: needsEvaluator ? evaluator : null,
-            next_assignee_id:   null,
+            next_assignee_id:   evalId,
           });
           succeeded.push(record);
         } catch (e) {

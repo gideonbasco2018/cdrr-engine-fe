@@ -15,6 +15,7 @@ import {
   Link2,
   FilePlus2,
   CheckCircle2,
+  XCircle,
   File as FileIcon,
 } from "lucide-react";
 
@@ -23,14 +24,15 @@ import {
   getApplicationDocumentsByDtn,
   prepareApplicationFolders,
 } from "../../api/application-documents";
-import { getGMPRecords, createGMPRecord } from "../../api/gmp";
+import { getGMPRecords, resolveOrCreateGMPByDtn } from "../../api/gmp";
+import { GMP_TRANSACTION_TYPE_OPTIONS } from "../gmp/shared/constants";
 import { expandArchiveEntries, traverseFileTree } from "./utils/archiveUtils";
 import {
   ACCEPTED_TYPES,
   formatBytes,
   kindOf,
   buildCategoryTree,
-  locateDtnInPathParts,
+  locateGmpDtn,
   resolveCategory,
 } from "./utils/fileHelpers";
 import FolderTreeNode from "./FolderTreeNode";
@@ -41,15 +43,9 @@ const CONCURRENCY = 6;
 // GMP folder uploads allow larger files than the shared 200 MB default.
 const GMP_MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 const DTN_FULL_PATTERN = /^\d{14}$/;
-const TRANSACTION_TYPES = [
-  "CANCELLATION OF CPR",
-  "CORRECTION",
-  "RECONSTRUCTION",
-  "VALIDITY EXTENSION",
-  "SURRENDER DUE TO PAC",
-  "ORIGINAL",
-  "FGMP",
-];
+// Sentinel key for the "no DTN detected" pseudo-group.
+const NO_DTN = "__no_dtn__";
+const TRANSACTION_TYPES = GMP_TRANSACTION_TYPE_OPTIONS;
 
 function generateBatchId() {
   return crypto?.randomUUID
@@ -57,7 +53,7 @@ function generateBatchId() {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-const emptyDraft = () => ({ company: "", transactionType: "", productLine: "", confirmed: false });
+const emptyDraft = () => ({ company: "", transactionType: "", confirmed: false });
 
 /* ================================================================== */
 /*  GMP tab — batch folder upload, DTN-matched to GMP records          */
@@ -114,18 +110,31 @@ function UploadGMPTab({ colors, s }) {
   const dtnGroups = useMemo(() => {
     const groups = new Map();
     for (const entry of entries) {
-      const dtn = entry.dtn;
-      if (!groups.has(dtn)) groups.set(dtn, { dtn, items: [] });
-      groups.get(dtn).items.push(entry);
+      const key = entry.dtn || NO_DTN;
+      if (!groups.has(key)) groups.set(key, { dtn: entry.dtn || null, items: [] });
+      groups.get(key).items.push(entry);
     }
     return Array.from(groups.values())
       .map((g) => ({ ...g, tree: buildCategoryTree(g.items) }))
-      .sort((a, b) => a.dtn.localeCompare(b.dtn));
+      // Real DTNs first (sorted), the "no DTN" group last.
+      .sort((a, b) => {
+        if (!a.dtn) return 1;
+        if (!b.dtn) return -1;
+        return a.dtn.localeCompare(b.dtn);
+      });
   }, [entries]);
 
-  // Resolve every newly-seen DTN against GET /gmp/?dtn=... exactly once —
-  // never re-used across DTNs, so a group with no match never silently
-  // rides along on a different DTN's record.
+  const validDtnGroups = useMemo(() => dtnGroups.filter((g) => g.dtn), [dtnGroups]);
+  const noDtnCount = useMemo(
+    () => dtnGroups.find((g) => !g.dtn)?.items.length ?? 0,
+    [dtnGroups],
+  );
+
+  // Preview check for each newly-seen DTN: does ANY live record exist for it?
+  // No `view: "main"` filter — a DTN whose only record is a sibling reference
+  // number still counts as "existing" here, matching what /resolve-or-create-
+  // by-dtn does at upload time (so the preview never says "will create" for a
+  // DTN that will actually just link).
   const resolveDtn = useCallback(async (dtn) => {
     setDtnResolutions((prev) => ({ ...prev, [dtn]: { status: "checking" } }));
 
@@ -141,7 +150,7 @@ function UploadGMPTab({ colors, s }) {
     }
 
     try {
-      const res = await getGMPRecords({ dtn: Number(dtn), view: "main" });
+      const res = await getGMPRecords({ dtn: Number(dtn) });
       const found = (res?.data || [])[0];
       setDtnResolutions((prev) => ({
         ...prev,
@@ -165,12 +174,12 @@ function UploadGMPTab({ colors, s }) {
   }, []);
 
   useEffect(() => {
-    dtnGroups.forEach((g) => {
+    validDtnGroups.forEach((g) => {
       if (resolvingRef.current.has(g.dtn)) return;
       resolvingRef.current.add(g.dtn);
       resolveDtn(g.dtn);
     });
-  }, [dtnGroups, resolveDtn]);
+  }, [validDtnGroups, resolveDtn]);
 
   const updateDraft = (dtn, patch) => {
     setNewRecordDrafts((prev) => ({
@@ -181,10 +190,10 @@ function UploadGMPTab({ colors, s }) {
 
   const pendingNewDtns = useMemo(
     () =>
-      dtnGroups
+      validDtnGroups
         .filter((g) => dtnResolutions[g.dtn]?.status === "new" && !newRecordDrafts[g.dtn]?.confirmed)
         .map((g) => g.dtn),
-    [dtnGroups, dtnResolutions, newRecordDrafts],
+    [validDtnGroups, dtnResolutions, newRecordDrafts],
   );
 
   const confirmAllNewRecords = () => {
@@ -221,14 +230,18 @@ function UploadGMPTab({ colors, s }) {
     const skipped = [];
     const newEntries = [];
 
+    let noDtn = 0;
     for (const { file, relativePath } of expandedFlat) {
       const parts = relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
       if (parts.length < 2) {
         skipped.push(file.name);
         continue;
       }
-      const { index: dtnIndex, dtn } = locateDtnInPathParts(parts);
-      const category = resolveCategory(parts.slice(dtnIndex + 1, -1), dtn);
+      const { index: dtnIndex, dtn } = locateGmpDtn(parts);
+      // dtn === null → no 14-digit DTN anywhere in the path. Keep the file so
+      // the user can see it, grouped separately, but it can't be uploaded.
+      const category = dtn ? resolveCategory(parts.slice(dtnIndex + 1, -1), dtn) : null;
+      if (!dtn) noDtn += 1;
       newEntries.push({
         id: `${relativePath}-${file.size}-${Date.now()}-${Math.random()
           .toString(36)
@@ -248,13 +261,16 @@ function UploadGMPTab({ colors, s }) {
       setUploadResults(null);
     }
 
-    if (skipped.length) {
-      setFormError(
-        `Skipped ${skipped.length} file(s) with no detectable folder (make sure you selected a folder, not loose files).`,
+    const notes = [];
+    if (skipped.length)
+      notes.push(
+        `Skipped ${skipped.length} file(s) with no folder (select a folder, not loose files).`,
       );
-    } else if (newEntries.length) {
-      setFormError("");
-    }
+    if (noDtn)
+      notes.push(
+        `${noDtn} file(s) have no 14-digit DTN in their folder path — see the "No DTN detected" group. Put each application's files inside a folder named with its DTN.`,
+      );
+    setFormError(notes.join(" "));
   }, []);
 
   const handleFolderInputChange = async (e) => {
@@ -322,15 +338,17 @@ function UploadGMPTab({ colors, s }) {
 
   const validate = () => {
     if (entries.length === 0) return "Select a folder with at least one file.";
+    if (validDtnGroups.length === 0)
+      return "None of these files have a 14-digit DTN in their folder path — nothing can be uploaded.";
     // Unsupported / oversized files are no longer a hard block — they are
     // filtered out at upload time and reported per-file (see handleUpload),
     // so one bad file can't stop the rest of the batch.
-    const stillChecking = dtnGroups.some(
+    const stillChecking = validDtnGroups.some(
       (g) => !dtnResolutions[g.dtn] || dtnResolutions[g.dtn].status === "checking",
     );
     if (stillChecking)
       return "Still looking up FGMP records for the detected DTN(s) — try again in a moment.";
-    const unconfirmedNew = dtnGroups.some((g) => {
+    const unconfirmedNew = validDtnGroups.some((g) => {
       const r = dtnResolutions[g.dtn];
       return r?.status === "new" && !newRecordDrafts[g.dtn]?.confirmed;
     });
@@ -342,47 +360,41 @@ function UploadGMPTab({ colors, s }) {
   const runUploadBatch = async () => {
     setLiveStatuses({});
 
-    // Create GMP records for any brand-new, user-confirmed DTNs first — one
-    // record per DTN, never shared across groups.
+    // Resolve every DTN group FRESH at upload time via /resolve-or-create-by-dtn:
+    // the server reuses any live record for that DTN (primary OR a sibling ref
+    // number) and creates one only when there is none — so a DTN that already
+    // has a record always links straight to it, and staging-vs-upload races
+    // (record created/deleted meanwhile) can't produce a duplicate.
     const mainDbIdByDtn = {};
+    const resolveErrorByDtn = {}; // local — setDtnResolutions won't reflect in this run
     for (const group of dtnGroups) {
       const dtn = group.dtn;
-      const resolution = dtnResolutions[dtn];
-      if (resolution?.status === "existing") {
-        mainDbIdByDtn[dtn] = resolution.mainDbId;
-      } else if (resolution?.status === "new") {
-        const draft = newRecordDrafts[dtn] || emptyDraft();
-        try {
-          // GMP_REFERENCE_NO is auto-generated server-side ({dtn}-{seq}).
-          const created = await createGMPRecord({
-            GMP_DTN: Number(dtn),
-            ...(draft.company ? { GMP_LTO_COMPANY: draft.company } : {}),
-            ...(draft.transactionType ? { GMP_TRANSACTION_TYPE: draft.transactionType } : {}),
-            ...(draft.productLine ? { GMP_PRODUCT_LINE: draft.productLine } : {}),
-          });
-          mainDbIdByDtn[dtn] = created.GMP_ID;
-          setDtnResolutions((prev) => ({
-            ...prev,
-            [dtn]: {
-              status: "existing",
-              mainDbId: created.GMP_ID,
-              referenceNo: created.GMP_REFERENCE_NO,
-            },
-          }));
-        } catch (err) {
-          setDtnResolutions((prev) => ({
-            ...prev,
-            [dtn]: { status: "error", error: err.message || "Failed to create FGMP record." },
-          }));
-        }
+      if (!dtn) continue; // "no DTN" group — handled as skipped below
+      const draft = newRecordDrafts[dtn] || emptyDraft();
+      try {
+        const { record, created } = await resolveOrCreateGMPByDtn(dtn, {
+          company: draft.company,
+          transactionType: draft.transactionType,
+        });
+        mainDbIdByDtn[dtn] = record.GMP_ID;
+        setDtnResolutions((prev) => ({
+          ...prev,
+          [dtn]: {
+            status: "existing",
+            mainDbId: record.GMP_ID,
+            referenceNo: record.GMP_REFERENCE_NO,
+            justCreated: created,
+          },
+        }));
+      } catch (err) {
+        const msg = err.message || "Couldn't resolve or create the FGMP record for this DTN.";
+        resolveErrorByDtn[dtn] = msg;
+        setDtnResolutions((prev) => ({ ...prev, [dtn]: { status: "error", error: msg } }));
       }
-      // status === "error" — leave unresolved; its files are skipped below,
-      // and a "Retry" button on the group lets the user re-attempt the
-      // lookup/creation without losing the rest of the batch.
     }
 
-    const resolvedEntries = entries.filter((e) => mainDbIdByDtn[e.dtn]);
-    const skippedEntries = entries.filter((e) => !mainDbIdByDtn[e.dtn]);
+    const resolvedEntries = entries.filter((e) => e.dtn && mainDbIdByDtn[e.dtn]);
+    const skippedEntries = entries.filter((e) => !e.dtn || !mainDbIdByDtn[e.dtn]);
 
     // Check what's already been saved under each resolved DTN — so
     // re-dropping the same folder (after some files failed earlier) only
@@ -547,6 +559,20 @@ function UploadGMPTab({ colors, s }) {
         [entry.relativePath]: { success: false, error: entry.uploadError },
       }));
     });
+    // DTN-less / unresolved-DTN files never reached the network — mark them
+    // red in the tree with the same reason shown in the results list below.
+    const skippedReason = (entry) =>
+      !entry.dtn
+        ? "No 14-digit DTN found in this file's folder path — put the file inside a folder named with its DTN."
+        : resolveErrorByDtn[entry.dtn]
+          || dtnResolutions[entry.dtn]?.error
+          || "Couldn't resolve or create the FGMP record for this DTN.";
+    skippedEntries.forEach((entry) => {
+      setLiveStatuses((prev) => ({
+        ...prev,
+        [entry.relativePath]: { success: false, error: skippedReason(entry) },
+      }));
+    });
 
     const uploadedNow = results.filter((r) => r && r.success).length;
     const succeeded = uploadedNow + alreadyUploadedEntries.length;
@@ -573,10 +599,7 @@ function UploadGMPTab({ colors, s }) {
     });
     alreadyUploadedEntries.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
     skippedEntries.forEach((entry) => {
-      failedEntries.push({
-        ...entry,
-        uploadError: dtnResolutions[entry.dtn]?.error || "FGMP record creation failed.",
-      });
+      failedEntries.push({ ...entry, uploadError: skippedReason(entry) });
     });
     // Keep invalid files in the list (with their reason) so the user can
     // remove or replace them, then upload again.
@@ -666,7 +689,8 @@ function UploadGMPTab({ colors, s }) {
         {entries.length > 0 && (
           <div style={s.groupsHeaderRow}>
             <span style={s.groupsHeaderLabel}>
-              {entries.length} file(s) · {dtnGroups.length} DTN(s)
+              {entries.length} file(s) · {validDtnGroups.length} DTN(s)
+              {noDtnCount > 0 ? ` · ${noDtnCount} with no DTN` : ""}
             </span>
             <div style={s.groupsHeaderActions}>
               <button
@@ -690,19 +714,27 @@ function UploadGMPTab({ colors, s }) {
           <div style={s.fileListCard}>
             <div style={s.folderTree}>
               {dtnGroups.map((dtnGroup) => {
+                const isNoDtn = !dtnGroup.dtn;
                 const resolution = dtnResolutions[dtnGroup.dtn] || { status: "checking" };
                 const draft = newRecordDrafts[dtnGroup.dtn] || emptyDraft();
                 return (
-                  <div key={dtnGroup.dtn} style={s.folderGroup}>
+                  <div key={dtnGroup.dtn || NO_DTN} style={s.folderGroup}>
                     <div style={s.dtnGroupHeader}>
                       <FolderOpen size={14} style={{ flexShrink: 0 }} />
-                      <span style={s.dtnGroupLabel} title={dtnGroup.dtn}>
-                        DTN: {dtnGroup.dtn}
+                      <span style={s.dtnGroupLabel} title={dtnGroup.dtn || "No DTN detected"}>
+                        {isNoDtn ? "No DTN detected" : `DTN: ${dtnGroup.dtn}`}
                       </span>
                       <span style={s.folderCount}>{dtnGroup.items.length}</span>
                     </div>
                     <div style={{ padding: "2px 6px 8px" }}>
-                      {resolution.status === "checking" && (
+                      {isNoDtn && (
+                        <span style={s.badgeFail}>
+                          <AlertCircle size={11} />
+                          No 14-digit DTN in the folder path — these files can&apos;t be uploaded.
+                          Put each application&apos;s files inside a folder named with its DTN.
+                        </span>
+                      )}
+                      {!isNoDtn && resolution.status === "checking" && (
                         <span style={s.badgeInfo}>
                           <Loader2 size={11} style={{ animation: "bdu-spin 1s linear infinite" }} />
                           Checking FGMP records…
@@ -775,16 +807,6 @@ function UploadGMPTab({ colors, s }) {
                               </select>
                             </Field>
                           </div>
-                          <Field label="Product Line" colors={colors}>
-                            <input
-                              type="text"
-                              value={draft.productLine}
-                              disabled={draft.confirmed}
-                              onChange={(e) => updateDraft(dtnGroup.dtn, { productLine: e.target.value })}
-                              style={s.input}
-                              placeholder="Optional"
-                            />
-                          </Field>
 
                           <div style={{ display: "flex", justifyContent: "flex-end" }}>
                             {draft.confirmed ? (
@@ -815,7 +837,7 @@ function UploadGMPTab({ colors, s }) {
                           <FolderTreeNode
                             key={child.key}
                             node={child}
-                            groupKeyPrefix={dtnGroup.dtn}
+                            groupKeyPrefix={dtnGroup.dtn || NO_DTN}
                             colors={colors}
                             s={s}
                             collapsedFolders={collapsedFolders}
@@ -835,7 +857,7 @@ function UploadGMPTab({ colors, s }) {
                             children: new Map(),
                             items: dtnGroup.tree.items,
                           }}
-                          groupKeyPrefix={dtnGroup.dtn}
+                          groupKeyPrefix={dtnGroup.dtn || NO_DTN}
                           colors={colors}
                           s={s}
                           collapsedFolders={collapsedFolders}
@@ -932,8 +954,42 @@ function UploadGMPTab({ colors, s }) {
                 <span style={s.badgeFail}>{uploadResults.failed} failed</span>
               )}
             </div>
+
+            {/* Per-file reasons. After an upload `entries` holds exactly the
+                files that didn't go through, each with its own `uploadError`. */}
+            {entries.some((e) => e.uploadError) && (
+              <>
+                <p style={{ ...s.groupsHeaderLabel, margin: "10px 0 0" }}>
+                  Why these files failed
+                </p>
+                <ul style={s.resultsErrList}>
+                  {entries
+                    .filter((e) => e.uploadError)
+                    .map((e) => (
+                      <li key={e.id} style={{ ...s.resultsErrItem, alignItems: "flex-start" }}>
+                        <XCircle size={13} color={colors.danger} style={{ flexShrink: 0, marginTop: 1 }} />
+                        <span style={{ minWidth: 0 }}>
+                          <span
+                            style={{ fontWeight: 600, wordBreak: "break-all" }}
+                            title={e.relativePath || e.file.name}
+                          >
+                            {e.file.name}
+                          </span>
+                          <span style={{ ...s.resultsErrMsg, display: "block", whiteSpace: "normal" }}>
+                            {e.uploadError}
+                          </span>
+                        </span>
+                      </li>
+                    ))}
+                </ul>
+              </>
+            )}
+
             {uploadResults.batch_id && (
-              <p style={s.batchIdText}>Batch ID: {uploadResults.batch_id}</p>
+              <p style={s.batchIdText}>
+                Batch ID: {uploadResults.batch_id} — full per-file history is in the{" "}
+                <strong>Upload Logs</strong> tab.
+              </p>
             )}
           </div>
         )}

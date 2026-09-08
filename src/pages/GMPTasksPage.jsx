@@ -7,9 +7,11 @@ import { getMyGMPTasks, markTaskReceived, toggleTaskStar } from "../api/gmp";
 import { getColorScheme } from "../components/gmp/shared/colorScheme";
 import { GMP_STEPS, FONT } from "../components/gmp/shared/constants";
 import TasksTable, { GMP_COLUMNS as GMP_TASKS_COLUMNS } from "../components/gmp/tasks/TasksTable";
+import { computeStatusTimeline } from "../components/gmp/shared/StatusTimelineBadge";
 import AppLogModal from "../components/gmp/tasks/AppLogModal";
 import FieldAuditModal from "../components/gmp/tasks/FieldAuditModal";
 import WorkflowModal from "../components/gmp/tasks/WorkflowModal";
+import GMPBulkEndorseModal, { GMP_BULK_ENDORSE_CONFIG } from "../components/gmp/tasks/GMPBulkEndorseModal";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
 import GMPDocumentsModal from "../components/gmp/queue/GMPDocumentsModal";
 import { QuickFilterSidebar } from "../components/gmp/queue/QueueFilters";
@@ -20,6 +22,14 @@ import {
 } from "../components/tasks/DataTable/TransmittalGenerator";
 
 const ACCENT = "#10b981";
+
+// All task-table column keys, and the ones added recently enough that existing
+// users' saved column prefs won't include them — those get force-shown once
+// (see the visibleColumns initializer). Move a key out of NEW once it's been
+// shipped long enough that everyone has seen it.
+const GMP_TASKS_COL_KEYS = GMP_TASKS_COLUMNS.map((c) => c.key);
+const GMP_TASKS_NEW_COL_KEYS = ["status_timeline"];
+
 const QUICK_LABEL_MAP = {
   category: "Category", transaction_type: "Transaction Type",
   status: "Application Status", type_of_issuance: "Issuance Type",
@@ -39,6 +49,79 @@ function getEffectiveStatus(r) {
   if (raw && GMP_TERMINAL_STATUSES.has(raw)) return r.status;
   if (r.currentStep) return "IN PROGRESS";
   return r.status;
+}
+
+// Free-text search — matches every basic-info field on the record, mirroring
+// the FGMP Queue's backend `search` param. Case-insensitive substring; blank
+// query matches everything. Date fields are excluded (use the filters for
+// those); the keys below are the flat names produced by mapGMPTask().
+const GMP_TASK_SEARCH_FIELDS = [
+  "dtn", "reference_no", "related_dtn",
+  "name_of_establishment", "lto_number", "address",
+  "transaction_type", "category",
+  "foreign_manufacturer", "foreign_manufacturer_address",
+  "secpa_number", "certificate_number",
+  "type_of_issuance", "certificate_validity",
+  "decision", "status", "processed_time", "timeline", "remarks",
+  "product_line", "currentStep",
+];
+function taskMatchesSearch(r, q) {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  return GMP_TASK_SEARCH_FIELDS.some((k) =>
+    String(r[k] ?? "").toLowerCase().includes(needle)
+  );
+}
+
+// The "Fresh vs Returned" chips only make sense on the Evaluator and Checker
+// tabs. `taskOriginKind` classifies one task for the currently active tab:
+//   Evaluator — fresh = came straight from Decking; returned = Checker sent it back
+//   Checker   — fresh = first time here (revision 1); returned = Evaluator re-submitted
+// Returns "fresh" | "returned" | null (null = can't classify, e.g. an
+// Excel-imported task with no origin, or any other tab).
+const ORIGIN_FILTER_TABS = ["Evaluator", "Checker"];
+function taskOriginKind(r, tab) {
+  if (tab === "Evaluator") {
+    if (r.fromStep === "Decking") return "fresh";
+    if (r.fromStep === "Checker") return "returned";
+    return null;
+  }
+  if (tab === "Checker") {
+    return (r.revision ?? 1) > 1 ? "returned" : "fresh";
+  }
+  return null;
+}
+
+// A pill-shaped wrapper that visually binds a pair of related toggle buttons
+// into one segmented control, so the filter row reads as a couple of grouped
+// controls instead of a run of identical buttons.
+function ToggleGroup({ bg, border, children }) {
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "stretch",
+      border: `1px solid ${border}`, borderRadius: 7,
+      overflow: "hidden", background: bg,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function ToggleSeg({ active, activeColor, onClick, title, first, border, colors, children }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        padding: "5px 11px", fontSize: "0.68rem", fontWeight: 600, fontFamily: FONT,
+        border: "none", borderLeft: first ? "none" : `1px solid ${border}`,
+        background: active ? `${activeColor}22` : "transparent",
+        color: active ? activeColor : colors.textTertiary,
+        cursor: "pointer", whiteSpace: "nowrap", transition: "background 0.12s ease",
+      }}>
+      {children}
+    </button>
+  );
 }
 
 // Map GMPApplicationLogs + embedded GMPRecord → flat task object
@@ -67,6 +150,12 @@ function mapGMPTask(t) {
     sentByFullName: t.sent_by_full_name ?? null,
     sentByUsername: t.sent_by_user_name ?? null,
     sentByAlias:    t.sent_by_alias ?? null,
+
+    // ── Origin — the step that handed this task over, and how many times the
+    // current step has been visited (1 = first visit). Drives the Evaluator /
+    // Checker "Fresh vs Returned" filter chips.
+    fromStep: t.from_step ?? null,
+    revision: t.revision ?? 1,
 
     // ── Compliance tracking (Evaluator "For Compliance" self-loop only) ──
     deadlineDate: t.deadline_date ?? null,
@@ -118,6 +207,16 @@ function mapGMPTask(t) {
 
     // for modals that need the full record shape
     id_for_logs: t.gmp_record_id,
+
+    // Elapsed working days from the same calc StatusTimelineBadge renders —
+    // precomputed here (rather than in the sort comparator) so the "Status
+    // Timeline" column header can sort by it like any other numeric field.
+    statusTimelineDays: computeStatusTimeline({
+      date_received: r.GMP_DATE_RECEIVED,
+      released_date: r.GMP_RELEASED_DATE,
+      timeline:      r.GMP_TIMELINE,
+      category:      r.GMP_EST_CATEGORY,
+    })?.days ?? null,
   };
 }
 
@@ -233,6 +332,14 @@ function GMPTransmittalModal({ open, count, generating, onGenerate, onClose, col
 
 export default function GMPTasksPage({ darkMode = false }) {
   const colors = getColorScheme(darkMode);
+  // colors.inputBg is barely a shade off the toolbar's own background — fine
+  // for a full-width input, but it left every field in the search/filter row
+  // (search box, sender box, Starred, the toggle groups) reading as flat,
+  // borderless text rather than a control. A slightly deeper fill + a more
+  // visible border, local to that row, is enough to read as "these are
+  // fields" without touching colors.inputBg everywhere else it's used.
+  const fieldBg     = darkMode ? "rgba(255,255,255,0.07)" : "rgba(15,23,42,0.05)";
+  const fieldBorder = darkMode ? "rgba(255,255,255,0.16)" : "rgba(15,23,42,0.14)";
 
   const [data,           setData]           = useState([]);
   const [allStepsData,   setAllStepsData]   = useState([]);
@@ -251,8 +358,20 @@ export default function GMPTasksPage({ darkMode = false }) {
   const [sortBy,         setSortBy]         = useState(null);
   const [sortOrder,      setSortOrder]      = useState("asc");
   const [readIds,        setReadIds]        = useState(new Set());
+  // Free-text search box (mirrors the FGMP Queue). `searchInput` is the live
+  // field value; `search` is the debounced value the filter actually reads.
+  // Everything here is client-side — every task for the tab is already loaded
+  // (fetchAllSteps: page_size 10000) — so this is a plain string match, no
+  // backend call.
   const [searchInput,    setSearchInput]    = useState("");
-  const [filters,        setFilters]        = useState({ starredOnly: false, sentBy: "" });
+  const [search,         setSearch]         = useState("");
+  // `nearDeadline` / `beyond` = the timeline-risk toggles (light-yellow /
+  // light-red rows). When both are on, show near OR beyond.
+  const [filters,        setFilters]        = useState({ starredOnly: false, sentBy: "", nearDeadline: false, beyond: false });
+  // Evaluator / Checker only — "all" | "fresh" | "returned". Distinguishes a
+  // brand-new application from one that bounced back for rework. Resets on
+  // tab switch (it's meaningless outside those two tabs).
+  const [originFilter,   setOriginFilter]   = useState("all");
   const [activeQuick,    setActiveQuick]    = useState(QUICK_DEFAULTS);
   // Persisted across sessions — a refresh or navigating back should leave
   // the Quick Filters sidebar exactly as the user last left it.
@@ -263,17 +382,34 @@ export default function GMPTasksPage({ darkMode = false }) {
     localStorage.setItem("gmp_tasks_quick_filters_collapsed", String(collapsed));
   }, [collapsed]);
 
+  // Debounce the search box (mirrors GMPQueuePage) — 300 ms after the last
+  // keystroke, commit it to `search` and jump back to page 1.
+  useEffect(() => {
+    const t = setTimeout(() => { setSearch(searchInput); setCurrentPage(1); }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   // Which table columns the user wants to see — persisted across sessions
   // so a refresh doesn't reset a deliberately trimmed-down view. Starts
   // with every column checked.
   const [visibleColumns, setVisibleColumns] = useState(() => {
     try {
       const stored = localStorage.getItem("gmpTasksVisibleColumns");
-      return stored ? JSON.parse(stored) : GMP_TASKS_COLUMNS.map((c) => c.key);
-    } catch { return GMP_TASKS_COLUMNS.map((c) => c.key); }
+      if (!stored) return GMP_TASKS_COL_KEYS;
+      const visible = JSON.parse(stored);
+      // Reveal columns added to the app since this user's prefs were saved.
+      // `gmpTasksKnownColumns` records which keys the user has already had in
+      // the toggle list; on the first run of this mechanism, seed it with every
+      // key EXCEPT the newly-added ones so only those get force-shown, once.
+      const known = JSON.parse(localStorage.getItem("gmpTasksKnownColumns") || "null")
+        ?? GMP_TASKS_COL_KEYS.filter((k) => !GMP_TASKS_NEW_COL_KEYS.includes(k));
+      const newlyAdded = GMP_TASKS_COL_KEYS.filter((k) => !known.includes(k));
+      return [...new Set([...visible, ...newlyAdded])];
+    } catch { return GMP_TASKS_COL_KEYS; }
   });
   useEffect(() => {
     localStorage.setItem("gmpTasksVisibleColumns", JSON.stringify(visibleColumns));
+    localStorage.setItem("gmpTasksKnownColumns", JSON.stringify(GMP_TASKS_COL_KEYS));
   }, [visibleColumns]);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const toggleColumn = (key) => {
@@ -284,6 +420,7 @@ export default function GMPTasksPage({ darkMode = false }) {
 
   const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
   const [generatingTransmittal, setGeneratingTransmittal] = useState(false);
+  const [showBulkEndorse, setShowBulkEndorse] = useState(false);
 
   // Modals
   const [logRecord,      setLogRecord]      = useState(null);
@@ -412,7 +549,20 @@ export default function GMPTasksPage({ darkMode = false }) {
   const matchesTableFilters = (r) => {
     const mstar = !filters.starredOnly || r.is_starred === 1;
     const msb = !filters.sentBy || (r.sentByUsername ?? r.sentByFullName ?? "").toLowerCase().includes(filters.sentBy.toLowerCase());
-    return mstar && msb;
+    const msearch = taskMatchesSearch(r, search);
+    let mrisk = true;
+    if (filters.nearDeadline || filters.beyond) {
+      const st = computeStatusTimeline(r);
+      mrisk = !!st && !st.released && (
+        (filters.nearDeadline && st.level === "near") ||
+        (filters.beyond && st.level === "beyond")
+      );
+    }
+    const morigin =
+      originFilter === "all" ||
+      !ORIGIN_FILTER_TABS.includes(activeTab) ||
+      taskOriginKind(r, activeTab) === originFilter;
+    return mstar && msb && msearch && mrisk && morigin;
   };
 
   // Quick Filter sidebar groups — built client-side from tasks already loaded
@@ -447,7 +597,7 @@ export default function GMPTasksPage({ darkMode = false }) {
       buildGroup("Transaction Type", "transaction_type", (r) => [r.transaction_type]),
       buildGroup("Issuance Type", "type_of_issuance", (r) => r.all_issuance_types || []),
     ];
-  }, [data, activeQuick, filters]);
+  }, [data, activeQuick, filters, search, originFilter, activeTab]);
 
   const handleSidebarSelect = (key, value) => {
     setActiveQuick((prev) => ({
@@ -459,7 +609,7 @@ export default function GMPTasksPage({ darkMode = false }) {
 
   const filteredData = useMemo(() => {
     return data.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick));
-  }, [data, filters, activeQuick]);
+  }, [data, filters, activeQuick, search, originFilter, activeTab]);
 
   // Generic comparator — numeric-aware (so "10" sorts after "2", and DTNs
   // compare correctly), nulls/blanks always sort last regardless of
@@ -521,10 +671,12 @@ export default function GMPTasksPage({ darkMode = false }) {
 
   const handleTabChange = (step) => {
     setActiveTab(step); setSelectedRows([]);
-    // Quick filters are scoped to the currently visible tab's data — keeping
-    // e.g. category="DRUG" selected across a tab switch commonly filters the
-    // new tab down to nothing, showing a misleading "No tasks assigned yet".
+    // Quick filters and search are scoped to the currently visible tab's data —
+    // keeping e.g. category="DRUG" or a search term across a tab switch commonly
+    // filters the new tab down to nothing, showing a misleading empty state.
     setActiveQuick(QUICK_DEFAULTS);
+    setSearchInput(""); setSearch("");
+    setOriginFilter("all");
     setCurrentPage(1);
   };
 
@@ -674,6 +826,34 @@ export default function GMPTasksPage({ darkMode = false }) {
             display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
             opacity: loading ? 0.5 : 1, transition: "opacity 0.15s ease",
           }}>
+            <div style={{ position: "relative", flex: "1 1 220px", minWidth: 180 }}>
+              <span style={{
+                position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                color: colors.textTertiary, fontSize: "0.78rem", pointerEvents: "none",
+              }}>
+                🔍
+              </span>
+              <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Search any field — DTN, company, address, manufacturer, certificate…"
+                style={{
+                  width: "100%", padding: "6px 26px 6px 30px", fontSize: "0.72rem",
+                  fontFamily: FONT, borderRadius: 6, border: `1px solid ${fieldBorder}`,
+                  background: fieldBg, color: colors.textPrimary, outline: "none",
+                  boxSizing: "border-box",
+                }} />
+              {searchInput && (
+                <button onClick={() => setSearchInput("")}
+                  title="Clear search"
+                  style={{
+                    position: "absolute", right: 7, top: "50%", transform: "translateY(-50%)",
+                    background: "transparent", border: "none", color: colors.textTertiary,
+                    cursor: "pointer", fontSize: "0.7rem", padding: 0, lineHeight: 1,
+                  }}>
+                  ✕
+                </button>
+              )}
+            </div>
+
             <div style={{ position: "relative", minWidth: 170 }}>
               <span style={{
                 position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)",
@@ -685,8 +865,8 @@ export default function GMPTasksPage({ darkMode = false }) {
                 placeholder="Search sender…"
                 style={{
                   width: "100%", padding: "5px 10px 5px 26px", fontSize: "0.7rem",
-                  fontFamily: FONT, borderRadius: 6, border: `1px solid ${colors.cardBorder}`,
-                  background: colors.inputBg, color: colors.textPrimary, outline: "none",
+                  fontFamily: FONT, borderRadius: 6, border: `1px solid ${fieldBorder}`,
+                  background: fieldBg, color: colors.textPrimary, outline: "none",
                   boxSizing: "border-box",
                 }} />
             </div>
@@ -694,15 +874,70 @@ export default function GMPTasksPage({ darkMode = false }) {
             <button
               onClick={() => setFilters({ ...filters, starredOnly: !filters.starredOnly })}
               style={{
-                padding: "5px 10px", fontSize: "0.68rem", fontWeight: 600,
-                fontFamily: FONT, borderRadius: 6,
-                border: `1px solid ${filters.starredOnly ? "#f59e0b" : colors.cardBorder}`,
-                background: filters.starredOnly ? "rgba(245,158,11,0.15)" : "transparent",
+                padding: "5px 11px", fontSize: "0.68rem", fontWeight: 600,
+                fontFamily: FONT, borderRadius: 7,
+                border: `1px solid ${filters.starredOnly ? "#f59e0b" : fieldBorder}`,
+                background: filters.starredOnly ? "#f59e0b22" : fieldBg,
                 color: filters.starredOnly ? "#f59e0b" : colors.textTertiary,
                 cursor: "pointer",
               }}>
-              ★ Starred Only
+              ★ Starred
             </button>
+
+            {/* Timeline-risk group — near = light yellow row wash (≥80% of the
+                allotted working days elapsed), beyond = light red. */}
+            <ToggleGroup bg={fieldBg} border={fieldBorder}>
+              <ToggleSeg
+                first
+                colors={colors}
+                border={fieldBorder}
+                active={filters.nearDeadline}
+                activeColor="#ca8a04"
+                onClick={() => setFilters({ ...filters, nearDeadline: !filters.nearDeadline })}
+                title="Open tasks that have used ≥80% of their allotted timeline">
+                ⚠ Near Deadline
+              </ToggleSeg>
+              <ToggleSeg
+                colors={colors}
+                border={fieldBorder}
+                active={filters.beyond}
+                activeColor="#dc2626"
+                onClick={() => setFilters({ ...filters, beyond: !filters.beyond })}
+                title="Open tasks already past their allotted timeline">
+                🔴 Beyond
+              </ToggleSeg>
+            </ToggleGroup>
+
+            {/* Source group — Evaluator / Checker only. Tells a brand-new
+                application apart from one that bounced back for rework. */}
+            {ORIGIN_FILTER_TABS.includes(activeTab) && (() => {
+              const opts = activeTab === "Evaluator"
+                ? [
+                    { key: "fresh",    label: "🆕 New",          title: "Applications that came straight from Decking" },
+                    { key: "returned", label: "↩ From Checker",  title: "Applications the Checker returned to you for rework" },
+                  ]
+                : [
+                    { key: "fresh",    label: "🆕 New",          title: "Applications on their first pass through checking" },
+                    { key: "returned", label: "↩ Re-submitted",  title: "Applications the Evaluator re-submitted after you returned them" },
+                  ];
+              return (
+                <ToggleGroup bg={fieldBg} border={fieldBorder}>
+                  {opts.map((o, i) => (
+                    <ToggleSeg
+                      key={o.key}
+                      first={i === 0}
+                      colors={colors}
+                      border={fieldBorder}
+                      active={originFilter === o.key}
+                      activeColor={o.key === "fresh" ? "#059669" : "#b45309"}
+                      onClick={() => setOriginFilter((cur) => (cur === o.key ? "all" : o.key))}
+                      title={o.title}>
+                      {o.label}
+                    </ToggleSeg>
+                  ))}
+                </ToggleGroup>
+              );
+            })()}
 
             {selectedRows.length > 0 && (
               <>
@@ -730,6 +965,24 @@ export default function GMPTasksPage({ darkMode = false }) {
                   }}>
                   📄 Generate Transmittal
                 </button>
+                {GMP_BULK_ENDORSE_CONFIG[activeTab] && (
+                  <button
+                    onClick={() => setShowBulkEndorse(true)}
+                    style={{
+                      padding: "6px 14px", fontSize: "0.72rem", fontWeight: 700,
+                      fontFamily: FONT, borderRadius: 8, cursor: "pointer", border: "none",
+                      background: GMP_BULK_ENDORSE_CONFIG[activeTab].isEndTask
+                        ? "linear-gradient(135deg,#10b981,#059669)"
+                        : "linear-gradient(135deg,#7c3aed,#6d28d9)",
+                      color: "#fff", display: "flex", alignItems: "center", gap: 6,
+                      boxShadow: GMP_BULK_ENDORSE_CONFIG[activeTab].isEndTask
+                        ? "0 2px 8px rgba(16,185,129,0.35)"
+                        : "0 2px 8px rgba(124,58,237,0.35)",
+                    }}>
+                    {GMP_BULK_ENDORSE_CONFIG[activeTab].isEndTask ? "✅" : "📋"}{" "}
+                    {GMP_BULK_ENDORSE_CONFIG[activeTab].buttonLabel}
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -886,9 +1139,15 @@ export default function GMPTasksPage({ darkMode = false }) {
             <p style={{ fontSize: "0.84rem", fontWeight: 600, color: colors.textPrimary, margin: 0 }}>
               {data.length === 0 ? "No tasks assigned yet" : "No tasks match your filters"}
             </p>
-            {data.length > 0 && activeQuickChips.length > 0 && (
+            {data.length > 0 && (activeQuickChips.length > 0 || searchInput || filters.nearDeadline || filters.beyond || filters.starredOnly || filters.sentBy || originFilter !== "all") && (
               <button
-                onClick={() => { setActiveQuick(QUICK_DEFAULTS); setCurrentPage(1); }}
+                onClick={() => {
+                  setActiveQuick(QUICK_DEFAULTS);
+                  setSearchInput(""); setSearch("");
+                  setFilters((f) => ({ ...f, starredOnly: false, sentBy: "", nearDeadline: false, beyond: false }));
+                  setOriginFilter("all");
+                  setCurrentPage(1);
+                }}
                 style={{
                   fontSize: "0.74rem", fontWeight: 600, color: ACCENT,
                   background: "transparent", border: `1px solid ${ACCENT}50`, borderRadius: 8,
@@ -1036,6 +1295,20 @@ export default function GMPTasksPage({ darkMode = false }) {
         onClose={() => !generatingTransmittal && setShowTransmittalChoice(false)}
         colors={colors} darkMode={darkMode}
       />
+
+      {showBulkEndorse && GMP_BULK_ENDORSE_CONFIG[activeTab] && (
+        <GMPBulkEndorseModal
+          config={GMP_BULK_ENDORSE_CONFIG[activeTab]}
+          records={sortedData.filter((r) => selectedRows.includes(r.id))}
+          onClose={() => setShowBulkEndorse(false)}
+          onSuccess={async () => {
+            setSelectedRows([]);
+            await fetchAllSteps();
+            await fetchTasks();
+          }}
+          colors={colors} darkMode={darkMode}
+        />
+      )}
     </div>
   );
 }

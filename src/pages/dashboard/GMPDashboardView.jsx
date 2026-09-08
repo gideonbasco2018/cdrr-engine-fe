@@ -8,6 +8,8 @@ import {
   getGMPDashboardSummary,
   getGMPDashboardChart,
   getGMPDashboardRecentApplications,
+  getGMPPostEvalStatusSummary,
+  getGMPPostEvalStatusRows,
 } from "../../api/dashboard";
 import {
   buildChartParams,
@@ -29,6 +31,8 @@ import RecentApplicationsCard from "../../components/dashboard/RecentApplication
 import RecentApplicationsModal from "../../components/dashboard/RecentApplicationsModal";
 import GMPMetricDetailModal from "../../components/dashboard/GMPMetricDetailModal";
 import GMPRecordDetailModal from "../../components/dashboard/GMPRecordDetailModal";
+import GMPPostEvalStatusCard from "../../components/dashboard/GMPPostEvalStatusCard";
+import GMPPostEvalStatusModal from "../../components/dashboard/GMPPostEvalStatusModal";
 import SystemStatusCard from "../../components/dashboard/SystemStatusCard";
 
 export default function GMPDashboardView({ darkMode, ui, isMobile }) {
@@ -63,6 +67,13 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
   const [recentApps, setRecentApps] = useState([]);
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState(null);
+
+  // ── Post-Evaluation Status (FGMP only — no CPR counterpart) ────────────────
+  const [postEvalBreakdown, setPostEvalBreakdown] = useState([]);
+  const [postEvalRows, setPostEvalRows] = useState([]);
+  const [postEvalLoading, setPostEvalLoading] = useState(true);
+  const [postEvalError, setPostEvalError] = useState(null);
+  const [showPostEvalModal, setShowPostEvalModal] = useState(false);
 
   // ── DB connections ────────────────────────────────────────────────────────
   const [dbConnections, setDbConnections] = useState([
@@ -121,13 +132,32 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
     setRecentLoading(true);
     setRecentError(null);
     try {
-      const res = await getGMPDashboardRecentApplications({ limit: 10 });
+      const res = await getGMPDashboardRecentApplications({ page_size: 10 });
       setRecentApps(res.data);
     } catch (err) {
       setRecentError(err?.response?.data?.detail || err.message || "Failed to load");
       setRecentApps([]);
     } finally {
       setRecentLoading(false);
+    }
+  }, []);
+
+  const fetchPostEvalStatus = useCallback(async () => {
+    setPostEvalLoading(true);
+    setPostEvalError(null);
+    try {
+      const [summary, rows] = await Promise.all([
+        getGMPPostEvalStatusSummary(),
+        getGMPPostEvalStatusRows({ page_size: 4 }),
+      ]);
+      setPostEvalBreakdown(summary.breakdown);
+      setPostEvalRows(rows.data);
+    } catch (err) {
+      setPostEvalError(err?.response?.data?.detail || err.message || "Failed to load");
+      setPostEvalBreakdown([]);
+      setPostEvalRows([]);
+    } finally {
+      setPostEvalLoading(false);
     }
   }, []);
 
@@ -140,6 +170,9 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
   useEffect(() => {
     fetchRecentApps();
   }, [fetchRecentApps]);
+  useEffect(() => {
+    fetchPostEvalStatus();
+  }, [fetchPostEvalStatus]);
 
   const metrics = [
     {
@@ -491,6 +524,17 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
             emptyLabel="No recent FGMP applications found."
           />
 
+          <GMPPostEvalStatusCard
+            ui={ui}
+            breakdown={postEvalBreakdown}
+            data={postEvalRows}
+            loading={postEvalLoading}
+            error={postEvalError}
+            onRetry={fetchPostEvalStatus}
+            onSeeAll={() => setShowPostEvalModal(true)}
+            onRowClick={handleRowClick}
+          />
+
           {isMobile && (
             <SystemStatusCard connections={dbConnections} onToggle={toggleConn} ui={ui} />
           )}
@@ -527,6 +571,13 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
           onClose={() => setShowRecentModal(false)}
           onRowClick={handleRowClick}
           fetcher={getGMPDashboardRecentApplications}
+          ui={ui}
+        />
+      )}
+      {showPostEvalModal && (
+        <GMPPostEvalStatusModal
+          onClose={() => setShowPostEvalModal(false)}
+          onRowClick={handleRowClick}
           ui={ui}
         />
       )}

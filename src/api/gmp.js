@@ -41,6 +41,18 @@ export async function createGMPRecord(data) {
   return res.data;
 }
 
+// Resolve-or-create by DTN — used by the FGMP batch folder upload so a DTN's
+// files always attach to the record that already exists for it; a new record
+// is created only when the DTN has none. Returns { record, created }.
+export async function resolveOrCreateGMPByDtn(dtn, { company, transactionType } = {}) {
+  const res = await API.post("/gmp/resolve-or-create-by-dtn", {
+    dtn: String(dtn),
+    company: company || null,
+    transaction_type: transactionType || null,
+  });
+  return res.data;
+}
+
 export async function updateGMPRecord(id, data) {
   const res = await API.put(`/gmp/${id}`, data);
   return res.data;
@@ -79,6 +91,16 @@ export async function assignEvaluator(recordId, evaluatorName) {
 // ── Advance Step ──────────────────────────────────────────────────────────────
 export async function advanceStep(recordId, data) {
   const res = await API.post(`/gmp/${recordId}/advance-step`, data);
+  return res.data;
+}
+
+// ── Workflow step + action definitions ────────────────────────────────────────
+// Single source of truth: the backend's GMP_ACTION_ROUTES. Each step carries the
+// exact set of actions advance-step will accept from it, so the WorkflowModal
+// Action dropdown can be built from this and never drift into offering an action
+// the backend rejects. Returns { steps: [{ label, del_index, actions: [...] }] }.
+export async function getGMPLogSteps() {
+  const res = await API.get("/gmp/log-steps");
   return res.data;
 }
 
@@ -197,9 +219,29 @@ export async function uploadGMPExcel(file) {
   return res.data;
 }
 
+// Read-only dry run: parses the file and reports what /upload would do
+// (which rows insert, which get skipped and why — duplicate DTN, no DTN)
+// without writing anything. Used to show a confirmation step before the
+// real upload.
+export async function previewGMPExcel(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await API.post("/gmp/upload-preview", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+}
+
+// Column list for the "Select columns to include" export modal.
+export async function getGMPExportColumns() {
+  const res = await API.get("/gmp/export-columns");
+  return res.data.columns;
+}
+
 // Exports every record matching the given filters (not just the current
 // page) to an .xlsx file and triggers a browser download. `params` takes
-// the same filter keys as getGMPRecords (minus page/page_size).
+// the same filter keys as getGMPRecords (minus page/page_size), plus an
+// optional `columns` (comma-separated ids from getGMPExportColumns).
 export async function exportFilteredGMPRecords(params = {}) {
   const clean = Object.fromEntries(
     Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== "")

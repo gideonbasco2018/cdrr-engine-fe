@@ -37,6 +37,11 @@ export const getGMPAnalyticsWorkload = async (params = {}) => {
   return res.data;
 };
 
+export const getGMPAnalyticsByStep = async (params = {}) => {
+  const res = await API.get("/gmp/analytics/by-step", { params });
+  return res.data;
+};
+
 export const getGMPAnalyticsAging = async (params = {}) => {
   const res = await API.get("/gmp/analytics/aging", { params });
   return res.data;

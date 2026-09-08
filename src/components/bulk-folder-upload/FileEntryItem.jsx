@@ -13,13 +13,17 @@ function FileEntryItem({
   onSelect,
   onRemove,
 }) {
+  const failed = result && !result.success;
+  const errorText = failed ? (result.error || entry.uploadError || "Upload failed.") : null;
   return (
     <li
       onClick={onSelect}
+      title={errorText || entry.file.name}
       style={{
         ...s.fileItem,
         ...s.fileItemNested,
         ...(isActive ? s.fileItemActive : {}),
+        ...(failed ? { flexWrap: "wrap" } : {}),
       }}
     >
       <span style={s.fileItemIcon}>
@@ -62,6 +66,19 @@ function FileEntryItem({
       >
         <X size={13} />
       </button>
+      {errorText && (
+        <span
+          style={{
+            flexBasis: "100%",
+            fontSize: 11,
+            lineHeight: 1.35,
+            color: colors.danger,
+            marginTop: 2,
+          }}
+        >
+          {errorText}
+        </span>
+      )}
     </li>
   );
 }

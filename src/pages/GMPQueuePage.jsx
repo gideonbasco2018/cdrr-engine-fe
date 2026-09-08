@@ -16,6 +16,7 @@ import GMPReassignmentModal from "../components/gmp/queue/GMPReassignmentModal";
 import GMPRerouteModal from "../components/gmp/queue/GMPRerouteModal";
 import GMPApplicationInfoModal from "../components/gmp/queue/GMPApplicationInfoModal";
 import GMPDocumentsModal from "../components/gmp/queue/GMPDocumentsModal";
+import GMPExportColumnsModal from "../components/gmp/queue/GMPExportColumnsModal";
 import {
   generateGMPTransmittalPDF,
   generateGMPTransmittalExcel,
@@ -24,6 +25,13 @@ import {
 import { FONT } from "../components/gmp/shared/constants";
 
 const ACCENT = "#6366f1";
+
+// All queue-table column keys, and the ones added recently enough that existing
+// users' saved column prefs won't include them — those get force-shown once
+// (see the visibleColumns initializer). Move a key out of NEW once everyone has
+// had a release cycle to see it.
+const GMP_QUEUE_COL_KEYS = GMP_QUEUE_COLUMNS.map((c) => c.key);
+const GMP_QUEUE_NEW_COL_KEYS = ["status_timeline"];
 
 // Default queue sort — also what "reset sort" (QueueTable's ✕ next to the
 // active sort arrow) returns to.
@@ -571,6 +579,38 @@ function GMPTransmittalModal({ open, count, generating, onGenerate, onClose, col
   );
 }
 
+// Same grouped-toggle look as the Tasks page's Timeline-risk chips
+// (ToggleGroup/ToggleSeg in GMPTasksPage.jsx) — two segments read as one
+// control instead of a run of identical buttons.
+function ToggleGroup({ bg, border, children }) {
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "stretch",
+      border: `1px solid ${border}`, borderRadius: 7,
+      overflow: "hidden", background: bg,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+function ToggleSeg({ active, activeColor, onClick, title, first, border, colors, children }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        padding: "5px 11px", fontSize: "0.68rem", fontWeight: 600, fontFamily: FONT,
+        border: "none", borderLeft: first ? "none" : `1px solid ${border}`,
+        background: active ? `${activeColor}22` : "transparent",
+        color: active ? activeColor : colors.textTertiary,
+        cursor: "pointer", whiteSpace: "nowrap", transition: "background 0.12s ease",
+      }}>
+      {children}
+    </button>
+  );
+}
+
 export default function GMPQueuePage({ darkMode = false }) {
   const colors = getColorScheme(darkMode);
 
@@ -597,6 +637,12 @@ export default function GMPQueuePage({ darkMode = false }) {
   // reference-number family (primary + Add-Issuance siblings) has a genuine
   // data-entry duplicate: two records sharing the same Type of Issuance.
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
+  // "Near Deadline" / "Beyond" — same still-open, timeline-risk chips as the
+  // Tasks page (GMPTasksPage.jsx's filters.nearDeadline/.beyond); both can be
+  // active together to show the union, same as there. Server-side here since
+  // the Queue is paginated (see get_gmp_records' timeline_risk handling).
+  const [nearDeadline,   setNearDeadline]   = useState(false);
+  const [beyondDeadline, setBeyondDeadline] = useState(false);
   const [searchInput,    setSearchInput]    = useState("");
   const [search,         setSearch]         = useState("");
   const [showAdvanced,   setShowAdvanced]   = useState(false);
@@ -624,11 +670,21 @@ export default function GMPQueuePage({ darkMode = false }) {
   const [visibleColumns, setVisibleColumns] = useState(() => {
     try {
       const stored = localStorage.getItem("gmpQueueVisibleColumns");
-      return stored ? JSON.parse(stored) : GMP_QUEUE_COLUMNS.map((c) => c.key);
-    } catch { return GMP_QUEUE_COLUMNS.map((c) => c.key); }
+      if (!stored) return GMP_QUEUE_COL_KEYS;
+      const visible = JSON.parse(stored);
+      // Reveal columns added to the app since this user's prefs were saved.
+      // `gmpQueueKnownColumns` records which keys the user has already had in
+      // the toggle list; first run of this mechanism seeds it with every key
+      // EXCEPT the newly-added ones so only those get force-shown, once.
+      const known = JSON.parse(localStorage.getItem("gmpQueueKnownColumns") || "null")
+        ?? GMP_QUEUE_COL_KEYS.filter((k) => !GMP_QUEUE_NEW_COL_KEYS.includes(k));
+      const newlyAdded = GMP_QUEUE_COL_KEYS.filter((k) => !known.includes(k));
+      return [...new Set([...visible, ...newlyAdded])];
+    } catch { return GMP_QUEUE_COL_KEYS; }
   });
   useEffect(() => {
     localStorage.setItem("gmpQueueVisibleColumns", JSON.stringify(visibleColumns));
+    localStorage.setItem("gmpQueueKnownColumns", JSON.stringify(GMP_QUEUE_COL_KEYS));
   }, [visibleColumns]);
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const toggleColumn = (key) => {
@@ -684,6 +740,9 @@ export default function GMPQueuePage({ darkMode = false }) {
     ...(topTab !== "all" && { tab: topTab }),
     ...(view !== "all" && { view }),
     ...(view === "main" && duplicatesOnly && { duplicates_only: true }),
+    ...((nearDeadline || beyondDeadline) && {
+      timeline_risk: [nearDeadline && "near", beyondDeadline && "beyond"].filter(Boolean).join(","),
+    }),
     ...(activeQuick.app_status       && activeQuick.app_status       !== "all" && { app_status:       activeQuick.app_status }),
     ...(activeQuick.est_category     && activeQuick.est_category     !== "all" && { est_category:     activeQuick.est_category }),
     ...(activeQuick.transaction_type && activeQuick.transaction_type !== "all" && { transaction_type: activeQuick.transaction_type }),
@@ -719,7 +778,7 @@ export default function GMPQueuePage({ darkMode = false }) {
     ...(advFilters.date_printed_to && { date_printed_to: advFilters.date_printed_to }),
     ...(advFilters.compliance_docs_date_received_from && { compliance_docs_date_received_from: advFilters.compliance_docs_date_received_from }),
     ...(advFilters.compliance_docs_date_received_to && { compliance_docs_date_received_to: advFilters.compliance_docs_date_received_to }),
-  }), [search, topTab, view, duplicatesOnly, activeQuick, advFilters, sortBy, sortOrder]);
+  }), [search, topTab, view, duplicatesOnly, nearDeadline, beyondDeadline, activeQuick, advFilters, sortBy, sortOrder]);
 
   // Load records
   const fetchRecords = useCallback(async () => {
@@ -739,17 +798,25 @@ export default function GMPQueuePage({ darkMode = false }) {
   }, [page, pageSize, buildFilterParams]);
 
   const [exporting, setExporting] = useState(false);
-  const handleExport = async () => {
-    if (exporting || total === 0) return;
+  const [showExportColumns, setShowExportColumns] = useState(false);
+  const handleExportConfirm = async (selectedColumns) => {
+    setShowExportColumns(false);
     setExporting(true);
     try {
-      await exportFilteredGMPRecords(buildFilterParams());
+      await exportFilteredGMPRecords({
+        ...buildFilterParams(),
+        columns: selectedColumns.join(","),
+      });
     } catch (e) {
       console.error("Failed to export GMP records", e);
       alert("Failed to export records. Check that the backend is running.");
     } finally {
       setExporting(false);
     }
+  };
+  const handleExport = () => {
+    if (exporting || total === 0) return;
+    setShowExportColumns(true);
   };
 
   useEffect(() => { fetchRecords(); }, [fetchRecords]);
@@ -825,6 +892,8 @@ export default function GMPQueuePage({ darkMode = false }) {
       type_of_issuance: "all",
     });
     setAdvFilters(ADV_DEFAULTS);
+    setNearDeadline(false);
+    setBeyondDeadline(false);
     setPage(1);
   };
 
@@ -994,7 +1063,7 @@ export default function GMPQueuePage({ darkMode = false }) {
               🔍
             </span>
             <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search by DTN, company, certificate number…"
+              placeholder="Search any field — DTN, company, address, manufacturer, certificate…"
               style={{
                 width: "100%", padding: "8px 12px 8px 34px", fontSize: "0.78rem",
                 fontFamily: FONT, borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
@@ -1069,6 +1138,31 @@ export default function GMPQueuePage({ darkMode = false }) {
                 🔁 Duplicates
               </button>
             )}
+
+            {/* Timeline-risk — still-open applications near/past their
+                allotted timeline; both can be active together (union),
+                same as the Tasks page's identical chips. */}
+            <ToggleGroup bg="transparent" border={colors.cardBorder}>
+              <ToggleSeg
+                first
+                colors={colors}
+                border={colors.cardBorder}
+                active={nearDeadline}
+                activeColor="#ca8a04"
+                onClick={() => { setNearDeadline((v) => !v); setPage(1); }}
+                title="Open applications that have used ≥80% of their allotted timeline">
+                ⚠ Near Deadline
+              </ToggleSeg>
+              <ToggleSeg
+                colors={colors}
+                border={colors.cardBorder}
+                active={beyondDeadline}
+                activeColor="#dc2626"
+                onClick={() => { setBeyondDeadline((v) => !v); setPage(1); }}
+                title="Open applications already past their allotted timeline">
+                🔴 Beyond
+              </ToggleSeg>
+            </ToggleGroup>
 
             {/* Double-click config — sits above the Actions column */}
             <div style={{ position: "relative" }}>
@@ -1307,6 +1401,13 @@ export default function GMPQueuePage({ darkMode = false }) {
       </div>
 
       {/* Modals */}
+      {showExportColumns && (
+        <GMPExportColumnsModal
+          onClose={() => setShowExportColumns(false)}
+          onConfirm={handleExportConfirm}
+          colors={colors} darkMode={darkMode}
+        />
+      )}
       {logRecord && (
         <AppLogModal record={logRecord} onClose={() => setLogRecord(null)}
           colors={colors} darkMode={darkMode} />
