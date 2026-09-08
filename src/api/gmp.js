@@ -219,9 +219,29 @@ export async function uploadGMPExcel(file) {
   return res.data;
 }
 
+// Read-only dry run: parses the file and reports what /upload would do
+// (which rows insert, which get skipped and why — duplicate DTN, no DTN)
+// without writing anything. Used to show a confirmation step before the
+// real upload.
+export async function previewGMPExcel(file) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await API.post("/gmp/upload-preview", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return res.data;
+}
+
+// Column list for the "Select columns to include" export modal.
+export async function getGMPExportColumns() {
+  const res = await API.get("/gmp/export-columns");
+  return res.data.columns;
+}
+
 // Exports every record matching the given filters (not just the current
 // page) to an .xlsx file and triggers a browser download. `params` takes
-// the same filter keys as getGMPRecords (minus page/page_size).
+// the same filter keys as getGMPRecords (minus page/page_size), plus an
+// optional `columns` (comma-separated ids from getGMPExportColumns).
 export async function exportFilteredGMPRecords(params = {}) {
   const clean = Object.fromEntries(
     Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== "")

@@ -16,7 +16,7 @@ import CprTrendView from "../components/monitoring/cprTrend/CprTrendView";
 import ProcessingTrendView from "../components/monitoring/processingTrend/ProcessingTrendView";
 import FRPMonitoringView from "../components/monitoring/frpMonitoring/FRPMonitoringView";
 import TeamOverviewView from "../components/monitoring/teamOverview/TeamOverviewView";
-import GMPAnalyticsView from "../components/gmp/dashboard/GMPAnalyticsView";
+import GMPMonitoringAnalyticsView from "../components/gmp/dashboard/GMPMonitoringAnalyticsView";
 import PriorityMedsView from "../components/monitoring/priorityMeds/PriorityMedsView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
@@ -1048,7 +1048,7 @@ function renderContent(
     case "teamoverview":
       return <TeamOverviewView darkMode={darkMode} />;
     case "gmpanalytics":
-      return <GMPAnalyticsView ui={ui} darkMode={darkMode} />;
+      return <GMPMonitoringAnalyticsView ui={ui} darkMode={darkMode} />;
     case "prioritymeds":
       return <PriorityMedsView ui={ui} darkMode={darkMode} />;
     default:
@@ -1273,8 +1273,8 @@ function MonitoringPage({ darkMode }) {
     { key: "analytics", label: "Analytics", subtitle: "Charts & breakdowns" },
     {
       key: "gmpanalytics",
-      label: "FGMP Analytics",
-      subtitle: "Certification workflow insights",
+      label: "FGMP Monitoring & Analytics",
+      subtitle: "Live status & workflow trends",
     },
     { key: "deadlines", label: "Deadlines", comingSoon: true },
     { key: "compliance", label: "Compliance", comingSoon: true },

@@ -307,7 +307,10 @@ function StepTimingChart({ data, darkMode, ui, loading }) {
         labels: data.map((d) => d.step),
         datasets: [
           {
-            label: "Avg days",
+            // Calendar days — distinct from the Summary KPI's "Avg TAT",
+            // which is working days. Called out explicitly here since both
+            // read as "average days" at a glance but aren't on the same scale.
+            label: "Avg calendar days",
             data: data.map((d) => d.avg_days ?? 0),
             backgroundColor: data.map((d) => stepColor(d.step)),
             borderRadius: 4,
@@ -964,7 +967,7 @@ export default function GMPAnalyticsView({ ui, darkMode }) {
       <FadeSlideIn delay={260}>
         <SectionCard
           title="Workflow step timing"
-          subtitle="Average days spent per step, Decking → OD Releasing"
+          subtitle="Average calendar days spent per step, Decking → OD Releasing"
           ui={ui}
           darkMode={darkMode}
         >

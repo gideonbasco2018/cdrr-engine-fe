@@ -91,7 +91,11 @@ export function rowTimelineTint(row, darkMode) {
   const r = computeStatusTimeline(row);
   if (!r || r.released) return null;
   if (r.level === "beyond") return darkMode ? "#3a2020" : "#fbe4e4";
-  if (r.level === "near")   return darkMode ? "#33301f" : "#fbf3d0";
+  // Was #fbf3d0 — some users flagged it as too strong across a whole row of
+  // an otherwise light table. Kept as a genuine (if very pale) yellow rather
+  // than going gray, since it still needs to read as "near deadline" at a
+  // glance, just softer.
+  if (r.level === "near")   return darkMode ? "#2c2a1c" : "#fdf8e4";
   return null;
 }
 

@@ -1486,7 +1486,7 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
           </span>
         </div>
         {effTimelineDays != null && (
-          <div style={{ marginLeft: "auto" }}>
+          <div>
             {label("Timeline", colors.textTertiary)}
             <div style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 22 }}>
               <span style={{ fontSize: "0.9rem", color: colors.textPrimary, whiteSpace: "nowrap" }}>

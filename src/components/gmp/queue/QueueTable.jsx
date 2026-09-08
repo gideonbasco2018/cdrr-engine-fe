@@ -54,6 +54,10 @@ const SORT_FIELD_MAP = {
   related_dtn: "GMP_RELATED_DTN",
   category: "GMP_EST_CATEGORY",
   date_received: "GMP_DATE_RECEIVED",
+  // Not a real column — the backend recognizes this sentinel and orders by
+  // elapsed days (Released Date, or today if still open, minus Date
+  // Received) instead. See get_gmp_records() in crud/gmp_record.py.
+  status_timeline: "STATUS_TIMELINE_DAYS",
   name_of_establishment: "GMP_LTO_COMPANY",
   lto_number: "GMP_LTO_NUMBER",
   address: "GMP_LTO_ADDRESS",

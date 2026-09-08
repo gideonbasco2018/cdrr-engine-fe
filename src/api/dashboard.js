@@ -79,3 +79,14 @@ export async function getGMPDashboardDetail(params = {}) {
   const { data } = await axios.get("/dashboard/gmp/stats/detail", { params });
   return data;
 }
+
+// "Post-Evaluation Status" card — FGMP Dashboard only, no CPR counterpart.
+export async function getGMPPostEvalStatusSummary(params = {}) {
+  const { data } = await axios.get("/dashboard/gmp/stats/post-eval-status/summary", { params });
+  return data;
+}
+
+export async function getGMPPostEvalStatusRows(params = {}) {
+  const { data } = await axios.get("/dashboard/gmp/stats/post-eval-status", { params });
+  return data;
+}

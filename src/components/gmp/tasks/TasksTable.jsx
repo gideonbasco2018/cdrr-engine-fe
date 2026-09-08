@@ -25,6 +25,9 @@ const SORT_FIELD_MAP = Object.fromEntries(
 );
 SORT_FIELD_MAP.sent_by = "sentByFullName";
 SORT_FIELD_MAP.forwarded_on = "startDate";
+// Derived, not a raw row field — precomputed onto the row in mapGMPTask()
+// (GMPTasksPage.jsx) as `statusTimelineDays` so it sorts like any other number.
+SORT_FIELD_MAP.status_timeline = "statusTimelineDays";
 
 // ── Column definitions — mirrors QueueTable.jsx exactly (widths, wrapping) ──
 export const GMP_COLUMNS = [
