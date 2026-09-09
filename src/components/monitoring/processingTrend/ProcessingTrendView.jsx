@@ -286,7 +286,9 @@ export default function ProcessingTrendView({ ui, darkMode }) {
   const [monthTo, setMonthTo] = useState(currentYearMonth());
 
   const [dateMode, setDateMode] = useState("year");
-  const [yearValue, setYearValue] = useState("");
+  const [selectedYears, setSelectedYears] = useState([]);
+  const [yearDropdownOpen, setYearDropdownOpen] = useState(false);
+  const yearDropdownRef = useRef(null);
 
   // Dropdown option lists (populated from trend API)
   const [docTypes, setDocTypes] = useState([]);
@@ -304,6 +306,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
 
   // ── Breakdown state ───────────────────────────────────────────────────────
   const [dimension, setDimension] = useState("doc_type");
+  const [breakdownBasis, setBreakdownBasis] = useState("received");
   const [breakdownData, setBreakdownData] = useState([]);
   const [breakdownLoading, setBreakdownLoading] = useState(true);
   const barChartRef = useRef(null);
@@ -347,13 +350,13 @@ export default function ProcessingTrendView({ ui, darkMode }) {
       app_status: appStatus || null,
       app_type: appType || null,
       classification: classification || null,
-      year: null,
+      years: null,
       date_from: null,
       date_to: null,
     };
 
     if (dateMode === "year") {
-      base.year = yearValue || null;
+      base.years = selectedYears.length ? selectedYears.map(Number) : null;
     } else if (dateMode === "month") {
       base.date_from = monthFrom ? `${monthFrom}-01` : null;
       if (monthTo) {
@@ -369,7 +372,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     return base;
   }, [
     dateMode,
-    yearValue,
+    selectedYears,
     monthFrom,
     monthTo,
     dateFrom,
@@ -412,7 +415,11 @@ export default function ProcessingTrendView({ ui, darkMode }) {
   useEffect(() => {
     let cancelled = false;
     setBreakdownLoading(true);
-    getProcessingBreakdown({ dimension, ...sharedParams })
+    getProcessingBreakdown({
+      dimension,
+      basis: breakdownBasis,
+      ...sharedParams,
+    }) // ← CHANGED
       .then((res) => {
         if (!cancelled) setBreakdownData(res.data || []);
       })
@@ -425,7 +432,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     return () => {
       cancelled = true;
     };
-  }, [dimension, sharedParams]);
+  }, [dimension, breakdownBasis, sharedParams]); // ← CHANGED (added breakdownBasis)
 
   // ── Fetch summary ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -709,7 +716,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
 
   const hasDateFilter =
     dateMode === "year"
-      ? yearValue !== ""
+      ? selectedYears.length > 0
       : dateMode === "month"
         ? monthFrom !== DEFAULT_MONTH || monthTo !== DEFAULT_MONTH
         : dateFrom !== DEFAULT_DATE_FROM || dateTo !== DEFAULT_DATE_TO;
@@ -731,12 +738,38 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     setAppStatus("");
     setAppType("");
     setClassification("");
-    setYearValue(String(CURRENT_YEAR));
+    setSelectedYears([]);
     setMonthFrom(DEFAULT_MONTH);
     setMonthTo(DEFAULT_MONTH);
     setDateFrom(DEFAULT_DATE_FROM);
     setDateTo(DEFAULT_DATE_TO);
   }
+
+  function toggleYear(y) {
+    setSelectedYears((prev) =>
+      prev.includes(y) ? prev.filter((v) => v !== y) : [...prev, y],
+    );
+  }
+
+  function toggleYear(y) {
+    setSelectedYears((prev) =>
+      prev.includes(y) ? prev.filter((v) => v !== y) : [...prev, y],
+    );
+  }
+
+  useEffect(() => {
+    if (!yearDropdownOpen) return;
+    function handleClickOutside(e) {
+      if (
+        yearDropdownRef.current &&
+        !yearDropdownRef.current.contains(e.target)
+      ) {
+        setYearDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [yearDropdownOpen]);
 
   const PRESETS = [
     {
@@ -835,7 +868,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
   ];
 
   const showCarryOver = !!(
-    (dateMode === "year" && yearValue) ||
+    (dateMode === "year" && selectedYears.length > 0) ||
     dateMode === "month" ||
     dateMode === "day"
   );
@@ -1042,22 +1075,107 @@ export default function ProcessingTrendView({ ui, darkMode }) {
           </div>
 
           {dateMode === "year" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={labelStyle}>Year</label>
-              <select
-                value={yearValue}
-                onChange={(e) => setYearValue(e.target.value)}
-                style={selectStyle}
+            <div
+              ref={yearDropdownRef}
+              style={{
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              <label style={labelStyle}>Year(s)</label>
+              <button
+                type="button"
+                onClick={() => setYearDropdownOpen((v) => !v)}
+                style={{
+                  ...selectStyle,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  minWidth: 160,
+                  textAlign: "left",
+                }}
               >
-                {YEAR_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
+                <span>
+                  {selectedYears.length === 0
+                    ? "All Years"
+                    : [...selectedYears].sort().join(", ")}
+                </span>
+                <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>
+                  {yearDropdownOpen ? "▲" : "▼"}
+                </span>
+              </button>
+
+              {yearDropdownOpen && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    marginTop: 4,
+                    zIndex: 20,
+                    background: ui.cardBg,
+                    border: `1px solid ${ui.cardBorder}`,
+                    borderRadius: 8,
+                    padding: 8,
+                    minWidth: 160,
+                    maxHeight: 240,
+                    overflowY: "auto",
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                  }}
+                >
+                  {selectedYears.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedYears([])}
+                      style={{
+                        ...tabBase,
+                        padding: "4px 8px",
+                        fontSize: "0.72rem",
+                        background: "transparent",
+                        color: "#ef4444",
+                        textAlign: "left",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Clear all
+                    </button>
+                  )}
+                  {YEAR_OPTIONS.filter((o) => o.value !== "").map((o) => (
+                    <label
+                      key={o.value}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: "0.82rem",
+                        color: ui.textPrimary,
+                        cursor: "pointer",
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        background: selectedYears.includes(o.value)
+                          ? "rgba(37,99,235,0.15)"
+                          : "transparent",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedYears.includes(o.value)}
+                        onChange={() => toggleYear(o.value)}
+                        style={{ cursor: "pointer" }}
+                      />
+                      {o.label}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           )}
-
           {dateMode === "month" && (
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1210,8 +1328,8 @@ export default function ProcessingTrendView({ ui, darkMode }) {
               hasDateFilter &&
                 dateMode === "year" && {
                   k: "dr",
-                  lbl: `Year: ${yearValue}`,
-                  clear: () => setYearValue(""),
+                  lbl: `Years: ${[...selectedYears].sort().join(", ")}`,
+                  clear: () => setSelectedYears([]),
                 },
               hasDateFilter &&
                 dateMode === "month" && {
@@ -1552,7 +1670,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
             style={{
               display: "flex",
               gap: 6,
-              marginBottom: 14,
+              marginBottom: 10,
               alignItems: "center",
               flexWrap: "wrap",
             }}
@@ -1567,6 +1685,34 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                   padding: "4px 12px",
                   background: dimension === o.value ? "#2563eb" : ui.inputBg,
                   color: dimension === o.value ? "#fff" : ui.textMuted,
+                }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              marginBottom: 14,
+              alignItems: "center",
+            }}
+          >
+            <span style={labelStyle}>Based on:</span>
+            {[
+              { value: "received", label: "Date Received" },
+              { value: "released", label: "Date Released" },
+            ].map((o) => (
+              <button
+                key={o.value}
+                onClick={() => setBreakdownBasis(o.value)}
+                style={{
+                  ...tabBase,
+                  padding: "4px 12px",
+                  background:
+                    breakdownBasis === o.value ? "#2563eb" : ui.inputBg,
+                  color: breakdownBasis === o.value ? "#fff" : ui.textMuted,
                 }}
               >
                 {o.label}
