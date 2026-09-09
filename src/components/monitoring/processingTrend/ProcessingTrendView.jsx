@@ -32,6 +32,7 @@ const DIMENSION_OPTIONS = [
   { value: "entry_type", label: "Entry Type" },
   { value: "app_status", label: "Application Status" },
   { value: "app_type", label: "Application Type" },
+  { value: "classification", label: "Classification" },
 ];
 
 const BAR_COLORS = [
@@ -322,6 +323,10 @@ export default function ProcessingTrendView({ ui, darkMode }) {
   const statusChartRef = useRef(null);
   const statusChartInstance = useRef(null);
 
+  // State
+  const [classification, setClassification] = useState(""); // ← NEW
+  const [classifications, setClassifications] = useState([]); // ← NEW
+
   const weeklyTotals = useMemo(() => {
     if (!weeklyData?.rows) return { carryOver: 0, received: 0, processed: 0 };
     return weeklyData.rows.reduce(
@@ -341,6 +346,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
       entry_type: entryType || null,
       app_status: appStatus || null,
       app_type: appType || null,
+      classification: classification || null,
       year: null,
       date_from: null,
       date_to: null,
@@ -373,6 +379,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     entryType,
     appStatus,
     appType,
+    classification,
   ]);
 
   // ── Fetch trend ───────────────────────────────────────────────────────────
@@ -388,6 +395,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
         setEntryTypes(res.entry_types || []);
         setAppStatuses(res.app_statuses || []);
         setAppTypes(res.app_types || []);
+        setClassifications(res.classifications || []);
       })
       .catch(() => {
         if (!cancelled) setTrendData([]);
@@ -711,7 +719,8 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     processingType ||
     entryType ||
     appStatus ||
-    appType
+    appType ||
+    classification
   );
   const hasAnyFilter = hasDropdownFilter || hasDateFilter;
 
@@ -721,6 +730,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     setEntryType("");
     setAppStatus("");
     setAppType("");
+    setClassification("");
     setYearValue(String(CURRENT_YEAR));
     setMonthFrom(DEFAULT_MONTH);
     setMonthTo(DEFAULT_MONTH);
@@ -979,6 +989,21 @@ export default function ProcessingTrendView({ ui, darkMode }) {
               ))}
             </select>
           </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={labelStyle}>Classification</label>
+            <select
+              value={classification}
+              onChange={(e) => setClassification(e.target.value)}
+              style={{ ...selectStyle, minWidth: 140 }}
+            >
+              <option value="">All</option>
+              {classifications.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div
@@ -1176,6 +1201,11 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                 k: "at",
                 lbl: `App Type: ${appType}`,
                 clear: () => setAppType(""),
+              },
+              classification && {
+                k: "cl",
+                lbl: `Class: ${classification}`,
+                clear: () => setClassification(""),
               },
               hasDateFilter &&
                 dateMode === "year" && {
