@@ -276,7 +276,9 @@ export default function ProcessingTrendView({ ui, darkMode }) {
   const [processingType, setProcessingType] = useState("");
   const [entryType, setEntryType] = useState("");
   const [appStatus, setAppStatus] = useState("");
-  const [appType, setAppType] = useState("");
+  const [selectedAppTypes, setSelectedAppTypes] = useState([]);
+  const [appTypeDropdownOpen, setAppTypeDropdownOpen] = useState(false);
+  const appTypeDropdownRef = useRef(null);
 
   // Day range
   const [dateFrom, setDateFrom] = useState(firstOfMonthISO());
@@ -348,7 +350,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
       processing_type: processingType || null,
       entry_type: entryType || null,
       app_status: appStatus || null,
-      app_type: appType || null,
+      app_types: selectedAppTypes.length ? selectedAppTypes : null,
       classification: classification || null,
       years: null,
       date_from: null,
@@ -381,7 +383,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     processingType,
     entryType,
     appStatus,
-    appType,
+    selectedAppTypes,
     classification,
   ]);
 
@@ -726,7 +728,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     processingType ||
     entryType ||
     appStatus ||
-    appType ||
+    selectedAppTypes.length > 0 ||
     classification
   );
   const hasAnyFilter = hasDropdownFilter || hasDateFilter;
@@ -736,7 +738,7 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     setProcessingType("");
     setEntryType("");
     setAppStatus("");
-    setAppType("");
+    setSelectedAppTypes([]);
     setClassification("");
     setSelectedYears([]);
     setMonthFrom(DEFAULT_MONTH);
@@ -770,6 +772,26 @@ export default function ProcessingTrendView({ ui, darkMode }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [yearDropdownOpen]);
+
+  function toggleAppType(v) {
+    setSelectedAppTypes((prev) =>
+      prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v],
+    );
+  }
+
+  useEffect(() => {
+    if (!appTypeDropdownOpen) return;
+    function handleClickOutside(e) {
+      if (
+        appTypeDropdownRef.current &&
+        !appTypeDropdownRef.current.contains(e.target)
+      ) {
+        setAppTypeDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [appTypeDropdownOpen]);
 
   const PRESETS = [
     {
@@ -1007,20 +1029,112 @@ export default function ProcessingTrendView({ ui, darkMode }) {
               ))}
             </select>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div
+            ref={appTypeDropdownRef}
+            style={{
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
             <label style={labelStyle}>App Type</label>
-            <select
-              value={appType}
-              onChange={(e) => setAppType(e.target.value)}
-              style={{ ...selectStyle, minWidth: 140 }}
+            <button
+              type="button"
+              onClick={() => setAppTypeDropdownOpen((v) => !v)}
+              style={{
+                ...selectStyle,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+                minWidth: 140,
+                textAlign: "left",
+              }}
             >
-              <option value="">All</option>
-              {appTypes.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
-              ))}
-            </select>
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: 140,
+                }}
+              >
+                {selectedAppTypes.length === 0
+                  ? "All"
+                  : selectedAppTypes.join(", ")}
+              </span>
+              <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>
+                {appTypeDropdownOpen ? "▲" : "▼"}
+              </span>
+            </button>
+
+            {appTypeDropdownOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  marginTop: 4,
+                  zIndex: 20,
+                  background: ui.cardBg,
+                  border: `1px solid ${ui.cardBorder}`,
+                  borderRadius: 8,
+                  padding: 8,
+                  minWidth: 180,
+                  maxHeight: 240,
+                  overflowY: "auto",
+                  boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 2,
+                }}
+              >
+                {selectedAppTypes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAppTypes([])}
+                    style={{
+                      ...tabBase,
+                      padding: "4px 8px",
+                      fontSize: "0.72rem",
+                      background: "transparent",
+                      color: "#ef4444",
+                      textAlign: "left",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Clear all
+                  </button>
+                )}
+                {appTypes.map((v) => (
+                  <label
+                    key={v}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      fontSize: "0.82rem",
+                      color: ui.textPrimary,
+                      cursor: "pointer",
+                      padding: "6px 8px",
+                      borderRadius: 6,
+                      background: selectedAppTypes.includes(v)
+                        ? "rgba(37,99,235,0.15)"
+                        : "transparent",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedAppTypes.includes(v)}
+                      onChange={() => toggleAppType(v)}
+                      style={{ cursor: "pointer" }}
+                    />
+                    {v}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={labelStyle}>Classification</label>
@@ -1315,10 +1429,10 @@ export default function ProcessingTrendView({ ui, darkMode }) {
                 lbl: `Status: ${appStatus}`,
                 clear: () => setAppStatus(""),
               },
-              appType && {
+              selectedAppTypes.length > 0 && {
                 k: "at",
-                lbl: `App Type: ${appType}`,
-                clear: () => setAppType(""),
+                lbl: `App Type: ${selectedAppTypes.join(", ")}`,
+                clear: () => setSelectedAppTypes([]),
               },
               classification && {
                 k: "cl",
