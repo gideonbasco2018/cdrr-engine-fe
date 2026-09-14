@@ -2,6 +2,21 @@
 
 import API from "./axios";
 
+
+// Serializes arrays as repeated keys (years=2025&years=2026), which is
+// what FastAPI's `List[int] = Query(...)` expects — axios's default
+// bracket notation (years[]=2025) is NOT parsed by FastAPI as a list.
+function serializeParams(params) {
+  const usp = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((v) => usp.append(key, v));
+    } else {
+      usp.append(key, value);
+    }
+  });
+  return usp.toString();
+}
 /**
  * Get all active users with their task counts from application_logs.
  * Returns completed, in_progress, and total per user.
@@ -124,6 +139,7 @@ export const getProcessingTrend = async (params = {}) => {
     );
     const response = await API.get("/monitoring/processing-trend", {
       params: cleanParams,
+      paramsSerializer: serializeParams,
     });
     return response.data;
   } catch (error) {
@@ -159,6 +175,7 @@ export const getProcessingBreakdown = async (params = {}) => {
     );
     const response = await API.get("/monitoring/processing-breakdown", {
       params: cleanParams,
+      paramsSerializer: serializeParams,
     });
     return response.data;
   } catch (error) {
@@ -176,7 +193,10 @@ export const getSummary = async (params = {}) => {
         ([, v]) => v !== null && v !== undefined && v !== ""
       )
     );
-    const response = await API.get("/monitoring/summary", { params: cleanParams });
+    const response = await API.get("/monitoring/summary", {
+      params: cleanParams,
+      paramsSerializer: serializeParams,
+    });
     return response.data;
   } catch (error) {
     throw new Error(
@@ -204,6 +224,7 @@ export const getApplicationStatus = async (params = {}) => {
     );
     const response = await API.get("/monitoring/application-status", {
       params: cleanParams,
+      paramsSerializer: serializeParams,
     });
     return response.data;
   } catch (error) {
