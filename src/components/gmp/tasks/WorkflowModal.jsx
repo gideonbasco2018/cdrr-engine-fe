@@ -364,9 +364,12 @@ const GMP_OD_RELEASING_DECISION_OPTIONS = ["Signed"];
 // Keyed by the exact action string (unique across the whole workflow), so
 // the same lookup works for Decking, Evaluator, Checker, QA Admin, and
 // LRD Chief Admin / OD Receiving's forwarding actions alike. Any action not
-// in this map (Disapprove, Return to X, OD Releasing's final action, and
-// the Evaluator's "For Compliance" self-loop) gets no assignee picker at
-// all — routing for those doesn't need one.
+// in this map (Disapprove, OD Releasing's final action, and the Evaluator's
+// "For Compliance" self-loop) gets no assignee picker.
+//
+// The "send back" actions ARE in the map now — they get a picker too, and
+// GMP_SEND_BACK_ACTIONS below makes it pre-fill with whoever last held the
+// step it's going back to (editable).
 const GMP_ACTION_ASSIGNEE_GROUPS = {
   "Forwarded to Evaluator":      { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
   "Endorsed to Checker":         { groupId: 32, shortLabel: "Checking",         groupLabel: "Checking Group" },
@@ -378,7 +381,22 @@ const GMP_ACTION_ASSIGNEE_GROUPS = {
   // FROO hands the NFI back to the Evaluator — same target group as the
   // Checker's "Endorsed to Evaluator", different action string.
   "Forwarded to CDRR FGMP":       { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
+  // ── Send-back actions ────────────────────────────────────────────────────
+  "Return to Evaluator":         { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
+  "Return to QA Admin":          { groupId: 34, shortLabel: "QA Admin",         groupLabel: "QA Admin Group" },
+  "Return to LRD Chief Admin":   { groupId: 17, shortLabel: "LRD Chief Admin",  groupLabel: "LRD Chief Admin Group" },
 };
+
+// Actions that send the application BACKWARD. Their assignee dropdown
+// pre-fills with the most recent holder of the step being returned to (the
+// shortLabel above is that step's name), so a bounced application defaults
+// back to the person who was working it. Still editable.
+const GMP_SEND_BACK_ACTIONS = new Set([
+  "Return to Evaluator",
+  "Return to QA Admin",
+  "Return to LRD Chief Admin",
+  "Endorsed to Evaluator",   // the Checker's return to the Evaluator
+]);
 // Resolves task.applicationStep to the canonical "Evaluator" / "Checker" key used
 // by GMP_EVAL_CHECKER_ACTIONS / GMP_REMARKS_PRESETS below. Accepts both the new
 // "Evaluator" name and the legacy "Quality Evaluator" (in case the backend hasn't
@@ -1459,14 +1477,6 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
             {task?.dtn || "—"}
           </div>
         </div>
-        <div>
-          {label("Reference No.", "#16a34a")}
-          <div style={{ fontSize: "0.95rem", fontWeight: 800, color: "#16a34a",
-            fontFamily: "ui-monospace,monospace",
-            minHeight: 22, display: "flex", alignItems: "center" }}>
-            {record.GMP_REFERENCE_NO || "N/A"}
-          </div>
-        </div>
         {record.GMP_RELATED_DTN && (
           <div>
             {label("Related DTN", "#16a34a")}
@@ -1627,8 +1637,14 @@ function LogCard({ log, isLast, colors }) {
                   {/* No "Assigned To" label — just the name in the step's own
                       color, tying it to who's handling/handled this step
                       without implying a live, ongoing assignment. */}
-                  {log.user_name && (
-                    <span style={{ fontSize: "0.72rem", fontWeight: 600, color }}>· {log.user_name}</span>
+                  {/* Owner resolved live from user_id by the backend
+                      (assignee_username); the stored user_name is only a
+                      fallback for old rows that never got an id. */}
+                  {(log.assignee_username || log.user_name) && (
+                    <span style={{ fontSize: "0.72rem", fontWeight: 600, color }}>
+                      · {log.assignee_username || log.user_name}
+                      {log.assignee_alias ? ` (${log.assignee_alias})` : ""}
+                    </span>
                   )}
                 </span>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -1991,6 +2007,7 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
   approvalDecision, onApprovalDecisionChange, remarksPresetOptions, remarksPresetValue, onRemarksPresetChange,
   needsTypeOfIssuance, typeOfIssuanceOptions, typeOfIssuanceValue, onTypeOfIssuanceChange, typeOfIssuanceLocked,
   needsAssigneeGroup, assigneeGroupConfig, assigneeGroupOptions, loadingAssigneeGroup, assigneeUserId, onAssigneeGroupChange,
+  sendBackAction,
   isLrdChiefAdmin, needsLrdDecision, lrdDecisionValue, onLrdDecisionChange,
   isOdReceiving, needsOdReceivingDecision, odReceivingDecisionValue, onOdReceivingDecisionChange,
   isOdReleasing, needsOdReleasingDecision, odReleasingDecisionValue, onOdReleasingDecisionChange,
@@ -2403,12 +2420,17 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
       {needsAssigneeGroup && (
         <div className="wfFieldBox" style={box}>
           <label style={boxLbl}>
-            Assign to {assigneeGroupConfig?.shortLabel}{" "}
+            {sendBackAction ? "Return to" : "Assign to"} {assigneeGroupConfig?.shortLabel}{" "}
             <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>
               ({assigneeGroupConfig?.groupLabel})
             </span>{" "}
             <span style={{ color: "#ef4444" }}>*</span>
           </label>
+          {sendBackAction && (
+            <p style={{ fontSize: "0.68rem", color: colors.textTertiary, margin: "0 0 4px" }}>
+              Defaults to whoever last handled this step — change it if needed.
+            </p>
+          )}
           {loadingAssigneeGroup ? (
             <div style={{ ...boxInp, display: "flex", alignItems: "center", gap: 8, color: colors.textTertiary }}>
               <span style={{ width: 12, height: 12, border: "2px solid rgba(16,185,129,0.2)", borderTopColor: ACCENT, borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
@@ -2416,11 +2438,14 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
             </div>
           ) : (
             <GmpSelect value={String(assigneeUserId ?? "")} onChange={onAssigneeGroupChange} placeholder="Select assignee…"
-              options={assigneeGroupOptions.map((u) => ({
-                value: String(u.id),
-                label: u.first_name && (u.surname || u.last_name)
-                  ? `${u.username} — ${u.first_name} ${u.surname ?? u.last_name}` : u.username,
-              }))}
+              options={assigneeGroupOptions.map((u) => {
+                const name = [u.first_name, u.surname ?? u.last_name].filter(Boolean).join(" ");
+                return {
+                  value: String(u.id),
+                  label: [u.username, name || null, u.alias ? `(${u.alias})` : null]
+                    .filter(Boolean).join(" · "),
+                };
+              })}
               colors={colors} ariaLabel="Assignee" allowClear={false} />
           )}
           {!loadingAssigneeGroup && assigneeGroupOptions.length === 0 && (
@@ -3063,6 +3088,35 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     })();
   }, [needsAssigneeGroup, assigneeGroupConfig?.groupId]);
 
+  // Send-back pre-fill: for "Return to X" (and the Checker's return to the
+  // Evaluator), default the assignee to whoever last held the step it's going
+  // back to — so a bounced application lands with the person who was working
+  // it. Editable: this only fills an empty pick, never overrides one, and a
+  // restored draft's own pick always wins.
+  const sendBackAction = GMP_SEND_BACK_ACTIONS.has(isEvalOrChecker ? action : decision);
+  useEffect(() => {
+    if (!needsAssigneeGroup || !sendBackAction) return;
+    if (assigneeUserId != null) return;   // already picked / restored from draft
+    if (loadingAssigneeGroup || assigneeGroupOptions.length === 0) return;
+    const targetStep = assigneeGroupConfig?.shortLabel;
+    if (!targetStep || !task?.gmp_record_id) return;
+    let alive = true;
+    (async () => {
+      try {
+        const logs = await getGMPRecordLogs(task.gmp_record_id);
+        const prev = (Array.isArray(logs) ? logs : [])
+          .filter((l) => l.application_step === targetStep && l.user_id != null)
+          .sort((a, b) => (b.del_index ?? 0) - (a.del_index ?? 0))[0];
+        // Only pre-fill if that person is still in the group's active list.
+        if (alive && prev && assigneeGroupOptions.some((u) => u.id === prev.user_id)) {
+          handleAssigneeGroupChange(String(prev.user_id));
+        }
+      } catch { /* leave the dropdown empty — the user picks manually */ }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsAssigneeGroup, sendBackAction, loadingAssigneeGroup, assigneeGroupOptions, assigneeGroupConfig?.shortLabel, task?.gmp_record_id]);
+
   const selectedRemarksPreset = remarksPresetOptions.find((r) => r.value === remarksPreset);
 
   // `nextStep` is purely positional (the next entry in GMP_STEPS), which is
@@ -3350,17 +3404,12 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         // system below; it must not gate our own history, or every step
         // submitted with the toggle off silently loses its remarks preset.
         doctrack_remarks: doctrackRemarks.trim(),
-        // No more freeform fallback — every Forwarded-to/Endorsed-to action
-        // is now required to go through GMP_ACTION_ASSIGNEE_GROUPS above.
-        // Actions with no group mapping (Return to X, Disapprove, OD
-        // Releasing's final action) simply carry no next assignee.
-        next_assignee_name: needsAssigneeGroup
-          ? assigneeUserName
-          : isSelfLoop
-            ? (currentUser || task?.user_name || null)
-            : null,
-        // The self-loop stays with the submitter — carry their user_id too so
-        // the task survives a later username change (matched by id-or-name).
+        // The assignee is identified by id only — the backend looks up the
+        // username to store on the task row. Every Forwarded-to/Endorsed-to
+        // action goes through GMP_ACTION_ASSIGNEE_GROUPS above; actions with
+        // no group mapping (Return to X, Disapprove, OD Releasing's final
+        // action) carry no next assignee. The "For Compliance" self-loop
+        // stays with the submitter, so it carries the submitter's own id.
         next_assignee_id: needsAssigneeGroup
           ? assigneeUserId
           : isSelfLoop
@@ -3642,6 +3691,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                 needsAssigneeGroup={needsAssigneeGroup} assigneeGroupConfig={assigneeGroupConfig}
                 assigneeGroupOptions={assigneeGroupOptions} loadingAssigneeGroup={loadingAssigneeGroup}
                 assigneeUserId={assigneeUserId} onAssigneeGroupChange={handleAssigneeGroupChange}
+                sendBackAction={sendBackAction}
                 isLrdChiefAdmin={isLrdChiefAdmin} needsLrdDecision={needsLrdDecision}
                 lrdDecisionValue={lrdDecision} onLrdDecisionChange={setLrdDecision}
                 isOdReceiving={isOdReceiving} needsOdReceivingDecision={needsOdReceivingDecision}

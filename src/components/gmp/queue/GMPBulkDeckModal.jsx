@@ -165,12 +165,17 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
   }, [action]);
 
   // Current workload per evaluator, fetched once the group's user list is in.
+  // The count endpoint is keyed on user id (so it agrees with the task list);
+  // re-key to username here so the checklist below stays unchanged.
   useEffect(() => {
     if (evaluators.length === 0) { setTaskCounts({}); return; }
     (async () => {
       try {
         setLoadingCounts(true);
-        setTaskCounts(await getGMPTaskCounts(evaluators.map((u) => u.username)));
+        const byId = await getGMPTaskCounts(evaluators.map((u) => u.id));
+        setTaskCounts(Object.fromEntries(
+          evaluators.map((u) => [u.username, byId[u.id] ?? 0])
+        ));
       } catch { setTaskCounts({}); }
       finally { setLoadingCounts(false); }
     })();
@@ -252,23 +257,22 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
       // Step 2 — Application logs per record, each to its own assigned evaluator
       for (let i = 0; i < records.length; i++) {
         const record = records[i];
-        const evaluator = assignments[record.id];
-        // id alongside the username so the task survives a username change
-        const evalId = needsEvaluator
-          ? (evaluators.find((u) => u.username === evaluator)?.id ?? null)
+        const evaluator = assignments[record.id];        // username (checklist key)
+        const evalUser  = needsEvaluator
+          ? (evaluators.find((u) => u.username === evaluator) ?? null)
           : null;
         setProgress({ current:i+1, total:records.length });
         try {
-          // Same "does this record already have an open Decking log?" check the
-          // single-record GMPDeckModal does — records being decked for the first
-          // time have no open Decking log yet, so advanceStep alone has nothing
-          // to advance and fails. assignEvaluator() creates/seeds that log first.
+          // Records decked for the first time have no open Decking log yet.
+          // advance-step auto-creates it; assignEvaluator only fills the
+          // GMP_EVALUATOR display field on the record (a label — the task is
+          // keyed on the id below).
           const logs = await getGMPRecordLogs(record.id);
           const openDeckLog = logs.find(
             l => l.application_step === "Decking" && l.application_status === "IN PROGRESS"
           );
-          if (!openDeckLog && needsEvaluator) {
-            await assignEvaluator(record.id, evaluator);
+          if (!openDeckLog && needsEvaluator && evalUser?.username) {
+            await assignEvaluator(record.id, evalUser.username);
           }
 
           await advanceStep(record.id, {
@@ -282,8 +286,7 @@ export default function BulkDeckModal({ records, onClose, onSuccess, colors, dar
             // history, or every deck submitted with the toggle off silently loses
             // its remarks.
             doctrack_remarks:   doctrackRemarks.trim(),
-            next_assignee_name: needsEvaluator ? evaluator : null,
-            next_assignee_id:   evalId,
+            next_assignee_id:   needsEvaluator ? (evalUser?.id ?? null) : null,
           });
           succeeded.push(record);
         } catch (e) {

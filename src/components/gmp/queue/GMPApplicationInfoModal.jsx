@@ -374,7 +374,7 @@ export default function GMPApplicationInfoModal({ record, onClose, onUpdated, co
           <Section icon="🏭" title="Foreign Manufacturer" colors={colors} darkMode={darkMode} columns={1}>
             <FieldRow label="Foreign Manufacturer" value={record.foreign_manufacturer} colors={colors} darkMode={darkMode} />
             <FieldRow label="Manufacturer Address" value={record.foreign_manufacturer_address} colors={colors} darkMode={darkMode} wrap />
-            <FieldRow label="Product Line" value={record.product_line} colors={colors} darkMode={darkMode} />
+            <FieldRow label="Product Line" value={record.product_line} colors={colors} darkMode={darkMode} wrap />
           </Section>
 
           <Section icon="📜" title="Certificate" colors={colors} darkMode={darkMode} columns={2}>

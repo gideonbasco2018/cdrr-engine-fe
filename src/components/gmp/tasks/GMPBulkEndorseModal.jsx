@@ -109,13 +109,21 @@ function fullNameOf(u) {
     ? `${u.first_name} ${u.surname ?? u.last_name}`
     : u.username;
 }
+// Show a user the FGMP way: username, full name, alias — keyed on id.
+function userLine(u) {
+  if (!u) return "—";
+  const name = displayName(u);
+  return [u.username, name || null, u.alias ? `(${u.alias})` : null]
+    .filter(Boolean).join(" · ");
+}
 
 // ── Searchable single-select user list ──────────────────────────────────────
 function UserPicker({ users, value, onChange, loading, placeholder, colors, darkMode }) {
   const [search, setSearch] = useState("");
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
-    return u.username.toLowerCase().includes(q) || displayName(u).toLowerCase().includes(q);
+    return u.username.toLowerCase().includes(q) || displayName(u).toLowerCase().includes(q)
+      || (u.alias ?? "").toLowerCase().includes(q);
   });
   return (
     <div style={{
@@ -141,10 +149,10 @@ function UserPicker({ users, value, onChange, loading, placeholder, colors, dark
             {placeholder || "No users found."}
           </div>
         ) : filtered.map((u) => {
-          const isSel = value === u.username;
+          const isSel = value === u.id;
           return (
             <div
-              key={u.id} onClick={() => onChange(u.username)}
+              key={u.id} onClick={() => onChange(u.id)}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "0.5rem 0.9rem",
                 cursor: "pointer",
@@ -161,7 +169,9 @@ function UserPicker({ users, value, onChange, loading, placeholder, colors, dark
               }} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: "0.82rem", fontWeight: 700, color: colors.textPrimary }}>{u.username}</div>
-                <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>{displayName(u)}</div>
+                <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
+                  {displayName(u)}{u.alias ? ` · ${u.alias}` : ""}
+                </div>
               </div>
             </div>
           );
@@ -173,11 +183,11 @@ function UserPicker({ users, value, onChange, loading, placeholder, colors, dark
 
 export default function GMPBulkEndorseModal({ config, records, onClose, onSuccess, colors, darkMode }) {
   const [assigneeUsers, setAssigneeUsers] = useState([]);
-  const [assignee, setAssignee] = useState("");
+  const [assigneeId, setAssigneeId] = useState(null);
   const [loadingAssignees, setLoadingAssignees] = useState(false);
 
   const [authorityUsers, setAuthorityUsers] = useState([]);
-  const [authority, setAuthority] = useState("");
+  const [authorityId, setAuthorityId] = useState(null);
   const [loadingAuthority, setLoadingAuthority] = useState(false);
 
   const [signedDate, setSignedDate] = useState("");
@@ -226,8 +236,8 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
 
   const goConfirm = () => {
     setAlert("");
-    if (needsAssignee && !assignee) return setAlert(`Select the ${config.assigneeLabel} to endorse to.`);
-    if (needsAuthority && !authority) return setAlert("Select the Decision Authority (signer).");
+    if (needsAssignee && assigneeId == null) return setAlert(`Select the ${config.assigneeLabel} to endorse to.`);
+    if (needsAuthority && authorityId == null) return setAlert("Select the Decision Authority (signer).");
     if (needsSignedDate && !signedDate) return setAlert("Pick the signed date.");
     if (doctrackEnabled && !doctrackRemarks.trim())
       return setAlert("Doctrack Remarks are required. Turn the toggle off if FIS was updated manually.");
@@ -243,8 +253,8 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
     const succeeded = [];
     const errors = [];
 
-    const assigneeUser = needsAssignee ? assigneeUsers.find((u) => u.username === assignee) : null;
-    const authorityUser = needsAuthority ? authorityUsers.find((u) => u.username === authority) : null;
+    const assigneeUser = needsAssignee ? assigneeUsers.find((u) => u.id === assigneeId) : null;
+    const authorityUser = needsAuthority ? authorityUsers.find((u) => u.id === authorityId) : null;
     const doctrackText = doctrackRemarks.trim();
 
     try {
@@ -276,7 +286,6 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
             recommendation: "",
             remarks: "",
             doctrack_remarks: doctrackText,
-            next_assignee_name: assigneeUser?.username ?? null,
             next_assignee_id: assigneeUser?.id ?? null,
             ...(config.decisionValue ? { action_type: config.decisionValue } : {}),
             ...(config.completionStatus ? { completion_status: config.completionStatus } : {}),
@@ -400,10 +409,10 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
           <p style={{ margin: 0 }}>
             {config.isEndTask
               ? <>Release <strong>{records.length}</strong> application{records.length > 1 ? "s" : ""} — marks each <strong>RELEASED</strong> and closes the task.</>
-              : <>Endorse <strong>{records.length}</strong> application{records.length > 1 ? "s" : ""} from <strong>{config.currentStep}</strong> to <strong>{config.nextStep}</strong>{assignee ? <>, assigned to <strong>{assignee}</strong></> : null}.</>}
+              : <>Endorse <strong>{records.length}</strong> application{records.length > 1 ? "s" : ""} from <strong>{config.currentStep}</strong> to <strong>{config.nextStep}</strong>{assigneeId != null ? <>, assigned to <strong>{userLine(assigneeUsers.find((u) => u.id === assigneeId))}</strong></> : null}.</>}
           </p>
-          {needsAuthority && authority && (
-            <p style={{ margin: 0 }}>Signer recorded: <strong>{authority}</strong>.</p>
+          {needsAuthority && authorityId != null && (
+            <p style={{ margin: 0 }}>Signer recorded: <strong>{userLine(authorityUsers.find((u) => u.id === authorityId))}</strong>.</p>
           )}
           <p style={{ margin: 0 }}>
             Doctrack: {doctrackEnabled ? <>ON — “{doctrackRemarks.trim()}” pushed to FIS for each DTN.</> : <span style={{ color: "#f59e0b" }}>OFF — FIS will not be updated.</span>}
@@ -475,7 +484,7 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
           <div>
             <label style={label}>Assign to {config.assigneeLabel} <span style={{ color: "#ef4444" }}>*</span></label>
             <UserPicker
-              users={assigneeUsers} value={assignee} onChange={setAssignee}
+              users={assigneeUsers} value={assigneeId} onChange={setAssigneeId}
               loading={loadingAssignees}
               placeholder={`No users in the ${config.assigneeLabel} group.`}
               colors={colors} darkMode={darkMode}
@@ -487,7 +496,7 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
           <div>
             <label style={label}>{config.authorityLabel} <span style={{ color: "#ef4444" }}>*</span></label>
             <UserPicker
-              users={authorityUsers} value={authority} onChange={setAuthority}
+              users={authorityUsers} value={authorityId} onChange={setAuthorityId}
               loading={loadingAuthority}
               placeholder="No authority users found."
               colors={colors} darkMode={darkMode}

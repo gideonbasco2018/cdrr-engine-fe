@@ -1,9 +1,18 @@
 // src/components/gmp/queue/GMPReassignmentModal.jsx
 // GMP-specific Reassignment modal — same-level only (evaluator→evaluator, checker→checker, etc.)
 import { useState, useEffect } from "react";
-import { getUsersByGroup, getUser } from "../../../api/auth";
+import { getUsersByGroup } from "../../../api/auth";
 import { getGMPRecordLogs, reassignGMPStep } from "../../../api/gmp";
 import { GMP_STEP_MAP, FONT } from "../shared/constants";
+
+// One place to render a user the way the whole FGMP UI shows them:
+// username, full name, and alias. Everything is keyed on the user's id.
+function userLine(u) {
+  if (!u) return "—";
+  const name = `${u.first_name ?? ""} ${u.surname ?? ""}`.trim();
+  return [u.username, name || null, u.alias ? `(${u.alias})` : null]
+    .filter(Boolean).join(" · ");
+}
 
 const REASONS = [
   "Evaluator on leave",
@@ -20,9 +29,10 @@ function UserSelect({ value, onChange, users, colors, darkMode }) {
   const filtered = users.filter((u) => {
     const q = search.toLowerCase();
     return u.username.toLowerCase().includes(q) ||
-      `${u.first_name ?? ""} ${u.surname ?? ""}`.toLowerCase().includes(q);
+      `${u.first_name ?? ""} ${u.surname ?? ""}`.toLowerCase().includes(q) ||
+      (u.alias ?? "").toLowerCase().includes(q);
   });
-  const selected = users.find((u) => u.username === value);
+  const selected = users.find((u) => u.id === value);
 
   return (
     <div style={{ position: "relative", width: "100%" }}>
@@ -40,7 +50,7 @@ function UserSelect({ value, onChange, users, colors, darkMode }) {
             border: "1px solid rgba(124,58,237,0.2)", borderRadius: 6,
             padding: "0.15rem 0.5rem", fontSize: "0.78rem", fontWeight: 600,
           }}>
-            👤 {selected.username} — {selected.first_name} {selected.surname}
+            👤 {userLine(selected)}
           </span>
         ) : (
           <input autoFocus={open} value={search}
@@ -71,14 +81,16 @@ function UserSelect({ value, onChange, users, colors, darkMode }) {
               </div>
             ) : filtered.map((u) => (
               <div key={u.id}
-                onClick={() => { onChange(u.username); setOpen(false); setSearch(""); }}
+                onClick={() => { onChange(u.id); setOpen(false); setSearch(""); }}
                 style={{
                   padding: "0.6rem 1rem", cursor: "pointer",
-                  background: u.username === value ? "rgba(124,58,237,0.12)" : "transparent",
-                  borderLeft: u.username === value ? "3px solid #7c3aed" : "3px solid transparent",
+                  background: u.id === value ? "rgba(124,58,237,0.12)" : "transparent",
+                  borderLeft: u.id === value ? "3px solid #7c3aed" : "3px solid transparent",
                 }}>
                 <div style={{ fontSize: "0.82rem", fontWeight: 700, color: colors.textPrimary }}>{u.username}</div>
-                <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>{u.first_name} {u.surname}</div>
+                <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
+                  {`${u.first_name ?? ""} ${u.surname ?? ""}`.trim()}{u.alias ? ` · ${u.alias}` : ""}
+                </div>
               </div>
             ))}
           </div>
@@ -94,15 +106,12 @@ export default function GMPReassignmentModal({ record, onClose, onSuccess, color
   const [loadingStep, setLoadingStep]     = useState(true);
   const [users, setUsers]                 = useState([]);
   const [loadingUsers, setLoadingUsers]   = useState(false);
-  const [selectedUser, setSelectedUser]   = useState("");
+  const [selectedUserId, setSelectedUserId] = useState(null);
   const [reason, setReason]               = useState("");
   const [remarks, setRemarks]             = useState("");
-  const [currentUser, setCurrentUser]     = useState(null);
   const [submitting, setSubmitting]       = useState(false);
   const [submitted, setSubmitted]         = useState(false);
   const [error, setError]                 = useState("");
-
-  useEffect(() => { const u = getUser(); if (u) setCurrentUser(u); }, []);
 
   useEffect(() => {
     (async () => {
@@ -111,7 +120,17 @@ export default function GMPReassignmentModal({ record, onClose, onSuccess, color
         const logs = await getGMPRecordLogs(record.id);
         const openLog = logs.find((l) => l.application_status === "IN PROGRESS");
         setCurrentStep(openLog?.application_step ?? null);
-        setCurrentAssignee(openLog?.user_name ?? null);
+        // Show who holds it now from the backend-resolved assignee fields
+        // (based on user_id), not the log's stored user_name.
+        const name = [openLog?.assignee_first_name, openLog?.assignee_surname]
+          .filter(Boolean).join(" ").trim();
+        setCurrentAssignee(
+          openLog
+            ? [openLog.assignee_username || openLog.user_name, name || null,
+               openLog.assignee_alias ? `(${openLog.assignee_alias})` : null]
+              .filter(Boolean).join(" · ") || null
+            : null
+        );
       } catch {
         setCurrentStep(null);
       } finally {
@@ -123,7 +142,7 @@ export default function GMPReassignmentModal({ record, onClose, onSuccess, color
   const groupId = currentStep ? GMP_STEP_MAP[currentStep]?.group_id ?? null : null;
 
   useEffect(() => {
-    setSelectedUser(""); setUsers([]);
+    setSelectedUserId(null); setUsers([]);
     if (!groupId) return;
     (async () => {
       try {
@@ -134,7 +153,8 @@ export default function GMPReassignmentModal({ record, onClose, onSuccess, color
     })();
   }, [groupId]);
 
-  const isComplete = !loadingStep && !loadingUsers && !!reason && !!selectedUser && !!currentStep;
+  const isComplete = !loadingStep && !loadingUsers && !!reason && selectedUserId != null && !!currentStep;
+  const selectedUser = users.find((u) => u.id === selectedUserId) ?? null;
 
   const handleSubmit = async () => {
     if (!isComplete) return;
@@ -142,8 +162,7 @@ export default function GMPReassignmentModal({ record, onClose, onSuccess, color
     try {
       await reassignGMPStep(record.id, {
         application_step: currentStep,
-        reassigned_to_user_name: selectedUser,
-        reassigned_to_user_id: users.find((u) => u.username === selectedUser)?.id ?? null,
+        reassigned_to_user_id: selectedUserId,
         reassignment_reason: reason,
         reassignment_remarks: remarks || null,
       });
@@ -203,7 +222,7 @@ export default function GMPReassignmentModal({ record, onClose, onSuccess, color
                 Re-assignment Submitted
               </div>
               <div style={{ fontSize: "0.8rem", color: colors.textTertiary, marginBottom: 20 }}>
-                Reassigned to <strong>{selectedUser}</strong> under <strong>{currentStep}</strong>.
+                Reassigned to <strong>{userLine(selectedUser)}</strong> under <strong>{currentStep}</strong>.
               </div>
               <button onClick={onClose} style={{
                 padding: "0.6rem 1.5rem", background: "linear-gradient(135deg,#7c3aed,#6d28d9)",
@@ -239,7 +258,7 @@ export default function GMPReassignmentModal({ record, onClose, onSuccess, color
                   <div style={{ ...inputStyle, color: "#ef4444" }}>No active step found for this record.</div>
                 ) : (
                   <>
-                    <UserSelect value={selectedUser} onChange={setSelectedUser} users={users} colors={colors} darkMode={darkMode} />
+                    <UserSelect value={selectedUserId} onChange={setSelectedUserId} users={users} colors={colors} darkMode={darkMode} />
                     {users.length === 0 && (
                       <p style={{ fontSize: "0.72rem", color: "#ef4444", marginTop: 6 }}>
                         ⚠️ No users found for the <strong>{currentStep}</strong> group.

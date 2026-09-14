@@ -23,11 +23,12 @@ export async function getGMPFilterCounts(tab, view) {
   return res.data;
 }
 
-// Current open-task count per username — powers the Bulk Deck modal's
-// evaluator checklist workload display.
-export async function getGMPTaskCounts(usernames) {
-  if (!usernames || usernames.length === 0) return {};
-  const res = await API.get("/gmp/tasks/task-counts", { params: { usernames: usernames.join(",") } });
+// Current open-task count per user id — powers the Bulk Deck modal's
+// evaluator checklist workload display. Keyed by id so it agrees with the
+// task list (which also matches on id). Returns { "<id>": count }.
+export async function getGMPTaskCounts(userIds) {
+  if (!userIds || userIds.length === 0) return {};
+  const res = await API.get("/gmp/tasks/task-counts", { params: { user_ids: userIds.join(",") } });
   return res.data;
 }
 

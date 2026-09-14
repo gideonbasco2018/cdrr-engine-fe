@@ -957,13 +957,15 @@ export default function GMPQueuePage({ darkMode = false }) {
           borderRadius: 14, overflow: "hidden", boxShadow: colors.cardShadow,
           flexShrink: 0,
         }}>
-        {/* Top bar */}
+        {/* Top bar — kept to one row; if the window gets too narrow to fit
+            everything, the bar scrolls horizontally instead of wrapping. */}
         <div style={{
           padding: "9px 14px", borderBottom: `1px solid ${colors.cardBorder}`,
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          flexWrap: "wrap", gap: 8, background: colors.cardBg, flexShrink: 0,
+          flexWrap: "nowrap", gap: 8, background: colors.cardBg, flexShrink: 0,
+          overflowX: "auto",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flexShrink: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "nowrap", flexShrink: 1, minWidth: 0 }}>
             <TopTabs active={topTab} onChange={(v) => { setTopTab(v); setPage(1); setSelected([]); }}
               counts={counts} colors={colors} />
 
@@ -997,7 +999,7 @@ export default function GMPQueuePage({ darkMode = false }) {
               })}
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "nowrap" }}>
             {/* Download Template */}
             <button
               onClick={async () => {
