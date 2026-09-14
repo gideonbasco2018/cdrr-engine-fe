@@ -62,12 +62,13 @@ export const GMP_COLUMNS = [
   { key: "nod_date_5",                    label: "5th Date of NOD",                          width: 120 },
   { key: "date_printed",                  label: "Date Printed",                              width: 110 },
   { key: "compliance_docs_date_received", label: "Compliance / Additional Docs Date Received", width: 220 },
-  { key: "product_line",                  label: "Product Line",                              width: 120 },
+  { key: "product_line",                  label: "Product Line",                              width: 320 },
 ];
 
 const TRUNCATE_FIELDS = new Set([
   "name_of_establishment", "address",
   "foreign_manufacturer", "foreign_manufacturer_address", "remarks",
+  "product_line",
 ]);
 
 function fmtDT(raw) {

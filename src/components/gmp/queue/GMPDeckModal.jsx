@@ -6,6 +6,14 @@ import { getUsersByGroup, getUser } from "../../../api/auth";
 import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
 import { FONT } from "../shared/constants";
 
+// Show a user the FGMP way: username, full name, alias — keyed on id.
+function userLine(u) {
+  if (!u) return "—";
+  const name = `${u.first_name ?? ""} ${u.surname ?? u.last_name ?? ""}`.trim();
+  return [u.username, name || null, u.alias ? `(${u.alias})` : null]
+    .filter(Boolean).join(" · ");
+}
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 export const GMP_EVALUATOR_GROUP_ID = 31;
 
@@ -43,10 +51,11 @@ function UserSelect({ value, onChange, users, colors }) {
     const q = search.toLowerCase();
     return (
       u.username.toLowerCase().includes(q) ||
-      `${u.first_name ?? ""} ${u.surname ?? u.last_name ?? ""}`.toLowerCase().includes(q)
+      `${u.first_name ?? ""} ${u.surname ?? u.last_name ?? ""}`.toLowerCase().includes(q) ||
+      (u.alias ?? "").toLowerCase().includes(q)
     );
   });
-  const selected = users.find((u) => u.username === value);
+  const selected = users.find((u) => u.id === value);
 
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -67,7 +76,7 @@ function UserSelect({ value, onChange, users, colors }) {
         }}>
         <span>
           {selected
-            ? `${selected.username} — ${selected.first_name ?? ""} ${selected.surname ?? selected.last_name ?? ""}`
+            ? userLine(selected)
             : users.length === 0 ? "No users available" : "Select evaluator"}
         </span>
         <span style={{ fontSize: "0.7rem", color: colors.textTertiary }}>{open ? "▲" : "▼"}</span>
@@ -95,16 +104,18 @@ function UserSelect({ value, onChange, users, colors }) {
               ? <div style={{ padding: "0.7rem 1rem", fontSize: "0.8rem", color: colors.textTertiary }}>No users found</div>
               : filtered.map((u) => (
                 <div key={u.id}
-                  onClick={() => { onChange(u.username); setOpen(false); setSearch(""); }}
+                  onClick={() => { onChange(u.id); setOpen(false); setSearch(""); }}
                   style={{
                     padding: "0.5rem 1rem", cursor: "pointer",
-                    background: value === u.username ? "rgba(76,175,80,0.1)" : "transparent",
-                    borderLeft: value === u.username ? "3px solid #4CAF50" : "3px solid transparent",
+                    background: value === u.id ? "rgba(76,175,80,0.1)" : "transparent",
+                    borderLeft: value === u.id ? "3px solid #4CAF50" : "3px solid transparent",
                   }}
-                  onMouseEnter={(e) => { if (value !== u.username) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
-                  onMouseLeave={(e) => { if (value !== u.username) e.currentTarget.style.background = "transparent"; }}>
+                  onMouseEnter={(e) => { if (value !== u.id) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+                  onMouseLeave={(e) => { if (value !== u.id) e.currentTarget.style.background = "transparent"; }}>
                   <div style={{ fontSize: "0.82rem", fontWeight: 700, color: colors.textPrimary }}>{u.username}</div>
-                  <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>{u.first_name} {u.surname ?? u.last_name}</div>
+                  <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
+                    {`${u.first_name ?? ""} ${u.surname ?? u.last_name ?? ""}`.trim()}{u.alias ? ` · ${u.alias}` : ""}
+                  </div>
                 </div>
               ))
             }
@@ -118,7 +129,7 @@ function UserSelect({ value, onChange, users, colors }) {
 // ── Main DeckModal ────────────────────────────────────────────────────────────
 export default function DeckModal({ record, onClose, onSuccess, colors, darkMode }) {
   const [decision,         setDecision]         = useState("");
-  const [evaluator,        setEvaluator]        = useState("");
+  const [evaluatorId,      setEvaluatorId]      = useState(null);
   const [deckerRemarks,    setDeckerRemarks]    = useState("");
   const [doctrackEnabled,  setDoctrackEnabled]  = useState(true);
   const [doctrackRemarks,  setDoctrackRemarks]  = useState("");
@@ -137,7 +148,7 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
   // Load evaluators when decision changes to "Forwarded to Quality Evaluator"
   useEffect(() => {
     const needsEval = decision === "Forwarded to Evaluator";
-    setEvaluator("");
+    setEvaluatorId(null);
     setDoctrackRemarks(DOCTRACK_DEFAULTS[decision] ?? "");
     if (!needsEval) { setUsers([]); return; }
     (async () => {
@@ -151,7 +162,7 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
 
   const needsEvaluator = decision === "Forwarded to Evaluator";
   const isDisabled = submitting || !decision
-    || (needsEvaluator && (loadingUsers || users.length === 0 || !evaluator))
+    || (needsEvaluator && (loadingUsers || users.length === 0 || evaluatorId == null))
     || (doctrackEnabled && !doctrackRemarks.trim());
 
   const inp = {
@@ -186,9 +197,9 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
       const logs = await getGMPRecordLogs(record.id);
       const openDeckLog = logs.find(l => l.application_step === "Decking" && l.application_status === "IN PROGRESS");
 
-      // Carry the evaluator's numeric id (not just the username) so the task
-      // survives a later username change — the tasks list matches id-or-name.
-      const evalUser = needsEvaluator ? users.find(u => u.username === evaluator) : null;
+      // The evaluator is identified by id — the backend looks up the username
+      // to store on the task row. The frontend no longer sends a name.
+      const evalUser = needsEvaluator ? users.find(u => u.id === evaluatorId) : null;
       const advancePayload = {
         current_step:        "Decking",
         action:              decision,
@@ -200,18 +211,18 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
         // history, or every deck submitted with the toggle off silently loses
         // its remarks.
         doctrack_remarks:    doctrackRemarks.trim(),
-        next_assignee_name:  needsEvaluator ? evaluator : null,
-        next_assignee_id:    evalUser?.id ?? null,
+        next_assignee_id:    needsEvaluator ? evaluatorId : null,
       };
 
       if (openDeckLog) {
         // Already has an open decking log — advance it
         await advanceStep(record.id, advancePayload);
       } else {
-        // No open decking log — create one via the assign endpoint then advance
-        // Use the assign-evaluator endpoint which sets GMP_EVALUATOR on the record
+        // No open decking log — advance-step auto-creates the Decking log.
+        // assignEvaluator only fills the GMP_EVALUATOR display field on the
+        // record (a label — the task itself is keyed on the id above).
         const { assignEvaluator } = await import("../../../api/gmp");
-        if (needsEvaluator) await assignEvaluator(record.id, evaluator);
+        if (needsEvaluator && evalUser?.username) await assignEvaluator(record.id, evalUser.username);
         await advanceStep(record.id, advancePayload);
       }
 
@@ -244,7 +255,7 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
           </h3>
           <p style={{ margin: 0, fontSize: "0.82rem", color: colors.textSecondary, textAlign: "center", lineHeight: 1.5 }}>
             DTN <strong style={{ color: "#4CAF50", fontFamily: "ui-monospace,monospace" }}>{record.dtn}</strong> has been decked
-            {needsEvaluator && evaluator ? <> and assigned to <strong style={{ color: "#2196F3" }}>{evaluator}</strong></> : ""}.
+            {needsEvaluator && evaluatorId != null ? <> and assigned to <strong style={{ color: "#2196F3" }}>{userLine(users.find(u => u.id === evaluatorId))}</strong></> : ""}.
           </p>
           <button onClick={onClose} style={{
             padding: "0.6rem 2rem", borderRadius: 8, border: "none",
@@ -332,7 +343,7 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
                     <span style={{ display: "inline-block", width: 14, height: 14, border: "2px solid #4CAF5030", borderTopColor: "#4CAF50", borderRadius: "50%", animation: "gmpSpin 0.6s linear infinite" }} />
                     Loading evaluators…
                   </div>
-                : <UserSelect value={evaluator} onChange={setEvaluator} users={users} colors={colors} />
+                : <UserSelect value={evaluatorId} onChange={setEvaluatorId} users={users} colors={colors} />
               }
               {!loadingUsers && users.length === 0 && (
                 <p style={{ fontSize: "0.7rem", color: "#ef4444", marginTop: 4, marginBottom: 0 }}>
@@ -397,7 +408,7 @@ export default function DeckModal({ record, onClose, onSuccess, colors, darkMode
             <div style={{ padding: "0.75rem 1rem", background: "rgba(76,175,80,0.06)", border: "1px solid rgba(76,175,80,0.2)", borderRadius: 8, fontSize: "0.78rem", color: colors.textSecondary, lineHeight: 1.5 }}>
               <strong style={{ color: "#4CAF50" }}>ℹ</strong>{" "}
               {needsEvaluator
-                ? `A Decking (Completed) log will be created and a Quality Evaluator (In Progress) log will be assigned to ${evaluator || "the selected user"}.`
+                ? `A Decking (Completed) log will be created and an Evaluator (In Progress) log will be assigned to ${users.find(u => u.id === evaluatorId)?.username || "the selected user"}.`
                 : `A Decking log will be created with decision: "${decision}". No next step assignment needed.`}
             </div>
           )}

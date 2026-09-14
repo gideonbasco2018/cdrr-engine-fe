@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { getMyGMPTasks, markTaskReceived, toggleTaskStar } from "../api/gmp";
+import { getUser } from "../api/auth";
 import { getColorScheme } from "../components/gmp/shared/colorScheme";
 import { GMP_STEPS, FONT } from "../components/gmp/shared/constants";
 import TasksTable, { GMP_COLUMNS as GMP_TASKS_COLUMNS } from "../components/gmp/tasks/TasksTable";
@@ -429,15 +430,12 @@ export default function GMPTasksPage({ darkMode = false }) {
   const [doctrackRecord, setDoctrackRecord] = useState(null);
   const [docsRecord,     setDocsRecord]     = useState(null);
 
-  // Resolve current user from localStorage (same pattern as TaskPage.jsx)
+  // Resolve current user. The task fetch is keyed on the logged-in user's id
+  // (the backend reads it from the token), so all we need here is "do we know
+  // who's logged in yet" — gate on the id, not a hand-parsed username.
   useEffect(() => {
-    let username = null;
-    const userStr = localStorage.getItem("user") || sessionStorage.getItem("user");
-    if (userStr) {
-      try { const o = JSON.parse(userStr); username = o.username || o.email; } catch { username = userStr; }
-    }
-    if (!username) username = localStorage.getItem("username") || sessionStorage.getItem("username");
-    setCurrentUser(username || null);
+    const u = getUser();
+    setCurrentUser(u?.id ?? null);
   }, []);
 
   // Fetch all steps (no step filter) — used to build tab counts.

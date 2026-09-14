@@ -163,6 +163,25 @@ export default function UploadModal({ onClose, onSuccess, colors, darkMode }) {
                 )}
               </div>
 
+              {result.warnings?.length > 0 && (
+                <div style={{
+                  padding: "12px 16px", borderRadius: 10,
+                  background: "#fef9c3", border: "1px solid #fde68a",
+                }}>
+                  <p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: "0.84rem", color: "#854d0e" }}>
+                    ⚠️ {result.warnings.length} workflow step{result.warnings.length === 1 ? "" : "s"} skipped
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    {result.warnings.map((w, i) => (
+                      <li key={i} style={{ fontSize: "0.71rem", color: "#854d0e", marginBottom: 2 }}>
+                        {typeof w === "string" ? w
+                          : `Row ${w.row_number ?? "?"}${w.dtn && w.dtn !== "-" ? ` · DTN ${w.dtn}` : ""} — ${w.reason ?? ""}`}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {result.errors?.length > 0 && (
                 <div style={{
                   padding: "12px 16px", borderRadius: 10,
@@ -276,6 +295,32 @@ export default function UploadModal({ onClose, onSuccess, colors, darkMode }) {
                         </p>
                         <p style={{ margin: 0, fontSize: "0.68rem", color: "#b91c1c" }}>
                           {r.reason}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {preview.step_warnings?.length > 0 && (
+                <div>
+                  <p style={{ margin: "0 0 4px", fontSize: "0.72rem", fontWeight: 700, color: "#854d0e" }}>
+                    ⚠️ Steps that will be skipped (the record still imports):
+                  </p>
+                  <div style={{
+                    maxHeight: 140, overflowY: "auto", borderRadius: 8,
+                    border: "1px solid #fde68a", background: "#fef9c3",
+                  }}>
+                    {preview.step_warnings.map((w, i) => (
+                      <div key={i} style={{
+                        padding: "6px 10px",
+                        borderBottom: i < preview.step_warnings.length - 1 ? "1px solid #fde68a" : "none",
+                      }}>
+                        <p style={{ margin: 0, fontSize: "0.75rem", fontWeight: 600, color: "#713f12" }}>
+                          Row {w.row_number}{w.dtn && w.dtn !== "-" ? ` · DTN ${w.dtn}` : ""}
+                        </p>
+                        <p style={{ margin: 0, fontSize: "0.68rem", color: "#854d0e" }}>
+                          {w.reason}
                         </p>
                       </div>
                     ))}

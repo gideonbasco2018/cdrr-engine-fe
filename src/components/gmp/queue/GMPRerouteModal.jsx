@@ -1,7 +1,7 @@
 // src/components/gmp/queue/GMPRerouteModal.jsx
 // GMP-specific Reroute modal — pick any target step from the 8-step GMP workflow
 import { useState, useEffect } from "react";
-import { getUsersByGroup, getUser } from "../../../api/auth";
+import { getUsersByGroup } from "../../../api/auth";
 import { getGMPRecordLogs, rerouteGMPStep } from "../../../api/gmp";
 import { GMP_STEPS, GMP_STEP_MAP, FONT } from "../shared/constants";
 
@@ -10,22 +10,27 @@ const REASONS = [
   "Compliance issue", "Director directive", "Applicant request", "System correction", "Others",
 ];
 
+// Show a user the FGMP way: username, full name, alias — all keyed on id.
+function userLine(u) {
+  if (!u) return "—";
+  const name = `${u.first_name ?? ""} ${u.surname ?? ""}`.trim();
+  return [u.username, name || null, u.alias ? `(${u.alias})` : null]
+    .filter(Boolean).join(" · ");
+}
+
 export default function GMPRerouteModal({ record, onClose, onSuccess, colors, darkMode }) {
   const [currentStep, setCurrentStep]         = useState(null);
   const [currentAssignee, setCurrentAssignee] = useState(null);
   const [loadingStep, setLoadingStep]         = useState(true);
   const [targetStep, setTargetStep]           = useState("");
-  const [assignedUser, setAssignedUser]       = useState("");
+  const [assignedUserId, setAssignedUserId]   = useState(null);
   const [users, setUsers]                     = useState([]);
   const [loadingUsers, setLoadingUsers]       = useState(false);
   const [reason, setReason]                   = useState("");
   const [remarks, setRemarks]                 = useState("");
-  const [currentUser, setCurrentUser]         = useState(null);
   const [submitting, setSubmitting]           = useState(false);
   const [submitted, setSubmitted]             = useState(false);
   const [error, setError]                     = useState("");
-
-  useEffect(() => { const u = getUser(); if (u) setCurrentUser(u); }, []);
 
   useEffect(() => {
     (async () => {
@@ -34,7 +39,16 @@ export default function GMPRerouteModal({ record, onClose, onSuccess, colors, da
         const logs = await getGMPRecordLogs(record.id);
         const openLog = logs.find((l) => l.application_status === "IN PROGRESS");
         setCurrentStep(openLog?.application_step ?? null);
-        setCurrentAssignee(openLog?.user_name ?? null);
+        // Who holds it now, from the backend-resolved assignee fields.
+        const name = [openLog?.assignee_first_name, openLog?.assignee_surname]
+          .filter(Boolean).join(" ").trim();
+        setCurrentAssignee(
+          openLog
+            ? [openLog.assignee_username || openLog.user_name, name || null,
+               openLog.assignee_alias ? `(${openLog.assignee_alias})` : null]
+              .filter(Boolean).join(" · ") || null
+            : null
+        );
       } catch { setCurrentStep(null); }
       finally { setLoadingStep(false); }
     })();
@@ -44,7 +58,7 @@ export default function GMPRerouteModal({ record, onClose, onSuccess, colors, da
   const stepHasGroup  = !!targetStepObj?.group_id;
 
   useEffect(() => {
-    setAssignedUser(""); setUsers([]);
+    setAssignedUserId(null); setUsers([]);
     if (!stepHasGroup) return;
     (async () => {
       try {
@@ -59,7 +73,8 @@ export default function GMPRerouteModal({ record, onClose, onSuccess, colors, da
   const targetIdx  = GMP_STEPS.findIndex((s) => s.id === targetStep);
   const isBackward = targetStep && currentIdx > -1 && targetIdx > -1 && targetIdx < currentIdx;
 
-  const isComplete = !loadingStep && !!targetStep && !!reason && (!stepHasGroup || !!assignedUser);
+  const isComplete = !loadingStep && !!targetStep && !!reason && (!stepHasGroup || assignedUserId != null);
+  const assignedUser = users.find((u) => u.id === assignedUserId) ?? null;
 
   const handleSubmit = async () => {
     if (!isComplete) return;
@@ -68,8 +83,8 @@ export default function GMPRerouteModal({ record, onClose, onSuccess, colors, da
       await rerouteGMPStep(record.id, {
         reroute_from_step: currentStep,
         reroute_target_step: targetStep,
-        target_user_name: assignedUser || null,
-        target_user_id: users.find((u) => u.username === assignedUser)?.id ?? null,
+        // Steps with no group carry no specific assignee — target_user_id null.
+        target_user_id: assignedUserId,
         reroute_reason: reason,
         reroute_remarks: remarks || null,
       });
@@ -130,7 +145,7 @@ export default function GMPRerouteModal({ record, onClose, onSuccess, colors, da
               </div>
               <div style={{ fontSize: "0.8rem", color: colors.textTertiary, marginBottom: 20 }}>
                 Rerouted to <strong>{targetStepObj?.label}</strong>
-                {assignedUser && <> and assigned to <strong>{assignedUser}</strong></>}.
+                {assignedUser && <> and assigned to <strong>{userLine(assignedUser)}</strong></>}.
               </div>
               <button onClick={onClose} style={{
                 padding: "0.6rem 1.5rem", background: "linear-gradient(135deg,#0891b2,#0e7490)",
@@ -202,17 +217,20 @@ export default function GMPRerouteModal({ record, onClose, onSuccess, colors, da
                 </select>
               </div>
 
-              {targetStep && (
+              {targetStep && stepHasGroup && (
                 <div>
-                  <label style={labelStyle}>Assign To{stepHasGroup ? " *" : ""}</label>
+                  <label style={labelStyle}>Assign To *</label>
                   {loadingUsers ? (
                     <div style={{ ...inputStyle, color: colors.textTertiary }}>Loading users…</div>
-                  ) : stepHasGroup ? (
+                  ) : (
                     <>
-                      <select value={assignedUser} onChange={(e) => setAssignedUser(e.target.value)} style={inputStyle}>
+                      <select
+                        value={assignedUserId ?? ""}
+                        onChange={(e) => setAssignedUserId(e.target.value ? Number(e.target.value) : null)}
+                        style={inputStyle}>
                         <option value="">— Select user —</option>
                         {users.map((u) => (
-                          <option key={u.id} value={u.username}>{u.username} — {u.first_name} {u.surname}</option>
+                          <option key={u.id} value={u.id}>{userLine(u)}</option>
                         ))}
                       </select>
                       {users.length === 0 && (
@@ -221,11 +239,13 @@ export default function GMPRerouteModal({ record, onClose, onSuccess, colors, da
                         </p>
                       )}
                     </>
-                  ) : (
-                    <input value={assignedUser} onChange={(e) => setAssignedUser(e.target.value)}
-                      placeholder="Enter username or leave blank..." style={inputStyle} />
                   )}
                 </div>
+              )}
+              {targetStep && !stepHasGroup && (
+                <p style={{ fontSize: "0.72rem", color: colors.textTertiary, marginTop: -4 }}>
+                  {targetStepObj?.label} has no assignee group — it will be rerouted without a specific person.
+                </p>
               )}
 
               <div>

@@ -112,8 +112,11 @@ function StepCard({ log, index, isLast, colors, darkMode }) {
             <span style={{ fontWeight: 700, fontSize: "0.85rem", color: colors.textPrimary }}>
               {log.application_step || "—"}
             </span>
-            {log.user_name && (
-              <span style={{ fontSize: "0.72rem", fontWeight: 600, color }}>· {log.user_name}</span>
+            {(log.assignee_username || log.user_name) && (
+              <span style={{ fontSize: "0.72rem", fontWeight: 600, color }}>
+                · {log.assignee_username || log.user_name}
+                {log.assignee_alias ? ` (${log.assignee_alias})` : ""}
+              </span>
             )}
           </span>
           <div style={{ display: "flex", gap: 6 }}>
