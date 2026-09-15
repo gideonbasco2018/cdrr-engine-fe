@@ -86,13 +86,12 @@ export function LoadingModal({
     try {
       const data = await verifyDTN(trimmed);
       if (data.found) {
-        setNewDtnError(
-          "This DTN already exists in the system. Please enter a unique new DTN.",
+        console.warn(
+          "New DTN already exists in system, proceeding anyway:",
+          trimmed,
         );
-        return;
       }
     } catch (err) {
-      // network error — payagan mag-proceed
     } finally {
       setCheckingDtn(false);
     }
@@ -863,26 +862,33 @@ export function LoadingModal({
                     marginTop: "1.2rem",
                     width: "100%",
                     padding: "9px 0",
-                    background: checkingDtn ? t.accentHover : t.accent,
+                    background:
+                      checkingDtn || (newDtnTouched && newDtnError)
+                        ? t.accentHover
+                        : t.accent,
                     color: "#fff",
                     border: "none",
                     borderRadius: 9,
                     fontSize: 13.5,
                     fontWeight: 700,
-                    cursor: checkingDtn ? "not-allowed" : "pointer",
+                    cursor:
+                      checkingDtn || (newDtnTouched && newDtnError)
+                        ? "not-allowed"
+                        : "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     gap: 7,
                     transition: "background 0.15s",
-                    opacity: checkingDtn ? 0.8 : 1,
+                    opacity:
+                      checkingDtn || (newDtnTouched && newDtnError) ? 0.6 : 1,
                   }}
                   onMouseEnter={(e) => {
-                    if (!checkingDtn)
+                    if (!checkingDtn && !(newDtnTouched && newDtnError))
                       e.currentTarget.style.background = t.accentHover;
                   }}
                   onMouseLeave={(e) => {
-                    if (!checkingDtn)
+                    if (!checkingDtn && !(newDtnTouched && newDtnError))
                       e.currentTarget.style.background = t.accent;
                   }}
                 >

@@ -7,6 +7,7 @@ export const allMenuItems = [
   // CDRR Reports
   { id: "reports", label: "CDRR Reports", icon: "🗃️", category: "CDRR Reports" },
   { id: "otc-database", label: "OTC Services", icon: "💊", category: "CDRR Reports" },
+  { id: "clinical-trials", label: "Clinical Trials", icon: "🧪", category: "CDRR Reports" },
 
   // Workflow
   { id: "for-decking", label: "Assignment / Queue", icon: "📥", category: "Workflow" },

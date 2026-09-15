@@ -213,6 +213,7 @@ function Sidebar({
       dashboard: `${basePath}/dashboard`,
       monitoring: `${basePath}/monitoring`,
       reports: `${basePath}/reports`,
+      "clinical-trials": `${basePath}/clinical-trials`,
       "for-decking": `${basePath}/for-decking`,
       reassignment: `${basePath}/reassignment`,
       // ── GMP Task Queue & Workflow ──────────────────────────────────────────

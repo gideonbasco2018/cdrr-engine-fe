@@ -96,8 +96,9 @@ function GroupManagementPage({ darkMode, userRole }) {
     const categoryMap = {
       dashboard: "Main",
       monitoring: "Main",
-      reports: "CDR Reports",
-      "otc-database": "CDR Reports",
+      reports: "Reports",
+      "clinical-trials": "Reports",
+      "otc-database": "Reports",
       "for-decking": "Workflow",
       reassignment: "Workflow",
       "eapplication-tasks": "E-Application",

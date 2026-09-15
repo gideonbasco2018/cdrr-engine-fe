@@ -23,10 +23,10 @@ import BulkDocumentUploadPage from "../pages/BulkDocumentUploadPage";
 import BulkFolderDocumentUploadPage from "../pages/BulkFolderDocumentUploadPage";
 import TargetAssignmentsPage from "../pages/TargetAssignmentsPage";
 import ReassignmentPage from "../pages/ReassignmentPage";
-// ── GMP ────────────────────────────────────────────────────────────────────────
 import GMPQueuePage from "../pages/GMPQueuePage";
 import GMPTasksPage from "../pages/GMPTasksPage";
 import EApplicationPage from "../pages/EApplicationPage";
+import ClinicalTrialPage from "../pages/ClinicalTrialPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -69,6 +69,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("doctrack-magic")) return "doctrack-magic";
     if (path.includes("reports")) return "reports";
     if (path.includes("records-report")) return "records-report";
+    if (path.includes("clinical-trials")) return "clinical-trials";
 
     // Profile
     if (path.includes("profile")) return "profile";
@@ -182,6 +183,8 @@ function MainLayout({ darkMode, setDarkMode }) {
         return (
           <TargetAssignmentsPage darkMode={darkMode} userRole={userRole} />
         );
+      case "clinical-trials":
+        return <ClinicalTrialPage darkMode={darkMode} userRole={userRole} />;
 
       case "dashboard":
       default:

@@ -29,6 +29,12 @@ export const menuDefinitions = {
       icon: "💊",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+    {
+      id: "clinical-trials",
+      label: "Clinical Trials",
+      icon: "🧪",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 
   workflowItems: [
