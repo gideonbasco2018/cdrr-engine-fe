@@ -1,613 +1,137 @@
 // FILE: src/pages/ClinicalTrialPage.jsx
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
-
-/* ------------------------------------------------------------------
-   STATIC DATA — palitan na lang ng API call kapag ready na ang backend.
-   Kapareho ng shape na inaasahan ng ibang reports pages (DeckingPage,
-   DataTable) para madali na lang i-swap sa fetch() paglaon.
-------------------------------------------------------------------- */
-const CLINICAL_TRIALS = [
-  {
-    id: 1,
-    dtn: "20260617134106",
-    protocolNo: "CT-2026-0148",
-    applicationType: "Initial",
-    processingType: "Regular (2026)",
-    appStatus: "In Progress",
-    phase: "Phase III",
-    studyTitle:
-      "Randomized, Double-Blind Study of Rivaroxaban in Adults with Non-Valvular Atrial Fibrillation",
-    sponsor: "Fresenius Kabi Philippines, Inc.",
-    investigator: "Dr. Ma. Teresa Villanueva",
-    site: "Philippine General Hospital, Manila",
-    subjects: 240,
-    dateFiled: "2026-06-17",
-    expiry: "2027-06-16",
-  },
-  {
-    id: 2,
-    dtn: "20260628144906",
-    protocolNo: "CT-2026-0151",
-    applicationType: "Amendment",
-    processingType: "Regular (2026)",
-    appStatus: "For Evaluation",
-    phase: "Phase II",
-    studyTitle:
-      "Open-Label Evaluation of Nebulized Amikacin for Ventilator-Associated Pneumonia",
-    sponsor: "Camber Pharmaceuticals, Inc.",
-    investigator: "Dr. Alfonso R. Dizon",
-    site: "St. Luke's Medical Center, Quezon City",
-    subjects: 96,
-    dateFiled: "2026-06-28",
-    expiry: "2027-06-27",
-  },
-  {
-    id: 3,
-    dtn: "20260628144819",
-    protocolNo: "CT-2026-0152",
-    applicationType: "Initial",
-    processingType: "Regular (2026)",
-    appStatus: "Approved",
-    phase: "Phase I",
-    studyTitle:
-      "First-in-Human Dose Escalation of MB-4412 in Healthy Filipino Volunteers",
-    sponsor: "AMB HK Enterprises Inc.",
-    investigator: "Dr. Celina Ong-Mercado",
-    site: "Makati Medical Center, Makati",
-    subjects: 48,
-    dateFiled: "2026-06-28",
-    expiry: "2027-06-27",
-  },
-  {
-    id: 4,
-    dtn: "20260611134032",
-    protocolNo: "CT-2026-0139",
-    applicationType: "Renewal",
-    processingType: "Regular (2026)",
-    appStatus: "In Progress",
-    phase: "Phase III",
-    studyTitle:
-      "Long-Term Safety Extension of Dupilumab in Moderate-to-Severe Atopic Dermatitis",
-    sponsor: "Johnson & Johnson",
-    investigator: "Dr. Rafael S. Bautista",
-    site: "The Medical City, Pasig",
-    subjects: 310,
-    dateFiled: "2026-06-11",
-    expiry: "2027-06-10",
-  },
-  {
-    id: 5,
-    dtn: "20260522113343",
-    protocolNo: "CT-2026-0120",
-    applicationType: "Initial",
-    processingType: "Expedited",
-    appStatus: "Disapproved",
-    phase: "Phase II",
-    studyTitle:
-      "Comparative Study of Two Dosing Regimens of Artemether-Lumefantrine in Pediatric Malaria",
-    sponsor: "Camber Pharmaceuticals, Inc.",
-    investigator: "Dr. Joselito Ramos",
-    site: "Southern Philippines Medical Center, Davao",
-    subjects: 128,
-    dateFiled: "2026-05-22",
-    expiry: "—",
-  },
-  {
-    id: 6,
-    dtn: "20260522113400",
-    protocolNo: "CT-2026-0121",
-    applicationType: "Amendment",
-    processingType: "Regular (2026)",
-    appStatus: "For Evaluation",
-    phase: "Phase IV",
-    studyTitle:
-      "Post-Marketing Surveillance of Tenofovir Alafenamide in Chronic Hepatitis B",
-    sponsor: "Fresenius Kabi Philippines, Inc.",
-    investigator: "Dr. Hannah Lim-Soriano",
-    site: "National Kidney and Transplant Institute, Quezon City",
-    subjects: 540,
-    dateFiled: "2026-05-22",
-    expiry: "2027-05-21",
-  },
-  {
-    id: 7,
-    dtn: "20260710145232",
-    protocolNo: "CT-2026-0163",
-    applicationType: "Initial",
-    processingType: "Expedited",
-    appStatus: "Approved",
-    phase: "Phase III",
-    studyTitle:
-      "Efficacy of a Quadrivalent Dengue Vaccine Candidate in Endemic Regions",
-    sponsor: "Camber Pharmaceuticals, Inc.",
-    investigator: "Dr. Noel V. Agcaoili",
-    site: "Research Institute for Tropical Medicine, Muntinlupa",
-    subjects: 1200,
-    dateFiled: "2026-07-10",
-    expiry: "2027-07-09",
-  },
-  {
-    id: 8,
-    dtn: "20260629142114",
-    protocolNo: "CT-2026-0158",
-    applicationType: "Withdrawal",
-    processingType: "Regular (2026)",
-    appStatus: "Withdrawn",
-    phase: "Phase II",
-    studyTitle:
-      "Adjunctive Metformin in Treatment-Naive Pulmonary Tuberculosis",
-    sponsor: "AMB HK Enterprises Inc.",
-    investigator: "Dr. Patricia Gutierrez",
-    site: "Lung Center of the Philippines, Quezon City",
-    subjects: 84,
-    dateFiled: "2026-06-29",
-    expiry: "—",
-  },
-  {
-    id: 9,
-    dtn: "20260528162801",
-    protocolNo: "CT-2026-0131",
-    applicationType: "Initial",
-    processingType: "Regular (2026)",
-    appStatus: "In Progress",
-    phase: "Phase I",
-    studyTitle:
-      "Bioequivalence of Generic Sofosbuvir 400 mg Film-Coated Tablets",
-    sponsor: "Camber Pharmaceuticals, Inc.",
-    investigator: "Dr. Emmanuel Tiongson",
-    site: "UP–PGH Clinical Trial Unit, Manila",
-    subjects: 36,
-    dateFiled: "2026-05-28",
-    expiry: "2027-05-27",
-  },
-  {
-    id: 10,
-    dtn: "20260629142850",
-    protocolNo: "CT-2026-0159",
-    applicationType: "Renewal",
-    processingType: "Regular (2026)",
-    appStatus: "Approved",
-    phase: "Phase IV",
-    studyTitle:
-      "Registry Study on Real-World Use of Insulin Glargine in Type 2 Diabetes",
-    sponsor: "Johnson & Johnson",
-    investigator: "Dr. Leandro Mapa",
-    site: "Chong Hua Hospital, Cebu City",
-    subjects: 760,
-    dateFiled: "2026-06-29",
-    expiry: "2027-06-28",
-  },
-  {
-    id: 11,
-    dtn: "20260415101233",
-    protocolNo: "CT-2026-0094",
-    applicationType: "Initial",
-    processingType: "Expedited",
-    appStatus: "For Evaluation",
-    phase: "Phase II",
-    studyTitle:
-      "Intravenous Iron Isomaltoside for Anemia in Chronic Kidney Disease",
-    sponsor: "Fresenius Kabi Philippines, Inc.",
-    investigator: "Dr. Beatriz Nolasco",
-    site: "Manila Doctors Hospital, Manila",
-    subjects: 150,
-    dateFiled: "2026-04-15",
-    expiry: "2027-04-14",
-  },
-  {
-    id: 12,
-    dtn: "20260402093015",
-    protocolNo: "CT-2026-0088",
-    applicationType: "Amendment",
-    processingType: "Regular (2026)",
-    appStatus: "In Progress",
-    phase: "Phase III",
-    studyTitle:
-      "Safety and Immunogenicity of a Booster Pneumococcal Conjugate Vaccine in Older Adults",
-    sponsor: "AMB HK Enterprises Inc.",
-    investigator: "Dr. Gerardo Panlilio",
-    site: "Vicente Sotto Memorial Medical Center, Cebu",
-    subjects: 420,
-    dateFiled: "2026-04-02",
-    expiry: "2027-04-01",
-  },
-];
-
-const ITEM_DOT_COLORS = [
-  "#7c3aed",
-  "#0891b2",
-  "#059669",
-  "#b45309",
-  "#f97316",
-  "#be185d",
-  "#6366f1",
-  "#e11d48",
-];
-
-/* ── SidebarSection — kopya ng pattern galing DeckingPage.jsx ── */
-function SidebarSection({
-  title,
-  groupColor,
-  items,
-  activeItem,
-  onItemClick,
-  colors,
-  darkMode,
-  totalCount,
-}) {
-  const [isOpen, setIsOpen] = useState(true);
-  const activeBg = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
-  const activeBorder = darkMode ? "rgba(255,255,255,0.13)" : "rgba(0,0,0,0.1)";
-  const hoverBg = darkMode ? "#161616" : "#f0f0f0";
-
-  return (
-    <div style={{ marginBottom: 2 }}>
-      <div
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "4px 4px 3px",
-          cursor: "pointer",
-          userSelect: "none",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: groupColor,
-              flexShrink: 0,
-              display: "inline-block",
-            }}
-          />
-          <span
-            style={{
-              fontSize: "0.6rem",
-              fontWeight: 700,
-              color: colors.textTertiary,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-            }}
-          >
-            {title}
-          </span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span
-            style={{
-              fontSize: "0.58rem",
-              color: colors.textTertiary,
-              background: darkMode ? "#1a1a1a" : "#e8e8e8",
-              borderRadius: 4,
-              padding: "1px 5px",
-              fontWeight: 600,
-            }}
-          >
-            {items.length}
-          </span>
-          <svg
-            width="8"
-            height="8"
-            viewBox="0 0 10 10"
-            style={{
-              transform: isOpen ? "rotate(0deg)" : "rotate(-90deg)",
-              transition: "transform 0.2s",
-              flexShrink: 0,
-            }}
-          >
-            <polyline
-              points="1,3 5,7 9,3"
-              fill="none"
-              stroke={colors.textTertiary}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-      </div>
-
-      {isOpen && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 0,
-            marginBottom: 2,
-          }}
-        >
-          {/* All option */}
-          <div
-            onClick={() => onItemClick(null)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "3px 6px",
-              borderRadius: 5,
-              cursor: "pointer",
-              background: activeItem === null ? activeBg : "transparent",
-              border: `0.5px solid ${activeItem === null ? activeBorder : "transparent"}`,
-            }}
-            onMouseEnter={(e) => {
-              if (activeItem !== null)
-                e.currentTarget.style.background = hoverBg;
-            }}
-            onMouseLeave={(e) => {
-              if (activeItem !== null)
-                e.currentTarget.style.background = "transparent";
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: groupColor,
-                  opacity: 0.5,
-                  flexShrink: 0,
-                  display: "inline-block",
-                }}
-              />
-              <span
-                style={{
-                  fontSize: "0.68rem",
-                  fontWeight: activeItem === null ? 600 : 400,
-                  color:
-                    activeItem === null
-                      ? colors.textPrimary
-                      : colors.textSecondary,
-                }}
-              >
-                All
-              </span>
-            </div>
-            <span
-              style={{
-                fontSize: "0.6rem",
-                fontWeight: 600,
-                color:
-                  activeItem === null
-                    ? colors.textPrimary
-                    : colors.textTertiary,
-                background: darkMode ? "#1a1a1a" : "#e8e8e8",
-                borderRadius: 99,
-                padding: "1px 6px",
-                minWidth: 18,
-                textAlign: "center",
-              }}
-            >
-              {totalCount}
-            </span>
-          </div>
-
-          {/* Individual items */}
-          {items.map((item, idx) => {
-            const isActive = activeItem === item.value;
-            const dot = ITEM_DOT_COLORS[idx % ITEM_DOT_COLORS.length];
-            return (
-              <div
-                key={item.value}
-                onClick={() => onItemClick(item.value)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "3px 6px",
-                  borderRadius: 5,
-                  cursor: "pointer",
-                  background: isActive ? activeBg : "transparent",
-                  border: `0.5px solid ${isActive ? activeBorder : "transparent"}`,
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.background = hoverBg;
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive)
-                    e.currentTarget.style.background = "transparent";
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    minWidth: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: dot,
-                      flexShrink: 0,
-                      display: "inline-block",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.68rem",
-                      fontWeight: isActive ? 600 : 400,
-                      color: isActive
-                        ? colors.textPrimary
-                        : colors.textSecondary,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {item.value}
-                  </span>
-                </div>
-                <span
-                  style={{
-                    fontSize: "0.6rem",
-                    fontWeight: 600,
-                    color: isActive ? colors.textPrimary : colors.textTertiary,
-                    background: darkMode ? "#1a1a1a" : "#e8e8e8",
-                    borderRadius: 99,
-                    padding: "1px 6px",
-                    minWidth: 18,
-                    textAlign: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  {item.count}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <div
-        style={{
-          height: "0.5px",
-          background: colors.cardBorder,
-          margin: "4px 2px 3px",
-        }}
-      />
-    </div>
-  );
-}
-
-/* ── Badges — kopya ng visual language ng DataTable.jsx ── */
-const STATUS_MAP = {
-  "In Progress": {
-    bg: "linear-gradient(135deg,#6b7280,#4b5563)",
-    sh: "rgba(107,114,128,0.3)",
-    icon: "⏳",
-  },
-  "For Evaluation": {
-    bg: "linear-gradient(135deg,#eab308,#ca8a04)",
-    sh: "rgba(234,179,8,0.3)",
-    icon: "⏸",
-  },
-  Approved: {
-    bg: "linear-gradient(135deg,#10b981,#059669)",
-    sh: "rgba(16,185,129,0.3)",
-    icon: "✓",
-  },
-  Disapproved: {
-    bg: "linear-gradient(135deg,#ef4444,#dc2626)",
-    sh: "rgba(239,68,68,0.3)",
-    icon: "✗",
-  },
-  Withdrawn: {
-    bg: "linear-gradient(135deg,#6b7280,#4b5563)",
-    sh: "rgba(107,114,128,0.3)",
-    icon: "🚫",
-  },
-};
-
-const PHASE_COLORS = {
-  "Phase I": "linear-gradient(135deg,#0ea5e9,#0284c7)",
-  "Phase II": "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-  "Phase III": "linear-gradient(135deg,#d946ef,#c026d3)",
-  "Phase IV": "linear-gradient(135deg,#14b8a6,#0d9488)",
-};
-
-function StatusBadge({ status }) {
-  const c = STATUS_MAP[status] || {
-    bg: "linear-gradient(135deg,#6b7280,#4b5563)",
-    sh: "rgba(107,114,128,0.3)",
-    icon: "•",
-  };
-  return (
-    <span
-      style={{
-        padding: "0.3rem 0.7rem",
-        background: c.bg,
-        color: "#fff",
-        borderRadius: "8px",
-        fontSize: "0.55rem",
-        fontWeight: "700",
-        letterSpacing: "0.5px",
-        boxShadow: `0 2px 8px ${c.sh}`,
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "0.4rem",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span>{c.icon}</span>
-      {status}
-    </span>
-  );
-}
-
-function PhaseBadge({ phase }) {
-  return (
-    <span
-      style={{
-        padding: "0.25rem 0.6rem",
-        background:
-          PHASE_COLORS[phase] || "linear-gradient(135deg,#6b7280,#4b5563)",
-        color: "#fff",
-        borderRadius: "6px",
-        fontSize: "0.55rem",
-        fontWeight: "600",
-        display: "inline-flex",
-        alignItems: "center",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {phase}
-    </span>
-  );
-}
-
-function DTNBadge({ dtn }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "0.3rem 0.7rem",
-        background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-        color: "#fff",
-        borderRadius: "8px",
-        fontSize: "0.55rem",
-        fontWeight: "700",
-        letterSpacing: "0.5px",
-        boxShadow: "0 2px 8px rgba(8,8,8,0.3)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {dtn}
-    </span>
-  );
-}
-
-const TABS = [
-  { id: "all", label: "All Trials", icon: "🧪" },
-  { id: "ongoing", label: "Ongoing", icon: "⏳" },
-  { id: "completed", label: "Completed", icon: "✅" },
-];
+import {
+  getClinicalTrials,
+  downloadClinicalTrialTemplate,
+  exportClinicalTrials,
+  uploadClinicalTrials,
+  triggerFileDownload,
+} from "../api/clinicalTrials.js";
+import {
+  SidebarSection,
+  PhaseBadge,
+  ProtocolBadge,
+  RowActionMenu,
+  ViewDetailsModal,
+  UpdateModal,
+  AuditLogModal,
+  TABS,
+} from "../components/clinicalTrial";
+import { mapTrialFromApi } from "../components/clinicalTrial/clinicalTrialMappers";
 
 function ClinicalTrialPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
+  const fileInputRef = useRef(null);
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
-  const [appTypeFilter, setAppTypeFilter] = useState(null);
   const [phaseFilter, setPhaseFilter] = useState(null);
+  const [drugTypeFilter, setDrugTypeFilter] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRows, setSelectedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const iconBtn = (onClick, title, children) => (
+  const [trials, setTrials] = useState([]);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+
+  const [facetTrials, setFacetTrials] = useState([]);
+  const [facetTotal, setFacetTotal] = useState(0);
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+
+  const [openMenuRow, setOpenMenuRow] = useState(null); // { id, anchorEl, row }
+  const [viewingTrial, setViewingTrial] = useState(null);
+  const [editingTrial, setEditingTrial] = useState(null);
+  const [auditTrial, setAuditTrial] = useState(null);
+
+  const handleViewAuditLog = (row) => {
+    setAuditTrial(row);
+    setOpenMenuRow(null);
+  };
+  const handleToggleRowMenu = (row, e) => {
+    const anchorEl = e.currentTarget;
+    setOpenMenuRow((prev) =>
+      prev?.id === row.id ? null : { id: row.id, anchorEl, row },
+    );
+  };
+
+  const handleViewDetails = (row) => {
+    setViewingTrial(row);
+    setOpenMenuRow(null);
+  };
+
+  const handleOpenEdit = (row) => {
+    setEditingTrial(row);
+    setViewingTrial(null);
+    setOpenMenuRow(null);
+  };
+
+  const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  const fetchTrials = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const { data } = await getClinicalTrials({
+        search: debouncedSearch || undefined,
+        phase: phaseFilter || undefined,
+        drug_type: drugTypeFilter || undefined,
+        page: currentPage,
+        rows_per_page: rowsPerPage,
+      });
+      setTrials((data.data || []).map(mapTrialFromApi));
+      setTotalRecords(data.total || 0);
+    } catch (err) {
+      setLoadError(
+        err?.response?.data?.detail || "Failed to load clinical trials",
+      );
+      setTrials([]);
+      setTotalRecords(0);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [debouncedSearch, phaseFilter, drugTypeFilter, currentPage, rowsPerPage]);
+
+  useEffect(() => {
+    fetchTrials();
+  }, [fetchTrials]);
+
+  const fetchFacets = useCallback(async () => {
+    try {
+      const { data } = await getClinicalTrials({
+        page: 1,
+        rows_per_page: 1000,
+      });
+      setFacetTrials((data.data || []).map(mapTrialFromApi));
+      setFacetTotal(data.total || 0);
+    } catch {
+      setFacetTrials([]);
+      setFacetTotal(0);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFacets();
+  }, [fetchFacets]);
+
+  const handleDataChanged = () => Promise.all([fetchTrials(), fetchFacets()]);
+
+  const iconBtn = (onClick, title, children, disabled) => (
     <button
       onClick={onClick}
       title={title}
+      disabled={disabled}
       style={{
         width: "26px",
         height: "26px",
@@ -617,17 +141,20 @@ function ClinicalTrialPage({ darkMode }) {
         background: "transparent",
         border: `1px solid ${colors.cardBorder}`,
         borderRadius: "6px",
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
         color: colors.textTertiary,
         fontSize: "0.7rem",
         transition: "all 0.2s ease",
         flexShrink: 0,
       }}
       onMouseEnter={(e) => {
+        if (disabled) return;
         e.currentTarget.style.background = darkMode ? "#1f1f1f" : "#e5e5e5";
         e.currentTarget.style.color = colors.textPrimary;
       }}
       onMouseLeave={(e) => {
+        if (disabled) return;
         e.currentTarget.style.background = "transparent";
         e.currentTarget.style.color = colors.textTertiary;
       }}
@@ -636,71 +163,36 @@ function ClinicalTrialPage({ darkMode }) {
     </button>
   );
 
-  const statsData = useMemo(
-    () => ({
-      total: CLINICAL_TRIALS.length,
-      ongoing: CLINICAL_TRIALS.filter((t) => t.appStatus === "In Progress")
-        .length,
-      completed: CLINICAL_TRIALS.filter((t) => t.appStatus === "Approved")
-        .length,
-    }),
-    [],
-  );
-
-  const appTypeItems = useMemo(() => {
-    const counts = {};
-    CLINICAL_TRIALS.forEach((t) => {
-      counts[t.applicationType] = (counts[t.applicationType] || 0) + 1;
-    });
-    return Object.entries(counts).map(([value, count]) => ({ value, count }));
-  }, []);
-
   const phaseItems = useMemo(() => {
     const counts = {};
-    CLINICAL_TRIALS.forEach((t) => {
+    facetTrials.forEach((t) => {
+      if (!t.phase) return;
       counts[t.phase] = (counts[t.phase] || 0) + 1;
     });
     return Object.entries(counts).map(([value, count]) => ({ value, count }));
-  }, []);
+  }, [facetTrials]);
 
-  const filteredData = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    return CLINICAL_TRIALS.filter((t) => {
-      if (activeTab === "ongoing" && t.appStatus !== "In Progress")
-        return false;
-      if (activeTab === "completed" && t.appStatus !== "Approved") return false;
-      if (appTypeFilter !== null && t.applicationType !== appTypeFilter)
-        return false;
-      if (phaseFilter !== null && t.phase !== phaseFilter) return false;
-      if (!q) return true;
-      return [
-        t.dtn,
-        t.protocolNo,
-        t.studyTitle,
-        t.sponsor,
-        t.investigator,
-        t.site,
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(q);
+  const drugTypeItems = useMemo(() => {
+    const counts = {};
+    facetTrials.forEach((t) => {
+      if (!t.drugType) return;
+      counts[t.drugType] = (counts[t.drugType] || 0) + 1;
     });
-  }, [activeTab, appTypeFilter, phaseFilter, searchTerm]);
+    return Object.entries(counts).map(([value, count]) => ({ value, count }));
+  }, [facetTrials]);
 
-  const totalRecords = filteredData.length;
   const totalPages = Math.max(1, Math.ceil(totalRecords / rowsPerPage));
   const page = Math.min(currentPage, totalPages);
-  const start = (page - 1) * rowsPerPage;
-  const pageRows = filteredData.slice(start, start + rowsPerPage);
-  const indexOfFirstRow = totalRecords === 0 ? 0 : start + 1;
-  const indexOfLastRow = Math.min(start + rowsPerPage, totalRecords);
+  const indexOfFirstRow = totalRecords === 0 ? 0 : (page - 1) * rowsPerPage + 1;
+  const indexOfLastRow = Math.min(page * rowsPerPage, totalRecords);
+  const pageRows = trials;
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     setCurrentPage(1);
     setSelectedRows([]);
-    setAppTypeFilter(null);
     setPhaseFilter(null);
+    setDrugTypeFilter(null);
   };
 
   const handleSelectAll = () => {
@@ -719,21 +211,83 @@ function ClinicalTrialPage({ darkMode }) {
     );
 
   const activeFilterCount =
-    (appTypeFilter !== null ? 1 : 0) + (phaseFilter !== null ? 1 : 0);
+    (phaseFilter !== null ? 1 : 0) + (drugTypeFilter !== null ? 1 : 0);
+
+  const handleDownloadTemplate = async () => {
+    setIsDownloadingTemplate(true);
+    try {
+      const res = await downloadClinicalTrialTemplate();
+      triggerFileDownload(res, "clinical_trial_upload_template.xlsx");
+    } catch (err) {
+      alert(err?.response?.data?.detail || "Failed to download the template.");
+    } finally {
+      setIsDownloadingTemplate(false);
+    }
+  };
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const res = await exportClinicalTrials({
+        search: debouncedSearch || undefined,
+        phase: phaseFilter || undefined,
+        drug_type: drugTypeFilter || undefined,
+      });
+      triggerFileDownload(res, "clinical_trials_export.xlsx");
+    } catch (err) {
+      alert(err?.response?.data?.detail || "Failed to export clinical trials.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleUploadClick = () => fileInputRef.current?.click();
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    if (!/\.(xlsx|xlsm)$/i.test(file.name)) {
+      alert("Only .xlsx files are supported.");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadResult(null);
+    try {
+      const { data } = await uploadClinicalTrials(file);
+      setUploadResult(data);
+      await handleDataChanged();
+    } catch (err) {
+      alert(err?.response?.data?.detail || "Upload failed.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const columns = [
-    { key: "processingType", label: "Processing Type" },
-    { key: "appStatus", label: "Status" },
-    { key: "dtn", label: "DTN" },
-    { key: "protocolNo", label: "Protocol No." },
+    { key: "protocolNo", label: "Protocol Number" },
+    { key: "studyTitle", label: "Study Title", width: "240px" },
     { key: "phase", label: "Phase" },
-    { key: "studyTitle", label: "Study Title", width: "260px" },
-    { key: "sponsor", label: "Sponsor" },
-    { key: "investigator", label: "Investigator" },
-    { key: "site", label: "Site" },
-    { key: "subjects", label: "Subjects" },
-    { key: "dateFiled", label: "Date Filed" },
-    { key: "expiry", label: "Expiry" },
+    { key: "sponsorName", label: "Sponsor Name" },
+    { key: "sponsorAddress", label: "Sponsor Address", width: "200px" },
+    { key: "sponsorContact", label: "Sponsor Contact Info" },
+    { key: "croName", label: "CRO Name" },
+    { key: "croAddress", label: "CRO Address", width: "200px" },
+    { key: "croContact", label: "CRO Contact Info" },
+    { key: "ctRefNo", label: "CT Reference Number" },
+    {
+      key: "ipName",
+      label: "Name of IP/Comparator/Placebo/OM",
+      width: "220px",
+    },
+    { key: "dosageStrength", label: "Dosage Strength" },
+    { key: "pharmaForm", label: "Pharmaceutical Form" },
+    { key: "drugType", label: "Type of Drug" },
+    { key: "ilApprovalNo", label: "IL Approval Number" },
+    { key: "ilApprovalDate", label: "IL Initial Approval Date" },
+    { key: "totalQtyApprove", label: "Total Qty Approved" },
   ];
 
   const thStyle = {
@@ -758,41 +312,50 @@ function ClinicalTrialPage({ darkMode }) {
     wordBreak: "break-word",
   };
 
+  const ACTIONS_COL_WIDTH = 60;
+  const stickyActionsThStyle = {
+    ...thStyle,
+    width: `${ACTIONS_COL_WIDTH}px`,
+    textAlign: "center",
+    position: "sticky",
+    right: 0,
+    zIndex: 3,
+    boxShadow: `-1px 0 0 ${colors.tableBorder}`,
+  };
+  const stickyActionsTdStyle = (rowBg) => ({
+    padding: "0.4rem",
+    borderBottom: `1px solid ${colors.tableBorder}`,
+    textAlign: "center",
+    position: "sticky",
+    right: 0,
+    zIndex: 1,
+    background: rowBg,
+    boxShadow: `-1px 0 0 ${colors.tableBorder}`,
+  });
+
   const renderCell = (col, row) => {
     switch (col.key) {
-      case "dtn":
-        return <DTNBadge dtn={row.dtn} />;
-      case "appStatus":
-        return <StatusBadge status={row.appStatus} />;
+      case "protocolNo":
+        return <ProtocolBadge value={row.protocolNo} />;
       case "phase":
         return <PhaseBadge phase={row.phase} />;
-      case "processingType":
-        return (
-          <span
-            style={{
-              padding: "0.25rem 0.6rem",
-              background: "linear-gradient(135deg,#2196F3,#1976D2)",
-              color: "#fff",
-              borderRadius: "6px",
-              fontSize: "0.55rem",
-              fontWeight: "600",
-              whiteSpace: "nowrap",
-              display: "inline-flex",
-            }}
-          >
-            {row.processingType}
-          </span>
-        );
-      case "subjects":
-        return row.subjects.toLocaleString();
+      case "totalQtyApprove":
+        return (row.totalQtyApprove ?? 0).toLocaleString();
       default:
-        return row[col.key];
+        return row[col.key] ?? "—";
     }
   };
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
-      {/* ── Sidebar ── */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,.xlsm"
+        style={{ display: "none" }}
+        onChange={handleFileSelected}
+      />
+
       <div
         style={{
           width: isSidebarOpen ? "190px" : "44px",
@@ -866,19 +429,6 @@ function ClinicalTrialPage({ darkMode }) {
               }}
             >
               <SidebarSection
-                title="Application Type"
-                groupColor="#6366f1"
-                items={appTypeItems}
-                activeItem={appTypeFilter}
-                onItemClick={(v) => {
-                  setAppTypeFilter(v);
-                  setCurrentPage(1);
-                }}
-                colors={colors}
-                darkMode={darkMode}
-                totalCount={CLINICAL_TRIALS.length}
-              />
-              <SidebarSection
                 title="Study Phase"
                 groupColor="#0891b2"
                 items={phaseItems}
@@ -889,7 +439,20 @@ function ClinicalTrialPage({ darkMode }) {
                 }}
                 colors={colors}
                 darkMode={darkMode}
-                totalCount={CLINICAL_TRIALS.length}
+                totalCount={facetTotal}
+              />
+              <SidebarSection
+                title="Type of Drug"
+                groupColor="#6366f1"
+                items={drugTypeItems}
+                activeItem={drugTypeFilter}
+                onItemClick={(v) => {
+                  setDrugTypeFilter(v);
+                  setCurrentPage(1);
+                }}
+                colors={colors}
+                darkMode={darkMode}
+                totalCount={facetTotal}
               />
             </div>
           </>
@@ -929,7 +492,6 @@ function ClinicalTrialPage({ darkMode }) {
         )}
       </div>
 
-      {/* ── Main content ── */}
       <div
         style={{
           flex: 1,
@@ -939,7 +501,6 @@ function ClinicalTrialPage({ darkMode }) {
           minHeight: 0,
         }}
       >
-        {/* Header */}
         <div
           style={{
             padding: "0.85rem 1.5rem 0",
@@ -957,12 +518,6 @@ function ClinicalTrialPage({ darkMode }) {
           >
             <div style={{ display: "flex", flex: 1, overflowX: "auto" }}>
               {TABS.map((tab) => {
-                const count =
-                  tab.id === "all"
-                    ? statsData.total
-                    : tab.id === "ongoing"
-                      ? statsData.ongoing
-                      : statsData.completed;
                 const isActive = activeTab === tab.id;
                 return (
                   <button
@@ -1006,7 +561,7 @@ function ClinicalTrialPage({ darkMode }) {
                         textAlign: "center",
                       }}
                     >
-                      {count}
+                      {facetTotal}
                     </span>
                   </button>
                 );
@@ -1025,6 +580,8 @@ function ClinicalTrialPage({ darkMode }) {
               }}
             >
               <button
+                onClick={handleExport}
+                disabled={isExporting}
                 style={{
                   padding: "5px 14px",
                   background: "linear-gradient(135deg,#10B981,#059669)",
@@ -1033,7 +590,8 @@ function ClinicalTrialPage({ darkMode }) {
                   borderRadius: "6px",
                   fontSize: "12px",
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: isExporting ? "not-allowed" : "pointer",
+                  opacity: isExporting ? 0.7 : 1,
                   display: "flex",
                   alignItems: "center",
                   gap: "5px",
@@ -1041,9 +599,13 @@ function ClinicalTrialPage({ darkMode }) {
                 }}
               >
                 <span>📥</span>
-                <span>Export ({totalRecords})</span>
+                <span>
+                  {isExporting ? "Exporting…" : `Export (${totalRecords})`}
+                </span>
               </button>
               <button
+                onClick={handleDownloadTemplate}
+                disabled={isDownloadingTemplate}
                 style={{
                   padding: "5px 14px",
                   background: darkMode ? "#1f1f1f" : "#e5e5e5",
@@ -1052,7 +614,8 @@ function ClinicalTrialPage({ darkMode }) {
                   borderRadius: "6px",
                   fontSize: "12px",
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: isDownloadingTemplate ? "not-allowed" : "pointer",
+                  opacity: isDownloadingTemplate ? 0.7 : 1,
                   display: "flex",
                   alignItems: "center",
                   gap: "5px",
@@ -1060,9 +623,13 @@ function ClinicalTrialPage({ darkMode }) {
                 }}
               >
                 <span>⬇️</span>
-                <span>Download Template</span>
+                <span>
+                  {isDownloadingTemplate ? "Preparing…" : "Download Template"}
+                </span>
               </button>
               <button
+                onClick={handleUploadClick}
+                disabled={isUploading}
                 style={{
                   padding: "5px 14px",
                   background: "linear-gradient(135deg,#6366f1,#4f46e5)",
@@ -1071,7 +638,8 @@ function ClinicalTrialPage({ darkMode }) {
                   borderRadius: "6px",
                   fontSize: "12px",
                   fontWeight: 600,
-                  cursor: "pointer",
+                  cursor: isUploading ? "not-allowed" : "pointer",
+                  opacity: isUploading ? 0.7 : 1,
                   display: "flex",
                   alignItems: "center",
                   gap: "5px",
@@ -1079,13 +647,12 @@ function ClinicalTrialPage({ darkMode }) {
                 }}
               >
                 <span>⬆️</span>
-                <span>Upload New Trial</span>
+                <span>{isUploading ? "Uploading…" : "Upload New Trial"}</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Content area */}
         <div
           style={{
             flex: 1,
@@ -1094,7 +661,62 @@ function ClinicalTrialPage({ darkMode }) {
             background: colors.pageBg,
           }}
         >
-          {/* Search bar */}
+          {uploadResult && (
+            <div
+              style={{
+                background: colors.cardBg,
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "10px",
+                padding: "0.6rem 0.85rem",
+                marginBottom: "0.5rem",
+                fontSize: "0.7rem",
+                color: colors.textPrimary,
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <strong>
+                  Upload complete — {uploadResult.inserted} inserted,{" "}
+                  {uploadResult.skipped} skipped (of {uploadResult.total_rows}{" "}
+                  rows).
+                </strong>
+                <span
+                  onClick={() => setUploadResult(null)}
+                  style={{ cursor: "pointer", color: colors.textTertiary }}
+                >
+                  ✕
+                </span>
+              </div>
+              {uploadResult.errors?.length > 0 && (
+                <ul
+                  style={{ margin: 0, paddingLeft: "1.1rem", color: "#ef4444" }}
+                >
+                  {uploadResult.errors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {loadError && (
+            <div
+              style={{
+                background: "#ef444415",
+                border: "1px solid #ef444450",
+                borderRadius: "10px",
+                padding: "0.6rem 0.85rem",
+                marginBottom: "0.5rem",
+                fontSize: "0.7rem",
+                color: "#ef4444",
+              }}
+            >
+              {loadError}
+            </div>
+          )}
+
           <div
             style={{
               background: colors.cardBg,
@@ -1112,7 +734,7 @@ function ClinicalTrialPage({ darkMode }) {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search by DTN, protocol number, sponsor, or investigator"
+              placeholder="Search by protocol number, study title, sponsor, CRO, CT reference, or IP name"
               style={{
                 flex: 1,
                 padding: "0.25rem 0.5rem",
@@ -1126,7 +748,6 @@ function ClinicalTrialPage({ darkMode }) {
             />
           </div>
 
-          {/* Table card */}
           <div
             style={{
               background: colors.cardBg,
@@ -1206,7 +827,7 @@ function ClinicalTrialPage({ darkMode }) {
                 style={{
                   width: "100%",
                   borderCollapse: "collapse",
-                  minWidth: "1400px",
+                  minWidth: "1700px",
                 }}
               >
                 <thead>
@@ -1240,15 +861,11 @@ function ClinicalTrialPage({ darkMode }) {
                         {col.label}
                       </th>
                     ))}
-                    <th
-                      style={{ ...thStyle, width: "60px", textAlign: "center" }}
-                    >
-                      Actions
-                    </th>
+                    <th style={stickyActionsThStyle}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pageRows.length === 0 ? (
+                  {isLoading ? (
                     <tr>
                       <td
                         colSpan={columns.length + 3}
@@ -1259,7 +876,21 @@ function ClinicalTrialPage({ darkMode }) {
                           fontSize: "0.75rem",
                         }}
                       >
-                        Walang trials na tumugma sa mga filter.
+                        Loading clinical trials…
+                      </td>
+                    </tr>
+                  ) : pageRows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={columns.length + 3}
+                        style={{
+                          padding: "2rem",
+                          textAlign: "center",
+                          color: colors.textTertiary,
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        No trials match the current filters.
                       </td>
                     </tr>
                   ) : (
@@ -1318,17 +949,17 @@ function ClinicalTrialPage({ darkMode }) {
                               {renderCell(col, row)}
                             </td>
                           ))}
-                          <td
-                            style={{
-                              padding: "0.65rem 0.85rem",
-                              borderBottom: `1px solid ${colors.tableBorder}`,
-                              textAlign: "center",
-                            }}
-                          >
+                          <td style={stickyActionsTdStyle(rowBg)}>
                             <button
+                              onClick={(e) => handleToggleRowMenu(row, e)}
                               style={{
                                 padding: "0.4rem",
-                                background: "transparent",
+                                background:
+                                  openMenuRow?.id === row.id
+                                    ? darkMode
+                                      ? "#1f1f1f"
+                                      : "#e5e5e5"
+                                    : "transparent",
                                 border: `1px solid ${colors.cardBorder}`,
                                 borderRadius: "6px",
                                 color: colors.textPrimary,
@@ -1348,7 +979,6 @@ function ClinicalTrialPage({ darkMode }) {
               </table>
             </div>
 
-            {/* Pagination — kopya ng pattern ng TablePagination */}
             <div
               style={{
                 flexShrink: 0,
@@ -1432,6 +1062,50 @@ function ClinicalTrialPage({ darkMode }) {
           </div>
         </div>
       </div>
+
+      {openMenuRow && (
+        <RowActionMenu
+          anchorEl={openMenuRow.anchorEl}
+          onClose={() => setOpenMenuRow(null)}
+          onViewDetails={() => handleViewDetails(openMenuRow.row)}
+          onUpdate={() => handleOpenEdit(openMenuRow.row)}
+          onViewAuditLog={() => handleViewAuditLog(openMenuRow.row)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {viewingTrial && (
+        <ViewDetailsModal
+          trial={viewingTrial}
+          onClose={() => setViewingTrial(null)}
+          onUpdate={handleOpenEdit}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {auditTrial && (
+        <AuditLogModal
+          trial={auditTrial}
+          onClose={() => setAuditTrial(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {editingTrial && (
+        <UpdateModal
+          trial={editingTrial}
+          onClose={() => setEditingTrial(null)}
+          onSaved={async () => {
+            setEditingTrial(null);
+            await handleDataChanged();
+          }}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
     </div>
   );
 }
