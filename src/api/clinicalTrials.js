@@ -56,3 +56,12 @@ export const triggerFileDownload = (blobResponse, fallbackFilename) => {
   link.remove();
   window.URL.revokeObjectURL(url);
 };
+
+// ── Upload preview (validate without saving) ──────────────
+export const previewClinicalTrialsUpload = (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return api.post(`${BASE}/upload/preview`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};

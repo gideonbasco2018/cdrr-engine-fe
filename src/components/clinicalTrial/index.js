@@ -8,6 +8,7 @@ export { default as AuditLogEntry } from "./AuditLogEntry";
 export { default as ViewDetailsModal } from "./ViewDetailsModal";
 export { default as ConfirmChangesModal } from "./ConfirmChangesModal";
 export { default as UpdateModal } from "./UpdateModal";
+export { default as UploadPreviewModal } from "./UploadPreviewModal";
 
 export * from "./constants";
 export * from "./clinicalTrialMappers";
