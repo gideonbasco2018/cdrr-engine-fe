@@ -5,6 +5,7 @@ import {
   getClinicalTrials,
   downloadClinicalTrialTemplate,
   exportClinicalTrials,
+  previewClinicalTrialsUpload,
   uploadClinicalTrials,
   triggerFileDownload,
 } from "../api/clinicalTrials.js";
@@ -16,6 +17,7 @@ import {
   ViewDetailsModal,
   UpdateModal,
   AuditLogModal,
+  UploadPreviewModal,
   TABS,
 } from "../components/clinicalTrial";
 import { mapTrialFromApi } from "../components/clinicalTrial/clinicalTrialMappers";
@@ -50,6 +52,10 @@ function ClinicalTrialPage({ darkMode }) {
   const [viewingTrial, setViewingTrial] = useState(null);
   const [editingTrial, setEditingTrial] = useState(null);
   const [auditTrial, setAuditTrial] = useState(null);
+
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [uploadPreview, setUploadPreview] = useState(null);
+  const [pendingUploadFile, setPendingUploadFile] = useState(null);
 
   const handleViewAuditLog = (row) => {
     setAuditTrial(row);
@@ -253,17 +259,38 @@ function ClinicalTrialPage({ darkMode }) {
       return;
     }
 
-    setIsUploading(true);
+    setIsPreviewing(true);
     setUploadResult(null);
     try {
-      const { data } = await uploadClinicalTrials(file);
+      const { data } = await previewClinicalTrialsUpload(file);
+      setUploadPreview(data);
+      setPendingUploadFile(file);
+    } catch (err) {
+      alert(err?.response?.data?.detail || "Failed to read the file.");
+    } finally {
+      setIsPreviewing(false);
+    }
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!pendingUploadFile) return;
+    setIsUploading(true);
+    try {
+      const { data } = await uploadClinicalTrials(pendingUploadFile);
       setUploadResult(data);
+      setUploadPreview(null);
+      setPendingUploadFile(null);
       await handleDataChanged();
     } catch (err) {
       alert(err?.response?.data?.detail || "Upload failed.");
     } finally {
       setIsUploading(false);
     }
+  };
+
+  const handleCancelUpload = () => {
+    setUploadPreview(null);
+    setPendingUploadFile(null);
   };
 
   const columns = [
@@ -629,7 +656,7 @@ function ClinicalTrialPage({ darkMode }) {
               </button>
               <button
                 onClick={handleUploadClick}
-                disabled={isUploading}
+                disabled={isUploading || isPreviewing}
                 style={{
                   padding: "5px 14px",
                   background: "linear-gradient(135deg,#6366f1,#4f46e5)",
@@ -647,7 +674,13 @@ function ClinicalTrialPage({ darkMode }) {
                 }}
               >
                 <span>⬆️</span>
-                <span>{isUploading ? "Uploading…" : "Upload New Trial"}</span>
+                <span>
+                  {isPreviewing
+                    ? "Reading file…"
+                    : isUploading
+                      ? "Uploading…"
+                      : "Upload New Trial"}
+                </span>
               </button>
             </div>
           </div>
@@ -1089,6 +1122,18 @@ function ClinicalTrialPage({ darkMode }) {
         <AuditLogModal
           trial={auditTrial}
           onClose={() => setAuditTrial(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {uploadPreview && (
+        <UploadPreviewModal
+          preview={uploadPreview}
+          fileName={pendingUploadFile?.name}
+          isUploading={isUploading}
+          onConfirm={handleConfirmUpload}
+          onCancel={handleCancelUpload}
           colors={colors}
           darkMode={darkMode}
         />

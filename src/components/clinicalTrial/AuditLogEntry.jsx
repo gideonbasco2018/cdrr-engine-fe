@@ -48,7 +48,8 @@ function AuditLogEntry({ log, colors }) {
             {log.action}
           </span>
           <span>
-            {log.changed_by ? `User #${log.changed_by}` : "Unknown user"}
+            {log.changed_by_name ||
+              (log.changed_by ? `User #${log.changed_by}` : "System")}
           </span>
         </div>
         <span>
