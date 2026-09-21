@@ -77,6 +77,20 @@ function nameToAvatarColor(name = "") {
   return avatarPalette[Math.abs(hash) % avatarPalette.length];
 }
 
+function formatAssigned(raw) {
+  if (!raw) return null;
+  const d = new Date(String(raw).replace(" ", "T"));
+  if (isNaN(d)) return { date: String(raw), time: "" };
+  return {
+    date: d.toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }),
+    time: d.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }),
+  };
+}
+
 const PAGE_SIZE = 15;
 
 // ── 3-dot Action Menu ─────────────────────────────────────────────────────────
@@ -716,7 +730,7 @@ export default function AllRecords({
   const TL = darkMode ? timelineColorsDark : timelineColors;
   const SP = darkMode ? stepColorsDark : stepColors;
 
-  const GRID = "1.4fr 1.1fr 1.8fr 1.25fr 0.85fr 1fr 0.9fr 0.85fr 0.5fr";
+  const GRID = "1.4fr 1.1fr 1.8fr 1.25fr 1.1fr 0.85fr 1fr 0.9fr 0.85fr 0.5fr";
 
   const fromLabel = dtnSideLabel(dtnFromYear, dtnFromMonth, dtnFromDay);
   const toLabel = dtnSideLabel(dtnToYear, dtnToMonth, dtnToDay);
@@ -1141,6 +1155,7 @@ export default function AllRecords({
               { label: "User", col: "user" },
               { label: "Drug / Application", col: "drug" },
               { label: "Date Received From Center", col: "date" },
+              { label: "Date Decked/Assigned", col: null },
               { label: "Entry Type", col: "entry_type" },
               { label: "Step", col: "step" },
               { label: "Timeline", col: "timeline" },
@@ -1285,6 +1300,25 @@ export default function AllRecords({
                           borderRadius: 4,
                           background: ui.progressBg,
                           animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.06}s infinite`,
+                        }}
+                      />
+                    </div>
+
+                    {/* Date Decked/Assigned */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 8,
+                          width: 70,
+                          borderRadius: 4,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.065}s infinite`,
                         }}
                       />
                     </div>
@@ -1575,6 +1609,44 @@ export default function AllRecords({
                           })
                         : "—"}
                     </span>
+
+                    {/* Date Decked/Assigned */}
+                    {(() => {
+                      const da = formatAssigned(row.date_assigned);
+                      return (
+                        <span
+                          style={{
+                            padding: "5px 8px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 1,
+                            fontFamily: font,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.66rem",
+                              color: ui.textPrimary,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {da ? da.date : "—"}
+                          </span>
+                          {da?.time && (
+                            <span
+                              style={{
+                                fontSize: "0.56rem",
+                                color: ui.textMuted,
+                              }}
+                            >
+                              {da.time}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
 
                     {/* Entry Type */}
                     <span
