@@ -1,6 +1,6 @@
 // src/components/monitoring/records/AllRecords.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getAllRecords } from "../../../api/monitoring";
+import { getAllRecords, exportRecordsReport } from "../../../api/monitoring";
 import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
 import { getUploadReports } from "../../../api/reports";
 import { mapDataItem } from "../../reports/utils";
@@ -635,90 +635,22 @@ export default function AllRecords({
 
     setReportLoading(true);
     try {
-      const BATCH = 500;
-      const totalBatches = Math.ceil(total / BATCH);
-      let allRows = [];
+      const params = { sort_col: sortCol, sort_dir: sortDir };
+      if (filterUserId) params.user_id = filterUserId;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (dtnSearch) params.dtn = dtnSearch;
+      if (stepFilter) params.app_step = stepFilter;
+      if (localStatusFilter) params.application_status = localStatusFilter;
+      if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
+      if (dtnDateTo) params.dtn_date_to = dtnDateTo;
 
-      for (let p = 1; p <= totalBatches; p++) {
-        const params = {
-          page: p,
-          page_size: BATCH,
-          sort_col: sortCol,
-          sort_dir: sortDir,
-        };
-        if (filterUserId) params.user_id = filterUserId;
-        if (dateFrom) params.date_from = dateFrom;
-        if (dateTo) params.date_to = dateTo;
-        if (dtnSearch) params.dtn = dtnSearch;
-        if (stepFilter) params.app_step = stepFilter;
-        if (localStatusFilter) params.application_status = localStatusFilter;
-        if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
-        if (dtnDateTo) params.dtn_date_to = dtnDateTo;
+      const blob = await exportRecordsReport(params);
 
-        const data = await getAllRecords(params);
-        allRows = allRows.concat(data.data || []);
-      }
-
-      // Helper: format date nicely (e.g. "Jul 4, 2025")
-      const formatDate = (raw) => {
-        if (!raw) return "";
-        try {
-          return new Date(raw + "T00:00:00").toLocaleDateString("en-PH", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          });
-        } catch {
-          return raw;
-        }
-      };
-
-      // Helper: escape CSV cell; prefix numbers-only strings with tab to prevent
-      // Excel from converting them to scientific notation
-      const csvCell = (val) => {
-        const str = String(val ?? "");
-        // If the value is purely numeric and long (like DTN), force text in Excel
-        const forceText = /^\d{10,}$/.test(str);
-        const escaped = (forceText ? "\t" + str : str).replace(/"/g, '""');
-        return `"${escaped}"`;
-      };
-
-      const headers = [
-        "DTN",
-        "Username",
-        "Full Name",
-        "Drug / Application",
-        "Date Received",
-        "Step",
-        "Timeline",
-        "Status",
-      ];
-
-      const csvRows = allRows.map((r) => [
-        csvCell(r.dtn || ""),
-        csvCell(r.user_name || ""),
-        csvCell(r.full_name || ""),
-        csvCell(r.drug_name || ""),
-        csvCell(formatDate(r.date_received_cent)),
-        csvCell(r.app_step || ""),
-        csvCell(r.timeline || ""),
-        csvCell(r.app_status || ""),
-      ]);
-
-      const headerRow = headers.map((h) => `"${h}"`).join(",");
-      const dataRows = csvRows.map((row) => row.join(","));
-      const csvContent = [headerRow, ...dataRows].join("\n");
-
-      // UTF-8 BOM so Excel opens it correctly without encoding issues
-      const BOM = "\uFEFF";
-      const blob = new Blob([BOM + csvContent], {
-        type: "text/csv;charset=utf-8;",
-      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      const dateStr = new Date().toISOString().slice(0, 10);
-      link.download = `records_report_${dateStr}.csv`;
+      link.download = `records_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
