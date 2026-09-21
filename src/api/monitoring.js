@@ -247,3 +247,11 @@ export const getOverviewSummary = async () => {
     );
   }
 };
+
+export const exportRecordsReport = async (params) => {
+  const response = await API.get("/monitoring/all-records/export", {
+    params,
+    responseType: "blob",
+  });
+  return response.data;
+};

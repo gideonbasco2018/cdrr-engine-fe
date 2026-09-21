@@ -1,6 +1,6 @@
 // src/components/monitoring/records/AllRecords.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getAllRecords } from "../../../api/monitoring";
+import { getAllRecords, exportRecordsReport } from "../../../api/monitoring";
 import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
 import { getUploadReports } from "../../../api/reports";
 import { mapDataItem } from "../../reports/utils";
@@ -635,90 +635,22 @@ export default function AllRecords({
 
     setReportLoading(true);
     try {
-      const BATCH = 500;
-      const totalBatches = Math.ceil(total / BATCH);
-      let allRows = [];
+      const params = { sort_col: sortCol, sort_dir: sortDir };
+      if (filterUserId) params.user_id = filterUserId;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (dtnSearch) params.dtn = dtnSearch;
+      if (stepFilter) params.app_step = stepFilter;
+      if (localStatusFilter) params.application_status = localStatusFilter;
+      if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
+      if (dtnDateTo) params.dtn_date_to = dtnDateTo;
 
-      for (let p = 1; p <= totalBatches; p++) {
-        const params = {
-          page: p,
-          page_size: BATCH,
-          sort_col: sortCol,
-          sort_dir: sortDir,
-        };
-        if (filterUserId) params.user_id = filterUserId;
-        if (dateFrom) params.date_from = dateFrom;
-        if (dateTo) params.date_to = dateTo;
-        if (dtnSearch) params.dtn = dtnSearch;
-        if (stepFilter) params.app_step = stepFilter;
-        if (localStatusFilter) params.application_status = localStatusFilter;
-        if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
-        if (dtnDateTo) params.dtn_date_to = dtnDateTo;
+      const blob = await exportRecordsReport(params);
 
-        const data = await getAllRecords(params);
-        allRows = allRows.concat(data.data || []);
-      }
-
-      // Helper: format date nicely (e.g. "Jul 4, 2025")
-      const formatDate = (raw) => {
-        if (!raw) return "";
-        try {
-          return new Date(raw + "T00:00:00").toLocaleDateString("en-PH", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          });
-        } catch {
-          return raw;
-        }
-      };
-
-      // Helper: escape CSV cell; prefix numbers-only strings with tab to prevent
-      // Excel from converting them to scientific notation
-      const csvCell = (val) => {
-        const str = String(val ?? "");
-        // If the value is purely numeric and long (like DTN), force text in Excel
-        const forceText = /^\d{10,}$/.test(str);
-        const escaped = (forceText ? "\t" + str : str).replace(/"/g, '""');
-        return `"${escaped}"`;
-      };
-
-      const headers = [
-        "DTN",
-        "Username",
-        "Full Name",
-        "Drug / Application",
-        "Date Received",
-        "Step",
-        "Timeline",
-        "Status",
-      ];
-
-      const csvRows = allRows.map((r) => [
-        csvCell(r.dtn || ""),
-        csvCell(r.user_name || ""),
-        csvCell(r.full_name || ""),
-        csvCell(r.drug_name || ""),
-        csvCell(formatDate(r.date_received_cent)),
-        csvCell(r.app_step || ""),
-        csvCell(r.timeline || ""),
-        csvCell(r.app_status || ""),
-      ]);
-
-      const headerRow = headers.map((h) => `"${h}"`).join(",");
-      const dataRows = csvRows.map((row) => row.join(","));
-      const csvContent = [headerRow, ...dataRows].join("\n");
-
-      // UTF-8 BOM so Excel opens it correctly without encoding issues
-      const BOM = "\uFEFF";
-      const blob = new Blob([BOM + csvContent], {
-        type: "text/csv;charset=utf-8;",
-      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      const dateStr = new Date().toISOString().slice(0, 10);
-      link.download = `records_report_${dateStr}.csv`;
+      link.download = `records_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1764,6 +1696,113 @@ export default function AllRecords({
           onClose={handleCloseModal}
           colors={colors}
         />
+      )}
+
+      {/* ── Generating Report Modal ── */}
+      {reportLoading && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 5000,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <style>{`
+            @keyframes report-spin {
+              to { transform: rotate(360deg); }
+            }
+            @keyframes report-bar {
+              0%   { left: -40%; }
+              100% { left: 100%; }
+            }
+          `}</style>
+
+          <div
+            role="alertdialog"
+            aria-busy="true"
+            aria-live="polite"
+            style={{
+              background: ui.cardBg,
+              border: `1px solid ${ui.cardBorder}`,
+              borderRadius: 14,
+              boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
+              width: 320,
+              maxWidth: "90vw",
+              padding: "26px 24px 22px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              fontFamily: font,
+            }}
+          >
+            {/* Spinner */}
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: "50%",
+                border: `4px solid ${ui.progressBg}`,
+                borderTopColor: FB,
+                animation: "report-spin 0.8s linear infinite",
+                marginBottom: 16,
+              }}
+            />
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.92rem",
+                fontWeight: 700,
+                color: ui.textPrimary,
+              }}
+            >
+              Generating report…
+            </p>
+            <p
+              style={{
+                margin: "6px 0 16px",
+                fontSize: "0.74rem",
+                color: ui.textMuted,
+                lineHeight: 1.5,
+              }}
+            >
+              Preparing {total.toLocaleString()} record
+              {total !== 1 ? "s" : ""} for download.
+              <br />
+              Please don&apos;t close this page.
+            </p>
+
+            {/* Indeterminate progress bar */}
+            <div
+              style={{
+                position: "relative",
+                width: "100%",
+                height: 4,
+                borderRadius: 99,
+                background: ui.progressBg,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  height: "100%",
+                  width: "40%",
+                  borderRadius: 99,
+                  background: FB,
+                  animation: "report-bar 1.2s ease-in-out infinite",
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
