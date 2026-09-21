@@ -5,8 +5,8 @@ import {
   getRareDiseaseBreakdown,
   getFluVaccineBreakdown,
   getPneumococcalBreakdown,
+  getTbMedsBreakdown,
 } from "../../../api/priority-meds";
-
 const FB = "#1877F2";
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -51,6 +51,16 @@ const TABS = [
     valueKey: "total_count",
     valueLabel: "Total Count",
     exportFilename: "pneumococcal-breakdown",
+  },
+  {
+    key: "tb-meds",
+    label: "TB Meds",
+    fetcher: getTbMedsBreakdown,
+    groupKey: "pharma_category",
+    groupLabel: "Pharmaceutical Category",
+    valueKey: "total_count",
+    valueLabel: "Total Count",
+    exportFilename: "tb-meds-breakdown",
   },
 ];
 function PriorityMedsView({ ui, darkMode }) {
