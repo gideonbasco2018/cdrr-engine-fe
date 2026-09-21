@@ -438,6 +438,7 @@ export default function AllRecords({
   const [dtnInput, setDtnInput] = useState("");
   const [stepFilter, setStepFilter] = useState("");
   const [localStatusFilter, setLocalStatusFilter] = useState("");
+  const [latestOnly, setLatestOnly] = useState(false);
 
   const [dtnFromYear, setDtnFromYear] = useState("");
   const [dtnFromMonth, setDtnFromMonth] = useState("");
@@ -555,6 +556,7 @@ export default function AllRecords({
       if (localStatusFilter) params.application_status = localStatusFilter;
       if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
       if (dtnDateTo) params.dtn_date_to = dtnDateTo;
+      if (latestOnly) params.latest_only = true;
 
       const data = await getAllRecords(params);
       setRecords(data.data || []);
@@ -577,6 +579,7 @@ export default function AllRecords({
     localStatusFilter,
     dtnDateFrom,
     dtnDateTo,
+    latestOnly,
   ]);
 
   useEffect(() => {
@@ -596,6 +599,7 @@ export default function AllRecords({
     stepFilter,
     dtnDateFrom,
     dtnDateTo,
+    latestOnly,
   ]);
 
   const toggleSort = (col) => {
@@ -644,6 +648,7 @@ export default function AllRecords({
       if (localStatusFilter) params.application_status = localStatusFilter;
       if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
       if (dtnDateTo) params.dtn_date_to = dtnDateTo;
+      if (latestOnly) params.latest_only = true;
 
       const blob = await exportRecordsReport(params);
 
@@ -663,6 +668,7 @@ export default function AllRecords({
   };
 
   const handleReset = () => {
+    setLatestOnly(false);
     setDateFrom("");
     setDateTo("");
     setDtnInput("");
@@ -828,6 +834,70 @@ export default function AllRecords({
                 />
               </div>
             ))}
+
+            {/* Latest log only toggle */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={latestOnly}
+              onClick={() => setLatestOnly((v) => !v)}
+              title="ON: shows only one row per DTN (most recent log). OFF: shows all logs."
+              style={{
+                alignSelf: "flex-end",
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: `1px solid ${latestOnly ? FB : ui.cardBorder}`,
+                background: latestOnly
+                  ? darkMode
+                    ? "#1a2744"
+                    : "#e7f0fd"
+                  : "transparent",
+                cursor: "pointer",
+                fontFamily: font,
+                transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {/* switch track */}
+              <span
+                style={{
+                  position: "relative",
+                  width: 26,
+                  height: 14,
+                  borderRadius: 99,
+                  background: latestOnly ? FB : ui.progressBg,
+                  transition: "background 0.15s",
+                  flexShrink: 0,
+                }}
+              >
+                {/* knob */}
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 2,
+                    left: latestOnly ? 14 : 2,
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transition: "left 0.15s",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                  }}
+                />
+              </span>
+              <span
+                style={{
+                  fontSize: "0.66rem",
+                  fontWeight: 600,
+                  color: latestOnly ? FB : ui.textMuted,
+                }}
+              >
+                Latest log only
+              </span>
+            </button>
 
             <button
               onClick={handleReset}
