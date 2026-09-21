@@ -716,7 +716,7 @@ export default function AllRecords({
   const TL = darkMode ? timelineColorsDark : timelineColors;
   const SP = darkMode ? stepColorsDark : stepColors;
 
-  const GRID = "1.4fr 1.1fr 1.8fr 0.95fr 0.85fr 1fr 0.9fr 0.85fr 0.5fr";
+  const GRID = "1.4fr 1.1fr 1.8fr 1.25fr 0.85fr 1fr 0.9fr 0.85fr 0.5fr";
 
   const fromLabel = dtnSideLabel(dtnFromYear, dtnFromMonth, dtnFromDay);
   const toLabel = dtnSideLabel(dtnToYear, dtnToMonth, dtnToDay);
@@ -819,21 +819,43 @@ export default function AllRecords({
               </select>
             </div>
 
-            {/* Date range */}
-            {[
-              { label: "From", val: dateFrom, set: setDateFrom },
-              { label: "To", val: dateTo, set: setDateTo },
-            ].map(({ label, val, set }) => (
-              <div key={label}>
-                <label style={labelSt}>{label}</label>
+            {/* Date Received From Center range */}
+            <div>
+              <label
+                style={{
+                  ...labelSt,
+                  color: dateFrom || dateTo ? FB : ui.textMuted,
+                }}
+              >
+                Date Received From Center
+              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <input
                   type="date"
-                  value={val}
-                  onChange={(e) => set(e.target.value)}
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  title="Date Received From Center: From"
+                  style={inputSt}
+                />
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: dateFrom || dateTo ? FB : ui.textMuted,
+                    opacity: dateFrom || dateTo ? 1 : 0.4,
+                    lineHeight: 1,
+                  }}
+                >
+                  →
+                </span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  title="Date Received From Center: To"
                   style={inputSt}
                 />
               </div>
-            ))}
+            </div>
 
             {/* Latest log only toggle */}
             <button
@@ -1118,7 +1140,7 @@ export default function AllRecords({
               { label: "DTN", col: "dtn" },
               { label: "User", col: "user" },
               { label: "Drug / Application", col: "drug" },
-              { label: "Date", col: "date" },
+              { label: "Date Received From Center", col: "date" },
               { label: "Entry Type", col: "entry_type" },
               { label: "Step", col: "step" },
               { label: "Timeline", col: "timeline" },
