@@ -1697,6 +1697,113 @@ export default function AllRecords({
           colors={colors}
         />
       )}
+
+      {/* ── Generating Report Modal ── */}
+      {reportLoading && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 5000,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <style>{`
+            @keyframes report-spin {
+              to { transform: rotate(360deg); }
+            }
+            @keyframes report-bar {
+              0%   { left: -40%; }
+              100% { left: 100%; }
+            }
+          `}</style>
+
+          <div
+            role="alertdialog"
+            aria-busy="true"
+            aria-live="polite"
+            style={{
+              background: ui.cardBg,
+              border: `1px solid ${ui.cardBorder}`,
+              borderRadius: 14,
+              boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
+              width: 320,
+              maxWidth: "90vw",
+              padding: "26px 24px 22px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              fontFamily: font,
+            }}
+          >
+            {/* Spinner */}
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: "50%",
+                border: `4px solid ${ui.progressBg}`,
+                borderTopColor: FB,
+                animation: "report-spin 0.8s linear infinite",
+                marginBottom: 16,
+              }}
+            />
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.92rem",
+                fontWeight: 700,
+                color: ui.textPrimary,
+              }}
+            >
+              Generating report…
+            </p>
+            <p
+              style={{
+                margin: "6px 0 16px",
+                fontSize: "0.74rem",
+                color: ui.textMuted,
+                lineHeight: 1.5,
+              }}
+            >
+              Preparing {total.toLocaleString()} record
+              {total !== 1 ? "s" : ""} for download.
+              <br />
+              Please don&apos;t close this page.
+            </p>
+
+            {/* Indeterminate progress bar */}
+            <div
+              style={{
+                position: "relative",
+                width: "100%",
+                height: 4,
+                borderRadius: 99,
+                background: ui.progressBg,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  height: "100%",
+                  width: "40%",
+                  borderRadius: 99,
+                  background: FB,
+                  animation: "report-bar 1.2s ease-in-out infinite",
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
