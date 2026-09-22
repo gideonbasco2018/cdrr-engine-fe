@@ -563,6 +563,7 @@ function DeckingPage({ darkMode }) {
   // null = hidden, or { step: 0-3, pct: 0-100 }
   const [showColumnsModal, setShowColumnsModal] = useState(false);
   const [showAddTaskModal, setShowAddTaskModal] = useState(false);
+  const [dtnSearchInfo, setDtnSearchInfo] = useState(null); // { requested: [], notFound: [] } | null
   const colors = getColorScheme(darkMode);
 
   const activeFilterCount =
@@ -810,6 +811,56 @@ function DeckingPage({ darkMode }) {
     sortBy,
     sortOrder,
   ]);
+  // ── Dedicated DTN existence check — hiwalay sa Application Type / Status
+  // / atbp. filters. Sinasagot lang nito: "existing ba ang DTN na ito sa DB?"
+  useEffect(() => {
+    const checkDtns = async () => {
+      const requested = filters.dtns
+        ? filters.dtns
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [];
+
+      if (requested.length === 0) {
+        setDtnSearchInfo(null);
+        return;
+      }
+
+      try {
+        const res = await getUploadReports({
+          page: 1,
+          pageSize: requested.length + 10,
+          dtns: filters.dtns,
+        });
+        const foundSet = new Set(
+          (res.data || []).map((row) =>
+            String(row.DB_DTN ?? row.dtn ?? "").trim(),
+          ),
+        );
+        const notFound = requested.filter((d) => !foundSet.has(d));
+
+        // ── Detect duplicate DTNs sa pinaste mong listahan ──
+        const seen = new Set();
+        const duplicates = [];
+        requested.forEach((d) => {
+          if (seen.has(d)) duplicates.push(d);
+          else seen.add(d);
+        });
+
+        setDtnSearchInfo({
+          requested,
+          notFound,
+          uniqueCount: seen.size,
+          duplicates,
+        });
+      } catch (err) {
+        console.error("DTN existence check failed:", err);
+        setDtnSearchInfo(null);
+      }
+    };
+    checkDtns();
+  }, [filters.dtns]);
 
   const refreshData = async () => {
     try {
@@ -1536,6 +1587,101 @@ function DeckingPage({ darkMode }) {
             prescriptionTab={prescriptionTab}
             appStatusTab={appStatusTab}
           />
+
+          {dtnSearchInfo &&
+            (dtnSearchInfo.notFound.length > 0 ||
+              dtnSearchInfo.duplicates.length > 0) && (
+              <div
+                style={{
+                  background: darkMode ? "#3a2a0a" : "#fff3e0",
+                  border: "1px solid #f59e0b",
+                  borderRadius: "8px",
+                  padding: "0.6rem 0.85rem",
+                  marginBottom: "0.75rem",
+                  fontSize: "0.75rem",
+                  color: darkMode ? "#fbbf24" : "#92400e",
+                }}
+              >
+                <div style={{ marginBottom: "0.4rem" }}>
+                  📋 Pasted: <strong>{dtnSearchInfo.requested.length}</strong>{" "}
+                  lines · Unique DTNs:{" "}
+                  <strong>{dtnSearchInfo.uniqueCount}</strong>
+                  {dtnSearchInfo.duplicates.length > 0 && (
+                    <>
+                      {" "}
+                      · Duplicates removed:{" "}
+                      <strong>{dtnSearchInfo.duplicates.length}</strong>
+                    </>
+                  )}
+                </div>
+
+                {dtnSearchInfo.notFound.length > 0 && (
+                  <>
+                    <strong>
+                      ⚠️ {dtnSearchInfo.notFound.length} DTN
+                      {dtnSearchInfo.notFound.length > 1 ? "s" : ""} not found
+                      in the database:
+                    </strong>
+                    <div
+                      style={{
+                        marginTop: "0.4rem",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "0.35rem",
+                      }}
+                    >
+                      {dtnSearchInfo.notFound.map((dtn) => (
+                        <span
+                          key={dtn}
+                          style={{
+                            background: darkMode ? "#1a1a1a" : "#fff",
+                            border: "1px solid #f59e0b60",
+                            borderRadius: "6px",
+                            padding: "0.15rem 0.55rem",
+                            fontFamily: "monospace",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {dtn}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+
+                {dtnSearchInfo.duplicates.length > 0 && (
+                  <div style={{ marginTop: "0.5rem" }}>
+                    <strong>🔁 Duplicate DTNs in your paste:</strong>
+                    <div
+                      style={{
+                        marginTop: "0.4rem",
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: "0.35rem",
+                      }}
+                    >
+                      {dtnSearchInfo.duplicates.map((dtn, i) => (
+                        <span
+                          key={`${dtn}-${i}`}
+                          style={{
+                            background: darkMode ? "#1a1a1a" : "#fff",
+                            border: "1px solid #6366f160",
+                            borderRadius: "6px",
+                            padding: "0.15rem 0.55rem",
+                            fontFamily: "monospace",
+                            fontWeight: 700,
+                            color: "#6366f1",
+                          }}
+                        >
+                          {dtn}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
           <UploadProgress message={uploadProgress} colors={colors} />
           <ActiveFiltersBar
             subTab={subTab}
