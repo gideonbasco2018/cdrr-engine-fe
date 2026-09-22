@@ -793,6 +793,9 @@ export default function AllRecords({
               gap: 6,
               alignItems: "flex-end",
               flexWrap: "wrap",
+              opacity: loading ? 0.55 : 1,
+              pointerEvents: loading ? "none" : "auto",
+              transition: "opacity 0.15s",
             }}
           >
             {/* DTN */}
@@ -881,7 +884,10 @@ export default function AllRecords({
               type="button"
               role="switch"
               aria-checked={latestOnly}
-              onClick={() => setLatestOnly((v) => !v)}
+              onClick={() => {
+                setLatestOnly((v) => !v);
+                setFirstOnly(false);
+              }}
               title="ON: shows only one row per DTN (most recent log). OFF: shows all logs."
               style={{
                 alignSelf: "flex-end",
@@ -945,7 +951,10 @@ export default function AllRecords({
               type="button"
               role="switch"
               aria-checked={firstOnly}
-              onClick={() => setFirstOnly((v) => !v)}
+              onClick={() => {
+                setFirstOnly((v) => !v);
+                setLatestOnly(false);
+              }}
               title="When filtered by a Step: shows only the first time each DTN reached that step (e.g. the first 'S&E', not the third)."
               style={{
                 alignSelf: "flex-end",
@@ -1065,10 +1074,12 @@ export default function AllRecords({
                   ? "#07121f"
                   : "#f5f9ff"
                 : colHdr,
-              transition: "background 0.2s",
+              transition: "background 0.2s, opacity 0.15s",
               borderLeft: rangeActive
                 ? `3px solid ${FB}`
                 : `3px solid transparent`,
+              opacity: loading ? 0.55 : 1,
+              pointerEvents: loading ? "none" : "auto",
             }}
           >
             <div
