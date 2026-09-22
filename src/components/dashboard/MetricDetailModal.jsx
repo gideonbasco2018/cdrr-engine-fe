@@ -165,7 +165,7 @@ export default function MetricDetailModal({
     secpa: r.secpa ?? "N/A",
     appType: r.app_type ?? "N/A",
     regNo: r.reg_no ?? "N/A",
-    typeDocReleased: r.app_step ?? "N/A",
+    typeDocReleased: r.type_doc_released ?? "N/A",
     attaReleased: r.atta_released ?? "N/A",
     dateReleased: r.end_date
       ? new Date(r.end_date).toLocaleDateString("en-PH", {
