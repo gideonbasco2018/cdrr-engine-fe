@@ -453,6 +453,7 @@ export default function AllRecords({
   const [stepFilter, setStepFilter] = useState("");
   const [localStatusFilter, setLocalStatusFilter] = useState("");
   const [latestOnly, setLatestOnly] = useState(false);
+  const [firstOnly, setFirstOnly] = useState(false);
 
   const [dtnFromYear, setDtnFromYear] = useState("");
   const [dtnFromMonth, setDtnFromMonth] = useState("");
@@ -571,7 +572,7 @@ export default function AllRecords({
       if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
       if (dtnDateTo) params.dtn_date_to = dtnDateTo;
       if (latestOnly) params.latest_only = true;
-
+      if (firstOnly) params.first_only = true;
       const data = await getAllRecords(params);
       setRecords(data.data || []);
       setTotal(data.total || 0);
@@ -594,6 +595,7 @@ export default function AllRecords({
     dtnDateFrom,
     dtnDateTo,
     latestOnly,
+    firstOnly,
   ]);
 
   useEffect(() => {
@@ -614,6 +616,7 @@ export default function AllRecords({
     dtnDateFrom,
     dtnDateTo,
     latestOnly,
+    firstOnly,
   ]);
 
   const toggleSort = (col) => {
@@ -663,6 +666,7 @@ export default function AllRecords({
       if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
       if (dtnDateTo) params.dtn_date_to = dtnDateTo;
       if (latestOnly) params.latest_only = true;
+      if (firstOnly) params.first_only = true;
 
       const blob = await exportRecordsReport(params);
 
@@ -683,6 +687,7 @@ export default function AllRecords({
 
   const handleReset = () => {
     setLatestOnly(false);
+    setFirstOnly(false);
     setDateFrom("");
     setDateTo("");
     setDtnInput("");
@@ -932,6 +937,68 @@ export default function AllRecords({
                 }}
               >
                 Latest log only
+              </span>
+            </button>
+
+            {/* First occurrence only toggle */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={firstOnly}
+              onClick={() => setFirstOnly((v) => !v)}
+              title="When filtered by a Step: shows only the first time each DTN reached that step (e.g. the first 'S&E', not the third)."
+              style={{
+                alignSelf: "flex-end",
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: `1px solid ${firstOnly ? FB : ui.cardBorder}`,
+                background: firstOnly
+                  ? darkMode
+                    ? "#1a2744"
+                    : "#e7f0fd"
+                  : "transparent",
+                cursor: "pointer",
+                fontFamily: font,
+                transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span
+                style={{
+                  position: "relative",
+                  width: 26,
+                  height: 14,
+                  borderRadius: 99,
+                  background: firstOnly ? FB : ui.progressBg,
+                  transition: "background 0.15s",
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 2,
+                    left: firstOnly ? 14 : 2,
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transition: "left 0.15s",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                  }}
+                />
+              </span>
+              <span
+                style={{
+                  fontSize: "0.66rem",
+                  fontWeight: 600,
+                  color: firstOnly ? FB : ui.textMuted,
+                }}
+              >
+                First occurrence only
               </span>
             </button>
 
