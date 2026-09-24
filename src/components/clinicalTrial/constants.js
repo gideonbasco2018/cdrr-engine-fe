@@ -49,24 +49,44 @@ export const TRIAL_FIELD_GROUPS = [
       { key: "croContact", label: "CRO Contact Info" },
     ],
   },
-  {
-    title: "Investigational Product",
-    fields: [
-      { key: "ipName", label: "Name of IP/Comparator/Placebo/OM", type: "textarea" },
-      { key: "dosageStrength", label: "Dosage Strength" },
-      { key: "pharmaForm", label: "Pharmaceutical Form" },
-      { key: "drugType", label: "Type of Drug" },
-    ],
-  },
-  {
+
+   {
     title: "IL Approval",
     fields: [
       { key: "ilApprovalNo", label: "IL Approval Number" },
       { key: "ilApprovalDate", label: "IL Initial Approval Date", type: "date" },
-      { key: "totalQtyApprove", label: "Total Qty Approved", type: "number" },
     ],
   },
 ];
+
+// ── Field metadata for ONE drug/IP row (the "many" side). Rendered as a
+//    repeatable block in the Update modal, with add/remove controls. ──
+export const DRUG_FIELD_DEFS = [
+  { key: "ipName", label: "Name of IP/Comparator/Placebo/OM", type: "textarea" },
+  { key: "dosageStrength", label: "Dosage Strength" },
+  { key: "pharmaForm", label: "Pharmaceutical Form" },
+  { key: "drugType", label: "Type of Drug" },
+  { key: "totalQtyApprove", label: "Total Qty Approved", type: "number" },
+];
+
+export const EMPTY_DRUG = {
+  ipName: "",
+  dosageStrength: "",
+  pharmaForm: "",
+  drugType: "",
+  totalQtyApprove: 0,
+};
+
+// snake_case labels for one drug row, used when rendering an audit log
+// entry for the "drugs" field (matches CLINICAL_TRIAL_DRUG_COLUMNS on
+// the backend).
+export const DRUG_FIELD_API_LABELS = {
+  ip_name: "Name of IP/Comparator/Placebo/OM",
+  dosage_strength: "Dosage Strength",
+  pharma_form: "Pharmaceutical Form",
+  drug_type: "Type of Drug",
+  total_qty_approve: "Total Qty Approved",
+};
 
 // ── camelCase label lookup, used to build the "Confirm Changes" diff ──
 export const FIELD_LABEL_MAP = TRIAL_FIELD_GROUPS.flatMap((g) => g.fields).reduce(
@@ -87,11 +107,9 @@ export const API_FIELD_LABELS = {
   cro_address: "CRO Address",
   cro_contact: "CRO Contact Info",
   ct_ref_no: "CT Reference Number",
-  ip_name: "Name of IP/Comparator/Placebo/OM",
-  dosage_strength: "Dosage Strength",
-  pharma_form: "Pharmaceutical Form",
-  drug_type: "Type of Drug",
   il_approval_no: "IL Approval Number",
   il_approval_date: "IL Initial Approval Date",
-  total_qty_approve: "Total Qty Approved",
+  // The drugs array is handled as a special case in AuditLogEntry,
+  // not as a plain scalar old/new value.
+  drugs: "Investigational Products",
 };
