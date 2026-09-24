@@ -90,12 +90,36 @@ export const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetic
 // modal's Details dropdown and the batch folder upload's "new record" form, so
 // a record created in one place never shows an unrecognized value in the other.
 export const GMP_TRANSACTION_TYPE_OPTIONS = [
+  "COC",
+  "COMPLIANCE",
   "INITIAL",
-  "RENEWAL",
   "RECONSTRUCTION",
-  "CORRECTION",
-  "COMPLIANCE DOCUMENTS",
+  "RENEWAL",
+  "RFD",
 ];
+
+// Canonical FGMP category list — drives the PIC/S (60 working days) vs
+// NON PIC/S (153 working days) timeline allotment (_apply_category_timeline
+// in app/crud/gmp_record.py), so a free-text/typo'd value here silently
+// breaks that auto-fill. Moved here from WorkflowModal.jsx's own local
+// constant for the same reason GMP_TRANSACTION_TYPE_OPTIONS was: one list,
+// shared by every place that edits Category, so it can never drift.
+export const GMP_CATEGORY_OPTIONS = ["PIC/S", "NON PIC/S", "LETTER and CORRECTION"];
+
+// Canonical FGMP Type of Issuance options — "approved" list plus the single
+// disapproved value. Moved here from WorkflowModal.jsx's own local constants
+// for the same reason.
+export const GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS = [
+  "CGMP Clearance",
+  "CGMP Clearance - COC",
+  "Notice for Inspection - Fresh Application",
+  "Notice for Inspection - Renewal Application",
+  "NFI due to Non-compliance",
+  "Extension of Validity",
+  "Permit to Register",
+  "Acknowledgement Letter",
+];
+export const GMP_DISAPPROVED_TYPE_OF_ISSUANCE = "Letter of Disapproval";
 
 // Shared per-field accent colors for Category / Transaction Type / Issuance
 // Type chips — used by both QueueTable.jsx and TasksTable.jsx so the same

@@ -17,14 +17,28 @@ import GMPRerouteModal from "../components/gmp/queue/GMPRerouteModal";
 import GMPApplicationInfoModal from "../components/gmp/queue/GMPApplicationInfoModal";
 import GMPDocumentsModal from "../components/gmp/queue/GMPDocumentsModal";
 import GMPExportColumnsModal from "../components/gmp/queue/GMPExportColumnsModal";
+import UpdateAppInfoModal from "../components/gmp/queue/UpdateAppInfoModal";
 import {
   generateGMPTransmittalPDF,
   generateGMPTransmittalExcel,
   generateGMPTransmittal,
 } from "../components/tasks/DataTable/TransmittalGenerator";
 import { FONT } from "../components/gmp/shared/constants";
+import { getCurrentUser } from "../api/auth";
 
 const ACCENT = "#6366f1";
+
+// Groups allowed to edit an application's main info directly from the Queue
+// (Update App Info), independent of whose task it currently is — mirrors the
+// same userInAllowedGroups pattern TargetAssignmentsPage.jsx uses for its own
+// group-restricted tabs. Real names confirmed against the `groups` table —
+// note group_id 30 is actually named "FGMP Decker", not "Decking".
+const ALLOWED_UPDATE_INFO_GROUPS = ["FGMP Decker", "FGMP Checker", "FGMP QA Admin", "LRD Chief Admin", "IT"];
+function userInAllowedGroups(user, allowedNames) {
+  if (!user?.groups) return false;
+  const allowedLower = allowedNames.map((n) => n.toLowerCase());
+  return user.groups.some((g) => allowedLower.includes((g.name || "").toLowerCase()));
+}
 
 // All queue-table column keys, and the ones added recently enough that existing
 // users' saved column prefs won't include them — those get force-shown once
@@ -703,9 +717,17 @@ export default function GMPQueuePage({ darkMode = false }) {
   const [reassignRecord, setReassignRecord] = useState(null);
   const [rerouteRecord,  setRerouteRecord]  = useState(null);
   const [infoRecord, setInfoRecord] = useState(null);
+  const [updateInfoRecord, setUpdateInfoRecord] = useState(null);
   const [docsRecord, setDocsRecord] = useState(null);
   const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
   const [generatingTransmittal, setGeneratingTransmittal] = useState(false);
+
+  // Who's allowed to see/use "Update App Info" — FGMP Decker or IT only.
+  const [currentUser, setCurrentUser] = useState(null);
+  useEffect(() => {
+    getCurrentUser().then(setCurrentUser).catch(() => setCurrentUser(null));
+  }, []);
+  const canEditInfo = userInAllowedGroups(currentUser, ALLOWED_UPDATE_INFO_GROUPS);
 
   // Debounce search
   useEffect(() => {
@@ -952,8 +974,35 @@ export default function GMPQueuePage({ darkMode = false }) {
         {/* Toolbar card — top bar + search share one soft, rounded surface
             instead of flush bars butted against the viewport edge. Record
             count/filters live with the table below instead (its own card),
-            since that row is really the table's header, not toolbar chrome. */}
-        <div style={{
+            since that row is really the table's header, not toolbar chrome.
+            Sizing is driven by CSS custom properties (--gmp-toolbar-*),
+            shrunk at narrower effective viewport widths — this covers both a
+            genuinely narrower window AND a laptop with higher Windows
+            display scaling (which shrinks the CSS pixel viewport the same
+            way a narrower monitor would, even at the same 100% browser
+            zoom), so the toolbar doesn't visually dominate the page on
+            either. GmpToolbarStyle below defines both tiers; TopTabs
+            (QueueFilters.jsx) reads the same variables since it renders
+            inside this same card. */}
+        <style>{`
+          .gmp-toolbar-card {
+            --gmp-tab-pad: 7px 16px; --gmp-tab-font: 0.8rem; --gmp-tab-count-font: 0.65rem;
+            --gmp-toggle-pad: 5px 9px; --gmp-toggle-font: 0.7rem;
+            --gmp-btn-pad: 7px 14px; --gmp-btn-font: 0.75rem;
+            --gmp-search-pad: 8px 12px 8px 34px; --gmp-search-font: 0.78rem;
+            --gmp-adv-pad: 8px 14px; --gmp-adv-font: 0.75rem;
+          }
+          @media (max-width: 1500px) {
+            .gmp-toolbar-card {
+              --gmp-tab-pad: 5px 10px; --gmp-tab-font: 0.68rem; --gmp-tab-count-font: 0.58rem;
+              --gmp-toggle-pad: 4px 7px; --gmp-toggle-font: 0.62rem;
+              --gmp-btn-pad: 5px 9px; --gmp-btn-font: 0.66rem;
+              --gmp-search-pad: 6px 10px 6px 28px; --gmp-search-font: 0.68rem;
+              --gmp-adv-pad: 6px 10px; --gmp-adv-font: 0.66rem;
+            }
+          }
+        `}</style>
+        <div className="gmp-toolbar-card" style={{
           borderRadius: 14, overflow: "hidden", boxShadow: colors.cardShadow,
           flexShrink: 0,
         }}>
@@ -965,7 +1014,15 @@ export default function GMPQueuePage({ darkMode = false }) {
           flexWrap: "nowrap", gap: 8, background: colors.cardBg, flexShrink: 0,
           overflowX: "auto",
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "nowrap", flexShrink: 1, minWidth: 0 }}>
+          {/* flexShrink: 0 — matches the button group on the right. Letting
+              this shrink (minWidth: 0) told the flex layout it could squeeze
+              this group smaller than its actual content, but the tab labels
+              inside (TopTabs) don't wrap or shrink — the mismatch between
+              "layout thinks it can go smaller" and "content refuses to" is
+              what made the tabs visually overlap the buttons on the right.
+              Declaring the true natural width here lets the outer bar's own
+              overflowX: auto scroll the whole row instead, as intended. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "nowrap", flexShrink: 0 }}>
             <TopTabs active={topTab} onChange={(v) => { setTopTab(v); setPage(1); setSelected([]); }}
               counts={counts} colors={colors} />
 
@@ -986,7 +1043,7 @@ export default function GMPQueuePage({ darkMode = false }) {
                     onClick={() => { setView(v.id); if (v.id !== "main") setDuplicatesOnly(false); setPage(1); }}
                     style={{
                       display: "flex", alignItems: "center", gap: 4,
-                      padding: "5px 9px", fontSize: "0.7rem", fontWeight: isActive ? 700 : 500,
+                      padding: "var(--gmp-toggle-pad, 5px 9px)", fontSize: "var(--gmp-toggle-font, 0.7rem)", fontWeight: isActive ? 700 : 500,
                       fontFamily: FONT, border: "none", borderRadius: 7, cursor: "pointer",
                       background: isActive ? colors.cardBg : "transparent",
                       color: isActive ? colors.textPrimary : colors.textTertiary,
@@ -1010,7 +1067,7 @@ export default function GMPQueuePage({ darkMode = false }) {
                 }
               }}
               style={{
-                padding: "7px 14px", fontSize: "0.75rem", fontWeight: 700,
+                padding: "var(--gmp-btn-pad, 7px 14px)", fontSize: "var(--gmp-btn-font, 0.75rem)", fontWeight: 700,
                 fontFamily: FONT, borderRadius: 8,
                 border: `1px solid ${colors.cardBorder}`,
                 background: "transparent", color: colors.textPrimary,
@@ -1024,7 +1081,7 @@ export default function GMPQueuePage({ darkMode = false }) {
             <button
               onClick={() => setShowUpload(true)}
               style={{
-                padding: "6px 11px", fontSize: "0.72rem", fontWeight: 700,
+                padding: "var(--gmp-btn-pad, 6px 11px)", fontSize: "var(--gmp-btn-font, 0.72rem)", fontWeight: 700,
                 fontFamily: FONT, borderRadius: 8, border: "none",
                 background: ACCENT, color: "#fff",
                 cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
@@ -1039,7 +1096,7 @@ export default function GMPQueuePage({ darkMode = false }) {
               onClick={handleExport}
               disabled={exporting || total === 0}
               style={{
-                padding: "7px 13px", fontSize: "0.75rem", fontWeight: 600,
+                padding: "var(--gmp-btn-pad, 7px 13px)", fontSize: "var(--gmp-btn-font, 0.75rem)", fontWeight: 600,
                 fontFamily: FONT, borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
                 background: "transparent", color: colors.textTertiary,
                 cursor: exporting || total === 0 ? "not-allowed" : "pointer",
@@ -1067,7 +1124,7 @@ export default function GMPQueuePage({ darkMode = false }) {
             <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search any field — DTN, company, address, manufacturer, certificate…"
               style={{
-                width: "100%", padding: "8px 12px 8px 34px", fontSize: "0.78rem",
+                width: "100%", padding: "var(--gmp-search-pad, 8px 12px 8px 34px)", fontSize: "var(--gmp-search-font, 0.78rem)",
                 fontFamily: FONT, borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
                 background: colors.inputBg, color: colors.textPrimary, outline: "none",
                 boxSizing: "border-box",
@@ -1078,7 +1135,7 @@ export default function GMPQueuePage({ darkMode = false }) {
           <button
             onClick={openAdvanced}
             style={{
-              padding: "8px 14px", fontSize: "0.75rem", fontWeight: 700,
+              padding: "var(--gmp-adv-pad, 8px 14px)", fontSize: "var(--gmp-adv-font, 0.75rem)", fontWeight: 700,
               fontFamily: FONT, borderRadius: 8, border: "none",
               background: "#4CAF50",
               color: "#fff", cursor: "pointer",
@@ -1386,6 +1443,8 @@ export default function GMPQueuePage({ darkMode = false }) {
             onOpenReassign={(r) => setReassignRecord(r)}
             onOpenReroute={(r) => setRerouteRecord(r)}
             onOpenInfo={(r) => setInfoRecord(r)}
+            canEditInfo={canEditInfo}
+            onOpenUpdateInfo={(r) => setUpdateInfoRecord(r)}
             onOpenDocuments={(r) => setDocsRecord(r)}
             onDoubleClickRow={handleDoubleClickRow}
             visibleColumns={visibleColumns}
@@ -1469,6 +1528,14 @@ export default function GMPQueuePage({ darkMode = false }) {
           record={infoRecord}
           onClose={() => setInfoRecord(null)}
           onUpdated={fetchRecords}
+          colors={colors} darkMode={darkMode}
+        />
+      )}
+      {updateInfoRecord && (
+        <UpdateAppInfoModal
+          record={updateInfoRecord}
+          onClose={() => setUpdateInfoRecord(null)}
+          onSaved={fetchRecords}
           colors={colors} darkMode={darkMode}
         />
       )}

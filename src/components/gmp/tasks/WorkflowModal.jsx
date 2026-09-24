@@ -244,14 +244,38 @@ const GMP_DOCTRACK_REMARKS = {
 //      advances per the selected Action. The freeform "Remarks (optional)"
 //      box is a separate, manually-typed field for the application log only —
 //      it is never auto-filled by the preset.
+// The Checker's "send it back without checking it" action — Doctrack
+// defaults OFF when this is picked (see handleActionChange) since nothing
+// was actually checked/updated in FIS yet.
+const GMP_CHECKER_RETURN_FOR_REVIEW_ACTION = "Return to evaluator for review (Not Checked, Doctrack Remarks Off)";
+
 const GMP_EVAL_CHECKER_ACTIONS = {
   // "Endorsed to Supervisor" removed — FGMP Supervisor group no longer exists.
   // Printed/for-signature applications now go straight from the Evaluator to QA Admin.
   "Evaluator": ["Endorsed to Checker", "For Compliance", "Endorsed to QA Admin"],
-  "Checker":           ["Endorsed to Evaluator"],
+  // The Checker's single "Endorsed to Evaluator" action was split into two —
+  // both still route back to the Evaluator (see GMP_ACTION_ROUTES on the
+  // backend and GMP_ACTION_ASSIGNEE_GROUPS / GMP_SEND_BACK_ACTIONS below),
+  // they just distinguish "done checking, forward it" from "sending it back
+  // for the evaluator to take another look" (which isn't a checked outcome,
+  // hence the label — see GMP_CHECKER_RETURN_FOR_REVIEW_ACTION).
+  "Checker": ["Checked and returned to evaluator", GMP_CHECKER_RETURN_FOR_REVIEW_ACTION],
 };
 
-const GMP_APPROVAL_DECISION_OPTIONS = ["For Approval", "Approved", "Disapproved", "Cancelled Application"];
+// Recommendation options are scoped per step — the Evaluator's is an early,
+// non-final recommendation, the Checker's reflects the outcome of checking.
+const GMP_RECOMMENDATION_OPTIONS = {
+  "Evaluator": ["For Approval", "For Disapproval", "For Cancellation"],
+  "Checker": ["For Re-evaluation", "For E-NOD", "For Printing (Approval)", "For Printing (Disapproval)"],
+};
+
+// Per-step value that locks Type of Issuance to "Letter of Disapproval" (see
+// needsTypeOfIssuance / handleApprovalDecisionChange below). Mirrors whichever
+// GMP_RECOMMENDATION_OPTIONS entry represents "disapproved" for that step.
+const GMP_DISAPPROVAL_RECOMMENDATION = {
+  "Evaluator": "For Disapproval",
+  "Checker": "For Printing (Disapproval)",
+};
 
 // staysOpen: true  -> log stays open on the same step/assignee; only the app
 //                      log + Doctrack are updated, no advanceStep call.
@@ -278,9 +302,12 @@ const GMP_REMARKS_PRESETS = {
     ],
   },
   "Checker": {
-    "Endorsed to Evaluator": [
+    "Checked and returned to evaluator": [
       { value: "Checked; Returned to evaluator for Printing", staysOpen: false },
       { value: "Checked; Returned to Evaluator",              staysOpen: false },
+    ],
+    [GMP_CHECKER_RETURN_FOR_REVIEW_ACTION]: [
+      { value: "Returned to Evaluator for review", staysOpen: false },
     ],
   },
 };
@@ -374,12 +401,15 @@ const GMP_ACTION_ASSIGNEE_GROUPS = {
   "Forwarded to Evaluator":      { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
   "Endorsed to Checker":         { groupId: 32, shortLabel: "Checking",         groupLabel: "Checking Group" },
   "Endorsed to QA Admin":        { groupId: 34, shortLabel: "QA Admin",         groupLabel: "QA Admin Group" },
-  "Endorsed to Evaluator":       { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
+  // The Checker's two forwarding-back-to-Evaluator actions (split from the
+  // former single "Endorsed to Evaluator") — same target group either way.
+  "Checked and returned to evaluator": { groupId: 31, shortLabel: "Evaluator", groupLabel: "Evaluator Group" },
+  [GMP_CHECKER_RETURN_FOR_REVIEW_ACTION]: { groupId: 31, shortLabel: "Evaluator", groupLabel: "Evaluator Group" },
   "Endorsed to LRD Chief Admin": { groupId: 17, shortLabel: "LRD Chief Admin",  groupLabel: "LRD Chief Admin Group" },
   "Forwarded to OD Receiving":   { groupId: 18, shortLabel: "OD Receiving",     groupLabel: "OD Receiving Group" },
   "Endorsed to OD - Releasing":  { groupId: 19, shortLabel: "OD Releasing",     groupLabel: "OD Releasing Group" },
   // FROO hands the NFI back to the Evaluator — same target group as the
-  // Checker's "Endorsed to Evaluator", different action string.
+  // Checker's return-to-Evaluator actions, different action string.
   "Forwarded to CDRR FGMP":       { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
   // ── Send-back actions ────────────────────────────────────────────────────
   "Return to Evaluator":         { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
@@ -395,7 +425,8 @@ const GMP_SEND_BACK_ACTIONS = new Set([
   "Return to Evaluator",
   "Return to QA Admin",
   "Return to LRD Chief Admin",
-  "Endorsed to Evaluator",   // the Checker's return to the Evaluator
+  "Checked and returned to evaluator",     // the Checker's return to the Evaluator
+  GMP_CHECKER_RETURN_FOR_REVIEW_ACTION,    // the Checker's return to the Evaluator
 ]);
 // Resolves task.applicationStep to the canonical "Evaluator" / "Checker" key used
 // by GMP_EVAL_CHECKER_ACTIONS / GMP_REMARKS_PRESETS below. Accepts both the new
@@ -2004,7 +2035,7 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
   needsAuthority, authorityOptions, loadingAuthority, decisionAuthorityId, onAuthorityChange,
   needsApprovalFields, certNumber, setCertNumber, typeOfIssuance, setTypeOfIssuance, certValidity, setCertValidity,
   dirtyFields, isEvalOrChecker, actionOptions, actionValue, onActionChange,
-  approvalDecision, onApprovalDecisionChange, remarksPresetOptions, remarksPresetValue, onRemarksPresetChange,
+  approvalDecision, onApprovalDecisionChange, recommendationOptions, remarksPresetOptions, remarksPresetValue, onRemarksPresetChange,
   needsTypeOfIssuance, typeOfIssuanceOptions, typeOfIssuanceValue, onTypeOfIssuanceChange, typeOfIssuanceLocked,
   needsAssigneeGroup, assigneeGroupConfig, assigneeGroupOptions, loadingAssigneeGroup, assigneeUserId, onAssigneeGroupChange,
   sendBackAction,
@@ -2261,7 +2292,7 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
             <div className="wfFieldBox" style={box}>
               <label style={boxLbl}>Recommendation <span style={{ color: "#ef4444" }}>*</span></label>
               <GmpSelect value={approvalDecision} onChange={onApprovalDecisionChange} placeholder="Select recommendation…"
-                options={GMP_APPROVAL_DECISION_OPTIONS} colors={colors} ariaLabel="Recommendation" allowClear={false} />
+                options={recommendationOptions} colors={colors} ariaLabel="Recommendation" allowClear={false} />
             </div>
           )}
           {needsTypeOfIssuance && (
@@ -2276,11 +2307,6 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
               )}
             </div>
           )}
-          <div className="wfFieldBox" style={box}>
-            <label style={boxLbl}>Remarks Preset <span style={{ color: "#ef4444" }}>*</span></label>
-            <GmpSelect value={remarksPresetValue} onChange={onRemarksPresetChange} placeholder="Select remarks…"
-              options={remarksPresetOptions.map(r => r.value)} colors={colors} ariaLabel="Remarks Preset" allowClear={false} />
-          </div>
           {needsNodDate && (
             <div className="wfFieldBox" style={{ ...box, maxWidth: 220 }}>
               <label style={boxLbl}>{nodDateLabel} <span style={{ color: "#ef4444" }}>*</span></label>
@@ -2461,6 +2487,14 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
           placeholder="Add any notes…"
           style={{ ...boxInp, resize: "vertical", fontFamily: FONT }} />
       </div>
+
+      {isEvalOrChecker && (
+        <div className="wfFieldBox" style={box}>
+          <label style={boxLbl}>Doctrack Remarks Preset <span style={{ color: "#ef4444" }}>*</span></label>
+          <GmpSelect value={remarksPresetValue} onChange={onRemarksPresetChange} placeholder="Select remarks…"
+            options={remarksPresetOptions.map(r => r.value)} colors={colors} ariaLabel="Doctrack Remarks Preset" allowClear={false} />
+        </div>
+      )}
 
       <div className="wfFieldBox" style={box}>
         <label style={{ ...boxLbl, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
@@ -2697,6 +2731,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const evalCheckerStepKey = resolveEvalCheckerStep(currentStep);
   const isEvalOrChecker    = !!evalCheckerStepKey;
   const actionOptions      = GMP_EVAL_CHECKER_ACTIONS[evalCheckerStepKey] ?? [];
+  const recommendationOptions = GMP_RECOMMENDATION_OPTIONS[evalCheckerStepKey] ?? [];
 
   // Non-eval/checker advance with no known action for this step — block submit
   // and point the user at an admin rather than showing an empty/rejectable list.
@@ -2805,11 +2840,12 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const remarksPresetOptions = GMP_REMARKS_PRESETS[evalCheckerStepKey]?.[action] ?? [];
   // Approved no longer shows/requires this field here — Type of Issuance for
   // the Approved path is already set via the Details tab's own selector, so
-  // this one only remains for Disapproved (locked to "Letter of Disapproval").
+  // this one only remains for the step's "disapproved" recommendation
+  // (locked to "Letter of Disapproval").
   const needsTypeOfIssuance = isEvalOrChecker && action !== "For Compliance" &&
-    approvalDecision === "Disapproved";
+    approvalDecision === GMP_DISAPPROVAL_RECOMMENDATION[evalCheckerStepKey];
   const typeOfIssuanceOptions = [GMP_DISAPPROVED_TYPE_OF_ISSUANCE];
-  const typeOfIssuanceLocked = approvalDecision === "Disapproved";
+  const typeOfIssuanceLocked = approvalDecision === GMP_DISAPPROVAL_RECOMMENDATION[evalCheckerStepKey];
 
   // ── Auto-dated NOD / Date Printed fields, driven by the selected Remarks Preset ──
   const [nodDateField, setNodDateField] = useState(() => d.nodDateField ?? null);   // e.g. "GMP_NOD_DATE_2"
@@ -2954,6 +2990,17 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     // previously selected preset (and its doctrack text) is now stale — clear it.
     setRemarksPreset("");
     setDoctrackRemarks("");
+    // "Return to evaluator for review" means nothing was actually checked, so
+    // nothing should be pushed to FIS — default Doctrack OFF (still editable
+    // via the toggle) when the Checker picks it, back ON for the Checker's
+    // other action. Scoped to the Checker step only — the Evaluator's own
+    // actions must never touch this toggle; before this action existed,
+    // changing the Action selection never touched doctrackEnabled at all, and
+    // an Evaluator may have deliberately turned it off (e.g. "already updated
+    // FIS manually") — silently flipping it back on here would undo that.
+    if (evalCheckerStepKey === "Checker") {
+      setDoctrackEnabled(val !== GMP_CHECKER_RETURN_FOR_REVIEW_ACTION);
+    }
     // "For Compliance" has no approval decision — clear any stale selection
     if (val === "For Compliance") {
       setApprovalDecision("");
@@ -2973,7 +3020,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
 
   const handleApprovalDecisionChange = (val) => {
     setApprovalDecision(val);
-    if (val === "Disapproved") {
+    if (val === GMP_DISAPPROVAL_RECOMMENDATION[evalCheckerStepKey]) {
       // Only one valid type when disapproved — auto-select and lock it
       setFinalTypeOfIssuance(GMP_DISAPPROVED_TYPE_OF_ISSUANCE);
     } else {
@@ -3683,6 +3730,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                 isEvalOrChecker={isEvalOrChecker}
                 actionOptions={actionOptions} actionValue={action} onActionChange={handleActionChange}
                 approvalDecision={approvalDecision} onApprovalDecisionChange={handleApprovalDecisionChange}
+                recommendationOptions={recommendationOptions}
                 remarksPresetOptions={remarksPresetOptions} remarksPresetValue={remarksPreset}
                 onRemarksPresetChange={handleRemarksPresetChange}
                 needsTypeOfIssuance={needsTypeOfIssuance} typeOfIssuanceOptions={typeOfIssuanceOptions}

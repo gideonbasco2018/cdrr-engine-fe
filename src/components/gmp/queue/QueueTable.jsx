@@ -73,7 +73,6 @@ const SORT_FIELD_MAP = {
   released_date: "GMP_RELEASED_DATE",
   processed_time: "GMP_PROCESSED_TIME",
   end_date: "GMP_END_DATE",
-  timeline: "GMP_TIMELINE",
   remarks: "GMP_REMARKS",
   nod_date_1: "GMP_NOD_DATE_1",
   nod_date_2: "GMP_NOD_DATE_2",
@@ -224,16 +223,17 @@ function SkeletonRows({ n = 8, darkMode, colCount }) {
 }
 
 // ── Action menu ───────────────────────────────────────────────────────────────
-// "deck" item only shown on Not Yet Decked tab — controlled by `showDeck` prop
+// "deck" item only shown on Not Yet Decked tab — controlled by `showDeck` prop.
+// Reassign / Reroute / Update App Info are ALL restricted to FGMP Decker or IT
+// (see canEditInfo, GMPQueuePage.jsx) — kept out of these base lists entirely
+// and appended as one cluster by ActionMenu below, so none of the three shows
+// for anyone else, no matter what.
 const ACTION_ITEMS_DECKED   = [
   { id: "app_info",  label: "Application Information", icon: "🔎" },
   { id: "app_log",   label: "Application Logs",  icon: "📋" },
   { id: "audit_log", label: "Field Audit Logs",   icon: "🕐" },
   { id: "documents", label: "Documents",         icon: "📎" },
   { id: "doctrack",  label: "Doctrack Details",  icon: "📋" },
-  { id: "divider1",  label: "---" },
-  { id: "reassign",  label: "Application Re-assignment", icon: "🔄", color: "#7c3aed" },
-  { id: "reroute",   label: "Application Re-route",      icon: "🔀", color: "#0891b2" },
 ];
 const ACTION_ITEMS_NOT_DECKED = [
   { id: "deck",      label: "Deck Application", icon: "🎯", color: "#4CAF50" },
@@ -243,13 +243,19 @@ const ACTION_ITEMS_NOT_DECKED = [
   { id: "audit_log", label: "Field Audit Logs",   icon: "🕐" },
   { id: "documents", label: "Documents",         icon: "📎" },
   { id: "doctrack",  label: "Doctrack Details",  icon: "📋" },
+];
+const RESTRICTED_ITEMS = [
   { id: "divider1",  label: "---" },
-  { id: "reassign",  label: "Application Re-assignment", icon: "🔄", color: "#7c3aed" },
-  { id: "reroute",   label: "Application Re-route",      icon: "🔀", color: "#0891b2" },
+  { id: "update_info", label: "Update App Info",          icon: "✏️", color: "#d97706" },
+  { id: "reassign",    label: "Application Re-assignment", icon: "🔄", color: "#7c3aed" },
+  { id: "reroute",     label: "Application Re-route",      icon: "🔀", color: "#0891b2" },
 ];
 
-function ActionMenu({ record, onAction, colors, darkMode, showDeck }) {
-  const ACTION_ITEMS = showDeck ? ACTION_ITEMS_NOT_DECKED : ACTION_ITEMS_DECKED;
+function ActionMenu({ record, onAction, colors, darkMode, showDeck, canEditInfo }) {
+  const BASE_ITEMS = showDeck ? ACTION_ITEMS_NOT_DECKED : ACTION_ITEMS_DECKED;
+  // Restricted cluster only appended for FGMP Decker / IT — no dangling
+  // divider left behind for anyone else, since it's bundled in with them.
+  const ACTION_ITEMS = canEditInfo ? [...BASE_ITEMS, ...RESTRICTED_ITEMS] : BASE_ITEMS;
   const [open, setOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
   const btnRef = useRef(null);
@@ -355,6 +361,10 @@ export default function QueueTable({
   onOpenLog, onOpenAudit, onOpenDoctrack, onOpenReassign, onOpenReroute, onOpenInfo, onOpenDocuments,
   onDeck, onBulkDeck, colors, darkMode, page, pageSize, topTab, onDoubleClickRow,
   visibleColumns, sortBy, sortOrder, onSort, isDefaultSort, onResetSort,
+  // Restricted to FGMP Decker / IT (see userInAllowedGroups in GMPQueuePage.jsx) —
+  // lets that group edit a record's main info regardless of its current step,
+  // unlike the normal edit path which only opens with the task itself.
+  canEditInfo, onOpenUpdateInfo,
 }) {
   const isNotYetDecked = topTab !== "not_yet_decked";
   const selectedCount  = selected.length;
@@ -637,15 +647,17 @@ export default function QueueTable({
                     <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
                       <ActionMenu record={r} colors={colors} darkMode={darkMode}
                         showDeck={topTab === "not_yet_decked" || r.is_decked === false}
+                        canEditInfo={canEditInfo}
                         onAction={(actionId, rec) => {
-                          if (actionId === "deck")      { onDeck?.(rec);         return; }
-                          if (actionId === "app_info")  { onOpenInfo?.(rec);     return; }
-                          if (actionId === "app_log")   { onOpenLog(rec);        return; }
-                          if (actionId === "audit_log") { onOpenAudit(rec);      return; }
-                          if (actionId === "documents") { onOpenDocuments?.(rec);return; }
-                          if (actionId === "doctrack")  { onOpenDoctrack?.(rec); return; }
-                          if (actionId === "reassign")  { onOpenReassign?.(rec); return; }
-                          if (actionId === "reroute")   { onOpenReroute?.(rec);  return; }
+                          if (actionId === "deck")        { onDeck?.(rec);          return; }
+                          if (actionId === "app_info")    { onOpenInfo?.(rec);      return; }
+                          if (actionId === "update_info") { onOpenUpdateInfo?.(rec);return; }
+                          if (actionId === "app_log")     { onOpenLog(rec);         return; }
+                          if (actionId === "audit_log")   { onOpenAudit(rec);       return; }
+                          if (actionId === "documents")   { onOpenDocuments?.(rec); return; }
+                          if (actionId === "doctrack")    { onOpenDoctrack?.(rec);  return; }
+                          if (actionId === "reassign")    { onOpenReassign?.(rec);  return; }
+                          if (actionId === "reroute")     { onOpenReroute?.(rec);   return; }
                         }} />
                     </div>
                   </td>

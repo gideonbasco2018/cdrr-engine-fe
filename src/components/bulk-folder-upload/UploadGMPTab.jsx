@@ -231,7 +231,8 @@ function UploadGMPTab({ colors, s }) {
     const newEntries = [];
 
     let noDtn = 0;
-    for (const { file, relativePath } of expandedFlat) {
+    let archiveErrors = 0;
+    for (const { file, relativePath, extractError } of expandedFlat) {
       const parts = relativePath.replace(/\\/g, "/").split("/").filter(Boolean);
       if (parts.length < 2) {
         skipped.push(file.name);
@@ -242,6 +243,7 @@ function UploadGMPTab({ colors, s }) {
       // the user can see it, grouped separately, but it can't be uploaded.
       const category = dtn ? resolveCategory(parts.slice(dtnIndex + 1, -1), dtn) : null;
       if (!dtn) noDtn += 1;
+      if (extractError) archiveErrors += 1;
       newEntries.push({
         id: `${relativePath}-${file.size}-${Date.now()}-${Math.random()
           .toString(36)
@@ -252,6 +254,10 @@ function UploadGMPTab({ colors, s }) {
         category,
         kind: kindOf(file),
         previewUrl: URL.createObjectURL(file),
+        // Set up front (before any upload attempt) so the failed archive
+        // shows its real reason immediately in the tree, rather than only
+        // after the user clicks Upload and it fails the file-type check.
+        uploadError: extractError || undefined,
       });
     }
 
@@ -269,6 +275,10 @@ function UploadGMPTab({ colors, s }) {
     if (noDtn)
       notes.push(
         `${noDtn} file(s) have no 14-digit DTN in their folder path — see the "No DTN detected" group. Put each application's files inside a folder named with its DTN.`,
+      );
+    if (archiveErrors)
+      notes.push(
+        `${archiveErrors} archive(s) couldn't be auto-extracted (see the red reason on each below) — extract them manually on your computer, then select/drag the extracted folder instead.`,
       );
     setFormError(notes.join(" "));
   }, []);
@@ -424,6 +434,11 @@ function UploadGMPTab({ colors, s }) {
       const key = `${(entry.category || "").toLowerCase()}::${entry.file.name.toLowerCase()}`;
       if (existingKeysByDtn[entry.dtn]?.has(key)) {
         alreadyUploadedEntries.push(entry);
+      } else if (entry.uploadError) {
+        // Already flagged at processing time (e.g. an archive that failed to
+        // auto-extract) — keep that real reason instead of falling through
+        // to the generic file-type check below.
+        invalidEntries.push(entry);
       } else if (!(entry.file.type in ACCEPTED_TYPES)) {
         invalidEntries.push({
           ...entry,

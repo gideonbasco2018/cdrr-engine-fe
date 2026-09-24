@@ -1,61 +1,236 @@
 // src/components/gmp/queue/GMPApplicationInfoModal.jsx
-// Full read-only view of a GMP record's fields — dense layout, single accent
-// color throughout. Address fields wrap in full (no truncation). Remarks is
-// a compact single-line bar with ellipsis + hover tooltip for long text.
-import { useState, useEffect } from "react";
-import { getGMPSiblings, reopenGMPRecord } from "../../../api/gmp";
+// Full read-only view of a GMP record's fields — redesigned to match CPR's
+// ViewDetailsModal.jsx: a top status-bar row of key facts, then collapsible
+// accordion sections (icon-circle + accent title + chevron) laid out in two
+// columns, each holding inline label:value rows. Same GMP data as before —
+// Address/Manufacturer Address/Product Line/Remarks still get full-width,
+// multi-line treatment instead of truncating. Remarks unions the record's
+// own GMP_REMARKS with every per-step application_remarks entry (see
+// RemarksSection) — collapsed as a single-line ellipsis bar, expandable into
+// a stacked list of "text" — step, date (username)" lines; kept as its own
+// card (not a generic accordion section) since it has its own, different
+// expand/collapse model.
+import { useState, useEffect, createContext, useContext } from "react";
+import { getGMPSiblings, reopenGMPRecord, getGMPLogs } from "../../../api/gmp";
 import { FONT, GMP_STATUS_COLORS } from "../shared/constants";
+import StatusTimelineBadge from "../shared/StatusTimelineBadge";
 
 const ACCENT = "#2196F3";
+const ICON_CIRCLE_BG = `${ACCENT}1f`;
 
 function cleanValue(v) {
   if (v === null || v === undefined || v === "" || v === "N/A") return null;
   return String(v);
 }
 
-function FieldRow({ label, value, colors, darkMode, wrap = false }) {
-  const clean = cleanValue(value);
+const fmtDT = (raw) => {
+  if (!raw) return null;
+  try {
+    const d = new Date(raw);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      + " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  } catch { return null; }
+};
+
+/* ================================================================== */
+/*  Accordion Section + Label:Value row — mirrors CPR's ViewDetailsModal */
+/* ================================================================== */
+const LabelWidthContext = createContext(null);
+
+function AccordionSection({ icon, title, children, colors, defaultOpen = true, labelWidth = 110, badge }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div style={{
-      padding: "0.32rem 0.5rem",
-      background: darkMode ? "rgba(255,255,255,0.025)" : "#ffffff",
-      border: `1px solid ${colors.cardBorder}`,
-      borderRadius: 6,
-      display: "flex", flexDirection: "column", gap: 1,
-      minWidth: 0,
-      gridColumn: wrap ? "1 / -1" : undefined, // full-width when it needs room to wrap
+      border: `1px solid ${colors.cardBorder}`, borderRadius: 9,
+      marginBottom: 10, overflow: "hidden",
     }}>
-      <span style={{
-        fontSize: "0.52rem", fontWeight: 700, textTransform: "uppercase",
-        letterSpacing: "0.05em", color: colors.textTertiary,
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+      <button onClick={() => setOpen((o) => !o)} style={{
+        width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "10px 14px", background: colors.cardBg,
+        border: "none", borderBottom: open ? `1px solid ${colors.cardBorder}` : "none",
+        cursor: "pointer", textAlign: "left",
       }}>
-        {label}
-      </span>
-      <span style={{
-        fontSize: "0.7rem", fontWeight: clean ? 600 : 400,
-        color: clean ? colors.textPrimary : colors.textTertiary,
-        fontStyle: clean ? "normal" : "italic",
-        whiteSpace: wrap ? "normal" : "nowrap",
-        overflow: wrap ? "visible" : "hidden",
-        textOverflow: wrap ? "clip" : "ellipsis",
-        lineHeight: wrap ? 1.4 : "normal",
-        wordBreak: wrap ? "break-word" : "normal",
-      }} title={!wrap ? (clean ?? undefined) : undefined}>
-        {clean ?? "—"}
-      </span>
+        <span style={{ display: "flex", alignItems: "center", gap: 9 }}>
+          <span style={{
+            width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+            background: ICON_CIRCLE_BG, color: ACCENT,
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem",
+          }}>
+            {icon}
+          </span>
+          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: ACCENT }}>
+            {title}
+          </span>
+          {badge != null && (
+            <span style={{
+              fontSize: "0.6rem", fontWeight: 700, padding: "1px 7px", borderRadius: 99,
+              background: `${ACCENT}15`, color: ACCENT,
+            }}>
+              {badge}
+            </span>
+          )}
+        </span>
+        <span style={{
+          fontSize: "0.65rem", color: colors.textTertiary,
+          transform: open ? "rotate(180deg)" : "none", transition: "transform 0.2s",
+        }}>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div style={{
+          padding: "0.8rem 0.9rem", display: "flex", flexDirection: "column", gap: 8,
+          background: colors.cardBg,
+        }}>
+          <LabelWidthContext.Provider value={labelWidth}>
+            {children}
+          </LabelWidthContext.Provider>
+        </div>
+      )}
     </div>
   );
 }
 
-// Related DTN is the one field on this otherwise-read-only view that stays
-// actionable no matter how the record's task has already ended. Typing a
-// follow-up DTN here and reopening calls reopenGMPRecord() on THIS SAME
-// record — no new record/reference number is created. It records the
-// Related DTN, clears the terminal status and issuance/certificate fields
-// (the follow-up may resolve to a different issuance type, picked fresh at
-// Decking), and opens a new Decking/IN PROGRESS log so the application is
-// back in front of whoever decks it next.
+function LVRow({ label, value, colors, wide = false, fullWidth = false, action }) {
+  const clean = cleanValue(value);
+  const labelWidth = useContext(LabelWidthContext);
+  return (
+    <div style={{
+      display: "flex", fontSize: "0.72rem", gap: 6,
+      alignItems: wide ? "flex-start" : "center",
+      gridColumn: fullWidth ? "1 / -1" : undefined,
+    }}>
+      <span style={{
+        flexShrink: 0, width: labelWidth ? `${labelWidth}px` : undefined,
+        color: colors.textSecondary, whiteSpace: "nowrap",
+      }}>
+        {label}
+      </span>
+      <span style={{ color: colors.textSecondary, flexShrink: 0 }}>:</span>
+      <span style={{
+        color: clean ? colors.textPrimary : colors.textTertiary,
+        fontWeight: 500,
+        wordBreak: "break-word", whiteSpace: wide ? "pre-wrap" : "normal",
+        flex: 1, minWidth: 0,
+      }}>
+        {clean ?? ""}
+      </span>
+      {action}
+    </div>
+  );
+}
+
+function LVGrid({ children }) {
+  return (
+    <div className="gaim-lv-grid" style={{
+      display: "grid", gridTemplateColumns: "1fr 1fr", rowGap: 6, columnGap: 14,
+    }}>
+      {children}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Remarks — kept as its own card (distinct expand/collapse model from */
+/*  the accordion sections above), unchanged from the previous design.  */
+/* ================================================================== */
+// Unions the two, otherwise-unrelated remarks sources for one record:
+//   - the record's own standing GMP_REMARKS field (no author — it isn't
+//     attributed to anyone in the schema)
+//   - each workflow step's application_remarks (one per gmp_application_logs
+//     row), attributed to whoever held that step
+// Collapsed, it behaves like a single-line ellipsis bar. Expanded (only
+// offered once there's more than one entry to show), it stacks every remark
+// as its own line: "text" — step, date (username).
+function RemarksSection({ recordRemark, stepRemarks, colors, darkMode }) {
+  const [expanded, setExpanded] = useState(false);
+  const cleanRecordRemark = recordRemark && recordRemark !== "N/A" ? String(recordRemark) : null;
+  const entries = [
+    ...(cleanRecordRemark ? [{ text: cleanRecordRemark, username: null, isRecordLevel: true }] : []),
+    ...stepRemarks,
+  ];
+  const hasAny = entries.length > 0;
+  const isExpandable = entries.length > 1;
+  const previewText = hasAny ? entries[0].text : "No remarks recorded.";
+
+  return (
+    <div style={{
+      borderRadius: 9, border: `1px solid ${colors.cardBorder}`,
+      background: darkMode ? "rgba(255,255,255,0.012)" : "#fbfcfd", padding: "0 12px",
+    }}>
+      <div onClick={() => isExpandable && setExpanded((p) => !p)} style={{
+        display: "flex", alignItems: "center", gap: 8, height: 44,
+        cursor: isExpandable ? "pointer" : "default",
+      }}>
+        <span style={{
+          width: 18, height: 18, borderRadius: 5, flexShrink: 0,
+          background: `${ACCENT}1f`, color: ACCENT,
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem",
+        }}>
+          📝
+        </span>
+        <span style={{
+          fontSize: "0.63rem", fontWeight: 700, color: colors.textPrimary,
+          textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+        }}>
+          Remarks{entries.length > 1 ? ` (${entries.length})` : ""}
+        </span>
+        {!expanded && isExpandable && (
+          <span style={{
+            fontSize: "0.74rem",
+            color: hasAny ? colors.textPrimary : colors.textTertiary,
+            fontStyle: hasAny ? "normal" : "italic",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            flex: 1, minWidth: 0,
+          }} title={hasAny ? previewText : undefined}>
+            {previewText}
+          </span>
+        )}
+        {!expanded && !isExpandable && !hasAny && (
+          <span style={{ fontSize: "0.74rem", fontStyle: "italic", color: colors.textTertiary, flex: 1 }}>
+            No remarks recorded.
+          </span>
+        )}
+        {isExpandable && (
+          <span style={{
+            fontSize: "0.6rem", color: colors.textTertiary, flexShrink: 0, marginLeft: "auto",
+            transform: expanded ? "rotate(180deg)" : "none", transition: "transform 0.15s",
+          }}>
+            ▾
+          </span>
+        )}
+      </div>
+      {(expanded || (!isExpandable && hasAny)) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 9, padding: "0 12px 10px 40px" }}>
+          {entries.map((e, i) => {
+            const dateStr = fmtDT(e.date);
+            const metaText = e.isRecordLevel
+              ? "General Remarks"
+              : [e.step, dateStr, e.username ? `(${e.username})` : null].filter(Boolean).join(" ");
+            return (
+              <p key={i} style={{
+                margin: 0, fontSize: "0.72rem", lineHeight: 1.6, wordBreak: "break-word",
+                paddingBottom: 9,
+                borderBottom: i < entries.length - 1 ? `1px dashed ${colors.cardBorder}` : "none",
+              }}>
+                <span style={{ fontStyle: "italic", color: colors.textPrimary }}>"{e.text}"</span>
+                {metaText && (
+                  <span style={{ color: colors.textTertiary, fontWeight: 600 }}> — {metaText}</span>
+                )}
+              </p>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Related DTN — the one field on this otherwise-read-only view that   */
+/*  stays actionable. Restyled to sit inline as an LVRow, editing state  */
+/*  still its own small card.                                            */
+/* ================================================================== */
 function RelatedDtnRow({ record, colors, darkMode, onUpdated }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
@@ -93,116 +268,61 @@ function RelatedDtnRow({ record, colors, darkMode, onUpdated }) {
   if (editing) {
     return (
       <div style={{
-        padding: "0.32rem 0.5rem", background: darkMode ? "rgba(255,255,255,0.025)" : "#ffffff",
+        gridColumn: "1 / -1", padding: "6px 8px",
+        background: darkMode ? "rgba(255,255,255,0.025)" : "#ffffff",
         border: `1px solid ${ACCENT}`, borderRadius: 6,
-        display: "flex", flexDirection: "column", gap: 3, minWidth: 0,
+        display: "flex", flexDirection: "column", gap: 4, minWidth: 0,
       }}>
-        <span style={{ fontSize: "0.52rem", fontWeight: 700, textTransform: "uppercase",
+        <span style={{ fontSize: "0.6rem", fontWeight: 700, textTransform: "uppercase",
           letterSpacing: "0.05em", color: colors.textTertiary }}>Reopen with Related DTN</span>
         <input autoFocus value={value} onChange={(e) => setValue(e.target.value)}
           placeholder="Enter follow-up DTN…" style={inp}
           onKeyDown={(e) => { if (e.key === "Enter") handleReopen(); if (e.key === "Escape") { setValue(""); setEditing(false); } }} />
-        <p style={{ margin: 0, fontSize: "0.58rem", color: colors.textTertiary, lineHeight: 1.4 }}>
+        <p style={{ margin: 0, fontSize: "0.6rem", color: colors.textTertiary, lineHeight: 1.4 }}>
           Sends this same application back to Decking — no new reference number.
           Type of Issuance and certificate fields are cleared to be picked fresh.
         </p>
         <div style={{ display: "flex", gap: 5 }}>
           <button onClick={handleReopen} disabled={saving || !value.trim()} style={{
-            flex: 1, padding: "0.2rem 0", fontSize: "0.62rem", fontWeight: 700,
+            flex: 1, padding: "3px 0", fontSize: "0.66rem", fontWeight: 700,
             border: "none", borderRadius: 4, cursor: (saving || !value.trim()) ? "not-allowed" : "pointer",
             background: (saving || !value.trim()) ? `${ACCENT}80` : ACCENT, color: "#fff",
           }}>{saving ? "Reopening…" : "Reopen to Decking"}</button>
           <button onClick={() => { setValue(""); setEditing(false); setError(""); }} disabled={saving} style={{
-            flex: "0 0 auto", padding: "0.2rem 0.6rem", fontSize: "0.62rem", fontWeight: 600,
+            flex: "0 0 auto", padding: "3px 10px", fontSize: "0.66rem", fontWeight: 600,
             border: `1px solid ${colors.cardBorder}`, borderRadius: 4, cursor: "pointer",
             background: "transparent", color: colors.textSecondary,
           }}>Cancel</button>
         </div>
-        {error && <span style={{ fontSize: "0.6rem", color: "#ef4444" }}>{error}</span>}
+        {error && <span style={{ fontSize: "0.62rem", color: "#ef4444" }}>{error}</span>}
       </div>
     );
   }
 
-  const clean = cleanValue(record.related_dtn);
   return (
-    <div style={{
-      padding: "0.32rem 0.5rem",
-      background: reopened ? `${ACCENT}0c` : (darkMode ? "rgba(255,255,255,0.025)" : "#ffffff"),
-      border: `1px solid ${reopened ? ACCENT : colors.cardBorder}`, borderRadius: 6,
-      display: "flex", flexDirection: "column", gap: 1, minWidth: 0,
-    }}>
-      <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 4 }}>
-        <span style={{ fontSize: "0.52rem", fontWeight: 700, textTransform: "uppercase",
-          letterSpacing: "0.05em", color: colors.textTertiary, whiteSpace: "nowrap",
-          overflow: "hidden", textOverflow: "ellipsis" }}>Related DTN</span>
-        <button onClick={() => setEditing(true)} title="Reopen this application back to Decking" style={{
-          border: "none", background: "transparent", color: ACCENT, cursor: "pointer",
-          fontSize: "0.62rem", padding: 0, flexShrink: 0, fontWeight: 700,
-        }}>🔁 Reopen</button>
-      </span>
-      {reopened ? (
-        <span style={{ fontSize: "0.68rem", fontWeight: 600, color: ACCENT, lineHeight: 1.4 }}>
-          ✓ Reopened — back at Decking, related to <span style={{ fontFamily: "ui-monospace,monospace" }}>{value || record.related_dtn}</span>
-        </span>
-      ) : (
-        <span style={{
-          fontSize: "0.7rem", fontWeight: clean ? 600 : 400,
-          color: clean ? colors.textPrimary : colors.textTertiary,
-          fontStyle: clean ? "normal" : "italic",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }} title={clean ?? undefined}>
-          {clean ?? "—"}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function Section({ icon, title, colors, darkMode, children, columns = 3 }) {
-  return (
-    <div style={{
-      borderRadius: 9, overflow: "visible",
-      border: `1px solid ${colors.cardBorder}`,
-      background: darkMode ? "rgba(255,255,255,0.012)" : "#fbfcfd",
-      display: "flex", flexDirection: "column",
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 6,
-        padding: "5px 10px",
-        background: darkMode ? `${ACCENT}12` : `${ACCENT}08`,
-        borderBottom: `1px solid ${colors.cardBorder}`,
-        borderTopLeftRadius: 9, borderTopRightRadius: 9,
-      }}>
-        <span style={{
-          width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-          background: `${ACCENT}1f`, color: ACCENT,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: "0.6rem",
-        }}>
-          {icon}
-        </span>
-        <h3 style={{
-          margin: 0, fontSize: "0.63rem", fontWeight: 700,
-          color: colors.textPrimary, textTransform: "uppercase", letterSpacing: "0.04em",
-        }}>
-          {title}
-        </h3>
-      </div>
-      <div style={{
-        padding: 7, display: "grid",
-        gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 5,
-        flex: 1, alignContent: "start",
-      }}>
-        {children}
-      </div>
-    </div>
+    <LVRow
+      label="Related DTN"
+      value={reopened ? (value || record.related_dtn) : record.related_dtn}
+      colors={colors}
+      fullWidth
+      action={
+        reopened ? (
+          <span style={{ fontSize: "0.66rem", fontWeight: 700, color: ACCENT, flexShrink: 0 }}>✓ Reopened</span>
+        ) : (
+          <button onClick={() => setEditing(true)} title="Reopen this application back to Decking" style={{
+            border: "none", background: "transparent", color: ACCENT, cursor: "pointer",
+            fontSize: "0.66rem", padding: 0, flexShrink: 0, fontWeight: 700, marginLeft: "auto",
+          }}>🔁 Reopen</button>
+        )
+      }
+    />
   );
 }
 
 // Reference number / Certificate No. / Type of Issuance / Cert. Validity /
 // SECPA No. for every sibling record added under this DTN via "Add Issuance"
 // (see WorkflowModal.jsx's RefNoPanel "All" view — same data, same shape).
-function AddedIssuancesTable({ rows, colors, darkMode }) {
+function AddedIssuancesTable({ rows, colors }) {
   const cols = ["Reference No", "Type of Issuance", "Certificate No.", "Cert. Validity", "SECPA No."];
   return (
     <div style={{ overflowX: "auto" }}>
@@ -236,6 +356,51 @@ function AddedIssuancesTable({ rows, colors, darkMode }) {
   );
 }
 
+/* ================================================================== */
+/*  Status bar — top row of key facts, mirrors CPR's ViewDetailsModal   */
+/* ================================================================== */
+function StatBar({ record, colors, darkMode }) {
+  const statusColor = record.status
+    ? (GMP_STATUS_COLORS[record.status.toUpperCase()] ?? { bg: "#f1f5f9", color: "#64748b" })
+    : { bg: "#f1f5f9", color: "#64748b" };
+
+  const Tile = ({ label, children }) => (
+    <div>
+      <div style={{ fontSize: "0.62rem", color: colors.textSecondary, marginBottom: "0.3rem" }}>{label}</div>
+      {children}
+    </div>
+  );
+  const Plain = ({ value }) => (
+    <div style={{ fontSize: "0.78rem", fontWeight: value ? 700 : 400, color: value ? colors.textPrimary : colors.textTertiary }}>
+      {value ?? ""}
+    </div>
+  );
+
+  return (
+    <div style={{
+      padding: "0.75rem 0.9rem", background: darkMode ? "rgba(255,255,255,0.02)" : colors.inputBg,
+      border: `1px solid ${colors.cardBorder}`, borderRadius: 8,
+      display: "flex", alignItems: "center", gap: "2rem", flexWrap: "wrap", marginBottom: 16,
+    }}>
+      <Tile label="DTN"><Plain value={record.dtn} /></Tile>
+      <Tile label="Status">
+        <span style={{
+          display: "inline-flex", alignItems: "center", gap: "0.3rem",
+          padding: "0.2rem 0.6rem", background: statusColor.bg, color: statusColor.color,
+          borderRadius: "999px", fontSize: "0.65rem", fontWeight: "700",
+        }}>
+          {record.status ? `● ${record.status}` : ""}
+        </span>
+      </Tile>
+      {record.current_step && <Tile label="Current Step"><Plain value={record.current_step} /></Tile>}
+      {record.lto_number && <Tile label="LTO Number"><Plain value={record.lto_number} /></Tile>}
+      {record.category && <Tile label="Category"><Plain value={record.category} /></Tile>}
+      {record.transaction_type && <Tile label="Transaction Type"><Plain value={record.transaction_type} /></Tile>}
+      <Tile label="Aging"><StatusTimelineBadge row={record} /></Tile>
+    </div>
+  );
+}
+
 export default function GMPApplicationInfoModal({ record, onClose, onUpdated, colors, darkMode }) {
   // Siblings = other Type of Issuance records added under the same DTN via
   // "Add Issuance" (WorkflowModal.jsx) — this modal only ever receives the
@@ -254,11 +419,36 @@ export default function GMPApplicationInfoModal({ record, onClose, onUpdated, co
     return () => { cancelled = true; };
   }, [record?.id]);
 
-  if (!record) return null;
+  // Per-step remarks (gmp_application_logs.application_remarks) — fetched
+  // here so the Remarks card can union them with the record's own GMP_REMARKS
+  // field instead of only showing the latter.
+  const [stepRemarks, setStepRemarks] = useState([]);
 
-  const statusColor = record.status
-    ? (GMP_STATUS_COLORS[record.status.toUpperCase()] ?? { bg: "#f1f5f9", color: "#64748b" })
-    : { bg: "#f1f5f9", color: "#64748b" };
+  useEffect(() => {
+    if (!record?.id) { setStepRemarks([]); return; }
+    let cancelled = false;
+    getGMPLogs(record.id, { page: 1, page_size: 100 })
+      .then((data) => {
+        if (cancelled) return;
+        const logs = Array.isArray(data) ? data : (data.data ?? []);
+        setStepRemarks(
+          logs
+            .filter((l) => l.application_remarks && l.application_remarks !== "N/A")
+            .map((l) => ({
+              text: l.application_remarks,
+              username: l.assignee_username || l.user_name || null,
+              step: l.application_step || null,
+              // accomplished_date is when the log closed — the moment this
+              // remark was actually typed in and submitted.
+              date: l.accomplished_date || null,
+            }))
+        );
+      })
+      .catch(() => { if (!cancelled) setStepRemarks([]); });
+    return () => { cancelled = true; };
+  }, [record?.id]);
+
+  if (!record) return null;
 
   return (
     <div onClick={onClose} style={{
@@ -267,242 +457,145 @@ export default function GMPApplicationInfoModal({ record, onClose, onUpdated, co
       display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
       fontFamily: FONT,
     }}>
+      <style>{`
+        .gaim-two-col { display: flex; gap: 14px; align-items: flex-start; flex-wrap: nowrap; }
+        .gaim-col-left, .gaim-col-right { min-width: 0; display: flex; flex-direction: column; }
+        .gaim-col-left { flex: 1 1 58%; }
+        .gaim-col-right { flex: 0 0 42%; }
+        @media (max-width: 760px) {
+          .gaim-two-col { flex-direction: column; }
+          .gaim-col-left, .gaim-col-right { flex: 1 1 100%; width: 100%; }
+          .gaim-lv-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
       <div onClick={(e) => e.stopPropagation()} style={{
-        background: colors.cardBg, borderRadius: 14, width: "100%", maxWidth: 1280,
-        height: "92vh", display: "flex", flexDirection: "column", overflow: "hidden",
+        background: colors.cardBg, borderRadius: 14, width: "100%", maxWidth: 1100,
+        maxHeight: "92vh", display: "flex", flexDirection: "column", overflow: "hidden",
         boxShadow: "0 24px 70px rgba(0,0,0,0.4)",
       }}>
-        {/* Compact header */}
+        {/* Header */}
         <div style={{
-          padding: "12px 18px", flexShrink: 0,
-          background: darkMode ? `${ACCENT}12` : `${ACCENT}08`,
+          padding: "14px 20px", flexShrink: 0,
           borderBottom: `1px solid ${colors.cardBorder}`,
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 20, minWidth: 0, flexWrap: "wrap" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
-              <span style={{
-                width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-                background: `${ACCENT}18`, color: ACCENT,
-                display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.95rem",
+          <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+            <span style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+              background: `${ACCENT}18`, color: ACCENT,
+              display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.95rem",
+            }}>
+              🔎
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{
+                margin: 0, fontSize: "0.9rem", fontWeight: 700, color: colors.textPrimary,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 460,
               }}>
-                🔎
-              </span>
-              <div style={{ minWidth: 0 }}>
-                <h2 style={{
-                  margin: 0, fontSize: "0.86rem", fontWeight: 800, color: colors.textPrimary,
-                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 280,
-                }}>
-                  {record.name_of_establishment || "Application Information"}
-                </h2>
-                <p style={{ margin: "1px 0 0", fontSize: "0.66rem", color: colors.textTertiary }}>
-                  {record.category || "—"} · {record.transaction_type || "—"}
-                </p>
-              </div>
+                {record.name_of_establishment || "Application Information"}
+              </h2>
             </div>
-
-            <div style={{ width: 1, height: 26, background: colors.cardBorder }} />
-            <div>
-              <div style={{ fontSize: "0.5rem", fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.06em" }}>DTN</div>
-              <div style={{ fontSize: "0.82rem", fontWeight: 800, color: colors.textPrimary, fontFamily: "ui-monospace,monospace" }}>
-                {record.dtn ?? "N/A"}
-              </div>
-            </div>
-
-            <div style={{ width: 1, height: 26, background: colors.cardBorder }} />
-            <div>
-              <div style={{ fontSize: "0.5rem", fontWeight: 700, color: colors.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Status</div>
-              <span style={{
-                fontSize: "0.62rem", fontWeight: 700, padding: "2px 9px",
-                borderRadius: 99, background: statusColor.bg, color: statusColor.color,
-              }}>
-                ● {record.status ?? "N/A"}
-              </span>
-            </div>
-
-            {record.current_step && (
-              <>
-                <div style={{ width: 1, height: 26, background: colors.cardBorder }} />
-                <div>
-                  <div style={{ fontSize: "0.5rem", fontWeight: 700, color: colors.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Current Step</div>
-                  <span style={{ fontSize: "0.7rem", fontWeight: 700, color: colors.textPrimary }}>{record.current_step}</span>
-                </div>
-              </>
-            )}
-
-            {record.lto_number && (
-              <>
-                <div style={{ width: 1, height: 26, background: colors.cardBorder }} />
-                <div>
-                  <div style={{ fontSize: "0.5rem", fontWeight: 700, color: colors.textTertiary, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>LTO Number</div>
-                  <div style={{ fontSize: "0.7rem", fontWeight: 600, color: colors.textPrimary }}>{record.lto_number}</div>
-                </div>
-              </>
-            )}
           </div>
-
           <button onClick={onClose} style={{
-            width: 28, height: 28, borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
-            background: darkMode ? "rgba(255,255,255,0.05)" : "#fff",
-            color: colors.textTertiary, cursor: "pointer", fontSize: "0.9rem", flexShrink: 0,
-          }}>✕</button>
+            width: 28, height: 28, borderRadius: 6, border: "none",
+            background: "transparent", color: colors.textSecondary, cursor: "pointer", fontSize: "1rem", flexShrink: 0,
+            display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.2s",
+          }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = colors.badgeBg; e.currentTarget.style.color = colors.textPrimary; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = colors.textSecondary; }}
+          >✕</button>
         </div>
 
-        {/* Grid body — every row auto-sizes to its content (the fixed-height
-            "auto auto 44px" template this used to have assumed exactly 3
-            rows; it silently broke — squeezing whatever landed in that 44px
-            row — the moment a 4th, taller, conditionally-rendered row
-            (Added Type of Issuance) was inserted before Remarks). Scrolls as
-            a whole only if total content is taller than the modal's fixed
-            height. */}
-        <div style={{
-          flex: 1, padding: 10, minHeight: 0, overflowY: "auto",
-          display: "grid",
-          gridTemplateColumns: "repeat(3, 1fr)",
-          gridAutoRows: "auto",
-          gap: 8,
-        }}>
-          <Section icon="🏢" title="Establishment" colors={colors} darkMode={darkMode} columns={2}>
-            <FieldRow label="Establishment" value={record.name_of_establishment} colors={colors} darkMode={darkMode} />
-            <FieldRow label="LTO Number" value={record.lto_number} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Category" value={record.category} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Transaction Type" value={record.transaction_type} colors={colors} darkMode={darkMode} />
-            <RelatedDtnRow record={record} colors={colors} darkMode={darkMode} onUpdated={onUpdated} />
-            <FieldRow label="Address" value={record.address} colors={colors} darkMode={darkMode} wrap />
-          </Section>
+        {/* Body */}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "18px 20px" }}>
+          <StatBar record={record} colors={colors} darkMode={darkMode} />
 
-          <Section icon="🏭" title="Foreign Manufacturer" colors={colors} darkMode={darkMode} columns={1}>
-            <FieldRow label="Foreign Manufacturer" value={record.foreign_manufacturer} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Manufacturer Address" value={record.foreign_manufacturer_address} colors={colors} darkMode={darkMode} wrap />
-            <FieldRow label="Product Line" value={record.product_line} colors={colors} darkMode={darkMode} wrap />
-          </Section>
+          <div className="gaim-two-col">
+            <div className="gaim-col-left">
+              <AccordionSection icon="🏢" title="Establishment" colors={colors} darkMode={darkMode} labelWidth={100}>
+                <LVGrid>
+                  <LVRow label="Establishment" value={record.name_of_establishment} colors={colors} fullWidth />
+                  <LVRow label="LTO Number" value={record.lto_number} colors={colors} />
+                  <LVRow label="Category" value={record.category} colors={colors} />
+                  <LVRow label="Transaction Type" value={record.transaction_type} colors={colors} fullWidth />
+                  <RelatedDtnRow record={record} colors={colors} darkMode={darkMode} onUpdated={onUpdated} />
+                  <LVRow label="Address" value={record.address} colors={colors} wide fullWidth />
+                </LVGrid>
+              </AccordionSection>
 
-          <Section icon="📜" title="Certificate" colors={colors} darkMode={darkMode} columns={2}>
-            <FieldRow label="SECPA Number" value={record.secpa_number} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Certificate No." value={record.certificate_number} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Type of Issuance" value={record.type_of_issuance} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Cert. Validity" value={record.certificate_validity} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Decision" value={record.decision} colors={colors} darkMode={darkMode} />
-          </Section>
+              <AccordionSection icon="🏭" title="Foreign Manufacturer" colors={colors} darkMode={darkMode} labelWidth={150}>
+                <LVRow label="Foreign Manufacturer" value={record.foreign_manufacturer} colors={colors} />
+                <LVRow label="Manufacturer Address" value={record.foreign_manufacturer_address} colors={colors} wide />
+                <LVRow label="Product Line" value={record.product_line} colors={colors} wide />
+              </AccordionSection>
 
-          {/* Added Type of Issuance — sibling records under this same DTN
-              created via "Add Issuance" (WorkflowModal.jsx), each with its
-              own reference number and certificate details. Placed right
-              after Certificate (not at the bottom near Remarks) since it's
-              an extension of the same certificate/issuance information.
-              Omitted entirely when there are none, rather than showing an
-              empty section. */}
-          {addedIssuances.length > 0 && (
-            <div style={{
-              gridColumn: "1 / -1", borderRadius: 9, overflow: "visible",
-              border: `1px solid ${colors.cardBorder}`,
-              background: darkMode ? "rgba(255,255,255,0.012)" : "#fbfcfd",
-            }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "5px 10px",
-                background: darkMode ? `${ACCENT}12` : `${ACCENT}08`,
-                borderBottom: `1px solid ${colors.cardBorder}`,
-                borderTopLeftRadius: 9, borderTopRightRadius: 9,
-              }}>
-                <span style={{
-                  width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-                  background: `${ACCENT}1f`, color: ACCENT,
-                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem",
-                }}>
-                  📑
-                </span>
-                <h3 style={{
-                  margin: 0, fontSize: "0.63rem", fontWeight: 700,
-                  color: colors.textPrimary, textTransform: "uppercase", letterSpacing: "0.04em",
-                }}>
-                  Added Type of Issuance
-                </h3>
-                <span style={{
-                  fontSize: "0.6rem", fontWeight: 700, padding: "1px 7px", borderRadius: 99,
-                  background: `${ACCENT}15`, color: ACCENT,
-                }}>
-                  {addedIssuances.length}
-                </span>
-              </div>
-              <div style={{ padding: 7 }}>
-                <AddedIssuancesTable rows={addedIssuances} colors={colors} darkMode={darkMode} />
-              </div>
+              <AccordionSection icon="📜" title="Certificate" colors={colors} darkMode={darkMode} labelWidth={110}>
+                <LVGrid>
+                  <LVRow label="SECPA Number" value={record.secpa_number} colors={colors} />
+                  <LVRow label="Certificate No." value={record.certificate_number} colors={colors} />
+                  <LVRow label="Type of Issuance" value={record.type_of_issuance} colors={colors} />
+                  <LVRow label="Cert. Validity" value={record.certificate_validity} colors={colors} />
+                  <LVRow label="Decision" value={record.decision} colors={colors} fullWidth />
+                </LVGrid>
+              </AccordionSection>
+
+              {/* Added Type of Issuance — sibling records under this same DTN
+                  created via "Add Issuance" (WorkflowModal.jsx). Omitted
+                  entirely when there are none, rather than showing an empty
+                  section. */}
+              {addedIssuances.length > 0 && (
+                <AccordionSection icon="📑" title="Added Type of Issuance" colors={colors} darkMode={darkMode} badge={addedIssuances.length}>
+                  <AddedIssuancesTable rows={addedIssuances} colors={colors} />
+                </AccordionSection>
+              )}
+
+              {/* Remarks — unions the record's own GMP_REMARKS with every
+                  per-step application_remarks entry. */}
+              <RemarksSection
+                recordRemark={record.remarks}
+                stepRemarks={stepRemarks}
+                colors={colors}
+                darkMode={darkMode}
+              />
             </div>
-          )}
 
-          <Section icon="📅" title="Dates & Timeline" colors={colors} darkMode={darkMode} columns={2}>
-            <FieldRow label="Date Received" value={record.date_received} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Released Date" value={record.released_date} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Processed Time" value={record.processed_time} colors={colors} darkMode={darkMode} />
-            <FieldRow label="End Date" value={record.end_date} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Timeline" value={record.timeline} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Date Printed" value={record.date_printed} colors={colors} darkMode={darkMode} />
-            <FieldRow label="Compliance Docs Rcvd" value={record.compliance_docs_date_received} colors={colors} darkMode={darkMode} />
-          </Section>
+            <div className="gaim-col-right">
+              <AccordionSection icon="📅" title="Dates & Timeline" colors={colors} darkMode={darkMode} labelWidth={150}>
+                <LVRow label="Date Received" value={record.date_received} colors={colors} />
+                <LVRow label="Released Date" value={record.released_date} colors={colors} />
+                <LVRow label="Processed Time" value={record.processed_time} colors={colors} />
+                <LVRow label="End Date" value={record.end_date} colors={colors} />
+                <LVRow label="Timeline" value={record.timeline} colors={colors} />
+                <LVRow label="Date Printed" value={record.date_printed} colors={colors} />
+                <LVRow label="Compliance Docs Rcvd" value={record.compliance_docs_date_received} colors={colors} />
+              </AccordionSection>
 
-          <Section icon="📋" title="Notice of Deficiency" colors={colors} darkMode={darkMode} columns={1}>
-            <FieldRow label="1st NOD" value={record.nod_date_1} colors={colors} darkMode={darkMode} />
-            <FieldRow label="2nd NOD" value={record.nod_date_2} colors={colors} darkMode={darkMode} />
-            <FieldRow label="3rd NOD" value={record.nod_date_3} colors={colors} darkMode={darkMode} />
-            <FieldRow label="4th NOD" value={record.nod_date_4} colors={colors} darkMode={darkMode} />
-            <FieldRow label="5th NOD" value={record.nod_date_5} colors={colors} darkMode={darkMode} />
-          </Section>
+              <AccordionSection icon="📋" title="Notice of Deficiency" colors={colors} darkMode={darkMode} labelWidth={70}>
+                <LVRow label="1st NOD" value={record.nod_date_1} colors={colors} />
+                <LVRow label="2nd NOD" value={record.nod_date_2} colors={colors} />
+                <LVRow label="3rd NOD" value={record.nod_date_3} colors={colors} />
+                <LVRow label="4th NOD" value={record.nod_date_4} colors={colors} />
+                <LVRow label="5th NOD" value={record.nod_date_5} colors={colors} />
+              </AccordionSection>
 
-          <div style={{ display: "grid", gridTemplateRows: "1fr 1fr", gap: 8 }}>
-            <Section icon="⚙️" title="Workflow" colors={colors} darkMode={darkMode} columns={2}>
-              <FieldRow label="Current Step" value={record.current_step} colors={colors} darkMode={darkMode} />
-              <FieldRow label="Evaluator" value={record.evaluator} colors={colors} darkMode={darkMode} />
-            </Section>
-            <Section icon="📤" title="Upload Metadata" colors={colors} darkMode={darkMode} columns={2}>
-              <FieldRow label="Uploaded By" value={record.uploaded_by} colors={colors} darkMode={darkMode} />
-              <FieldRow label="Upload Date" value={record.uploaded_date} colors={colors} darkMode={darkMode} />
-            </Section>
-          </div>
-
-          {/* Remarks — single line, label + value side by side. Long text
-              truncates with an ellipsis; hover shows the full remark via the
-              title tooltip. */}
-          <div style={{
-            gridColumn: "1 / -1",
-            borderRadius: 9,
-            border: `1px solid ${colors.cardBorder}`,
-            background: darkMode ? "rgba(255,255,255,0.012)" : "#fbfcfd",
-            display: "flex", alignItems: "center", gap: 8,
-            padding: "0 12px", height: 44,
-          }}>
-            <span style={{
-              width: 18, height: 18, borderRadius: 5, flexShrink: 0,
-              background: `${ACCENT}1f`, color: ACCENT,
-              display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.6rem",
-            }}>
-              📝
-            </span>
-            <span style={{
-              fontSize: "0.63rem", fontWeight: 700, color: colors.textTertiary,
-              textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
-            }}>
-              Remarks
-            </span>
-            <span style={{
-              fontSize: "0.74rem",
-              color: cleanValue(record.remarks) ? colors.textPrimary : colors.textTertiary,
-              fontStyle: cleanValue(record.remarks) ? "normal" : "italic",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              flex: 1, minWidth: 0,
-            }} title={cleanValue(record.remarks) ?? undefined}>
-              {cleanValue(record.remarks) ?? "No remarks recorded."}
-            </span>
+              <AccordionSection icon="⚙️" title="Workflow & Upload" colors={colors} darkMode={darkMode} labelWidth={100}>
+                <LVRow label="Current Step" value={record.current_step} colors={colors} />
+                <LVRow label="Evaluator" value={record.evaluator} colors={colors} />
+                <LVRow label="Uploaded By" value={record.uploaded_by} colors={colors} />
+                <LVRow label="Upload Date" value={record.uploaded_date} colors={colors} />
+              </AccordionSection>
+            </div>
           </div>
         </div>
 
-        {/* Slim footer */}
+        {/* Footer */}
         <div style={{
-          padding: "8px 18px", borderTop: `1px solid ${colors.cardBorder}`,
+          padding: "10px 18px", borderTop: `1px solid ${colors.cardBorder}`,
           display: "flex", justifyContent: "flex-end", flexShrink: 0,
           background: colors.cardBg,
         }}>
           <button onClick={onClose} style={{
-            padding: "6px 18px", fontSize: "0.75rem", fontWeight: 600, fontFamily: FONT,
+            padding: "7px 20px", fontSize: "0.78rem", fontWeight: 600, fontFamily: FONT,
             borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
             background: "transparent", color: colors.textPrimary, cursor: "pointer",
           }}>
