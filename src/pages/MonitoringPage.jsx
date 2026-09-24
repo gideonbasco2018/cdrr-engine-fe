@@ -18,6 +18,7 @@ import FRPMonitoringView from "../components/monitoring/frpMonitoring/FRPMonitor
 import TeamOverviewView from "../components/monitoring/teamOverview/TeamOverviewView";
 import GMPMonitoringAnalyticsView from "../components/gmp/dashboard/GMPMonitoringAnalyticsView";
 import PriorityMedsView from "../components/monitoring/priorityMeds/PriorityMedsView";
+import ClidpEservicesView from "../components/monitoring/clidpEservices/ClidpEservicesView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1051,6 +1052,8 @@ function renderContent(
       return <GMPMonitoringAnalyticsView ui={ui} darkMode={darkMode} />;
     case "prioritymeds":
       return <PriorityMedsView ui={ui} darkMode={darkMode} />;
+    case "clidpeservices":
+      return <ClidpEservicesView ui={ui} darkMode={darkMode} />;
     default:
       return null;
   }
@@ -1284,6 +1287,11 @@ function MonitoringPage({ darkMode }) {
       label: "Priority Meds",
       subtitle: "Cancer, vaccines & rare disease",
     },
+    {
+      key: "clidpeservices",
+      label: "Priority Meds (CLIDP)",
+      subtitle: "From eServices DB",
+    },
     { key: "activity", label: "Activity Feed", subtitle: "Live event stream" },
     { key: "users", label: "Users", subtitle: "Manage evaluators" },
     { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
@@ -1302,6 +1310,11 @@ function MonitoringPage({ darkMode }) {
       key: "teamoverview",
       label: "Team Overview",
       subtitle: "Diagram & target table",
+    },
+    {
+      key: "clidpeservices",
+      label: "Priority Meds (CLIDP)",
+      subtitle: "From eServices DB",
     },
   ];
 
@@ -1607,7 +1620,7 @@ function MonitoringPage({ darkMode }) {
                     Priority Programs
                   </p>
                   {navItems
-                    .slice(7, 8)
+                    .slice(7, 9)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
@@ -1642,7 +1655,7 @@ function MonitoringPage({ darkMode }) {
                     Admin
                   </p>
                   {navItems
-                    .slice(8)
+                    .slice(9)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
