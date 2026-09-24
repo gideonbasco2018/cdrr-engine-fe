@@ -1,5 +1,12 @@
 // FILE: src/components/clinicalTrial/AuditLogEntry.jsx
-import { API_FIELD_LABELS } from "./constants";
+import { API_FIELD_LABELS, DRUG_FIELD_API_LABELS } from "./constants";
+
+// Short readable label for one drug object coming from the audit log
+// (snake_case keys, as stored by the backend).
+function drugSummary(drug) {
+  if (!drug) return "—";
+  return drug.ip_name || "Unnamed drug";
+}
 
 const ACTION_COLORS = {
   CREATE: "#059669",
@@ -62,21 +69,77 @@ function AuditLogEntry({ log, colors }) {
           No field-level changes recorded.
         </div>
       ) : (
-        Object.entries(changes).map(([field, diff]) => (
-          <div
-            key={field}
-            style={{ fontSize: "0.68rem", marginBottom: "0.25rem" }}
-          >
-            <strong style={{ color: colors.textPrimary }}>
-              {API_FIELD_LABELS[field] || field}:
-            </strong>{" "}
-            <span style={{ color: "#ef4444", textDecoration: "line-through" }}>
-              {diff.old ?? "—"}
-            </span>{" "}
-            <span style={{ color: colors.textTertiary }}>→</span>{" "}
-            <span style={{ color: "#10B981" }}>{diff.new ?? "—"}</span>
-          </div>
-        ))
+        Object.entries(changes).map(([field, diff]) => {
+          if (field === "drugs") {
+            const oldDrugs = Array.isArray(diff.old) ? diff.old : [];
+            const newDrugs = Array.isArray(diff.new) ? diff.new : [];
+            return (
+              <div
+                key={field}
+                style={{ fontSize: "0.68rem", marginBottom: "0.4rem" }}
+              >
+                <strong style={{ color: colors.textPrimary }}>
+                  {API_FIELD_LABELS.drugs}:
+                </strong>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "0.5rem",
+                    marginTop: "0.15rem",
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{ color: colors.textTertiary, fontSize: "0.6rem" }}
+                    >
+                      Before ({oldDrugs.length})
+                    </div>
+                    <div
+                      style={{
+                        color: "#ef4444",
+                        textDecoration: "line-through",
+                      }}
+                    >
+                      {oldDrugs.length === 0
+                        ? "—"
+                        : oldDrugs.map(drugSummary).join(", ")}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{ color: colors.textTertiary, fontSize: "0.6rem" }}
+                    >
+                      After ({newDrugs.length})
+                    </div>
+                    <div style={{ color: "#10B981" }}>
+                      {newDrugs.length === 0
+                        ? "—"
+                        : newDrugs.map(drugSummary).join(", ")}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={field}
+              style={{ fontSize: "0.68rem", marginBottom: "0.25rem" }}
+            >
+              <strong style={{ color: colors.textPrimary }}>
+                {API_FIELD_LABELS[field] || field}:
+              </strong>{" "}
+              <span
+                style={{ color: "#ef4444", textDecoration: "line-through" }}
+              >
+                {diff.old ?? "—"}
+              </span>{" "}
+              <span style={{ color: colors.textTertiary }}>→</span>{" "}
+              <span style={{ color: "#10B981" }}>{diff.new ?? "—"}</span>
+            </div>
+          );
+        })
       )}
     </div>
   );

@@ -1,7 +1,12 @@
 // FILE: src/components/clinicalTrial/UpdateModal.jsx
 import { useState } from "react";
 import { updateClinicalTrial } from "../../api/clinicalTrials.js";
-import { TRIAL_FIELD_GROUPS, VALID_PHASE_OPTIONS } from "./constants";
+import {
+  TRIAL_FIELD_GROUPS,
+  VALID_PHASE_OPTIONS,
+  DRUG_FIELD_DEFS,
+  EMPTY_DRUG,
+} from "./constants";
 import { mapTrialToApi, getChangedFields } from "./clinicalTrialMappers";
 import ConfirmChangesModal from "./ConfirmChangesModal";
 
@@ -15,6 +20,28 @@ function UpdateModal({ trial, onClose, onSaved, colors, darkMode }) {
     setEditForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  // ── Drug row handlers (the "many" side) ──
+  const handleDrugFieldChange = (index, key, value) => {
+    setEditForm((prev) => {
+      const drugs = [...(prev.drugs || [])];
+      drugs[index] = { ...drugs[index], [key]: value };
+      return { ...prev, drugs };
+    });
+  };
+
+  const handleAddDrug = () => {
+    setEditForm((prev) => ({
+      ...prev,
+      drugs: [...(prev.drugs || []), { ...EMPTY_DRUG }],
+    }));
+  };
+
+  const handleRemoveDrug = (index) => {
+    setEditForm((prev) => ({
+      ...prev,
+      drugs: (prev.drugs || []).filter((_, i) => i !== index),
+    }));
+  };
   // Step 1: validate + build the diff, then open the confirmation modal
   const handleRequestSave = () => {
     if (!editForm?.protocolNo?.trim()) {
@@ -248,6 +275,185 @@ function UpdateModal({ trial, onClose, onSaved, colors, darkMode }) {
                 </div>
               </div>
             ))}
+            {/* Investigational Products — repeatable, one trial can have
+                multiple drug/IP rows (the "many" side of the relation). */}
+            <div style={{ marginBottom: "1rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "0.4rem",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    color: colors.textTertiary,
+                  }}
+                >
+                  Investigational Products
+                </div>
+                <button
+                  onClick={handleAddDrug}
+                  style={{
+                    padding: "0.25rem 0.6rem",
+                    background: "linear-gradient(135deg,#6366f1,#4f46e5)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "0.62rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  + Add Drug
+                </button>
+              </div>
+
+              {(editForm.drugs || []).length === 0 && (
+                <div
+                  style={{
+                    fontSize: "0.68rem",
+                    color: colors.textTertiary,
+                    padding: "0.5rem 0",
+                  }}
+                >
+                  No drugs added yet.
+                </div>
+              )}
+
+              {(editForm.drugs || []).map((drug, index) => (
+                <div
+                  key={index}
+                  style={{
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: "8px",
+                    padding: "0.6rem",
+                    marginBottom: "0.5rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.4rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.6rem",
+                        fontWeight: 700,
+                        color: colors.textTertiary,
+                      }}
+                    >
+                      Drug #{index + 1}
+                    </span>
+                    <button
+                      onClick={() => handleRemoveDrug(index)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#ef4444",
+                        fontSize: "0.62rem",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "0.6rem 1rem",
+                    }}
+                  >
+                    {DRUG_FIELD_DEFS.map((field) => {
+                      const inputStyle = {
+                        width: "100%",
+                        padding: "0.35rem 0.5rem",
+                        fontSize: "0.7rem",
+                        background: colors.inputBg,
+                        border: `1px solid ${colors.inputBorder}`,
+                        borderRadius: "6px",
+                        color: colors.textPrimary,
+                        outline: "none",
+                        boxSizing: "border-box",
+                      };
+                      return (
+                        <div
+                          key={field.key}
+                          style={
+                            field.type === "textarea"
+                              ? { gridColumn: "1 / -1" }
+                              : undefined
+                          }
+                        >
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: "0.6rem",
+                              color: colors.textTertiary,
+                              marginBottom: "0.2rem",
+                            }}
+                          >
+                            {field.label}
+                          </label>
+                          {field.type === "textarea" ? (
+                            <textarea
+                              value={drug[field.key] || ""}
+                              onChange={(e) =>
+                                handleDrugFieldChange(
+                                  index,
+                                  field.key,
+                                  e.target.value,
+                                )
+                              }
+                              rows={2}
+                              style={{ ...inputStyle, resize: "vertical" }}
+                            />
+                          ) : field.type === "number" ? (
+                            <input
+                              type="number"
+                              min={0}
+                              value={drug.totalQtyApprove ?? 0}
+                              onChange={(e) =>
+                                handleDrugFieldChange(
+                                  index,
+                                  field.key,
+                                  e.target.value,
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              value={drug[field.key] || ""}
+                              onChange={(e) =>
+                                handleDrugFieldChange(
+                                  index,
+                                  field.key,
+                                  e.target.value,
+                                )
+                              }
+                              style={inputStyle}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div

@@ -212,6 +212,7 @@ function UploadPreviewModal({
                       "Study Title",
                       "Phase",
                       "Sponsor",
+                      "Drugs",
                     ].map((label) => (
                       <th
                         key={label}
@@ -299,6 +300,17 @@ function UploadPreviewModal({
                         }}
                       >
                         {row.sponsor_name || "—"}
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.4rem 0.6rem",
+                          fontSize: "0.65rem",
+                          color: colors.tableText,
+                          borderBottom: `1px solid ${colors.tableBorder}`,
+                          textAlign: "center",
+                        }}
+                      >
+                        {row.drug_count ?? 0}
                       </td>
                     </tr>
                   ))}
