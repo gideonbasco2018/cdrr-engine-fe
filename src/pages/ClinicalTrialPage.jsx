@@ -181,8 +181,10 @@ function ClinicalTrialPage({ darkMode }) {
   const drugTypeItems = useMemo(() => {
     const counts = {};
     facetTrials.forEach((t) => {
-      if (!t.drugType) return;
-      counts[t.drugType] = (counts[t.drugType] || 0) + 1;
+      (t.drugs || []).forEach((d) => {
+        if (!d.drugType) return;
+        counts[d.drugType] = (counts[d.drugType] || 0) + 1;
+      });
     });
     return Object.entries(counts).map(([value, count]) => ({ value, count }));
   }, [facetTrials]);
@@ -191,7 +193,30 @@ function ClinicalTrialPage({ darkMode }) {
   const page = Math.min(currentPage, totalPages);
   const indexOfFirstRow = totalRecords === 0 ? 0 : (page - 1) * rowsPerPage + 1;
   const indexOfLastRow = Math.min(page * rowsPerPage, totalRecords);
-  const pageRows = trials;
+  // Each trial can now have 0..N drug rows. Flatten to one display row
+  // per (trial, drug) pair so the table keeps the old flat look — trial
+  // columns repeated, drug columns changing per line. A trial with no
+  // drugs still renders as a single row with blank drug columns.
+  const pageRows = useMemo(() => {
+    const flattened = [];
+    trials.forEach((trial) => {
+      const drugs =
+        trial.drugs && trial.drugs.length > 0 ? trial.drugs : [null];
+      drugs.forEach((drug, drugIndex) => {
+        flattened.push({
+          ...trial,
+          rowKey: `${trial.id}-${drug ? drug.id : "none"}-${drugIndex}`,
+          drugCount: trial.drugs?.length || 0,
+          ipName: drug?.ipName ?? null,
+          dosageStrength: drug?.dosageStrength ?? null,
+          pharmaForm: drug?.pharmaForm ?? null,
+          drugType: drug?.drugType ?? null,
+          totalQtyApprove: drug?.totalQtyApprove ?? 0,
+        });
+      });
+    });
+    return flattened;
+  }, [trials]);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
@@ -202,7 +227,7 @@ function ClinicalTrialPage({ darkMode }) {
   };
 
   const handleSelectAll = () => {
-    const pageIds = pageRows.map((r) => r.id);
+    const pageIds = [...new Set(pageRows.map((r) => r.id))];
     const allSelected = pageIds.every((id) => selectedRows.includes(id));
     setSelectedRows(
       allSelected
@@ -293,14 +318,19 @@ function ClinicalTrialPage({ darkMode }) {
     setPendingUploadFile(null);
   };
 
+  // Single flat column list, kept in the EXACT original 17-column visual
+  // order (matches the Excel template order). Fields still come from two
+  // different DB tables under the hood, but pageRows below flattens each
+  // drug's fields directly onto the row object, so a single ordered list
+  // here is enough — no need to render trial/drug columns as two blocks.
   const columns = [
     { key: "protocolNo", label: "Protocol Number" },
-    { key: "studyTitle", label: "Study Title", width: "240px" },
+    { key: "studyTitle", label: "Study Title", width: "500px" },
     { key: "phase", label: "Phase" },
     { key: "sponsorName", label: "Sponsor Name" },
     { key: "sponsorAddress", label: "Sponsor Address", width: "200px" },
     { key: "sponsorContact", label: "Sponsor Contact Info" },
-    { key: "croName", label: "CRO Name" },
+    { key: "croName", label: "CRO Name", width: "240px" },
     { key: "croAddress", label: "CRO Address", width: "200px" },
     { key: "croContact", label: "CRO Contact Info" },
     { key: "ctRefNo", label: "CT Reference Number" },
@@ -316,7 +346,6 @@ function ClinicalTrialPage({ darkMode }) {
     { key: "ilApprovalDate", label: "IL Initial Approval Date" },
     { key: "totalQtyApprove", label: "Total Qty Approved" },
   ];
-
   const thStyle = {
     padding: "0.45rem 0.6rem",
     textAlign: "left",
@@ -328,6 +357,9 @@ function ClinicalTrialPage({ darkMode }) {
     borderBottom: `1px solid ${colors.tableBorder}`,
     whiteSpace: "nowrap",
     background: colors.tableBg,
+    position: "sticky",
+    top: 0,
+    zIndex: 2,
   };
 
   const tdStyle = {
@@ -368,6 +400,9 @@ function ClinicalTrialPage({ darkMode }) {
         return <PhaseBadge phase={row.phase} />;
       case "totalQtyApprove":
         return (row.totalQtyApprove ?? 0).toLocaleString();
+      case "ipName":
+        // Blank when the trial has no drug rows at all (drugCount === 0)
+        return row.drugCount === 0 ? "—" : (row.ipName ?? "—");
       default:
         return row[col.key] ?? "—";
     }
@@ -689,7 +724,10 @@ function ClinicalTrialPage({ darkMode }) {
         <div
           style={{
             flex: 1,
-            overflowY: "auto",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
             padding: "0.85rem 1.5rem",
             background: colors.pageBg,
           }}
@@ -789,6 +827,8 @@ function ClinicalTrialPage({ darkMode }) {
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
+              flex: 1,
+              minHeight: 0,
             }}
           >
             <div
@@ -855,7 +895,14 @@ function ClinicalTrialPage({ darkMode }) {
               )}
             </div>
 
-            <div style={{ overflowX: "auto", overflowY: "auto" }}>
+            <div
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowX: "auto",
+                overflowY: "auto",
+              }}
+            >
               <table
                 style={{
                   width: "100%",
@@ -936,7 +983,7 @@ function ClinicalTrialPage({ darkMode }) {
                           : colors.tableRowOdd;
                       return (
                         <tr
-                          key={row.id}
+                          key={row.rowKey}
                           style={{
                             background: rowBg,
                             borderLeft: isSelected

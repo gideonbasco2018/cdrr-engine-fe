@@ -1,6 +1,6 @@
 // src/components/monitoring/records/AllRecords.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getAllRecords } from "../../../api/monitoring";
+import { getAllRecords, exportRecordsReport } from "../../../api/monitoring";
 import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
 import { getUploadReports } from "../../../api/reports";
 import { mapDataItem } from "../../reports/utils";
@@ -75,6 +75,20 @@ function nameToAvatarColor(name = "") {
   for (let i = 0; i < name.length; i++)
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   return avatarPalette[Math.abs(hash) % avatarPalette.length];
+}
+
+function formatAssigned(raw) {
+  if (!raw) return null;
+  const d = new Date(String(raw).replace(" ", "T"));
+  if (isNaN(d)) return { date: String(raw), time: "" };
+  return {
+    date: d.toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }),
+    time: d.toLocaleTimeString("en-PH", { hour: "numeric", minute: "2-digit" }),
+  };
 }
 
 const PAGE_SIZE = 15;
@@ -438,6 +452,8 @@ export default function AllRecords({
   const [dtnInput, setDtnInput] = useState("");
   const [stepFilter, setStepFilter] = useState("");
   const [localStatusFilter, setLocalStatusFilter] = useState("");
+  const [latestOnly, setLatestOnly] = useState(false);
+  const [firstOnly, setFirstOnly] = useState(false);
 
   const [dtnFromYear, setDtnFromYear] = useState("");
   const [dtnFromMonth, setDtnFromMonth] = useState("");
@@ -555,7 +571,8 @@ export default function AllRecords({
       if (localStatusFilter) params.application_status = localStatusFilter;
       if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
       if (dtnDateTo) params.dtn_date_to = dtnDateTo;
-
+      if (latestOnly) params.latest_only = true;
+      if (firstOnly) params.first_only = true;
       const data = await getAllRecords(params);
       setRecords(data.data || []);
       setTotal(data.total || 0);
@@ -577,6 +594,8 @@ export default function AllRecords({
     localStatusFilter,
     dtnDateFrom,
     dtnDateTo,
+    latestOnly,
+    firstOnly,
   ]);
 
   useEffect(() => {
@@ -596,6 +615,8 @@ export default function AllRecords({
     stepFilter,
     dtnDateFrom,
     dtnDateTo,
+    latestOnly,
+    firstOnly,
   ]);
 
   const toggleSort = (col) => {
@@ -635,90 +656,24 @@ export default function AllRecords({
 
     setReportLoading(true);
     try {
-      const BATCH = 500;
-      const totalBatches = Math.ceil(total / BATCH);
-      let allRows = [];
+      const params = { sort_col: sortCol, sort_dir: sortDir };
+      if (filterUserId) params.user_id = filterUserId;
+      if (dateFrom) params.date_from = dateFrom;
+      if (dateTo) params.date_to = dateTo;
+      if (dtnSearch) params.dtn = dtnSearch;
+      if (stepFilter) params.app_step = stepFilter;
+      if (localStatusFilter) params.application_status = localStatusFilter;
+      if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
+      if (dtnDateTo) params.dtn_date_to = dtnDateTo;
+      if (latestOnly) params.latest_only = true;
+      if (firstOnly) params.first_only = true;
 
-      for (let p = 1; p <= totalBatches; p++) {
-        const params = {
-          page: p,
-          page_size: BATCH,
-          sort_col: sortCol,
-          sort_dir: sortDir,
-        };
-        if (filterUserId) params.user_id = filterUserId;
-        if (dateFrom) params.date_from = dateFrom;
-        if (dateTo) params.date_to = dateTo;
-        if (dtnSearch) params.dtn = dtnSearch;
-        if (stepFilter) params.app_step = stepFilter;
-        if (localStatusFilter) params.application_status = localStatusFilter;
-        if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
-        if (dtnDateTo) params.dtn_date_to = dtnDateTo;
+      const blob = await exportRecordsReport(params);
 
-        const data = await getAllRecords(params);
-        allRows = allRows.concat(data.data || []);
-      }
-
-      // Helper: format date nicely (e.g. "Jul 4, 2025")
-      const formatDate = (raw) => {
-        if (!raw) return "";
-        try {
-          return new Date(raw + "T00:00:00").toLocaleDateString("en-PH", {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          });
-        } catch {
-          return raw;
-        }
-      };
-
-      // Helper: escape CSV cell; prefix numbers-only strings with tab to prevent
-      // Excel from converting them to scientific notation
-      const csvCell = (val) => {
-        const str = String(val ?? "");
-        // If the value is purely numeric and long (like DTN), force text in Excel
-        const forceText = /^\d{10,}$/.test(str);
-        const escaped = (forceText ? "\t" + str : str).replace(/"/g, '""');
-        return `"${escaped}"`;
-      };
-
-      const headers = [
-        "DTN",
-        "Username",
-        "Full Name",
-        "Drug / Application",
-        "Date Received",
-        "Step",
-        "Timeline",
-        "Status",
-      ];
-
-      const csvRows = allRows.map((r) => [
-        csvCell(r.dtn || ""),
-        csvCell(r.user_name || ""),
-        csvCell(r.full_name || ""),
-        csvCell(r.drug_name || ""),
-        csvCell(formatDate(r.date_received_cent)),
-        csvCell(r.app_step || ""),
-        csvCell(r.timeline || ""),
-        csvCell(r.app_status || ""),
-      ]);
-
-      const headerRow = headers.map((h) => `"${h}"`).join(",");
-      const dataRows = csvRows.map((row) => row.join(","));
-      const csvContent = [headerRow, ...dataRows].join("\n");
-
-      // UTF-8 BOM so Excel opens it correctly without encoding issues
-      const BOM = "\uFEFF";
-      const blob = new Blob([BOM + csvContent], {
-        type: "text/csv;charset=utf-8;",
-      });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      const dateStr = new Date().toISOString().slice(0, 10);
-      link.download = `records_report_${dateStr}.csv`;
+      link.download = `records_report_${new Date().toISOString().slice(0, 10)}.xlsx`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -731,6 +686,8 @@ export default function AllRecords({
   };
 
   const handleReset = () => {
+    setLatestOnly(false);
+    setFirstOnly(false);
     setDateFrom("");
     setDateTo("");
     setDtnInput("");
@@ -778,7 +735,7 @@ export default function AllRecords({
   const TL = darkMode ? timelineColorsDark : timelineColors;
   const SP = darkMode ? stepColorsDark : stepColors;
 
-  const GRID = "1.4fr 1.1fr 1.8fr 0.95fr 0.85fr 1fr 0.9fr 0.85fr 0.5fr";
+  const GRID = "1.4fr 1.1fr 1.8fr 1.25fr 1.1fr 0.85fr 1fr 0.9fr 0.85fr 0.5fr";
 
   const fromLabel = dtnSideLabel(dtnFromYear, dtnFromMonth, dtnFromDay);
   const toLabel = dtnSideLabel(dtnToYear, dtnToMonth, dtnToDay);
@@ -836,6 +793,9 @@ export default function AllRecords({
               gap: 6,
               alignItems: "flex-end",
               flexWrap: "wrap",
+              opacity: loading ? 0.55 : 1,
+              pointerEvents: loading ? "none" : "auto",
+              transition: "opacity 0.15s",
             }}
           >
             {/* DTN */}
@@ -881,21 +841,175 @@ export default function AllRecords({
               </select>
             </div>
 
-            {/* Date range */}
-            {[
-              { label: "From", val: dateFrom, set: setDateFrom },
-              { label: "To", val: dateTo, set: setDateTo },
-            ].map(({ label, val, set }) => (
-              <div key={label}>
-                <label style={labelSt}>{label}</label>
+            {/* Date Received From Center range */}
+            <div>
+              <label
+                style={{
+                  ...labelSt,
+                  color: dateFrom || dateTo ? FB : ui.textMuted,
+                }}
+              >
+                Date Received From Center
+              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                 <input
                   type="date"
-                  value={val}
-                  onChange={(e) => set(e.target.value)}
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  title="Date Received From Center: From"
+                  style={inputSt}
+                />
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: dateFrom || dateTo ? FB : ui.textMuted,
+                    opacity: dateFrom || dateTo ? 1 : 0.4,
+                    lineHeight: 1,
+                  }}
+                >
+                  →
+                </span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  title="Date Received From Center: To"
                   style={inputSt}
                 />
               </div>
-            ))}
+            </div>
+
+            {/* Latest log only toggle */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={latestOnly}
+              onClick={() => {
+                setLatestOnly((v) => !v);
+                setFirstOnly(false);
+              }}
+              title="ON: shows only one row per DTN (most recent log). OFF: shows all logs."
+              style={{
+                alignSelf: "flex-end",
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: `1px solid ${latestOnly ? FB : ui.cardBorder}`,
+                background: latestOnly
+                  ? darkMode
+                    ? "#1a2744"
+                    : "#e7f0fd"
+                  : "transparent",
+                cursor: "pointer",
+                fontFamily: font,
+                transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {/* switch track */}
+              <span
+                style={{
+                  position: "relative",
+                  width: 26,
+                  height: 14,
+                  borderRadius: 99,
+                  background: latestOnly ? FB : ui.progressBg,
+                  transition: "background 0.15s",
+                  flexShrink: 0,
+                }}
+              >
+                {/* knob */}
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 2,
+                    left: latestOnly ? 14 : 2,
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transition: "left 0.15s",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                  }}
+                />
+              </span>
+              <span
+                style={{
+                  fontSize: "0.66rem",
+                  fontWeight: 600,
+                  color: latestOnly ? FB : ui.textMuted,
+                }}
+              >
+                Latest log only
+              </span>
+            </button>
+
+            {/* First occurrence only toggle */}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={firstOnly}
+              onClick={() => {
+                setFirstOnly((v) => !v);
+                setLatestOnly(false);
+              }}
+              title="When filtered by a Step: shows only the first time each DTN reached that step (e.g. the first 'S&E', not the third)."
+              style={{
+                alignSelf: "flex-end",
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                padding: "4px 10px",
+                borderRadius: 6,
+                border: `1px solid ${firstOnly ? FB : ui.cardBorder}`,
+                background: firstOnly
+                  ? darkMode
+                    ? "#1a2744"
+                    : "#e7f0fd"
+                  : "transparent",
+                cursor: "pointer",
+                fontFamily: font,
+                transition: "all 0.15s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span
+                style={{
+                  position: "relative",
+                  width: 26,
+                  height: 14,
+                  borderRadius: 99,
+                  background: firstOnly ? FB : ui.progressBg,
+                  transition: "background 0.15s",
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 2,
+                    left: firstOnly ? 14 : 2,
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    transition: "left 0.15s",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                  }}
+                />
+              </span>
+              <span
+                style={{
+                  fontSize: "0.66rem",
+                  fontWeight: 600,
+                  color: firstOnly ? FB : ui.textMuted,
+                }}
+              >
+                First occurrence only
+              </span>
+            </button>
 
             <button
               onClick={handleReset}
@@ -960,10 +1074,12 @@ export default function AllRecords({
                   ? "#07121f"
                   : "#f5f9ff"
                 : colHdr,
-              transition: "background 0.2s",
+              transition: "background 0.2s, opacity 0.15s",
               borderLeft: rangeActive
                 ? `3px solid ${FB}`
                 : `3px solid transparent`,
+              opacity: loading ? 0.55 : 1,
+              pointerEvents: loading ? "none" : "auto",
             }}
           >
             <div
@@ -1116,7 +1232,8 @@ export default function AllRecords({
               { label: "DTN", col: "dtn" },
               { label: "User", col: "user" },
               { label: "Drug / Application", col: "drug" },
-              { label: "Date", col: "date" },
+              { label: "Date Received From Center", col: "date" },
+              { label: "Date Decked/Assigned", col: null },
               { label: "Entry Type", col: "entry_type" },
               { label: "Step", col: "step" },
               { label: "Timeline", col: "timeline" },
@@ -1261,6 +1378,25 @@ export default function AllRecords({
                           borderRadius: 4,
                           background: ui.progressBg,
                           animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.06}s infinite`,
+                        }}
+                      />
+                    </div>
+
+                    {/* Date Decked/Assigned */}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "center",
+                        padding: "5px 8px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: 8,
+                          width: 70,
+                          borderRadius: 4,
+                          background: ui.progressBg,
+                          animation: `skel-pulse 1.4s ease-in-out ${i * 0.06 + 0.065}s infinite`,
                         }}
                       />
                     </div>
@@ -1552,6 +1688,44 @@ export default function AllRecords({
                         : "—"}
                     </span>
 
+                    {/* Date Decked/Assigned */}
+                    {(() => {
+                      const da = formatAssigned(row.date_assigned);
+                      return (
+                        <span
+                          style={{
+                            padding: "5px 8px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: 1,
+                            fontFamily: font,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontSize: "0.66rem",
+                              color: ui.textPrimary,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {da ? da.date : "—"}
+                          </span>
+                          {da?.time && (
+                            <span
+                              style={{
+                                fontSize: "0.56rem",
+                                color: ui.textMuted,
+                              }}
+                            >
+                              {da.time}
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()}
+
                     {/* Entry Type */}
                     <span
                       style={{
@@ -1764,6 +1938,113 @@ export default function AllRecords({
           onClose={handleCloseModal}
           colors={colors}
         />
+      )}
+
+      {/* ── Generating Report Modal ── */}
+      {reportLoading && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 5000,
+            backdropFilter: "blur(4px)",
+          }}
+        >
+          <style>{`
+            @keyframes report-spin {
+              to { transform: rotate(360deg); }
+            }
+            @keyframes report-bar {
+              0%   { left: -40%; }
+              100% { left: 100%; }
+            }
+          `}</style>
+
+          <div
+            role="alertdialog"
+            aria-busy="true"
+            aria-live="polite"
+            style={{
+              background: ui.cardBg,
+              border: `1px solid ${ui.cardBorder}`,
+              borderRadius: 14,
+              boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
+              width: 320,
+              maxWidth: "90vw",
+              padding: "26px 24px 22px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              textAlign: "center",
+              fontFamily: font,
+            }}
+          >
+            {/* Spinner */}
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: "50%",
+                border: `4px solid ${ui.progressBg}`,
+                borderTopColor: FB,
+                animation: "report-spin 0.8s linear infinite",
+                marginBottom: 16,
+              }}
+            />
+
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.92rem",
+                fontWeight: 700,
+                color: ui.textPrimary,
+              }}
+            >
+              Generating report…
+            </p>
+            <p
+              style={{
+                margin: "6px 0 16px",
+                fontSize: "0.74rem",
+                color: ui.textMuted,
+                lineHeight: 1.5,
+              }}
+            >
+              Preparing {total.toLocaleString()} record
+              {total !== 1 ? "s" : ""} for download.
+              <br />
+              Please don&apos;t close this page.
+            </p>
+
+            {/* Indeterminate progress bar */}
+            <div
+              style={{
+                position: "relative",
+                width: "100%",
+                height: 4,
+                borderRadius: 99,
+                background: ui.progressBg,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  height: "100%",
+                  width: "40%",
+                  borderRadius: 99,
+                  background: FB,
+                  animation: "report-bar 1.2s ease-in-out infinite",
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

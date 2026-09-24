@@ -5,8 +5,8 @@ import {
   getRareDiseaseBreakdown,
   getFluVaccineBreakdown,
   getPneumococcalBreakdown,
+  getTbMedsBreakdown,
 } from "../../../api/priority-meds";
-
 const FB = "#1877F2";
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -52,6 +52,16 @@ const TABS = [
     valueLabel: "Total Count",
     exportFilename: "pneumococcal-breakdown",
   },
+  {
+    key: "tb-meds",
+    label: "TB Meds",
+    fetcher: getTbMedsBreakdown,
+    groupKey: "pharma_category",
+    groupLabel: "Pharmaceutical Category",
+    valueKey: "total_count",
+    valueLabel: "Total Count",
+    exportFilename: "tb-meds-breakdown",
+  },
 ];
 function PriorityMedsView({ ui, darkMode }) {
   const [activeTab, setActiveTab] = useState("cancer");
@@ -67,7 +77,30 @@ function PriorityMedsView({ ui, darkMode }) {
       const config = TABS.find((t) => t.key === key);
       setLoadingKey(key);
       try {
-        const data = await config.fetcher();
+        let data = await config.fetcher();
+
+        // TB Meds should never include Dpp-4 Inhibitor pharmaceutical
+        // categories (those are diabetes meds, not TB meds).
+        if (key === "tb-meds" && data?.items) {
+          const isDpp4Inhibitor = (val) =>
+            typeof val === "string" && /\(dpp-4\)\s*inhibitor/i.test(val);
+
+          const filteredItems = data.items.filter(
+            (item) => !isDpp4Inhibitor(item[config.groupKey]),
+          );
+
+          const filteredTotal = filteredItems.reduce(
+            (sum, item) => sum + (Number(item[config.valueKey]) || 0),
+            0,
+          );
+
+          data = {
+            ...data,
+            items: filteredItems,
+            grand_total: filteredTotal,
+          };
+        }
+
         setCache((prev) => ({ ...prev, [key]: data }));
         setErrorKey((prev) => ({ ...prev, [key]: null }));
       } catch (err) {

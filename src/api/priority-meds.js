@@ -62,3 +62,19 @@ export const getPneumococcalBreakdown = async () => {
     throw new Error(errorMessage);
   }
 };
+
+
+/**
+ * Get TB meds breakdown (in-progress applications)
+ * Returns { items: [{ pharma_category, generic_name, total_count }], grand_total }
+ */
+export const getTbMedsBreakdown = async () => {
+  try {
+    const response = await API.get("/monitoring/priority-meds/tb-meds");
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail || error.message || "Failed to fetch TB meds breakdown";
+    throw new Error(errorMessage);
+  }
+};

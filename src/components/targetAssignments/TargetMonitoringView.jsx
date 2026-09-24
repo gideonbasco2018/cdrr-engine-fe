@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { getTargetOutcome, TARGET_OUTCOME_STYLES } from "./statusHelpers";
 
 // ── Small KPI card — used for the top-line totals ────────────────────
@@ -236,6 +236,119 @@ function MemberMonitoringRow({
   );
 }
 
+// ── Helpers: pull the target_start_date apart into year / month / day
+//    so the filter can drill down to any granularity. Uses the same
+//    field TeamDiagramView already groups by ("target_start_date"),
+//    so the two views stay consistent. All return null when there's
+//    no usable date. ────────────────────────────────────────────────
+function getTaskDateParts(task) {
+  const raw = task?.target_start_date;
+  if (!raw) return { year: null, month: null, day: null };
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return { year: null, month: null, day: null };
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1, // 1-12
+    day: d.getDate(), // 1-31
+  };
+}
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const selectStyle = (colors) => ({
+  background: colors.cardBg,
+  border: `1px solid ${colors.cardBorder}`,
+  borderRadius: 8,
+  color: colors.textPrimary,
+  fontSize: "0.78rem",
+  fontWeight: 700,
+  padding: "0.45rem 0.7rem",
+  cursor: "pointer",
+});
+
+// ── Cascading Year → Month → Day filter. Month is disabled/reset to
+//    "all" whenever Year is "all"; Day likewise depends on Month. Each
+//    level's options are computed from the actual data, so there's
+//    never an empty choice to pick. ────────────────────────────────
+function YearMonthDayFilter({
+  years,
+  months,
+  days,
+  selectedYear,
+  selectedMonth,
+  selectedDay,
+  onChangeYear,
+  onChangeMonth,
+  onChangeDay,
+  colors,
+}) {
+  return (
+    <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+      <select
+        value={selectedYear}
+        onChange={(e) => onChangeYear(e.target.value)}
+        style={selectStyle(colors)}
+      >
+        <option value="all">All Years</option>
+        {years.map((y) => (
+          <option key={y} value={y}>
+            {y}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={selectedMonth}
+        onChange={(e) => onChangeMonth(e.target.value)}
+        disabled={selectedYear === "all"}
+        style={{
+          ...selectStyle(colors),
+          opacity: selectedYear === "all" ? 0.5 : 1,
+          cursor: selectedYear === "all" ? "not-allowed" : "pointer",
+        }}
+      >
+        <option value="all">All Months</option>
+        {months.map((m) => (
+          <option key={m} value={m}>
+            {MONTH_NAMES[m - 1]}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={selectedDay}
+        onChange={(e) => onChangeDay(e.target.value)}
+        disabled={selectedMonth === "all"}
+        style={{
+          ...selectStyle(colors),
+          opacity: selectedMonth === "all" ? 0.5 : 1,
+          cursor: selectedMonth === "all" ? "not-allowed" : "pointer",
+        }}
+      >
+        <option value="all">All Days</option>
+        {days.map((d) => (
+          <option key={d} value={d}>
+            {d}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 // ── Target Monitoring tab — for a lead/supervisor to see, at a glance,
 //    how each of their team members' CURRENT workload (in-progress
 //    task count) compares against their TARGET tasks, and how those
@@ -245,23 +358,107 @@ function MemberMonitoringRow({
 //    task list already used by TargetTableView) via getTargetOutcome,
 //    so the numbers here are guaranteed to match what's shown on the
 //    Target Table tab — no separate backend "completed"/"overdue"
-//    computation to keep in sync. ─────────────────────────────────────
+//    computation to keep in sync.
+//
+//    Optionally filterable by year (based on each task's target_date),
+//    so a lead can look back at a past year's target performance
+//    instead of always seeing the all-time totals. ────────────────────
 export function TargetMonitoringView({
   colors,
   team,
   diagramData,
   diagramLoading,
 }) {
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [selectedDay, setSelectedDay] = useState("all");
+
+  // Resetting a higher level clears the levels below it, so we never
+  // end up in a state like "March" selected but Year back to "all".
+  const handleChangeYear = (val) => {
+    setSelectedYear(val);
+    setSelectedMonth("all");
+    setSelectedDay("all");
+  };
+  const handleChangeMonth = (val) => {
+    setSelectedMonth(val);
+    setSelectedDay("all");
+  };
+
+  // ── Flat list of every targeted task's date parts, across all
+  //    members — the single source the three dropdowns' option lists
+  //    are derived from. ─────────────────────────────────────────────
+  const allTargetedDateParts = useMemo(() => {
+    const parts = [];
+    team.forEach((m) => {
+      const memberTasks = diagramData[m.member_user_id] || [];
+      memberTasks
+        .filter((t) => t.is_targeted)
+        .forEach((t) => parts.push(getTaskDateParts(t)));
+    });
+    return parts;
+  }, [team, diagramData]);
+
+  // ── Every year that appears in the data, so the Year dropdown only
+  //    ever offers years that actually have data. ────────────────────
+  const availableYears = useMemo(() => {
+    const yearSet = new Set();
+    allTargetedDateParts.forEach((p) => {
+      if (p.year !== null) yearSet.add(p.year);
+    });
+    return Array.from(yearSet).sort((a, b) => b - a); // newest first
+  }, [allTargetedDateParts]);
+
+  // ── Months available for the currently selected year only. ────────
+  const availableMonths = useMemo(() => {
+    if (selectedYear === "all") return [];
+    const yearNum = Number(selectedYear);
+    const monthSet = new Set();
+    allTargetedDateParts.forEach((p) => {
+      if (p.year === yearNum && p.month !== null) monthSet.add(p.month);
+    });
+    return Array.from(monthSet).sort((a, b) => a - b);
+  }, [allTargetedDateParts, selectedYear]);
+
+  // ── Days available for the currently selected year + month only. ──
+  const availableDays = useMemo(() => {
+    if (selectedYear === "all" || selectedMonth === "all") return [];
+    const yearNum = Number(selectedYear);
+    const monthNum = Number(selectedMonth);
+    const daySet = new Set();
+    allTargetedDateParts.forEach((p) => {
+      if (p.year === yearNum && p.month === monthNum && p.day !== null) {
+        daySet.add(p.day);
+      }
+    });
+    return Array.from(daySet).sort((a, b) => a - b);
+  }, [allTargetedDateParts, selectedYear, selectedMonth]);
+
   // ── Per-member targeted-task breakdown, deduped by db_id — a
   //    TargetAssignment is scoped to an APPLICATION (db_id), not a
   //    step, but diagramData has one row per step. If a member touched
   //    the same targeted application at more than one step, keep only
-  //    the most recent row (highest log_id) so it's counted once. ──
+  //    the most recent row (highest log_id) so it's counted once.
+  //    When a specific year is selected, only tasks whose target_date
+  //    falls in that year are considered. ──────────────────────────
   const memberStats = useMemo(() => {
     const map = {};
     team.forEach((m) => {
       const memberTasks = diagramData[m.member_user_id] || [];
-      const targetedRaw = memberTasks.filter((t) => t.is_targeted);
+      let targetedRaw = memberTasks.filter((t) => t.is_targeted);
+
+      if (selectedYear !== "all") {
+        const yearNum = Number(selectedYear);
+        const monthNum = selectedMonth !== "all" ? Number(selectedMonth) : null;
+        const dayNum = selectedDay !== "all" ? Number(selectedDay) : null;
+        targetedRaw = targetedRaw.filter((t) => {
+          const { year, month, day } = getTaskDateParts(t);
+          if (year !== yearNum) return false;
+          if (monthNum !== null && month !== monthNum) return false;
+          if (dayNum !== null && day !== dayNum) return false;
+          return true;
+        });
+      }
 
       const byDbId = new Map();
       targetedRaw.forEach((t) => {
@@ -290,7 +487,7 @@ export function TargetMonitoringView({
       };
     });
     return map;
-  }, [team, diagramData]);
+  }, [team, diagramData, selectedYear, selectedMonth, selectedDay]);
 
   // ── Sort by target total desc, so members with the heaviest target
   //    load surface first — the people most worth checking on. ──────
@@ -305,7 +502,10 @@ export function TargetMonitoringView({
   );
 
   // ── Shared scale across every bar (Current AND Target, every
-  //    member) so bar lengths are directly comparable to each other. ──
+  //    member) so bar lengths are directly comparable to each other.
+  //    NOTE: "Current" (in-progress count) is not itself date-scoped,
+  //    since it reflects right-now workload — only the Target side is
+  //    filtered by year. ──────────────────────────────────────────
   const maxValue = useMemo(
     () =>
       team.reduce(
@@ -385,7 +585,7 @@ export function TargetMonitoringView({
         display: "flex",
         flexDirection: "column",
         gap: "1rem",
-        overflow: "auto",
+        overflow: "hidden",
       }}
     >
       {/* Top-line totals */}
@@ -416,73 +616,119 @@ export function TargetMonitoringView({
         />
       </div>
 
-      {/* Legend */}
+      {/* Legend + Year/Month/Day filter, same row */}
       <div
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: "1.2rem",
-          fontSize: "0.7rem",
-          color: colors.textTertiary,
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
         }}
       >
-        <span>
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "1.2rem",
+            fontSize: "0.7rem",
+            color: colors.textTertiary,
+          }}
+        >
+          <span>
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: colors.btnPrimary,
+                marginRight: 4,
+              }}
+            />
+            Current — in-progress tasks right now
+          </span>
+          <span>
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: TARGET_OUTCOME_STYLES.within.border,
+                marginRight: 4,
+              }}
+            />
+            Target: Within
+          </span>
+          <span>
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: TARGET_OUTCOME_STYLES.beyond.border,
+                marginRight: 4,
+              }}
+            />
+            Target: Beyond / Overdue
+          </span>
+          <span>
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: TARGET_OUTCOME_STYLES.pending.border,
+                marginRight: 4,
+              }}
+            />
+            Target: Pending (On Track)
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            flexWrap: "wrap",
+          }}
+        >
           <span
             style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              borderRadius: 2,
-              background: colors.btnPrimary,
-              marginRight: 4,
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              color: colors.textTertiary,
+              whiteSpace: "nowrap",
             }}
+          >
+            Filter by target date:
+          </span>
+          <YearMonthDayFilter
+            years={availableYears}
+            months={availableMonths}
+            days={availableDays}
+            selectedYear={selectedYear}
+            selectedMonth={selectedMonth}
+            selectedDay={selectedDay}
+            onChangeYear={handleChangeYear}
+            onChangeMonth={handleChangeMonth}
+            onChangeDay={setSelectedDay}
+            colors={colors}
           />
-          Current — in-progress tasks right now
-        </span>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              borderRadius: 2,
-              background: TARGET_OUTCOME_STYLES.within.border,
-              marginRight: 4,
-            }}
-          />
-          Target: Within
-        </span>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              borderRadius: 2,
-              background: TARGET_OUTCOME_STYLES.beyond.border,
-              marginRight: 4,
-            }}
-          />
-          Target: Beyond / Overdue
-        </span>
-        <span>
-          <span
-            style={{
-              display: "inline-block",
-              width: 8,
-              height: 8,
-              borderRadius: 2,
-              background: TARGET_OUTCOME_STYLES.pending.border,
-              marginRight: 4,
-            }}
-          />
-          Target: Pending (On Track)
-        </span>
+        </div>
       </div>
 
       {/* Per-member bar comparison */}
       <div
         style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: 10,
           background: colors.cardBg,
@@ -496,27 +742,44 @@ export function TargetMonitoringView({
             fontSize: "0.78rem",
             fontWeight: 700,
             color: colors.textPrimary,
+            flexShrink: 0,
           }}
         >
           📊 Current vs Target — by member
+          {selectedYear !== "all" &&
+            ` (${
+              selectedDay !== "all"
+                ? `${MONTH_NAMES[Number(selectedMonth) - 1]} ${selectedDay}, ${selectedYear}`
+                : selectedMonth !== "all"
+                  ? `${MONTH_NAMES[Number(selectedMonth) - 1]} ${selectedYear}`
+                  : selectedYear
+            })`}
         </div>
-        {sortedTeam.map((m) => (
-          <MemberMonitoringRow
-            key={m.lead_assignment_id}
-            member={m}
-            targetStats={
-              memberStats[m.member_user_id] || {
-                within: 0,
-                missed: 0,
-                pending: 0,
-                total: 0,
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+          }}
+        >
+          {sortedTeam.map((m) => (
+            <MemberMonitoringRow
+              key={m.lead_assignment_id}
+              member={m}
+              targetStats={
+                memberStats[m.member_user_id] || {
+                  within: 0,
+                  missed: 0,
+                  pending: 0,
+                  total: 0,
+                }
               }
-            }
-            current={m.in_progress_count || 0}
-            maxValue={maxValue}
-            colors={colors}
-          />
-        ))}
+              current={m.in_progress_count || 0}
+              maxValue={maxValue}
+              colors={colors}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

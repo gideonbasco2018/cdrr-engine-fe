@@ -216,6 +216,149 @@ function ViewDetailsModal({ trial, onClose, onUpdate, colors, darkMode }) {
                 </div>
               </div>
             ))}
+          {activeTab === "details" && (
+            <>
+              {TRIAL_FIELD_GROUPS.map((group) => (
+                <div key={group.title} style={{ marginBottom: "1rem" }}>
+                  {/* ...unchanged group rendering... */}
+                </div>
+              ))}
+
+              {/* Investigational Products — the "many" side, rendered as
+                  a list of cards instead of flat fields. */}
+              <div style={{ marginBottom: "1rem" }}>
+                <div
+                  style={{
+                    fontSize: "0.62rem",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    color: colors.textTertiary,
+                    marginBottom: "0.4rem",
+                  }}
+                >
+                  Investigational Products
+                </div>
+
+                {(!trial.drugs || trial.drugs.length === 0) && (
+                  <div
+                    style={{
+                      fontSize: "0.72rem",
+                      color: colors.textTertiary,
+                    }}
+                  >
+                    No drugs recorded for this trial.
+                  </div>
+                )}
+
+                {(trial.drugs || []).map((drug, index) => (
+                  <div
+                    key={drug.id ?? index}
+                    style={{
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: "8px",
+                      padding: "0.6rem 0.75rem",
+                      marginBottom: "0.5rem",
+                      display: "grid",
+                      gridTemplateColumns: "1fr 1fr",
+                      gap: "0.5rem 1rem",
+                    }}
+                  >
+                    <div style={{ gridColumn: "1 / -1" }}>
+                      <div
+                        style={{
+                          fontSize: "0.6rem",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        Name of IP/Comparator/Placebo/OM
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        {drug.ipName || "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "0.6rem",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        Dosage Strength
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        {drug.dosageStrength || "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "0.6rem",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        Pharmaceutical Form
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        {drug.pharmaForm || "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "0.6rem",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        Type of Drug
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        {drug.drugType || "—"}
+                      </div>
+                    </div>
+                    <div>
+                      <div
+                        style={{
+                          fontSize: "0.6rem",
+                          color: colors.textTertiary,
+                        }}
+                      >
+                        Total Qty Approved
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.72rem",
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        {(drug.totalQtyApprove ?? 0).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
 
           {activeTab === "history" && (
             <div>
