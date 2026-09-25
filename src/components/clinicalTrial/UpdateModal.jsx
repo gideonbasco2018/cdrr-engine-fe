@@ -4,6 +4,7 @@ import { updateClinicalTrial } from "../../api/clinicalTrials.js";
 import {
   TRIAL_FIELD_GROUPS,
   VALID_PHASE_OPTIONS,
+  OTHER_PHASE_OPTION,
   DRUG_FIELD_DEFS,
   EMPTY_DRUG,
 } from "./constants";
@@ -12,6 +13,15 @@ import ConfirmChangesModal from "./ConfirmChangesModal";
 
 function UpdateModal({ trial, onClose, onSaved, colors, darkMode }) {
   const [editForm, setEditForm] = useState({ ...trial });
+
+  // The Phase dropdown shows "Others" whenever the trial's current phase
+  // isn't one of the fixed presets — this covers both a genuinely custom
+  // value already saved on the trial, and a fresh pick of "Others" made
+  // during this edit session.
+  const [isCustomPhase, setIsCustomPhase] = useState(
+    !!trial.phase && !VALID_PHASE_OPTIONS.includes(trial.phase),
+  );
+
   const [editSaveError, setEditSaveError] = useState(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [pendingChanges, setPendingChanges] = useState(null);
@@ -220,20 +230,48 @@ function UpdateModal({ trial, onClose, onSaved, colors, darkMode }) {
                             style={{ ...inputStyle, resize: "vertical" }}
                           />
                         ) : field.type === "phase" ? (
-                          <select
-                            value={editForm.phase || ""}
-                            onChange={(e) =>
-                              handleFieldChange("phase", e.target.value)
-                            }
-                            style={inputStyle}
-                          >
-                            <option value="">—</option>
-                            {VALID_PHASE_OPTIONS.map((p) => (
-                              <option key={p} value={p}>
-                                {p}
-                              </option>
-                            ))}
-                          </select>
+                          <>
+                            <select
+                              value={
+                                isCustomPhase
+                                  ? OTHER_PHASE_OPTION
+                                  : editForm.phase || ""
+                              }
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                if (value === OTHER_PHASE_OPTION) {
+                                  setIsCustomPhase(true);
+                                  // Clear the preset value so a stale
+                                  // preset isn't saved alongside custom text
+                                  handleFieldChange("phase", "");
+                                } else {
+                                  setIsCustomPhase(false);
+                                  handleFieldChange("phase", value);
+                                }
+                              }}
+                              style={inputStyle}
+                            >
+                              <option value="">—</option>
+                              {VALID_PHASE_OPTIONS.map((p) => (
+                                <option key={p} value={p}>
+                                  {p}
+                                </option>
+                              ))}
+                              <option value={OTHER_PHASE_OPTION}>Others</option>
+                            </select>
+                            {isCustomPhase && (
+                              <input
+                                type="text"
+                                value={editForm.phase || ""}
+                                onChange={(e) =>
+                                  handleFieldChange("phase", e.target.value)
+                                }
+                                placeholder="Enter custom phase (e.g. Expanded Access)"
+                                maxLength={20}
+                                style={{ ...inputStyle, marginTop: "0.35rem" }}
+                              />
+                            )}
+                          </>
                         ) : field.type === "date" ? (
                           <input
                             type="date"
