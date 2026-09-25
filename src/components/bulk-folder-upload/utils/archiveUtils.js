@@ -23,6 +23,36 @@ export function guessMimeFromName(name) {
   return EXT_MIME[ext] || "application/octet-stream";
 }
 
+// Turns a raw JSZip / unrar error into a plain-language reason the uploader
+// can act on, with the original technical message kept alongside for anyone
+// who needs it (support, bug reports). JSZip/unrar wording ("Bug :
+// uncompressed data size mismatch", "Encrypted zip are not supported", …)
+// means nothing to someone just trying to upload a folder.
+function describeExtractError(err) {
+  const raw = (err && err.message) || "";
+  const lower = raw.toLowerCase();
+
+  let reason;
+  if (
+    lower.includes("size mismatch") ||
+    lower.includes("checksum") ||
+    lower.includes("corrupt") ||
+    lower.includes("invalid signature") ||
+    lower.includes("central directory")
+  ) {
+    reason =
+      "This file is corrupted — most likely it wasn't fully downloaded (an interrupted or incomplete download). Delete it, download it again from the source, and make sure the download finishes completely before uploading.";
+  } else if (lower.includes("encrypted") || lower.includes("password")) {
+    reason =
+      "This archive is password-protected. Remove the password (extract it on your computer first), then upload the extracted folder instead.";
+  } else {
+    reason =
+      "This archive couldn't be opened automatically. Extract it on your computer first, then upload the extracted folder instead.";
+  }
+
+  return raw ? `${reason} (technical detail: ${raw})` : reason;
+}
+
 export async function extractZipToEntries(zipFile, pathPrefix) {
   const zip = await JSZip.loadAsync(zipFile);
   const innerFiles = Object.values(zip.files).filter(
@@ -102,7 +132,14 @@ export async function expandArchiveEntries(flat) {
       const innerExpanded = await expandArchiveEntries(inner); // archive-in-archive
       expanded.push(...innerExpanded);
     } catch (err) {
-      expanded.push(item);
+      // Extraction failed (corrupted, password-protected, or — very often for a
+      // Google Drive folder export — only one volume of a multi-part split zip
+      // was selected, so JSZip/unrar can't find the rest of the central
+      // directory). Keep the archive as a single item, but tag it with a
+      // plain-language reason instead of silently handing it downstream,
+      // where it would otherwise surface as a confusing "Unsupported file
+      // type" error.
+      expanded.push({ ...item, extractError: describeExtractError(err) });
     }
   }
   return expanded;

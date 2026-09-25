@@ -35,6 +35,12 @@ export const menuDefinitions = {
       icon: "🧪",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+    {
+      id: "donation",
+      label: "Donation",
+      icon: "🎁",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 
   workflowItems: [

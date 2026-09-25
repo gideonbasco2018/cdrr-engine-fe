@@ -18,7 +18,7 @@ const SORT_FIELD_MAP = Object.fromEntries(
     "lto_number", "address", "transaction_type", "foreign_manufacturer",
     "foreign_manufacturer_address", "secpa_number", "certificate_number",
     "type_of_issuance", "certificate_validity", "decision", "status",
-    "released_date", "processed_time", "end_date", "timeline", "remarks",
+    "released_date", "processed_time", "end_date", "remarks",
     "nod_date_1", "nod_date_2", "nod_date_3", "nod_date_4", "nod_date_5",
     "date_printed", "compliance_docs_date_received", "product_line",
   ].map((k) => [k, k]),

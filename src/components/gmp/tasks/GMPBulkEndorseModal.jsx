@@ -17,7 +17,10 @@ export const GMP_BULK_ENDORSE_CONFIG = {
     currentStep: "Checker",
     buttonLabel: "Endorse to Evaluator",
     modalTitle: "Endorse Selected — Checker → Evaluator",
-    action: "Endorsed to Evaluator",
+    // Bulk endorsing always means "done checking, forward it" — the other
+    // split action ("Return to Evaluator for review") is a discretionary
+    // call better made per-record, not in bulk.
+    action: "Checked and returned to evaluator",
     nextStep: "Evaluator",
     assigneeGroupId: 31,
     assigneeLabel: "Evaluator",

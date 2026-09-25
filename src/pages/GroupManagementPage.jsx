@@ -99,6 +99,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       reports: "Reports",
       "clinical-trials": "Reports",
       "otc-database": "Reports",
+      donation: "Reports",
       "for-decking": "Workflow",
       reassignment: "Workflow",
       "eapplication-tasks": "E-Application",

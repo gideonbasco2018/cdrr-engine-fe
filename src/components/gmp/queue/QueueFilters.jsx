@@ -72,14 +72,18 @@ export function TopTabs({ active, onChange, counts, colors }) {
     { id: "decked",         label: "Decked",         icon: "✅" },
   ];
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 4, minWidth: "max-content" }}>
       {tabs.map((t) => {
         const isA = active === t.id;
         return (
           <button key={t.id} onClick={() => onChange(t.id)}
             style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "7px 16px", fontSize: "0.8rem", fontFamily: FONT,
+              display: "flex", alignItems: "center", gap: 6, flexShrink: 0, whiteSpace: "nowrap",
+              // var(--gmp-tab-*) is set (and shrunk at narrower effective
+              // viewport widths) by the wrapping .gmp-toolbar-card in
+              // GMPQueuePage.jsx, which this renders inside of; the literal
+              // fallback keeps this safe if ever used somewhere without it.
+              padding: "var(--gmp-tab-pad, 7px 16px)", fontSize: "var(--gmp-tab-font, 0.8rem)", fontFamily: FONT,
               fontWeight: isA ? 700 : 500, border: "none", background: "transparent",
               cursor: "pointer", color: isA ? colors.textPrimary : colors.textTertiary,
               borderBottom: isA ? `2px solid ${ACCENT}` : "2px solid transparent",
@@ -88,7 +92,7 @@ export function TopTabs({ active, onChange, counts, colors }) {
             {t.icon} {t.label}
             {counts[t.id] != null && (
               <span style={{
-                fontSize: "0.65rem", fontWeight: 700, padding: "2px 7px",
+                fontSize: "var(--gmp-tab-count-font, 0.65rem)", fontWeight: 700, padding: "2px 7px",
                 borderRadius: 99, background: isA ? ACCENT : `${ACCENT}15`,
                 color: isA ? "#fff" : ACCENT,
               }}>

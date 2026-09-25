@@ -27,6 +27,7 @@ import GMPQueuePage from "../pages/GMPQueuePage";
 import GMPTasksPage from "../pages/GMPTasksPage";
 import EApplicationPage from "../pages/EApplicationPage";
 import ClinicalTrialPage from "../pages/ClinicalTrialPage";
+import DonationPage from "../pages/DonationPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -70,6 +71,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("reports")) return "reports";
     if (path.includes("records-report")) return "records-report";
     if (path.includes("clinical-trials")) return "clinical-trials";
+    if (path.includes("donation")) return "donation";
 
     // Profile
     if (path.includes("profile")) return "profile";
@@ -185,6 +187,8 @@ function MainLayout({ darkMode, setDarkMode }) {
         );
       case "clinical-trials":
         return <ClinicalTrialPage darkMode={darkMode} userRole={userRole} />;
+      case "donation":
+        return <DonationPage darkMode={darkMode} userRole={userRole} />;
 
       case "dashboard":
       default:

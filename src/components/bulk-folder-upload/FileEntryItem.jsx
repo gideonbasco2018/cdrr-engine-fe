@@ -13,8 +13,12 @@ function FileEntryItem({
   onSelect,
   onRemove,
 }) {
-  const failed = result && !result.success;
-  const errorText = failed ? (result.error || entry.uploadError || "Upload failed.") : null;
+  // A result (from an upload attempt) always wins once present. Before that,
+  // fall back to an error set at processing time (e.g. an archive that
+  // couldn't be auto-extracted) so it's visible immediately, not only after
+  // the user clicks Upload and it fails downstream.
+  const failed = result ? !result.success : Boolean(entry.uploadError);
+  const errorText = failed ? (result?.error || entry.uploadError || "Upload failed.") : null;
   return (
     <li
       onClick={onSelect}
@@ -47,6 +51,8 @@ function FileEntryItem({
             color={colors.textTertiary}
             style={{ animation: "bdu-spin 1s linear infinite" }}
           />
+        ) : failed ? (
+          <XCircle size={16} color={colors.danger} />
         ) : (
           <KindIcon kind={entry.kind} />
         )}
