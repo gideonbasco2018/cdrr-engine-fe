@@ -18,7 +18,23 @@ export const PHASE_COLORS = {
   IV: "linear-gradient(135deg,#14b8a6,#0d9488)",
 };
 
-export const VALID_PHASE_OPTIONS = ["I", "II", "III", "IV"];
+// Preset phase options shown in the dropdown. Combined/adaptive-study
+// phases (e.g. "I/II") are common enough to list directly; anything else
+// falls under "Others", which reveals a free-text input in the form.
+export const VALID_PHASE_OPTIONS = [
+  "I",
+  "II",
+  "III",
+  "IV",
+  "I/II",
+  "II/III",
+  "III/IV",
+];
+
+// Sentinel value used only inside the form's <select> to represent
+// "custom phase" — never saved to the database as-is. When selected,
+// the form shows a text input bound to the same `phase` field.
+export const OTHER_PHASE_OPTION = "__OTHER__";
 
 export const TABS = [{ id: "all", label: "All Trials", icon: "🧪" }];
 
