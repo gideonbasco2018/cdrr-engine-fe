@@ -130,6 +130,17 @@ function fieldCardShadow(colors, isDirty) {
     : "0 4px 14px -4px rgba(16,60,40,0.16)";
 }
 
+// Same hash-to-color idea as FieldAuditModal's avatarColor — a name always
+// gets the same color, so "Handled By" reads at a glance without needing an
+// avatar shape, just the colored username itself.
+const AVATAR_PALETTE = ["#6366f1", "#0891b2", "#d97706", "#059669", "#db2777", "#7c3aed"];
+function avatarColor(name) {
+  if (!name) return "#94a3b8";
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length];
+}
+
 // Strips time from any date/datetime string down to YYYY-MM-DD, which is the
 // only format <input type="date"> will actually display as selected.
 function toDateInputValue(value) {
@@ -277,6 +288,22 @@ const GMP_DISAPPROVAL_RECOMMENDATION = {
   "Checker": "For Printing (Disapproval)",
 };
 
+// ── Acknowledgement Letter — a narrower Evaluator flow ──────────────────────
+// When this is the record's Type of Issuance, Action/Recommendation swap to
+// this smaller set instead of the normal GMP_EVAL_CHECKER_ACTIONS /
+// GMP_RECOMMENDATION_OPTIONS lists (see actionOptions/recommendationOptions
+// in WorkflowModal). "Denial" is a distinct outcome from "For Disapproval" —
+// it never requires (or auto-fills) a separate Type of Issuance the way a
+// real disapproval does, since it's already fixed as Acknowledgement Letter.
+// "Endorsed to QA Admin" + "Denial" together auto-release the application —
+// see handleSubmit's auto_complete_next_step branch.
+const GMP_ACK_LETTER_ISSUANCE_TYPE = "Acknowledgement Letter";
+const GMP_ACK_LETTER_ACTIONS = ["Endorsed to Checker", "Endorsed to QA Admin"];
+const GMP_ACK_LETTER_RECOMMENDATIONS = ["For Approval", "Denial"];
+const GMP_ACK_LETTER_AUTO_RELEASE_ACTION = "Endorsed to QA Admin";
+const GMP_ACK_LETTER_DENIAL_RECOMMENDATION = "Denial";
+const GMP_ACK_LETTER_DENIAL_REMARKS_PRESET = "Evaluated; Emailed Response/ Recommendation/ Advise";
+
 // staysOpen: true  -> log stays open on the same step/assignee; only the app
 //                      log + Doctrack are updated, no advanceStep call.
 // staysOpen: false -> log completes and forwards per the selected Action.
@@ -299,6 +326,13 @@ const GMP_REMARKS_PRESETS = {
     ],
     "Endorsed to QA Admin": [
       { value: "Printed; For Signature", staysOpen: false },
+      // Acknowledgement Letter's own outcome — paired with the Denial
+      // recommendation, this is what triggers the auto-release branch in
+      // handleSubmit (see GMP_ACK_LETTER_* above). remarksPresetOptions
+      // below narrows the list to ONLY this one when Action is this and
+      // Recommendation is Denial — "Printed; For Signature" doesn't apply
+      // once the application is being auto-released instead of printed.
+      { value: GMP_ACK_LETTER_DENIAL_REMARKS_PRESET, staysOpen: false },
     ],
   },
   "Checker": {
@@ -479,10 +513,6 @@ function certNoteFor(type) {
   return null;
 }
 
-// ── Decisions that require Certificate approval fields ─────────────────────────
-const GMP_APPROVAL_DECISIONS = ["Certificate Released"];
-
-
 
 
 // Details step dropdown options
@@ -584,6 +614,15 @@ function GmpSelect({
   invalid = false,
   allowClear = true, // show the placeholder as a selectable "clear" row
   ariaLabel,
+  // Small auto-width pill trigger (not the full-width field row) — for
+  // dropping this picker next to another control instead of its own
+  // labeled field. Everything else about the component (options, keyboard
+  // nav, the popover panel) behaves identically; only the trigger button's
+  // own look/text changes. With triggerLabel set, the button always shows
+  // that fixed text (e.g. "Remarks Preset") rather than the current
+  // selection — it reads as an action ("pick a preset"), not a value field.
+  compact = false,
+  triggerLabel = null,
 }) {
   const norm = options.map((o) =>
     o && typeof o === "object"
@@ -596,6 +635,7 @@ function GmpSelect({
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(-1);
   const [rect, setRect] = useState(null);
+  const [hovered, setHovered] = useState(false); // compact+triggerLabel hover lift only
   const btnRef = useRef(null);
   const panelRef = useRef(null);
   const typeBuf = useRef({ str: "", t: 0 });
@@ -610,23 +650,34 @@ function GmpSelect({
       setOpen(false);
       return;
     }
+    // A compact (icon-only or small-chip) trigger doesn't have a sensible
+    // width/position of its own to hang a menu off — anchor the whole
+    // panel (position AND size) to the textarea/input inside the same
+    // marked field card (data-gmp-field-card) instead, e.g. the Doctrack
+    // Remarks box, so it lines up with that field's own border and drops
+    // directly below/above IT rather than the small trigger button.
+    const fieldCardEl = el.closest("[data-gmp-field-card]");
+    const fieldControlRect = compact
+      ? fieldCardEl?.querySelector("textarea, input")?.getBoundingClientRect()
+      : null;
+    const anchor = fieldControlRect || r;
     // Keep the panel inside the modal card, not spilling onto the page behind it.
     const card = el.closest("[data-gmp-modal-card]")?.getBoundingClientRect();
     const topLimit = Math.max(8, card ? card.top + 8 : 8);
     const bottomLimit = Math.min(window.innerHeight - 8, card ? card.bottom - 8 : window.innerHeight - 8);
     const GAP = 4;
-    const spaceBelow = bottomLimit - r.bottom - GAP;
-    const spaceAbove = r.top - topLimit - GAP;
+    const spaceBelow = bottomLimit - anchor.bottom - GAP;
+    const spaceAbove = anchor.top - topLimit - GAP;
     const up = spaceBelow < 180 && spaceAbove > spaceBelow;
     const room = up ? spaceAbove : spaceBelow;
     setRect({
-      left: Math.round(r.left),
-      width: Math.round(r.width),
-      top: up ? undefined : Math.round(r.bottom + GAP),
-      bottom: up ? Math.round(window.innerHeight - r.top + GAP) : undefined,
+      left: Math.round(anchor.left),
+      width: Math.round(anchor.width),
+      top: up ? undefined : Math.round(anchor.bottom + GAP),
+      bottom: up ? Math.round(window.innerHeight - anchor.top + GAP) : undefined,
       maxHeight: Math.max(120, Math.min(320, Math.round(room))),
     });
-  }, []);
+  }, [compact]);
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -706,7 +757,44 @@ function GmpSelect({
     }
   };
 
-  const trigger = {
+  const trigger = compact ? (triggerLabel ? {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "5px 12px",
+    fontFamily: FONT,
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+    background: "#dcfce7",
+    border: "1px solid #bbf7d0",
+    borderRadius: 10,
+    color: "#15803d",
+    outline: "none",
+    boxSizing: "border-box",
+    flexShrink: 0,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.55 : 1,
+    transform: hovered && !disabled ? "translateY(-1px)" : "none",
+    boxShadow: hovered && !disabled ? "0 4px 12px -4px rgba(21,128,61,0.5)" : "0 2px 5px -2px rgba(21,128,61,0.28)",
+    transition: "transform 0.12s, box-shadow 0.12s",
+  } : {
+    width: 24,
+    height: 24,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    background: "transparent",
+    border: "none",
+    borderRadius: 6,
+    color: colors.textTertiary,
+    outline: "none",
+    boxSizing: "border-box",
+    flexShrink: 0,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.55 : 1,
+  }) : {
     width: "100%",
     display: "flex",
     alignItems: "center",
@@ -735,6 +823,8 @@ function GmpSelect({
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
         onKeyDown={onKeyDown}
+        onMouseEnter={() => compact && triggerLabel && setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         role="combobox"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -742,22 +832,41 @@ function GmpSelect({
         aria-label={ariaLabel}
         style={trigger}
       >
-        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {selected ? selected.label : placeholder}
-        </span>
-        <span
-          aria-hidden
-          style={{
-            flexShrink: 0,
-            transition: "transform 0.15s",
-            transform: open ? "rotate(180deg)" : "none",
-            color: colors.textTertiary,
-            fontSize: "0.62rem",
-            lineHeight: 1,
-          }}
-        >
-          ▼
-        </span>
+        {!compact && (
+          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {selected ? selected.label : placeholder}
+          </span>
+        )}
+        {compact && triggerLabel && (
+          <>
+            <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden style={{
+              flexShrink: 0, transition: "transform 0.15s", transform: open ? "rotate(180deg)" : "none",
+            }}>
+              <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" fill="none"
+                strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <span>{triggerLabel}</span>
+          </>
+        )}
+        {/* triggerLabel already carries its own leading chevron above —
+            skip this trailing one for that variant so the chip isn't
+            doubled up on dropdown affordance. */}
+        {!(compact && triggerLabel) && (
+          <span
+            aria-hidden
+            title={compact ? (ariaLabel || "Presets") : undefined}
+            style={{
+              flexShrink: 0,
+              transition: "transform 0.15s",
+              transform: open ? "rotate(180deg)" : "none",
+              color: colors.textTertiary,
+              fontSize: compact ? "0.72rem" : "0.62rem",
+              lineHeight: 1,
+            }}
+          >
+            ▼
+          </span>
+        )}
       </button>
 
       {open && rect &&
@@ -2033,7 +2142,10 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
   doctrackEnabled, setDoctrackEnabled, doctrackRemarks,
   setDoctrackRemarks, task, currentStep, infoText, error, loading, onSubmit, colors, decisions,
   needsAuthority, authorityOptions, loadingAuthority, decisionAuthorityId, onAuthorityChange,
-  needsApprovalFields, certNumber, setCertNumber, typeOfIssuance, setTypeOfIssuance, certValidity, setCertValidity,
+  needsApprovalFields, needsSecpaField, typeOfIssuance,
+  currentCertNumber, originalCertNumber, onCertNumberChange,
+  currentCertValidity, originalCertValidity, onCertValidityChange,
+  currentSecpaNumber, originalSecpaNumber, onSecpaNumberChange,
   dirtyFields, isEvalOrChecker, actionOptions, actionValue, onActionChange,
   approvalDecision, onApprovalDecisionChange, recommendationOptions, remarksPresetOptions, remarksPresetValue, onRemarksPresetChange,
   needsTypeOfIssuance, typeOfIssuanceOptions, typeOfIssuanceValue, onTypeOfIssuanceChange, typeOfIssuanceLocked,
@@ -2084,6 +2196,21 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
     background: editableFieldInnerBg(colors), border: "none",
     borderRadius: 8, color: colors.textPrimary, outline: "none", boxSizing: "border-box",
   };
+  // Collapsed by default — "Add Issuance" creates a whole separate record and
+  // most visits to this step aren't doing that, so it shouldn't compete with
+  // the actual decision fields for attention. Local UI state only (not part
+  // of the draft) — it's fine for this to reset the next time the step form
+  // is shown fresh.
+  const [addIssuanceOpen, setAddIssuanceOpen] = useState(false);
+  // Auto-grow the Doctrack Remarks textarea instead of a manual resize
+  // handle — grows past its ~2-line minHeight as the text needs more room.
+  const doctrackRemarksRef = useRef(null);
+  useEffect(() => {
+    const el = doctrackRemarksRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [doctrackRemarks]);
   return (
     <>
       {isFroo && (
@@ -2115,84 +2242,102 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
         </div>
       )}
 
+      {/* ── Type of Issuance — single slot ────────────────────────────────
+          Shows the decision-specific shape when this step's decision needs
+          one (Recommendation's locked value, or the OD Releasing read-only
+          confirmation); otherwise falls back to a direct edit of the
+          record's own current value. Deliberately at the top, ahead of
+          Action/Recommendation — those are picked further down, so this
+          card re-evaluates (and can change shape) as the user fills in the
+          rest of the form below it. */}
       <div>
-        {/* Editable — edits the application's own (first/primary) Type of
-            Issuance directly via the same editedFields path as the Details
-            step. Distinct from "Add Issuance" below, which creates a whole
-            new sibling record instead of changing this one. */}
-        <ESelectField
-          label="Type of Issuance"
-          fieldKey="GMP_TYPE_OF_ISSUANCE"
-          value={currentIssuanceType}
-          originalValue={originalIssuanceType}
-          options={[...GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS, GMP_DISAPPROVED_TYPE_OF_ISSUANCE]}
-          onChange={(_key, v) => onCurrentIssuanceTypeChange(v)}
-          colors={colors}
-        />
-        {certNoteFor(currentIssuanceType) && (
-          <p style={{ margin: "4px 0 0", fontSize: "0.63rem", color: colors.textTertiary }}>
-            ℹ️ {certNoteFor(currentIssuanceType)}
-          </p>
+        {needsTypeOfIssuance ? (
+          <div className="wfFieldBox" style={box}>
+            <label style={boxLbl}>Type of Issuance <span style={{ color: "#ef4444" }}>*</span></label>
+            {typeOfIssuanceLocked ? (
+              <input readOnly value={typeOfIssuanceValue}
+                style={{ ...boxInp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
+            ) : (
+              <GmpSelect value={typeOfIssuanceValue} onChange={onTypeOfIssuanceChange} placeholder="Select type of issuance…"
+                options={typeOfIssuanceOptions} colors={colors} ariaLabel="Type of Issuance" allowClear={false} />
+            )}
+          </div>
+        ) : needsOdReleasingDecision ? (
+          <div className="wfFieldBox" style={box}>
+            <label style={boxLbl}>Type of Issuance</label>
+            <input readOnly value={typeOfIssuance || "—"}
+              style={{ ...boxInp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
+          </div>
+        ) : (
+          <>
+            {/* Editable — edits the application's own (first/primary) Type
+                of Issuance directly via the same editedFields path as the
+                Details step. Distinct from "Add Issuance" below, which
+                creates a whole new sibling record instead of changing
+                this one. Also the shape used whenever needsApprovalFields
+                is true — Certificate Details (below) covers the cert
+                paperwork, so the type itself is still edited here via the
+                normal dropdown, not a separate free-text duplicate. */}
+            <ESelectField
+              label="Type of Issuance"
+              fieldKey="GMP_TYPE_OF_ISSUANCE"
+              value={currentIssuanceType}
+              originalValue={originalIssuanceType}
+              options={[...GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS, GMP_DISAPPROVED_TYPE_OF_ISSUANCE]}
+              onChange={(_key, v) => onCurrentIssuanceTypeChange(v)}
+              colors={colors}
+            />
+            {certNoteFor(currentIssuanceType) && (
+              <p style={{ margin: "4px 0 0", fontSize: "0.63rem", color: colors.textTertiary }}>
+                ℹ️ {certNoteFor(currentIssuanceType)}
+              </p>
+            )}
+          </>
         )}
       </div>
 
-      <div style={{
-        padding: "0.9rem 1.1rem", borderRadius: 16,
-        background: "linear-gradient(135deg,rgba(59,130,246,0.08),rgba(59,130,246,0.02))",
-        boxShadow: "0 8px 22px -14px rgba(37,99,235,0.5)",
-        display: "flex", flexDirection: "column", gap: 10,
-      }}>
-        <div>
-          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1d4ed8" }}>📑 Add Issuance</div>
-          <div style={{ fontSize: "0.66rem", color: colors.textTertiary }}>
-            Creates a new application under the same DTN with a different Type of Issuance —
-            all details carry over as-is. This is a separate, immediate action from the Submit
-            button below — clicking it creates the new record right away.
+      {/* Directly under Type of Issuance, not further down the form — this
+          card only ever applies to the type picked immediately above it, so
+          it should appear right where that choice is made instead of after
+          Action/Assigning/Recommendation/Add Issuance. */}
+      {needsApprovalFields && (
+        <div style={{ padding: "0.85rem 1.1rem", background: "linear-gradient(135deg,rgba(16,185,129,0.09),rgba(16,185,129,0.02))", boxShadow: `0 8px 22px -14px ${ACCENT}80`, borderRadius: 16, display: "flex", flexDirection: "column", gap: 9 }}>
+          <div style={{ fontSize: "0.68rem", fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            📋 Certificate Details
           </div>
+          {/* EField/EDateField (not the plain inp/lbl inputs used elsewhere
+              on this step) — same components the Details step uses for
+              these exact fields, so an edit here shows the same "✎ edited"
+              badge and, more importantly, writes to the same editedFields
+              entry instead of a separate copy. */}
+          <EField
+            label="Certificate Number"
+            fieldKey="GMP_CERTIFICATE_NUMBER"
+            value={currentCertNumber}
+            originalValue={originalCertNumber}
+            onChange={(_key, v) => onCertNumberChange(v)}
+            colors={colors}
+          />
+          <EDateField
+            label="Certificate Validity"
+            fieldKey="GMP_CERTIFICATE_VALIDITY"
+            value={currentCertValidity}
+            originalValue={originalCertValidity}
+            onChange={(_key, v) => onCertValidityChange(v)}
+            colors={colors}
+          />
+          {needsSecpaField && (
+            <EField
+              label="SECPA Number"
+              fieldKey="GMP_SECPA_NUMBER"
+              value={currentSecpaNumber}
+              originalValue={originalSecpaNumber}
+              onChange={(_key, v) => onSecpaNumberChange(v)}
+              colors={colors}
+            />
+          )}
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div style={{ flex: "1 1 220px" }}>
-            <label style={lbl}>New Type of Issuance</label>
-            <GmpSelect value={newIssuanceType} onChange={onNewIssuanceTypeChange} placeholder="Select type of issuance…"
-              options={[...GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS, GMP_DISAPPROVED_TYPE_OF_ISSUANCE]}
-              colors={colors} ariaLabel="New Type of Issuance" />
-            {newIssuanceType && certNoteFor(newIssuanceType) && (
-              <p style={{ margin: "4px 0 0", fontSize: "0.63rem", color: colors.textTertiary }}>
-                ℹ️ {certNoteFor(newIssuanceType)}
-              </p>
-            )}
-            {newIssuanceType && newIssuanceType === currentIssuanceType && (
-              <p style={{ margin: "4px 0 0", fontSize: "0.63rem", color: "#b45309" }}>
-                ⚠ Same as the current type — pick a different one to add a new issuance.
-              </p>
-            )}
-          </div>
-          <button type="button" onClick={onAddIssuance} disabled={addIssuanceLoading || needsDifferentIssuanceType}
-            style={{
-              padding: "0.55rem 1.1rem", border: "none", borderRadius: 999,
-              background: (addIssuanceLoading || needsDifferentIssuanceType) ? "#93c5fd" : "linear-gradient(145deg,#3b82f6,#2563eb)",
-              boxShadow: (addIssuanceLoading || needsDifferentIssuanceType) ? "none" : "0 8px 18px -8px rgba(37,99,235,0.55)",
-              color: "#fff", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 700,
-              cursor: (addIssuanceLoading || needsDifferentIssuanceType) ? "not-allowed" : "pointer",
-              whiteSpace: "nowrap",
-            }}>
-            {addIssuanceLoading ? "Adding…" : "＋ Add Issuance"}
-          </button>
-        </div>
-        {addIssuanceError && (
-          <div style={{ padding: "8px 12px", background: "#fef2f2",
-            borderRadius: 10, fontSize: "0.72rem", color: "#ef4444" }}>
-            ⚠️ {addIssuanceError}
-          </div>
-        )}
-        {addIssuanceSuccess && (
-          <div style={{ padding: "8px 12px", background: "#f0fdf4",
-            borderRadius: 10, fontSize: "0.72rem", color: "#15803d" }}>
-            ✅ Added — Reference No <strong>{addIssuanceSuccess.GMP_REFERENCE_NO}</strong>{" "}
-            ({addIssuanceSuccess.GMP_TYPE_OF_ISSUANCE})
-          </div>
-        )}
-      </div>
+      )}
 
       {isEvalOrChecker && (
         <>
@@ -2288,23 +2433,57 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
               </p>
             </div>
           )}
+          {/* Assigning — placed between Action and Recommendation for
+              Eval/Checker specifically. assigneeGroupConfig is resolved
+              from `action` alone (see GMP_ACTION_ASSIGNEE_GROUPS), so it's
+              already known at this point regardless of what Recommendation
+              ends up being. The non-eval/checker roles render their own
+              copy of this same block further down, right after their
+              Decision/Authority fields instead — see needsAssigneeGroup
+              below. */}
+          {needsAssigneeGroup && (
+            <div className="wfFieldBox" style={box}>
+              <label style={boxLbl}>
+                {sendBackAction ? "Return to" : "Assign to"} {assigneeGroupConfig?.shortLabel}{" "}
+                <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>
+                  ({assigneeGroupConfig?.groupLabel})
+                </span>{" "}
+                <span style={{ color: "#ef4444" }}>*</span>
+              </label>
+              {sendBackAction && (
+                <p style={{ fontSize: "0.68rem", color: colors.textTertiary, margin: "0 0 4px" }}>
+                  Defaults to whoever last handled this step — change it if needed.
+                </p>
+              )}
+              {loadingAssigneeGroup ? (
+                <div style={{ ...boxInp, display: "flex", alignItems: "center", gap: 8, color: colors.textTertiary }}>
+                  <span style={{ width: 12, height: 12, border: "2px solid rgba(16,185,129,0.2)", borderTopColor: ACCENT, borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
+                  Loading {assigneeGroupConfig?.groupLabel} users…
+                </div>
+              ) : (
+                <GmpSelect value={String(assigneeUserId ?? "")} onChange={onAssigneeGroupChange} placeholder="Select assignee…"
+                  options={assigneeGroupOptions.map((u) => {
+                    const name = [u.first_name, u.surname ?? u.last_name].filter(Boolean).join(" ");
+                    return {
+                      value: String(u.id),
+                      label: [u.username, name || null, u.alias ? `(${u.alias})` : null]
+                        .filter(Boolean).join(" · "),
+                    };
+                  })}
+                  colors={colors} ariaLabel="Assignee" allowClear={false} />
+              )}
+              {!loadingAssigneeGroup && assigneeGroupOptions.length === 0 && (
+                <p style={{ fontSize: "0.68rem", color: "#ef4444", marginTop: 4, marginBottom: 0 }}>
+                  ⚠️ No users found in {assigneeGroupConfig?.groupLabel}.
+                </p>
+              )}
+            </div>
+          )}
           {actionValue !== "For Compliance" && (
             <div className="wfFieldBox" style={box}>
               <label style={boxLbl}>Recommendation <span style={{ color: "#ef4444" }}>*</span></label>
               <GmpSelect value={approvalDecision} onChange={onApprovalDecisionChange} placeholder="Select recommendation…"
                 options={recommendationOptions} colors={colors} ariaLabel="Recommendation" allowClear={false} />
-            </div>
-          )}
-          {needsTypeOfIssuance && (
-            <div className="wfFieldBox" style={box}>
-              <label style={boxLbl}>Type of Issuance <span style={{ color: "#ef4444" }}>*</span></label>
-              {typeOfIssuanceLocked ? (
-                <input readOnly value={typeOfIssuanceValue}
-                  style={{ ...boxInp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
-              ) : (
-                <GmpSelect value={typeOfIssuanceValue} onChange={onTypeOfIssuanceChange} placeholder="Select type of issuance…"
-                  options={typeOfIssuanceOptions} colors={colors} ariaLabel="Type of Issuance" allowClear={false} />
-              )}
             </div>
           )}
           {needsNodDate && (
@@ -2382,11 +2561,6 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
             <GmpSelect value={odReleasingDecisionValue} onChange={onOdReleasingDecisionChange} placeholder="Select decision…"
               options={GMP_OD_RELEASING_DECISION_OPTIONS} colors={colors} ariaLabel="Decision" allowClear={false} />
           </div>
-          <div className="wfFieldBox" style={box}>
-            <label style={boxLbl}>Type of Issuance</label>
-            <input readOnly value={typeOfIssuance || "—"}
-              style={{ ...boxInp, background: colors.badgeBg, cursor: "not-allowed", fontWeight: 600 }} />
-          </div>
           <div className="wfFieldBox" style={{ ...box, maxWidth: 200 }}>
             <label style={boxLbl}>Signed Date <span style={{ color: "#ef4444" }}>*</span></label>
             <GmpDatePicker value={odReleasingSignedDateValue} onChange={onOdReleasingSignedDateChange}
@@ -2423,27 +2597,12 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
         </div>
       )}
 
-      {needsApprovalFields && (
-        <div style={{ padding: "0.85rem 1.1rem", background: "linear-gradient(135deg,rgba(16,185,129,0.09),rgba(16,185,129,0.02))", boxShadow: `0 8px 22px -14px ${ACCENT}80`, borderRadius: 16, display: "flex", flexDirection: "column", gap: 9 }}>
-          <div style={{ fontSize: "0.68rem", fontWeight: 700, color: ACCENT, textTransform: "uppercase", letterSpacing: "0.05em" }}>
-            📋 Certificate Details
-          </div>
-          <div>
-            <label style={lbl}>Certificate Number</label>
-            <input value={certNumber} onChange={(e) => setCertNumber(e.target.value)} style={inp} />
-          </div>
-          <div>
-            <label style={lbl}>Type of Issuance</label>
-            <input value={typeOfIssuance} onChange={(e) => setTypeOfIssuance(e.target.value)} style={inp} />
-          </div>
-          <div>
-            <label style={lbl}>Certificate Validity</label>
-            <input value={certValidity} onChange={(e) => setCertValidity(e.target.value)} style={inp} />
-          </div>
-        </div>
-      )}
-
-      {needsAssigneeGroup && (
+      {/* Non-eval/checker roles only — the Eval/Checker version of this
+          same block renders earlier, between Action and Recommendation
+          (see above). needsAssigneeGroup itself isn't role-specific, so
+          without this guard it would render a second time here even for
+          Eval/Checker. */}
+      {!isEvalOrChecker && needsAssigneeGroup && (
         <div className="wfFieldBox" style={box}>
           <label style={boxLbl}>
             {sendBackAction ? "Return to" : "Assign to"} {assigneeGroupConfig?.shortLabel}{" "}
@@ -2481,6 +2640,85 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
           )}
         </div>
       )}
+
+      <div style={{
+        padding: "0.9rem 1.1rem", borderRadius: 16,
+        background: "linear-gradient(135deg,rgba(59,130,246,0.08),rgba(59,130,246,0.02))",
+        boxShadow: "0 8px 22px -14px rgba(37,99,235,0.5)",
+        display: "flex", flexDirection: "column", gap: addIssuanceOpen ? 10 : 0,
+      }}>
+        <button type="button" onClick={() => setAddIssuanceOpen((p) => !p)}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, background: "none", border: "none",
+            padding: 0, textAlign: "left", cursor: "pointer", width: "100%",
+          }}>
+          <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0,
+            transform: addIssuanceOpen ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>
+            <path d="M3 1.5L7.5 5L3 8.5" stroke="#1d4ed8" strokeWidth="1.6" fill="none"
+              strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span style={{ flex: 1 }}>
+            <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#1d4ed8" }}>📑 Add Issuance</div>
+            {!addIssuanceOpen && (
+              <div style={{ fontSize: "0.66rem", color: colors.textTertiary }}>
+                Creates a new application under the same DTN with a different Type of Issuance.
+              </div>
+            )}
+          </span>
+        </button>
+        {addIssuanceOpen && (
+          <>
+            <div style={{ fontSize: "0.66rem", color: colors.textTertiary, marginTop: -4 }}>
+              Creates a new application under the same DTN with a different Type of Issuance —
+              all details carry over as-is. This is a separate, immediate action from the Submit
+              button below — clicking it creates the new record right away.
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 220px" }}>
+                <label style={lbl}>New Type of Issuance</label>
+                <GmpSelect value={newIssuanceType} onChange={onNewIssuanceTypeChange} placeholder="Select type of issuance…"
+                  options={[...GMP_TYPE_OF_ISSUANCE_APPROVED_OPTIONS, GMP_DISAPPROVED_TYPE_OF_ISSUANCE]}
+                  colors={colors} ariaLabel="New Type of Issuance" />
+                {newIssuanceType && certNoteFor(newIssuanceType) && (
+                  <p style={{ margin: "4px 0 0", fontSize: "0.63rem", color: colors.textTertiary }}>
+                    ℹ️ {certNoteFor(newIssuanceType)}
+                  </p>
+                )}
+                {newIssuanceType && newIssuanceType === currentIssuanceType && (
+                  <p style={{ margin: "4px 0 0", fontSize: "0.63rem", color: "#b45309" }}>
+                    ⚠ Same as the current type — pick a different one to add a new issuance.
+                  </p>
+                )}
+              </div>
+              <button type="button" onClick={onAddIssuance} disabled={addIssuanceLoading || needsDifferentIssuanceType}
+                style={{
+                  padding: "0.55rem 1.1rem", border: "none", borderRadius: 999,
+                  background: (addIssuanceLoading || needsDifferentIssuanceType) ? "#93c5fd" : "linear-gradient(145deg,#3b82f6,#2563eb)",
+                  boxShadow: (addIssuanceLoading || needsDifferentIssuanceType) ? "none" : "0 8px 18px -8px rgba(37,99,235,0.55)",
+                  color: "#fff", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 700,
+                  cursor: (addIssuanceLoading || needsDifferentIssuanceType) ? "not-allowed" : "pointer",
+                  whiteSpace: "nowrap",
+                }}>
+                {addIssuanceLoading ? "Adding…" : "＋ Add Issuance"}
+              </button>
+            </div>
+            {addIssuanceError && (
+              <div style={{ padding: "8px 12px", background: "#fef2f2",
+                borderRadius: 10, fontSize: "0.72rem", color: "#ef4444" }}>
+                ⚠️ {addIssuanceError}
+              </div>
+            )}
+            {addIssuanceSuccess && (
+              <div style={{ padding: "8px 12px", background: "#f0fdf4",
+                borderRadius: 10, fontSize: "0.72rem", color: "#15803d" }}>
+                ✅ Added — Reference No <strong>{addIssuanceSuccess.GMP_REFERENCE_NO}</strong>{" "}
+                ({addIssuanceSuccess.GMP_TYPE_OF_ISSUANCE})
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       <div className="wfFieldBox" style={box}>
         <label style={boxLbl}>Remarks <span style={{ color: colors.textTertiary, fontWeight: 400, textTransform: "none" }}>(optional)</span></label>
         <textarea value={remarks} onChange={e => setRemarks(e.target.value)} rows={3}
@@ -2532,13 +2770,15 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
           )}
         </label>
         <textarea
+          ref={doctrackRemarksRef}
           value={doctrackRemarks}
           onChange={e => setDoctrackRemarks(e.target.value)}
           disabled={!doctrackEnabled}
           rows={2}
           placeholder={doctrackEnabled ? "Doctrack remarks for FIS…" : "Doctrack disabled — FIS will not be updated"}
           style={{
-            ...boxInp, resize: "vertical", fontFamily: FONT,
+            ...boxInp, resize: "none", overflow: "hidden", fontFamily: FONT,
+            minHeight: "3.6em",
             opacity: doctrackEnabled ? 1 : 0.45,
             cursor: doctrackEnabled ? "text" : "not-allowed",
           }}
@@ -2728,10 +2968,36 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const stepActionsLoaded = stepActions !== null;
   const decisions   = stepActions?.[currentStep] ?? [];
 
+  // Details step editable fields — moved up from its old spot further down
+  // so currentIssuanceType (right below) is available in time for
+  // actionOptions/recommendationOptions, which now branch on it.
+  const [editedFields, setEditedFields] = useState(() =>
+    d.editedFields && typeof d.editedFields === "object" ? d.editedFields : {});
+
+  // currentIssuanceType tracks any pending Type of Issuance edit (made via
+  // the editable field at the top of Step 4, or via the Details step) so
+  // anything gated on "what type is this record right now" — Add Issuance's
+  // "must differ" check, the Acknowledgement Letter restrictions below —
+  // always compares against what will actually be submitted, not stale data.
+  const originalIssuanceType = record?.GMP_TYPE_OF_ISSUANCE ?? "";
+  const currentIssuanceType = "GMP_TYPE_OF_ISSUANCE" in editedFields
+    ? editedFields.GMP_TYPE_OF_ISSUANCE : originalIssuanceType;
+
   const evalCheckerStepKey = resolveEvalCheckerStep(currentStep);
   const isEvalOrChecker    = !!evalCheckerStepKey;
-  const actionOptions      = GMP_EVAL_CHECKER_ACTIONS[evalCheckerStepKey] ?? [];
-  const recommendationOptions = GMP_RECOMMENDATION_OPTIONS[evalCheckerStepKey] ?? [];
+  // Acknowledgement Letter is a narrower flow than the rest of the Evaluator
+  // step: forwarding on to the Checker for a full review doesn't apply (it's
+  // acknowledged or it isn't), so Action is limited to the two endorsements,
+  // and Recommendation swaps "For Disapproval"/"For Cancellation" for the
+  // single "Denial" outcome. See handleSubmit's auto-release branch below
+  // for what "Endorsed to QA Admin" + "Denial" actually does.
+  const isAckLetter = currentIssuanceType === GMP_ACK_LETTER_ISSUANCE_TYPE;
+  const actionOptions = isAckLetter && evalCheckerStepKey === "Evaluator"
+    ? GMP_ACK_LETTER_ACTIONS
+    : GMP_EVAL_CHECKER_ACTIONS[evalCheckerStepKey] ?? [];
+  const recommendationOptions = isAckLetter && evalCheckerStepKey === "Evaluator"
+    ? GMP_ACK_LETTER_RECOMMENDATIONS
+    : GMP_RECOMMENDATION_OPTIONS[evalCheckerStepKey] ?? [];
 
   // Non-eval/checker advance with no known action for this step — block submit
   // and point the user at an admin rather than showing an empty/rejectable list.
@@ -2759,10 +3025,6 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const [doctrackRemarks, setDoctrackRemarks] = useState(() => d.doctrackRemarks ?? "");
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitError,   setSubmitError]   = useState("");
-
-  // Details step editable fields
-  const [editedFields, setEditedFields] = useState(() =>
-    d.editedFields && typeof d.editedFields === "object" ? d.editedFields : {});
 
   // The record's own stored timeline is authoritative — a category change in
   // this modal only ever drives GMP_TIMELINE when the record itself has none
@@ -2837,7 +3099,15 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const [approvalDecision, setApprovalDecision] = useState(() => d.approvalDecision ?? "");
   const [remarksPreset,    setRemarksPreset]    = useState(() => d.remarksPreset ?? "");
   const [finalTypeOfIssuance, setFinalTypeOfIssuance] = useState(() => d.finalTypeOfIssuance ?? "");
-  const remarksPresetOptions = GMP_REMARKS_PRESETS[evalCheckerStepKey]?.[action] ?? [];
+  const remarksPresetOptionsRaw = GMP_REMARKS_PRESETS[evalCheckerStepKey]?.[action] ?? [];
+  // Endorsed to QA Admin + Denial (Acknowledgement Letter's auto-release
+  // combo — see GMP_ACK_LETTER_* above) only ever pairs with its own
+  // preset. "Printed; For Signature" doesn't apply once the application is
+  // being auto-released instead of printed for signature.
+  const remarksPresetOptions =
+    action === GMP_ACK_LETTER_AUTO_RELEASE_ACTION && approvalDecision === GMP_ACK_LETTER_DENIAL_RECOMMENDATION
+      ? remarksPresetOptionsRaw.filter((r) => r.value === GMP_ACK_LETTER_DENIAL_REMARKS_PRESET)
+      : remarksPresetOptionsRaw;
   // Approved no longer shows/requires this field here — Type of Issuance for
   // the Approved path is already set via the Details tab's own selector, so
   // this one only remains for the step's "disapproved" recommendation
@@ -2863,12 +3133,8 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   // Add Issuance must always create a genuinely different issuance type from
   // what the record already has — the dropdown is pre-filled with the
   // current type purely for visibility, not as a default selection to submit.
-  // currentIssuanceType tracks any pending edit (made via the editable field
-  // above "Add Issuance", or via the Details step) so the "must differ" check
-  // always compares against what will actually be submitted, not stale data.
-  const originalIssuanceType = record?.GMP_TYPE_OF_ISSUANCE ?? "";
-  const currentIssuanceType = "GMP_TYPE_OF_ISSUANCE" in editedFields
-    ? editedFields.GMP_TYPE_OF_ISSUANCE : originalIssuanceType;
+  // (originalIssuanceType / currentIssuanceType now declared further up,
+  // alongside actionOptions/recommendationOptions which also need them.)
   const needsDifferentIssuanceType = !newIssuanceType || newIssuanceType === currentIssuanceType;
 
   // FROO's Related DTN, surfaced directly on the Action step. Reads through
@@ -2943,11 +3209,34 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const [decisionAuthorityId, setDecisionAuthorityId] = useState(() => d.decisionAuthorityId ?? null);
   const [decisionAuthorityName, setDecisionAuthorityName] = useState(() => d.decisionAuthorityName ?? "");
 
-  // Approval fields (Certificate)
-  const needsApprovalFields = GMP_APPROVAL_DECISIONS.includes(decision);
-  const [certNumber, setCertNumber] = useState("");
+  // Approval fields (Certificate) — shown whenever the record's own Type of
+  // Issuance is one that actually carries certificate paperwork, mirroring
+  // the same GMP_NO_CERT_ISSUANCE_TYPES / GMP_NO_SECPA_ONLY_TYPES rule the
+  // Details step and sibling-reference editor already use (see
+  // certNoteFor / RefNoPanel above). Previously gated on `decision ===
+  // "Certificate Released"", a value nothing in GMP_ACTION_ROUTES ever
+  // produces — that made this card permanently unreachable.
+  const needsApprovalFields = !!currentIssuanceType && !GMP_NO_CERT_ISSUANCE_TYPES.has(currentIssuanceType);
+  const needsSecpaField = needsApprovalFields && !GMP_NO_SECPA_ONLY_TYPES.has(currentIssuanceType);
+  // Certificate Number / Validity / SECPA Number — read/write through
+  // editedFields, exactly like currentIssuanceType above, so an edit made
+  // here and an edit made on the same field in the Details step (Step 1)
+  // are the same edit, not two independent copies that silently clobber
+  // each other on Submit (which is what a separate certNumber/certValidity
+  // useState used to do).
+  const originalCertNumber = record?.GMP_CERTIFICATE_NUMBER ?? "";
+  const currentCertNumber = "GMP_CERTIFICATE_NUMBER" in editedFields
+    ? editedFields.GMP_CERTIFICATE_NUMBER : originalCertNumber;
+  const originalCertValidity = record?.GMP_CERTIFICATE_VALIDITY ?? "";
+  const currentCertValidity = "GMP_CERTIFICATE_VALIDITY" in editedFields
+    ? editedFields.GMP_CERTIFICATE_VALIDITY : originalCertValidity;
+  const originalSecpaNumber = record?.GMP_SECPA_NUMBER ?? "";
+  const currentSecpaNumber = "GMP_SECPA_NUMBER" in editedFields
+    ? editedFields.GMP_SECPA_NUMBER : originalSecpaNumber;
+  // Still a separate, plain useState — this one backs ONLY the read-only OD
+  // Releasing confirmation card (never edited by the user), so it doesn't
+  // need the editedFields treatment above.
   const [typeOfIssuance, setTypeOfIssuance] = useState("");
-  const [certValidity, setCertValidity] = useState("");
 
   // Required "assign to group" picker — resolved generically from the
   // selected Action (Evaluator/Checker) or Decision/Action value (every
@@ -3027,6 +3316,12 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       // Approved (fresh pick from the full list) or anything else — clear
       setFinalTypeOfIssuance("");
     }
+    // Remarks Preset options are also scoped to Recommendation for the
+    // Acknowledgement Letter / Denial case (see remarksPresetOptions above)
+    // — clear any stale pick the same way handleActionChange already does
+    // when Action changes.
+    setRemarksPreset("");
+    setDoctrackRemarks("");
   };
 
   const handleRemarksPresetChange = (val) => {
@@ -3097,9 +3392,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
 
   useEffect(() => {
     if (record) {
-      setCertNumber(record.GMP_CERTIFICATE_NUMBER ?? "");
       setTypeOfIssuance(record.GMP_TYPE_OF_ISSUANCE ?? "");
-      setCertValidity(record.GMP_CERTIFICATE_VALIDITY ?? "");
       // Add Issuance dropdown starts on the record's existing issuance type
       // so the person can see what's already there — the Add Issuance button
       // stays disabled until they actually pick something different (see
@@ -3198,14 +3491,10 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         out.push({ key: k, label: FIELD_LABELS[k] ?? k, oldValue: oldVal, newValue: newVal });
       }
     });
-    if (needsApprovalFields && record) {
-      if (String(record.GMP_CERTIFICATE_NUMBER ?? "") !== String(certNumber ?? ""))
-        out.push({ key: "GMP_CERTIFICATE_NUMBER", label: "Certificate Number", oldValue: record.GMP_CERTIFICATE_NUMBER, newValue: certNumber });
-      if (String(record.GMP_TYPE_OF_ISSUANCE ?? "") !== String(typeOfIssuance ?? ""))
-        out.push({ key: "GMP_TYPE_OF_ISSUANCE", label: "Type of Issuance", oldValue: record.GMP_TYPE_OF_ISSUANCE, newValue: typeOfIssuance });
-      if (String(record.GMP_CERTIFICATE_VALIDITY ?? "") !== String(certValidity ?? ""))
-        out.push({ key: "GMP_CERTIFICATE_VALIDITY", label: "Certificate Validity", oldValue: record.GMP_CERTIFICATE_VALIDITY, newValue: certValidity });
-    }
+    // Certificate Number / Validity / SECPA Number / Type of Issuance are
+    // NOT special-cased here anymore — they're all edited via editedFields
+    // now (same as every Details-step field), so the generic loop above
+    // already picks them up.
     if (needsNodDate && record) {
       const oldVal = record[nodDateField] ?? "";
       if (String(oldVal) !== String(nodDateValue ?? ""))
@@ -3440,6 +3729,15 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       // logged, auto-incrementing entry. There's no manual assignee picker
       // for the self-loop, so it stays with the same evaluator submitting it.
       const isSelfLoop = isEvalOrChecker && action === "For Compliance";
+      // Acknowledgement Letter's "Endorsed to QA Admin" + "Denial" combo —
+      // QA Admin still shows up as the log's next step (for history), but
+      // the app is auto-released right away instead of leaving an open task
+      // for a QA Admin to act on. See GMP_ACK_LETTER_* above and
+      // auto_complete_next_step handling in gmp_logs.advance_step (backend).
+      const isAckLetterAutoRelease = isEvalOrChecker
+        && action === GMP_ACK_LETTER_AUTO_RELEASE_ACTION
+        && approvalDecision === GMP_ACK_LETTER_DENIAL_RECOMMENDATION
+        && currentIssuanceType === GMP_ACK_LETTER_ISSUANCE_TYPE;
       const advancePayload = {
         current_step: currentStep,
         action: isEvalOrChecker ? action : decision,
@@ -3473,6 +3771,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         completion_status: needsOdReleasingDecision ? "RELEASED" : undefined,
         deadline_date: needsComplianceDeadline ? `${complianceDeadline}T00:00:00` : undefined,
         working_days: needsComplianceDeadline ? complianceWorkingDays : undefined,
+        auto_complete_next_step: isAckLetterAutoRelease,
         ...(needsAuthority ? {
           decision_authority_id: decisionAuthorityId,
           decision_authority_name: decisionAuthorityName,
@@ -3487,12 +3786,11 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       // Runs after a successful advance. A failure here leaves the log advanced
       // but a field or two unsaved — recoverable by editing the next log — which
       // is a far rarer and milder failure than advancing on a stale route.
+      // Certificate Number / Validity / SECPA Number / Type of Issuance are
+      // NOT set here anymore — they're already in `editedFields` above (or
+      // overwritten by finalTypeOfIssuance below for a disapproval), the
+      // same as every Details-step field.
       const recordPayload = { ...editedFields };
-      if (needsApprovalFields) {
-        recordPayload.GMP_CERTIFICATE_NUMBER = certNumber;
-        recordPayload.GMP_TYPE_OF_ISSUANCE = typeOfIssuance;
-        recordPayload.GMP_CERTIFICATE_VALIDITY = certValidity;
-      }
       if (isEvalOrChecker && action !== "For Compliance" && approvalDecision) {
         recordPayload.GMP_DECISION = approvalDecision;
         if (finalTypeOfIssuance) {
@@ -3693,17 +3991,25 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                   </div>
                 ))}
               </div>
-              <div>
-                <label style={{ display: "block", fontSize: "0.65rem", fontWeight: 700,
-                  textTransform: "uppercase", letterSpacing: "0.05em", color: colors.textPrimary, marginBottom: "0.4rem" }}>
-                  Handled By
-                </label>
-                <input readOnly value={currentUser || "—"} style={{
-                  width: "100%", padding: "0.55rem 0.75rem", fontFamily: FONT, fontSize: "0.8rem",
-                  background: colors.badgeBg, border: "none",
-                  borderRadius: 10, color: colors.textPrimary, outline: "none",
-                  boxSizing: "border-box", cursor: "not-allowed",
-                }} />
+              {/* Plain inline line, no pill — read-only, single-value
+                  context, not something that needs its own boxed field.
+                  Username + "· name (alias)" matches the same format
+                  LogCard uses for a step's handler in the Logs tab, just
+                  color-coded per-user here (via avatarColor) instead of
+                  per-step. baseline alignment so the small uppercase label
+                  and the value sit on the same text line, not offset by
+                  their different font sizes/weights. */}
+              <div style={{
+                display: "inline-flex", alignItems: "baseline", gap: 6, width: "fit-content",
+              }}>
+                <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase",
+                  letterSpacing: "0.06em", color: colors.textTertiary }}>
+                  Handled by
+                </span>
+                <span style={{ fontSize: "0.68rem", fontWeight: 400, color: avatarColor(currentUser) }}>
+                  · {currentUser || "—"}
+                  {currentUserObj.alias ? ` (${currentUserObj.alias})` : ""}
+                </span>
               </div>
               <Step5Fields
                 decision={decision} onDecisionChange={handleDecisionChange}
@@ -3722,10 +4028,14 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                 needsAuthority={needsAuthority} authorityOptions={authorityOptions}
                 loadingAuthority={loadingAuthority} decisionAuthorityId={decisionAuthorityId}
                 onAuthorityChange={handleAuthorityChange}
-                needsApprovalFields={needsApprovalFields}
-                certNumber={certNumber} setCertNumber={setCertNumber}
-                typeOfIssuance={typeOfIssuance} setTypeOfIssuance={setTypeOfIssuance}
-                certValidity={certValidity} setCertValidity={setCertValidity}
+                needsApprovalFields={needsApprovalFields} needsSecpaField={needsSecpaField}
+                typeOfIssuance={typeOfIssuance}
+                currentCertNumber={currentCertNumber} originalCertNumber={originalCertNumber}
+                onCertNumberChange={(v) => handleFieldChange("GMP_CERTIFICATE_NUMBER", v)}
+                currentCertValidity={currentCertValidity} originalCertValidity={originalCertValidity}
+                onCertValidityChange={(v) => handleFieldChange("GMP_CERTIFICATE_VALIDITY", v)}
+                currentSecpaNumber={currentSecpaNumber} originalSecpaNumber={originalSecpaNumber}
+                onSecpaNumberChange={(v) => handleFieldChange("GMP_SECPA_NUMBER", v)}
                 dirtyFields={dirtyFields}
                 isEvalOrChecker={isEvalOrChecker}
                 actionOptions={actionOptions} actionValue={action} onActionChange={handleActionChange}

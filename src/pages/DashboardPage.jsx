@@ -470,7 +470,13 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
   const ui = useMemo(() => makeUI(darkMode), [darkMode]);
 
   // ── Sub-sidebar (collapsible rail — starts closed) ────────────────────────
-  const [activeDashboard, setActiveDashboard] = useState("main");
+  const [activeDashboard, setActiveDashboard] = useState(() => {
+    try {
+      return localStorage.getItem("dashboardActiveTab") || "main";
+    } catch {
+      return "main";
+    }
+  });
   const [subSidebarOpen, setSubSidebarOpen] = useState(() => {
     try {
       return localStorage.getItem("dashboardSubSidebarOpen") === "true";
@@ -484,6 +490,12 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
       localStorage.setItem("dashboardSubSidebarOpen", String(subSidebarOpen));
     } catch {}
   }, [subSidebarOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("dashboardActiveTab", activeDashboard);
+    } catch {}
+  }, [activeDashboard]);
 
   // ── Impersonation state ───────────────────────────────────────────────────
   const [showImpersonationPrompt, setShowImpersonationPrompt] = useState(() =>

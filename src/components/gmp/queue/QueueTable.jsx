@@ -257,7 +257,7 @@ function ActionMenu({ record, onAction, colors, darkMode, showDeck, canEditInfo 
   // divider left behind for anyone else, since it's bundled in with them.
   const ACTION_ITEMS = canEditInfo ? [...BASE_ITEMS, ...RESTRICTED_ITEMS] : BASE_ITEMS;
   const [open, setOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0, maxHeight: 400 });
   const btnRef = useRef(null);
   const menuRef = useRef(null);
 
@@ -266,12 +266,26 @@ function ActionMenu({ record, onAction, colors, darkMode, showDeck, canEditInfo 
     const rect = btnRef.current.getBoundingClientRect();
     const menuH = menuRef.current?.offsetHeight ?? 160;
     const menuW = menuRef.current?.offsetWidth  ?? 200;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const top  = spaceBelow < menuH + 8 ? rect.top - menuH - 4 : rect.bottom + 4;
+    const PAD = 8;
+    const spaceBelow = window.innerHeight - rect.bottom - PAD;
+    const spaceAbove = rect.top - PAD;
+    // Flip above only when below doesn't fit AND above genuinely has more
+    // room — a button near the top of the viewport (a row near the top of
+    // the table) has little room above too, so blindly flipping up on
+    // "not enough below" could push the menu to a negative top, hiding its
+    // first items behind the page header. Whichever side wins, the menu is
+    // then clamped inside the viewport and capped with maxHeight (+ scroll)
+    // so it can never render off-screen even when neither side has enough
+    // room for the full item list.
+    const up = spaceBelow < menuH && spaceAbove > spaceBelow;
+    const room = Math.max(120, up ? spaceAbove : spaceBelow);
+    const top = up
+      ? Math.max(PAD, rect.top - Math.min(menuH, room) - 4)
+      : Math.min(rect.bottom + 4, window.innerHeight - PAD - Math.min(menuH, room));
     let left = rect.right - menuW;
     // Clamp so the menu never drifts off-screen or under the sidebar
     left = Math.max(8, Math.min(left, window.innerWidth - menuW - 8));
-    setMenuPos({ top, left });
+    setMenuPos({ top, left, maxHeight: room });
   }, []);
 
   useEffect(() => {
@@ -320,6 +334,10 @@ function ActionMenu({ record, onAction, colors, darkMode, showDeck, canEditInfo 
             border: `1px solid ${darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)"}`,
             borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
             minWidth: 200, padding: "6px 0",
+            // Last-resort safety net — if the item list is still taller than
+            // whichever side (above/below) had more room, it scrolls inside
+            // the menu instead of spilling past the viewport edge.
+            maxHeight: menuPos.maxHeight, overflowY: "auto",
           }}>
           {ACTION_ITEMS.map((item) => {
             if (item.label === "---") {
