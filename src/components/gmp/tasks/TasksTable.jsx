@@ -234,7 +234,7 @@ const TASK_ACTION_ITEMS = [
 
 function ActionMenu({ row, onAction, colors, darkMode }) {
   const [open, setOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0, maxHeight: 400 });
   const btnRef = useRef(null);
   const menuRef = useRef(null);
 
@@ -243,11 +243,23 @@ function ActionMenu({ row, onAction, colors, darkMode }) {
     const rect = btnRef.current.getBoundingClientRect();
     const menuH = menuRef.current?.offsetHeight ?? 180;
     const menuW = menuRef.current?.offsetWidth  ?? 210;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const top  = spaceBelow < menuH + 8 ? rect.top - menuH - 4 : rect.bottom + 4;
+    const PAD = 8;
+    const spaceBelow = window.innerHeight - rect.bottom - PAD;
+    const spaceAbove = rect.top - PAD;
+    // Flip above only when below doesn't fit AND above genuinely has more
+    // room — a button near the top of the viewport has little room above
+    // too, so blindly flipping up on "not enough below" could push the
+    // menu to a negative top, hiding its first items behind the page
+    // header. Clamped inside the viewport either way, with maxHeight (+
+    // scroll) as a last resort if the list is taller than either side.
+    const up = spaceBelow < menuH && spaceAbove > spaceBelow;
+    const room = Math.max(120, up ? spaceAbove : spaceBelow);
+    const top = up
+      ? Math.max(PAD, rect.top - Math.min(menuH, room) - 4)
+      : Math.min(rect.bottom + 4, window.innerHeight - PAD - Math.min(menuH, room));
     let left = rect.right - menuW;
     left = Math.max(8, Math.min(left, window.innerWidth - menuW - 8));
-    setMenuPos({ top, left });
+    setMenuPos({ top, left, maxHeight: room });
   }, []);
 
   useEffect(() => {
@@ -296,6 +308,7 @@ function ActionMenu({ row, onAction, colors, darkMode }) {
             border: `1px solid ${darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)"}`,
             borderRadius: 10, boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
             minWidth: 210, padding: "6px 0",
+            maxHeight: menuPos.maxHeight, overflowY: "auto",
           }}>
           {TASK_ACTION_ITEMS.map((item) => (
             <button key={item.id}
