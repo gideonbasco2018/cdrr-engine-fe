@@ -295,12 +295,15 @@ const GMP_DISAPPROVAL_RECOMMENDATION = {
 // in WorkflowModal). "Denial" is a distinct outcome from "For Disapproval" —
 // it never requires (or auto-fills) a separate Type of Issuance the way a
 // real disapproval does, since it's already fixed as Acknowledgement Letter.
-// "Endorsed to QA Admin" + "Denial" together auto-release the application —
-// see handleSubmit's auto_complete_next_step branch.
+// "Endorsed to QA Admin" + "Denial" routes to QA Admin exactly like any
+// other "Endorsed to QA Admin" — a normal open task, not auto-released.
+// QA Admin is expected to be the last step for this combo, but that's
+// handled by whatever QA Admin does there themselves, not by anything
+// special on submit here.
 const GMP_ACK_LETTER_ISSUANCE_TYPE = "Acknowledgement Letter";
 const GMP_ACK_LETTER_ACTIONS = ["Endorsed to Checker", "Endorsed to QA Admin"];
 const GMP_ACK_LETTER_RECOMMENDATIONS = ["For Approval", "Denial"];
-const GMP_ACK_LETTER_AUTO_RELEASE_ACTION = "Endorsed to QA Admin";
+const GMP_ACK_LETTER_QA_ADMIN_ACTION = "Endorsed to QA Admin";
 const GMP_ACK_LETTER_DENIAL_RECOMMENDATION = "Denial";
 const GMP_ACK_LETTER_DENIAL_REMARKS_PRESET = "Evaluated; Emailed Response/ Recommendation/ Advise";
 
@@ -3100,12 +3103,11 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const [remarksPreset,    setRemarksPreset]    = useState(() => d.remarksPreset ?? "");
   const [finalTypeOfIssuance, setFinalTypeOfIssuance] = useState(() => d.finalTypeOfIssuance ?? "");
   const remarksPresetOptionsRaw = GMP_REMARKS_PRESETS[evalCheckerStepKey]?.[action] ?? [];
-  // Endorsed to QA Admin + Denial (Acknowledgement Letter's auto-release
-  // combo — see GMP_ACK_LETTER_* above) only ever pairs with its own
-  // preset. "Printed; For Signature" doesn't apply once the application is
-  // being auto-released instead of printed for signature.
+  // Endorsed to QA Admin + Denial (Acknowledgement Letter — see
+  // GMP_ACK_LETTER_* above) only ever pairs with its own preset.
+  // "Printed; For Signature" doesn't apply to a Denial outcome.
   const remarksPresetOptions =
-    action === GMP_ACK_LETTER_AUTO_RELEASE_ACTION && approvalDecision === GMP_ACK_LETTER_DENIAL_RECOMMENDATION
+    action === GMP_ACK_LETTER_QA_ADMIN_ACTION && approvalDecision === GMP_ACK_LETTER_DENIAL_RECOMMENDATION
       ? remarksPresetOptionsRaw.filter((r) => r.value === GMP_ACK_LETTER_DENIAL_REMARKS_PRESET)
       : remarksPresetOptionsRaw;
   // Approved no longer shows/requires this field here — Type of Issuance for
@@ -3729,15 +3731,6 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       // logged, auto-incrementing entry. There's no manual assignee picker
       // for the self-loop, so it stays with the same evaluator submitting it.
       const isSelfLoop = isEvalOrChecker && action === "For Compliance";
-      // Acknowledgement Letter's "Endorsed to QA Admin" + "Denial" combo —
-      // QA Admin still shows up as the log's next step (for history), but
-      // the app is auto-released right away instead of leaving an open task
-      // for a QA Admin to act on. See GMP_ACK_LETTER_* above and
-      // auto_complete_next_step handling in gmp_logs.advance_step (backend).
-      const isAckLetterAutoRelease = isEvalOrChecker
-        && action === GMP_ACK_LETTER_AUTO_RELEASE_ACTION
-        && approvalDecision === GMP_ACK_LETTER_DENIAL_RECOMMENDATION
-        && currentIssuanceType === GMP_ACK_LETTER_ISSUANCE_TYPE;
       const advancePayload = {
         current_step: currentStep,
         action: isEvalOrChecker ? action : decision,
@@ -3771,7 +3764,6 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         completion_status: needsOdReleasingDecision ? "RELEASED" : undefined,
         deadline_date: needsComplianceDeadline ? `${complianceDeadline}T00:00:00` : undefined,
         working_days: needsComplianceDeadline ? complianceWorkingDays : undefined,
-        auto_complete_next_step: isAckLetterAutoRelease,
         ...(needsAuthority ? {
           decision_authority_id: decisionAuthorityId,
           decision_authority_name: decisionAuthorityName,
