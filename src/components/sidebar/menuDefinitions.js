@@ -38,7 +38,7 @@ export const menuDefinitions = {
     {
       id: "donation",
       label: "Donation",
-      icon: "🎁",
+      icon: "🤝",
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],

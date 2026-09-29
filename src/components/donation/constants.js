@@ -24,7 +24,7 @@ export const STATUS_MAP = {
   },
 };
 export const TABS = [
-  { id: "all", label: "All Reports", icon: "🎁" },
+  { id: "all", label: "All Reports", icon: "🤝" },
   { id: "approved", label: "Approved", icon: "✅" },
   { id: "pending", label: "Pending", icon: "⏳" },
 ];
