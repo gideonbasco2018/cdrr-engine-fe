@@ -1,6 +1,9 @@
 // src/pages/EApplicationPage.jsx
 import { useState, useMemo } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
+import ApplicationDetailsModal from "../components/eapplication/ApplicationDetailsModal.jsx";
+import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
+import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
 
 /* ──────────────────────────────────────────────────────────
    Two-level task page:
@@ -31,8 +34,8 @@ const SUBTABS_BY_DEPARTMENT = {
 const ROWS_PER_PAGE = 5;
 const MAX_NOTE_LENGTH = 1500;
 
-/* ── Static mock data — palitan na lang later ng API call.
-   Each row now carries `department` and `status`:
+/* ── Static mock data — replace with an API call later.
+   Each row carries `department` and `status`:
    status: "unclaimed" | "claimed" | "processed" ── */
 const MOCK_APPLICATIONS = [
   {
@@ -128,7 +131,122 @@ const MOCK_APPLICATIONS = [
   },
 ];
 
+const formatPeso = (n) =>
+  `₱${Number(n || 0).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+
+/* TODO: replace with the client's real email from the application record */
+const CLIENT_EMAIL = "regulatory@torrentpharma.com.ph";
+
+/* Sample only: chance that a newly sent email fails, so Resend can be tested.
+   Use 0 for no failures and 1 for always failing. */
+const SAMPLE_FAIL_RATE = 0.4;
+
+const nowStamp = () =>
+  new Date().toLocaleString("en-PH", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
+
+const DOC_LABELS = {
+  OOP: "Order of Payment",
+  AOOP: "Additional Order of Payment",
+  AR: "Acknowledgement Receipt",
+  NOTE: "Application Note",
+};
+
+/* TODO: replace with the real email log from the backend (Gmail / mail service) */
+const makeEmailLog = (docType, refNo) => {
+  const failed = Math.random() < SAMPLE_FAIL_RATE;
+  const at = nowStamp();
+  const error = failed
+    ? "SMTP 550: Mailbox unavailable or server timeout."
+    : null;
+  return {
+    id: `${docType}-${refNo}-${Date.now()}`,
+    docType,
+    subject: `${DOC_LABELS[docType]} - ${refNo}`,
+    to: CLIENT_EMAIL,
+    attachment: `${DOC_LABELS[docType]} - ${refNo}.pdf`,
+    status: failed ? "failed" : "sent",
+    sentAt: at,
+    attempts: 1,
+    error,
+    // One entry per attempt, oldest first
+    history: [{ attempt: 1, status: failed ? "failed" : "sent", at, error }],
+  };
+};
+
+/* TODO: replace with the real email log from the backend (Gmail / mail service).
+   An Application Note has no PDF attachment; the note text is the email body. */
+const makeNoteEmailLog = (refNo, noteText) => {
+  const failed = Math.random() < SAMPLE_FAIL_RATE;
+  const at = nowStamp();
+  const error = failed
+    ? "SMTP 550: Mailbox unavailable or server timeout."
+    : null;
+  return {
+    id: `NOTE-${refNo}-${Date.now()}`,
+    docType: "NOTE",
+    subject: `${DOC_LABELS.NOTE} - ${refNo}`,
+    to: CLIENT_EMAIL,
+    attachment: null,
+    body: noteText,
+    status: failed ? "failed" : "sent",
+    sentAt: at,
+    attempts: 1,
+    error,
+    history: [{ attempt: 1, status: failed ? "failed" : "sent", at, error }],
+  };
+};
+
+/* The original Order of Payment is emailed when it is generated (before this
+   screen), so every application starts with one "sent" log for it. */
+const seedOopLog = (app) => ({
+  id: `OOP-${app.referenceNo}`,
+  docType: "OOP",
+  subject: `${DOC_LABELS.OOP} - ${app.referenceNo}`,
+  to: CLIENT_EMAIL,
+  attachment: `${DOC_LABELS.OOP} - ${app.referenceNo}.pdf`,
+  status: "sent",
+  sentAt: "13 July 2026 09:45",
+  attempts: 1,
+  error: null,
+  history: [
+    { attempt: 1, status: "sent", at: "13 July 2026 09:45", error: null },
+  ],
+});
+
 /* ── Badges ── */
+function renderRemarks(row) {
+  if (!row.remarks) {
+    return <span style={{ opacity: 0.5 }}>—</span>;
+  }
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "flex-start",
+        gap: "0.35rem",
+        padding: "0.3rem 0.6rem",
+        background: "rgba(245,158,11,0.12)",
+        border: "1px solid rgba(245,158,11,0.35)",
+        color: "#d97706",
+        borderRadius: "6px",
+        fontSize: "0.6rem",
+        fontWeight: 600,
+        lineHeight: 1.4,
+        whiteSpace: "normal",
+        maxWidth: "280px",
+      }}
+    >
+      <span>⚠️</span>
+      <span>{row.remarks}</span>
+    </span>
+  );
+}
 function renderPriorityBadge(priority) {
   const map = {
     High: {
@@ -768,7 +886,8 @@ function ApplicationNotesModal({
 
 function EApplicationPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
-
+  const [docsTargetId, setDocsTargetId] = useState(null);
+  const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
   const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key);
   const [activeSubTab, setActiveSubTab] = useState("unclaimed"); // unclaimed | claimed | processed
   const [applications, setApplications] = useState(MOCK_APPLICATIONS);
@@ -781,6 +900,9 @@ function EApplicationPage({ darkMode }) {
 
   /* Application Notes modal state */
   const [notesTarget, setNotesTarget] = useState(null); // row whose notes are open
+  /* View Details modal state */
+  const [detailsTarget, setDetailsTarget] = useState(null); // row whose details are open
+
   const [applicationNotes, setApplicationNotes] = useState({}); // { [rowId]: Note[] }
   const [isComposingNote, setIsComposingNote] = useState(false);
   const [noteText, setNoteText] = useState("");
@@ -913,16 +1035,113 @@ function EApplicationPage({ darkMode }) {
     );
   };
 
-  /* TODO: replace with real API call that advances the
-     application to its next workflow step server-side */
-  const handleMarkProcessed = (row) => {
+  /* TODO: replace with a real API call, e.g.
+   await postPayments(row.id, { payments, remarks }) then refetch.
+   If balance > 0, the backend should also generate the additional Order of Payment
+   and email the generated documents to the client. */
+  const handlePostPayment = ({
+    row,
+    payments,
+    totalPaid,
+    balance,
+    remarks,
+  }) => {
+    const isShort = balance > 0;
+    const stamp = nowStamp();
+    setApplications((prev) =>
+      prev.map((app) => {
+        if (app.id !== row.id) return app;
+        const prevPaid = Number(app.totalPaid || 0);
+        const newAoopCount = (app.additionalOopCount || 0) + (isShort ? 1 : 0);
+        return {
+          ...app,
+          // Short payment: the task stays in the Task tab.
+          // Fully paid: it moves to Processed Task.
+          status: isShort ? "claimed" : "processed",
+          lastModified: "Just now",
+          payments: [...(app.payments || []), ...payments],
+          totalPaid: prevPaid + totalPaid,
+          balance,
+          additionalOopCount: newAoopCount,
+          additionalOopRemarks: remarks,
+          // One Acknowledgement Receipt per posting
+          receipts: [
+            ...(app.receipts || []),
+            { id: Date.now(), payments, totalPaid, postingStamp: stamp },
+          ],
+          // One Additional Order of Payment per short posting
+          additionalOops: isShort
+            ? [
+                ...(app.additionalOops || []),
+                {
+                  id: Date.now() + 1,
+                  refNo: `${app.referenceNo}-A${newAoopCount}`,
+                  alreadyPaid: prevPaid + totalPaid,
+                  balance,
+                  remarks,
+                  generatedOn: stamp,
+                },
+              ]
+            : app.additionalOops || [],
+          // Emails sent to the client for each generated document
+          emailLogs: [
+            ...(app.emailLogs || [seedOopLog(app)]),
+            makeEmailLog("AR", app.referenceNo),
+            ...(isShort
+              ? [makeEmailLog("AOOP", `${app.referenceNo}-A${newAoopCount}`)]
+              : []),
+          ],
+          remarks: isShort
+            ? `Insufficient payment (${formatPeso(balance)} short). For payment verification of additional payment.`
+            : "",
+        };
+      }),
+    );
+  };
+
+  const updateEmailLog = (appId, logId, patch) =>
     setApplications((prev) =>
       prev.map((app) =>
-        app.id === row.id
-          ? { ...app, status: "processed", lastModified: "Just now" }
-          : app,
+        app.id !== appId
+          ? app
+          : {
+              ...app,
+              emailLogs: (app.emailLogs || [seedOopLog(app)]).map((l) =>
+                l.id === logId
+                  ? {
+                      ...l,
+                      ...(typeof patch === "function" ? patch(l) : patch),
+                    }
+                  : l,
+              ),
+            },
       ),
     );
+
+  /* TODO: replace with a real API call, e.g. await resendEmail(logId) then refetch */
+  const handleResendEmail = (appId, logId) => {
+    updateEmailLog(appId, logId, { status: "sending", error: null });
+    setTimeout(() => {
+      // Sample only: a resend can also fail, so the history shows both outcomes
+      const failed = Math.random() < SAMPLE_FAIL_RATE;
+      const at = nowStamp();
+      const error = failed
+        ? "SMTP 421: Service not available, try again later."
+        : null;
+      updateEmailLog(appId, logId, (l) => {
+        const attempt = l.attempts + 1;
+        return {
+          status: failed ? "failed" : "sent",
+          sentAt: at,
+          attempts: attempt,
+          error,
+          history: [
+            ...(l.history || []),
+            { attempt, status: failed ? "failed" : "sent", at, error },
+          ],
+        };
+      });
+    }, 1200);
   };
 
   const openNotes = (row) => {
@@ -939,24 +1158,45 @@ function EApplicationPage({ darkMode }) {
   };
 
   /* TODO: replace with real API call, e.g.
-     await postApplicationNote(row.id, { text, sendEmail }) then refetch */
+     await postApplicationNote(row.id, { text, sendEmail }) then refetch.
+     The backend should also send the email and return its log entry. */
   const postNote = () => {
     if (!notesTarget || !noteText.trim()) return;
+    const trimmedText = noteText.trim();
+    const targetId = notesTarget.id;
     const newNote = {
       id: Date.now(),
       author: CURRENT_USER,
-      text: noteText.trim(),
+      text: trimmedText,
       timestamp: "Just now",
       emailSent: sendNoteEmail,
     };
     setApplicationNotes((prev) => ({
       ...prev,
-      [notesTarget.id]: [...(prev[notesTarget.id] || []), newNote],
+      [targetId]: [...(prev[targetId] || []), newNote],
     }));
+
+    // If "Send email" was checked, this note also shows up in
+    // Email Notifications, with the same resend/history behavior.
+    if (sendNoteEmail) {
+      setApplications((prev) =>
+        prev.map((app) =>
+          app.id === targetId
+            ? {
+                ...app,
+                emailLogs: [
+                  ...(app.emailLogs || [seedOopLog(app)]),
+                  makeNoteEmailLog(app.referenceNo, trimmedText),
+                ],
+              }
+            : app,
+        ),
+      );
+    }
+
     setNoteText("");
     setIsComposingNote(false);
   };
-
   const handleMenuToggle = (e, rowId) => {
     e.stopPropagation();
     if (openMenuId === rowId) {
@@ -977,29 +1217,24 @@ function EApplicationPage({ darkMode }) {
 
   const getTaskActionMenuOptions = (row) => [
     {
-      label: "Uploaded Documents",
-      icon: "📁",
-      handler: () => console.log("Uploaded Documents", row),
-    },
-    {
       label: "Generated Documents",
       icon: "📄",
-      handler: () => console.log("Generated Documents", row),
+      handler: () => setDocsTargetId(row.id),
+    },
+    {
+      label: "Email Notifications",
+      icon: "📧",
+      handler: () => setEmailTargetId(row.id),
     },
     {
       label: "View Details",
       icon: "👁️",
-      handler: () => console.log("View Details", row),
+      handler: () => setDetailsTarget(row),
     },
     {
       label: "Application Notes",
       icon: "📝",
       handler: () => openNotes(row),
-    },
-    {
-      label: "Mark as Processed",
-      icon: "✅",
-      handler: () => handleMarkProcessed(row),
     },
     {
       label: "Return to Pool",
@@ -1007,21 +1242,22 @@ function EApplicationPage({ darkMode }) {
       handler: () => handleReturnToPool(row),
     },
   ];
+
   const getProcessedActionMenuOptions = (row) => [
-    {
-      label: "Uploaded Documents",
-      icon: "📁",
-      handler: () => console.log("Uploaded Documents", row),
-    },
     {
       label: "Generated Documents",
       icon: "📄",
-      handler: () => console.log("Generated Documents", row),
+      handler: () => setDocsTargetId(row.id),
+    },
+    {
+      label: "Email Notifications",
+      icon: "📧",
+      handler: () => setEmailTargetId(row.id),
     },
     {
       label: "View Details",
       icon: "👁️",
-      handler: () => console.log("View Details", row),
+      handler: () => setDetailsTarget(row),
     },
     {
       label: "Application Notes",
@@ -1029,7 +1265,6 @@ function EApplicationPage({ darkMode }) {
       handler: () => openNotes(row),
     },
   ];
-
   const thStyle = {
     padding: "0.45rem 0.6rem",
     textAlign: "left",
@@ -1377,6 +1612,9 @@ function EApplicationPage({ darkMode }) {
                   <th style={thStyle}>Due Date</th>
                   <th style={thStyle}>Last Modified</th>
                   <th style={thStyle}>Priority</th>
+                  {activeSubTab !== "unclaimed" && (
+                    <th style={thStyle}>Remarks</th>
+                  )}
                   <th
                     style={{ ...thStyle, textAlign: "center", width: "120px" }}
                   >
@@ -1388,7 +1626,7 @@ function EApplicationPage({ darkMode }) {
                 {paginatedData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={activeSubTab === "unclaimed" ? 10 : 9}
+                      colSpan={10}
                       style={{
                         padding: "2rem",
                         textAlign: "center",
@@ -1472,6 +1710,11 @@ function EApplicationPage({ darkMode }) {
                       <td style={tdStyle}>
                         {renderPriorityBadge(row.priority)}
                       </td>
+                      {activeSubTab !== "unclaimed" && (
+                        <td style={{ ...tdStyle, whiteSpace: "normal" }}>
+                          {renderRemarks(row)}
+                        </td>
+                      )}
                       <td style={{ ...tdStyle, textAlign: "center" }}>
                         {activeSubTab === "unclaimed" ? (
                           <button
@@ -1686,6 +1929,49 @@ function EApplicationPage({ darkMode }) {
         onPost={postNote}
         onClose={closeNotes}
       />
+
+      {detailsTarget && (
+        <ApplicationDetailsModal
+          key={detailsTarget.id}
+          row={detailsTarget}
+          colors={colors}
+          cashierName={CURRENT_USER}
+          cashierPosition="Cashier"
+          onPost={handlePostPayment}
+          onClose={() => setDetailsTarget(null)}
+        />
+      )}
+
+      {emailTargetId &&
+        (() => {
+          const app = applications.find((a) => a.id === emailTargetId);
+          if (!app) return null;
+          return (
+            <EmailNotificationsModal
+              row={app}
+              logs={app.emailLogs || [seedOopLog(app)]}
+              colors={colors}
+              onResend={(logId) => handleResendEmail(app.id, logId)}
+              onClose={() => setEmailTargetId(null)}
+            />
+          );
+        })()}
+
+      {docsTargetId &&
+        (() => {
+          const app = applications.find((a) => a.id === docsTargetId);
+          if (!app) return null;
+          return (
+            <GeneratedDocumentsModal
+              key={app.id}
+              row={app}
+              colors={colors}
+              cashierName={CURRENT_USER}
+              cashierPosition="Cashier"
+              onClose={() => setDocsTargetId(null)}
+            />
+          );
+        })()}
     </div>
   );
 }
