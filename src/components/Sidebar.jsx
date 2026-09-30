@@ -203,6 +203,9 @@ function Sidebar({
   const visibleEApplication = sortByDbOrder(
     filterByRoleAndGroup(menuDefinitions.eApplicationItems),
   );
+  const visibleCDRRHR = sortByDbOrder(
+    filterByRoleAndGroup(menuDefinitions.CDRRHRItems),
+  );
   const visibleSupport = sortByDbOrder(
     filterByRoleAndGroup(menuDefinitions.supportItems),
   );
@@ -245,6 +248,7 @@ function Sidebar({
       "bulk-folder-document-upload": `${basePath}/bulk-folder-document-upload`,
       "target-assignments": `${basePath}/target-assignments`,
       "eapplication-tasks": `${basePath}/eapplication-tasks`,
+      "cmdr-db": `${basePath}/cmdr-db`,
     };
     if (isMobile) setMobileOpen(false);
     navigate(routeMap[itemId] || `${basePath}/dashboard`);
@@ -418,6 +422,7 @@ function Sidebar({
               {renderSection("CDRR REPORTS", visibleCdrReports)}
               {renderSection("MANUAL APPLICATION", visibleWorkflow)}
               {renderSection("E-APPLICATION", visibleEApplication)}
+              {renderSection("CDRRHR", visibleCDRRHR)}
               {renderSection("OTHER DATABASE", visibleOtherDatabase)}
               {renderSection("TOOLS", visibleTools)}
               {renderSection("ADMINISTRATION", visibleAdministration)}
@@ -468,6 +473,7 @@ function Sidebar({
           {renderSection("REPORTS", visibleCdrReports)}
           {renderSection("MANUAL APPLICATION", visibleWorkflow)}
           {renderSection("E-APPLICATION", visibleEApplication)}
+          {renderSection("CDRRHR", visibleCDRRHR)}
           {renderSection("OTHER DATABASE", visibleOtherDatabase)}
           {renderSection("TOOLS", visibleTools)}
           {renderSection("ADMINISTRATION", visibleAdministration)}

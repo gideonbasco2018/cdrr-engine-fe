@@ -92,6 +92,15 @@ export const menuDefinitions = {
     },
   ],
 
+  CDRRHRItems: [
+    {
+      id: "cmdr-db",
+      icon: "🩺",
+      label: "CMDR Database",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
+  ],
+
   otherDatabaseItems: [
     {
       id: "fda-verification",
