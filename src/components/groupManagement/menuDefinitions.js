@@ -15,6 +15,7 @@ export const allMenuItems = [
   { id: "reassignment", label: "Reassignment / Reroute", icon: "🔀", category: "Workflow" },
 
   { id: "eapplication-tasks", label: "E-Application Tasks", icon: "📥", category: "E-Application" },
+  { id: "cmdr-db", label: "CMDR Database", icon: "🩺", category: "CDRRHR" },
 
   // GMP Task Queue & Workflow
   { id: "gmp-queue", label: "FGMP Queue", icon: "🏭", category: "Workflow" },

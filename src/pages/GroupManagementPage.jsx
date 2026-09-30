@@ -122,6 +122,7 @@ function GroupManagementPage({ darkMode, userRole }) {
       "lead-assignments": "Administration",
       appCorrection: "Workflow",
       "target-assignments": "Administration",
+      "cmdr-db": "CDRRHR",
     };
     return categoryMap[menuId] || "Other";
   };

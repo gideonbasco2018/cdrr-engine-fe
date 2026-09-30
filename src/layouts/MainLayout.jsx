@@ -28,6 +28,7 @@ import GMPTasksPage from "../pages/GMPTasksPage";
 import EApplicationPage from "../pages/EApplicationPage";
 import ClinicalTrialPage from "../pages/ClinicalTrialPage";
 import DonationPage from "../pages/DonationPage";
+import CmdrPage from "../pages/CmdrPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -81,6 +82,8 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("bulk-folder-document-upload"))
       return "bulk-folder-document-upload";
     if (path.includes("upload-document")) return "upload-document";
+    if (path.includes("cmdr-db")) return "cmdr-db";
+
     // ✅ Check dashboard LAST (default)
     if (path.includes("dashboard")) return "dashboard";
 
@@ -189,6 +192,9 @@ function MainLayout({ darkMode, setDarkMode }) {
         return <ClinicalTrialPage darkMode={darkMode} userRole={userRole} />;
       case "donation":
         return <DonationPage darkMode={darkMode} userRole={userRole} />;
+
+      case "cmdr-db":
+        return <CmdrPage darkMode={darkMode} userRole={userRole} />;
 
       case "dashboard":
       default:
