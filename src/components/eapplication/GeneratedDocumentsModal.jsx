@@ -5,7 +5,7 @@ import {
   OrderOfPaymentPaper,
   AdditionalOopPaper,
   AcknowledgementReceiptPaper,
-} from "./ApplicationDetailsModal.jsx";
+} from "./processes/mivn/MivnDetailsModal.jsx";
 
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", {

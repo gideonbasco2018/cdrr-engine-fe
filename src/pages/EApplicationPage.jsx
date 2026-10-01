@@ -1,7 +1,7 @@
 // src/pages/EApplicationPage.jsx
 import { useState, useMemo } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
-import ApplicationDetailsModal from "../components/eapplication/ApplicationDetailsModal.jsx";
+import { getProcessModule } from "../components/eapplication/processRegistry.js";
 import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
 import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
 
@@ -41,8 +41,9 @@ const MOCK_APPLICATIONS = [
   {
     id: 1,
     department: "payment_posting",
+    processCode: "MIVN",
     referenceNo: "EA-2026-00147",
-    activity: "New Application",
+    activity: "Minor Variation Notification",
     applicantCompany: "Torrent Pharma Philippines Inc",
     applicationStep: "Initial Screening",
     dueDate: "2026-08-28",
@@ -54,8 +55,9 @@ const MOCK_APPLICATIONS = [
   {
     id: 2,
     department: "payment_posting",
+    processCode: "MIVN",
     referenceNo: "EA-2026-00148",
-    activity: "Renewal",
+    activity: "Minor Variation Notification",
     applicantCompany: "Unilab Inc.",
     applicationStep: "Document Verification",
     dueDate: "2026-08-30",
@@ -67,8 +69,9 @@ const MOCK_APPLICATIONS = [
   {
     id: 3,
     department: "payment_posting",
+    processCode: "MIVN",
     referenceNo: "EA-2026-00149",
-    activity: "Amendment",
+    activity: "Minor Variation Notification",
     applicantCompany: "Pascual Laboratories",
     applicationStep: "Awaiting Assignment",
     dueDate: "2026-09-02",
@@ -80,8 +83,9 @@ const MOCK_APPLICATIONS = [
   {
     id: 4,
     department: "payment_posting",
+    processCode: "MIVN",
     referenceNo: "EA-2026-00150",
-    activity: "Variation",
+    activity: "Minor Variation Notification",
     applicantCompany: "Zuellig Pharma Corp",
     applicationStep: "Technical Review",
     dueDate: "2026-08-26",
@@ -93,8 +97,9 @@ const MOCK_APPLICATIONS = [
   {
     id: 5,
     department: "payment_posting",
+    processCode: "MIVN",
     referenceNo: "EA-2026-00151",
-    activity: "New Application",
+    activity: "Minor Variation Notification",
     applicantCompany: "Metro Drug Distribution Inc",
     applicationStep: "Initial Screening",
     dueDate: "2026-09-05",
@@ -106,28 +111,32 @@ const MOCK_APPLICATIONS = [
   {
     id: 6,
     department: "quality_evaluation",
+    processCode: "FGMP",
     referenceNo: "EA-2026-00160",
-    activity: "Variation",
+    activity: "FDA GMP Certification",
     applicantCompany: "Fresenius Kabi Philippines, Inc.",
     applicationStep: "QE Review",
     dueDate: "2026-09-10",
     lastModified: "2026-08-25 10:00 AM",
     priority: "Medium",
-    status: "unclaimed",
-    claimedBy: null,
+    // Quality Evaluation has no Unclaimed pool — tasks route straight
+    // to the assigned reviewer, so this starts as already "claimed".
+    status: "claimed",
+    claimedBy: CURRENT_USER,
   },
   {
     id: 7,
     department: "quality_evaluation",
+    processCode: "FGMP",
     referenceNo: "EA-2026-00161",
-    activity: "New Application",
+    activity: "FDA GMP Certification",
     applicantCompany: "Getz Pharma Inc",
     applicationStep: "QE Review",
     dueDate: "2026-09-11",
     lastModified: "2026-08-25 02:30 PM",
     priority: "High",
-    status: "unclaimed",
-    claimedBy: null,
+    status: "claimed",
+    claimedBy: CURRENT_USER,
   },
 ];
 
@@ -1325,9 +1334,19 @@ function EApplicationPage({ darkMode }) {
         }}
       >
         {DEPARTMENTS.map((dept) => {
-          const deptUnclaimedCount = applications.filter(
-            (row) => row.department === dept.key && row.status === "unclaimed",
-          ).length;
+          const hasUnclaimedPool =
+            SUBTABS_BY_DEPARTMENT[dept.key].includes("unclaimed");
+          const deptUnclaimedCount = hasUnclaimedPool
+            ? applications.filter(
+                (row) =>
+                  row.department === dept.key && row.status === "unclaimed",
+              ).length
+            : applications.filter(
+                (row) =>
+                  row.department === dept.key &&
+                  row.status === "claimed" &&
+                  row.claimedBy === CURRENT_USER,
+              ).length;
           const isActive = activeDepartment === dept.key;
           return (
             <button
@@ -1391,7 +1410,7 @@ function EApplicationPage({ darkMode }) {
                     fontWeight: 500,
                   }}
                 >
-                  waiting
+                  {hasUnclaimedPool ? "waiting" : "in queue"}
                 </span>
               </span>
             </button>
@@ -1930,17 +1949,21 @@ function EApplicationPage({ darkMode }) {
         onClose={closeNotes}
       />
 
-      {detailsTarget && (
-        <ApplicationDetailsModal
-          key={detailsTarget.id}
-          row={detailsTarget}
-          colors={colors}
-          cashierName={CURRENT_USER}
-          cashierPosition="Cashier"
-          onPost={handlePostPayment}
-          onClose={() => setDetailsTarget(null)}
-        />
-      )}
+      {detailsTarget &&
+        (() => {
+          const { DetailsModal } = getProcessModule(detailsTarget.processCode);
+          return (
+            <DetailsModal
+              key={detailsTarget.id}
+              row={detailsTarget}
+              colors={colors}
+              cashierName={CURRENT_USER}
+              cashierPosition="Cashier"
+              onPost={handlePostPayment}
+              onClose={() => setDetailsTarget(null)}
+            />
+          );
+        })()}
 
       {emailTargetId &&
         (() => {

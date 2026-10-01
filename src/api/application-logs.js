@@ -427,3 +427,13 @@ export const getUsersForSelect = async (search = "") => {
     );
   }
 };
+
+
+export const getHoverSummary = async (mainDbId) => {
+  try {
+    const response = await API.get(`/application-logs/main-db/${mainDbId}/hover-summary`);
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || error.message || "Failed to fetch hover summary");
+  }
+};

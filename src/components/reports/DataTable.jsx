@@ -1,5 +1,5 @@
 // src/components/reports/DataTable.jsx
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import DeckModal from "./actions/DeckModal";
@@ -14,6 +14,7 @@ import { BulkCompleteModal } from "../tasks/DataTable/BulkCompleteModal";
 import { BulkCancelModal } from "../tasks/DataTable/BulkCancelModal";
 import { closeTasksBulk, getCurrentUser } from "../../api/closed-tasks";
 import { getDuplicateRecords } from "../../api/duplicate-records";
+import { getHoverSummary } from "../../api/application-logs";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -165,6 +166,84 @@ function DataTable({
   const [dupeError, setDupeError] = useState(null);
   const [dupeData, setDupeData] = useState(null);
   const [dupePage, setDupePage] = useState(1);
+
+  // ── Hover popover (application history summary) ──
+  const [hoverCard, setHoverCard] = useState(null); // { id, x, y, loading, data }
+  const hoverCache = useRef({});
+  const hoverTimer = useRef(null);
+  const hoverRowId = useRef(null);
+
+  const handleRowHoverStart = (e, row) => {
+    const id = row.mainDbId ?? row.id;
+    const x = e.clientX;
+    const y = e.clientY;
+    hoverRowId.current = id;
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(async () => {
+      if (hoverCache.current[id]) {
+        setHoverCard({
+          id,
+          x,
+          y,
+          loading: false,
+          data: hoverCache.current[id],
+        });
+        return;
+      }
+      setHoverCard({ id, x, y, loading: true, data: null });
+      try {
+        const data = await getHoverSummary(id);
+        hoverCache.current[id] = data;
+        // Ignore the response if the user already moved to another row
+        setHoverCard((c) =>
+          c && c.id === id ? { ...c, loading: false, data } : c,
+        );
+      } catch {
+        setHoverCard((c) => (c && c.id === id ? null : c));
+      }
+    }, 400);
+  };
+
+  const handleRowHoverEnd = () => {
+    clearTimeout(hoverTimer.current);
+    hoverRowId.current = null;
+    setHoverCard(null);
+  };
+
+  // Hide over the checkbox / Actions cell, and (re)start when back on a normal cell
+  const handleRowMouseMove = (e, row) => {
+    const id = row.mainDbId ?? row.id;
+    if (e.target.closest("[data-no-hover]")) {
+      clearTimeout(hoverTimer.current);
+      hoverRowId.current = null;
+      setHoverCard((c) => (c ? null : c));
+      return;
+    }
+    if (hoverRowId.current !== id) handleRowHoverStart(e, row);
+  };
+
+  // Clear the timer on unmount
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+
+  // Clear the cache whenever the table data changes (after deck, reassign, refresh, etc.)
+  useEffect(() => {
+    hoverCache.current = {};
+  }, [data]);
+
+  const formatHoverDate = (value) =>
+    value
+      ? new Date(value).toLocaleDateString("en-PH", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "—";
+
+  const formatHoverDays = (days) => {
+    if (days === null || days === undefined) return "—";
+    if (days === 0) return "Same day";
+    return `${days} day${days > 1 ? "s" : ""}`;
+  };
 
   // ── Backend-powered duplicate detection
   const fetchDuplicates = useCallback(async (mode, page = 1) => {
@@ -346,7 +425,7 @@ function DataTable({
 
   const handleOpenChangeLog = (row) => {
     setOpenMenuId(null);
-    // i-map ang id → mainDbId kung wala pang mainDbId
+
     setChangeLogRecord({
       ...row,
       mainDbId: row.mainDbId ?? row.id,
@@ -531,6 +610,8 @@ function DataTable({
   };
 
   const handleRowDoubleClick = (row) => {
+    clearTimeout(hoverTimer.current);
+    setHoverCard(null);
     switch (dblClickAction) {
       case "viewDetails":
         handleViewDetails(row);
@@ -1202,7 +1283,6 @@ function DataTable({
               </span>
             )}
 
-            {/* ── Duplicate Finder (backend-powered, totoong global dupes) ── */}
             <div style={{ position: "relative" }}>
               <button
                 onClick={() => {
@@ -1212,7 +1292,7 @@ function DataTable({
                   );
                   setShowDupesOnly(false);
                 }}
-                title="Find duplicate records (buong dataset, hindi lang current page)"
+                title="Find duplicate records (entire dataset, not just the current page)"
                 style={{
                   padding: "0.2rem 0.55rem",
                   background: dupeMode
@@ -1291,7 +1371,7 @@ function DataTable({
                       ? "Loading duplicates..."
                       : dupeError
                         ? `Error: ${dupeError}`
-                        : `${dupeCount} duplicate records found (buong dataset)`}
+                        : `${dupeCount} duplicate records found (entire dataset)`}
                   </span>
 
                   {/* Toggle: DTN / Reg No */}
@@ -1329,8 +1409,6 @@ function DataTable({
                     ))}
                   </div>
 
-                  {/* Show dupes only checkbox — kapag naka-check, kukunin lahat ng duplicate
-                      records mula backend at ipapakita imbes na yung current page */}
                   <label
                     style={{
                       display: "flex",
@@ -1350,7 +1428,6 @@ function DataTable({
                     Show duplicates only
                   </label>
 
-                  {/* Pagination ng duplicate results galing backend */}
                   {dupeData && dupeData.total_pages > 1 && (
                     <div
                       style={{
@@ -1990,15 +2067,14 @@ function DataTable({
                     }}
                   >
                     {showDupesOnly
-                      ? "Walang duplicate records na nakita."
-                      : "Walang records."}
+                      ? "No duplicate records found."
+                      : "No records found."}
                   </td>
                 </tr>
               ) : (
                 displayData.map((row, index) => {
                   const isSelected = selectedRows.includes(row.id);
-                  // duplicateIds galing backend ay gamit DB_ID — i-match natin sa row.mainDbId
-                  // (fallback sa row.id kung walang mainDbId)
+
                   const isDupe = duplicateIds.has(row.mainDbId ?? row.id);
 
                   const rowBg = isSelected
@@ -2015,6 +2091,7 @@ function DataTable({
                     <tr
                       key={row.id}
                       onDoubleClick={() => handleRowDoubleClick(row)}
+                      onMouseMove={(e) => handleRowMouseMove(e, row)}
                       style={{
                         cursor: "pointer",
                         background: rowBg,
@@ -2032,9 +2109,11 @@ function DataTable({
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = rowBg;
+                        handleRowHoverEnd();
                       }}
                     >
                       <td
+                        data-no-hover
                         style={{
                           padding: "0.65rem 0.85rem",
                           borderBottom: `1px solid ${colors.tableBorder}`,
@@ -2087,6 +2166,7 @@ function DataTable({
                         </td>
                       ))}
                       <td
+                        data-no-hover
                         style={{
                           padding: "0.65rem 0.85rem",
                           borderBottom: `1px solid ${colors.tableBorder}`,
@@ -2332,6 +2412,142 @@ function DataTable({
           />
         </div>
       </div>
+
+      {hoverCard && (
+        <div
+          style={{
+            position: "fixed",
+            top: Math.max(
+              8,
+              Math.min(hoverCard.y + 20, window.innerHeight - 420),
+            ),
+            // On the right half of the screen, open to the left of the cursor
+            // so the popover never covers the Actions column
+            left: Math.max(
+              8,
+              hoverCard.x > window.innerWidth / 2
+                ? hoverCard.x - 340
+                : Math.min(hoverCard.x + 20, window.innerWidth - 340),
+            ),
+            width: 320,
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            padding: "0.65rem 0.8rem",
+            zIndex: 10000,
+            pointerEvents: "none",
+            fontSize: "0.7rem",
+            color: colors.textPrimary,
+          }}
+        >
+          {hoverCard.loading ? (
+            <span style={{ color: colors.textTertiary }}>Loading…</span>
+          ) : !hoverCard.data?.found ? (
+            <span style={{ color: colors.textTertiary }}>
+              No application logs yet
+            </span>
+          ) : (
+            (() => {
+              const allSteps = hoverCard.data.steps || [];
+              const visibleSteps = allSteps.slice(-5);
+              const hiddenCount = allSteps.length - visibleSteps.length;
+
+              return (
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: colors.textTertiary,
+                    }}
+                  >
+                    <span>Application History</span>
+                    <span style={{ color: "#10B981" }}>
+                      Total: {formatHoverDays(hoverCard.data.total_days)}
+                    </span>
+                  </div>
+
+                  {hiddenCount > 0 && (
+                    <div style={{ color: colors.textTertiary }}>
+                      + {hiddenCount} earlier step{hiddenCount > 1 ? "s" : ""}
+                    </div>
+                  )}
+
+                  {visibleSteps.map((s, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        borderTop:
+                          i === 0 ? "none" : `1px solid ${colors.cardBorder}`,
+                        paddingTop: i === 0 ? 0 : 6,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 2,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, fontSize: "0.78rem" }}>
+                          {s.step ?? "—"}
+                        </span>
+                        {s.is_current && (
+                          <span
+                            style={{
+                              fontSize: "0.55rem",
+                              fontWeight: 700,
+                              padding: "1px 6px",
+                              borderRadius: 99,
+                              background: "rgba(245,158,11,0.15)",
+                              color: "#f59e0b",
+                            }}
+                          >
+                            CURRENT
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        👤 <strong>{s.user ?? "—"}</strong>
+                        {s.user_full_name && (
+                          <span style={{ color: colors.textTertiary }}>
+                            {" "}
+                            ({s.user_full_name})
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          color: s.is_current ? "#f59e0b" : "#10B981",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {s.is_current
+                          ? `⏳ Started ${formatHoverDate(s.start_date)} · ${formatHoverDays(s.days_taken)} so far`
+                          : `✓ Accomplished ${formatHoverDate(s.accomplished_date)} · ${formatHoverDays(s.days_taken)}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          )}
+        </div>
+      )}
 
       {deckModalRecord && (
         <DeckModal
