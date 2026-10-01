@@ -179,6 +179,7 @@ function DataTable({
     const y = e.clientY;
     hoverRowId.current = id;
     clearTimeout(hoverTimer.current);
+    clearTimeout(hoverHideTimer.current);
     hoverTimer.current = setTimeout(async () => {
       if (hoverCache.current[id]) {
         setHoverCard({
@@ -204,11 +205,17 @@ function DataTable({
     }, 400);
   };
 
+  const hoverHideTimer = useRef(null);
+
+  // Delay hiding so the cursor can travel from the row into the popover
   const handleRowHoverEnd = () => {
     clearTimeout(hoverTimer.current);
     hoverRowId.current = null;
-    setHoverCard(null);
+    clearTimeout(hoverHideTimer.current);
+    hoverHideTimer.current = setTimeout(() => setHoverCard(null), 150);
   };
+
+  const cancelHoverHide = () => clearTimeout(hoverHideTimer.current);
 
   // Hide over the checkbox / Actions cell, and (re)start when back on a normal cell
   const handleRowMouseMove = (e, row) => {
@@ -2436,10 +2443,13 @@ function DataTable({
             boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
             padding: "0.65rem 0.8rem",
             zIndex: 10000,
-            pointerEvents: "none",
             fontSize: "0.7rem",
             color: colors.textPrimary,
+            maxHeight: 420,
+            overflowY: "auto",
           }}
+          onMouseEnter={cancelHoverHide}
+          onMouseLeave={() => setHoverCard(null)}
         >
           {hoverCard.loading ? (
             <span style={{ color: colors.textTertiary }}>Loading…</span>
@@ -2449,9 +2459,8 @@ function DataTable({
             </span>
           ) : (
             (() => {
-              const allSteps = hoverCard.data.steps || [];
-              const visibleSteps = allSteps.slice(-5);
-              const hiddenCount = allSteps.length - visibleSteps.length;
+              const visibleSteps = hoverCard.data.steps || [];
+              const hiddenCount = 0;
 
               return (
                 <div
