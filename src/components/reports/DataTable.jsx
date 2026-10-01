@@ -1,5 +1,5 @@
 // src/components/reports/DataTable.jsx
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import DeckModal from "./actions/DeckModal";
@@ -14,6 +14,7 @@ import { BulkCompleteModal } from "../tasks/DataTable/BulkCompleteModal";
 import { BulkCancelModal } from "../tasks/DataTable/BulkCancelModal";
 import { closeTasksBulk, getCurrentUser } from "../../api/closed-tasks";
 import { getDuplicateRecords } from "../../api/duplicate-records";
+import { getHoverSummary } from "../../api/application-logs";
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -165,6 +166,52 @@ function DataTable({
   const [dupeError, setDupeError] = useState(null);
   const [dupeData, setDupeData] = useState(null);
   const [dupePage, setDupePage] = useState(1);
+
+  // ── Hover popover (application history summary) ──
+  const [hoverCard, setHoverCard] = useState(null); // {x, y, loading, data}
+  const hoverCache = useRef({});
+  const hoverTimer = useRef(null);
+
+  const handleRowHoverStart = (e, row) => {
+    const x = e.clientX;
+    const y = e.clientY;
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(async () => {
+      const id = row.mainDbId ?? row.id;
+      if (hoverCache.current[id]) {
+        setHoverCard({ x, y, loading: false, data: hoverCache.current[id] });
+        return;
+      }
+      setHoverCard({ x, y, loading: true, data: null });
+      try {
+        const data = await getHoverSummary(id);
+        hoverCache.current[id] = data;
+        setHoverCard((c) => (c ? { ...c, loading: false, data } : c));
+      } catch {
+        setHoverCard(null);
+      }
+    }, 400);
+  };
+
+  const handleRowHoverEnd = () => {
+    clearTimeout(hoverTimer.current);
+    setHoverCard(null);
+  };
+
+  const formatHoverDate = (value) =>
+    value
+      ? new Date(value).toLocaleDateString("en-PH", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "—";
+
+  const formatHoverDays = (days) => {
+    if (days === null || days === undefined) return "—";
+    if (days === 0) return "Same day";
+    return `${days} day${days > 1 ? "s" : ""}`;
+  };
 
   // ── Backend-powered duplicate detection
   const fetchDuplicates = useCallback(async (mode, page = 1) => {
@@ -584,6 +631,7 @@ function DataTable({
   const handleCloseEvaluatorModal = () => setEvaluatorModalRecord(null);
   const handleCloseDoctrackModal = () => setDoctrackModalRecord(null);
   const handleDeckSuccess = async () => {
+    hoverCache.current = {};
     if (onRefresh) await onRefresh();
   };
   const handleEvaluationSuccess = async () => {
@@ -2029,9 +2077,11 @@ function DataTable({
                         if (!isSelected)
                           e.currentTarget.style.background =
                             colors.tableRowHover;
+                        handleRowHoverStart(e, row);
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = rowBg;
+                        handleRowHoverEnd();
                       }}
                     >
                       <td
@@ -2332,6 +2382,132 @@ function DataTable({
           />
         </div>
       </div>
+
+      {hoverCard && (
+        <div
+          style={{
+            position: "fixed",
+            top: Math.min(hoverCard.y + 14, window.innerHeight - 330),
+            left: Math.min(hoverCard.x + 14, window.innerWidth - 330),
+            width: 310,
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            padding: "0.65rem 0.8rem",
+            zIndex: 10000,
+            pointerEvents: "none",
+            fontSize: "0.7rem",
+            color: colors.textPrimary,
+          }}
+        >
+          {hoverCard.loading ? (
+            <span style={{ color: colors.textTertiary }}>Loading…</span>
+          ) : !hoverCard.data?.found ? (
+            <span style={{ color: colors.textTertiary }}>
+              No application logs yet
+            </span>
+          ) : (
+            (() => {
+              const allSteps = hoverCard.data.steps || [];
+              const visibleSteps = allSteps.slice(-5);
+              const hiddenCount = allSteps.length - visibleSteps.length;
+
+              return (
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: colors.textTertiary,
+                    }}
+                  >
+                    <span>Application History</span>
+                    <span style={{ color: "#10B981" }}>
+                      Total: {formatHoverDays(hoverCard.data.total_days)}
+                    </span>
+                  </div>
+
+                  {hiddenCount > 0 && (
+                    <div style={{ color: colors.textTertiary }}>
+                      + {hiddenCount} earlier step{hiddenCount > 1 ? "s" : ""}
+                    </div>
+                  )}
+
+                  {visibleSteps.map((s, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        borderTop:
+                          i === 0 ? "none" : `1px solid ${colors.cardBorder}`,
+                        paddingTop: i === 0 ? 0 : 6,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 2,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, fontSize: "0.78rem" }}>
+                          {s.step ?? "—"}
+                        </span>
+                        {s.is_current && (
+                          <span
+                            style={{
+                              fontSize: "0.55rem",
+                              fontWeight: 700,
+                              padding: "1px 6px",
+                              borderRadius: 99,
+                              background: "rgba(245,158,11,0.15)",
+                              color: "#f59e0b",
+                            }}
+                          >
+                            CURRENT
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        👤 <strong>{s.user ?? "—"}</strong>
+                        {s.user_full_name && (
+                          <span style={{ color: colors.textTertiary }}>
+                            {" "}
+                            ({s.user_full_name})
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          color: s.is_current ? "#f59e0b" : "#10B981",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {s.is_current
+                          ? `⏳ Started ${formatHoverDate(s.start_date)} · ${formatHoverDays(s.days_taken)} so far`
+                          : `✓ Accomplished ${formatHoverDate(s.accomplished_date)} · ${formatHoverDays(s.days_taken)}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          )}
+        </div>
+      )}
 
       {deckModalRecord && (
         <DeckModal
