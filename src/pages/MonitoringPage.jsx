@@ -19,6 +19,7 @@ import TeamOverviewView from "../components/monitoring/teamOverview/TeamOverview
 import GMPMonitoringAnalyticsView from "../components/gmp/dashboard/GMPMonitoringAnalyticsView";
 import PriorityMedsView from "../components/monitoring/priorityMeds/PriorityMedsView";
 import ClidpEservicesView from "../components/monitoring/clidpEservices/ClidpEservicesView";
+import EvaluatorAppTypesView from "../components/monitoring/evaluatorAppTypes/EvaluatorAppTypesView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1054,6 +1055,9 @@ function renderContent(
       return <PriorityMedsView ui={ui} darkMode={darkMode} />;
     case "clidpeservices":
       return <ClidpEservicesView ui={ui} darkMode={darkMode} />;
+    case "evalapptypes":
+      return <EvaluatorAppTypesView ui={ui} darkMode={darkMode} />;
+
     default:
       return null;
   }
@@ -1312,9 +1316,9 @@ function MonitoringPage({ darkMode }) {
       subtitle: "Diagram & target table",
     },
     {
-      key: "clidpeservices",
-      label: "Priority Meds (CLIDP)",
-      subtitle: "From eServices DB",
+      key: "evalapptypes",
+      label: "Evaluator App Types",
+      subtitle: "Count & avg stay per unit",
     },
   ];
 
