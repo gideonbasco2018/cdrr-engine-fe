@@ -1,11 +1,12 @@
 // FILE: src/components/reports/ReportsDataTable.jsx
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import ViewDetailsModal from "./actions/ViewDetailsModal";
 import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 import ChangeLogModal from "../tasks/ChangeLogModal";
+import { getHoverSummary } from "../../api/application-logs";
 
 const COLUMN_DB_KEY_MAP = {
   dtn: "DB_DTN",
@@ -88,6 +89,84 @@ function ReportsDataTable({
   const [appLogsModalRecord, setAppLogsModalRecord] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
   const [changeLogRecord, setChangeLogRecord] = useState(null);
+
+  // ── Hover popover (application history summary) ──
+  const [hoverCard, setHoverCard] = useState(null); // { id, x, y, loading, data }
+  const hoverCache = useRef({});
+  const hoverTimer = useRef(null);
+  const hoverRowId = useRef(null);
+
+  const handleRowHoverStart = (e, row) => {
+    const id = row.mainDbId ?? row.id;
+    const x = e.clientX;
+    const y = e.clientY;
+    hoverRowId.current = id;
+    clearTimeout(hoverTimer.current);
+    hoverTimer.current = setTimeout(async () => {
+      if (hoverCache.current[id]) {
+        setHoverCard({
+          id,
+          x,
+          y,
+          loading: false,
+          data: hoverCache.current[id],
+        });
+        return;
+      }
+      setHoverCard({ id, x, y, loading: true, data: null });
+      try {
+        const data = await getHoverSummary(id);
+        hoverCache.current[id] = data;
+        // Ignore the response if the user already moved to another row
+        setHoverCard((c) =>
+          c && c.id === id ? { ...c, loading: false, data } : c,
+        );
+      } catch {
+        setHoverCard((c) => (c && c.id === id ? null : c));
+      }
+    }, 400);
+  };
+
+  const handleRowHoverEnd = () => {
+    clearTimeout(hoverTimer.current);
+    hoverRowId.current = null;
+    setHoverCard(null);
+  };
+
+  // Hide over the Actions cell, and (re)start when back on a normal cell
+  const handleRowMouseMove = (e, row) => {
+    const id = row.mainDbId ?? row.id;
+    if (e.target.closest("[data-no-hover]")) {
+      clearTimeout(hoverTimer.current);
+      hoverRowId.current = null;
+      setHoverCard((c) => (c ? null : c));
+      return;
+    }
+    if (hoverRowId.current !== id) handleRowHoverStart(e, row);
+  };
+
+  // Clear the timer on unmount
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+
+  // Clear the cache whenever the table data changes
+  useEffect(() => {
+    hoverCache.current = {};
+  }, [data]);
+
+  const formatHoverDate = (value) =>
+    value
+      ? new Date(value).toLocaleDateString("en-PH", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "—";
+
+  const formatHoverDays = (days) => {
+    if (days === null || days === undefined) return "—";
+    if (days === 0) return "Same day";
+    return `${days} day${days > 1 ? "s" : ""}`;
+  };
 
   const getDbKey = (colKey) => COLUMN_DB_KEY_MAP[colKey] || colKey;
 
@@ -253,12 +332,15 @@ function ReportsDataTable({
 
   const handleMenuToggle = (e, rowId) => {
     e.stopPropagation();
+    clearTimeout(hoverTimer.current);
+    hoverRowId.current = null;
+    setHoverCard(null);
     if (openMenuId === rowId) {
       setOpenMenuId(null);
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const dropdownHeight = 170; // mas maliit lang dito, 4 items lang
+    const dropdownHeight = 170; // smaller here, only 4 items
     const spaceBelow = window.innerHeight - rect.bottom;
     const top =
       spaceBelow < dropdownHeight
@@ -281,7 +363,7 @@ function ReportsDataTable({
     setOpenMenuId(null);
     setAppLogsModalRecord(row);
   };
-  // ✅ DAGDAG
+
   const handleOpenChangeLog = (row) => {
     setOpenMenuId(null);
     setChangeLogRecord({ ...row, mainDbId: row.mainDbId ?? row.id });
@@ -726,12 +808,14 @@ function ReportsDataTable({
                   <tr
                     key={row.id}
                     style={{ background: rowBg, transition: "background 0.2s" }}
+                    onMouseMove={(e) => handleRowMouseMove(e, row)}
                     onMouseEnter={(e) =>
                       (e.currentTarget.style.background = colors.tableRowHover)
                     }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = rowBg)
-                    }
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = rowBg;
+                      handleRowHoverEnd();
+                    }}
                   >
                     <td
                       style={{
@@ -768,6 +852,7 @@ function ReportsDataTable({
                     ))}
 
                     <td
+                      data-no-hover
                       style={{
                         ...tdBase,
                         textAlign: "center",
@@ -920,6 +1005,142 @@ function ReportsDataTable({
         </div>
       </div>
 
+      {hoverCard && (
+        <div
+          style={{
+            position: "fixed",
+            top: Math.max(
+              8,
+              Math.min(hoverCard.y + 20, window.innerHeight - 420),
+            ),
+            // On the right half of the screen, open to the left of the cursor
+            // so the popover never covers the Actions column
+            left: Math.max(
+              8,
+              hoverCard.x > window.innerWidth / 2
+                ? hoverCard.x - 340
+                : Math.min(hoverCard.x + 20, window.innerWidth - 340),
+            ),
+            width: 320,
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            padding: "0.65rem 0.8rem",
+            zIndex: 10000,
+            pointerEvents: "none",
+            fontSize: "0.7rem",
+            color: colors.textPrimary,
+          }}
+        >
+          {hoverCard.loading ? (
+            <span style={{ color: colors.textTertiary }}>Loading…</span>
+          ) : !hoverCard.data?.found ? (
+            <span style={{ color: colors.textTertiary }}>
+              No application logs yet
+            </span>
+          ) : (
+            (() => {
+              const allSteps = hoverCard.data.steps || [];
+              const visibleSteps = allSteps.slice(-5);
+              const hiddenCount = allSteps.length - visibleSteps.length;
+
+              return (
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.08em",
+                      textTransform: "uppercase",
+                      color: colors.textTertiary,
+                    }}
+                  >
+                    <span>Application History</span>
+                    <span style={{ color: "#10B981" }}>
+                      Total: {formatHoverDays(hoverCard.data.total_days)}
+                    </span>
+                  </div>
+
+                  {hiddenCount > 0 && (
+                    <div style={{ color: colors.textTertiary }}>
+                      + {hiddenCount} earlier step{hiddenCount > 1 ? "s" : ""}
+                    </div>
+                  )}
+
+                  {visibleSteps.map((s, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        borderTop:
+                          i === 0 ? "none" : `1px solid ${colors.cardBorder}`,
+                        paddingTop: i === 0 ? 0 : 6,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 2,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <span style={{ fontWeight: 700, fontSize: "0.78rem" }}>
+                          {s.step ?? "—"}
+                        </span>
+                        {s.is_current && (
+                          <span
+                            style={{
+                              fontSize: "0.55rem",
+                              fontWeight: 700,
+                              padding: "1px 6px",
+                              borderRadius: 99,
+                              background: "rgba(245,158,11,0.15)",
+                              color: "#f59e0b",
+                            }}
+                          >
+                            CURRENT
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        👤 <strong>{s.user ?? "—"}</strong>
+                        {s.user_full_name && (
+                          <span style={{ color: colors.textTertiary }}>
+                            {" "}
+                            ({s.user_full_name})
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        style={{
+                          color: s.is_current ? "#f59e0b" : "#10B981",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {s.is_current
+                          ? `⏳ Started ${formatHoverDate(s.start_date)} · ${formatHoverDays(s.days_taken)} so far`
+                          : `✓ Accomplished ${formatHoverDate(s.accomplished_date)} · ${formatHoverDays(s.days_taken)}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()
+          )}
+        </div>
+      )}
+
       {/* Modals */}
       {appLogsModalRecord && (
         <ApplicationLogsModal
@@ -943,7 +1164,7 @@ function ReportsDataTable({
           colors={colors}
         />
       )}
-      {/* ✅ DAGDAG */}
+
       {changeLogRecord && (
         <ChangeLogModal
           record={changeLogRecord}

@@ -168,35 +168,67 @@ function DataTable({
   const [dupePage, setDupePage] = useState(1);
 
   // ── Hover popover (application history summary) ──
-  const [hoverCard, setHoverCard] = useState(null); // {x, y, loading, data}
+  const [hoverCard, setHoverCard] = useState(null); // { id, x, y, loading, data }
   const hoverCache = useRef({});
   const hoverTimer = useRef(null);
+  const hoverRowId = useRef(null);
 
   const handleRowHoverStart = (e, row) => {
+    const id = row.mainDbId ?? row.id;
     const x = e.clientX;
     const y = e.clientY;
+    hoverRowId.current = id;
     clearTimeout(hoverTimer.current);
     hoverTimer.current = setTimeout(async () => {
-      const id = row.mainDbId ?? row.id;
       if (hoverCache.current[id]) {
-        setHoverCard({ x, y, loading: false, data: hoverCache.current[id] });
+        setHoverCard({
+          id,
+          x,
+          y,
+          loading: false,
+          data: hoverCache.current[id],
+        });
         return;
       }
-      setHoverCard({ x, y, loading: true, data: null });
+      setHoverCard({ id, x, y, loading: true, data: null });
       try {
         const data = await getHoverSummary(id);
         hoverCache.current[id] = data;
-        setHoverCard((c) => (c ? { ...c, loading: false, data } : c));
+        // Ignore the response if the user already moved to another row
+        setHoverCard((c) =>
+          c && c.id === id ? { ...c, loading: false, data } : c,
+        );
       } catch {
-        setHoverCard(null);
+        setHoverCard((c) => (c && c.id === id ? null : c));
       }
     }, 400);
   };
 
   const handleRowHoverEnd = () => {
     clearTimeout(hoverTimer.current);
+    hoverRowId.current = null;
     setHoverCard(null);
   };
+
+  // Hide over the checkbox / Actions cell, and (re)start when back on a normal cell
+  const handleRowMouseMove = (e, row) => {
+    const id = row.mainDbId ?? row.id;
+    if (e.target.closest("[data-no-hover]")) {
+      clearTimeout(hoverTimer.current);
+      hoverRowId.current = null;
+      setHoverCard((c) => (c ? null : c));
+      return;
+    }
+    if (hoverRowId.current !== id) handleRowHoverStart(e, row);
+  };
+
+  // Clear the timer on unmount
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+
+  // Clear the cache whenever the table data changes (after deck, reassign, refresh, etc.)
+  useEffect(() => {
+    hoverCache.current = {};
+  }, [data]);
 
   const formatHoverDate = (value) =>
     value
@@ -393,7 +425,7 @@ function DataTable({
 
   const handleOpenChangeLog = (row) => {
     setOpenMenuId(null);
-    // i-map ang id → mainDbId kung wala pang mainDbId
+
     setChangeLogRecord({
       ...row,
       mainDbId: row.mainDbId ?? row.id,
@@ -578,6 +610,8 @@ function DataTable({
   };
 
   const handleRowDoubleClick = (row) => {
+    clearTimeout(hoverTimer.current);
+    setHoverCard(null);
     switch (dblClickAction) {
       case "viewDetails":
         handleViewDetails(row);
@@ -631,7 +665,6 @@ function DataTable({
   const handleCloseEvaluatorModal = () => setEvaluatorModalRecord(null);
   const handleCloseDoctrackModal = () => setDoctrackModalRecord(null);
   const handleDeckSuccess = async () => {
-    hoverCache.current = {};
     if (onRefresh) await onRefresh();
   };
   const handleEvaluationSuccess = async () => {
@@ -1250,7 +1283,6 @@ function DataTable({
               </span>
             )}
 
-            {/* ── Duplicate Finder (backend-powered, totoong global dupes) ── */}
             <div style={{ position: "relative" }}>
               <button
                 onClick={() => {
@@ -1260,7 +1292,7 @@ function DataTable({
                   );
                   setShowDupesOnly(false);
                 }}
-                title="Find duplicate records (buong dataset, hindi lang current page)"
+                title="Find duplicate records (entire dataset, not just the current page)"
                 style={{
                   padding: "0.2rem 0.55rem",
                   background: dupeMode
@@ -1339,7 +1371,7 @@ function DataTable({
                       ? "Loading duplicates..."
                       : dupeError
                         ? `Error: ${dupeError}`
-                        : `${dupeCount} duplicate records found (buong dataset)`}
+                        : `${dupeCount} duplicate records found (entire dataset)`}
                   </span>
 
                   {/* Toggle: DTN / Reg No */}
@@ -1377,8 +1409,6 @@ function DataTable({
                     ))}
                   </div>
 
-                  {/* Show dupes only checkbox — kapag naka-check, kukunin lahat ng duplicate
-                      records mula backend at ipapakita imbes na yung current page */}
                   <label
                     style={{
                       display: "flex",
@@ -1398,7 +1428,6 @@ function DataTable({
                     Show duplicates only
                   </label>
 
-                  {/* Pagination ng duplicate results galing backend */}
                   {dupeData && dupeData.total_pages > 1 && (
                     <div
                       style={{
@@ -2038,15 +2067,14 @@ function DataTable({
                     }}
                   >
                     {showDupesOnly
-                      ? "Walang duplicate records na nakita."
-                      : "Walang records."}
+                      ? "No duplicate records found."
+                      : "No records found."}
                   </td>
                 </tr>
               ) : (
                 displayData.map((row, index) => {
                   const isSelected = selectedRows.includes(row.id);
-                  // duplicateIds galing backend ay gamit DB_ID — i-match natin sa row.mainDbId
-                  // (fallback sa row.id kung walang mainDbId)
+
                   const isDupe = duplicateIds.has(row.mainDbId ?? row.id);
 
                   const rowBg = isSelected
@@ -2063,6 +2091,7 @@ function DataTable({
                     <tr
                       key={row.id}
                       onDoubleClick={() => handleRowDoubleClick(row)}
+                      onMouseMove={(e) => handleRowMouseMove(e, row)}
                       style={{
                         cursor: "pointer",
                         background: rowBg,
@@ -2077,7 +2106,6 @@ function DataTable({
                         if (!isSelected)
                           e.currentTarget.style.background =
                             colors.tableRowHover;
-                        handleRowHoverStart(e, row);
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.background = rowBg;
@@ -2085,6 +2113,7 @@ function DataTable({
                       }}
                     >
                       <td
+                        data-no-hover
                         style={{
                           padding: "0.65rem 0.85rem",
                           borderBottom: `1px solid ${colors.tableBorder}`,
@@ -2137,6 +2166,7 @@ function DataTable({
                         </td>
                       ))}
                       <td
+                        data-no-hover
                         style={{
                           padding: "0.65rem 0.85rem",
                           borderBottom: `1px solid ${colors.tableBorder}`,
@@ -2387,9 +2417,19 @@ function DataTable({
         <div
           style={{
             position: "fixed",
-            top: Math.min(hoverCard.y + 14, window.innerHeight - 330),
-            left: Math.min(hoverCard.x + 14, window.innerWidth - 330),
-            width: 310,
+            top: Math.max(
+              8,
+              Math.min(hoverCard.y + 20, window.innerHeight - 420),
+            ),
+            // On the right half of the screen, open to the left of the cursor
+            // so the popover never covers the Actions column
+            left: Math.max(
+              8,
+              hoverCard.x > window.innerWidth / 2
+                ? hoverCard.x - 340
+                : Math.min(hoverCard.x + 20, window.innerWidth - 340),
+            ),
+            width: 320,
             background: colors.cardBg,
             border: `1px solid ${colors.cardBorder}`,
             borderRadius: 10,
