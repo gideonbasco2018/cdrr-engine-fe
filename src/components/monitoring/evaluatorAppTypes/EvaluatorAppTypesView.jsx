@@ -40,7 +40,7 @@ function StatCell({ stat, ui }) {
       </td>
     );
   }
-  const done = stat.count - stat.open;
+
   const small = { fontSize: "0.66rem", color: ui.textMuted, lineHeight: 1.5 };
   return (
     <td
@@ -58,7 +58,7 @@ function StatCell({ stat, ui }) {
         </span>{" "}
         <span style={small}>decked</span>
       </div>
-      <div style={small} title="Not yet completed (no accomplished date)">
+      <div style={small} title="The application thread is still Open">
         <span
           style={{
             color: stat.open > 0 ? "#f59e0b" : ui.textMuted,
@@ -71,7 +71,7 @@ function StatCell({ stat, ui }) {
       </div>
       <div
         style={small}
-        title={`Average days from decked to completed, based on ${done} completed application${done !== 1 ? "s" : ""}`}
+        title="Average days from decked to completed (only rows that have a completion date)"
       >
         avg stay{" "}
         <span style={{ fontWeight: 600, color: ui.textSub }}>
@@ -103,7 +103,8 @@ function Legend({ ui }) {
         evaluator
       </span>
       <span style={item}>
-        <span style={{ ...b, color: "#f59e0b" }}>open</span> = not yet completed
+        <span style={{ ...b, color: "#f59e0b" }}>open</span> = the application
+        thread is still Open
       </span>
       <span style={item}>
         <span style={b}>avg stay</span> = average days from decked to completed
