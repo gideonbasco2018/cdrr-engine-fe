@@ -1594,7 +1594,7 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
     const remaining = workingDaysUntilWM(toISODate(deadline));
     const isOverdue = remaining < 0;
     timelineBadge = {
-      label: isOverdue ? `OVERDUE (${Math.abs(remaining)}D)` : `WITHIN (${remaining}D)`,
+      label: isOverdue ? `${Math.abs(remaining)}D Overdue` : `${remaining}D Left`,
       icon: isOverdue ? "⚠" : "✓",
       color: isOverdue ? "#dc2626" : "#16a34a",
     };
@@ -1648,14 +1648,18 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
                   working days
                 </span>
               </span>
-              {timelineBadge && (
-                <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "0 10px",
-                  borderRadius: 99, background: timelineBadge.color, color: "#fff", whiteSpace: "nowrap",
-                  display: "inline-flex", alignItems: "center", height: 22, boxSizing: "border-box" }}>
-                  {timelineBadge.icon} {timelineBadge.label}
-                </span>
-              )}
             </div>
+          </div>
+        )}
+        {timelineBadge && (
+          <div style={{ marginLeft: "auto", alignSelf: "center" }}>
+            <span style={{ fontSize: "0.68rem", fontWeight: 700, padding: "0 10px",
+              borderRadius: 99, background: timelineBadge.color, color: "#fff", whiteSpace: "nowrap",
+              display: "inline-flex", alignItems: "center", gap: "0.35rem", height: 22, boxSizing: "border-box",
+              lineHeight: 1 }}>
+              <span style={{ display: "inline-flex", alignItems: "center" }}>{timelineBadge.icon}</span>
+              <span>{timelineBadge.label}</span>
+            </span>
           </div>
         )}
       </div>
@@ -2856,6 +2860,10 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
 export default function WorkflowModal({ record: recordProp, log: task, onClose, onSuccess, colors, darkMode }) {
   const [record,      setRecord]      = useState(null);
   const [loadingRec,  setLoadingRec]  = useState(true);
+  // Full-screen toggle — purely a viewer preference (not part of the
+  // draft), so it resets to the normal capped size the next time the modal
+  // is opened rather than persisting across records.
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // ── Draft persistence ─────────────────────────────────────────────────────
   // Every edit/addition made in this modal (Details-tab field edits + the
@@ -3839,7 +3847,8 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       position: "fixed", inset: 0, background: "rgba(15,30,24,0.55)",
       backdropFilter: "blur(6px)", zIndex: 10000,
       display: "flex", alignItems: "center", justifyContent: "center",
-      padding: 16, fontFamily: FONT, animation: "gmpBackdropIn 0.2s ease forwards",
+      padding: isFullScreen ? 0 : 16, fontFamily: FONT, animation: "gmpBackdropIn 0.2s ease forwards",
+      transition: "padding 0.2s ease",
     }}>
       <style>{MODAL_CSS}</style>
       <div data-gmp-modal-card ref={cardRef}
@@ -3848,16 +3857,19 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         background: darkMode
           ? "#1a1c1f"
           : "#f7f8fa",
-        borderRadius: 16,
-        width: "100%", maxWidth: 860,
+        borderRadius: isFullScreen ? 0 : 16,
+        width: isFullScreen ? "100vw" : "100%",
+        maxWidth: isFullScreen ? "none" : 860,
         // Fixed (not just capped) height — content scrolls internally instead
         // of the whole modal growing/shrinking as you move between steps.
-        height: "min(88vh, 860px)",
+        // Full-screen swaps that cap for the entire viewport height instead.
+        height: isFullScreen ? "100vh" : "min(88vh, 860px)",
         display: "flex", flexDirection: "column", overflow: "hidden",
-        border: darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid #e4e6eb",
-        boxShadow: darkMode
+        border: isFullScreen ? "none" : darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid #e4e6eb",
+        boxShadow: isFullScreen ? "none" : darkMode
           ? "0 4px 20px rgba(0,0,0,0.3)"
           : "0 8px 24px rgba(0,0,0,0.12)",
+        transition: "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease",
         animation: "gmpModalIn 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards",
       }}>
         <div style={{ padding: "18px 24px", borderBottom: `1px solid ${colors.cardBorder}`,
@@ -3882,13 +3894,43 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
               </p>
             </div>
           </div>
-          <button onClick={onClose} data-gmp-close aria-label="Close workflow modal" style={{
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <button onClick={() => setIsFullScreen((v) => !v)}
+              aria-label={isFullScreen ? "Exit full screen" : "Full screen"}
+              title={isFullScreen ? "Exit full screen" : "Full screen"}
+              style={{
+                width: 34, height: 34, borderRadius: "50%", border: "none",
+                background: darkMode ? "rgba(255,255,255,0.06)" : "rgba(16,24,20,0.05)",
+                color: colors.textTertiary, cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "background 0.15s",
+              }}>
+              {isFullScreen ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                  <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                  <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                  <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                </svg>
+              )}
+            </button>
+            <button onClick={onClose} data-gmp-close aria-label="Close workflow modal" style={{
             width: 34, height: 34, borderRadius: "50%", border: "none",
             background: darkMode ? "rgba(255,255,255,0.06)" : "rgba(16,24,20,0.05)",
             color: colors.textTertiary, cursor: "pointer",
             fontSize: "1rem", display: "flex", alignItems: "center", justifyContent: "center",
             transition: "background 0.15s",
           }}>✕</button>
+          </div>
         </div>
 
         {draftRestored && (

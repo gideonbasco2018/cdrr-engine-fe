@@ -1,26 +1,20 @@
 // FILE: src/components/donation/badges.jsx
-import { STATUS_MAP } from "./constants";
+import { STATUS_MAP, ACCENT } from "./constants";
 
 export function StatusBadge({ status }) {
-  const c = STATUS_MAP[status] || {
-    bg: "linear-gradient(135deg,#6b7280,#4b5563)",
-    sh: "rgba(107,114,128,0.3)",
-    icon: "•",
-  };
+  const c = STATUS_MAP[status] || { bg: "#f1f5f9", color: "#64748b", icon: "•" };
   return (
     <span
       style={{
-        padding: "0.3rem 0.7rem",
+        padding: "3px 9px",
         background: c.bg,
-        color: "#fff",
-        borderRadius: "8px",
-        fontSize: "0.55rem",
-        fontWeight: "700",
-        letterSpacing: "0.5px",
-        boxShadow: `0 2px 8px ${c.sh}`,
+        color: c.color,
+        borderRadius: 99,
+        fontSize: "0.63rem",
+        fontWeight: 700,
         display: "inline-flex",
         alignItems: "center",
-        gap: "0.4rem",
+        gap: "0.35rem",
         whiteSpace: "nowrap",
       }}
     >
@@ -36,14 +30,13 @@ export function DTNBadge({ dtn }) {
       style={{
         display: "inline-flex",
         alignItems: "center",
-        padding: "0.3rem 0.7rem",
-        background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-        color: "#fff",
-        borderRadius: "8px",
-        fontSize: "0.55rem",
-        fontWeight: "700",
-        letterSpacing: "0.5px",
-        boxShadow: "0 2px 8px rgba(8,8,8,0.3)",
+        fontFamily: "ui-monospace,monospace",
+        padding: "3px 9px",
+        background: `${ACCENT}15`,
+        color: ACCENT,
+        borderRadius: 6,
+        fontSize: "0.71rem",
+        fontWeight: 700,
         whiteSpace: "nowrap",
       }}
     >

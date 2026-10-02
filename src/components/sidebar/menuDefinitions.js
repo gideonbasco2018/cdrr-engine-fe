@@ -147,6 +147,12 @@ export const menuDefinitions = {
       label: "Batch Folder Upload",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+    {
+      id: "checklist",
+      icon: "📋",
+      label: "Checklist",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 
   administrationItems: [

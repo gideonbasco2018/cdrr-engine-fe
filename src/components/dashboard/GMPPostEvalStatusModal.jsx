@@ -10,6 +10,11 @@ import { GMP_STEP_MAP } from "../gmp/shared/constants";
 
 const PAGE_SIZE = 15;
 
+// Not a real GMP_STEPS entry — "For Compliance" is an Evaluator action that
+// self-loops (GMP_CURRENT_STEP stays "Evaluator"), so the backend flags it
+// via is_compliance_loop instead of changing current_step.
+const FOR_COMPLIANCE_STEP = { icon: "🕒", color: "#ca8a04" };
+
 function fmtDay(iso) {
   if (!iso) return "—";
   try {
@@ -23,10 +28,11 @@ function fmtDay(iso) {
   }
 }
 
-function StepPill({ stepId }) {
-  const step = GMP_STEP_MAP[stepId];
+function StepPill({ stepId, forCompliance }) {
   if (!stepId) return <span style={{ color: "#94a3b8" }}>—</span>;
+  const step = forCompliance ? FOR_COMPLIANCE_STEP : GMP_STEP_MAP[stepId];
   const color = step?.color ?? "#64748b";
+  const label = forCompliance ? "For Compliance" : stepId;
   return (
     <span
       style={{
@@ -40,7 +46,7 @@ function StepPill({ stepId }) {
         whiteSpace: "nowrap",
       }}
     >
-      {step?.icon ?? "📄"} {stepId}
+      {step?.icon ?? "📄"} {label}
     </span>
   );
 }
@@ -214,7 +220,7 @@ export default function GMPPostEvalStatusModal({ onClose, onRowClick, ui }) {
                           {fmtDay(row.completed_date)}
                         </td>
                         <td style={{ padding: "9px 12px", borderBottom: border, whiteSpace: "nowrap" }}>
-                          <StepPill stepId={row.current_step} />
+                          <StepPill stepId={row.current_step} forCompliance={row.is_compliance_loop} />
                         </td>
                       </tr>
                     );

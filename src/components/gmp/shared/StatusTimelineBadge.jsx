@@ -123,11 +123,12 @@ export default function StatusTimelineBadge({ row }) {
         display: "inline-flex",
         alignItems: "center",
         gap: "0.4rem",
+        lineHeight: 1,
         whiteSpace: "nowrap",
       }}
     >
-      <span>{within ? "✓" : "⚠"}</span>
-      {within ? `Within (${days}d)` : `Beyond (${days}d)`}
+      <span style={{ display: "inline-flex", alignItems: "center" }}>{within ? "✓" : "⚠"}</span>
+      <span>{within ? `Within (${days}d Old)` : `Beyond (${days}d Old)`}</span>
     </span>
   );
 }

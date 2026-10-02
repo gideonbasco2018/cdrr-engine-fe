@@ -10,20 +10,30 @@ import { ROW_ACTION_ITEMS } from "./constants";
 
 export default function ActionMenu({ record, onAction, colors, darkMode }) {
   const [open, setOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0, maxHeight: 400 });
   const btnRef = useRef(null);
   const menuRef = useRef(null);
 
+  // Matches FGMP Queue's ActionMenu (QueueTable.jsx): flips up only when
+  // below genuinely has less room than above, then clamps height (+ scroll)
+  // to whichever side it lands on — so the menu can never render off-screen
+  // even when neither side has room for the full item list.
   const calcPos = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    const menuH = menuRef.current?.offsetHeight ?? 140;
+    const menuH = menuRef.current?.offsetHeight ?? 160;
     const menuW = menuRef.current?.offsetWidth ?? 200;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const top = spaceBelow < menuH + 8 ? rect.top - menuH - 4 : rect.bottom + 4;
+    const PAD = 8;
+    const spaceBelow = window.innerHeight - rect.bottom - PAD;
+    const spaceAbove = rect.top - PAD;
+    const up = spaceBelow < menuH && spaceAbove > spaceBelow;
+    const room = Math.max(120, up ? spaceAbove : spaceBelow);
+    const top = up
+      ? Math.max(PAD, rect.top - Math.min(menuH, room) - 4)
+      : Math.min(rect.bottom + 4, window.innerHeight - PAD - Math.min(menuH, room));
     let left = rect.right - menuW;
     left = Math.max(8, Math.min(left, window.innerWidth - menuW - 8));
-    setMenuPos({ top, left });
+    setMenuPos({ top, left, maxHeight: room });
   }, []);
 
   useEffect(() => {
@@ -92,6 +102,8 @@ export default function ActionMenu({ record, onAction, colors, darkMode }) {
               borderRadius: 10,
               boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
               minWidth: 200,
+              maxHeight: menuPos.maxHeight,
+              overflowY: "auto",
               padding: "6px 0",
             }}
           >
