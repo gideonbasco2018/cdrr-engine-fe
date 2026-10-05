@@ -2,26 +2,28 @@
 // Shared field lists, tab/status metadata, and small pure helpers used
 // across the Donation page and its modals.
 
+// Matches FGMP Queue's shared FONT constant (components/gmp/shared/constants.js)
+// so the two pages render with identical typography.
+export const FONT =
+  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+// Donation's accent color — FGMP Queue uses indigo (#6366f1) for this same
+// role (active tab underline, DTN pills, filter chips); Donation keeps its
+// existing green instead, everything else about the pill/chip styling
+// mirrors FGMP's flat (no gradient, no glow) convention.
+export const ACCENT = "#4CAF50";
+
 // Letter DTN is a 14-digit code (e.g. a YYYYMMDDHHMMSS-style timestamp id)
 // — mirrors LETTER_DTN_RE in app/crud/donation.py and app/schemas/donation.py
 // on the backend, so manual entry is held to the same rule as import.
 export const LETTER_DTN_RE = /^\d{14}$/;
+// Flat pastel background + solid text, no gradient/glow — matches FGMP
+// Queue's StatusBadge convention (QueueTable.jsx) instead of Donation's
+// previous gradient+box-shadow-glow pills.
 export const STATUS_MAP = {
-  Approved: {
-    bg: "linear-gradient(135deg,#10b981,#059669)",
-    sh: "rgba(16,185,129,0.3)",
-    icon: "✓",
-  },
-  Disapproved: {
-    bg: "linear-gradient(135deg,#ef4444,#dc2626)",
-    sh: "rgba(239,68,68,0.3)",
-    icon: "✗",
-  },
-  "For Evaluation": {
-    bg: "linear-gradient(135deg,#eab308,#ca8a04)",
-    sh: "rgba(234,179,8,0.3)",
-    icon: "⏸",
-  },
+  Approved: { bg: "#dcfce7", color: "#15803d", icon: "✓" },
+  Disapproved: { bg: "#fee2e2", color: "#b91c1c", icon: "✗" },
+  "For Evaluation": { bg: "#fef9c3", color: "#a16207", icon: "⏸" },
 };
 export const TABS = [
   { id: "all", label: "All Reports", icon: "🤝" },

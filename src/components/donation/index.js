@@ -1,5 +1,6 @@
 // FILE: src/components/donation/index.js
 export { default as ActionMenu } from "./ActionMenu";
+export { default as StickyColumnsMenu } from "./StickyColumnsMenu";
 export { default as AdvancedFilterModal } from "./AdvancedFilterModal";
 export { default as DonationInfoModal } from "./DonationInfoModal";
 export { default as DonationUpdateModal } from "./DonationUpdateModal";

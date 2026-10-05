@@ -8,8 +8,13 @@ import { Card } from "./CardPrimitives";
 import { FB } from "./constants";
 import { GMP_STEP_MAP } from "../gmp/shared/constants";
 
+// Not a real GMP_STEPS entry — "For Compliance" is an Evaluator action that
+// self-loops (GMP_CURRENT_STEP stays "Evaluator"), so the backend breaks it
+// out under this label instead of lumping it into the "Evaluator" count.
+const FOR_COMPLIANCE_STEP = { icon: "🕒", color: "#ca8a04" };
+
 function stepChipStyle(stepId) {
-  const step = GMP_STEP_MAP[stepId];
+  const step = stepId === "For Compliance" ? FOR_COMPLIANCE_STEP : GMP_STEP_MAP[stepId];
   const color = step?.color ?? "#64748b";
   return { background: `${color}26`, color };
 }
@@ -61,7 +66,7 @@ export default function GMPPostEvalStatusCard({
                   </span>
                 ) : (
                   breakdown.map((b) => {
-                    const step = GMP_STEP_MAP[b.step];
+                    const step = b.step === "For Compliance" ? FOR_COMPLIANCE_STEP : GMP_STEP_MAP[b.step];
                     return (
                       <span
                         key={b.step}
@@ -193,7 +198,8 @@ export default function GMPPostEvalStatusCard({
         !error &&
         data.map((row, i, arr) => {
           const yourStep = GMP_STEP_MAP[row.your_step];
-          const currentStep = GMP_STEP_MAP[row.current_step];
+          const currentStep = row.is_compliance_loop ? FOR_COMPLIANCE_STEP : GMP_STEP_MAP[row.current_step];
+          const currentStepLabel = row.is_compliance_loop ? "For Compliance" : row.current_step;
           return (
             <div
               key={row.gmp_id}
@@ -270,11 +276,11 @@ export default function GMPPostEvalStatusCard({
                     borderRadius: 99,
                     whiteSpace: "nowrap",
                     ...(currentStep
-                      ? stepChipStyle(row.current_step)
+                      ? stepChipStyle(currentStepLabel)
                       : { background: ui.progressBg, color: ui.textMuted }),
                   }}
                 >
-                  {currentStep?.icon ?? "📄"} {row.current_step || "—"}
+                  {currentStep?.icon ?? "📄"} {currentStepLabel || "—"}
                 </span>
               </div>
             </div>

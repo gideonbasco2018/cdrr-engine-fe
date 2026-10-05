@@ -29,6 +29,7 @@ import EApplicationPage from "../pages/EApplicationPage";
 import ClinicalTrialPage from "../pages/ClinicalTrialPage";
 import DonationPage from "../pages/DonationPage";
 import CmdrPage from "../pages/CmdrPage";
+import ChecklistPage from "../pages/ChecklistPage";
 
 function MainLayout({ darkMode, setDarkMode }) {
   const location = useLocation();
@@ -68,6 +69,7 @@ function MainLayout({ darkMode, setDarkMode }) {
     if (path.includes("otc-database")) return "otc-database";
     if (path.includes("cdrr-inspector-reports"))
       return "cdrr-inspector-reports";
+    if (path.includes("checklist")) return "checklist";
     if (path.includes("doctrack-magic")) return "doctrack-magic";
     if (path.includes("reports")) return "reports";
     if (path.includes("records-report")) return "records-report";
@@ -128,6 +130,8 @@ function MainLayout({ darkMode, setDarkMode }) {
         return (
           <CDRRInspectorReportsPage darkMode={darkMode} userRole={userRole} />
         );
+      case "checklist":
+        return <ChecklistPage darkMode={darkMode} userRole={userRole} />;
       case "doctrack-magic":
         return <DoctrackMagicPage darkMode={darkMode} userRole={userRole} />;
       case "records-report":

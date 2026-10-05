@@ -1,8 +1,8 @@
 // FILE: src/pages/DonationPage.jsx
 import { useState, useMemo, useEffect } from "react";
-import { ArrowUpDown, ChevronUp, X as XIcon } from "lucide-react";
+import { ArrowUpDown, ChevronUp, X as XIcon, Search as SearchIcon } from "lucide-react";
 import * as XLSX from "xlsx";
-import { getColorScheme } from "../components/reports/utils.js";
+import { getColorScheme } from "../components/donation/colorScheme.js";
 import {
   getDonations,
   createDonation,
@@ -17,10 +17,13 @@ import {
   TABS,
   ADV_FIELDS,
   ADV_DEFAULTS,
+  FONT,
+  ACCENT,
   toDateKey,
   StatusBadge,
   DTNBadge,
   ActionMenu,
+  StickyColumnsMenu,
   AdvancedFilterModal,
   DonationInfoModal,
   DonationUpdateModal,
@@ -56,6 +59,17 @@ function DonationPage({ darkMode }) {
   const [selectedRows, setSelectedRows] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [hoveredRowId, setHoveredRowId] = useState(null);
+
+  // Pinned ("sticky") columns — user-picked, stay fixed on the left while
+  // the rest of the table scrolls horizontally. Order follows the column
+  // definition order, not click order, so pinned columns don't jump around.
+  const [stickyColumnKeys, setStickyColumnKeys] = useState([]);
+  const toggleStickyColumn = (key) =>
+    setStickyColumnKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  const clearStickyColumns = () => setStickyColumnKeys([]);
 
   // Advanced Filter — one filterable field per column
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -364,10 +378,15 @@ function DonationPage({ darkMode }) {
     { key: "productName", label: "Product Name", width: "260px" },
     { key: "packaging", label: "Packaging", width: "220px" },
     { key: "manufacturer", label: "Manufacturer", width: "200px" },
-    { key: "batchLotNo", label: "Batch/Lot No." },
-    { key: "expirationDate", label: "Expiration Date", width: "130px" },
-    { key: "totalQuantity", label: "Total Quantity" },
-    { key: "validity", label: "Validity (Expired on)" },
+    // These 4 columns commonly hold several batches stacked with "\n" in
+    // one row (one line = one batch's Lot No. / Expiration / Qty / Validity,
+    // read across the row) — alignRows keeps each line from soft-wrapping,
+    // so line N in one of these columns always stays lined up with line N
+    // in the others. See alignRows usage below.
+    { key: "batchLotNo", label: "Batch/Lot No.", alignRows: true },
+    { key: "expirationDate", label: "Expiration Date", width: "130px", alignRows: true },
+    { key: "totalQuantity", label: "Total Quantity", alignRows: true },
+    { key: "validity", label: "Validity (Expired on)", alignRows: true },
     { key: "dateIssued", label: "Date Issue", width: "150px", noWrap: true },
     { key: "evaluator", label: "Evaluator" },
     { key: "status", label: "Status" },
@@ -379,25 +398,62 @@ function DonationPage({ darkMode }) {
     { key: "uploadBy", label: "Upload By", width: "150px", noWrap: true },
   ];
 
+  // Checkbox + row-number columns are always pinned; any user-picked
+  // columns stack after them, left-to-right in column definition order —
+  // not click order, so pinning doesn't reshuffle as you add more. Pinned
+  // columns get a locked pixel width (falling back to 160px for columns
+  // that normally size to content) so this offset math always matches what
+  // actually renders — an unlocked, content-sized pinned column would drift
+  // out from under its computed `left` the moment a row's text is wider or
+  // narrower than another row's in the same column.
+  const CHECKBOX_COL_PX = 40;
+  const ROWNUM_COL_PX = 40;
+  const pinnedColWidth = (col) => parseInt(col.width, 10) || 160;
+  const stickyLeftByKey = useMemo(() => {
+    let acc = CHECKBOX_COL_PX + ROWNUM_COL_PX;
+    const map = {};
+    for (const col of columns) {
+      if (stickyColumnKeys.includes(col.key)) {
+        map[col.key] = acc;
+        acc += pinnedColWidth(col);
+      }
+    }
+    return map;
+  }, [stickyColumnKeys]);
+  // Last pinned cell (row-number if nothing's pinned, else the right-most
+  // pinned data column) gets a right-edge shadow so the pinned block reads
+  // as visually separate from the columns scrolling underneath it.
+  const lastStickyKey =
+    columns.filter((c) => stickyColumnKeys.includes(c.key)).slice(-1)[0]?.key ?? null;
+  const stickyEdgeShadow = "4px 0 8px -4px rgba(0,0,0,0.18)";
+  // A light green wash marking a user-pinned column — layered as a second
+  // background on top of the cell's normal (opaque) background rather than
+  // swapped in for it, so it still reads correctly under the row's
+  // selected/hover tint and never exposes anything scrolling behind it.
+  const stickyTint = (baseBg) => `linear-gradient(rgba(76,175,80,0.07),rgba(76,175,80,0.07)), ${baseBg}`;
+
   const thStyle = {
-    padding: "0.45rem 0.6rem",
+    padding: "9px 12px",
     textAlign: "center",
     verticalAlign: "middle",
-    fontSize: "0.55rem",
-    fontWeight: "600",
+    fontSize: "0.59rem",
+    fontWeight: 700,
     color: colors.textTertiary,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
     borderBottom: `1px solid ${colors.tableBorder}`,
     whiteSpace: "nowrap",
     background: colors.tableBg,
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
   };
 
   const tdStyle = {
-    padding: "0.4rem 0.6rem",
+    padding: "9px 12px",
     textAlign: "center",
     verticalAlign: "middle",
-    fontSize: "0.55rem",
+    fontSize: "0.76rem",
     color: colors.tableText,
     borderBottom: `1px solid ${colors.tableBorder}`,
     // "normal" collapses newlines to spaces — a cell with several
@@ -416,17 +472,13 @@ function DonationPage({ darkMode }) {
       case "status":
         return <StatusBadge status={row.status} />;
       default:
-        return (
-          <span style={{ fontSize: "0.78rem", color: colors.tableText }}>
-            {row[col.key] ?? ""}
-          </span>
-        );
+        return row[col.key] ?? "";
     }
   };
 
   return (
     <>
-    <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", fontFamily: FONT }}>
       {/* ── Main content ── */}
       <div
         style={{
@@ -435,22 +487,29 @@ function DonationPage({ darkMode }) {
           display: "flex",
           flexDirection: "column",
           minHeight: 0,
+          background: colors.pageBg,
+          padding: "6px 8px 8px",
+          gap: 8,
         }}
       >
-        {/* Header */}
+        {/* Header — toolbar card, matches FGMP Queue's shadowed/rounded
+            toolbar card instead of sitting flush on the page background. */}
         <div
           style={{
-            padding: "0.5rem 0.5rem 0",
-            background: colors.pageBg,
-            borderBottom: `1px solid ${colors.cardBorder}`,
+            flexShrink: 0,
+            background: colors.cardBg,
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: 14,
+            boxShadow: colors.cardShadow,
+            overflow: "hidden",
           }}
         >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              marginTop: "0.25rem",
-              borderBottom: `2px solid ${colors.cardBorder}`,
+              padding: "9px 14px",
+              borderBottom: `1px solid ${colors.cardBorder}`,
             }}
           >
             <div style={{ display: "flex", flex: 1 }}>
@@ -526,9 +585,9 @@ function DonationPage({ darkMode }) {
                 onClick={handleExport}
                 style={{
                   padding: "5px 14px",
-                  background: "linear-gradient(135deg,#10B981,#059669)",
-                  color: "#fff",
-                  border: "none",
+                  background: "transparent",
+                  color: colors.textPrimary,
+                  border: `1px solid ${colors.cardBorder}`,
                   borderRadius: "6px",
                   fontSize: "12.5px",
                   fontWeight: 600,
@@ -546,7 +605,7 @@ function DonationPage({ darkMode }) {
                 onClick={downloadDonationTemplate}
                 style={{
                   padding: "5px 14px",
-                  background: darkMode ? "#1f1f1f" : "#e5e5e5",
+                  background: "transparent",
                   color: colors.textPrimary,
                   border: `1px solid ${colors.cardBorder}`,
                   borderRadius: "6px",
@@ -566,7 +625,7 @@ function DonationPage({ darkMode }) {
                 onClick={() => setShowImportModal(true)}
                 style={{
                   padding: "5px 14px",
-                  background: "linear-gradient(135deg,#6366f1,#4f46e5)",
+                  background: ACCENT,
                   color: "#fff",
                   border: "none",
                   borderRadius: "6px",
@@ -577,6 +636,7 @@ function DonationPage({ darkMode }) {
                   alignItems: "center",
                   gap: "5px",
                   height: "30px",
+                  boxShadow: `0 2px 8px ${ACCENT}44`,
                 }}
               >
                 <span>⬆️</span>
@@ -586,7 +646,7 @@ function DonationPage({ darkMode }) {
                 onClick={() => setShowCreate(true)}
                 style={{
                   padding: "5px 14px",
-                  background: darkMode ? "#1f1f1f" : "#ffffff",
+                  background: "transparent",
                   color: colors.textPrimary,
                   border: `1px solid ${colors.cardBorder}`,
                   borderRadius: "6px",
@@ -614,8 +674,6 @@ function DonationPage({ darkMode }) {
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
-            padding: "0.5rem 0.5rem",
-            background: colors.pageBg,
           }}
         >
           {/* Table card */}
@@ -623,7 +681,8 @@ function DonationPage({ darkMode }) {
             style={{
               background: colors.cardBg,
               border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
+              borderRadius: 14,
+              boxShadow: colors.cardShadow,
               overflow: "hidden",
               display: "flex",
               flexDirection: "column",
@@ -658,42 +717,52 @@ function DonationPage({ darkMode }) {
                     margin: 0,
                   }}
                 >
-                  Data
+                  Donation Records
                 </h3>
                 <span
                   style={{
-                    padding: "0.2rem 0.6rem",
-                    background: colors.badgeBg,
-                    borderRadius: "12px",
                     fontSize: "0.72rem",
                     color: colors.textTertiary,
                     fontWeight: "600",
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {totalRecords} total records
+                  {totalRecords.toLocaleString()} total
                 </span>
               </div>
 
-              <input
-                value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="Search by DTN, donation reg. no., donor, or product"
-                style={{
-                  flex: "1 1 260px",
-                  minWidth: 200,
-                  padding: "0.35rem 0.6rem",
-                  fontSize: "0.72rem",
-                  background: colors.inputBg,
-                  border: `1px solid ${colors.inputBorder}`,
-                  borderRadius: "6px",
-                  color: colors.textPrimary,
-                  outline: "none",
-                }}
-              />
+              <div style={{ position: "relative", flex: "1 1 260px", minWidth: 200 }}>
+                <SearchIcon
+                  size={13}
+                  style={{
+                    position: "absolute",
+                    left: 11,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: colors.textTertiary,
+                    pointerEvents: "none",
+                  }}
+                />
+                <input
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder="Search by DTN, donation reg. no., donor, or product"
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "0.35rem 0.6rem 0.35rem 30px",
+                    fontSize: "0.72rem",
+                    background: colors.inputBg,
+                    border: `1px solid ${colors.inputBorder}`,
+                    borderRadius: "6px",
+                    color: colors.textPrimary,
+                    outline: "none",
+                  }}
+                />
+              </div>
 
               <button
                 onClick={openAdvanced}
@@ -731,6 +800,15 @@ function DonationPage({ darkMode }) {
                   </span>
                 )}
               </button>
+
+              <StickyColumnsMenu
+                columns={columns}
+                stickyKeys={stickyColumnKeys}
+                onToggle={toggleStickyColumn}
+                onClear={clearStickyColumns}
+                colors={colors}
+                darkMode={darkMode}
+              />
 
               {activeAdvCount > 0 && (
                 <button
@@ -776,12 +854,12 @@ function DonationPage({ darkMode }) {
                         borderRadius: 99,
                         fontSize: "0.68rem",
                         fontWeight: 600,
-                        background: colors.badgeBg,
-                        color: colors.textSecondary,
+                        background: `${ACCENT}15`,
+                        color: "#2e7d32",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      <strong style={{ fontWeight: 700, color: colors.textPrimary }}>
+                      <strong style={{ fontWeight: 700, color: "#1b5e20" }}>
                         {entry.label}:
                       </strong>{" "}
                       {entry.value}
@@ -821,7 +899,8 @@ function DonationPage({ darkMode }) {
                     alignItems: "center",
                     gap: "0.5rem",
                     padding: "0.4rem 0.85rem",
-                    background: colors.badgeBg,
+                    background: "rgba(76,175,80,0.12)",
+                    border: "1px solid rgba(76,175,80,0.3)",
                     borderRadius: "8px",
                   }}
                 >
@@ -832,7 +911,7 @@ function DonationPage({ darkMode }) {
                       fontWeight: 600,
                     }}
                   >
-                    {selectedRows.length} selected
+                    ✔ {selectedRows.length} selected
                   </span>
                 </div>
               )}
@@ -848,7 +927,16 @@ function DonationPage({ darkMode }) {
               >
                 <thead>
                   <tr>
-                    <th style={{ ...thStyle, width: "40px" }}>
+                    <th
+                      style={{
+                        ...thStyle,
+                        width: CHECKBOX_COL_PX,
+                        position: "sticky",
+                        left: 0,
+                        zIndex: lastStickyKey === null ? 3 : 2,
+                        boxShadow: lastStickyKey === null ? stickyEdgeShadow : undefined,
+                      }}
+                    >
                       <input
                         type="checkbox"
                         checked={
@@ -865,12 +953,22 @@ function DonationPage({ darkMode }) {
                       />
                     </th>
                     <th
-                      style={{ ...thStyle, width: "40px", textAlign: "center" }}
+                      style={{
+                        ...thStyle,
+                        width: ROWNUM_COL_PX,
+                        textAlign: "center",
+                        position: "sticky",
+                        left: CHECKBOX_COL_PX,
+                        zIndex: 3,
+                        boxShadow: lastStickyKey === null ? stickyEdgeShadow : undefined,
+                      }}
                     >
                       #
                     </th>
                     {columns.map((col) => {
                       const isSorted = sortBy === col.key;
+                      const isSticky = col.key in stickyLeftByKey;
+                      const isLastSticky = col.key === lastStickyKey;
                       return (
                         <th
                           key={col.key}
@@ -881,6 +979,16 @@ function DonationPage({ darkMode }) {
                             minWidth: col.width,
                             cursor: "pointer",
                             userSelect: "none",
+                            ...(isSticky
+                              ? {
+                                  width: col.width || "160px",
+                                  position: "sticky",
+                                  left: stickyLeftByKey[col.key],
+                                  zIndex: 3,
+                                  background: stickyTint(colors.tableBg),
+                                  boxShadow: isLastSticky ? stickyEdgeShadow : undefined,
+                                }
+                              : {}),
                           }}
                         >
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
@@ -889,7 +997,7 @@ function DonationPage({ darkMode }) {
                               style={{
                                 display: "inline-flex",
                                 flexShrink: 0,
-                                color: isSorted ? "#6366f1" : colors.textTertiary,
+                                color: isSorted ? ACCENT : colors.textTertiary,
                                 opacity: isSorted ? 1 : 0.45,
                                 transition: "opacity 0.15s ease, color 0.15s ease",
                               }}
@@ -953,19 +1061,22 @@ function DonationPage({ darkMode }) {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr>
-                      <td
-                        colSpan={columns.length + 3}
-                        style={{
-                          padding: "2rem",
-                          textAlign: "center",
-                          color: colors.textTertiary,
-                          fontSize: "0.78rem",
-                        }}
-                      >
-                        Loading donation records...
-                      </td>
-                    </tr>
+                    [...Array(8)].map((_, i) => (
+                      <tr key={i}>
+                        {[...Array(columns.length + 3)].map((__, j) => (
+                          <td key={j} style={{ padding: "9px 12px" }}>
+                            <div
+                              style={{
+                                height: 14,
+                                borderRadius: 4,
+                                background: darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+                                width: j === 0 || j === 1 ? "24px" : j === columns.length + 2 ? "28px" : "80%",
+                              }}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
                   ) : error ? (
                     <tr>
                       <td
@@ -1007,21 +1118,28 @@ function DonationPage({ darkMode }) {
                           fontSize: "0.78rem",
                         }}
                       >
-                        No donations match the current filters.
+                        📭 No donations match the current filters.
                       </td>
                     </tr>
                   ) : (
                     pageRows.map((row, index) => {
                       const isSelected = selectedRows.includes(row.id);
+                      const isHovered = hoveredRowId === row.id;
                       const rowBg = isSelected
                         ? "#4CAF5015"
-                        : index % 2 === 0
-                          ? colors.tableRowEven
-                          : colors.tableRowOdd;
+                        : isHovered
+                          ? colors.tableRowHover
+                          : index % 2 === 0
+                            ? colors.tableRowEven
+                            : colors.tableRowOdd;
                       return (
                         <tr
                           key={row.id}
                           onDoubleClick={() => handleRowAction("info", row)}
+                          onMouseEnter={() => setHoveredRowId(row.id)}
+                          onMouseLeave={() =>
+                            setHoveredRowId((id) => (id === row.id ? null : id))
+                          }
                           style={{
                             background: rowBg,
                             borderLeft: isSelected
@@ -1032,8 +1150,13 @@ function DonationPage({ darkMode }) {
                         >
                           <td
                             style={{
-                              padding: "0.65rem 0.85rem",
+                              padding: "9px 12px",
                               borderBottom: `1px solid ${colors.tableBorder}`,
+                              position: "sticky",
+                              left: 0,
+                              zIndex: 2,
+                              background: rowBg,
+                              boxShadow: lastStickyKey === null ? stickyEdgeShadow : undefined,
                             }}
                           >
                             <input
@@ -1050,31 +1173,55 @@ function DonationPage({ darkMode }) {
                           </td>
                           <td
                             style={{
-                              padding: "0.4rem 0.6rem",
+                              padding: "9px 12px",
                               fontSize: "0.65rem",
                               fontWeight: 700,
                               color: colors.textTertiary,
                               borderBottom: `1px solid ${colors.tableBorder}`,
                               textAlign: "center",
+                              position: "sticky",
+                              left: CHECKBOX_COL_PX,
+                              zIndex: 2,
+                              background: rowBg,
+                              boxShadow: lastStickyKey === null ? stickyEdgeShadow : undefined,
                             }}
                           >
                             {indexOfFirstRow + index}
                           </td>
-                          {columns.map((col) => (
-                            <td
-                              key={col.key}
-                              style={{
-                                ...tdStyle,
-                                minWidth: col.width,
-                                whiteSpace: col.noWrap ? "nowrap" : tdStyle.whiteSpace,
-                              }}
-                            >
-                              {renderCell(col, row)}
-                            </td>
-                          ))}
+                          {columns.map((col) => {
+                            const isSticky = col.key in stickyLeftByKey;
+                            const isLastSticky = col.key === lastStickyKey;
+                            return (
+                              <td
+                                key={col.key}
+                                style={{
+                                  ...tdStyle,
+                                  minWidth: col.width,
+                                  // alignRows columns: "pre" keeps every "\n"-separated
+                                  // batch entry on exactly one line — never soft-wrapped
+                                  // — so line N here always lines up with line N in the
+                                  // other alignRows columns on this same row. noWrap
+                                  // columns just force a single line, no "\n" involved.
+                                  whiteSpace: col.noWrap ? "nowrap" : col.alignRows ? "pre" : tdStyle.whiteSpace,
+                                  ...(isSticky
+                                    ? {
+                                        width: col.width || "160px",
+                                        position: "sticky",
+                                        left: stickyLeftByKey[col.key],
+                                        zIndex: 2,
+                                        background: stickyTint(rowBg),
+                                        boxShadow: isLastSticky ? stickyEdgeShadow : undefined,
+                                      }
+                                    : {}),
+                                }}
+                              >
+                                {renderCell(col, row)}
+                              </td>
+                            );
+                          })}
                           <td
                             style={{
-                              padding: "0.65rem 0.85rem",
+                              padding: "9px 12px",
                               borderBottom: `1px solid ${colors.tableBorder}`,
                               textAlign: "center",
                               position: "sticky",
@@ -1098,13 +1245,15 @@ function DonationPage({ darkMode }) {
               </table>
             </div>
 
-            {/* Pagination — copies the TablePagination pattern */}
+            {/* Pagination — matches FGMP Queue's Pagination component
+                (first/prev/next/last 28x28 square nav buttons, grouped
+                "Page X of Y" + nav + summary on the right). */}
             <div
               style={{
                 flexShrink: 0,
-                borderTop: `1px solid ${colors.tableBorder}`,
+                borderTop: `1px solid ${colors.cardBorder}`,
                 background: colors.cardBg,
-                padding: "0.6rem 1rem",
+                padding: "8px 14px",
                 display: "flex",
                 alignItems: "center",
                 gap: "0.75rem",
@@ -1115,7 +1264,7 @@ function DonationPage({ darkMode }) {
               <label
                 style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
               >
-                Rows per page
+                Rows per page:
                 <select
                   value={rowsPerPage}
                   onChange={(e) => {
@@ -1131,7 +1280,7 @@ function DonationPage({ darkMode }) {
                     fontSize: "0.75rem",
                   }}
                 >
-                  {[10, 25, 50, 100].map((n) => (
+                  {[25, 50, 100, 200].map((n) => (
                     <option key={n} value={n}>
                       {n}
                     </option>
@@ -1139,45 +1288,46 @@ function DonationPage({ darkMode }) {
                 </select>
               </label>
 
-              <span style={{ marginLeft: "auto" }}>
-                {indexOfFirstRow}–{indexOfLastRow} of {totalRecords}
-              </span>
-
-              <button
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
+              <div
                 style={{
-                  padding: "0.2rem 0.5rem",
-                  background: "transparent",
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "5px",
-                  color: colors.textPrimary,
-                  cursor: page === 1 ? "not-allowed" : "pointer",
-                  opacity: page === 1 ? 0.4 : 1,
+                  marginLeft: "auto",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
                 }}
               >
-                ‹
-              </button>
-              <span>
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() =>
-                  setCurrentPage((p) => Math.min(totalPages, p + 1))
-                }
-                disabled={page === totalPages}
-                style={{
-                  padding: "0.2rem 0.5rem",
-                  background: "transparent",
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: "5px",
-                  color: colors.textPrimary,
-                  cursor: page === totalPages ? "not-allowed" : "pointer",
-                  opacity: page === totalPages ? 0.4 : 1,
-                }}
-              >
-                ›
-              </button>
+                <span>
+                  Page {page} of {totalPages}
+                </span>
+                {[
+                  { label: "«", onClick: () => setCurrentPage(1), disabled: page === 1 },
+                  { label: "‹", onClick: () => setCurrentPage((p) => Math.max(1, p - 1)), disabled: page === 1 },
+                  { label: "›", onClick: () => setCurrentPage((p) => Math.min(totalPages, p + 1)), disabled: page === totalPages },
+                  { label: "»", onClick: () => setCurrentPage(totalPages), disabled: page === totalPages },
+                ].map((btn) => (
+                  <button
+                    key={btn.label}
+                    onClick={btn.onClick}
+                    disabled={btn.disabled}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      padding: 0,
+                      background: "transparent",
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: "6px",
+                      color: colors.textPrimary,
+                      cursor: btn.disabled ? "not-allowed" : "pointer",
+                      opacity: btn.disabled ? 0.4 : 1,
+                    }}
+                  >
+                    {btn.label}
+                  </button>
+                ))}
+                <span>
+                  {indexOfFirstRow.toLocaleString()}–{indexOfLastRow.toLocaleString()} of {totalRecords.toLocaleString()}
+                </span>
+              </div>
             </div>
           </div>
         </div>

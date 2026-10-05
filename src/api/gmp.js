@@ -14,6 +14,13 @@ export async function getGMPRecords(params = {}) {
   return res.data;
 }
 
+// Distinct GMP_EVALUATOR values — populates the Application Monitoring
+// table's evaluator filter dropdown.
+export async function getGMPEvaluatorOptions() {
+  const res = await API.get("/gmp/evaluators");
+  return res.data;
+}
+
 export async function getGMPFilterCounts(tab, view) {
   const params = {
     ...(tab && tab !== "all" && { tab }),

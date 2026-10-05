@@ -4,22 +4,12 @@
 // elsewhere on the page), so a reviewer can see which specific applications
 // are sitting where right now.
 import { useState, useEffect, useRef } from "react";
-import { getGMPRecords } from "../../../api/gmp";
-import { GMP_STEP_MAP, GMP_STATUS_COLORS } from "../shared/constants";
+import { getGMPRecords, getGMPEvaluatorOptions } from "../../../api/gmp";
+import { GMP_STEPS, GMP_STEP_MAP, GMP_STATUS_COLORS } from "../shared/constants";
 import ApplicationScatterPlot from "./ApplicationScatterPlot";
 
 const TERMINAL_STATUSES = new Set(["COMPLETED", "DISAPPROVED"]);
 const PAGE_SIZE = 8;
-
-const STATUS_OPTIONS = [
-  "All",
-  "ON PROCESS",
-  "FOR DECKING",
-  "DECKED",
-  "PENDING",
-  "COMPLETED",
-  "DISAPPROVED",
-];
 
 function selectStyle(ui) {
   return {
@@ -77,8 +67,16 @@ export default function ApplicationMonitoringTable({ ui, darkMode }) {
   const [view, setView] = useState("table"); // "table" | "plot"
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [status, setStatus] = useState("All");
+  const [step, setStep] = useState("All");
+  const [evaluator, setEvaluator] = useState("All");
+  const [evaluatorOptions, setEvaluatorOptions] = useState([]);
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    getGMPEvaluatorOptions()
+      .then((res) => setEvaluatorOptions(res.evaluators || []))
+      .catch(() => {});
+  }, []);
 
   const [records, setRecords] = useState([]);
   const [total, setTotal] = useState(0);
@@ -96,7 +94,7 @@ export default function ApplicationMonitoringTable({ ui, darkMode }) {
     return () => clearTimeout(searchTimer.current);
   }, [search]);
 
-  useEffect(() => setPage(1), [status]);
+  useEffect(() => setPage(1), [step, evaluator]);
 
   useEffect(() => {
     if (view !== "table") return;
@@ -106,7 +104,8 @@ export default function ApplicationMonitoringTable({ ui, darkMode }) {
       page,
       page_size: PAGE_SIZE,
       search: debouncedSearch || undefined,
-      app_status: status !== "All" ? status : undefined,
+      current_step: step !== "All" ? step : undefined,
+      evaluator: evaluator !== "All" ? evaluator : undefined,
       sort_by: "GMP_DATE_RECEIVED",
       sort_order: "desc",
     })
@@ -117,7 +116,7 @@ export default function ApplicationMonitoringTable({ ui, darkMode }) {
       })
       .catch(() => setError("Failed to load applications. Please try again."))
       .finally(() => setLoading(false));
-  }, [view, page, debouncedSearch, status]);
+  }, [view, page, debouncedSearch, step, evaluator]);
 
   const thStyle = {
     textAlign: "left",
@@ -149,9 +148,16 @@ export default function ApplicationMonitoringTable({ ui, darkMode }) {
             placeholder="Search DTN or establishment…"
             style={{ ...selectStyle(ui), flex: "1 1 200px", minWidth: 180 }}
           />
-          <select value={status} onChange={(e) => setStatus(e.target.value)} style={selectStyle(ui)}>
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s === "All" ? "All statuses" : s}</option>
+          <select value={step} onChange={(e) => setStep(e.target.value)} style={selectStyle(ui)}>
+            <option value="All">All steps</option>
+            {GMP_STEPS.map((s) => (
+              <option key={s.id} value={s.id}>{s.icon} {s.label}</option>
+            ))}
+          </select>
+          <select value={evaluator} onChange={(e) => setEvaluator(e.target.value)} style={selectStyle(ui)}>
+            <option value="All">All evaluators</option>
+            {evaluatorOptions.map((name) => (
+              <option key={name} value={name}>{name}</option>
             ))}
           </select>
         </div>
@@ -182,7 +188,7 @@ export default function ApplicationMonitoringTable({ ui, darkMode }) {
       )}
 
       {view === "plot" ? (
-        <ApplicationScatterPlot ui={ui} darkMode={darkMode} search={debouncedSearch} status={status} />
+        <ApplicationScatterPlot ui={ui} darkMode={darkMode} search={debouncedSearch} status="All" />
       ) : (
       <>
       <div style={{ overflowX: "auto" }}>
