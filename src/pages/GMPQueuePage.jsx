@@ -45,7 +45,7 @@ function userInAllowedGroups(user, allowedNames) {
 // (see the visibleColumns initializer). Move a key out of NEW once everyone has
 // had a release cycle to see it.
 const GMP_QUEUE_COL_KEYS = GMP_QUEUE_COLUMNS.map((c) => c.key);
-const GMP_QUEUE_NEW_COL_KEYS = ["status_timeline"];
+const GMP_QUEUE_NEW_COL_KEYS = ["status_timeline", "evaluator"];
 
 // Default queue sort — also what "reset sort" (QueueTable's ✕ next to the
 // active sort arrow) returns to.
@@ -166,7 +166,7 @@ function mapGMPRecord(r) {
     product_line:                r.GMP_PRODUCT_LINE,
     uploaded_date:                dateWithTime(r.GMP_DATE_EXCEL_UPLOAD),
     uploaded_by:                  r.GMP_USER_UPLOADER,
-    evaluator:                   r.GMP_EVALUATOR,
+    evaluator:                   r.latest_evaluator,
     current_step:                r.GMP_CURRENT_STEP,
     is_decked:                   r.GMP_CURRENT_STEP !== null,
     lto_company:                 r.GMP_LTO_COMPANY,
