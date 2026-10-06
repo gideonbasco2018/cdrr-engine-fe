@@ -1,9 +1,14 @@
 // src/pages/EApplicationPage.jsx
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
 import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
 import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
+
+import {
+  getAppointmentRecords,
+  mapAppointmentRecord,
+} from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
    Two-level task page:
@@ -38,76 +43,6 @@ const MAX_NOTE_LENGTH = 1500;
    Each row carries `department` and `status`:
    status: "unclaimed" | "claimed" | "processed" ── */
 const MOCK_APPLICATIONS = [
-  {
-    id: 1,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00147",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Torrent Pharma Philippines Inc",
-    applicationStep: "Initial Screening",
-    dueDate: "2026-08-28",
-    lastModified: "2026-08-24 09:14 AM",
-    priority: "High",
-    status: "unclaimed",
-    claimedBy: null,
-  },
-  {
-    id: 2,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00148",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Unilab Inc.",
-    applicationStep: "Document Verification",
-    dueDate: "2026-08-30",
-    lastModified: "2026-08-23 04:52 PM",
-    priority: "Medium",
-    status: "unclaimed",
-    claimedBy: null,
-  },
-  {
-    id: 3,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00149",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Pascual Laboratories",
-    applicationStep: "Awaiting Assignment",
-    dueDate: "2026-09-02",
-    lastModified: "2026-08-22 11:30 AM",
-    priority: "Low",
-    status: "unclaimed",
-    claimedBy: null,
-  },
-  {
-    id: 4,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00150",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Zuellig Pharma Corp",
-    applicationStep: "Technical Review",
-    dueDate: "2026-08-26",
-    lastModified: "2026-08-24 01:05 PM",
-    priority: "High",
-    status: "unclaimed",
-    claimedBy: null,
-  },
-  {
-    id: 5,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00151",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Metro Drug Distribution Inc",
-    applicationStep: "Initial Screening",
-    dueDate: "2026-09-05",
-    lastModified: "2026-08-21 03:40 PM",
-    priority: "Low",
-    status: "unclaimed",
-    claimedBy: null,
-  },
   {
     id: 6,
     department: "quality_evaluation",
@@ -900,6 +835,8 @@ function EApplicationPage({ darkMode }) {
   const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key);
   const [activeSubTab, setActiveSubTab] = useState("unclaimed"); // unclaimed | claimed | processed
   const [applications, setApplications] = useState(MOCK_APPLICATIONS);
+  const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -917,6 +854,34 @@ function EApplicationPage({ darkMode }) {
   const [noteText, setNoteText] = useState("");
   const [sendNoteEmail, setSendNoteEmail] = useState(true);
   const [hoveredNoteRowId, setHoveredNoteRowId] = useState(null); // row id whose ref-no badge is hovered
+
+  const loadUnclaimed = useCallback(async () => {
+    setLoadingUnclaimed(true);
+    setLoadError(null);
+    try {
+      const data = await getAppointmentRecords({
+        status: "Accepted",
+        page_size: 100,
+      });
+      const incoming = data.items.map(mapAppointmentRecord);
+      setApplications((prev) => {
+        // drop stale unclaimed rows from the external DB, keep everything else
+        const keep = prev.filter(
+          (a) => !(a.source === "appointment" && a.status === "unclaimed"),
+        );
+        const keptIds = new Set(keep.map((a) => a.id));
+        return [...keep, ...incoming.filter((r) => !keptIds.has(r.id))];
+      });
+    } catch (err) {
+      setLoadError(err.message);
+    } finally {
+      setLoadingUnclaimed(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUnclaimed();
+  }, [loadUnclaimed]);
 
   /* Scope everything to the currently selected department first */
   const departmentData = useMemo(
@@ -1653,13 +1618,17 @@ function EApplicationPage({ darkMode }) {
                         fontSize: "0.75rem",
                       }}
                     >
-                      {searchTerm
-                        ? "No matching applications found."
-                        : activeSubTab === "unclaimed"
-                          ? "No applications waiting to be claimed."
-                          : activeSubTab === "claimed"
-                            ? "You haven't claimed any tasks yet."
-                            : "No processed tasks yet."}
+                      {loadingUnclaimed
+                        ? "Loading applications..."
+                        : loadError
+                          ? `Could not load applications: ${loadError}`
+                          : searchTerm
+                            ? "No matching applications found."
+                            : activeSubTab === "unclaimed"
+                              ? "No applications waiting to be claimed."
+                              : activeSubTab === "claimed"
+                                ? "You haven't claimed any tasks yet."
+                                : "No processed tasks yet."}
                     </td>
                   </tr>
                 ) : (
@@ -1724,10 +1693,10 @@ function EApplicationPage({ darkMode }) {
                       <td style={tdStyle}>
                         {renderStepBadge(row.applicationStep)}
                       </td>
-                      <td style={tdStyle}>{row.dueDate}</td>
+                      <td style={tdStyle}>{row.dueDate || "—"}</td>
                       <td style={tdStyle}>{row.lastModified}</td>
                       <td style={tdStyle}>
-                        {renderPriorityBadge(row.priority)}
+                        {row.priority ? renderPriorityBadge(row.priority) : "—"}
                       </td>
                       {activeSubTab !== "unclaimed" && (
                         <td style={{ ...tdStyle, whiteSpace: "normal" }}>
