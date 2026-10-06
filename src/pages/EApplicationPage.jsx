@@ -913,13 +913,7 @@ function EApplicationPage({ darkMode }) {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return baseData;
     return baseData.filter((row) =>
-      [
-        row.referenceNo,
-        row.activity,
-        row.applicantCompany,
-        row.applicationStep,
-        row.priority,
-      ]
+      [row.referenceNo, row.activity, row.applicantCompany, row.priority]
         .filter(Boolean)
         .some((field) => field.toLowerCase().includes(term)),
     );
@@ -1592,7 +1586,6 @@ function EApplicationPage({ darkMode }) {
                   <th style={thStyle}>Reference Number</th>
                   <th style={thStyle}>Activity</th>
                   <th style={thStyle}>Applicant Company</th>
-                  <th style={thStyle}>Application Step</th>
                   <th style={thStyle}>Due Date</th>
                   <th style={thStyle}>Last Modified</th>
                   <th style={thStyle}>Priority</th>
@@ -1610,7 +1603,7 @@ function EApplicationPage({ darkMode }) {
                 {paginatedData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={9}
                       style={{
                         padding: "2rem",
                         textAlign: "center",
@@ -1690,9 +1683,6 @@ function EApplicationPage({ darkMode }) {
                       </td>
                       <td style={tdStyle}>{row.activity}</td>
                       <td style={tdStyle}>{row.applicantCompany}</td>
-                      <td style={tdStyle}>
-                        {renderStepBadge(row.applicationStep)}
-                      </td>
                       <td style={tdStyle}>{row.dueDate || "—"}</td>
                       <td style={tdStyle}>{row.lastModified}</td>
                       <td style={tdStyle}>
