@@ -28,6 +28,7 @@ export const COLUMNS = [
   { key: "certificate_validity",          label: "Certificate Validity",                      width: 130 },
   { key: "decision",                      label: "Decision",                                  width: 110 },
   { key: "status",                        label: "Status",                                    width: 120, isStatus: true },
+  { key: "evaluator",                     label: "Evaluator",                                 width: 140 },
   { key: "released_date",                 label: "Released Date",                             width: 110 },
   { key: "processed_time",                label: "Processed Time",                            width: 120 },
   { key: "end_date",                      label: "End Date",                                  width: 110 },
