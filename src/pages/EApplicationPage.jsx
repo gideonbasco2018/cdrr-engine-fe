@@ -36,7 +36,8 @@ const SUBTABS_BY_DEPARTMENT = {
   quality_evaluation: ["claimed", "processed"],
 };
 
-const ROWS_PER_PAGE = 5;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const DEFAULT_PAGE_SIZE = 10;
 const MAX_NOTE_LENGTH = 1500;
 
 /* ── Static mock data — replace with an API call later.
@@ -839,6 +840,8 @@ function EApplicationPage({ darkMode }) {
   const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
+
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
   const [claimRows, setClaimRows] = useState(null); // array of rows being claimed, or null
@@ -922,14 +925,11 @@ function EApplicationPage({ darkMode }) {
     );
   }, [baseData, searchTerm]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredData.length / ROWS_PER_PAGE),
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
   const safePage = Math.min(currentPage, totalPages);
   const paginatedData = filteredData.slice(
-    (safePage - 1) * ROWS_PER_PAGE,
-    safePage * ROWS_PER_PAGE,
+    (safePage - 1) * rowsPerPage,
+    safePage * rowsPerPage,
   );
 
   const handleDepartmentChange = (deptKey) => {
@@ -1671,7 +1671,7 @@ function EApplicationPage({ darkMode }) {
                           color: colors.textTertiary,
                         }}
                       >
-                        {(safePage - 1) * ROWS_PER_PAGE + index + 1}
+                        {(safePage - 1) * rowsPerPage + index + 1}
                       </td>
                       <td
                         style={{
@@ -1832,13 +1832,57 @@ function EApplicationPage({ darkMode }) {
                 alignItems: "center",
                 justifyContent: "space-between",
                 flexShrink: 0,
+                flexWrap: "wrap",
+                gap: "0.5rem",
               }}
             >
-              <span style={{ fontSize: "0.68rem", color: colors.textTertiary }}>
-                Showing {(safePage - 1) * ROWS_PER_PAGE + 1}–
-                {Math.min(safePage * ROWS_PER_PAGE, filteredData.length)} of{" "}
-                {filteredData.length}
-              </span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                }}
+              >
+                <span
+                  style={{ fontSize: "0.68rem", color: colors.textTertiary }}
+                >
+                  Showing {(safePage - 1) * rowsPerPage + 1}–
+                  {Math.min(safePage * rowsPerPage, filteredData.length)} of{" "}
+                  {filteredData.length}
+                </span>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    fontSize: "0.68rem",
+                    color: colors.textTertiary,
+                  }}
+                >
+                  Rows per page
+                  <select
+                    value={rowsPerPage}
+                    onChange={(e) => handlePageSizeChange(e.target.value)}
+                    style={{
+                      padding: "0.25rem 0.4rem",
+                      fontSize: "0.68rem",
+                      borderRadius: "6px",
+                      border: `1px solid ${colors.cardBorder}`,
+                      background: colors.pageBg,
+                      color: colors.textPrimary,
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
               <div
                 style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
               >
