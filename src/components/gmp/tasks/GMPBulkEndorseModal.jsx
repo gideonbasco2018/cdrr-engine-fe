@@ -232,9 +232,15 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
     return () => { alive = false; };
   }, [needsAuthority, config.authorityGroupId]);
 
-  // OD Releasing — the doctrack text is built from the signed date.
+  // OD Releasing — the doctrack text is pre-filled from the signed date, but
+  // stays manually editable: once the user changes it away from that
+  // auto-built text, picking a different signed date won't stomp their edit.
+  const lastAutoDoctrackRef = useRef("");
   useEffect(() => {
-    if (config.isEndTask) setDoctrackRemarks(buildOdReleasingDoctrack(signedDate));
+    if (!config.isEndTask) return;
+    const auto = buildOdReleasingDoctrack(signedDate);
+    setDoctrackRemarks((prev) => (prev === "" || prev === lastAutoDoctrackRef.current ? auto : prev));
+    lastAutoDoctrackRef.current = auto;
   }, [config.isEndTask, signedDate]);
 
   const goConfirm = () => {
@@ -540,12 +546,12 @@ export default function GMPBulkEndorseModal({ config, records, onClose, onSucces
           <textarea
             value={doctrackRemarks}
             onChange={(e) => setDoctrackRemarks(e.target.value)}
-            disabled={!doctrackEnabled || config.isEndTask}
+            disabled={!doctrackEnabled}
             rows={2}
-            style={{ ...inp, resize: "vertical", opacity: (!doctrackEnabled || config.isEndTask) ? 0.55 : 1, cursor: config.isEndTask ? "not-allowed" : "text" }}
+            style={{ ...inp, resize: "vertical", opacity: !doctrackEnabled ? 0.55 : 1, cursor: "text" }}
           />
           {config.isEndTask && (
-            <p style={{ margin: "4px 0 0", fontSize: "0.66rem", color: colors.textTertiary }}>Built automatically from the signed date.</p>
+            <p style={{ margin: "4px 0 0", fontSize: "0.66rem", color: colors.textTertiary }}>Pre-filled from the signed date — edit freely if needed.</p>
           )}
           {!doctrackEnabled && (
             <p style={{ margin: "4px 0 0", fontSize: "0.66rem", color: "#f59e0b" }}>⚠ FIS will NOT be updated for any of the selected DTNs.</p>
