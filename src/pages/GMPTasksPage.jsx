@@ -1197,7 +1197,7 @@ export default function GMPTasksPage({ darkMode = false }) {
             {filteredData.length > 0 && (
             <div style={{
               display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "8px 14px", borderTop: `1px solid ${colors.cardBorder}`,
+              padding: "4px 14px", borderTop: `1px solid ${colors.cardBorder}`,
               flexShrink: 0, flexWrap: "wrap", gap: 8,
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1207,7 +1207,7 @@ export default function GMPTasksPage({ darkMode = false }) {
                   style={{
                     fontSize: "0.74rem", fontFamily: FONT, borderRadius: 6,
                     border: `1px solid ${colors.cardBorder}`, background: "transparent",
-                    color: colors.textTertiary, padding: "3px 6px", cursor: "pointer",
+                    color: colors.textTertiary, padding: "1px 6px", cursor: "pointer",
                   }}>
                   {[10, 25, 50].map((o) => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -1225,7 +1225,7 @@ export default function GMPTasksPage({ darkMode = false }) {
                   ].map((b) => (
                     <button key={b.label} onClick={() => !b.dis && setCurrentPage(b.to)} disabled={b.dis}
                       style={{
-                        width: 28, height: 28, borderRadius: 6, border: `1px solid ${colors.cardBorder}`,
+                        width: 22, height: 22, borderRadius: 6, border: `1px solid ${colors.cardBorder}`,
                         background: "transparent", color: colors.textTertiary,
                         cursor: b.dis ? "not-allowed" : "pointer", opacity: b.dis ? 0.35 : 1,
                         fontSize: "0.82rem", fontFamily: FONT,

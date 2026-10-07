@@ -396,11 +396,13 @@ export default function QueueTable({
     : COLUMNS;
   const extraColCount = visibleCols.some((c) => c.key === "status") ? 2 : 0; // Workflow Progress + Current Step
 
+  // Solid (not rgba) so the sticky header stays opaque over scrolled rows.
+  const headerBg = darkMode ? "#1c3328" : "#e3f5ea";
   const thSt = {
     padding: "9px 12px", fontSize: "0.59rem", fontWeight: 700,
     textTransform: "uppercase", letterSpacing: "0.05em", color: colors.textTertiary,
     borderBottom: `1px solid ${colors.divider}`, whiteSpace: "nowrap",
-    position: "sticky", top: 0, background: colors.cardBg, textAlign: "center", zIndex: 1,
+    position: "sticky", top: 0, background: headerBg, textAlign: "center", zIndex: 1,
   };
   const tdSt = {
     padding: "9px 12px", borderBottom: "1px solid transparent",
@@ -431,10 +433,15 @@ export default function QueueTable({
     <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <style>{`
         .qt-sortable-th:hover .qt-sort-icon { opacity: 0.9 !important; }
+        .qt-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
+        .qt-scroll::-webkit-scrollbar-track { background: ${colors.pageBg}; }
+        .qt-scroll::-webkit-scrollbar-thumb { background: ${darkMode ? "#4a4d52" : "#b8c0cc"}; border-radius: 99px; border: 3px solid ${colors.pageBg}; }
+        .qt-scroll::-webkit-scrollbar-thumb:hover { background: ${darkMode ? "#5f636a" : "#94a0b2"}; }
+        .qt-scroll { scrollbar-width: auto; scrollbar-color: ${darkMode ? "#4a4d52" : "#b8c0cc"} ${colors.pageBg}; }
       `}</style>
 
       {/* ── Scrollable table ── */}
-      <div style={{ flex: 1, overflow: "auto" }}>
+      <div className="qt-scroll" style={{ flex: 1, overflow: "auto" }}>
       <table style={{
         borderCollapse: "separate", borderSpacing: 0, width: "100%", fontSize: "0.76rem",
         opacity: isRefetching ? 0.5 : 1,
@@ -442,7 +449,7 @@ export default function QueueTable({
       }}>
         <thead>
           <tr>
-            <th style={{ ...thSt, width: 40, position: "sticky", left: 0, zIndex: 2, background: colors.cardBg }}>
+            <th style={{ ...thSt, width: 40, position: "sticky", left: 0, zIndex: 2 }}>
               <input type="checkbox"
                 checked={rows.length > 0 && selected.length === rows.length}
                 onChange={(e) => onSelectAll(e.target.checked)}
@@ -521,7 +528,7 @@ export default function QueueTable({
             })}
             <th style={{
               ...thSt, width: 56, textAlign: "center",
-              position: "sticky", right: 0, zIndex: 2, background: colors.cardBg,
+              position: "sticky", right: 0, zIndex: 2,
               boxShadow: darkMode ? "-4px 0 8px rgba(0,0,0,0.25)" : "-4px 0 8px rgba(15,23,42,0.05)",
             }}>
               Actions

@@ -187,7 +187,7 @@ function Pagination({ page, totalPages, total, pageSize, onPageChange, onPageSiz
   return (
     <div style={{
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      padding: "8px 14px", borderTop: `1px solid ${colors.cardBorder}`,
+      padding: "4px 14px", borderTop: `1px solid ${colors.cardBorder}`,
       flexShrink: 0, flexWrap: "wrap", gap: 8,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -196,7 +196,7 @@ function Pagination({ page, totalPages, total, pageSize, onPageChange, onPageSiz
           style={{
             fontSize: "0.74rem", fontFamily: FONT, borderRadius: 6,
             border: `1px solid ${colors.cardBorder}`, background: "transparent",
-            color: colors.textTertiary, padding: "3px 6px", cursor: "pointer",
+            color: colors.textTertiary, padding: "1px 6px", cursor: "pointer",
           }}>
           {opts.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
@@ -215,7 +215,7 @@ function Pagination({ page, totalPages, total, pageSize, onPageChange, onPageSiz
             <button key={b.label} onClick={() => !b.dis && onPageChange(b.to)}
               disabled={b.dis}
               style={{
-                width: 28, height: 28, borderRadius: 6, border: `1px solid ${colors.cardBorder}`,
+                width: 22, height: 22, borderRadius: 6, border: `1px solid ${colors.cardBorder}`,
                 background: "transparent", color: colors.textTertiary,
                 cursor: b.dis ? "not-allowed" : "pointer", opacity: b.dis ? 0.35 : 1,
                 fontSize: "0.82rem", fontFamily: FONT,
