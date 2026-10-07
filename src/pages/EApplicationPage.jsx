@@ -949,6 +949,11 @@ function EApplicationPage({ darkMode }) {
     setCurrentPage(1);
   };
 
+  const handlePageSizeChange = (value) => {
+    setRowsPerPage(Number(value));
+    setCurrentPage(1);
+  };
+
   const requestClaim = (row) => setClaimRows([row]);
 
   const requestBulkClaim = () => {
