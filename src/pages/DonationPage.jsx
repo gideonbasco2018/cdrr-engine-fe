@@ -372,20 +372,15 @@ function DonationPage({ darkMode }) {
     { key: "letterDtn", label: "Letter DTN" },
     { key: "dateReceived", label: "Date Received By Center" },
     { key: "dateReceivedByEvaluator", label: "Date Received by Evaluator" },
-    { key: "donor", label: "Donor", width: "260px", noWrap: true },
-    { key: "donee", label: "Donee/Recipient", width: "300px", noWrap: true },
+    { key: "donor", label: "Donor", width: "260px" },
+    { key: "donee", label: "Donee/Recipient", width: "300px" },
     { key: "registrationDtn", label: "Registration DTN" },
     { key: "productName", label: "Product Name", width: "260px" },
     { key: "packaging", label: "Packaging", width: "220px" },
     { key: "manufacturer", label: "Manufacturer", width: "200px" },
-    // These 4 columns commonly hold several batches stacked with "\n" in
-    // one row (one line = one batch's Lot No. / Expiration / Qty / Validity,
-    // read across the row) — alignRows keeps each line from soft-wrapping,
-    // so line N in one of these columns always stays lined up with line N
-    // in the others. See alignRows usage below.
-    { key: "batchLotNo", label: "Batch/Lot No.", alignRows: true },
-    { key: "expirationDate", label: "Expiration Date", width: "130px", alignRows: true },
-    { key: "totalQuantity", label: "Total Quantity", alignRows: true },
+    { key: "batchLotNo", label: "Batch/Lot No." },
+    { key: "expirationDate", label: "Expiration Date", width: "130px" },
+    { key: "totalQuantity", label: "Total Quantity" },
     { key: "validity", label: "Validity (Expired on)", alignRows: true },
     { key: "dateIssued", label: "Date Issue", width: "150px", noWrap: true },
     { key: "evaluator", label: "Evaluator" },
@@ -433,27 +428,27 @@ function DonationPage({ darkMode }) {
   const stickyTint = (baseBg) => `linear-gradient(rgba(76,175,80,0.07),rgba(76,175,80,0.07)), ${baseBg}`;
 
   const thStyle = {
-    padding: "9px 12px",
+    padding: "5px 8px",
     textAlign: "center",
     verticalAlign: "middle",
     fontSize: "0.59rem",
     fontWeight: 700,
-    color: colors.textTertiary,
+    color: colors.tableHeaderText,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
     borderBottom: `1px solid ${colors.tableBorder}`,
     whiteSpace: "nowrap",
-    background: colors.tableBg,
+    background: colors.tableHeaderBg,
     position: "sticky",
     top: 0,
     zIndex: 1,
   };
 
   const tdStyle = {
-    padding: "9px 12px",
+    padding: "5px 8px",
     textAlign: "center",
     verticalAlign: "middle",
-    fontSize: "0.76rem",
+    fontSize: "0.68rem",
     color: colors.tableText,
     borderBottom: `1px solid ${colors.tableBorder}`,
     // "normal" collapses newlines to spaces — a cell with several
@@ -917,7 +912,14 @@ function DonationPage({ darkMode }) {
               )}
             </div>
 
-            <div style={{ flex: 1, minHeight: 0, overflowX: "auto", overflowY: "auto" }}>
+            <style>{`
+              .donation-table-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
+              .donation-table-scroll::-webkit-scrollbar-track { background: ${colors.pageBg}; }
+              .donation-table-scroll::-webkit-scrollbar-thumb { background: ${darkMode ? "#4a4d52" : "#b8c0cc"}; border-radius: 99px; border: 3px solid ${colors.pageBg}; }
+              .donation-table-scroll::-webkit-scrollbar-thumb:hover { background: ${darkMode ? "#5f636a" : "#94a0b2"}; }
+              .donation-table-scroll { scrollbar-width: auto; scrollbar-color: ${darkMode ? "#4a4d52" : "#b8c0cc"} ${colors.pageBg}; }
+            `}</style>
+            <div className="donation-table-scroll" style={{ flex: 1, minHeight: 0, overflowX: "auto", overflowY: "auto" }}>
               <table
                 style={{
                   width: "100%",
@@ -985,7 +987,7 @@ function DonationPage({ darkMode }) {
                                   position: "sticky",
                                   left: stickyLeftByKey[col.key],
                                   zIndex: 3,
-                                  background: stickyTint(colors.tableBg),
+                                  background: stickyTint(colors.tableHeaderBg),
                                   boxShadow: isLastSticky ? stickyEdgeShadow : undefined,
                                 }
                               : {}),
@@ -1064,7 +1066,7 @@ function DonationPage({ darkMode }) {
                     [...Array(8)].map((_, i) => (
                       <tr key={i}>
                         {[...Array(columns.length + 3)].map((__, j) => (
-                          <td key={j} style={{ padding: "9px 12px" }}>
+                          <td key={j} style={{ padding: "5px 8px" }}>
                             <div
                               style={{
                                 height: 14,
@@ -1150,7 +1152,7 @@ function DonationPage({ darkMode }) {
                         >
                           <td
                             style={{
-                              padding: "9px 12px",
+                              padding: "5px 8px",
                               borderBottom: `1px solid ${colors.tableBorder}`,
                               position: "sticky",
                               left: 0,
@@ -1173,7 +1175,7 @@ function DonationPage({ darkMode }) {
                           </td>
                           <td
                             style={{
-                              padding: "9px 12px",
+                              padding: "5px 8px",
                               fontSize: "0.65rem",
                               fontWeight: 700,
                               color: colors.textTertiary,
@@ -1221,7 +1223,7 @@ function DonationPage({ darkMode }) {
                           })}
                           <td
                             style={{
-                              padding: "9px 12px",
+                              padding: "5px 8px",
                               borderBottom: `1px solid ${colors.tableBorder}`,
                               textAlign: "center",
                               position: "sticky",
