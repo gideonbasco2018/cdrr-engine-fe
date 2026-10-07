@@ -343,11 +343,13 @@ export default function TasksTable({
   isComplianceView = false, visibleColumns,
   sortBy, sortOrder, onSort, isDefaultSort, onResetSort,
 }) {
+  // Solid (not rgba) so the sticky header stays opaque over scrolled rows.
+  const headerBg = darkMode ? "#1c3328" : "#e3f5ea";
   const thSt = {
     padding: "9px 12px", fontSize: "0.59rem", fontWeight: 700,
     textTransform: "uppercase", letterSpacing: "0.05em", color: colors.textTertiary,
     borderBottom: `1px solid ${colors.divider}`, whiteSpace: "nowrap",
-    position: "sticky", top: 0, background: colors.cardBg, textAlign: "center", zIndex: 1,
+    position: "sticky", top: 0, background: headerBg, textAlign: "center", zIndex: 1,
   };
   const tdSt = {
     padding: "9px 12px", borderBottom: "1px solid transparent",
@@ -379,14 +381,19 @@ export default function TasksTable({
   const colCount = visibleCols.length + 4 + (isComplianceView ? 1 : 0); // checkbox + star + # + [compliance deadline] + actions
 
   return (
-    <div style={{ flex: 1, overflow: "auto" }}>
+    <div className="gt-scroll" style={{ flex: 1, overflow: "auto" }}>
       <style>{`
         .gt-sortable-th:hover .gt-sort-icon { opacity: 0.9 !important; }
+        .gt-scroll::-webkit-scrollbar { width: 12px; height: 12px; }
+        .gt-scroll::-webkit-scrollbar-track { background: ${colors.pageBg}; }
+        .gt-scroll::-webkit-scrollbar-thumb { background: ${darkMode ? "#4a4d52" : "#b8c0cc"}; border-radius: 99px; border: 3px solid ${colors.pageBg}; }
+        .gt-scroll::-webkit-scrollbar-thumb:hover { background: ${darkMode ? "#5f636a" : "#94a0b2"}; }
+        .gt-scroll { scrollbar-width: auto; scrollbar-color: ${darkMode ? "#4a4d52" : "#b8c0cc"} ${colors.pageBg}; }
       `}</style>
       <table style={{ borderCollapse: "separate", borderSpacing: 0, width: "100%", fontSize: "0.76rem" }}>
         <thead>
           <tr>
-            <th style={{ ...thSt, width: 40, position: "sticky", left: 0, zIndex: 2, background: colors.cardBg }}>
+            <th style={{ ...thSt, width: 40, position: "sticky", left: 0, zIndex: 2 }}>
               <input type="checkbox" checked={allSelected}
                 onChange={(e) => onSelectAll(e.target.checked, filteredIds)}
                 style={{ cursor: "pointer" }} />
@@ -457,7 +464,6 @@ export default function TasksTable({
             })}
             <th style={{
               ...thSt, width: 56, position: "sticky", right: 0, zIndex: 2,
-              background: colors.cardBg,
               boxShadow: darkMode ? "-4px 0 8px rgba(0,0,0,0.25)" : "-4px 0 8px rgba(15,23,42,0.05)",
             }}>
               Actions

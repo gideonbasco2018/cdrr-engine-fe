@@ -9,6 +9,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { getColorScheme } from "../components/donation/colorScheme";
 import ChecklistConfirmModal from "../components/checklist/ChecklistConfirmModal";
+import ChecklistDateFilterModal, { fmtFilterRange } from "../components/checklist/ChecklistDateFilterModal";
 import {
   getChecklists,
   createChecklist,
@@ -20,7 +21,34 @@ import {
   updateChecklistLabel,
   getServerTime,
   refreshChecklistSubjects,
+  searchChecklists,
 } from "../api/checklist";
+
+// Search results: mark the first case-insensitive match of q in text.
+const highlightMatch = (text, q) => {
+  const s = String(text || "");
+  const i = q ? s.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (i < 0) return s;
+  return (
+    <>
+      {s.slice(0, i)}
+      <mark style={{ background: "#fde047", color: "#111", borderRadius: 2, padding: "0 1px" }}>
+        {s.slice(i, i + q.length)}
+      </mark>
+      {s.slice(i + q.length)}
+    </>
+  );
+};
+
+// A short piece of a long subject, centred on the match, on one line.
+const subjectSnippet = (subject, q, radius = 55) => {
+  const s = String(subject || "").replace(/\s*║\s*/g, " · ");
+  const i = q ? s.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (s.length <= radius * 2 || i < 0) return s.length > radius * 2 ? `${s.slice(0, radius * 2)}…` : s;
+  const start = Math.max(0, i - radius);
+  const end = Math.min(s.length, i + q.length + radius);
+  return `${start > 0 ? "…" : ""}${s.slice(start, end)}${end < s.length ? "…" : ""}`;
+};
 
 
 // The server sends Manila times with no zone attached ("2026-10-05T11:00:00").
@@ -38,10 +66,24 @@ const fmtDateTime = (iso) => (iso ? `${fmtDate(iso)} ${fmtTime(iso)}` : "");
 // Subject text for a row, from its FIS lookup status. FIS subjects can hold
 // "║" as a separator — shown as a new line (same as MetricDetailModal).
 const NOT_FOUND_IN_FIS = "Not found in FIS";
+// Subject is cut to this many lines — on the page (double-click a row for
+// the full text) and on the PDF.
+const SUBJECT_MAX_LINES = 3;
 const subjectText = (item) => {
   if (item.subject_status === "found") return (item.subject || "").replace(/\s*║\s*/g, "\n").trim();
   if (item.subject_status === "not_found") return NOT_FOUND_IN_FIS;
   return "";
+};
+
+// PDF: keep at most maxLines wrapped lines; if any were cut, end the last
+// kept line with "…" (shortened until it still fits the column).
+const clampLines = (doc, lines, maxLines, maxW) => {
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  let last = kept[maxLines - 1].trimEnd();
+  while (last && doc.getTextWidth(`${last}…`) > maxW) last = last.slice(0, -1).trimEnd();
+  kept[maxLines - 1] = `${last}…`;
+  return kept;
 };
 
 // "Generated:" time for the exports — from the server's clock, so a wrong PC
@@ -77,6 +119,34 @@ function ChecklistPage({ darkMode }) {
   const [confirm, setConfirm] = useState(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
   const [refreshingSubjects, setRefreshingSubjects] = useState(false);
+  // Rows whose subject is shown in full (double-click a row to toggle);
+  // every other row shows at most SUBJECT_MAX_LINES lines.
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
+
+  // ── Search (DTN / subject, across all checklists) ──
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null); // null = nothing searched yet
+  const [searching, setSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const searchInputRef = useRef(null);
+  const latestQueryRef = useRef("");
+  // Row picked from the search: glows briefly and is scrolled into view.
+  // n changes on every pick so picking the same row again replays the glow.
+  const [flash, setFlash] = useState(null); // { itemId, n }
+  const scrolledFlashRef = useRef(null);
+  // Row just inserted/scanned: pops in and is scrolled into view.
+  const [popped, setPopped] = useState(null); // { itemId, n }
+  const toggleExpanded = (e, id) => {
+    if (e.target.closest("button")) return; // double-clicking Remove isn't a toggle
+    window.getSelection()?.removeAllRanges(); // undo the word a double-click selects
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
   // Batch label (e.g. "URGENT", "CPR") — typed here, saved on Enter / blur.
   const [labelDraft, setLabelDraft] = useState("");
   const savedLabelRef = useRef("");
@@ -95,9 +165,30 @@ function ChecklistPage({ darkMode }) {
   // Inserts are sent one after another so a fast barcode reader never loses one.
   const insertQueueRef = useRef(Promise.resolve());
 
+  // Date filter for the checklist list: { from, to } ("YYYY-MM-DD", Manila) or null.
+  const [dateFilter, setDateFilter] = useState(null);
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const dateFilterRef = useRef(null);
+  dateFilterRef.current = dateFilter;
+
+  // Entrance stagger: items that appear together (list load, opening a
+  // checklist) slide in one after another; one inserted later comes in at
+  // once. A key keeps its first delay, so re-renders never replay or hide it.
+  const delaysRef = useRef(new Map());
+  const batchStartRef = useRef(Date.now());
+  const staggerDelay = (key, i) => {
+    if (!delaysRef.current.has(key)) {
+      const inBatch = Date.now() - batchStartRef.current < 500;
+      delaysRef.current.set(key, inBatch ? Math.min(i, 10) * 35 : 0);
+    }
+    return delaysRef.current.get(key);
+  };
+
   const loadChecklists = useCallback(async () => {
     try {
-      setChecklists(await getChecklists());
+      const list = await getChecklists(dateFilterRef.current);
+      batchStartRef.current = Date.now();
+      setChecklists(list);
     } catch (err) {
       setMessage({ type: "error", text: errorText(err, "Could not load checklists.") });
     }
@@ -105,7 +196,7 @@ function ChecklistPage({ darkMode }) {
 
   useEffect(() => {
     loadChecklists();
-  }, [loadChecklists]);
+  }, [loadChecklists, dateFilter]);
 
   const focusDtnInput = () => setTimeout(() => dtnInputRef.current?.focus(), 0);
 
@@ -122,7 +213,9 @@ function ChecklistPage({ darkMode }) {
     setMessage(null);
     setShowBin(false);
     try {
-      setActive(await getChecklist(id));
+      const opened = await getChecklist(id);
+      batchStartRef.current = Date.now(); // its rows slide in one after another
+      setActive(opened);
       loadBin(id);
       focusDtnInput();
     } catch (err) {
@@ -207,6 +300,7 @@ function ChecklistPage({ darkMode }) {
           setActive((prev) =>
             prev && prev.id === checklistId ? { ...prev, items: [...prev.items, item] } : prev,
           );
+          setPopped({ itemId: item.id, n: Date.now() }); // several at once: the last one wins
           bumpListCount(checklistId, 1);
           added.push(dtn);
         } catch (err) {
@@ -285,8 +379,8 @@ function ChecklistPage({ darkMode }) {
       burstRef.current = { times: [], digits: "", target: null, before: "" };
     };
     const onKeyDown = (e) => {
-      if (e.target === dtnInputRef.current) {
-        resetBurst(); // the DTN box handles its own input
+      if (e.target === dtnInputRef.current || e.target === searchInputRef.current) {
+        resetBurst(); // these boxes handle their own input (a scan into Search searches)
         return;
       }
       const b = burstRef.current;
@@ -402,6 +496,106 @@ function ChecklistPage({ darkMode }) {
       setMessage({ type: "error", text: errorText(err, "Could not save label.") });
     }
   };
+
+  // ── Search ──────────────────────────────────────────────────────────────────
+  const runSearch = async (raw) => {
+    const q = raw.trim();
+    latestQueryRef.current = q;
+    if (q.length < 2) {
+      setSearchResults(null);
+      return [];
+    }
+    setSearching(true);
+    try {
+      const results = await searchChecklists(q);
+      if (latestQueryRef.current === q) setSearchResults(results); // ignore late, older answers
+      return results;
+    } catch (err) {
+      if (latestQueryRef.current === q) setSearchResults([]);
+      setMessage({ type: "error", text: errorText(err, "Search failed.") });
+      return [];
+    } finally {
+      if (latestQueryRef.current === q) setSearching(false);
+    }
+  };
+
+  // Search as they type, once they pause for 250 ms.
+  useEffect(() => {
+    if (!searchOpen) return undefined;
+    const timer = setTimeout(() => runSearch(searchQuery), 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchOpen]);
+
+  const openSearch = () => {
+    setSearchOpen(true);
+    setShowResults(true);
+    setTimeout(() => searchInputRef.current?.focus(), 60); // after the box starts opening
+  };
+
+  const closeSearch = () => {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults(null);
+    setShowResults(false);
+    latestQueryRef.current = "";
+    focusDtnInput();
+  };
+
+  const pickResult = async (r) => {
+    setShowResults(false);
+    const q = searchQuery.trim().toLowerCase();
+    // Matched in the subject (not the DTN)? Show that row's subject in full.
+    if (q && !r.dtn.toLowerCase().includes(q)) {
+      setExpandedIds((prev) => new Set(prev).add(r.item_id));
+    }
+    if (active?.id !== r.checklist_id) await openChecklist(r.checklist_id);
+    setFlash({ itemId: r.item_id, n: Date.now() });
+  };
+
+  const handleSearchKeyDown = async (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      closeSearch();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      // Search right away (don't wait for the 250 ms pause), then open the
+      // first match — so typing/scanning a DTN + Enter jumps straight to it.
+      const results = await runSearch(searchQuery);
+      if (results.length) pickResult(results[0]);
+      else setShowResults(true);
+    }
+  };
+
+  // Once the inserted row is on screen: bring it into view (centred), then
+  // clear the pop. Only scrolls — the cursor stays in the DTN box so the
+  // barcode reader keeps working.
+  useEffect(() => {
+    if (!popped) return undefined;
+    const raf = requestAnimationFrame(() =>
+      document
+        .getElementById(`checklist-row-${popped.itemId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" }),
+    );
+    const timer = setTimeout(() => setPopped(null), 1400);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, [popped]);
+
+  // Once the picked row is on screen: scroll to it, then let the glow fade.
+  useEffect(() => {
+    if (!flash || !active?.items.some((i) => i.id === flash.itemId)) return undefined;
+    if (scrolledFlashRef.current !== flash.n) {
+      scrolledFlashRef.current = flash.n;
+      setTimeout(
+        () => document.getElementById(`checklist-row-${flash.itemId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+        50,
+      );
+    }
+    const timer = setTimeout(() => setFlash(null), 2600);
+    return () => clearTimeout(timer);
+  }, [flash, active]);
 
   // ── DTN subjects from FIS ───────────────────────────────────────────────────
   // Copy subject/subject_status from a fresh copy of the checklist onto the
@@ -570,7 +764,9 @@ function ChecklistPage({ darkMode }) {
     active.items.forEach((item, i) => {
       // Subject wraps onto as many lines as it needs; the row grows to fit.
       const subject = subjectText(item);
-      const subjectLines = subject ? doc.splitTextToSize(subject, cols[SUBJECT_COL][1] - 4) : [""];
+      const subjectLines = subject
+        ? clampLines(doc, doc.splitTextToSize(subject, cols[SUBJECT_COL][1] - 4), SUBJECT_MAX_LINES, cols[SUBJECT_COL][1] - 4)
+        : [""];
       const h = Math.max(rowH, subjectLines.length * lineH + 3.7);
       if (y + h > pageH - 30) {
         doc.addPage();
@@ -646,20 +842,267 @@ function ChecklistPage({ darkMode }) {
   };
 
   return (
-    <div style={{ padding: "1.5rem 2rem", minHeight: "100%", background: colors.pageBg, color: colors.textPrimary }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem" }}>
+    <div
+      className="ckl"
+      style={{
+        padding: "1.5rem 2rem",
+        minHeight: "100%",
+        background: colors.pageBg,
+        color: colors.textPrimary,
+        "--ckl-hover": colors.tableRowHover,
+        "--ckl-muted": colors.textTertiary,
+      }}
+    >
+      <div
+        className="ckl-in"
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.25rem", position: "relative", zIndex: 5 }}
+      >
         <div>
           <h1 style={{ fontSize: "1.6rem", margin: 0 }}>📋 Checklist</h1>
           <p style={{ margin: "0.25rem 0 0", color: colors.textTertiary, fontSize: "0.85rem" }}>
             Insert the DTNs in a batch to make the checklist.
           </p>
         </div>
-        <button onClick={handleNewChecklist} disabled={loading} style={btn("#2563eb")}>
-          + New Checklist
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          {/* Search box — slides open from the 🔍 button */}
+          <div style={{ position: "relative" }}>
+            <input
+              ref={searchInputRef}
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setShowResults(true);
+              }}
+              onFocus={() => setShowResults(true)}
+              onBlur={() => setShowResults(false)} // clicking a result keeps focus (onMouseDown below)
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search DTN or subject…"
+              tabIndex={searchOpen ? 0 : -1}
+              aria-hidden={!searchOpen}
+              style={{
+                width: searchOpen ? "18rem" : 0,
+                opacity: searchOpen ? 1 : 0,
+                padding: searchOpen ? "0.5rem 0.75rem" : "0.5rem 0",
+                border: searchOpen ? "2px solid #2563eb" : "2px solid transparent",
+                borderRadius: "6px",
+                background: colors.inputBg,
+                color: colors.textPrimary,
+                fontSize: "0.85rem",
+                outline: "none",
+                boxSizing: "border-box",
+                transition: "width 0.3s ease, opacity 0.25s ease, padding 0.3s ease, border-color 0.3s ease",
+              }}
+            />
+            {searchOpen && showResults && searchQuery.trim().length > 0 && (
+              <div
+                style={{
+                  ...card,
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  width: "26rem",
+                  maxHeight: "22rem",
+                  overflowY: "auto",
+                  zIndex: 50,
+                  padding: "0.35rem",
+                }}
+              >
+                {searchQuery.trim().length < 2 && (
+                  <div style={{ padding: "0.6rem", fontSize: "0.8rem", color: colors.textTertiary }}>
+                    Type at least 2 characters.
+                  </div>
+                )}
+                {searchQuery.trim().length >= 2 && searching && !searchResults?.length && (
+                  <div style={{ padding: "0.6rem", fontSize: "0.8rem", color: colors.textTertiary }}>Searching…</div>
+                )}
+                {searchQuery.trim().length >= 2 && !searching && searchResults?.length === 0 && (
+                  <div style={{ padding: "0.6rem", fontSize: "0.8rem", color: colors.textTertiary }}>
+                    No DTN or subject matches “{searchQuery.trim()}”.
+                  </div>
+                )}
+                {searchQuery.trim().length >= 2 &&
+                  searchResults?.map((r) => (
+                    <div
+                      key={r.item_id}
+                      onMouseDown={(e) => e.preventDefault()} // keep focus so the list doesn't vanish mid-click
+                      onClick={() => pickResult(r)}
+                      style={{ padding: "0.5rem 0.6rem", borderRadius: "6px", cursor: "pointer" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = colors.tableRowHover)}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.75rem", color: colors.textTertiary }}>
+                        <b style={{ color: colors.textSecondary }}>Checklist #{r.checklist_id}</b>
+                        {r.checklist_label && (
+                          <span
+                            style={{
+                              padding: "0 0.35rem",
+                              fontSize: "0.65rem",
+                              fontWeight: 700,
+                              borderRadius: "4px",
+                              background: "#ede4fb",
+                              color: "#6d28d9",
+                            }}
+                          >
+                            {r.checklist_label}
+                          </span>
+                        )}
+                        <span>· {fmtDate(r.checklist_created_at)}</span>
+                      </div>
+                      <div style={{ fontFamily: "monospace", fontSize: "0.9rem", color: colors.textPrimary }}>
+                        {highlightMatch(r.dtn, searchQuery.trim())}
+                      </div>
+                      {r.subject && (
+                        <div style={{ fontSize: "0.75rem", color: colors.textSecondary }}>
+                          {highlightMatch(subjectSnippet(r.subject, searchQuery.trim()), searchQuery.trim())}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                {searchResults?.length === 50 && (
+                  <div style={{ padding: "0.4rem 0.6rem", fontSize: "0.7rem", color: colors.textTertiary }}>
+                    Showing the first 50 matches — type more to narrow it down.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => (searchOpen ? closeSearch() : openSearch())}
+            title={searchOpen ? "Close search (Esc)" : "Search DTN or subject"}
+            aria-label={searchOpen ? "Close search" : "Search DTN or subject"}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "2.3rem",
+              height: "2.3rem",
+              padding: 0,
+              background: searchOpen ? "#2563eb" : "transparent",
+              border: `1px solid ${searchOpen ? "#2563eb" : colors.cardBorder}`,
+              borderRadius: "6px",
+              color: searchOpen ? "#fff" : colors.textSecondary,
+              cursor: "pointer",
+              transition: "background 0.2s ease, color 0.2s ease",
+            }}
+          >
+            {searchOpen ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="11" cy="11" r="7" />
+                <path d="M20 20l-3.5-3.5" />
+              </svg>
+            )}
+          </button>
+          <button
+            onClick={() => setShowDateFilter(true)}
+            title={dateFilter ? `Filtered: ${fmtFilterRange(dateFilter)}` : "Filter checklists by date"}
+            aria-label="Filter checklists by date"
+            style={{
+              position: "relative",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "2.3rem",
+              height: "2.3rem",
+              padding: 0,
+              background: dateFilter ? "linear-gradient(135deg, #2563eb, #7c3aed)" : "transparent",
+              border: `1px solid ${dateFilter ? "#2563eb" : colors.cardBorder}`,
+              borderRadius: "6px",
+              color: dateFilter ? "#fff" : colors.textSecondary,
+              cursor: "pointer",
+              boxShadow: dateFilter ? "0 3px 10px rgba(37,99,235,0.35)" : "none",
+              transition: "background 0.2s ease, color 0.2s ease",
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="5" width="18" height="16" rx="2" />
+              <path d="M3 10h18M8 3v4M16 3v4" />
+            </svg>
+            {dateFilter && (
+              <span
+                style={{
+                  position: "absolute", top: -3, right: -3, width: 9, height: 9, borderRadius: 999,
+                  background: "#f59e0b", border: `2px solid ${colors.pageBg}`,
+                }}
+              />
+            )}
+          </button>
+          <button onClick={handleNewChecklist} disabled={loading} style={btn("#2563eb")}>
+            + New Checklist
+          </button>
+        </div>
       </div>
 
+      {showDateFilter && (
+        <ChecklistDateFilterModal
+          value={dateFilter}
+          colors={colors}
+          darkMode={darkMode}
+          onClose={() => {
+            setShowDateFilter(false);
+            focusDtnInput();
+          }}
+          onApply={(f) => {
+            setDateFilter(f);
+            setShowDateFilter(false);
+            focusDtnInput();
+          }}
+        />
+      )}
+
       <style>{`
+        /* ── Page motion (scoped to .ckl) ─────────────────────────────── */
+        @keyframes cklFadeUp   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+        @keyframes cklSlideIn  { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+        @keyframes cklDrop     { from { opacity: 0; transform: translateY(-8px) scaleY(0.96); } to { opacity: 1; transform: none; } }
+        @keyframes cklFloat    { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+        @keyframes cklShimmer  { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+        @keyframes cklRowPop {
+          0%   { opacity: 0; transform: scale(0.94) translateY(8px); }
+          25%  { opacity: 1; transform: scale(1.025); box-shadow: 0 0 0 2px #16a34a, 0 8px 22px rgba(22,163,74,0.35); background: rgba(22,163,74,0.16); }
+          45%  { transform: scale(1); }
+          100% { box-shadow: 0 0 0 2px transparent, 0 0 0 transparent; }
+        }
+        @keyframes cklRing    { 0% { box-shadow: 0 0 0 0 rgba(37,99,235,0.45); } 100% { box-shadow: 0 0 0 8px rgba(37,99,235,0); } }
+
+        .ckl-in    { animation: cklFadeUp 0.45s cubic-bezier(.2,.8,.2,1) both; }
+        .ckl-swap  { animation: cklFadeUp 0.35s cubic-bezier(.2,.8,.2,1) both; }
+        .ckl-drop  { animation: cklDrop 0.3s cubic-bezier(.2,.8,.2,1) both; transform-origin: top; }
+        .ckl-float { display: inline-block; animation: cklFloat 3s ease-in-out infinite; }
+
+        .ckl button:not(:disabled) { transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease, background 0.2s ease, color 0.2s ease; }
+        .ckl button:not(:disabled):hover  { transform: translateY(-1px); filter: brightness(1.08); }
+        .ckl button:not(:disabled):active { transform: translateY(0) scale(0.97); }
+
+        .ckl-item { animation: cklSlideIn 0.35s cubic-bezier(.2,.8,.2,1) both; transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease; border-left: 3px solid transparent; }
+        .ckl-item:hover { transform: translateX(3px); background: var(--ckl-hover); }
+        .ckl-item.is-active { border-left-color: #2563eb; box-shadow: 0 2px 10px rgba(37,99,235,0.15); }
+
+        .ckl-row { animation: cklSlideIn 0.35s cubic-bezier(.2,.8,.2,1) both; }
+        .ckl-row td { transition: background 0.15s ease; }
+        .ckl-row:hover td { background: var(--ckl-hover); }
+
+        .ckl-dtn-input { transition: box-shadow 0.25s ease, border-color 0.25s ease; }
+        .ckl-dtn-input:focus { animation: cklRing 1.2s ease-out; box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
+
+        .ckl-shimmer {
+          background: linear-gradient(90deg, var(--ckl-muted) 25%, #2563eb 50%, var(--ckl-muted) 75%);
+          background-size: 200% 100%;
+          -webkit-background-clip: text; background-clip: text; color: transparent !important;
+          animation: cklShimmer 1.6s linear infinite;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .ckl *, .ckl *::before, .ckl *::after { animation: none !important; transition: none !important; }
+        }
+
+        @keyframes checklistRowFlash {
+          0%, 45% { background: rgba(253, 224, 71, 0.55); box-shadow: inset 0 0 0 2px #eab308; }
+          100%    { box-shadow: inset 0 0 0 2px transparent; }
+        }
         @keyframes checklistNotifPulse {
           0%   { transform: scale(0.97); box-shadow: 0 0 0 0 var(--glow); }
           25%  { transform: scale(1.01); box-shadow: 0 0 0 6px var(--glow), 0 0 22px 4px var(--glow); }
@@ -687,23 +1130,60 @@ function ChecklistPage({ darkMode }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: "1rem", alignItems: "start" }}>
         {/* ── Past checklists ── */}
-        <div style={{ ...card, padding: "0.75rem" }}>
+        <div className="ckl-in" style={{ ...card, padding: "0.75rem", animationDelay: "80ms" }}>
           <div style={{ fontSize: "0.8rem", fontWeight: 700, color: colors.textTertiary, marginBottom: "0.5rem" }}>
             CHECKLISTS
           </div>
-          {checklists.length === 0 && (
-            <div style={{ fontSize: "0.85rem", color: colors.textTertiary }}>None yet.</div>
+          {dateFilter && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                marginBottom: "0.5rem",
+                padding: "0.3rem 0.4rem 0.3rem 0.6rem",
+                borderRadius: 999,
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                color: "#fff",
+                background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+                boxShadow: "0 2px 8px rgba(37,99,235,0.3)",
+              }}
+            >
+              <span style={{ flex: 1, cursor: "pointer" }} onClick={() => setShowDateFilter(true)} title="Change dates">
+                📅 {fmtFilterRange(dateFilter)}
+              </span>
+              <button
+                onClick={() => setDateFilter(null)}
+                title="Clear date filter"
+                aria-label="Clear date filter"
+                style={{
+                  width: 18, height: 18, borderRadius: 999, border: "none", padding: 0, cursor: "pointer",
+                  background: "rgba(255,255,255,0.25)", color: "#fff", fontSize: "0.7rem", lineHeight: 1,
+                }}
+              >
+                ✕
+              </button>
+            </div>
           )}
-          {checklists.map((c) => (
+          {checklists.length === 0 && (
+            <div style={{ fontSize: "0.85rem", color: colors.textTertiary }}>
+              {dateFilter ? "No checklists in this date range." : "None yet."}
+            </div>
+          )}
+          {checklists.map((c, ci) => (
             <div
               key={c.id}
               onClick={() => openChecklist(c.id)}
+              className={`ckl-item${active?.id === c.id ? " is-active" : ""}`}
               style={{
                 padding: "0.5rem 0.6rem",
                 borderRadius: "6px",
                 cursor: "pointer",
                 marginBottom: "0.25rem",
-                background: active?.id === c.id ? colors.tableRowHover : "transparent",
+                // only the open one sets it inline, so the others can take the hover colour
+                background: active?.id === c.id ? colors.tableRowHover : undefined,
+                animationDelay: `${staggerDelay(`list-${c.id}`, ci)}ms`,
               }}
             >
               <div style={{ fontSize: "0.9rem", fontWeight: 600 }}>
@@ -732,13 +1212,15 @@ function ChecklistPage({ darkMode }) {
         </div>
 
         {/* ── Active checklist ── */}
-        <div style={{ ...card, padding: "1rem" }}>
+        <div className="ckl-in" style={{ ...card, padding: "1rem", animationDelay: "140ms" }}>
           {!active ? (
-            <div style={{ padding: "2rem", textAlign: "center", color: colors.textTertiary }}>
-              Click <b>+ New Checklist</b> to start inserting DTNs, or pick one from the list.
+            <div key="empty" className="ckl-swap" style={{ padding: "2rem", textAlign: "center", color: colors.textTertiary }}>
+              <div className="ckl-float" style={{ fontSize: "2.2rem", marginBottom: "0.5rem" }}>📋</div>
+              <div>Click <b>+ New Checklist</b> to start inserting DTNs, or pick one from the list.</div>
             </div>
           ) : (
-            <>
+            // New key per checklist: switching checklists fades the panel in again.
+            <div key={`checklist-${active.id}`} className="ckl-swap">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem", marginBottom: "1rem" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
@@ -837,6 +1319,7 @@ function ChecklistPage({ darkMode }) {
 
               <input
                 ref={dtnInputRef}
+                className="ckl-dtn-input"
                 value={dtnInput}
                 onChange={handleDtnChange}
                 onKeyDown={handleDtnKeyDown}
@@ -909,16 +1392,50 @@ function ChecklistPage({ darkMode }) {
                     </tr>
                   )}
                   {active.items.map((item, i) => (
-                    <tr key={item.id} style={{ background: i % 2 ? colors.tableRowOdd : colors.tableRowEven }}>
+                    <tr
+                      // A new key per search pick restarts the glow on the same row.
+                      key={flash?.itemId === item.id ? `${item.id}-${flash.n}` : item.id}
+                      id={`checklist-row-${item.id}`}
+                      className="ckl-row"
+                      onDoubleClick={(e) => toggleExpanded(e, item.id)}
+                      title={expandedIds.has(item.id) ? "Double-click to collapse the subject" : "Double-click to show the full subject"}
+                      style={{
+                        background: i % 2 ? colors.tableRowOdd : colors.tableRowEven,
+                        cursor: "default",
+                        animationDelay: `${staggerDelay(`row-${item.id}`, i)}ms`,
+                        animation:
+                          flash?.itemId === item.id
+                            ? "checklistRowFlash 2.6s ease-out"
+                            : popped?.itemId === item.id
+                              ? "cklRowPop 1.3s cubic-bezier(.2,.8,.2,1) both"
+                              : undefined,
+                      }}
+                    >
                       <td style={td}>{i + 1}</td>
                       <td style={{ ...td, fontFamily: "monospace", fontSize: "0.9rem" }}>{item.dtn}</td>
                       <td style={{ ...td, whiteSpace: "pre-line", fontSize: "0.8rem" }}>
-                        {item.subject_status === "found" && (subjectText(item) || "—")}
+                        {item.subject_status === "found" && (
+                          <div
+                            style={
+                              expandedIds.has(item.id)
+                                ? undefined
+                                : {
+                                    // At most SUBJECT_MAX_LINES lines, "…" if cut.
+                                    display: "-webkit-box",
+                                    WebkitBoxOrient: "vertical",
+                                    WebkitLineClamp: SUBJECT_MAX_LINES,
+                                    overflow: "hidden",
+                                  }
+                            }
+                          >
+                            {subjectText(item) || "—"}
+                          </div>
+                        )}
                         {item.subject_status === "not_found" && (
                           <span style={{ color: "#dc2626", fontWeight: 600 }}>{NOT_FOUND_IN_FIS}</span>
                         )}
                         {item.subject_status === "pending" && (
-                          <span style={{ color: colors.textTertiary, fontStyle: "italic" }}>Looking up in FIS…</span>
+                          <span className="ckl-shimmer" style={{ fontStyle: "italic", fontWeight: 600 }}>Looking up in FIS…</span>
                         )}
                         {item.subject_status === "error" && (
                           <span style={{ color: "#b45309", fontStyle: "italic" }}>FIS unreachable</span>
@@ -941,7 +1458,7 @@ function ChecklistPage({ darkMode }) {
               </table>
 
               {showBin && (
-                <div style={{ marginTop: "1.5rem" }}>
+                <div className="ckl-drop" style={{ marginTop: "1.5rem" }}>
                   <div style={{ fontSize: "0.95rem", fontWeight: 700, marginBottom: "0.25rem" }}>
                     🗑️ Bin — removed DTNs
                   </div>
@@ -983,7 +1500,7 @@ function ChecklistPage({ darkMode }) {
                   </table>
                 </div>
               )}
-            </>
+            </div>
           )}
         </div>
       </div>

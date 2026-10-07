@@ -1,8 +1,16 @@
 // FILE: src/api/checklist.js
 import api from "./axios";
 
-export const getChecklists = async () => {
-  const response = await api.get("/checklist");
+// dateFilter: { from, to } as "YYYY-MM-DD" (Manila), or null for no filter.
+export const getChecklists = async (dateFilter = null) => {
+  const params = dateFilter ? { date_from: dateFilter.from, date_to: dateFilter.to, limit: 500 } : undefined;
+  const response = await api.get("/checklist", { params });
+  return response.data;
+};
+
+// DTNs (and which checklist they're on) whose DTN or subject contains q.
+export const searchChecklists = async (q) => {
+  const response = await api.get("/checklist/search", { params: { q } });
   return response.data;
 };
 

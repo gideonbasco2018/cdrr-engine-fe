@@ -26,6 +26,8 @@ export function getColorScheme(darkMode) {
         tableRowHover: "#26282c",
         tableBorder: "rgba(255,255,255,0.07)",
         tableText: "#f1f5f9",
+        tableHeaderBg: "#1e2a3a",
+        tableHeaderText: "#90caf9",
         cardShadow: "0 1px 2px rgba(0,0,0,0.3), 0 8px 20px rgba(0,0,0,0.3)",
       }
     : {
@@ -45,6 +47,8 @@ export function getColorScheme(darkMode) {
         tableRowHover: "#eef2f7",
         tableBorder: "rgba(0,0,0,0.06)",
         tableText: "#0f172a",
+        tableHeaderBg: "#e3f2fd",
+        tableHeaderText: "#0d47a1",
         cardShadow: "0 1px 2px rgba(15,23,42,0.04), 0 6px 16px rgba(15,23,42,0.05)",
       };
 }

@@ -10,7 +10,7 @@ export function StatusBadge({ status }) {
         background: c.bg,
         color: c.color,
         borderRadius: 99,
-        fontSize: "0.63rem",
+        fontSize: "0.58rem",
         fontWeight: 700,
         display: "inline-flex",
         alignItems: "center",
@@ -35,7 +35,7 @@ export function DTNBadge({ dtn }) {
         background: `${ACCENT}15`,
         color: ACCENT,
         borderRadius: 6,
-        fontSize: "0.71rem",
+        fontSize: "0.64rem",
         fontWeight: 700,
         whiteSpace: "nowrap",
       }}
