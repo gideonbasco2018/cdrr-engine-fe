@@ -1,9 +1,14 @@
 // src/pages/EApplicationPage.jsx
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
 import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
 import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
+
+import {
+  getAppointmentRecords,
+  mapAppointmentRecord,
+} from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
    Two-level task page:
@@ -31,83 +36,14 @@ const SUBTABS_BY_DEPARTMENT = {
   quality_evaluation: ["claimed", "processed"],
 };
 
-const ROWS_PER_PAGE = 5;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+const DEFAULT_PAGE_SIZE = 10;
 const MAX_NOTE_LENGTH = 1500;
 
 /* ── Static mock data — replace with an API call later.
    Each row carries `department` and `status`:
    status: "unclaimed" | "claimed" | "processed" ── */
 const MOCK_APPLICATIONS = [
-  {
-    id: 1,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00147",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Torrent Pharma Philippines Inc",
-    applicationStep: "Initial Screening",
-    dueDate: "2026-08-28",
-    lastModified: "2026-08-24 09:14 AM",
-    priority: "High",
-    status: "unclaimed",
-    claimedBy: null,
-  },
-  {
-    id: 2,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00148",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Unilab Inc.",
-    applicationStep: "Document Verification",
-    dueDate: "2026-08-30",
-    lastModified: "2026-08-23 04:52 PM",
-    priority: "Medium",
-    status: "unclaimed",
-    claimedBy: null,
-  },
-  {
-    id: 3,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00149",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Pascual Laboratories",
-    applicationStep: "Awaiting Assignment",
-    dueDate: "2026-09-02",
-    lastModified: "2026-08-22 11:30 AM",
-    priority: "Low",
-    status: "unclaimed",
-    claimedBy: null,
-  },
-  {
-    id: 4,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00150",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Zuellig Pharma Corp",
-    applicationStep: "Technical Review",
-    dueDate: "2026-08-26",
-    lastModified: "2026-08-24 01:05 PM",
-    priority: "High",
-    status: "unclaimed",
-    claimedBy: null,
-  },
-  {
-    id: 5,
-    department: "payment_posting",
-    processCode: "MIVN",
-    referenceNo: "EA-2026-00151",
-    activity: "Minor Variation Notification",
-    applicantCompany: "Metro Drug Distribution Inc",
-    applicationStep: "Initial Screening",
-    dueDate: "2026-09-05",
-    lastModified: "2026-08-21 03:40 PM",
-    priority: "Low",
-    status: "unclaimed",
-    claimedBy: null,
-  },
   {
     id: 6,
     department: "quality_evaluation",
@@ -900,8 +836,12 @@ function EApplicationPage({ darkMode }) {
   const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key);
   const [activeSubTab, setActiveSubTab] = useState("unclaimed"); // unclaimed | claimed | processed
   const [applications, setApplications] = useState(MOCK_APPLICATIONS);
+  const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
+  const [loadError, setLoadError] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
+
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
   const [claimRows, setClaimRows] = useState(null); // array of rows being claimed, or null
@@ -917,6 +857,34 @@ function EApplicationPage({ darkMode }) {
   const [noteText, setNoteText] = useState("");
   const [sendNoteEmail, setSendNoteEmail] = useState(true);
   const [hoveredNoteRowId, setHoveredNoteRowId] = useState(null); // row id whose ref-no badge is hovered
+
+  const loadUnclaimed = useCallback(async () => {
+    setLoadingUnclaimed(true);
+    setLoadError(null);
+    try {
+      const data = await getAppointmentRecords({
+        status: "Accepted",
+        page_size: 100,
+      });
+      const incoming = data.items.map(mapAppointmentRecord);
+      setApplications((prev) => {
+        // drop stale unclaimed rows from the external DB, keep everything else
+        const keep = prev.filter(
+          (a) => !(a.source === "appointment" && a.status === "unclaimed"),
+        );
+        const keptIds = new Set(keep.map((a) => a.id));
+        return [...keep, ...incoming.filter((r) => !keptIds.has(r.id))];
+      });
+    } catch (err) {
+      setLoadError(err.message);
+    } finally {
+      setLoadingUnclaimed(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUnclaimed();
+  }, [loadUnclaimed]);
 
   /* Scope everything to the currently selected department first */
   const departmentData = useMemo(
@@ -945,26 +913,17 @@ function EApplicationPage({ darkMode }) {
     const term = searchTerm.trim().toLowerCase();
     if (!term) return baseData;
     return baseData.filter((row) =>
-      [
-        row.referenceNo,
-        row.activity,
-        row.applicantCompany,
-        row.applicationStep,
-        row.priority,
-      ]
+      [row.referenceNo, row.activity, row.applicantCompany, row.priority]
         .filter(Boolean)
         .some((field) => field.toLowerCase().includes(term)),
     );
   }, [baseData, searchTerm]);
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(filteredData.length / ROWS_PER_PAGE),
-  );
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
   const safePage = Math.min(currentPage, totalPages);
   const paginatedData = filteredData.slice(
-    (safePage - 1) * ROWS_PER_PAGE,
-    safePage * ROWS_PER_PAGE,
+    (safePage - 1) * rowsPerPage,
+    safePage * rowsPerPage,
   );
 
   const handleDepartmentChange = (deptKey) => {
@@ -1627,7 +1586,6 @@ function EApplicationPage({ darkMode }) {
                   <th style={thStyle}>Reference Number</th>
                   <th style={thStyle}>Activity</th>
                   <th style={thStyle}>Applicant Company</th>
-                  <th style={thStyle}>Application Step</th>
                   <th style={thStyle}>Due Date</th>
                   <th style={thStyle}>Last Modified</th>
                   <th style={thStyle}>Priority</th>
@@ -1645,7 +1603,7 @@ function EApplicationPage({ darkMode }) {
                 {paginatedData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={9}
                       style={{
                         padding: "2rem",
                         textAlign: "center",
@@ -1653,13 +1611,17 @@ function EApplicationPage({ darkMode }) {
                         fontSize: "0.75rem",
                       }}
                     >
-                      {searchTerm
-                        ? "No matching applications found."
-                        : activeSubTab === "unclaimed"
-                          ? "No applications waiting to be claimed."
-                          : activeSubTab === "claimed"
-                            ? "You haven't claimed any tasks yet."
-                            : "No processed tasks yet."}
+                      {loadingUnclaimed
+                        ? "Loading applications..."
+                        : loadError
+                          ? `Could not load applications: ${loadError}`
+                          : searchTerm
+                            ? "No matching applications found."
+                            : activeSubTab === "unclaimed"
+                              ? "No applications waiting to be claimed."
+                              : activeSubTab === "claimed"
+                                ? "You haven't claimed any tasks yet."
+                                : "No processed tasks yet."}
                     </td>
                   </tr>
                 ) : (
@@ -1702,7 +1664,7 @@ function EApplicationPage({ darkMode }) {
                           color: colors.textTertiary,
                         }}
                       >
-                        {(safePage - 1) * ROWS_PER_PAGE + index + 1}
+                        {(safePage - 1) * rowsPerPage + index + 1}
                       </td>
                       <td
                         style={{
@@ -1721,13 +1683,10 @@ function EApplicationPage({ darkMode }) {
                       </td>
                       <td style={tdStyle}>{row.activity}</td>
                       <td style={tdStyle}>{row.applicantCompany}</td>
-                      <td style={tdStyle}>
-                        {renderStepBadge(row.applicationStep)}
-                      </td>
-                      <td style={tdStyle}>{row.dueDate}</td>
+                      <td style={tdStyle}>{row.dueDate || "—"}</td>
                       <td style={tdStyle}>{row.lastModified}</td>
                       <td style={tdStyle}>
-                        {renderPriorityBadge(row.priority)}
+                        {row.priority ? renderPriorityBadge(row.priority) : "—"}
                       </td>
                       {activeSubTab !== "unclaimed" && (
                         <td style={{ ...tdStyle, whiteSpace: "normal" }}>
@@ -1863,13 +1822,57 @@ function EApplicationPage({ darkMode }) {
                 alignItems: "center",
                 justifyContent: "space-between",
                 flexShrink: 0,
+                flexWrap: "wrap",
+                gap: "0.5rem",
               }}
             >
-              <span style={{ fontSize: "0.68rem", color: colors.textTertiary }}>
-                Showing {(safePage - 1) * ROWS_PER_PAGE + 1}–
-                {Math.min(safePage * ROWS_PER_PAGE, filteredData.length)} of{" "}
-                {filteredData.length}
-              </span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.75rem",
+                }}
+              >
+                <span
+                  style={{ fontSize: "0.68rem", color: colors.textTertiary }}
+                >
+                  Showing {(safePage - 1) * rowsPerPage + 1}–
+                  {Math.min(safePage * rowsPerPage, filteredData.length)} of{" "}
+                  {filteredData.length}
+                </span>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    fontSize: "0.68rem",
+                    color: colors.textTertiary,
+                  }}
+                >
+                  Rows per page
+                  <select
+                    value={rowsPerPage}
+                    onChange={(e) => handlePageSizeChange(e.target.value)}
+                    style={{
+                      padding: "0.25rem 0.4rem",
+                      fontSize: "0.68rem",
+                      borderRadius: "6px",
+                      border: `1px solid ${colors.cardBorder}`,
+                      background: colors.pageBg,
+                      color: colors.textPrimary,
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                  >
+                    {PAGE_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
               <div
                 style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}
               >
