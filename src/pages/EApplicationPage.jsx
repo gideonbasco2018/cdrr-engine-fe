@@ -8,6 +8,7 @@ import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumen
 import {
   getAppointmentRecords,
   mapAppointmentRecord,
+  claimAppointmentRecords,
 } from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
@@ -838,6 +839,7 @@ function EApplicationPage({ darkMode }) {
   const [applications, setApplications] = useState(MOCK_APPLICATIONS);
   const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [claiming, setClaiming] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
@@ -864,6 +866,7 @@ function EApplicationPage({ darkMode }) {
     try {
       const data = await getAppointmentRecords({
         status: "Accepted",
+        unclaimed_only: true,
         page_size: 100,
       });
       const incoming = data.items.map(mapAppointmentRecord);
@@ -956,23 +959,54 @@ function EApplicationPage({ darkMode }) {
 
   /* TODO: replace with real API call, e.g. a batch
      await claimApplications(ids) then refetch */
-  const confirmClaim = () => {
-    if (!claimRows || claimRows.length === 0) return;
-    const idsToClaim = claimRows.map((r) => r.id);
-    setApplications((prev) =>
-      prev.map((app) =>
-        idsToClaim.includes(app.id)
-          ? {
-              ...app,
-              status: "claimed",
-              claimedBy: CURRENT_USER,
-              lastModified: "Just now",
-            }
-          : app,
-      ),
-    );
-    setSelectedIds((prev) => prev.filter((id) => !idsToClaim.includes(id)));
-    setClaimRows(null);
+  const confirmClaim = async () => {
+    if (claiming || !claimRows || claimRows.length === 0) return;
+    setClaiming(true);
+    try {
+      const results = await claimAppointmentRecords(
+        claimRows.map((r) => r.referenceNo),
+      );
+      const claimedRefs = results
+        .filter((r) => r.result === "claimed")
+        .map((r) => r.reference_no);
+      const failed = results.filter((r) => r.result !== "claimed");
+
+      setApplications((prev) =>
+        prev.map((app) =>
+          claimedRefs.includes(app.referenceNo)
+            ? {
+                ...app,
+                status: "claimed",
+                claimedBy: CURRENT_USER,
+                lastModified: "Just now",
+              }
+            : app,
+        ),
+      );
+      setSelectedIds((prev) =>
+        prev.filter(
+          (id) =>
+            !claimRows.some(
+              (r) => r.id === id && claimedRefs.includes(r.referenceNo),
+            ),
+        ),
+      );
+
+      if (failed.length > 0) {
+        // ADAPT: use your toast component if you have one
+        window.alert(
+          failed
+            .map((f) => `${f.reference_no}: ${f.detail || f.result}`)
+            .join("\n"),
+        );
+        loadUnclaimed(); // refresh so rows claimed by others disappear
+      }
+    } catch (err) {
+      window.alert(err.message);
+    } finally {
+      setClaiming(false);
+      setClaimRows(null);
+    }
   };
 
   const cancelClaim = () => setClaimRows(null);

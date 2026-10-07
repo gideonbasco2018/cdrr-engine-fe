@@ -42,6 +42,26 @@ export const getAppointmentRecord = async (referenceNo) => {
   }
 };
 
+
+/**
+ * Claim one or more appointment records for the logged-in user
+ * @param {string[]} referenceNumbers
+ */
+export const claimAppointmentRecords = async (referenceNumbers) => {
+  try {
+    const response = await API.post("/appointment-records/claim", {
+      reference_numbers: referenceNumbers,
+    });
+    return response.data; // [{ reference_no, result, detail }]
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to claim appointment records";
+    throw new Error(errorMessage);
+  }
+};
+
 // Maps the activity name to the process code used by processRegistry.
 // Unknown activities get no code and fall back to the placeholder modal.
 const PROCESS_CODE_BY_ACTIVITY = {
