@@ -889,11 +889,20 @@ function EApplicationPage({ darkMode }) {
 
   const loadMyTasks = useCallback(async () => {
     try {
-      const tasks = await getMyAppointmentTasks();
-      const incoming = tasks.map((t) => ({
-        ...mapMyTask(t),
-        claimedBy: CURRENT_USER,
-      }));
+      const [open, processed] = await Promise.all([
+        getMyAppointmentTasks("open"),
+        getMyAppointmentTasks("processed"),
+      ]);
+      const incoming = [
+        ...open.map((t) => ({
+          ...mapMyTask(t, "claimed"),
+          claimedBy: CURRENT_USER,
+        })),
+        ...processed.map((t) => ({
+          ...mapMyTask(t, "processed"),
+          claimedBy: CURRENT_USER,
+        })),
+      ];
       setApplications((prev) => {
         const refs = new Set(incoming.map((r) => r.referenceNo));
         const keep = prev.filter(
@@ -2021,6 +2030,7 @@ function EApplicationPage({ darkMode }) {
               cashierName={CURRENT_USER}
               cashierPosition="Cashier"
               onPost={handlePostPayment}
+              onPosted={loadMyTasks}
               onClose={() => setDetailsTarget(null)}
             />
           );

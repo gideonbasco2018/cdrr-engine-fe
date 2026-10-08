@@ -311,7 +311,7 @@ function LogoImage({ src, alt, width, height }) {
   );
 }
 
-function OopHeader({ title, subtitle }) {
+export function OopHeader({ title, subtitle }) {
   return (
     <>
       <div
@@ -385,7 +385,7 @@ function OopHeader({ title, subtitle }) {
   );
 }
 
-function OopSection({ title, rows }) {
+export function OopSection({ title, rows }) {
   return (
     <div style={{ margin: "16px 0" }}>
       <div
@@ -430,7 +430,7 @@ function OopSection({ title, rows }) {
   );
 }
 
-function OopNotices({ bancnetAmount }) {
+export function OopNotices({ bancnetAmount }) {
   return (
     <div style={{ color: "#c00000", fontSize: "12.5px", lineHeight: 1.45 }}>
       <p style={{ margin: "0 0 8px" }}>
@@ -585,7 +585,7 @@ export function AcknowledgementReceiptPaper({
   );
 }
 
-function ConfirmPostModal({
+export function ConfirmPostModal({
   row,
   colors,
   totalPaid,
@@ -715,7 +715,7 @@ function ConfirmPostModal({
 }
 
 /* Confirms the payment details (and flags overpayment / short payment) before adding to the table */
-function ConfirmAddPaymentModal({
+export function ConfirmAddPaymentModal({
   colors,
   payment,
   amountDue,
