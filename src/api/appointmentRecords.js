@@ -69,8 +69,8 @@ export const claimAppointmentRecords = async (referenceNumbers) => {
 const PROCESS_CODE_BY_ACTIVITY = {
   "Minor Variation Notification": "MIVN",
   "FDA GMP Certification": "FGMP",
+  "CDRR Certificate of Product Registration": "CPR",
 };
-
 const formatStamp = (iso) =>
   iso
     ? new Date(iso).toLocaleString("en-PH", {
@@ -134,3 +134,23 @@ export const mapMyTask = (task) => ({
   status: "claimed",
   claimedBy: null, // set by the page (it knows the current user)
 });
+
+
+/**
+ * Get the full details of an application the user has claimed
+ * @param {string} referenceNo
+ */
+export const getClaimedApplication = async (referenceNo) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}`,
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch application details";
+    throw new Error(errorMessage);
+  }
+};

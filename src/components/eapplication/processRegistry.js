@@ -1,5 +1,6 @@
 import MivnDetailsModal from "./processes/mivn/MivnDetailsModal.jsx";
 import FgmpDetailsModal from "./processes/fgmp/FgmpDetailsModal.jsx";
+import CprDetailsModal from "./processes/cpr/CprDetailsModal.jsx";
 import PlaceholderDetailsModal from "./processes/PlaceholderDetailsModal.jsx";
 
 export const PROCESS_REGISTRY = {
@@ -10,6 +11,10 @@ export const PROCESS_REGISTRY = {
   FGMP: {
     label: "FDA GMP",
     DetailsModal: FgmpDetailsModal,
+  },
+  CPR: {
+    label: "Certificate of Public Health",
+    DetailsModal: CprDetailsModal,
   },
 };
 
