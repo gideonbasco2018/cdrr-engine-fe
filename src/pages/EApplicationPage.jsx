@@ -9,6 +9,8 @@ import {
   getAppointmentRecords,
   mapAppointmentRecord,
   claimAppointmentRecords,
+  getMyAppointmentTasks,
+  mapMyTask,
 } from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
@@ -885,9 +887,29 @@ function EApplicationPage({ darkMode }) {
     }
   }, []);
 
+  const loadMyTasks = useCallback(async () => {
+    try {
+      const tasks = await getMyAppointmentTasks();
+      const incoming = tasks.map((t) => ({
+        ...mapMyTask(t),
+        claimedBy: CURRENT_USER,
+      }));
+      setApplications((prev) => {
+        const refs = new Set(incoming.map((r) => r.referenceNo));
+        const keep = prev.filter(
+          (a) => a.source !== "internal" && !refs.has(a.referenceNo),
+        );
+        return [...keep, ...incoming];
+      });
+    } catch (err) {
+      setLoadError(err.message);
+    }
+  }, []);
+
   useEffect(() => {
     loadUnclaimed();
-  }, [loadUnclaimed]);
+    loadMyTasks();
+  }, [loadUnclaimed, loadMyTasks]);
 
   /* Scope everything to the currently selected department first */
   const departmentData = useMemo(
@@ -962,8 +984,6 @@ function EApplicationPage({ darkMode }) {
     setClaimRows(rows);
   };
 
-  /* TODO: replace with real API call, e.g. a batch
-     await claimApplications(ids) then refetch */
   const confirmClaim = async () => {
     if (claiming || !claimRows || claimRows.length === 0) return;
     setClaiming(true);
@@ -976,16 +996,14 @@ function EApplicationPage({ darkMode }) {
         .map((r) => r.reference_no);
       const failed = results.filter((r) => r.result !== "claimed");
 
+      // Remove claimed rows from the unclaimed pool; the Task tab is loaded from the server
       setApplications((prev) =>
-        prev.map((app) =>
-          claimedRefs.includes(app.referenceNo)
-            ? {
-                ...app,
-                status: "claimed",
-                claimedBy: CURRENT_USER,
-                lastModified: "Just now",
-              }
-            : app,
+        prev.filter(
+          (app) =>
+            !(
+              app.source === "appointment" &&
+              claimedRefs.includes(app.referenceNo)
+            ),
         ),
       );
       setSelectedIds((prev) =>
@@ -996,6 +1014,8 @@ function EApplicationPage({ darkMode }) {
             ),
         ),
       );
+
+      await loadMyTasks();
 
       if (failed.length > 0) {
         // ADAPT: use your toast component if you have one
@@ -1013,7 +1033,6 @@ function EApplicationPage({ darkMode }) {
       setClaimRows(null);
     }
   };
-
   const cancelClaim = () => setClaimRows(null);
 
   const toggleSelectRow = (id) => {

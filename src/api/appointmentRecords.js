@@ -62,6 +62,8 @@ export const claimAppointmentRecords = async (referenceNumbers) => {
   }
 };
 
+
+
 // Maps the activity name to the process code used by processRegistry.
 // Unknown activities get no code and fall back to the placeholder modal.
 const PROCESS_CODE_BY_ACTIVITY = {
@@ -96,4 +98,39 @@ export const mapAppointmentRecord = (record) => ({
   priority: null,
   status: "unclaimed",
   claimedBy: null,
+});
+
+
+/**
+ * Get the tasks the logged-in user has claimed (Payment Verification/Posting)
+ */
+export const getMyAppointmentTasks = async () => {
+  try {
+    const response = await API.get("/appointment-records/my-tasks");
+    return response.data; // [{ application_uuid, reference_number, ... }]
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch my tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+// Converts one claimed task from the backend into a row for EApplicationPage
+export const mapMyTask = (task) => ({
+  id: task.application_uuid,
+  source: "internal", // marks rows that came from the internal DB
+  department: "payment_posting",
+  processCode: PROCESS_CODE_BY_ACTIVITY[(task.activity || "").trim()],
+  referenceNo: task.reference_number,
+  activity: task.activity,
+  applicantCompany: task.applicant_company,
+  applicationStep: task.application_step || "—",
+  dueDate: task.deadline_date || task.step_duedate || null,
+  lastModified: formatStamp(task.updated_at || task.start_date),
+  priority: task.priority || null,
+  remarks: task.application_remarks || "",
+  status: "claimed",
+  claimedBy: null, // set by the page (it knows the current user)
 });
