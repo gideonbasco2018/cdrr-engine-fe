@@ -12,7 +12,7 @@ import API from "./axios";
  */
 export const getAppointmentRecords = async (params = {}) => {
   try {
-    const response = await API.get("/appointment-records/", { params });
+    const response = await API.get("/appointment-records", { params });
     return response.data; // { total, page, page_size, items }
   } catch (error) {
     const errorMessage =
