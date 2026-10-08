@@ -36,9 +36,9 @@ const STEP_4 = { id: 4, label: "Additional Order of Payment", icon: "➕" };
 
 /* TODO: replace with the real Order of Payment items from the backend */
 const ORDER_OF_PAYMENT_ITEMS = [
-  { label: "Application Fee", amount: 7500 },
+  { label: "Application Fee", amount: 500 },
   { label: "Surcharge (if any)", amount: 0 },
-  { label: "Legal Research Fund (LRF)", amount: 75 },
+  { label: "Legal Research Fund (LRF)", amount: 10 },
 ];
 export const AMOUNT_DUE = ORDER_OF_PAYMENT_ITEMS.reduce(
   (sum, i) => sum + i.amount,
