@@ -100,13 +100,15 @@ export const mapAppointmentRecord = (record) => ({
   claimedBy: null,
 });
 
-
 /**
- * Get the tasks the logged-in user has claimed (Payment Verification/Posting)
+ * Get the tasks the logged-in user has claimed
+ * @param {"open"|"processed"} [scope]
  */
-export const getMyAppointmentTasks = async () => {
+export const getMyAppointmentTasks = async (scope = "open") => {
   try {
-    const response = await API.get("/appointment-records/my-tasks");
+    const response = await API.get("/appointment-records/my-tasks", {
+      params: { scope },
+    });
     return response.data; // [{ application_uuid, reference_number, ... }]
   } catch (error) {
     const errorMessage =
@@ -117,8 +119,8 @@ export const getMyAppointmentTasks = async () => {
   }
 };
 
-// Converts one claimed task from the backend into a row for EApplicationPage
-export const mapMyTask = (task) => ({
+// Converts one task from the backend into a row for EApplicationPage
+export const mapMyTask = (task, status = "claimed") => ({
   id: task.application_uuid,
   source: "internal", // marks rows that came from the internal DB
   department: "payment_posting",
@@ -131,7 +133,7 @@ export const mapMyTask = (task) => ({
   lastModified: formatStamp(task.updated_at || task.start_date),
   priority: task.priority || null,
   remarks: task.application_remarks || "",
-  status: "claimed",
+  status,
   claimedBy: null, // set by the page (it knows the current user)
 });
 
@@ -151,6 +153,31 @@ export const getClaimedApplication = async (referenceNo) => {
       error.response?.data?.detail ||
       error.message ||
       "Failed to fetch application details";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Post the cashier's payments for a claimed application
+ * @param {string} referenceNo
+ * @param {Object} payload
+ * @param {Array} payload.payments
+ * @param {string} [payload.remarks]
+ */
+export const postClaimedPayments = async (referenceNo, payload) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/payments`,
+      payload,
+    );
+    return response.data;
+  } catch (error) {
+    const detail = error.response?.data?.detail;
+    const errorMessage =
+      (typeof detail === "string" ? detail : null) ||
+      (detail ? "The payment details are invalid" : null) ||
+      error.message ||
+      "Failed to post payment";
     throw new Error(errorMessage);
   }
 };
