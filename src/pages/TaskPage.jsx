@@ -50,105 +50,8 @@ function Chip({ label, onRemove, colors }) {
 }
 
 /* ================================================================== */
-/*  Sub-tab bar component                                               */
+/*  Loading spinner / progress bar                                      */
 /* ================================================================== */
-function SubTabBar({
-  activeSubTab,
-  setActiveSubTab,
-  receivedCount,
-  notYetCount,
-  colors,
-  darkMode,
-}) {
-  const tabs = [
-    {
-      key: "not_yet",
-      label: "For Receiving",
-      count: notYetCount,
-      badgeColor: "#f59e0b",
-    },
-    {
-      key: "received",
-      label: "Received",
-      count: receivedCount,
-      badgeColor: "#10b981",
-    },
-  ].filter((t) => t.count > 0);
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        gap: "3px",
-        background: darkMode ? "#181818" : "#f0f0f0",
-        padding: "3px",
-        borderRadius: "8px",
-        width: "fit-content",
-        flexShrink: 0,
-      }}
-    >
-      {tabs.map((t) => {
-        const isActive = activeSubTab === t.key;
-        return (
-          <button
-            key={t.key}
-            onClick={() => setActiveSubTab(t.key)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "5px",
-              padding: "3px 10px",
-              border: "none",
-              borderRadius: "6px",
-              background: isActive
-                ? darkMode
-                  ? "#242424"
-                  : "#ffffff"
-                : "transparent",
-              color: isActive ? colors.textPrimary : colors.textTertiary,
-              fontWeight: isActive ? 600 : 400,
-              cursor: "pointer",
-              fontSize: "0.72rem",
-              transition: "all .15s ease",
-              boxShadow: isActive
-                ? darkMode
-                  ? "0 1px 3px rgba(0,0,0,0.4)"
-                  : "0 1px 3px rgba(0,0,0,0.12)"
-                : "none",
-            }}
-          >
-            {t.label}
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minWidth: "1.1rem",
-                height: "1.1rem",
-                padding: "0 0.3rem",
-                borderRadius: "999px",
-                fontSize: "0.6rem",
-                fontWeight: 700,
-                lineHeight: 1,
-                background: isActive
-                  ? t.badgeColor
-                  : darkMode
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.10)",
-                color: isActive ? "#fff" : colors.textTertiary,
-                transition: "background .15s, color .15s",
-              }}
-            >
-              {t.count}
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-// IPAPALIT:
 function LoadingSpinner({ darkMode, colors, progress }) {
   useEffect(() => {
     const style = document.createElement("style");
@@ -227,10 +130,18 @@ function LoadingSpinner({ darkMode, colors, progress }) {
 /* ================================================================== */
 /*  TaskPage                                                            */
 /* ================================================================== */
+const EMPTY_DRAFT = {
+  sentBy: "",
+  lastModifiedFrom: "",
+  lastModifiedTo: "",
+  estCat: "",
+  targetDateFrom: "",
+  targetDateTo: "",
+};
+
 function TaskPage({ darkMode }) {
   const [data, setData] = useState([]);
   const [activeTab, setActiveTab] = useState(null);
-  const [activeSubTab, setActiveSubTab] = useState("not_yet");
   const [selectedRows, setSelectedRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
@@ -244,6 +155,7 @@ function TaskPage({ darkMode }) {
   const [readIds, setReadIds] = useState(new Set());
   const [searchInput, setSearchInput] = useState("");
   const [allStepsData, setAllStepsData] = useState([]);
+  // Applied filters — these drive fetching and filtering
   const [filters, setFilters] = useState({
     dtn: null,
     appType: "",
@@ -259,6 +171,8 @@ function TaskPage({ darkMode }) {
     targetDateFrom: "",
     targetDateTo: "",
   });
+  // Draft values of the toolbar inputs — applied only when Search is clicked
+  const [draft, setDraft] = useState(EMPTY_DRAFT);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState(null);
   const colors = getColorScheme(darkMode);
 
@@ -269,10 +183,55 @@ function TaskPage({ darkMode }) {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, activeSubTab, activeTab]);
+  }, [filters, activeTab]);
 
-  // ✅ Fetch 1 — para sa tabs at counts (walang application_step filter)
-  // IPAPALIT:
+  // Keep the draft in sync whenever the applied toolbar filters change
+  // (chip removal, "Clear all", Quick Filters, etc.)
+  useEffect(() => {
+    setDraft({
+      sentBy: filters.sentBy,
+      lastModifiedFrom: filters.lastModifiedFrom,
+      lastModifiedTo: filters.lastModifiedTo,
+      estCat: filters.estCat,
+      targetDateFrom: filters.targetDateFrom,
+      targetDateTo: filters.targetDateTo,
+    });
+  }, [
+    filters.sentBy,
+    filters.lastModifiedFrom,
+    filters.lastModifiedTo,
+    filters.estCat,
+    filters.targetDateFrom,
+    filters.targetDateTo,
+  ]);
+
+  const hasPendingChanges =
+    draft.sentBy !== filters.sentBy ||
+    draft.lastModifiedFrom !== filters.lastModifiedFrom ||
+    draft.lastModifiedTo !== filters.lastModifiedTo ||
+    draft.estCat !== filters.estCat ||
+    draft.targetDateFrom !== filters.targetDateFrom ||
+    draft.targetDateTo !== filters.targetDateTo;
+
+  const applySearch = () => {
+    setFilters((f) => ({
+      ...f,
+      sentBy: draft.sentBy,
+      lastModifiedFrom: draft.lastModifiedFrom,
+      lastModifiedTo: draft.lastModifiedTo,
+      estCat: draft.estCat,
+      targetDateFrom: draft.targetDateFrom,
+      targetDateTo: draft.targetDateTo,
+    }));
+  };
+
+  // Clear some toolbar fields in both the draft and the applied filters
+  const clearFields = (patch) => {
+    setDraft((d) => ({ ...d, ...patch }));
+    setFilters((f) => ({ ...f, ...patch }));
+  };
+
+  // Fetch 1 — for the tabs and their counts (no application_step filter)
   const fetchAllSteps = useCallback(async () => {
     if (!currentUser?.id) return;
     setLoading(true);
@@ -295,7 +254,7 @@ function TaskPage({ darkMode }) {
 
       setLoadProgress(50);
 
-      // ✅ manually trigger fetchTasks with the resolved tab
+      // Manually trigger the table fetch with the resolved tab
       if (initialTab && currentUser?.id) {
         const isFrontendSort =
           sortBy === "log_sent_by" || sortBy === "log_last_modified";
@@ -323,16 +282,6 @@ function TaskPage({ darkMode }) {
         setData(mapped2);
         setSelectedRows([]);
 
-        if (filters.dtn && mapped2.length > 0) {
-          const found = mapped2[0];
-          setActiveSubTab(found.is_received === 1 ? "received" : "not_yet");
-        } else {
-          // ✅ auto-switch subtab based on available data
-          const hasNotYet = mapped2.some((d) => d.is_received !== 1);
-          const hasReceived = mapped2.some((d) => d.is_received === 1);
-          if (!hasNotYet && hasReceived) setActiveSubTab("received");
-          else setActiveSubTab("not_yet");
-        }
         const alreadyRead = new Set(
           (res2.data || []).filter((t) => t.is_read === 1).map((t) => t.id),
         );
@@ -346,9 +295,21 @@ function TaskPage({ darkMode }) {
       setLoadProgress(100);
       setTimeout(() => setLoading(false), 400);
     }
-  }, [currentUser, sortBy, sortOrder, filters]);
+    // Only backend-handled filters should trigger a refetch.
+    // Frontend-only filters (sentBy, dates, starred, targeted) must not.
+  }, [
+    currentUser,
+    sortBy,
+    sortOrder,
+    filters.dtn,
+    filters.appType,
+    filters.prescription,
+    filters.appStatus,
+    filters.processingType,
+    filters.estCat,
+  ]);
 
-  // ✅ Fetch 2 — para sa actual table data (may application_step + filters)
+  // Fetch 2 — for the actual table data (with application_step + filters)
   const fetchTasks = useCallback(async () => {
     if (!currentUser?.id || !activeTab) return;
     setLoading(true);
@@ -380,10 +341,9 @@ function TaskPage({ darkMode }) {
       setData(mapped);
       setSelectedRows([]);
 
-      // ✅ Auto-switch subtab kapag nag-search ng DTN
+      // Auto-switch the main tab when searching by DTN
       if (filters.dtn && mapped.length > 0) {
         const found = mapped[0];
-        setActiveSubTab(found.is_received === 1 ? "received" : "not_yet");
         if (found.applicationStep && found.applicationStep !== activeTab) {
           setActiveTab(found.applicationStep);
         }
@@ -399,7 +359,18 @@ function TaskPage({ darkMode }) {
       setLoadProgress(100);
       setTimeout(() => setLoading(false), 400);
     }
-  }, [currentUser, sortBy, sortOrder, activeTab, filters]);
+  }, [
+    currentUser,
+    sortBy,
+    sortOrder,
+    activeTab,
+    filters.dtn,
+    filters.appType,
+    filters.prescription,
+    filters.appStatus,
+    filters.processingType,
+    filters.estCat,
+  ]);
 
   useEffect(() => {
     fetchAllSteps();
@@ -428,20 +399,9 @@ function TaskPage({ darkMode }) {
   const handleTabChange = (step) => {
     setActiveTab(step);
     setSelectedRows([]);
-    // ✅ gamitin ang allStepsData para malaman kung anong subtab ang may data
-    const stepRows = allStepsData.filter((d) => d.applicationStep === step);
-    const hasNotYet = stepRows.some((d) => d.is_received !== 1);
-    const hasReceived = stepRows.some((d) => d.is_received === 1);
-    if (!hasNotYet && hasReceived) setActiveSubTab("received");
-    else setActiveSubTab("not_yet");
   };
 
-  const handleSubTabChange = (sub) => {
-    setActiveSubTab(sub);
-    setSelectedRows([]);
-  };
-
-  // ✅ Tabs at counts — galing sa allStepsData (walang filter)
+  // Tabs and counts — from allStepsData (unfiltered)
   const steps = useMemo(
     () => Array.from(new Set(allStepsData.map((d) => d.applicationStep))),
     [allStepsData],
@@ -478,37 +438,19 @@ function TaskPage({ darkMode }) {
     [steps, allStepsData],
   );
 
-  // ✅ tabData — data na lang (already filtered by step sa backend)
+  // tabData — all tasks of the user for the active step (already filtered by step in the backend)
   const tabData = useMemo(
     () =>
       filters.dtn ? data : data.filter((d) => d.applicationStep === activeTab),
     [data, activeTab, filters.dtn],
   );
 
-  const receivedCount = useMemo(
-    () => tabData.filter((d) => d.is_received === 1).length,
-    [tabData],
-  );
-  const notYetReceivedCount = useMemo(
-    () => tabData.filter((d) => d.is_received !== 1).length,
-    [tabData],
-  );
-
-  const subTabData = useMemo(
-    () =>
-      activeSubTab === "received"
-        ? tabData.filter((d) => d.is_received === 1)
-        : tabData.filter((d) => d.is_received !== 1),
-    [tabData, activeSubTab],
-  );
-
-  // ✅ Backend na ang nag-hahandle ng appType, prescription, appStatus,
-  //    processingType, estCat, at search — frontend lang ang natitira
-
+  // The backend already handles appType, prescription, appStatus,
+  // processingType, estCat, and search — only the filters below remain on the frontend.
   const filteredData = useMemo(() => {
-    const filtered = subTabData.filter((r) => {
+    const filtered = tabData.filter((r) => {
       const mstar = !filters.starredOnly || r.is_starred === 1;
-      // sentBy — frontend lang kasi walang param sa backend
+      // sentBy — frontend only because the backend has no param for it
       const msb =
         !filters.sentBy ||
         (r.sentBy ?? "")
@@ -516,7 +458,7 @@ function TaskPage({ darkMode }) {
           .toLowerCase()
           .includes(filters.sentBy.trim().toLowerCase());
 
-      // lastModified date range — frontend lang
+      // lastModified date range — frontend only
       const from = filters.lastModifiedFrom
         ? new Date(filters.lastModifiedFrom)
         : null;
@@ -527,10 +469,10 @@ function TaskPage({ darkMode }) {
       const mfrom = !from || (lm && lm >= from);
       const mto = !to || (lm && lm <= to);
 
-      // targeted only — frontend lang
+      // targeted only — frontend only
       const mtarget = !filters.targetedOnly || r.is_targeted === true;
 
-      // target end-date range — frontend lang
+      // target end-date range — frontend only
       const tfrom = filters.targetDateFrom
         ? new Date(filters.targetDateFrom)
         : null;
@@ -543,7 +485,7 @@ function TaskPage({ darkMode }) {
 
       return mstar && msb && mfrom && mto && mtarget && mtfrom && mtto;
     });
-    // Frontend sort para sa fields na hindi kaya ng backend
+    // Frontend sort for fields the backend cannot sort
     if (sortBy === "log_sent_by" || sortBy === "log_last_modified") {
       filtered.sort((a, b) => {
         let valA, valB;
@@ -575,7 +517,7 @@ function TaskPage({ darkMode }) {
     }
 
     return filtered;
-  }, [subTabData, filters, sortBy, sortOrder]);
+  }, [tabData, filters, sortBy, sortOrder]);
 
   const handleSelectAll = () => {
     const filteredIds = filteredData.map((r) => r.id);
@@ -619,11 +561,8 @@ function TaskPage({ darkMode }) {
     filters.lastModifiedTo ||
     filters.estCat;
 
-  const emptyLabel =
-    activeSubTab === "received"
-      ? "No received tasks yet."
-      : "No pending tasks — all caught up!";
-  const emptyIcon = activeSubTab === "received" ? "📭" : "✅";
+  const emptyLabel = "No pending tasks — all caught up!";
+  const emptyIcon = "✅";
 
   // Compact shared styles
   const inputStyle = (active) => ({
@@ -664,7 +603,7 @@ function TaskPage({ darkMode }) {
     >
       {/* ── Quick Filters Sidebar ── */}
       <QuickFilters
-        data={subTabData}
+        data={tabData}
         filters={filters}
         onFiltersChange={(f) => setFilters(f)}
         searchInput={searchInput}
@@ -795,402 +734,406 @@ function TaskPage({ darkMode }) {
             })}
           </div>
         )}
-        {/* ── SubTab + Filters + Selection — iisang row ── */}
-        {!loading &&
-          steps.length > 0 &&
-          (receivedCount > 0 || notYetReceivedCount > 0) && (
+        {/* ── Filters + Search + Selection — single row ── */}
+        {!loading && steps.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              flexWrap: "wrap",
+              flexShrink: 0,
+            }}
+          >
+            {/* Sent By */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "0.5rem",
-                flexWrap: "wrap",
-                flexShrink: 0,
+                gap: "0.35rem",
               }}
             >
-              {/* SubTabBar */}
-              <SubTabBar
-                activeSubTab={activeSubTab}
-                setActiveSubTab={handleSubTabChange}
-                receivedCount={receivedCount}
-                notYetCount={notYetReceivedCount}
-                colors={colors}
-                darkMode={darkMode}
-              />
-
-              <div style={dividerStyle} />
-
-              {/* Sent By */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                }}
-              >
-                <span style={labelStyle}>👤 Sent By</span>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type="text"
-                    placeholder="Search sender..."
-                    value={filters.sentBy}
-                    onChange={(e) =>
-                      setFilters({ ...filters, sentBy: e.target.value })
-                    }
-                    style={{
-                      ...inputStyle(filters.sentBy),
-                      width: 110,
-                      paddingRight: filters.sentBy ? "1.4rem" : "0.5rem",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = filters.sentBy
-                        ? "#4CAF50"
-                        : colors.inputBorder)
-                    }
-                  />
-                  {filters.sentBy && (
-                    <button
-                      onClick={() => setFilters({ ...filters, sentBy: "" })}
-                      style={{
-                        position: "absolute",
-                        right: "0.35rem",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        background: "none",
-                        border: "none",
-                        color: colors.textTertiary,
-                        cursor: "pointer",
-                        fontSize: "0.65rem",
-                        padding: 0,
-                      }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div style={dividerStyle} />
-
-              {/* Last Modified */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                }}
-              >
-                <span style={labelStyle}>🕓 Last Modified</span>
+              <span style={labelStyle}>👤 Sent By</span>
+              <div style={{ position: "relative" }}>
                 <input
-                  type="date"
-                  value={filters.lastModifiedFrom}
+                  type="text"
+                  placeholder="Search sender..."
+                  value={draft.sentBy}
                   onChange={(e) =>
-                    setFilters({ ...filters, lastModifiedFrom: e.target.value })
+                    setDraft({ ...draft, sentBy: e.target.value })
                   }
-                  style={inputStyle(filters.lastModifiedFrom)}
-                />
-                <span
-                  style={{ fontSize: "0.65rem", color: colors.textTertiary }}
-                >
-                  to
-                </span>
-                <input
-                  type="date"
-                  value={filters.lastModifiedTo}
-                  onChange={(e) =>
-                    setFilters({ ...filters, lastModifiedTo: e.target.value })
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") applySearch();
+                  }}
+                  style={{
+                    ...inputStyle(draft.sentBy),
+                    width: 110,
+                    paddingRight: draft.sentBy ? "1.4rem" : "0.5rem",
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "#4CAF50")}
+                  onBlur={(e) =>
+                    (e.target.style.borderColor = draft.sentBy
+                      ? "#4CAF50"
+                      : colors.inputBorder)
                   }
-                  style={inputStyle(filters.lastModifiedTo)}
                 />
-                {(filters.lastModifiedFrom || filters.lastModifiedTo) && (
+                {draft.sentBy && (
                   <button
-                    onClick={() =>
-                      setFilters({
-                        ...filters,
-                        lastModifiedFrom: "",
-                        lastModifiedTo: "",
-                      })
-                    }
+                    onClick={() => clearFields({ sentBy: "" })}
                     style={{
+                      position: "absolute",
+                      right: "0.35rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
                       background: "none",
                       border: "none",
-                      color: "#ef4444",
+                      color: colors.textTertiary,
                       cursor: "pointer",
                       fontSize: "0.65rem",
                       padding: 0,
-                      fontWeight: 600,
                     }}
                   >
                     ✕
                   </button>
                 )}
               </div>
+            </div>
 
-              <div style={dividerStyle} />
+            <div style={dividerStyle} />
 
-              {/* Category */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                }}
-              >
-                <span style={labelStyle}>🗂️ Category</span>
-                <select
-                  value={filters.estCat}
-                  onChange={(e) =>
-                    setFilters({ ...filters, estCat: e.target.value })
+            {/* Last Modified */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+              }}
+            >
+              <span style={labelStyle}>🕓 Last Modified</span>
+              <input
+                type="date"
+                value={draft.lastModifiedFrom}
+                onChange={(e) =>
+                  setDraft({ ...draft, lastModifiedFrom: e.target.value })
+                }
+                style={inputStyle(draft.lastModifiedFrom)}
+              />
+              <span style={{ fontSize: "0.65rem", color: colors.textTertiary }}>
+                to
+              </span>
+              <input
+                type="date"
+                value={draft.lastModifiedTo}
+                onChange={(e) =>
+                  setDraft({ ...draft, lastModifiedTo: e.target.value })
+                }
+                style={inputStyle(draft.lastModifiedTo)}
+              />
+              {(draft.lastModifiedFrom || draft.lastModifiedTo) && (
+                <button
+                  onClick={() =>
+                    clearFields({ lastModifiedFrom: "", lastModifiedTo: "" })
                   }
                   style={{
-                    ...inputStyle(filters.estCat),
+                    background: "none",
+                    border: "none",
+                    color: "#ef4444",
                     cursor: "pointer",
-                    color: filters.estCat
-                      ? colors.textPrimary
-                      : colors.textTertiary,
+                    fontSize: "0.65rem",
+                    padding: 0,
+                    fontWeight: 600,
                   }}
                 >
-                  <option value="">All</option>
-                  {Array.from(
-                    new Set(
-                      data.map((r) => r.estCat).filter((v) => v && v !== "N/A"),
-                    ),
-                  )
-                    .sort()
-                    .map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                </select>
-                {filters.estCat && (
-                  <button
-                    onClick={() => setFilters({ ...filters, estCat: "" })}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#ef4444",
-                      cursor: "pointer",
-                      fontSize: "0.65rem",
-                      padding: 0,
-                      fontWeight: 600,
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Starred filter */}
-              <button
-                onClick={() =>
-                  setFilters({ ...filters, starredOnly: !filters.starredOnly })
-                }
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.3rem",
-                  padding: "0.22rem 0.6rem",
-                  borderRadius: 5,
-                  border: `1px solid ${filters.starredOnly ? "#f59e0b" : colors.cardBorder}`,
-                  background: filters.starredOnly
-                    ? "rgba(245,158,11,0.15)"
-                    : "transparent",
-                  color: filters.starredOnly ? "#f59e0b" : colors.textTertiary,
-                  fontSize: "0.62rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all .15s",
-                }}
-              >
-                ★{/* ── starred count badge ── */}
-                {(() => {
-                  const count = tabData.filter(
-                    (r) => r.is_starred === 1,
-                  ).length;
-                  return count > 0 ? (
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        minWidth: "0.9rem",
-                        height: "0.9rem",
-                        padding: "0 0.2rem",
-                        background: filters.starredOnly
-                          ? "#f59e0b"
-                          : "rgba(245,158,11,0.3)",
-                        borderRadius: 999,
-                        fontSize: "0.55rem",
-                        fontWeight: 800,
-                        color: filters.starredOnly ? "#000" : "#f59e0b",
-                      }}
-                    >
-                      {count}
-                    </span>
-                  ) : null;
-                })()}
-                Starred Only
-              </button>
-
-              <div style={dividerStyle} />
-
-              {/* Targeted Only */}
-              <button
-                onClick={() =>
-                  setFilters({
-                    ...filters,
-                    targetedOnly: !filters.targetedOnly,
-                  })
-                }
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.3rem",
-                  padding: "0.22rem 0.6rem",
-                  borderRadius: 5,
-                  border: `1px solid ${filters.targetedOnly ? "#22c55e" : colors.cardBorder}`,
-                  background: filters.targetedOnly
-                    ? "rgba(34,197,94,0.15)"
-                    : "transparent",
-                  color: filters.targetedOnly ? "#22c55e" : colors.textTertiary,
-                  fontSize: "0.62rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  transition: "all .15s",
-                }}
-              >
-                🎯
-                {(() => {
-                  const count = tabData.filter((r) => r.is_targeted).length;
-                  return count > 0 ? (
-                    <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        minWidth: "0.9rem",
-                        height: "0.9rem",
-                        padding: "0 0.2rem",
-                        background: filters.targetedOnly
-                          ? "#22c55e"
-                          : "rgba(34,197,94,0.3)",
-                        borderRadius: 999,
-                        fontSize: "0.55rem",
-                        fontWeight: 800,
-                        color: filters.targetedOnly ? "#000" : "#22c55e",
-                      }}
-                    >
-                      {count}
-                    </span>
-                  ) : null;
-                })()}
-                Targeted Only
-              </button>
-
-              {/* Target Date range */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.35rem",
-                }}
-              >
-                <span style={labelStyle}>🎯 Target Until</span>
-                <input
-                  type="date"
-                  value={filters.targetDateFrom}
-                  onChange={(e) =>
-                    setFilters({ ...filters, targetDateFrom: e.target.value })
-                  }
-                  style={inputStyle(filters.targetDateFrom)}
-                />
-                <span
-                  style={{ fontSize: "0.65rem", color: colors.textTertiary }}
-                >
-                  to
-                </span>
-                <input
-                  type="date"
-                  value={filters.targetDateTo}
-                  onChange={(e) =>
-                    setFilters({ ...filters, targetDateTo: e.target.value })
-                  }
-                  style={inputStyle(filters.targetDateTo)}
-                />
-                {(filters.targetDateFrom || filters.targetDateTo) && (
-                  <button
-                    onClick={() =>
-                      setFilters({
-                        ...filters,
-                        targetDateFrom: "",
-                        targetDateTo: "",
-                      })
-                    }
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#ef4444",
-                      cursor: "pointer",
-                      fontSize: "0.65rem",
-                      padding: 0,
-                      fontWeight: 600,
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Selection indicator */}
-              {selectedRows.length > 0 && (
-                <>
-                  <div style={dividerStyle} />
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.4rem",
-                      padding: "0.2rem 0.6rem",
-                      background: darkMode
-                        ? "rgba(33,150,243,0.12)"
-                        : "rgba(33,150,243,0.08)",
-                      border: "1px solid rgba(33,150,243,0.3)",
-                      borderRadius: 6,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.68rem",
-                        color: "#2196F3",
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      ✔ {selectedRows.length} record
-                      {selectedRows.length > 1 ? "s" : ""} selected
-                    </span>
-                    <button
-                      onClick={() => setSelectedRows([])}
-                      style={{
-                        fontSize: "0.65rem",
-                        color: "#ef4444",
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      ✕ Clear
-                    </button>
-                  </div>
-                </>
+                  ✕
+                </button>
               )}
             </div>
-          )}
+
+            <div style={dividerStyle} />
+
+            {/* Category */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+              }}
+            >
+              <span style={labelStyle}>🗂️ Category</span>
+              <select
+                value={draft.estCat}
+                onChange={(e) => setDraft({ ...draft, estCat: e.target.value })}
+                style={{
+                  ...inputStyle(draft.estCat),
+                  cursor: "pointer",
+                  color: draft.estCat
+                    ? colors.textPrimary
+                    : colors.textTertiary,
+                }}
+              >
+                <option value="">All</option>
+                {Array.from(
+                  new Set(
+                    data.map((r) => r.estCat).filter((v) => v && v !== "N/A"),
+                  ),
+                )
+                  .sort()
+                  .map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+              </select>
+              {draft.estCat && (
+                <button
+                  onClick={() => clearFields({ estCat: "" })}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                    fontSize: "0.65rem",
+                    padding: 0,
+                    fontWeight: 600,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Starred filter */}
+            <button
+              onClick={() =>
+                setFilters({ ...filters, starredOnly: !filters.starredOnly })
+              }
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                padding: "0.22rem 0.6rem",
+                borderRadius: 5,
+                border: `1px solid ${filters.starredOnly ? "#f59e0b" : colors.cardBorder}`,
+                background: filters.starredOnly
+                  ? "rgba(245,158,11,0.15)"
+                  : "transparent",
+                color: filters.starredOnly ? "#f59e0b" : colors.textTertiary,
+                fontSize: "0.62rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all .15s",
+              }}
+            >
+              ★{/* ── starred count badge ── */}
+              {(() => {
+                const count = tabData.filter((r) => r.is_starred === 1).length;
+                return count > 0 ? (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: "0.9rem",
+                      height: "0.9rem",
+                      padding: "0 0.2rem",
+                      background: filters.starredOnly
+                        ? "#f59e0b"
+                        : "rgba(245,158,11,0.3)",
+                      borderRadius: 999,
+                      fontSize: "0.55rem",
+                      fontWeight: 800,
+                      color: filters.starredOnly ? "#000" : "#f59e0b",
+                    }}
+                  >
+                    {count}
+                  </span>
+                ) : null;
+              })()}
+              Starred Only
+            </button>
+
+            <div style={dividerStyle} />
+
+            {/* Targeted Only */}
+            <button
+              onClick={() =>
+                setFilters({
+                  ...filters,
+                  targetedOnly: !filters.targetedOnly,
+                })
+              }
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                padding: "0.22rem 0.6rem",
+                borderRadius: 5,
+                border: `1px solid ${filters.targetedOnly ? "#22c55e" : colors.cardBorder}`,
+                background: filters.targetedOnly
+                  ? "rgba(34,197,94,0.15)"
+                  : "transparent",
+                color: filters.targetedOnly ? "#22c55e" : colors.textTertiary,
+                fontSize: "0.62rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "all .15s",
+              }}
+            >
+              🎯
+              {(() => {
+                const count = tabData.filter((r) => r.is_targeted).length;
+                return count > 0 ? (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      minWidth: "0.9rem",
+                      height: "0.9rem",
+                      padding: "0 0.2rem",
+                      background: filters.targetedOnly
+                        ? "#22c55e"
+                        : "rgba(34,197,94,0.3)",
+                      borderRadius: 999,
+                      fontSize: "0.55rem",
+                      fontWeight: 800,
+                      color: filters.targetedOnly ? "#000" : "#22c55e",
+                    }}
+                  >
+                    {count}
+                  </span>
+                ) : null;
+              })()}
+              Targeted Only
+            </button>
+
+            {/* Target Date range */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.35rem",
+              }}
+            >
+              <span style={labelStyle}>🎯 Target Until</span>
+              <input
+                type="date"
+                value={draft.targetDateFrom}
+                onChange={(e) =>
+                  setDraft({ ...draft, targetDateFrom: e.target.value })
+                }
+                style={inputStyle(draft.targetDateFrom)}
+              />
+              <span style={{ fontSize: "0.65rem", color: colors.textTertiary }}>
+                to
+              </span>
+              <input
+                type="date"
+                value={draft.targetDateTo}
+                onChange={(e) =>
+                  setDraft({ ...draft, targetDateTo: e.target.value })
+                }
+                style={inputStyle(draft.targetDateTo)}
+              />
+              {(draft.targetDateFrom || draft.targetDateTo) && (
+                <button
+                  onClick={() =>
+                    clearFields({ targetDateFrom: "", targetDateTo: "" })
+                  }
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#ef4444",
+                    cursor: "pointer",
+                    fontSize: "0.65rem",
+                    padding: 0,
+                    fontWeight: 600,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            <div style={dividerStyle} />
+
+            {/* Search button — applies the draft filters */}
+            <button
+              onClick={applySearch}
+              title="Apply filters (Enter)"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.3rem",
+                padding: "0.25rem 0.8rem",
+                borderRadius: 5,
+                border: "none",
+                background: hasPendingChanges
+                  ? "linear-gradient(135deg,#2196F3,#1976d2)"
+                  : darkMode
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.08)",
+                color: hasPendingChanges ? "#fff" : colors.textTertiary,
+                fontSize: "0.68rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                boxShadow: hasPendingChanges
+                  ? "0 1px 4px rgba(33,150,243,0.35)"
+                  : "none",
+                transition: "all .15s",
+              }}
+            >
+              🔍 Search
+            </button>
+
+            {/* Selection indicator */}
+            {selectedRows.length > 0 && (
+              <>
+                <div style={dividerStyle} />
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.2rem 0.6rem",
+                    background: darkMode
+                      ? "rgba(33,150,243,0.12)"
+                      : "rgba(33,150,243,0.08)",
+                    border: "1px solid rgba(33,150,243,0.3)",
+                    borderRadius: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.68rem",
+                      color: "#2196F3",
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    ✔ {selectedRows.length} record
+                    {selectedRows.length > 1 ? "s" : ""} selected
+                  </span>
+                  <button
+                    onClick={() => setSelectedRows([])}
+                    style={{
+                      fontSize: "0.65rem",
+                      color: "#ef4444",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    ✕ Clear
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {/* ── Active filter chips ── */}
         {hasActiveFilters && (
           <div
@@ -1299,6 +1242,7 @@ function TaskPage({ darkMode }) {
             <button
               onClick={() => {
                 setSearchInput("");
+                setDraft(EMPTY_DRAFT);
                 setFilters({
                   dtn: null,
                   appType: "",
@@ -1383,7 +1327,6 @@ function TaskPage({ darkMode }) {
               colors={colors}
               darkMode={darkMode}
               activeTab={activeTab}
-              activeSubTab={activeSubTab}
               onRefresh={async () => {
                 await fetchAllSteps();
                 await fetchTasks();
