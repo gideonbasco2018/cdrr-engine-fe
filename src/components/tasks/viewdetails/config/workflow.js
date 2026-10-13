@@ -106,7 +106,7 @@ export const STEP_GROUP_MAP = {
   "PRSDD QA Admin": 27,
   "PRSDD Chief Admin":28,
   "PRSDD Compliance": 4,
-  "CDRR-OD Signature Facilitator": 38,
+  "CDRR-OD Signature Facilitator": 40,
 };
 
 export const STEP_DECISIONS = {
