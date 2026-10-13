@@ -5,18 +5,70 @@
 // RecentApplicationsCard's structure exactly (Card/CardHeader primitives,
 // same row anatomy) so it reads as native to this Dashboard, not bolted on.
 import { Card } from "./CardPrimitives";
-import { FB } from "./constants";
+import {
+  FB,
+  POST_EVAL_ANIM_CSS,
+  POST_EVAL_GROUP_RETURNED,
+  postEvalChipTone,
+} from "./constants";
 import { GMP_STEP_MAP } from "../gmp/shared/constants";
 
-// Not a real GMP_STEPS entry — "For Compliance" is an Evaluator action that
-// self-loops (GMP_CURRENT_STEP stays "Evaluator"), so the backend breaks it
-// out under this label instead of lumping it into the "Evaluator" count.
-const FOR_COMPLIANCE_STEP = { icon: "🕒", color: "#ca8a04" };
+// How many rows the card shows, and therefore how many skeleton rows it
+// reserves while loading. Exported so the dashboard's fetch asks for exactly
+// this many — the two used to be separate 4s and could drift apart, which
+// would make the card jump in height as the real rows replaced the
+// placeholders.
+export const POST_EVAL_CARD_ROWS = 8;
 
-function stepChipStyle(stepId) {
-  const step = stepId === "For Compliance" ? FOR_COMPLIANCE_STEP : GMP_STEP_MAP[stepId];
-  const color = step?.color ?? "#64748b";
-  return { background: `${color}26`, color };
+const CHIP_BASE = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  fontSize: "0.72rem",
+  fontWeight: 700,
+  padding: "3px 10px",
+  borderRadius: 99,
+  whiteSpace: "nowrap",
+};
+
+// One labelled chip row. The header is what makes the card answer "what came
+// back to me" at a glance; the chips inside it stay one-per-label so an
+// evaluator can still see WHICH step each application is sitting at.
+function ChipGroup({ ui, label, items, delay = 0 }) {
+  return (
+    <div className="pe-row" style={{ animationDelay: `${delay}ms` }}>
+      <p
+        style={{
+          margin: "0 0 4px",
+          fontSize: "0.66rem",
+          fontWeight: 700,
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
+          color: ui.textSub,
+        }}
+      >
+        {label}
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {items.map((b) => {
+          const tone = postEvalChipTone(b.step, b.group === POST_EVAL_GROUP_RETURNED);
+          return (
+            <span
+              key={b.step}
+              style={{
+                ...CHIP_BASE,
+                background: tone.background ?? ui.progressBg,
+                color: tone.color ?? ui.textMuted,
+              }}
+            >
+              {tone.icon} {b.step}{" "}
+              <b style={{ fontVariantNumeric: "tabular-nums", fontWeight: 800 }}>{b.count}</b>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function fmtDay(iso) {
@@ -34,16 +86,20 @@ function fmtDay(iso) {
 
 export default function GMPPostEvalStatusCard({
   ui,
-  breakdown, // [{ step, count }]
-  data, // rows: { gmp_id, dtn, lto_company, your_step, completed_date, current_step }
+  breakdown, // [{ step, count, group }]
+  data, // rows: { gmp_id, dtn, lto_company, your_step, completed_date, current_step, return_reason }
   loading,
   error,
   onRetry,
   onSeeAll,
   onRowClick,
 }) {
+  const returnedChips = breakdown.filter((b) => b.group === POST_EVAL_GROUP_RETURNED);
+  const forwardChips = breakdown.filter((b) => b.group !== POST_EVAL_GROUP_RETURNED);
+
   return (
     <Card ui={ui}>
+      <style>{POST_EVAL_ANIM_CSS}</style>
       <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
         <div
           style={{
@@ -59,36 +115,25 @@ export default function GMPPostEvalStatusCard({
               Post-Evaluation Status
             </h2>
             {!loading && !error && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 8 }}>
                 {breakdown.length === 0 ? (
                   <span style={{ fontSize: "0.8rem", color: ui.textSub }}>
                     Nothing waiting on another step right now.
                   </span>
                 ) : (
-                  breakdown.map((b) => {
-                    const step = b.step === "For Compliance" ? FOR_COMPLIANCE_STEP : GMP_STEP_MAP[b.step];
-                    return (
-                      <span
-                        key={b.step}
-                        style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 5,
-                          fontSize: "0.72rem",
-                          fontWeight: 700,
-                          padding: "3px 10px",
-                          borderRadius: 99,
-                          whiteSpace: "nowrap",
-                          ...stepChipStyle(b.step),
-                        }}
-                      >
-                        {step?.icon ?? "📄"} {b.step}{" "}
-                        <b style={{ fontVariantNumeric: "tabular-nums", fontWeight: 800 }}>
-                          {b.count}
-                        </b>
-                      </span>
-                    );
-                  })
+                  <>
+                    {forwardChips.length > 0 && (
+                      <ChipGroup ui={ui} label="Moved forward" items={forwardChips} />
+                    )}
+                    {returnedChips.length > 0 && (
+                      <ChipGroup
+                        ui={ui}
+                        label="Returned to me"
+                        items={returnedChips}
+                        delay={60}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -114,7 +159,7 @@ export default function GMPPostEvalStatusCard({
       </div>
 
       {loading &&
-        Array.from({ length: 4 }).map((_, i) => (
+        Array.from({ length: POST_EVAL_CARD_ROWS }).map((_, i) => (
           <div
             key={i}
             style={{
@@ -122,47 +167,52 @@ export default function GMPPostEvalStatusCard({
               alignItems: "center",
               gap: 12,
               padding: "11px 16px",
-              borderBottom: i < 3 ? `1px solid ${ui.divider}` : "none",
+              borderBottom:
+                i < POST_EVAL_CARD_ROWS - 1 ? `1px solid ${ui.divider}` : "none",
             }}
           >
             <div
+              className="pe-skel"
               style={{
                 width: 40,
                 height: 40,
                 borderRadius: 8,
                 flexShrink: 0,
-                background: ui.progressBg,
-                animation: "cdrrPulse 1.2s ease-in-out infinite",
+                backgroundColor: ui.progressBg,
+                animationDelay: `${i * 90}ms`,
               }}
             />
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
               <div
+                className="pe-skel"
                 style={{
                   width: 150,
                   height: 10,
                   borderRadius: 4,
-                  background: ui.progressBg,
-                  animation: "cdrrPulse 1.2s ease-in-out infinite",
+                  backgroundColor: ui.progressBg,
+                  animationDelay: `${i * 90 + 60}ms`,
                 }}
               />
               <div
+                className="pe-skel"
                 style={{
                   width: 100,
                   height: 8,
                   borderRadius: 4,
-                  background: ui.progressBg,
-                  animation: "cdrrPulse 1.2s ease-in-out infinite",
+                  backgroundColor: ui.progressBg,
+                  animationDelay: `${i * 90 + 120}ms`,
                 }}
               />
             </div>
             <div
+              className="pe-skel"
               style={{
                 width: 90,
                 height: 22,
                 borderRadius: 99,
                 flexShrink: 0,
-                background: ui.progressBg,
-                animation: "cdrrPulse 1.2s ease-in-out infinite",
+                backgroundColor: ui.progressBg,
+                animationDelay: `${i * 90 + 40}ms`,
               }}
             />
           </div>
@@ -198,17 +248,23 @@ export default function GMPPostEvalStatusCard({
         !error &&
         data.map((row, i, arr) => {
           const yourStep = GMP_STEP_MAP[row.your_step];
-          const currentStep = row.is_compliance_loop ? FOR_COMPLIANCE_STEP : GMP_STEP_MAP[row.current_step];
-          const currentStepLabel = row.is_compliance_loop ? "For Compliance" : row.current_step;
+          const isReturn = Boolean(row.return_reason);
+          const currentStepLabel = row.return_reason || row.current_step;
+          const tone = postEvalChipTone(currentStepLabel, isReturn);
           return (
             <div
               key={row.gmp_id}
+              className="pe-row"
               style={{
+                animationDelay: `${Math.min(i, 8) * 45}ms`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "11px 16px",
                 borderBottom: i < arr.length - 1 ? `1px solid ${ui.divider}` : "none",
+                // Edge marker on anything back on this user's desk, so the
+                // rows that need action are findable without reading chips.
+                borderLeft: isReturn ? `3px solid ${tone.background}` : "none",
                 cursor: onRowClick ? "pointer" : "default",
               }}
               onClick={() => onRowClick && onRowClick(row)}
@@ -270,17 +326,12 @@ export default function GMPPostEvalStatusCard({
               <div style={{ flexShrink: 0, marginLeft: 10 }}>
                 <span
                   style={{
-                    fontSize: "0.72rem",
-                    fontWeight: 700,
-                    padding: "3px 10px",
-                    borderRadius: 99,
-                    whiteSpace: "nowrap",
-                    ...(currentStep
-                      ? stepChipStyle(currentStepLabel)
-                      : { background: ui.progressBg, color: ui.textMuted }),
+                    ...CHIP_BASE,
+                    background: tone.background ?? ui.progressBg,
+                    color: tone.color ?? ui.textMuted,
                   }}
                 >
-                  {currentStep?.icon ?? "📄"} {currentStepLabel || "—"}
+                  {tone.icon} {currentStepLabel || "—"}
                 </span>
               </div>
             </div>

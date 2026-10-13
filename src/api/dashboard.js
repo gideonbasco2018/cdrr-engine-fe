@@ -90,3 +90,32 @@ export async function getGMPPostEvalStatusRows(params = {}) {
   const { data } = await axios.get("/dashboard/gmp/stats/post-eval-status", { params });
   return data;
 }
+
+// Downloads the list as .xlsx. `buckets` is an array of chip labels from the
+// summary ("Checker", "Returned by Checker", …) or ["all"]; the rows exported
+// are the union of them. Mirrors exportFilteredGMPRecords in src/api/gmp.js.
+export async function exportGMPPostEvalStatus(buckets = ["all"]) {
+  const res = await axios.get("/dashboard/gmp/stats/post-eval-status/export", {
+    params: { buckets },
+    // Repeat the key per value (buckets=a&buckets=b) — that is how FastAPI
+    // reads a List[str]. Not comma-joined: a label can contain a comma.
+    paramsSerializer: { indexes: null },
+    responseType: "blob",
+  });
+
+  const url = window.URL.createObjectURL(new Blob([res.data]));
+  const link = document.createElement("a");
+  link.href = url;
+
+  let filename = "post_evaluation_status.xlsx";
+  const disposition = res.headers["content-disposition"];
+  if (disposition) {
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    if (match && match[1]) filename = match[1];
+  }
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}

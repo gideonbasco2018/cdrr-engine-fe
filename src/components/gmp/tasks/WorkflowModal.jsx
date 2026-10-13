@@ -33,6 +33,17 @@ const MODAL_CSS = `
   from { opacity:0; }
   to   { opacity:1; }
 }
+/* Exit is faster than entry and eases *in* (slow start, quick finish) — the
+   reverse of the entry curve. A modal arriving wants to be noticed; a modal
+   leaving should get out of the way, so it never overshoots or bounces. */
+@keyframes gmpModalOut {
+  from { opacity:1; transform:scale(1) translateY(0); }
+  to   { opacity:0; transform:scale(0.97) translateY(6px); }
+}
+@keyframes gmpBackdropOut {
+  from { opacity:1; }
+  to   { opacity:0; }
+}
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -68,7 +79,44 @@ const MODAL_CSS = `
 }
 .wfLogCard:hover {
   transform: translateY(-1px);
+}
+/* Full-screen toggle: the icon is remounted on each flip (key={isFullScreen}),
+   so this replays as a quick twist-in instead of a hard SVG swap. */
+@keyframes gmpFsIconIn {
+  from { opacity:0; transform:scale(0.55) rotate(-60deg); }
+  to   { opacity:1; transform:scale(1) rotate(0deg); }
+}
+.gmpFsIcon {
+  animation: gmpFsIconIn 0.3s cubic-bezier(0.34,1.4,0.64,1);
+}
+.gmpIconBtn {
+  transition: background 0.18s ease, color 0.18s ease,
+              transform 0.2s cubic-bezier(0.34,1.4,0.64,1);
+}
+.gmpIconBtn:hover  { transform: scale(1.09); }
+.gmpIconBtn:active { transform: scale(0.9); }
+@media (prefers-reduced-motion: reduce) {
+  [data-gmp-modal-card],
+  [data-gmp-modal-backdrop] { transition: none !important; animation: none !important; }
+  .gmpFsIcon, .gmpIconBtn { animation: none !important; transition: none !important; }
 }`;
+
+// Shared timing for the full-screen morph. Ease-out-quint: leaves fast, settles
+// gently, and — unlike a springy curve — never overshoots past the viewport
+// edge, which would clip the card while it's already at 100vw/100vh.
+const MORPH_MS = 420;
+const MORPH = `${MORPH_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+
+// How long the unmount is held back so the exit animation can play. Short on
+// purpose: this delay sits between the click and the parent's refresh, so
+// anything longer starts to feel like lag rather than polish.
+const CLOSE_MS = 190;
+
+function prefersReducedMotion() {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch { return false; }
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const fmt = (v) => (!v || v === "N/A" ? "—" : v);
@@ -1726,13 +1774,15 @@ function StepDetails({ record, task, editedFields, onFieldChange, colors }) {
 // ── Step 2 — Upload Documents (shared with GMPDocumentsModal.jsx) ──────────────
 function StepDocsGMP({ task, colors, darkMode }) {
   return (
-    <div style={{ padding: "16px 20px" }}>
+    <div style={{ padding: "16px 20px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
       <ApplicationDocumentsPanel
         dtn={task?.dtn}
         dbEntryType="FGMP"
         mainDbId={task?.gmp_record_id}
         colors={colors}
         darkMode={darkMode}
+        enableWorksheetEditing
+        fillHeight
       />
     </div>
   );
@@ -2865,6 +2915,25 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   // is opened rather than persisting across records.
   const [isFullScreen, setIsFullScreen] = useState(false);
 
+  // ── Closing animation ─────────────────────────────────────────────────────
+  // The parent unmounts this modal the instant onClose/onSuccess fires, so the
+  // card can only animate out if we hold that call back for the length of the
+  // animation. `closing` plays the exit, then the real callback runs.
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(closeTimerRef.current), []);
+  const runClose = useCallback((done) => {
+    // Already on the way out — a second Escape or click must not queue another
+    // unmount or restart the animation.
+    if (closeTimerRef.current) return;
+    if (prefersReducedMotion()) { done?.(); return; }
+    setClosing(true);
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      done?.();
+    }, CLOSE_MS);
+  }, []);
+
   // ── Draft persistence ─────────────────────────────────────────────────────
   // Every edit/addition made in this modal (Details-tab field edits + the
   // Step 4 action form) is auto-saved to localStorage, keyed by record, so
@@ -3619,8 +3688,15 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const cardRef = useRef(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; });
+  // Every close path — header ✕, footer Close, Escape — goes through this so
+  // they all play the same exit instead of one of them popping.
+  const requestClose = useCallback(() => {
+    runClose(() => onCloseRef.current?.());
+  }, [runClose]);
+  const requestCloseRef = useRef(requestClose);
+  useEffect(() => { requestCloseRef.current = requestClose; });
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onCloseRef.current?.(); };
+    const onKey = (e) => { if (e.key === "Escape") requestCloseRef.current?.(); };
     document.addEventListener("keydown", onKey);
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -3835,7 +3911,9 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       doctrackSentRef.current = false;
       advanceDoneRef.current = false;
       setSubmitLoading(false);
-      onSuccess();
+      // Submitting also closes the modal (the parent clears the task), so it
+      // takes the same exit as a manual close rather than vanishing.
+      runClose(onSuccess);
     } catch (e) {
       setSubmitError(e?.response?.data?.detail ?? "Submission failed. Please try again.");
       setSubmitLoading(false);
@@ -3843,12 +3921,23 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   };
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(15,30,24,0.55)",
-      backdropFilter: "blur(6px)", zIndex: 10000,
+    <div data-gmp-modal-backdrop style={{
+      position: "fixed", inset: 0,
+      // Full screen hides the backdrop anyway, so it fades out in step with the
+      // card's growth instead of sitting behind it as a dead tinted layer.
+      background: isFullScreen ? "rgba(15,30,24,0)" : "rgba(15,30,24,0.55)",
+      backdropFilter: isFullScreen ? "blur(0px)" : "blur(6px)", zIndex: 10000,
       display: "flex", alignItems: "center", justifyContent: "center",
-      padding: isFullScreen ? 0 : 16, fontFamily: FONT, animation: "gmpBackdropIn 0.2s ease forwards",
-      transition: "padding 0.2s ease",
+      padding: isFullScreen ? 0 : 16, fontFamily: FONT,
+      animation: closing
+        ? `gmpBackdropOut ${CLOSE_MS}ms ease forwards`
+        : "gmpBackdropIn 0.2s ease forwards",
+      // The modal is still mounted while it animates out — nothing underneath
+      // it should become clickable, and nothing on it should take another click.
+      pointerEvents: closing ? "none" : "auto",
+      // Padding shares the card's curve so the gutter closes at exactly the
+      // rate the card fills it — the two read as one movement.
+      transition: `padding ${MORPH}, background ${MORPH}, backdrop-filter ${MORPH}`,
     }}>
       <style>{MODAL_CSS}</style>
       <div data-gmp-modal-card ref={cardRef}
@@ -3858,19 +3947,31 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
           ? "#1a1c1f"
           : "#f7f8fa",
         borderRadius: isFullScreen ? 0 : 16,
-        width: isFullScreen ? "100vw" : "100%",
-        maxWidth: isFullScreen ? "none" : 860,
+        // Every morphing property below stays a value the browser can
+        // interpolate. `max-width: none` and `border: none` can't be tweened,
+        // so the old toggle snapped the width and jumped the frame by the
+        // border's 1px while only the height animated. 100vw and a transparent
+        // border give the same look and animate cleanly.
+        width: "100%",
+        maxWidth: isFullScreen ? "100vw" : 860,
         // Fixed (not just capped) height — content scrolls internally instead
         // of the whole modal growing/shrinking as you move between steps.
         // Full-screen swaps that cap for the entire viewport height instead.
         height: isFullScreen ? "100vh" : "min(88vh, 860px)",
         display: "flex", flexDirection: "column", overflow: "hidden",
-        border: isFullScreen ? "none" : darkMode ? "1px solid rgba(255,255,255,0.06)" : "1px solid #e4e6eb",
-        boxShadow: isFullScreen ? "none" : darkMode
+        border: `1px solid ${isFullScreen
+          ? "transparent"
+          : darkMode ? "rgba(255,255,255,0.06)" : "#e4e6eb"}`,
+        boxShadow: isFullScreen
+          ? "0 0 0 rgba(0,0,0,0)"
+          : darkMode
           ? "0 4px 20px rgba(0,0,0,0.3)"
           : "0 8px 24px rgba(0,0,0,0.12)",
-        transition: "width 0.2s ease, height 0.2s ease, border-radius 0.2s ease",
-        animation: "gmpModalIn 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards",
+        transition: `max-width ${MORPH}, height ${MORPH}, border-radius ${MORPH},`
+          + ` box-shadow ${MORPH}, border-color ${MORPH}`,
+        animation: closing
+          ? `gmpModalOut ${CLOSE_MS}ms cubic-bezier(0.4,0,1,1) forwards`
+          : "gmpModalIn 0.28s cubic-bezier(0.34,1.56,0.64,1) forwards",
       }}>
         <div style={{ padding: "18px 24px", borderBottom: `1px solid ${colors.cardBorder}`,
           display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
@@ -3895,40 +3996,46 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-            <button onClick={() => setIsFullScreen((v) => !v)}
+            <button onClick={() => setIsFullScreen((v) => !v)} className="gmpIconBtn"
               aria-label={isFullScreen ? "Exit full screen" : "Full screen"}
+              aria-pressed={isFullScreen}
               title={isFullScreen ? "Exit full screen" : "Full screen"}
               style={{
                 width: 34, height: 34, borderRadius: "50%", border: "none",
-                background: darkMode ? "rgba(255,255,255,0.06)" : "rgba(16,24,20,0.05)",
-                color: colors.textTertiary, cursor: "pointer",
+                background: isFullScreen
+                  ? `${ACCENT}1f`
+                  : darkMode ? "rgba(255,255,255,0.06)" : "rgba(16,24,20,0.05)",
+                color: isFullScreen ? ACCENT : colors.textTertiary, cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "background 0.15s",
               }}>
-              {isFullScreen ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-                  <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-                  <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-                  <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-                </svg>
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                  <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
-                  <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-                  <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-                </svg>
-              )}
+              {/* key= remounts the svg on every flip so .gmpFsIcon replays. */}
+              <svg key={isFullScreen ? "in" : "out"} className="gmpFsIcon"
+                width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                {isFullScreen ? (
+                  <>
+                    <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                    <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                    <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                    <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+                  </>
+                ) : (
+                  <>
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                    <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                    <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                  </>
+                )}
+              </svg>
             </button>
-            <button onClick={onClose} data-gmp-close aria-label="Close workflow modal" style={{
+            <button onClick={requestClose} data-gmp-close className="gmpIconBtn" aria-label="Close workflow modal" style={{
             width: 34, height: 34, borderRadius: "50%", border: "none",
             background: darkMode ? "rgba(255,255,255,0.06)" : "rgba(16,24,20,0.05)",
             color: colors.textTertiary, cursor: "pointer",
             fontSize: "1rem", display: "flex", alignItems: "center", justifyContent: "center",
-            transition: "background 0.15s",
+            // transition lives in .gmpIconBtn — an inline one would beat the
+            // class and cancel the hover/press scale.
           }}>✕</button>
           </div>
         </div>
@@ -3973,7 +4080,12 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
           <StepTabs active={activeStep} colors={colors} darkMode={darkMode} />
         )}
 
-        <div style={{ flex: 1, overflowY: "auto" }}>
+        {/* Step 2 scrolls inside each of its two columns instead of as a whole. */}
+        <div style={
+          activeRefTab === "primary" && activeStep === 2
+            ? { flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }
+            : { flex: 1, overflowY: "auto" }
+        }>
           {activeRefTab !== "primary" && (
             <RefNoPanel
               siblings={siblings}
@@ -4139,7 +4251,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                   cursor: "pointer", boxShadow: `0 8px 18px -8px ${ACCENT}80` }}>
                 Next →
               </button>
-            : <button onClick={onClose}
+            : <button onClick={requestClose}
                 style={{ padding: "8px 20px", fontFamily: FONT, fontSize: "0.78rem", fontWeight: 600,
                   border: "none", borderRadius: 999, background: editableFieldInnerBg(colors),
                   boxShadow: fieldCardShadow(colors, false),

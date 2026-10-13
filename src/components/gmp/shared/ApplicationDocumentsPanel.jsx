@@ -22,11 +22,15 @@ import {
   File as FileIcon,
   Maximize2,
   Minimize2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import {
   uploadApplicationDocumentSingle,
   getApplicationDocumentsByDtn,
 } from "../../../api/application-documents";
+import { openGMPWorksheet, getGMPWorksheetCommentCounts } from "../../../api/gmp";
+import { getUser } from "../../../api/auth";
 import {
   expandArchiveEntries,
   traverseFileTree,
@@ -85,10 +89,38 @@ function drivePreviewUrl(driveFileId) {
   return `https://drive.google.com/file/d/${driveFileId}/preview`;
 }
 
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+/** FGMP WORKSHEET .docx — the only kind that can open in Google Docs. The
+ *  backend (POST /gmp/worksheets/{id}/open) re-checks all of this. */
+function isEditableWorksheet(doc) {
+  if (!doc) return false;
+  const isDocx = doc.mime_type === DOCX_MIME || (doc.original_filename || "").toLowerCase().endsWith(".docx");
+  return (
+    isDocx &&
+    (doc.doc_category || "").trim().toUpperCase() === "WORKSHEET" &&
+    (doc.db_entry_type || "").toUpperCase() === "FGMP"
+  );
+}
+
 /* -------------------------------------------------------------------- */
 /*  Generic category-tree renderer — shared between staged & existing    */
 /* -------------------------------------------------------------------- */
-function CategoryTreeNode({ node, groupKey, collapsed, toggleFolder, renderItem, colors, depth = 0 }) {
+function CommentBadge({ comments, replies, colors }) {
+  if (!comments && !replies) return null;
+  const title = `${comments} open comment${comments === 1 ? "" : "s"}, ${replies} repl${replies === 1 ? "y" : "ies"}`;
+  return (
+    <span title={title} style={{
+      display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0,
+      padding: "1px 7px", borderRadius: 99, fontSize: "0.62rem", fontWeight: 700,
+      color: "#b45309", background: "rgba(245,158,11,0.15)",
+    }}>
+      💬 {comments}
+    </span>
+  );
+}
+
+function CategoryTreeNode({ node, groupKey, collapsed, toggleFolder, renderItem, colors, depth = 0, folderBadge }) {
   const key = `${groupKey}::${node.key}`;
   const isCollapsed = collapsed.has(key);
   const count = countTreeItems(node);
@@ -138,6 +170,7 @@ function CategoryTreeNode({ node, groupKey, collapsed, toggleFolder, renderItem,
         >
           {node.label}
         </span>
+        {folderBadge?.(node, depth)}
         <span style={{ fontSize: "0.65rem", color: colors.textTertiary }}>{count}</span>
       </button>
 
@@ -153,6 +186,7 @@ function CategoryTreeNode({ node, groupKey, collapsed, toggleFolder, renderItem,
               renderItem={renderItem}
               colors={colors}
               depth={depth + 1}
+              folderBadge={folderBadge}
             />
           ))}
           {node.items.length > 0 && (
@@ -174,7 +208,7 @@ function CategoryTreeNode({ node, groupKey, collapsed, toggleFolder, renderItem,
   );
 }
 
-function CategoryTree({ tree, groupKey, collapsed, toggleFolder, renderItem, colors }) {
+function CategoryTree({ tree, groupKey, collapsed, toggleFolder, renderItem, colors, folderBadge }) {
   const children = Array.from(tree.children.values()).sort((a, b) =>
     a.label.localeCompare(b.label),
   );
@@ -189,6 +223,7 @@ function CategoryTree({ tree, groupKey, collapsed, toggleFolder, renderItem, col
           toggleFolder={toggleFolder}
           renderItem={renderItem}
           colors={colors}
+          folderBadge={folderBadge}
         />
       ))}
       {tree.items.length > 0 && (
@@ -215,8 +250,23 @@ export default function ApplicationDocumentsPanel({
   mainDbId,
   colors,
   darkMode,
+  // Off by default so the Queue's Documents modal stays view-only; only
+  // FGMP Tasks → Step 2 turns this on.
+  enableWorksheetEditing = false,
+  // Fill the parent's height and scroll the file list and preview separately
+  // (the parent must give it a bounded height). Off = old whole-page scroll.
+  fillHeight = false,
 }) {
   const [existingDocs, setExistingDocs] = useState([]);
+  // { docId, url, role } once a worksheet is open in Google Docs.
+  const [gdocs, setGdocs] = useState(null);
+  const [gdocsLoading, setGdocsLoading] = useState(false);
+  const [gdocsError, setGdocsError] = useState("");
+  const currentUser = useMemo(() => { try { return getUser() || {}; } catch { return {}; } }, []);
+  // { files: { [docId]: { comments, replies } | null }, total_comments, total_replies }
+  const [commentCounts, setCommentCounts] = useState(null);
+  // Collapses the left (upload + file list) column so the preview / editor gets the full width.
+  const [filesHidden, setFilesHidden] = useState(false);
   const [isLoadingExisting, setIsLoadingExisting] = useState(true);
   const [fetchError, setFetchError] = useState("");
 
@@ -253,6 +303,44 @@ export default function ApplicationDocumentsPanel({
 
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
+
+  // Picking another file leaves Google Docs and goes back to the normal preview.
+  const activeDocId = activeItem?.type === "existing" ? activeItem.doc.id : null;
+  useEffect(() => {
+    setGdocs(null);
+    setGdocsError("");
+  }, [activeDocId]);
+
+  const hasWorksheets = enableWorksheetEditing && existingDocs.some(isEditableWorksheet);
+  const loadCommentCounts = useCallback(async () => {
+    if (!dtn) return;
+    try {
+      setCommentCounts(await getGMPWorksheetCommentCounts(dtn));
+    } catch {
+      setCommentCounts(null);
+    }
+  }, [dtn]);
+  useEffect(() => {
+    if (hasWorksheets) loadCommentCounts();
+  }, [hasWorksheets, existingDocs, loadCommentCounts]);
+
+  const backToPreview = () => {
+    setGdocs(null);
+    loadCommentCounts();
+  };
+
+  const openInGoogleDocs = async (doc) => {
+    setGdocsLoading(true);
+    setGdocsError("");
+    try {
+      const res = await openGMPWorksheet(doc.id);
+      setGdocs({ docId: doc.id, url: res.edit_url, role: res.role });
+    } catch (err) {
+      setGdocsError(err?.response?.data?.detail || err?.message || "Couldn't open this worksheet in Google Docs.");
+    } finally {
+      setGdocsLoading(false);
+    }
+  };
 
   // Revoke staged blob URLs on unmount so we don't leak memory.
   useEffect(() => {
@@ -629,6 +717,9 @@ export default function ApplicationDocumentsPanel({
         >
           {doc.original_filename}
         </span>
+        {commentCounts?.files?.[doc.id] && (
+          <CommentBadge {...commentCounts.files[doc.id]} colors={colors} />
+        )}
         <span style={{ color: colors.textTertiary, fontSize: "0.65rem" }}>
           {formatBytes(doc.file_size_bytes)}
         </span>
@@ -677,14 +768,43 @@ export default function ApplicationDocumentsPanel({
     </button>
   );
 
+  const filesToggleBtn = (
+    <button
+      type="button"
+      onClick={() => setFilesHidden((v) => !v)}
+      title={filesHidden ? "Show the file list" : "Hide the file list to widen the preview"}
+      style={{
+        flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5,
+        border: `1px solid ${colors.cardBorder}`, background: "transparent",
+        color: colors.textSecondary, borderRadius: 7, padding: "4px 9px",
+        fontSize: "0.68rem", fontWeight: 700, cursor: "pointer",
+      }}
+    >
+      {filesHidden ? <PanelLeftOpen size={13} /> : <PanelLeftClose size={13} />}
+      {filesHidden ? "Show files" : "Hide files"}
+    </button>
+  );
+
+  // Both columns get their own scroll when filling a bounded height.
+  const splitScroll = fullscreen || fillHeight;
   const content = (
     <div style={{
       display: "grid",
-      gridTemplateColumns: fullscreen ? "minmax(280px, 320px) minmax(0, 1fr)" : "minmax(300px, 360px) minmax(0, 1fr)",
-      gap: 14, alignItems: "start",
-      height: fullscreen ? "100%" : undefined,
+      gridTemplateColumns: filesHidden
+        ? "minmax(0, 1fr)"
+        : fullscreen ? "minmax(280px, 320px) minmax(0, 1fr)" : "minmax(300px, 360px) minmax(0, 1fr)",
+      gap: 14,
+      alignItems: splitScroll ? "stretch" : "start",
+      height: splitScroll ? "100%" : undefined,
+      gridTemplateRows: splitScroll ? "minmax(0, 1fr)" : undefined,
+      flex: fillHeight && !fullscreen ? 1 : undefined,
+      minHeight: fillHeight && !fullscreen ? 0 : undefined,
     }}>
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+    {/* Hidden with display:none (not unmounted) so files staged for upload aren't lost. */}
+    <div style={{
+      display: filesHidden ? "none" : "flex", flexDirection: "column", gap: 14, minWidth: 0,
+      ...(splitScroll && { minHeight: 0, overflowY: "auto", paddingRight: 4 }),
+    }}>
       <div className="wfFieldBox" style={{
         border: `1px solid ${colors.cardBorder}`, borderRadius: 12, padding: 12,
         background: colors.cardBg, boxShadow: cardShadow(colors),
@@ -957,6 +1077,11 @@ export default function ApplicationDocumentsPanel({
                 toggleFolder={toggleExisting}
                 renderItem={renderExistingItem}
                 colors={colors}
+                folderBadge={(node, depth) =>
+                  depth === 0 && commentCounts && (node.label || "").trim().toUpperCase() === "WORKSHEET" ? (
+                    <CommentBadge comments={commentCounts.total_comments} replies={commentCounts.total_replies} colors={colors} />
+                  ) : null
+                }
               />
             )}
           </>
@@ -970,12 +1095,12 @@ export default function ApplicationDocumentsPanel({
         style={{
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: 12,
-          minHeight: fullscreen ? 0 : 420,
-          height: fullscreen ? "100%" : "calc(94vh - 95px)",
+          minHeight: splitScroll ? 0 : 420,
+          height: splitScroll ? "100%" : "calc(94vh - 95px)",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
-          position: fullscreen ? "static" : "sticky",
+          position: splitScroll ? "static" : "sticky",
           top: 0,
           background: colors.cardBg,
           boxShadow: cardShadow(colors),
@@ -991,7 +1116,10 @@ export default function ApplicationDocumentsPanel({
           }} title={activeFilename || undefined}>
             {activeFilename || "Preview"}
           </span>
-          {fsToggleBtn}
+          <span style={{ display: "inline-flex", gap: 6, flexShrink: 0 }}>
+            {filesToggleBtn}
+            {fsToggleBtn}
+          </span>
         </div>
         {!activeItem ? (
           <div
@@ -1012,6 +1140,57 @@ export default function ApplicationDocumentsPanel({
           </div>
         ) : activeItem.type === "existing" ? (
           <>
+            {enableWorksheetEditing && isEditableWorksheet(activeItem.doc) && (() => {
+              const doc = activeItem.doc;
+              const isOpen = gdocs?.docId === doc.id;
+              const isUploader = doc.uploaded_by_user_id != null && doc.uploaded_by_user_id === currentUser.id;
+              const email = currentUser.email || "your @fda.gov.ph account";
+              const btnSt = {
+                display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0,
+                padding: "5px 11px", borderRadius: 7, fontSize: "0.72rem", fontWeight: 700,
+                cursor: gdocsLoading ? "wait" : "pointer", border: `1px solid ${ACCENT}`,
+              };
+              return (
+                <div style={{
+                  flexShrink: 0, display: "flex", flexDirection: "column", gap: 5,
+                  padding: "8px 12px", borderBottom: `1px solid ${colors.cardBorder}`,
+                  background: isDarkColors(colors) || darkMode ? "rgba(16,185,129,0.08)" : "#ecfdf5",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    {!isOpen ? (
+                      <button type="button" disabled={gdocsLoading} onClick={() => openInGoogleDocs(doc)}
+                        style={{ ...btnSt, background: ACCENT, color: "#fff" }}>
+                        {gdocsLoading ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : <FileText size={13} />}
+                        {isUploader ? "Edit in Google Docs" : "Comment in Google Docs"}
+                      </button>
+                    ) : (
+                      <>
+                        <span style={{ fontSize: "0.72rem", fontWeight: 700, color: ACCENT }}>
+                          {gdocs.role === "editor" ? "Editing in Google Docs" : "Commenting in Google Docs"}
+                        </span>
+                        <button type="button" onClick={backToPreview}
+                          style={{ ...btnSt, background: "transparent", color: ACCENT }}>
+                          Back to preview
+                        </button>
+                        <a href={gdocs.url} target="_blank" rel="noreferrer"
+                          style={{ fontSize: "0.72rem", fontWeight: 700, color: "#1976d2", display: "inline-flex", alignItems: "center", gap: 3 }}>
+                          Open in new tab <ExternalLink size={11} />
+                        </a>
+                      </>
+                    )}
+                  </div>
+                  <span style={{ fontSize: "0.66rem", color: colors.textTertiary }}>
+                    Sign in to Google as {email}, then try again. Don&apos;t use Request access.
+                    {isOpen && " Changes save automatically."}
+                  </span>
+                  {gdocsError && (
+                    <span style={{ fontSize: "0.7rem", color: "#ef4444", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <AlertCircle size={12} /> {gdocsError}
+                    </span>
+                  )}
+                </div>
+              );
+            })()}
             <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
               {previewKind === "other" ? (
                 <div
@@ -1035,10 +1214,11 @@ export default function ApplicationDocumentsPanel({
                 </div>
               ) : (
                 <iframe
-                  src={drivePreviewUrl(activeItem.doc.drive_file_id)}
+                  key={gdocs?.docId === activeItem.doc.id ? "gdocs" : "preview"}
+                  src={gdocs?.docId === activeItem.doc.id ? gdocs.url : drivePreviewUrl(activeItem.doc.drive_file_id)}
                   title={activeItem.doc.original_filename}
                   style={{ width: "100%", height: "100%", border: "none", minHeight: 380 }}
-                  allow="autoplay"
+                  allow="autoplay; clipboard-read; clipboard-write"
                 />
               )}
             </div>
