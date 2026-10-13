@@ -345,11 +345,12 @@ export default function GMPPostEvalStatusModal({ onClose, onRowClick, ui }) {
     };
   }, []);
 
-  // The panel sizes itself once, to the unfiltered list, then holds that
-  // height. Without this it shrank to fit every filter — pick a chip with one
-  // match and the whole modal collapsed around it, which reads as the dialog
-  // jumping rather than the list changing. Measured rather than computed from
-  // a row count so it stays right if the row height ever changes.
+  // The panel measures itself once, against the unfiltered list, and never
+  // goes below that afterwards. Without this it shrank to fit every filter —
+  // pick a chip with one match and the whole modal collapsed around it, which
+  // reads as the dialog jumping rather than the list changing. Measured rather
+  // than computed from a row count so it stays right if the row height ever
+  // changes.
   const panelRef = useRef(null);
   const [lockedHeight, setLockedHeight] = useState(null);
 
@@ -440,9 +441,12 @@ export default function GMPPostEvalStatusModal({ onClose, onRowClick, ui }) {
         style={{
           background: ui.cardBg, border: `1px solid ${ui.cardBorder}`, borderRadius: 14,
           width: "100%", maxWidth: 900, maxHeight: "92vh",
-          // Locked after the first load; maxHeight still clamps it if the
-          // window is resized smaller afterwards.
-          height: lockedHeight ?? undefined,
+          // A floor, not a fixed height. As a fixed height it had no room for
+          // the Filter and Export panels: opening one on a short list pushed
+          // the body — the only flex child that can give — down to the height
+          // of the sticky header, hiding every row behind it. min() keeps the
+          // floor from outgrowing the window if it is resized smaller later.
+          minHeight: lockedHeight ? `min(${lockedHeight}px, 92vh)` : undefined,
           display: "flex", flexDirection: "column", overflow: "hidden",
           boxShadow: "0 8px 40px rgba(0,0,0,0.28)",
         }}
