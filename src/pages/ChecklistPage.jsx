@@ -128,6 +128,10 @@ function ChecklistPage({ darkMode }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState(null); // null = nothing searched yet
   const [searching, setSearching] = useState(false);
+  // The query the current searchResults belong to. While what's typed
+  // differs (the 250 ms typing pause, or the request still running), the
+  // dropdown shows "Searching…" / the older results faded — never empty.
+  const [searchedFor, setSearchedFor] = useState("");
   const [showResults, setShowResults] = useState(false);
   const searchInputRef = useRef(null);
   const latestQueryRef = useRef("");
@@ -250,21 +254,48 @@ function ChecklistPage({ darkMode }) {
       ),
     );
 
+  // A DTN starts with the date it was made: the first 8 digits must be a
+  // real date (YYYYMMDD, year 2000 to next year). Catches typos like a
+  // missing/extra digit that shift everything (e.g. "02410021328155").
+  const hasValidDatePrefix = (dtn) => {
+    const y = Number(dtn.slice(0, 4));
+    const m = Number(dtn.slice(4, 6));
+    const d = Number(dtn.slice(6, 8));
+    if (y < 2000 || y > new Date().getFullYear() + 1) return false;
+    const date = new Date(Date.UTC(y, m - 1, d));
+    return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+  };
+  const isValidTypedDtn = (s) => /^\d{14}$/.test(s) && hasValidDatePrefix(s);
+
   // Split what was typed/pasted into DTNs. Separators can be spaces,
   // commas, semicolons or new lines; a run of digits whose length is a
-  // multiple of 14 (e.g. two DTNs pasted with no gap) is cut into 14s.
+  // multiple of 14 (e.g. two DTNs pasted with no gap) is cut into 14s —
+  // but only if EVERY piece is a valid DTN, otherwise the whole run is
+  // invalid (13 + 15 digits glued together must not become 2 wrong DTNs).
   const parseDtns = (raw) => {
     const valid = [];
     const invalid = [];
     for (const token of raw.split(/[\s,;]+/).filter(Boolean)) {
-      if (/^\d+$/.test(token) && token.length % 14 === 0) {
-        for (let i = 0; i < token.length; i += 14) valid.push(token.slice(i, i + 14));
-      } else {
-        invalid.push(token);
-      }
+      const pieces = /^\d+$/.test(token) && token.length % 14 === 0 ? token.match(/\d{14}/g) : null;
+      if (pieces && pieces.every(isValidTypedDtn)) valid.push(...pieces);
+      else invalid.push(token);
     }
-    return { valid: [...new Set(valid)], invalid };
+    return { valid: [...new Set(valid)], invalid: [...new Set(invalid)] };
   };
+
+  // Why a typed DTN was rejected, for the message.
+  const invalidReason = (s) =>
+    !/^\d+$/.test(s)
+      ? "DTN must be numbers only"
+      : s.length < 14
+        ? `${s.length} digits only`
+        : s.length % 14 !== 0
+          ? `${s.length} digits, too many`
+          : s.length > 14
+            ? "can't tell where one DTN ends"
+            : "First 8 digits aren't a valid date";
+  // e.g. "DTN 2026123456788 is not a valid DTN. (13 digits only)"
+  const invalidLine = (s) => `DTN ${s} is not a valid DTN. (${invalidReason(s)})`;
 
   // allowMultiple: true for typed/pasted input (several DTNs allowed),
   // false for barcode reader input (exactly one 14-digit DTN, as before).
@@ -277,14 +308,12 @@ function ChecklistPage({ darkMode }) {
         ? { valid: [text], invalid: [] }
         : { valid: [], invalid: [text] };
 
-    // One DTN — same messages as before.
-    if (valid.length + invalid.length === 1) {
-      if (invalid.length) {
-        setMessage({ type: "error", text: `DTN ${invalid[0]} is not valid. It must be 14 digits.` });
-        return;
-      }
-    } else if (!valid.length) {
-      setMessage({ type: "error", text: `Not valid (must be 14 digits): ${invalid.join(", ")}.` });
+    // Typed/pasted: put the bad ones back in the box so only those need fixing.
+    if (allowMultiple) setDtnInput(invalid.join(" "));
+
+    // Nothing valid — just the red lines.
+    if (!valid.length) {
+      setMessage({ type: "error", lines: invalid.map((s) => ({ tone: "error", text: invalidLine(s) })) });
       return;
     }
 
@@ -319,13 +348,23 @@ function ChecklistPage({ darkMode }) {
         return;
       }
 
-      const parts = [];
-      if (added.length) parts.push(`${added.length} DTN${added.length === 1 ? "" : "s"} added.`);
-      if (duplicates.length) parts.push(`Already in this checklist: ${duplicates.join(", ")}.`);
-      if (failed.length) parts.push(`Could not add: ${failed.join(", ")}.`);
-      if (invalid.length) parts.push(`Not valid (must be 14 digits): ${invalid.join(", ")}.`);
-      const allGood = !duplicates.length && !failed.length && !invalid.length;
-      setMessage({ type: allGood ? "ok" : "error", text: parts.join(" ") });
+      // One line per outcome: added = green, every problem = red.
+      // Box: green if all went in, red if none did, orange if it's a mix.
+      const lines = [];
+      if (added.length) {
+        lines.push({
+          tone: "ok",
+          text:
+            added.length === 1
+              ? `DTN ${added[0]} added to this checklist.`
+              : `DTNs ${added.join(", ")} added to this checklist.`,
+        });
+      }
+      duplicates.forEach((d) => lines.push({ tone: "error", text: `DTN ${d} is already in this checklist.` }));
+      failed.forEach((d) => lines.push({ tone: "error", text: `DTN ${d} could not be added.` }));
+      invalid.forEach((s) => lines.push({ tone: "error", text: invalidLine(s) }));
+      const hasProblems = lines.some((l) => l.tone === "error");
+      setMessage({ type: !hasProblems ? "ok" : added.length ? "warn" : "error", lines });
     });
   };
 
@@ -349,8 +388,8 @@ function ChecklistPage({ darkMode }) {
       return;
     }
     e.preventDefault();
+    setDtnInput(""); // first: submitDtn may put invalid typed DTNs back in the box
     submitDtn(dtnInput, !isBarcodeReaderInput());
-    setDtnInput("");
     keyTimesRef.current = [];
     pastedRef.current = false;
   };
@@ -503,21 +542,32 @@ function ChecklistPage({ darkMode }) {
     latestQueryRef.current = q;
     if (q.length < 2) {
       setSearchResults(null);
+      setSearchedFor("");
       return [];
     }
     setSearching(true);
     try {
       const results = await searchChecklists(q);
-      if (latestQueryRef.current === q) setSearchResults(results); // ignore late, older answers
+      if (latestQueryRef.current === q) {
+        // ignore late, older answers
+        setSearchResults(results);
+        setSearchedFor(q);
+      }
       return results;
     } catch (err) {
-      if (latestQueryRef.current === q) setSearchResults([]);
+      if (latestQueryRef.current === q) {
+        setSearchResults([]);
+        setSearchedFor(q);
+      }
       setMessage({ type: "error", text: errorText(err, "Search failed.") });
       return [];
     } finally {
       if (latestQueryRef.current === q) setSearching(false);
     }
   };
+
+  // True from the moment a letter is typed until that exact text's results arrive.
+  const searchPending = searching || searchQuery.trim() !== searchedFor;
 
   // Search as they type, once they pause for 250 ms.
   useEffect(() => {
@@ -536,6 +586,7 @@ function ChecklistPage({ darkMode }) {
     setSearchOpen(false);
     setSearchQuery("");
     setSearchResults(null);
+    setSearchedFor("");
     setShowResults(false);
     latestQueryRef.current = "";
     focusDtnInput();
@@ -673,14 +724,20 @@ function ChecklistPage({ darkMode }) {
       [`Total DTNs: ${active.items.length}`],
       [`Label: ${active.label || ""}`],
       // TEST LAYOUT: Date/Time Inserted and Inserted By left out for now.
-      ["#", "DTN", "Subject", "Received (✓)", ""],
-      ...active.items.map((item, i) => [i + 1, item.dtn, subjectText(item), "", ""]),
+      // Two header rows — "Scanned" sits over Clean / Duplicate (same as the PDF).
+      ["#", "DTN", "Subject", "Signed by OIC Director", "Scanned", ""],
+      ["", "", "", "", "Clean", "Duplicate"],
+      ...active.items.map((item, i) => [i + 1, item.dtn, subjectText(item), "", "", ""]),
     ];
     const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    worksheet["!cols"] = [{ wch: 5 }, { wch: 18 }, { wch: 70 }, { wch: 7 }, { wch: 7 }];
-    // "Received (✓)" is one header over the 2 tick columns (D:E) — same as the PDF.
-    const headerRow = 6;
-    worksheet["!merges"] = [{ s: { r: headerRow, c: 3 }, e: { r: headerRow, c: 4 } }];
+    worksheet["!cols"] = [{ wch: 5 }, { wch: 18 }, { wch: 60 }, { wch: 14 }, { wch: 12 }, { wch: 12 }];
+    const h1 = 6; // first header row (0-based)
+    worksheet["!merges"] = [
+      // #, DTN, Subject, Signed by OIC Director: span both header rows
+      ...[0, 1, 2, 3].map((c) => ({ s: { r: h1, c }, e: { r: h1 + 1, c } })),
+      // "Scanned" over Clean + Duplicate
+      { s: { r: h1, c: 4 }, e: { r: h1, c: 5 } },
+    ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Checklist");
     XLSX.writeFile(workbook, `${exportName()}.xlsx`);
@@ -691,36 +748,54 @@ function ChecklistPage({ darkMode }) {
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
-    const left = 15;
-    // [header, width mm] — TEST LAYOUT: Date/Time Inserted and Inserted By
-    // left out for now so the subject has room on portrait A4.
-    const cols = [
-      ["#", 10],
-      ["DTN", 36],
-      ["Subject", 101],
-      ["Received", 33],
-    ];
+    const left = 8; // small side margins so the subject gets more room
+    // [width mm] — TEST LAYOUT: Date/Time Inserted and Inserted By left out
+    // for now. Total 194 mm (A4 portrait minus 8 mm margins).
+    //   # | DTN | Subject | Signed by OIC Director | Scanned: Clean | Duplicate
+    const cols = [8, 31, 110, 15, 15, 15];
     const SUBJECT_COL = 2;
-    const rowH = 8; // header row / minimum body row height
+    const FIRST_TICK_COL = 3; // columns 3–5 are tick cells
+    const rowH = 10; // minimum body row height (room for tick box + date line)
+    const headH = 7; // each of the 2 header rows
     const lineH = 4.3; // mm per wrapped subject line
-    // "Received" is one header cell over this many tick-box cells per row.
-    const receivedBoxes = 2;
+    const colX = cols.map((_, c) => left + cols.slice(0, c).reduce((a, b) => a + b, 0));
 
+    // One violet header cell with centred text (an array = several lines).
+    const headCell = (x, y, w, h, label, size = 10) => {
+      // Re-set every cell: in jsPDF, drawing text resets the fill color to
+      // the text color (black), which would black out the next cell.
+      doc.setFillColor(233, 222, 250); // light violet
+      doc.rect(x, y, w, h, "FD");
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(size);
+      const lines = Array.isArray(label) ? label : [label];
+      const lh = size * 0.3528 * 1.15;
+      const top = y + h / 2 - ((lines.length - 1) * lh) / 2 + size * 0.3528 * 0.35;
+      doc.text(lines, x + w / 2, top, { align: "center", lineHeightFactor: 1.15 });
+    };
+
+    // Two header rows: "Scanned" over Clean / Duplicate; the rest span both.
     const drawHeaderRow = (y) => {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      let x = left;
-      cols.forEach(([label, w]) => {
-        // Re-set every cell: in jsPDF, drawing text resets the fill color to
-        // the text color (black), which would black out the next cell.
-        doc.setFillColor(233, 222, 250); // light violet
-        doc.rect(x, y, w, rowH, "FD");
-        doc.setTextColor(0, 0, 0);
-        doc.text(label, x + w / 2, y + 5.5, { align: "center" });
-        x += w;
-      });
+      const full = headH * 2;
+      headCell(colX[0], y, cols[0], full, "#");
+      headCell(colX[1], y, cols[1], full, "DTN");
+      headCell(colX[2], y, cols[2], full, "Subject");
+      // Smaller fonts so the labels fit the narrow 15 mm tick columns.
+      headCell(colX[3], y, cols[3], full, ["Signed by", "OIC", "Director"], 6.5);
+      headCell(colX[4], y, cols[4] + cols[5], headH, "Scanned", 8.5);
+      headCell(colX[4], y + headH, cols[4], headH, "Clean", 7);
+      headCell(colX[5], y + headH, cols[5], headH, "Duplicate", 7);
       doc.setFont("helvetica", "normal");
-      return y + rowH;
+      doc.setFontSize(10);
+      return y + full;
+    };
+
+    // Tick cell: small box in the top-left; the blank space under it is for a
+    // hand-written date / remark.
+    const tickCell = (x, y, w, h) => {
+      doc.rect(x, y, w, h);
+      doc.rect(x + 2, y + 1.6, 3.5, 3.5); // tick box
     };
 
     doc.setFont("helvetica", "bold");
@@ -765,7 +840,7 @@ function ChecklistPage({ darkMode }) {
       // Subject wraps onto as many lines as it needs; the row grows to fit.
       const subject = subjectText(item);
       const subjectLines = subject
-        ? clampLines(doc, doc.splitTextToSize(subject, cols[SUBJECT_COL][1] - 4), SUBJECT_MAX_LINES, cols[SUBJECT_COL][1] - 4)
+        ? clampLines(doc, doc.splitTextToSize(subject, cols[SUBJECT_COL] - 4), SUBJECT_MAX_LINES, cols[SUBJECT_COL] - 4)
         : [""];
       const h = Math.max(rowH, subjectLines.length * lineH + 3.7);
       if (y + h > pageH - 30) {
@@ -774,14 +849,9 @@ function ChecklistPage({ darkMode }) {
       }
       const midY = y + h / 2 + 1.5; // vertical middle for single-line cells
       let x = left;
-      cols.forEach(([, w], c) => {
-        if (c === cols.length - 1) {
-          const boxW = w / receivedBoxes;
-          for (let b = 0; b < receivedBoxes; b++) {
-            const bx = x + b * boxW;
-            doc.rect(bx, y, boxW, h);
-            doc.rect(bx + boxW / 2 - 2, y + h / 2 - 2, 4, 4); // tick box
-          }
+      cols.forEach((w, c) => {
+        if (c >= FIRST_TICK_COL) {
+          tickCell(x, y, w, h);
         } else if (c === SUBJECT_COL) {
           doc.rect(x, y, w, h);
           if (item.subject_status === "not_found") doc.setTextColor(220, 38, 38); // red
@@ -912,10 +982,10 @@ function ChecklistPage({ darkMode }) {
                     Type at least 2 characters.
                   </div>
                 )}
-                {searchQuery.trim().length >= 2 && searching && !searchResults?.length && (
+                {searchQuery.trim().length >= 2 && searchPending && !searchResults?.length && (
                   <div style={{ padding: "0.6rem", fontSize: "0.8rem", color: colors.textTertiary }}>Searching…</div>
                 )}
-                {searchQuery.trim().length >= 2 && !searching && searchResults?.length === 0 && (
+                {searchQuery.trim().length >= 2 && !searchPending && searchResults?.length === 0 && (
                   <div style={{ padding: "0.6rem", fontSize: "0.8rem", color: colors.textTertiary }}>
                     No DTN or subject matches “{searchQuery.trim()}”.
                   </div>
@@ -926,7 +996,14 @@ function ChecklistPage({ darkMode }) {
                       key={r.item_id}
                       onMouseDown={(e) => e.preventDefault()} // keep focus so the list doesn't vanish mid-click
                       onClick={() => pickResult(r)}
-                      style={{ padding: "0.5rem 0.6rem", borderRadius: "6px", cursor: "pointer" }}
+                      style={{
+                        padding: "0.5rem 0.6rem",
+                        borderRadius: "6px",
+                        cursor: "pointer",
+                        // older results while the new search runs: faded, not gone
+                        opacity: searchPending ? 0.5 : 1,
+                        transition: "opacity 0.15s ease",
+                      }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = colors.tableRowHover)}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                     >
@@ -1118,13 +1195,20 @@ function ChecklistPage({ darkMode }) {
             marginBottom: "1rem",
             fontSize: "0.9rem",
             fontWeight: 600,
-            color: message.type === "ok" ? "#16a34a" : "#dc2626",
-            borderColor: message.type === "ok" ? "#16a34a55" : "#dc262655",
-            "--glow": message.type === "ok" ? "rgba(22,163,74,0.45)" : "rgba(220,38,38,0.45)",
+            // ok = green, warn (some added, some not) = orange, error = red
+            color: { ok: "#16a34a", warn: "#d97706" }[message.type] || "#dc2626",
+            borderColor: { ok: "#16a34a55", warn: "#f59e0b99" }[message.type] || "#dc262655",
+            "--glow": { ok: "rgba(22,163,74,0.45)", warn: "rgba(245,158,11,0.55)" }[message.type] || "rgba(220,38,38,0.45)",
             animation: "checklistNotifPulse 0.8s ease-out",
           }}
         >
-          {message.text}
+          {message.lines
+            ? message.lines.map((l, i) => (
+                <div key={i} style={{ color: l.tone === "ok" ? "#16a34a" : "#dc2626" }}>
+                  {l.text}
+                </div>
+              ))
+            : message.text}
         </div>
       )}
 
