@@ -9,7 +9,6 @@ import ViewDetailsModal from "../viewdetails/ViewDetailsModal";
 import DoctrackModal from "../../reports/actions/DoctrackModal";
 import ApplicationLogsModal from "../ApplicationLogsModal";
 import ChangeLogModal from "../ChangeLogModal";
-import { markWorkflowTasksAsReceived } from "../../../api/workflow-tasks";
 import {
   getLastApplicationLogIndex,
   updateApplicationLog,
@@ -29,6 +28,7 @@ import {
 } from "./TransmittalGenerator";
 import {
   BULK_DECK_CONFIG,
+  MULTI_ASSIGNEE_STEPS,
   RECORD_TAB_COLUMNS,
   getDeadlineUrgency,
   URGENCY_CONFIG,
@@ -63,7 +63,6 @@ function DataTable({
   sortOrder,
   readIds = new Set(),
   onMarkAsRead,
-  activeSubTab = "not_yet",
   visibleColumnKeys = null,
   onVisibleColumnKeysChange,
 }) {
@@ -72,9 +71,6 @@ function DataTable({
   const [doctrackModalRecord, setDoctrackModalRecord] = useState(null);
   const [appLogsRecord, setAppLogsRecord] = useState(null);
   const [changeLogRecord, setChangeLogRecord] = useState(null);
-  const [markingReceived, setMarkingReceived] = useState(false);
-  const [confirmReceive, setConfirmReceive] = useState(false);
-  const [confirmReceiveRow, setConfirmReceiveRow] = useState(null);
   const [hoveredRowId, setHoveredRowId] = useState(null);
   const [showBulkDeck, setShowBulkDeck] = useState(false);
   const [showBulkComplete, setShowBulkComplete] = useState(false);
@@ -87,12 +83,9 @@ function DataTable({
   const isComplianceTab =
     activeTab === "Compliance" || activeTab === "PRSDD Compliance";
   const isRecordTab = activeTab === "Record";
-  const isReceivedSubTab = activeSubTab === "received";
-  const showMarkAsReceived = activeSubTab !== "received";
 
   const bulkDeckConfig = BULK_DECK_CONFIG[activeTab] ?? null;
-  const showBulkDeckBtn =
-    !!bulkDeckConfig && isReceivedSubTab && selectedRows.length > 0;
+  const showBulkDeckBtn = !!bulkDeckConfig && selectedRows.length > 0;
 
   const [starredIds, setStarredIds] = useState(
     () => new Set(data.filter((r) => r.is_starred === 1).map((r) => r.id)),
@@ -195,23 +188,6 @@ function DataTable({
     setChangeLogRecord(r);
   };
 
-  /* ── Mark as Received ── */
-  const handleMarkAsReceived = async (overrideRow = null) => {
-    const idsToMark = overrideRow ? [overrideRow.id] : selectedRows;
-    if (!idsToMark.length || markingReceived) return;
-    setMarkingReceived(true);
-    try {
-      await markWorkflowTasksAsReceived(idsToMark);
-      if (onClearSelections) onClearSelections();
-      if (onRefresh) await onRefresh();
-    } catch (e) {
-      console.error("Mark as Received error:", e);
-    } finally {
-      setMarkingReceived(false);
-      setConfirmReceiveRow(null);
-    }
-  };
-
   /* ── Bulk Deck handler ── */
   const handleBulkDeck = async (
     assigneeUsername,
@@ -271,6 +247,29 @@ function DataTable({
 
     const resolveUserId = (username) =>
       usersForNextGroup.find((u) => u.username === username)?.id ?? null;
+
+    // Close the other IN PROGRESS logs of the same step once one is completed
+    const closeSiblingLogs = async (mainDbId, completedLogId, closedAt) => {
+      if (!MULTI_ASSIGNEE_STEPS.includes(bulkDeckConfig.currentStep)) return;
+      const logs = await getApplicationLogs(mainDbId);
+      const siblings = (Array.isArray(logs) ? logs : []).filter(
+        (l) =>
+          l.application_step === bulkDeckConfig.currentStep &&
+          l.application_status === "IN PROGRESS" &&
+          l.id !== completedLogId,
+      );
+      for (const s of siblings) {
+        await updateApplicationLog(s.id, {
+          application_status: "COMPLETED",
+          application_decision: "Completed by another assignee",
+          application_remarks:
+            "Auto-closed: another assignee completed this task first.",
+          accomplished_date: closedAt,
+          del_last_index: 0,
+          del_thread: "Close",
+        });
+      }
+    };
 
     let success = 0,
       failed = 0;
@@ -456,20 +455,33 @@ function DataTable({
             "| user_id:",
             resolvedAssigneeId,
           );
-          await createApplicationLog({
-            main_db_id: mainDbId,
-            application_step: perRowNextStep,
-            user_name: resolvedAssignee,
-            user_id: resolvedAssigneeId,
-            application_status: "IN PROGRESS",
-            application_decision: "",
-            start_date: formattedDateTime,
-            accomplished_date: null,
-            del_index: nextIndex,
-            del_previous: lastIndex,
-            del_last_index: 1,
-            del_thread: "Open",
-          });
+          const assigneeList = isReturnDecision
+            ? [resolvedAssignee]
+            : Array.isArray(assigneeUsername)
+              ? assigneeUsername
+              : [assigneeUsername];
+
+          for (let i = 0; i < assigneeList.length; i++) {
+            const uname = assigneeList[i];
+            await createApplicationLog({
+              main_db_id: mainDbId,
+              application_step: perRowNextStep,
+              user_name: uname,
+              user_id: isReturnDecision
+                ? resolvedAssigneeId
+                : resolveUserId(uname),
+              application_status: "IN PROGRESS",
+              application_decision: "",
+              start_date: formattedDateTime,
+              accomplished_date: null,
+              del_index: nextIndex + i,
+              del_previous: lastIndex,
+              del_last_index: 1,
+              del_thread: "Open",
+            });
+          }
+
+          await closeSiblingLogs(mainDbId, logId, formattedDateTime);
         }
         success++;
       } catch (e) {
@@ -565,7 +577,7 @@ function DataTable({
     } catch (err) {
       console.error("Transmittal generation failed:", err);
       alert(
-        "Nagka-error sa paggawa ng transmittal. Subukan ulit o bawasan ang bilang ng records.",
+        "Failed to generate the transmittal. Please try again or reduce the number of records.",
       );
     } finally {
       setGeneratingTransmittal(false);
@@ -890,46 +902,6 @@ function DataTable({
               )}
             </div>
 
-            {/* Mark as Received */}
-            {selectedRows.length > 0 && showMarkAsReceived && (
-              <button
-                onClick={() => {
-                  setConfirmReceiveRow(null);
-                  setConfirmReceive(true);
-                }}
-                disabled={markingReceived}
-                style={smallBtn({
-                  background: markingReceived
-                    ? "rgba(16,185,129,0.4)"
-                    : "linear-gradient(135deg,#10b981,#059669)",
-                  boxShadow: "0 1px 4px rgba(16,185,129,0.3)",
-                  cursor: markingReceived ? "not-allowed" : "pointer",
-                })}
-              >
-                {markingReceived ? (
-                  <>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        width: 8,
-                        height: 8,
-                        border: "1.5px solid rgba(255,255,255,0.4)",
-                        borderTopColor: "#fff",
-                        borderRadius: "50%",
-                        animation: "spin 0.7s linear infinite",
-                      }}
-                    />
-                    Processing…
-                  </>
-                ) : (
-                  <>
-                    <span>✔</span>Mark as Received
-                    <span style={smallBadge}>{selectedRows.length}</span>
-                  </>
-                )}
-              </button>
-            )}
-
             {/* Generate Transmittal */}
             {selectedRows.length > 0 && (
               <button
@@ -1151,11 +1123,11 @@ function DataTable({
                     zIndex: 21,
                     width: "36px",
                     minWidth: "36px",
-                    cursor: "default", // ← no pointer
+                    cursor: "default", // no pointer
                     userSelect: "none",
                   }}
                 >
-                  ★ {/* ← NO SortIcon here */}
+                  ★ {/* no SortIcon here */}
                 </th>
                 <th
                   style={{
@@ -1351,12 +1323,7 @@ function DataTable({
                     onMouseEnter={() => setHoveredRowId(row.id)}
                     onMouseLeave={() => setHoveredRowId(null)}
                     onDoubleClick={() => {
-                      if (activeSubTab === "not_yet") {
-                        setConfirmReceiveRow(row);
-                        setConfirmReceive(true);
-                      } else if (activeSubTab === "received" && !isRecordTab) {
-                        openDetails(row);
-                      }
+                      if (!isRecordTab) openDetails(row);
                     }}
                   >
                     <td
@@ -1427,7 +1394,7 @@ function DataTable({
                           const currentlyStarred = starredIds.has(row.id);
                           const newStarred = !currentlyStarred;
 
-                          // ── Optimistic update — walang onRefresh ──
+                          // ── Optimistic update — no onRefresh ──
                           setStarredIds((prev) => {
                             const next = new Set(prev);
                             if (newStarred) next.add(row.id);
@@ -1437,10 +1404,10 @@ function DataTable({
 
                           try {
                             await toggleStarApplicationLog(row.id, newStarred);
-                            // ── TANGGALIN ang onRefresh dito — nagre-reset kasi ng starredIds ──
+                            // Do NOT call onRefresh here — it would reset starredIds
                           } catch (err) {
                             console.error("Star toggle failed:", err);
-                            // ── Revert lang kung may error ──
+                            // ── Revert only on error ──
                             setStarredIds((prev) => {
                               const next = new Set(prev);
                               if (currentlyStarred) next.add(row.id);
@@ -1670,8 +1637,7 @@ function DataTable({
                                 overflow: "hidden",
                               }}
                             >
-                              {activeSubTab === "received" &&
-                                !isRecordTab &&
+                              {!isRecordTab &&
                                 menuBtn(
                                   () => openDetails(row),
                                   {
@@ -1929,175 +1895,6 @@ function DataTable({
             >
               Cancel
             </button>
-          </div>
-        </div>
-      )}
-      {/* ── Confirm Receive modal ── */}
-      {confirmReceive && (
-        <div
-          onClick={() => setConfirmReceive(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9999,
-            background: "rgba(0,0,0,0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: colors.cardBg,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: 14,
-              padding: "2rem",
-              width: 400,
-              maxWidth: "90%",
-              boxShadow: "0 12px 40px rgba(0,0,0,0.3)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: "2rem",
-                marginBottom: "0.75rem",
-                textAlign: "center",
-              }}
-            >
-              📥
-            </div>
-            <h3
-              style={{
-                margin: "0 0 0.5rem",
-                color: colors.textPrimary,
-                fontSize: "1.05rem",
-                fontWeight: 700,
-                textAlign: "center",
-              }}
-            >
-              Mark as Received?
-            </h3>
-            <p
-              style={{
-                margin: "0 0 1.5rem",
-                color: colors.textSecondary,
-                fontSize: "0.88rem",
-                lineHeight: 1.6,
-                textAlign: "center",
-              }}
-            >
-              You are about to mark{" "}
-              <strong style={{ color: "#10b981" }}>
-                {confirmReceiveRow ? 1 : selectedRows.length}{" "}
-                {(confirmReceiveRow ? 1 : selectedRows.length) === 1
-                  ? "record"
-                  : "records"}
-              </strong>{" "}
-              as received.
-              {confirmReceiveRow?.dtn && (
-                <span
-                  style={{
-                    display: "block",
-                    marginTop: "0.6rem",
-                    padding: "0.4rem 0.85rem",
-                    background: "rgba(8,145,178,0.08)",
-                    border: "1px solid rgba(8,145,178,0.2)",
-                    borderRadius: "8px",
-                    fontSize: "0.82rem",
-                    fontWeight: 700,
-                    color: "#0891b2",
-                    letterSpacing: "0.03em",
-                  }}
-                >
-                  📋 {confirmReceiveRow.dtn}
-                </span>
-              )}
-              {!confirmReceiveRow && selectedRows.length > 0 && (
-                <span
-                  style={{
-                    display: "block",
-                    marginTop: "0.6rem",
-                    padding: "0.4rem 0.85rem",
-                    background: "rgba(8,145,178,0.08)",
-                    border: "1px solid rgba(8,145,178,0.2)",
-                    borderRadius: "8px",
-                    fontSize: "0.75rem",
-                    color: "#0891b2",
-                    textAlign: "left",
-                    maxHeight: "120px",
-                    overflowY: "auto",
-                    lineHeight: 1.8,
-                  }}
-                >
-                  {data
-                    .filter((r) => selectedRows.includes(r.id))
-                    .map((r) => (
-                      <span
-                        key={r.id}
-                        style={{ display: "block", fontWeight: 600 }}
-                      >
-                        📋 {r.dtn}
-                      </span>
-                    ))}
-                </span>
-              )}
-              <span
-                style={{
-                  display: "block",
-                  marginTop: "0.6rem",
-                  fontSize: "0.75rem",
-                  color: colors.textTertiary,
-                }}
-              >
-                This action cannot be undone.
-              </span>
-            </p>
-            <div
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                justifyContent: "center",
-              }}
-            >
-              <button
-                onClick={() => setConfirmReceive(false)}
-                style={{
-                  padding: "0.55rem 1.25rem",
-                  borderRadius: 8,
-                  border: `1px solid ${colors.cardBorder}`,
-                  background: "transparent",
-                  color: colors.textSecondary,
-                  fontSize: "0.85rem",
-                  cursor: "pointer",
-                  fontWeight: 500,
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setConfirmReceive(false);
-                  handleMarkAsReceived(confirmReceiveRow);
-                }}
-                style={{
-                  padding: "0.55rem 1.5rem",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "linear-gradient(135deg,#10b981,#059669)",
-                  color: "#fff",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  boxShadow: "0 2px 10px rgba(16,185,129,0.35)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                }}
-              >
-                <span>✔</span> Yes, Mark as Received
-              </button>
-            </div>
           </div>
         </div>
       )}

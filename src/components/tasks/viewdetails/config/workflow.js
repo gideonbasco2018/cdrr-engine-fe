@@ -42,7 +42,10 @@ export const WORKFLOW = {
     "Endorsed to OD-Receiving": "OD-Receiving",
   },
   "OD-Receiving": {
-    "Endorsed to OD-Releasing": "OD-Releasing",
+    "Endorsed to CDRR Director for signature": "CDRR-OD Signature Facilitator",
+  },
+  "CDRR-OD Signature Facilitator": {
+    "Endorsed to OD-Releasing": "OD-Releasing",   
   },
    "OD-Releasing": {
     "Scanned and Endorsed to Releasing Officer": "Releasing Officer",
@@ -103,6 +106,7 @@ export const STEP_GROUP_MAP = {
   "PRSDD QA Admin": 27,
   "PRSDD Chief Admin":28,
   "PRSDD Compliance": 4,
+  "CDRR-OD Signature Facilitator": 40,
 };
 
 export const STEP_DECISIONS = {
@@ -136,7 +140,8 @@ export const STEP_DECISIONS = {
     "Returned to Evaluator",
   ],
   "LRD Chief Admin": ["Endorsed to OD-Receiving"],
-  "OD-Receiving": ["Endorsed to OD-Releasing"],
+  "OD-Receiving": ["Endorsed to CDRR Director for signature"],
+  "CDRR-OD Signature Facilitator": ["Endorsed to OD-Releasing"],  
   "OD-Releasing": ["Scanned and Endorsed to Releasing Officer"],
   "Releasing Officer": ["Released"],
   "LRD Decking": ["For Decking"], 
@@ -174,7 +179,8 @@ export const DECISION_DOCTRACK = {
   "Endorsed to LRD Chief Admin": "Checked and Forwarded to LRD Admin",
   "Returned to Evaluator": "Return to Evaluator for Clarification",
   "Endorsed to OD-Receiving": "Signed by LRD Chief and forwarded to CDRR Director for signing",
-  "Endorsed to OD-Releasing": "Received by CDRR-OD",
+  "Endorsed to CDRR Director for signature": "Received by CDRR-OD",
+  "Endorsed to OD-Releasing": "Signed by CDRR Director, forwarded to OD-Releasing",
   "Scanned and Endorsed to Releasing Officer": "", // dynamic — date injected at runtime
   "Released": "Scanned and stamp, Forwarded to AFO Records",
   "Draft Recommendation": "Forwarded draft recommendation to checker for cross-evaluation",  

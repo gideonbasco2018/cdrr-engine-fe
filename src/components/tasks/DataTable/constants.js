@@ -5,6 +5,10 @@
 export const LRD_AUTHORITY_GROUP_ID = 6;
 export const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 
+// Steps where the previous step can assign several users at once.
+// When one assignee completes the step, the sibling logs are auto-closed.
+export const MULTI_ASSIGNEE_STEPS = ["CDRR-OD Signature Facilitator"];
+
 export const DECISION_RESULT_OPTIONS = {
   "LRD Chief Admin": ["Signed"],
   "OD-Releasing": ["For issuance of CPR", "For issuance of LOD", "For issuance of Certificate",
@@ -66,7 +70,10 @@ export const DECISION_DOCTRACK_MAP = {
     "Signed by LRD Chief and forwarded to CDRR Director for signing",
 
   // OD-Receiving
-   "Endorsed to OD-Releasing": "Received by CDRR-OD",
+  "Endorsed to CDRR Director for signature": "Received by CDRR-OD",
+
+  // CDRR-OD Signature Facilitator
+  "Endorsed to OD-Releasing": "Signed by CDRR Director, forwarded to OD-Releasing",
 
   // OD-Releasing — built dynamically from signed date (see BulkDeckModal)
   "Stamped and Scanned, forwarded to AFO Records": "",
@@ -134,13 +141,14 @@ export const BULK_DECK_CONFIG = {
   },
   "OD-Receiving": {
     currentStep: "OD-Receiving",
-    nextStep: "OD-Releasing",
-    nextGroupId: 19,
+    nextStep: "CDRR-OD Signature Facilitator",
+    nextGroupId: 40,
+    allowMultipleAssignees: true,
     fromLabel: "OD-Receiving",
     buttonLabel: "Endorse Selected Applications",
-    modalTitle: "Endorse Selected Applications to OD-Releasing",
-    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to OD-Releasing"],
-    availableDecisions: ["Endorsed to OD-Releasing", "Returned to Evaluator", ],
+    modalTitle: "Endorse Selected Applications to CDRR-OD Signature Facilitator",
+    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to CDRR Director for signature"],
+    availableDecisions: ["Endorsed to CDRR Director for signature", "Returned to Evaluator", ],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
   "OD-Releasing": {
@@ -188,6 +196,17 @@ export const BULK_DECK_CONFIG = {
     modalTitle: "Endorse Selected Applications to PRSDD Quality Evaluation", 
     defaultDoctrack: "Forwarded to Quality Evaluation",
     availableDecisions: ["For PRSDD Quality Evaluation"],
+    decisionDoctrackMap: DECISION_DOCTRACK_MAP,
+  },
+  "CDRR-OD Signature Facilitator": {
+    currentStep: "CDRR-OD Signature Facilitator",
+    nextStep: "OD-Releasing",
+    nextGroupId: 19,
+    fromLabel: "CDRR-OD Signature Facilitator",
+    buttonLabel: "Endorse Selected Applications",
+    modalTitle: "Endorse Selected Applications to OD-Releasing",
+    defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to OD-Releasing"],
+    availableDecisions: ["Endorsed to OD-Releasing"],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
 
