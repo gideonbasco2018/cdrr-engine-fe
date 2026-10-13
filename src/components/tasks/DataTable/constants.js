@@ -142,7 +142,7 @@ export const BULK_DECK_CONFIG = {
   "OD-Receiving": {
     currentStep: "OD-Receiving",
     nextStep: "CDRR-OD Signature Facilitator",
-    nextGroupId: 38,
+    nextGroupId: 40,
     allowMultipleAssignees: true,
     fromLabel: "OD-Receiving",
     buttonLabel: "Endorse Selected Applications",
