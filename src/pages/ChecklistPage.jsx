@@ -808,20 +808,25 @@ function ChecklistPage({ darkMode }) {
     doc.text(`Generated: ${generatedAt}`, left, 40);
     doc.text(`Total DTNs: ${active.items.length}`, left, 46);
 
-    // Batch label — big and boxed in the top-right, shrunk to fit if long.
+    // Batch label — big, boxed, top-right, always on ONE line, box at most
+    // half the page wide. A long label keeps its height: the letters are
+    // squeezed narrower (down to 65%, like a condensed font) before the font
+    // size is lowered at all.
     if (active.label) {
       const boxRight = pageW - left;
-      const maxW = 80;
+      const maxTextW = pageW / 2 - 6; // box max = half the page (6 mm padding)
+      const MIN_SQUEEZE = 0.65;
       doc.setFont("helvetica", "bold");
       let size = 34;
       doc.setFontSize(size);
-      while (doc.getTextWidth(active.label) > maxW - 8 && size > 12) {
-        size -= 1;
-        doc.setFontSize(size);
-      }
-      const textW = doc.getTextWidth(active.label);
-      const boxW = textW + 8;
-      const boxH = size * 0.3528 + 8; // pt -> mm, plus padding
+      while (doc.getTextWidth(active.label) * MIN_SQUEEZE > maxTextW && size > 10) doc.setFontSize(--size);
+      const naturalW = doc.getTextWidth(active.label);
+      const squeeze = Math.min(1, maxTextW / naturalW);
+      const lines = [active.label];
+      const lineMm = size * 0.3528; // pt -> mm
+      const textW = naturalW * squeeze;
+      const boxW = textW + 6;
+      const boxH = lineMm * 1.15 + 6;
       const boxY = 37 - boxH / 2;
       doc.setLineWidth(0.8);
       doc.setDrawColor(21, 128, 61); // green border, same as the text
@@ -829,7 +834,12 @@ function ChecklistPage({ darkMode }) {
       doc.setDrawColor(0, 0, 0); // back to black for the table lines
       doc.setLineWidth(0.2);
       doc.setTextColor(21, 128, 61); // green
-      doc.text(active.label, boxRight - boxW / 2, boxY + boxH / 2, { align: "center", baseline: "middle" });
+      // Left-aligned at the computed spot (centring math doesn't account for
+      // the squeeze); the box is sized to the squeezed width, so it's centred.
+      doc.text(lines, boxRight - boxW + 3, boxY + boxH / 2, {
+        baseline: "middle",
+        ...(squeeze < 1 ? { horizontalScale: squeeze } : {}),
+      });
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
