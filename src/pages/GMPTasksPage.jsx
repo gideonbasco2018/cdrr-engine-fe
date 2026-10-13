@@ -13,6 +13,7 @@ import AppLogModal from "../components/gmp/tasks/AppLogModal";
 import FieldAuditModal from "../components/gmp/tasks/FieldAuditModal";
 import WorkflowModal from "../components/gmp/tasks/WorkflowModal";
 import GMPBulkEndorseModal, { GMP_BULK_ENDORSE_CONFIG } from "../components/gmp/tasks/GMPBulkEndorseModal";
+import GMPBulkDeckModal from "../components/gmp/queue/GMPBulkDeckModal";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
 import GMPDocumentsModal from "../components/gmp/queue/GMPDocumentsModal";
 import { QuickFilterSidebar } from "../components/gmp/queue/QueueFilters";
@@ -422,6 +423,8 @@ export default function GMPTasksPage({ darkMode = false }) {
   const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
   const [generatingTransmittal, setGeneratingTransmittal] = useState(false);
   const [showBulkEndorse, setShowBulkEndorse] = useState(false);
+  // Bulk re-deck — Decking tab only (applications sent back to Decking, e.g. by a reroute).
+  const [showBulkDeck, setShowBulkDeck] = useState(false);
 
   // Modals
   const [logRecord,      setLogRecord]      = useState(null);
@@ -981,6 +984,19 @@ export default function GMPTasksPage({ darkMode = false }) {
                     {GMP_BULK_ENDORSE_CONFIG[activeTab].buttonLabel}
                   </button>
                 )}
+                {activeTab === "Decking" && (
+                  <button
+                    onClick={() => setShowBulkDeck(true)}
+                    style={{
+                      padding: "6px 14px", fontSize: "0.72rem", fontWeight: 700,
+                      fontFamily: FONT, borderRadius: 8, cursor: "pointer", border: "none",
+                      background: "linear-gradient(135deg,#6366f1,#4f46e5)",
+                      color: "#fff", display: "flex", alignItems: "center", gap: 6,
+                      boxShadow: "0 2px 8px rgba(99,102,241,0.35)",
+                    }}>
+                    📋 Bulk Deck to Evaluator
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -1300,6 +1316,23 @@ export default function GMPTasksPage({ darkMode = false }) {
           records={sortedData.filter((r) => selectedRows.includes(r.id))}
           onClose={() => setShowBulkEndorse(false)}
           onSuccess={async () => {
+            setSelectedRows([]);
+            await fetchAllSteps();
+            await fetchTasks();
+          }}
+          colors={colors} darkMode={darkMode}
+        />
+      )}
+
+      {showBulkDeck && activeTab === "Decking" && (
+        <GMPBulkDeckModal
+          // The modal works on GMP records; a task row's own `id` is its log id.
+          records={sortedData
+            .filter((r) => selectedRows.includes(r.id))
+            .map((r) => ({ ...r, id: r.gmp_record_id }))}
+          onClose={() => setShowBulkDeck(false)}
+          onSuccess={async () => {
+            setShowBulkDeck(false);
             setSelectedRows([]);
             await fetchAllSteps();
             await fetchTasks();
