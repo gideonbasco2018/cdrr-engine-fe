@@ -28,6 +28,7 @@ import {
 } from "./TransmittalGenerator";
 import {
   BULK_DECK_CONFIG,
+  MULTI_ASSIGNEE_STEPS,
   RECORD_TAB_COLUMNS,
   getDeadlineUrgency,
   URGENCY_CONFIG,
@@ -247,6 +248,29 @@ function DataTable({
     const resolveUserId = (username) =>
       usersForNextGroup.find((u) => u.username === username)?.id ?? null;
 
+    // Close the other IN PROGRESS logs of the same step once one is completed
+    const closeSiblingLogs = async (mainDbId, completedLogId, closedAt) => {
+      if (!MULTI_ASSIGNEE_STEPS.includes(bulkDeckConfig.currentStep)) return;
+      const logs = await getApplicationLogs(mainDbId);
+      const siblings = (Array.isArray(logs) ? logs : []).filter(
+        (l) =>
+          l.application_step === bulkDeckConfig.currentStep &&
+          l.application_status === "IN PROGRESS" &&
+          l.id !== completedLogId,
+      );
+      for (const s of siblings) {
+        await updateApplicationLog(s.id, {
+          application_status: "COMPLETED",
+          application_decision: "Completed by another assignee",
+          application_remarks:
+            "Auto-closed: another assignee completed this task first.",
+          accomplished_date: closedAt,
+          del_last_index: 0,
+          del_thread: "Close",
+        });
+      }
+    };
+
     let success = 0,
       failed = 0;
     const now = new Date();
@@ -431,20 +455,33 @@ function DataTable({
             "| user_id:",
             resolvedAssigneeId,
           );
-          await createApplicationLog({
-            main_db_id: mainDbId,
-            application_step: perRowNextStep,
-            user_name: resolvedAssignee,
-            user_id: resolvedAssigneeId,
-            application_status: "IN PROGRESS",
-            application_decision: "",
-            start_date: formattedDateTime,
-            accomplished_date: null,
-            del_index: nextIndex,
-            del_previous: lastIndex,
-            del_last_index: 1,
-            del_thread: "Open",
-          });
+          const assigneeList = isReturnDecision
+            ? [resolvedAssignee]
+            : Array.isArray(assigneeUsername)
+              ? assigneeUsername
+              : [assigneeUsername];
+
+          for (let i = 0; i < assigneeList.length; i++) {
+            const uname = assigneeList[i];
+            await createApplicationLog({
+              main_db_id: mainDbId,
+              application_step: perRowNextStep,
+              user_name: uname,
+              user_id: isReturnDecision
+                ? resolvedAssigneeId
+                : resolveUserId(uname),
+              application_status: "IN PROGRESS",
+              application_decision: "",
+              start_date: formattedDateTime,
+              accomplished_date: null,
+              del_index: nextIndex + i,
+              del_previous: lastIndex,
+              del_last_index: 1,
+              del_thread: "Open",
+            });
+          }
+
+          await closeSiblingLogs(mainDbId, logId, formattedDateTime);
         }
         success++;
       } catch (e) {

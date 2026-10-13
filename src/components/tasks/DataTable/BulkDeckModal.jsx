@@ -61,10 +61,6 @@ const ACTION_CONFIG = {
     options: ["Signed and forwarded to OD-Receiving"],
     warning: "Action is required when endorsing to OD-Receiving.",
   },
-  "OD-Receiving_Endorsed to OD-Releasing": {
-    options: ["For signature"],
-    warning: "Action is required when endorsing to OD-Releasing.",
-  },
   "OD-Releasing_Stamped and Scanned, forwarded to AFO Records": {
     options: ["Stamped and Scanned, forwarded to AFO Records"],
     warning: "Action is required.",
@@ -80,6 +76,14 @@ const ACTION_CONFIG = {
   "OD-Releasing_Signed and Scanned, forwarded to AFO Records": {
     options: ["Signed and Scanned, forwarded to AFO Records"],
     warning: "Action is required.",
+  },
+  "OD-Receiving_Endorsed to CDRR Director for signature": {
+    options: ["For signature"],
+    warning: "Action is required when endorsing to CDRR Director.",
+  },
+  "CDRR-OD Signature Facilitator_Endorsed to OD-Releasing": {
+    options: ["Signed"],
+    warning: "Action is required when endorsing to OD-Releasing.",
   },
 };
 
@@ -179,6 +183,7 @@ export function BulkDeckModal({
   onDone,
 }) {
   const [assignee, setAssignee] = useState("");
+  const [assignees, setAssignees] = useState([]);
   const [users, setUsers] = useState([]);
   const [loadingUsers, setLoadingUsers] = useState(!config.isEndTask);
   const [submitting, setSubmitting] = useState(false);
@@ -298,6 +303,7 @@ export function BulkDeckModal({
   }, [needsAuthority]);
 
   const needsAssignee = !config.isEndTask && !isReturnDecision;
+  const allowMulti = !!config.allowMultipleAssignees;
 
   // ── Which selected records are eligible for VerifiPortal (CPR) posting ──
   // This is now purely per-record: whatever "Type Doc Released" was already
@@ -322,7 +328,10 @@ export function BulkDeckModal({
     !decision ||
     (actionConfig && !action) ||
     (needsAuthority && (!decisionResult || !decisionAuthorityId)) ||
-    (needsAssignee && (loadingUsers || users.length === 0 || !assignee));
+    (needsAssignee &&
+      (loadingUsers ||
+        users.length === 0 ||
+        (allowMulti ? assignees.length === 0 : !assignee)));
 
   const handleConfirm = async () => {
     if (submittingRef.current) return;
@@ -400,18 +409,21 @@ export function BulkDeckModal({
           ? "PRSDD Quality Evaluation"
           : "Quality Evaluation";
 
-        res = await onConfirm(isReturnDecision ? null : assignee, {
-          decision,
-          action,
-          remarks,
-          doctrackRemarks,
-          decisionResult,
-          decisionAuthorityId,
-          decisionAuthorityName,
-          signedDate,
-          docTypeReleased,
-          returnTargetStep, // ← dagdag
-        });
+        res = await onConfirm(
+          isReturnDecision ? null : allowMulti ? assignees : assignee,
+          {
+            decision,
+            action,
+            remarks,
+            doctrackRemarks,
+            decisionResult,
+            decisionAuthorityId,
+            decisionAuthorityName,
+            signedDate,
+            docTypeReleased,
+            returnTargetStep,
+          },
+        );
       } catch (confirmErr) {
         console.error("❌ onConfirm failed:", confirmErr.message);
         alert(`❌ Failed to process records: ${confirmErr.message}`);
@@ -589,8 +601,10 @@ export function BulkDeckModal({
               }}
             >
               Assigned to:{" "}
-              <strong style={{ color: "#2196F3" }}>{assignee}</strong> (
-              {config.nextStep})
+              <strong style={{ color: "#2196F3" }}>
+                {allowMulti ? assignees.join(", ") : assignee}
+              </strong>{" "}
+              ({config.nextStep})
             </p>
           )}
           {isReturnDecision && (
@@ -1361,6 +1375,63 @@ export function BulkDeckModal({
                     ⚠️ No {config.nextStep} users found. Please contact your
                     administrator.
                   </div>
+                ) : allowMulti ? (
+                  <>
+                    <div
+                      style={{
+                        maxHeight: 160,
+                        overflowY: "auto",
+                        border: `1.5px solid ${
+                          assignees.length > 0 ? "#2196F3" : colors.cardBorder
+                        }`,
+                        borderRadius: 8,
+                        background: colors.inputBg,
+                      }}
+                    >
+                      {users.map((u) => {
+                        const checked = assignees.includes(u.username);
+                        return (
+                          <label
+                            key={u.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.6rem",
+                              padding: "0.5rem 0.85rem",
+                              cursor: "pointer",
+                              fontSize: "0.82rem",
+                              color: colors.textPrimary,
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setAssignees((prev) =>
+                                  checked
+                                    ? prev.filter((n) => n !== u.username)
+                                    : [...prev, u.username],
+                                )
+                              }
+                              style={{ accentColor: "#2196F3" }}
+                            />
+                            {u.username} — {u.first_name} {u.surname}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p
+                      style={{
+                        fontSize: "0.68rem",
+                        color: colors.textTertiary,
+                        marginTop: "0.3rem",
+                        marginBottom: 0,
+                      }}
+                    >
+                      Select one or more users. Whoever completes the task first
+                      will automatically close the other users' logs.
+                    </p>
+                  </>
                 ) : (
                   <select
                     value={assignee}
