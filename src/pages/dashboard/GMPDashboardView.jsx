@@ -31,7 +31,9 @@ import RecentApplicationsCard from "../../components/dashboard/RecentApplication
 import RecentApplicationsModal from "../../components/dashboard/RecentApplicationsModal";
 import GMPMetricDetailModal from "../../components/dashboard/GMPMetricDetailModal";
 import GMPRecordDetailModal from "../../components/dashboard/GMPRecordDetailModal";
-import GMPPostEvalStatusCard from "../../components/dashboard/GMPPostEvalStatusCard";
+import GMPPostEvalStatusCard, {
+  POST_EVAL_CARD_ROWS,
+} from "../../components/dashboard/GMPPostEvalStatusCard";
 import GMPPostEvalStatusModal from "../../components/dashboard/GMPPostEvalStatusModal";
 import SystemStatusCard from "../../components/dashboard/SystemStatusCard";
 
@@ -148,7 +150,7 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
     try {
       const [summary, rows] = await Promise.all([
         getGMPPostEvalStatusSummary(),
-        getGMPPostEvalStatusRows({ page_size: 4 }),
+        getGMPPostEvalStatusRows({ page_size: POST_EVAL_CARD_ROWS }),
       ]);
       setPostEvalBreakdown(summary.breakdown);
       setPostEvalRows(rows.data);

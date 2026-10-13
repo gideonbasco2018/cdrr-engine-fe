@@ -14,6 +14,21 @@ export async function getGMPRecords(params = {}) {
   return res.data;
 }
 
+// Grants the current user Google Docs access to an FGMP WORKSHEET .docx
+// (uploader = editor, people handling the application = commenter).
+// Returns { role, drive_role, email, edit_url }.
+export async function openGMPWorksheet(documentId) {
+  const res = await API.post(`/gmp/worksheets/${documentId}/open`);
+  return res.data;
+}
+
+// Open comments per FGMP WORKSHEET .docx for a DTN.
+// Returns { files: { [documentId]: { comments, replies } | null }, total_comments, total_replies }.
+export async function getGMPWorksheetCommentCounts(dtn) {
+  const res = await API.get("/gmp/worksheets/comment-counts", { params: { dtn } });
+  return res.data;
+}
+
 // Distinct GMP_EVALUATOR values — populates the Application Monitoring
 // table's evaluator filter dropdown.
 export async function getGMPEvaluatorOptions() {
