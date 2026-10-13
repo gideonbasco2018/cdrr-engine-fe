@@ -53,6 +53,9 @@ const PRSDD_AUTHORITY_GROUP_ID = 29;
 /* Group ID for Decision Authority options (OD-Releasing / Director) */
 const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 
+/* Next steps that can be assigned to several users at once (either-one completes) */
+const MULTI_ASSIGNEE_STEPS = ["CDRR-OD Signature Facilitator"];
+
 /* decisions that need an extra "Action" dropdown */
 const ACTION_CONFIG = {
   "Quality Evaluation_Endorsed to Checker": {
@@ -99,13 +102,13 @@ const ACTION_CONFIG = {
     options: ["Return to Evaluator for Clarification"],
     warning: "Action is required when returning to evaluator.",
   },
-  "OD-Receiving_Endorsed to OD-Releasing": {
+  "OD-Receiving_Endorsed to CDRR Director for signature": {
     options: ["For signature"],
-    warning: "Action is required when endorsing to OD-Releasing.",
+    warning: "Action is required when endorsing to CDRR Director.",
   },
-  "OD-Releasing_Scanned and Endorsed to Releasing Officer": {
+  "CDRR-OD Signature Facilitator_Endorsed to OD-Releasing": {
     options: ["Signed"],
-    warning: "Action is required when endorsing to Releasing Officer.",
+    warning: "Action is required when endorsing to OD-Releasing.",
   },
   "Releasing Officer_Released": {
     options: ["Release to record"],
@@ -309,6 +312,7 @@ export function Step4ActionForm({
   const [canReturnToSE, setCanReturnToSE] = useState(false);
   const [loadingSeCheck, setLoadingSeCheck] = useState(false);
   const [nextStepActive, setNextStepActive] = useState(false);
+  const [assignees, setAssignees] = useState([]);
 
   // ── QA "For Approval" approval fields ──
   const [approvalFields, setApprovalFields] = useState(() => {
@@ -352,6 +356,10 @@ export function Step4ActionForm({
   const isParallelSE = formData.decision === "Endorsed to S&E (Parallel)";
   const needsAssignee =
     nextStep !== null && !isForCompliance && !nextStepActive;
+  const isMultiAssignee = MULTI_ASSIGNEE_STEPS.includes(nextStep);
+  const hasAssignee = isMultiAssignee
+    ? assignees.length > 0
+    : !!formData.assignee;
   const isLRDChiefAdmin = currentStep === "LRD Chief Admin";
   const isPRSDDChiefAdmin = currentStep === "PRSDD Chief Admin";
   const isODReleasing = currentStep === "OD-Releasing";
@@ -619,6 +627,7 @@ export function Step4ActionForm({
       if (f === "decision") {
         updated.action = "";
         updated.assignee = "";
+        setAssignees([]);
         updated.decisionResult = "";
         updated.decisionAuthorityId = null;
         updated.decisionAuthorityName = "";
@@ -655,7 +664,7 @@ export function Step4ActionForm({
       !formData.decisionAuthorityId) ||
     (needsAssignee &&
       !isReturnToEvaluator &&
-      (loadingUsers || assigneeOptions.length === 0 || !formData.assignee)) ||
+      (loadingUsers || assigneeOptions.length === 0 || !hasAssignee)) ||
     (needsAssignee && isReturnToEvaluator && !formData.assignee) ||
     (isQEApprovalRequired &&
       [...effectiveRequiredFields].some(
@@ -670,7 +679,9 @@ export function Step4ActionForm({
         : nextStepActive
           ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
           : nextStep
-            ? `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
+            ? isMultiAssignee
+              ? `Your log will be completed and a new "${nextStep}" log will be created for each selected user. The first one to complete it will automatically close the others.`
+              : `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
             : "Your log will be completed. This is the final step — no further assignment needed.";
 
   console.log("🔍 entryType received:", entryType);
@@ -705,7 +716,7 @@ export function Step4ActionForm({
       alert("⚠️ Please select an Action.");
       return;
     }
-    if (needsAssignee && !formData.assignee) {
+    if (needsAssignee && !hasAssignee) {
       alert("⚠️ Please assign a next user.");
       return;
     }
@@ -848,6 +859,28 @@ export function Step4ActionForm({
         }
       }
 
+      // Auto-close sibling logs when one of several assignees completes the step
+      if (MULTI_ASSIGNEE_STEPS.includes(currentStep)) {
+        const stepLogs = await getApplicationLogs(record.mainDbId);
+        const siblings = (Array.isArray(stepLogs) ? stepLogs : []).filter(
+          (l) =>
+            l.application_step === currentStep &&
+            l.application_status === "IN PROGRESS" &&
+            l.id !== record.id,
+        );
+        for (const s of siblings) {
+          await updateApplicationLog(s.id, {
+            application_status: "COMPLETED",
+            application_decision: "Completed by another assignee",
+            application_remarks:
+              "Auto-closed: another assignee completed this task first.",
+            accomplished_date: formattedDateTime,
+            del_last_index: 0,
+            del_thread: "Close",
+          });
+        }
+      }
+
       const effectiveNextStep =
         nextStep ?? (isForCompliance ? "Compliance" : null);
 
@@ -876,24 +909,34 @@ export function Step4ActionForm({
         );
 
         if (!nextStepAlreadyActive) {
-          await createApplicationLog({
-            main_db_id: record.mainDbId,
-            application_step: effectiveNextStep,
-            user_name: assignedUser,
-            application_status: "IN PROGRESS",
-            application_decision: "",
-            application_remarks: "",
-            start_date: formattedDateTime,
-            accomplished_date: null,
-            del_index: nextIndex,
-            del_previous: indexData.last_index,
-            del_last_index: 1,
-            del_thread: "Open",
-            user_id: assignedUserId,
-            ...(isForCompliance
-              ? { deadline_date: deadlineDate, working_days: workingDays }
-              : {}),
-          });
+          const targets =
+            isMultiAssignee && !isForCompliance && !isReturnToEvaluator
+              ? assignees.map((uname) => ({
+                  name: uname,
+                  id: resolveAssigneeId(uname),
+                }))
+              : [{ name: assignedUser, id: assignedUserId }];
+
+          for (let i = 0; i < targets.length; i++) {
+            await createApplicationLog({
+              main_db_id: record.mainDbId,
+              application_step: effectiveNextStep,
+              user_name: targets[i].name,
+              application_status: "IN PROGRESS",
+              application_decision: "",
+              application_remarks: "",
+              start_date: formattedDateTime,
+              accomplished_date: null,
+              del_index: nextIndex + i,
+              del_previous: indexData.last_index,
+              del_last_index: 1,
+              del_thread: "Open",
+              user_id: targets[i].id,
+              ...(isForCompliance
+                ? { deadline_date: deadlineDate, working_days: workingDays }
+                : {}),
+            });
+          }
         }
       }
 
@@ -1806,6 +1849,66 @@ export function Step4ActionForm({
                 }}
               />
               Loading users...
+            </div>
+          ) : isMultiAssignee ? (
+            <div>
+              <div
+                style={{
+                  maxHeight: 160,
+                  overflowY: "auto",
+                  border: `1px solid ${
+                    assignees.length > 0 ? "#2196F3" : colors.inputBorder
+                  }`,
+                  borderRadius: "7px",
+                  background: colors.inputBg,
+                }}
+              >
+                {assigneeOptions.map((u) => {
+                  const checked = assignees.includes(u.username);
+                  return (
+                    <label
+                      key={u.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        padding: "0.45rem 0.75rem",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setAssignees((prev) =>
+                            checked
+                              ? prev.filter((n) => n !== u.username)
+                              : [...prev, u.username],
+                          )
+                        }
+                        style={{ accentColor: "#2196F3" }}
+                      />
+                      {u.username}
+                      {u.first_name
+                        ? ` — ${u.first_name} ${u.surname ?? ""}`
+                        : ""}
+                    </label>
+                  );
+                })}
+              </div>
+              <p
+                style={{
+                  fontSize: "0.68rem",
+                  color: colors.textTertiary,
+                  marginTop: "0.3rem",
+                  marginBottom: 0,
+                }}
+              >
+                Select one or more users. Whoever completes the task first will
+                automatically close the other users' logs.
+              </p>
             </div>
           ) : (
             <AssigneeSearchDropdown
