@@ -3,18 +3,25 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
 import { getUser } from "../api/auth";
 import { getWorkflowTasks } from "../api/workflow-tasks";
+import {
+  getAppointmentRecords,
+  mapAppointmentRecord,
+  claimAppointmentRecords,
+  getMyAppointmentTasks,
+  mapMyTask,
+} from "../api/appointmentRecords.js";
 import { mapEAppTask } from "../components/eapplication/workflowTaskMapper.js";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
 
 /* ──────────────────────────────────────────────────────────
-   Two-level task page, fully driven by e_app_history:
-   - Top level  = department (Payment Posting, Quality Evaluation).
-                  Shown only if the user is in the department's group
-                  AND has at least one open task in it.
-   - Sub-tabs   = one tab per application_step of the user's open tasks.
-
-   Open tasks = rows of the logged-in user with
-   del_last_index = 1 and del_thread = "Open".
+   Two-level task page:
+   - Top level = department the user has access to (by group).
+   - Payment Posting ("pool" department, Cashier group):
+       Unclaimed Task -> Task -> Processed Task
+   - Quality Evaluation ("steps" department, QE group):
+       one sub-tab per application_step of the user's open
+       e_app_history tasks (del_last_index = 1, del_thread = "Open").
+       Hidden when the user has no open task in it.
    ────────────────────────────────────────────────────────── */
 
 /* Group ids from cdrr_engine.groups */
@@ -23,24 +30,29 @@ const GROUP_IDS = {
   QUALITY_EVALUATION: 3,
 };
 
-/* ADAPT: replace the step names with the real application_step values.
-   A task belongs to the department whose `steps` list contains its application_step.
-   Steps that are not listed here are ignored by this page (see the console hint below). */
+/* ADAPT: for "steps" departments, list the real application_step values. */
 const DEPARTMENTS = [
   {
     key: "payment_posting",
     title: "Payment Posting",
     icon: "💵",
     groupId: GROUP_IDS.CASHIER,
-    steps: ["Payment Posting"],
+    kind: "pool",
   },
   {
     key: "quality_evaluation",
     title: "Quality Evaluation",
     icon: "🧪",
     groupId: GROUP_IDS.QUALITY_EVALUATION,
+    kind: "steps",
     steps: ["QE Review"],
   },
+];
+
+const POOL_TABS = [
+  { id: "unclaimed", label: "Unclaimed Task", icon: "📥" },
+  { id: "claimed", label: "Task", icon: "⏳" },
+  { id: "processed", label: "Processed Task", icon: "✅" },
 ];
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
@@ -56,8 +68,7 @@ const getUserGroupIds = (user) => {
 const getUserName = (user) =>
   user?.name ??
   user?.full_name ??
-  [user?.first_name, user?.last_name].filter(Boolean).join(" ") ??
-  "";
+  [user?.first_name, user?.last_name].filter(Boolean).join(" ");
 
 /* ── Badges ── */
 function PriorityBadge({ priority }) {
@@ -114,6 +125,152 @@ function RefNoBadge({ refNo }) {
   );
 }
 
+function RemarksBadge({ remarks }) {
+  if (!remarks) return <span style={{ opacity: 0.5 }}>—</span>;
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "flex-start",
+        gap: "0.35rem",
+        padding: "0.3rem 0.6rem",
+        background: "rgba(245,158,11,0.12)",
+        border: "1px solid rgba(245,158,11,0.35)",
+        color: "#d97706",
+        borderRadius: "6px",
+        fontSize: "0.6rem",
+        fontWeight: 600,
+        lineHeight: 1.4,
+        whiteSpace: "normal",
+        maxWidth: "280px",
+      }}
+    >
+      <span>⚠️</span>
+      <span>{remarks}</span>
+    </span>
+  );
+}
+
+/* ── Claim confirmation modal (single or bulk) ── */
+function ClaimConfirmModal({ rows, colors, busy, onConfirm, onCancel }) {
+  if (!rows || rows.length === 0) return null;
+  const isBulk = rows.length > 1;
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "12px",
+          padding: "1.25rem",
+          width: "380px",
+          maxWidth: "90vw",
+          boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 0.6rem",
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            color: colors.textPrimary,
+          }}
+        >
+          ✋ {isBulk ? `Claim ${rows.length} tasks?` : "Claim this task?"}
+        </h3>
+        <p
+          style={{
+            margin: "0 0 0.6rem",
+            fontSize: "0.75rem",
+            color: colors.textTertiary,
+            lineHeight: 1.5,
+          }}
+        >
+          Once claimed, {isBulk ? "they" : "it"} will move to your{" "}
+          <strong>Task</strong> tab and other users will no longer be able to
+          pick {isBulk ? "them" : "it"} up.
+        </p>
+        <div
+          style={{
+            maxHeight: "140px",
+            overflowY: "auto",
+            border: `1px solid ${colors.cardBorder}`,
+            borderRadius: "8px",
+            padding: "0.5rem 0.65rem",
+            marginBottom: "0.9rem",
+          }}
+        >
+          {rows.map((r) => (
+            <div
+              key={r.id}
+              style={{
+                fontSize: "0.68rem",
+                color: colors.textPrimary,
+                padding: "0.2rem 0",
+              }}
+            >
+              <strong>{r.referenceNo}</strong> — {r.applicantCompany}
+            </div>
+          ))}
+        </div>
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
+        >
+          <button
+            onClick={onCancel}
+            disabled={busy}
+            style={{
+              padding: "0.45rem 0.9rem",
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              borderRadius: "6px",
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textPrimary,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={busy}
+            style={{
+              padding: "0.45rem 0.9rem",
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              borderRadius: "6px",
+              border: "none",
+              background: "linear-gradient(135deg,#4CAF50,#43A047)",
+              color: "#fff",
+              cursor: busy ? "not-allowed" : "pointer",
+              opacity: busy ? 0.7 : 1,
+            }}
+          >
+            {busy
+              ? "Claiming..."
+              : isBulk
+                ? `✔ Yes, Claim ${rows.length} Tasks`
+                : "✔ Yes, Claim Task"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Page ── */
 function EApplicationTasksPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
@@ -124,13 +281,23 @@ function EApplicationTasksPage({ darkMode }) {
     [currentUser],
   );
   const userName = getUserName(currentUser);
+  const canSeePayments = userGroupIds.includes(GROUP_IDS.CASHIER);
+  const canSeeQE = userGroupIds.includes(GROUP_IDS.QUALITY_EVALUATION);
 
-  const [tasks, setTasks] = useState([]);
+  // TEMPORARY: debug only, remove after the page works
+  console.log("current user", currentUser, "group ids", userGroupIds);
+
+  const [payment, setPayment] = useState({
+    unclaimed: [],
+    claimed: [],
+    processed: [],
+  });
+  const [workflowTasks, setWorkflowTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
 
   const [activeDepartment, setActiveDepartment] = useState(null);
-  const [activeStep, setActiveStep] = useState(null);
+  const [activeTab, setActiveTab] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
@@ -138,106 +305,122 @@ function EApplicationTasksPage({ darkMode }) {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
   const [detailsTarget, setDetailsTarget] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [claimRows, setClaimRows] = useState(null);
+  const [claiming, setClaiming] = useState(false);
 
-  /* Open tasks of the logged-in user from e_app_history */
-  const loadTasks = useCallback(async () => {
-    if (!currentUser?.id) {
-      setLoading(false);
-      return;
-    }
+  /* Payment Posting: unclaimed pool + my open tasks + my processed tasks */
+  const loadPayments = useCallback(async () => {
+    const [pool, open, processed] = await Promise.all([
+      getAppointmentRecords({
+        status: "Accepted",
+        unclaimed_only: true,
+        page_size: 100,
+      }),
+      getMyAppointmentTasks("open"),
+      getMyAppointmentTasks("processed"),
+    ]);
+    const base = { department: "payment_posting" };
+    setPayment({
+      unclaimed: pool.items
+        .map(mapAppointmentRecord)
+        .map((r) => ({ ...r, ...base, status: "unclaimed" })),
+      claimed: open
+        .map((t) => mapMyTask(t, "claimed"))
+        .map((r) => ({ ...r, ...base, status: "claimed" })),
+      processed: processed
+        .map((t) => mapMyTask(t, "processed"))
+        .map((r) => ({ ...r, ...base, status: "processed" })),
+    });
+  }, []);
+
+  /* Quality Evaluation: open tasks of the user from e_app_history */
+  const loadWorkflow = useCallback(async () => {
+    if (!currentUser?.id) return;
+    const res = await getWorkflowTasks({
+      page: 1,
+      page_size: 10000,
+      user_id: currentUser.id, // ADAPT: use user_uuid if the API expects it
+      only_latest_per_thread: false,
+      del_last_index: 1,
+      del_thread: "Open",
+    });
+    const raw = res.data || [];
+    const mapped = raw.map(mapEAppTask);
+
+    // TEMPORARY: remove after confirming the raw column names and step names
+    console.log("raw workflow row", raw[0]);
+    console.log("application steps found", [
+      ...new Set(mapped.map((m) => m.applicationStep)),
+    ]);
+
+    setWorkflowTasks(mapped);
+  }, [currentUser]);
+
+  const loadAll = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await getWorkflowTasks({
-        page: 1,
-        page_size: 10000,
-        user_id: currentUser.id, // ADAPT: use user_uuid if that is what the API expects
-        only_latest_per_thread: false,
-        del_last_index: 1,
-        del_thread: "Open",
-      });
-      const raw = res.data || [];
-      const mapped = raw.map(mapEAppTask);
-
-      // TEMPORARY: remove after confirming the raw column names and step names
-      console.log("raw workflow row", raw[0]);
-      console.log("application steps found", [
-        ...new Set(mapped.map((m) => m.applicationStep)),
+      await Promise.all([
+        canSeePayments ? loadPayments() : Promise.resolve(),
+        canSeeQE ? loadWorkflow() : Promise.resolve(),
       ]);
-
-      setTasks(mapped);
     } catch (err) {
       setLoadError(err.message);
-      setTasks([]);
     } finally {
       setLoading(false);
     }
-  }, [currentUser]);
+  }, [canSeePayments, canSeeQE, loadPayments, loadWorkflow]);
 
   useEffect(() => {
-    loadTasks();
-  }, [loadTasks]);
+    loadAll();
+  }, [loadAll]);
 
-  /* Attach a department to each task using its application_step */
-  const tasksWithDepartment = useMemo(
-    () =>
-      tasks
-        .map((t) => ({
-          ...t,
-          department:
-            DEPARTMENTS.find((d) => d.steps.includes(t.applicationStep))?.key ??
-            null,
-        }))
-        .filter((t) => t.department),
-    [tasks],
-  );
+  /* Tabs (with rows) of every department the user can see */
+  const departmentTabs = useMemo(() => {
+    const out = {};
+    DEPARTMENTS.forEach((d) => {
+      if (!userGroupIds.includes(d.groupId)) return;
+      if (d.kind === "pool") {
+        out[d.key] = POOL_TABS.map((t) => ({ ...t, rows: payment[t.id] }));
+      } else {
+        const rows = workflowTasks
+          .filter((t) => d.steps.includes(t.applicationStep))
+          .map((t) => ({ ...t, department: d.key }));
+        const steps = [...new Set(rows.map((r) => r.applicationStep))];
+        out[d.key] = steps.map((step) => ({
+          id: step,
+          label: step,
+          icon: "🧪",
+          rows: rows.filter((r) => r.applicationStep === step),
+        }));
+      }
+    });
+    return out;
+  }, [userGroupIds, payment, workflowTasks]);
 
-  /* A department is visible only if the user is in its group
-     and has at least one open task in it. */
+  /* Pool departments are always visible to their group.
+     Step departments need at least one open task. */
   const visibleDepartments = useMemo(
     () =>
-      DEPARTMENTS.filter(
-        (d) =>
-          userGroupIds.includes(d.groupId) &&
-          tasksWithDepartment.some((t) => t.department === d.key),
-      ),
-    [userGroupIds, tasksWithDepartment],
+      DEPARTMENTS.filter((d) => {
+        const tabs = departmentTabs[d.key];
+        if (!tabs) return false;
+        return d.kind === "pool" || tabs.some((t) => t.rows.length > 0);
+      }),
+    [departmentTabs],
   );
 
-  /* Derived selection: falls back to the first available option,
-     so no effect is needed when tasks change. */
+  /* Derived selection: falls back to the first available option */
   const currentDepartment =
     visibleDepartments.find((d) => d.key === activeDepartment) ||
     visibleDepartments[0] ||
     null;
-
-  const departmentTasks = useMemo(
-    () =>
-      currentDepartment
-        ? tasksWithDepartment.filter(
-            (t) => t.department === currentDepartment.key,
-          )
-        : [],
-    [tasksWithDepartment, currentDepartment],
-  );
-
-  const stepTabs = useMemo(() => {
-    const counts = new Map();
-    departmentTasks.forEach((t) =>
-      counts.set(t.applicationStep, (counts.get(t.applicationStep) || 0) + 1),
-    );
-    return [...counts.entries()].map(([step, count]) => ({ step, count }));
-  }, [departmentTasks]);
-
-  const currentStep =
-    stepTabs.find((s) => s.step === activeStep)?.step ??
-    stepTabs[0]?.step ??
-    null;
-
-  const baseData = useMemo(
-    () => departmentTasks.filter((t) => t.applicationStep === currentStep),
-    [departmentTasks, currentStep],
-  );
+  const tabs = currentDepartment ? departmentTabs[currentDepartment.key] : [];
+  const currentTab = tabs.find((t) => t.id === activeTab) || tabs[0] || null;
+  const baseData = currentTab?.rows || [];
+  const isUnclaimedTab = currentTab?.id === "unclaimed";
+  const showRemarks = currentDepartment?.kind === "pool" && !isUnclaimedTab;
 
   const filteredData = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -261,17 +444,64 @@ function EApplicationTasksPage({ darkMode }) {
     setSearchTerm("");
     setCurrentPage(1);
     setOpenMenuId(null);
+    setSelectedIds([]);
   };
 
   const handleDepartmentChange = (key) => {
     setActiveDepartment(key);
-    setActiveStep(null);
+    setActiveTab(null);
     resetView();
   };
 
-  const handleStepChange = (step) => {
-    setActiveStep(step);
+  const handleTabChange = (id) => {
+    setActiveTab(id);
     resetView();
+  };
+
+  const toggleSelectRow = (id) =>
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+
+  const toggleSelectAllOnPage = () => {
+    const pageIds = paginatedData.map((r) => r.id);
+    const allSelected = pageIds.every((id) => selectedIds.includes(id));
+    setSelectedIds((prev) =>
+      allSelected
+        ? prev.filter((id) => !pageIds.includes(id))
+        : [...new Set([...prev, ...pageIds])],
+    );
+  };
+
+  const requestBulkClaim = () => {
+    const rows = payment.unclaimed.filter((r) => selectedIds.includes(r.id));
+    if (rows.length) setClaimRows(rows);
+  };
+
+  const confirmClaim = async () => {
+    if (claiming || !claimRows?.length) return;
+    setClaiming(true);
+    try {
+      const results = await claimAppointmentRecords(
+        claimRows.map((r) => r.referenceNo),
+      );
+      const failed = results.filter((r) => r.result !== "claimed");
+      setSelectedIds([]);
+      await loadPayments();
+      if (failed.length > 0) {
+        // ADAPT: use your toast component if you have one
+        window.alert(
+          failed
+            .map((f) => `${f.reference_no}: ${f.detail || f.result}`)
+            .join("\n"),
+        );
+      }
+    } catch (err) {
+      window.alert(err.message);
+    } finally {
+      setClaiming(false);
+      setClaimRows(null);
+    }
   };
 
   const handleMenuToggle = (e, rowId) => {
@@ -300,53 +530,40 @@ function EApplicationTasksPage({ darkMode }) {
   ];
 
   /* ── Early returns (after all hooks) ── */
-  if (loading) {
-    return (
-      <div
-        style={{
-          padding: "2rem",
-          textAlign: "center",
-          color: colors.textTertiary,
-          fontSize: "0.8rem",
-        }}
-      >
-        Loading tasks...
-      </div>
-    );
-  }
+  const centered = (color, text, extra) => (
+    <div
+      style={{
+        padding: "2rem",
+        textAlign: "center",
+        color,
+        fontSize: "0.8rem",
+      }}
+    >
+      {text}
+      {extra}
+    </div>
+  );
+
+  if (loading) return centered(colors.textTertiary, "Loading tasks...");
 
   if (loadError) {
-    return (
-      <div
-        style={{
-          padding: "2rem",
-          textAlign: "center",
-          color: "#dc2626",
-          fontSize: "0.8rem",
-        }}
-      >
-        Could not load tasks: {loadError}
-        <div style={{ marginTop: "0.75rem" }}>
-          <button onClick={loadTasks} style={{ cursor: "pointer" }}>
-            Retry
-          </button>
-        </div>
-      </div>
+    return centered(
+      "#dc2626",
+      `Could not load tasks: ${loadError}`,
+      <div style={{ marginTop: "0.75rem" }}>
+        <button onClick={loadAll} style={{ cursor: "pointer" }}>
+          Retry
+        </button>
+      </div>,
     );
   }
 
   if (!currentDepartment) {
-    return (
-      <div
-        style={{
-          padding: "2rem",
-          textAlign: "center",
-          color: colors.textTertiary,
-          fontSize: "0.8rem",
-        }}
-      >
-        🔒 You have no open tasks in any queue you have access to.
-      </div>
+    return centered(
+      colors.textTertiary,
+      userGroupIds.length === 0 || (!canSeePayments && !canSeeQE)
+        ? "🔒 You don't have access to any task queues."
+        : "You have no open tasks in the queues you have access to.",
     );
   }
 
@@ -372,6 +589,18 @@ function EApplicationTasksPage({ darkMode }) {
     whiteSpace: "nowrap",
   };
 
+  const columnCount = 8 + (isUnclaimedTab ? 1 : 0) + (showRemarks ? 1 : 0);
+
+  const emptyText = searchTerm
+    ? "No matching applications found."
+    : isUnclaimedTab
+      ? "No applications waiting to be claimed."
+      : currentTab?.id === "claimed"
+        ? "You haven't claimed any tasks yet."
+        : currentTab?.id === "processed"
+          ? "No processed tasks yet."
+          : "No tasks in this step.";
+
   return (
     <div
       style={{
@@ -392,9 +621,11 @@ function EApplicationTasksPage({ darkMode }) {
         }}
       >
         {visibleDepartments.map((dept) => {
-          const count = tasksWithDepartment.filter(
-            (t) => t.department === dept.key,
-          ).length;
+          const deptTabs = departmentTabs[dept.key];
+          const isPool = dept.kind === "pool";
+          const count = isPool
+            ? deptTabs.find((t) => t.id === "unclaimed").rows.length
+            : deptTabs.reduce((sum, t) => sum + t.rows.length, 0);
           const isActive = currentDepartment.key === dept.key;
           return (
             <button
@@ -458,7 +689,7 @@ function EApplicationTasksPage({ darkMode }) {
                     fontWeight: 500,
                   }}
                 >
-                  in progress
+                  {isPool ? "waiting" : "in progress"}
                 </span>
               </span>
             </button>
@@ -466,7 +697,7 @@ function EApplicationTasksPage({ darkMode }) {
         })}
       </div>
 
-      {/* ── Step tabs (one per application_step) ── */}
+      {/* ── Sub-tabs ── */}
       <div
         style={{
           padding: "0.5rem 1.5rem 0",
@@ -480,12 +711,12 @@ function EApplicationTasksPage({ darkMode }) {
             borderBottom: `2px solid ${colors.cardBorder}`,
           }}
         >
-          {stepTabs.map(({ step, count }) => {
-            const isActive = currentStep === step;
+          {tabs.map((tab) => {
+            const isActive = currentTab?.id === tab.id;
             return (
               <button
-                key={step}
-                onClick={() => handleStepChange(step)}
+                key={tab.id}
+                onClick={() => handleTabChange(tab.id)}
                 style={{
                   padding: "6px 14px",
                   fontSize: "12px",
@@ -506,7 +737,8 @@ function EApplicationTasksPage({ darkMode }) {
                   transition: "all 0.2s ease",
                 }}
               >
-                <span>{step}</span>
+                <span style={{ fontSize: "0.82rem" }}>{tab.icon}</span>
+                <span>{tab.label}</span>
                 <span
                   style={{
                     fontSize: "10px",
@@ -520,7 +752,7 @@ function EApplicationTasksPage({ darkMode }) {
                     textAlign: "center",
                   }}
                 >
-                  {count}
+                  {tab.rows.length}
                 </span>
               </button>
             );
@@ -564,7 +796,7 @@ function EApplicationTasksPage({ darkMode }) {
                   margin: 0,
                 }}
               >
-                {currentStep}
+                {currentTab?.label}
               </h3>
               <span
                 style={{
@@ -579,7 +811,7 @@ function EApplicationTasksPage({ darkMode }) {
                 {filteredData.length} total
               </span>
               <button
-                onClick={loadTasks}
+                onClick={loadAll}
                 title="Refresh"
                 style={{
                   padding: "0.3rem 0.6rem",
@@ -593,6 +825,24 @@ function EApplicationTasksPage({ darkMode }) {
               >
                 🔄 Refresh
               </button>
+              {isUnclaimedTab && selectedIds.length > 0 && (
+                <button
+                  onClick={requestBulkClaim}
+                  style={{
+                    padding: "0.35rem 0.85rem",
+                    background: "linear-gradient(135deg,#4CAF50,#43A047)",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "0.68rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  ✋ Claim Selected ({selectedIds.length})
+                </button>
+              )}
             </div>
             <div style={{ position: "relative", minWidth: "240px" }}>
               <span
@@ -641,6 +891,21 @@ function EApplicationTasksPage({ darkMode }) {
                 }}
               >
                 <tr>
+                  {isUnclaimedTab && (
+                    <th
+                      style={{ ...thStyle, textAlign: "center", width: "36px" }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={
+                          paginatedData.length > 0 &&
+                          paginatedData.every((r) => selectedIds.includes(r.id))
+                        }
+                        onChange={toggleSelectAllOnPage}
+                        style={{ cursor: "pointer" }}
+                      />
+                    </th>
+                  )}
                   <th
                     style={{ ...thStyle, textAlign: "center", width: "50px" }}
                   >
@@ -652,10 +917,11 @@ function EApplicationTasksPage({ darkMode }) {
                   <th style={thStyle}>Due Date</th>
                   <th style={thStyle}>Last Modified</th>
                   <th style={thStyle}>Priority</th>
+                  {showRemarks && <th style={thStyle}>Remarks</th>}
                   <th
                     style={{ ...thStyle, textAlign: "center", width: "120px" }}
                   >
-                    Actions
+                    {isUnclaimedTab ? "Claim" : "Actions"}
                   </th>
                 </tr>
               </thead>
@@ -663,7 +929,7 @@ function EApplicationTasksPage({ darkMode }) {
                 {paginatedData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={columnCount}
                       style={{
                         padding: "2rem",
                         textAlign: "center",
@@ -671,9 +937,7 @@ function EApplicationTasksPage({ darkMode }) {
                         fontSize: "0.75rem",
                       }}
                     >
-                      {searchTerm
-                        ? "No matching applications found."
-                        : "No tasks in this step."}
+                      {emptyText}
                     </td>
                   </tr>
                 ) : (
@@ -698,6 +962,16 @@ function EApplicationTasksPage({ darkMode }) {
                             : colors.tableRowOdd)
                       }
                     >
+                      {isUnclaimedTab && (
+                        <td style={{ ...tdStyle, textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(row.id)}
+                            onChange={() => toggleSelectRow(row.id)}
+                            style={{ cursor: "pointer" }}
+                          />
+                        </td>
+                      )}
                       <td
                         style={{
                           ...tdStyle,
@@ -722,76 +996,99 @@ function EApplicationTasksPage({ darkMode }) {
                           "—"
                         )}
                       </td>
+                      {showRemarks && (
+                        <td style={{ ...tdStyle, whiteSpace: "normal" }}>
+                          <RemarksBadge remarks={row.remarks} />
+                        </td>
+                      )}
                       <td style={{ ...tdStyle, textAlign: "center" }}>
-                        <button
-                          onClick={(e) => handleMenuToggle(e, row.id)}
-                          style={{
-                            padding: "0.4rem",
-                            background: "transparent",
-                            border: `1px solid ${colors.cardBorder}`,
-                            borderRadius: "6px",
-                            color: colors.textPrimary,
-                            cursor: "pointer",
-                            width: "28px",
-                            height: "28px",
-                          }}
-                        >
-                          ⋮
-                        </button>
-                        {openMenuId === row.id && (
+                        {isUnclaimedTab ? (
+                          <button
+                            onClick={() => setClaimRows([row])}
+                            style={{
+                              padding: "0.35rem 0.85rem",
+                              background:
+                                "linear-gradient(135deg,#4CAF50,#43A047)",
+                              color: "#fff",
+                              border: "none",
+                              borderRadius: "6px",
+                              fontSize: "0.65rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            ✋ Claim Task
+                          </button>
+                        ) : (
                           <>
-                            <div
-                              onClick={() => setOpenMenuId(null)}
+                            <button
+                              onClick={(e) => handleMenuToggle(e, row.id)}
                               style={{
-                                position: "fixed",
-                                inset: 0,
-                                zIndex: 9998,
-                              }}
-                            />
-                            <div
-                              style={{
-                                position: "fixed",
-                                top: `${menuPosition.top}px`,
-                                right: `${menuPosition.right}px`,
-                                background: colors.cardBg,
+                                padding: "0.4rem",
+                                background: "transparent",
                                 border: `1px solid ${colors.cardBorder}`,
-                                borderRadius: "8px",
-                                boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                                minWidth: "190px",
-                                zIndex: 9999,
-                                overflow: "hidden",
+                                borderRadius: "6px",
+                                color: colors.textPrimary,
+                                cursor: "pointer",
+                                width: "28px",
+                                height: "28px",
                               }}
                             >
-                              {getActionMenuOptions(row).map((item, i) => (
-                                <button
-                                  key={item.label}
-                                  onClick={() => {
-                                    setOpenMenuId(null);
-                                    item.handler();
-                                  }}
+                              ⋮
+                            </button>
+                            {openMenuId === row.id && (
+                              <>
+                                <div
+                                  onClick={() => setOpenMenuId(null)}
                                   style={{
-                                    width: "100%",
-                                    padding: "0.6rem 0.85rem",
-                                    background: "transparent",
-                                    border: "none",
-                                    borderTop:
-                                      i === 0
-                                        ? "none"
-                                        : `1px solid ${colors.tableBorder}`,
-                                    color: colors.textPrimary,
-                                    fontSize: "0.78rem",
-                                    textAlign: "left",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: "0.5rem",
+                                    position: "fixed",
+                                    inset: 0,
+                                    zIndex: 9998,
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    position: "fixed",
+                                    top: `${menuPosition.top}px`,
+                                    right: `${menuPosition.right}px`,
+                                    background: colors.cardBg,
+                                    border: `1px solid ${colors.cardBorder}`,
+                                    borderRadius: "8px",
+                                    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                                    minWidth: "190px",
+                                    zIndex: 9999,
+                                    overflow: "hidden",
                                   }}
                                 >
-                                  <span>{item.icon}</span>
-                                  <span>{item.label}</span>
-                                </button>
-                              ))}
-                            </div>
+                                  {getActionMenuOptions(row).map((item) => (
+                                    <button
+                                      key={item.label}
+                                      onClick={() => {
+                                        setOpenMenuId(null);
+                                        item.handler();
+                                      }}
+                                      style={{
+                                        width: "100%",
+                                        padding: "0.6rem 0.85rem",
+                                        background: "transparent",
+                                        border: "none",
+                                        color: colors.textPrimary,
+                                        fontSize: "0.78rem",
+                                        textAlign: "left",
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "0.5rem",
+                                      }}
+                                    >
+                                      <span>{item.icon}</span>
+                                      <span>{item.label}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </>
                         )}
                       </td>
@@ -919,7 +1216,15 @@ function EApplicationTasksPage({ darkMode }) {
         </div>
       </div>
 
-      {/* ── Details modal, resolved per process through the registry ── */}
+      <ClaimConfirmModal
+        rows={claimRows}
+        colors={colors}
+        busy={claiming}
+        onConfirm={confirmClaim}
+        onCancel={() => !claiming && setClaimRows(null)}
+      />
+
+      {/* Details modal, resolved per process through the registry */}
       {detailsTarget &&
         (() => {
           const { DetailsModal } = getProcessModule(detailsTarget.processCode);
@@ -930,7 +1235,7 @@ function EApplicationTasksPage({ darkMode }) {
               colors={colors}
               cashierName={userName}
               cashierPosition="Cashier"
-              onPosted={loadTasks}
+              onPosted={loadAll}
               onClose={() => setDetailsTarget(null)}
             />
           );
