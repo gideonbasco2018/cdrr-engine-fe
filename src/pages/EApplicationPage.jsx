@@ -1,6 +1,7 @@
 // src/pages/EApplicationPage.jsx
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
+import { getUser } from "../api/auth";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
 import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
 import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
@@ -25,12 +26,32 @@ import {
 /* TODO: replace with real logged-in user (from auth context) */
 const CURRENT_USER = "Gideon Basco";
 
-/* TODO: replace with departments the logged-in user actually
-   has access to (from auth/role config), in display order. */
-const DEPARTMENTS = [
-  { key: "payment_posting", title: "Payment Posting", icon: "💵" },
-  { key: "quality_evaluation", title: "Quality Evaluation", icon: "🧪" },
+/* Group IDs from cdrr_engine.groups */
+const GROUP_IDS = {
+  CASHIER: 41,
+};
+
+/* Every department the page knows about, in display order.
+   allowedGroupIds: only members of these groups can see the department.
+   If omitted, the department is visible to everyone. */
+const ALL_DEPARTMENTS = [
+  {
+    key: "payment_posting",
+    title: "Payment Posting",
+    icon: "💵",
+    allowedGroupIds: [GROUP_IDS.CASHIER],
+  },
+  {
+    key: "quality_evaluation",
+    title: "Quality Evaluation",
+    icon: "🧪",
+    // TODO: add allowedGroupIds once the QE group is known
+  },
 ];
+
+const canAccessDepartment = (dept, userGroupIds = []) =>
+  !dept.allowedGroupIds ||
+  dept.allowedGroupIds.some((id) => userGroupIds.includes(id));
 
 /* Quality Evaluation has no "Unclaimed" pool — tasks route straight
    to the decker, so this department only shows Task / Processed. */
@@ -836,8 +857,36 @@ function EApplicationPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
   const [docsTargetId, setDocsTargetId] = useState(null);
   const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
-  const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key);
-  const [activeSubTab, setActiveSubTab] = useState("unclaimed"); // unclaimed | claimed | processed
+  // Logged-in user from the existing auth helper.
+  // ADAPT: confirm which field holds the group ids (user.groups, user.group_ids, ...)
+  const currentUser = useMemo(() => getUser(), []);
+  const userGroupIds = useMemo(() => {
+    const raw = currentUser?.groups ?? currentUser?.group_ids ?? [];
+    return raw.map((g) => Number(typeof g === "object" ? g.id : g));
+  }, [currentUser]);
+
+  // TEMPORARY: remove after checking the shape of the user object
+  console.log("current user", currentUser, "group ids", userGroupIds);
+  const canSeePayments = userGroupIds.includes(GROUP_IDS.CASHIER);
+
+  const DEPARTMENTS = useMemo(
+    () => ALL_DEPARTMENTS.filter((d) => canAccessDepartment(d, userGroupIds)),
+    [userGroupIds],
+  );
+
+  const [activeDepartment, setActiveDepartment] = useState(null);
+  const [activeSubTab, setActiveSubTab] = useState(null); // unclaimed | claimed | processed
+
+  // Select the first allowed department once the user's groups are known,
+  // and fall back if the current one is no longer allowed.
+  useEffect(() => {
+    if (DEPARTMENTS.length === 0) return;
+    if (!DEPARTMENTS.some((d) => d.key === activeDepartment)) {
+      const first = DEPARTMENTS[0].key;
+      setActiveDepartment(first);
+      setActiveSubTab(SUBTABS_BY_DEPARTMENT[first][0]);
+    }
+  }, [DEPARTMENTS, activeDepartment]);
   const [applications, setApplications] = useState(MOCK_APPLICATIONS);
   const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
   const [loadError, setLoadError] = useState(null);
@@ -916,9 +965,11 @@ function EApplicationPage({ darkMode }) {
   }, []);
 
   useEffect(() => {
+    // Payment posting data is only needed by Cashier group members
+    if (!canSeePayments) return;
     loadUnclaimed();
     loadMyTasks();
-  }, [loadUnclaimed, loadMyTasks]);
+  }, [canSeePayments, loadUnclaimed, loadMyTasks]);
 
   /* Scope everything to the currently selected department first */
   const departmentData = useMemo(
@@ -1300,6 +1351,25 @@ function EApplicationPage({ darkMode }) {
       handler: () => openNotes(row),
     },
   ];
+  // No accessible department for this user
+  if (DEPARTMENTS.length === 0) {
+    return (
+      <div
+        style={{
+          padding: "2rem",
+          textAlign: "center",
+          color: colors.textTertiary,
+          fontSize: "0.8rem",
+        }}
+      >
+        🔒 You don't have access to any task queues.
+      </div>
+    );
+  }
+
+  // Wait for the default department to be selected
+  if (!activeDepartment || !activeSubTab) return null;
+
   const thStyle = {
     padding: "0.45rem 0.6rem",
     textAlign: "left",
@@ -2021,11 +2091,6 @@ function EApplicationPage({ darkMode }) {
 
       {detailsTarget &&
         (() => {
-          console.log(
-            "details target",
-            detailsTarget.processCode,
-            detailsTarget,
-          );
           const { DetailsModal } = getProcessModule(detailsTarget.processCode);
           return (
             <DetailsModal
