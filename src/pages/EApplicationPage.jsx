@@ -62,8 +62,25 @@ const MAX_NOTE_LENGTH = 1500;
 /* Resolve which department (application_step) a row belongs to.
    Unclaimed rows come from the external appointment DB and have no
    history step yet, so they always belong to Payment Posting. */
-const getRowStep = (row) =>
-  row.applicationStep || (row.status === "unclaimed" ? STEP_PAYMENT : null);
+const getRowStep = (row) => {
+  // Unclaimed rows come from the external appointment DB and have no
+  // e_app_history step yet, so they always belong to Payment Posting.
+  if (row.status === "unclaimed") return STEP_PAYMENT;
+
+  // Real step from e_app_history.application_step
+  if (
+    row.applicationStep === STEP_PAYMENT ||
+    row.applicationStep === STEP_QUALITY
+  ) {
+    return row.applicationStep;
+  }
+
+  // Temporary fallback until mapMyTask returns the exact application_step
+  if (row.department === "payment_posting") return STEP_PAYMENT;
+  if (row.department === "quality_evaluation") return STEP_QUALITY;
+
+  return null;
+};
 
 /* ── Static mock data — intentionally empty, rows come from the API.
    Each row carries `applicationStep` and `status`:
