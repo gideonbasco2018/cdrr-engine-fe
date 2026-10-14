@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
 import { getUser } from "../api/auth";
+
 import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
 import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
 
@@ -12,45 +13,43 @@ import {
   claimAppointmentRecords,
   getMyAppointmentTasks,
   mapMyTask,
+  getMyAccess,
 } from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
    Two-level task page:
-   - Top tabs   = departments, driven by the task's application_step
-                  (e_app_history.application_step).
-                  Payment Posting is always shown; Quality Evaluation
-                  only appears when the user has a task in that step.
+   - Top tabs   = one per application_step (e_app_history.application_step)
+                  the user has tasks in. Cashiers (group 41, checked by the
+                  server) always get the Payment Verification/Posting tab
+                  for the Unclaimed pool.
    - Sub-tabs   = lifecycle of a task within that department:
                   Unclaimed Task → Task → Processed Task
    ────────────────────────────────────────────────────────── */
 
-/* TODO: replace with real logged-in user (from auth context) */
-const CURRENT_USER = "Gideon Basco";
+/* Display name of the logged-in user, from the saved login response */
+const getCurrentUserName = () => {
+  const u = getUser();
+  return u ? `${u.first_name || ""} ${u.surname || ""}`.trim() : "";
+};
 
 /* These strings must match e_app_history.application_step exactly. */
 const STEP_PAYMENT = "Payment Verification/Posting";
 const STEP_QUALITY = "Quality Evaluation";
 
-const CASHIER_GROUP_ID = 41;
-
-/* Testing switch: lets Admin users see group-gated tabs even when they
-   are not in the group. Set to false for the real rule. */
+/* Testing switch: lets Admin users see the cashier tab even when the
+   server says they are not in the cashier group. Keep false in production. */
 const ADMIN_BYPASS = false;
 
-/* Display info for known application_step values. A step that is not
-   listed here still gets a tab, using the raw step name and a default icon. */
-const STEP_META = {
-  [STEP_PAYMENT]: { title: "Payment Posting", icon: "💵" },
-  [STEP_QUALITY]: { title: "Quality Evaluation", icon: "🧪" },
+/* Tab titles come straight from e_app_history.application_step.
+   Only the icon is mapped; unknown steps get a default icon. */
+const STEP_ICONS = {
+  [STEP_PAYMENT]: "💵",
+  [STEP_QUALITY]: "🧪",
 };
-const getStepMeta = (step) => STEP_META[step] || { title: step, icon: "📋" };
-
-/* user.groups comes from the login response: [{ id, name }, ...] */
-const userInGroup = (user, groupId) => {
-  if (!user) return false;
-  if (ADMIN_BYPASS && user.role === "Admin") return true;
-  return (user.groups || []).some((g) => Number(g.id) === groupId);
-};
+const getStepMeta = (step) => ({
+  title: step,
+  icon: STEP_ICONS[step] || "📋",
+});
 
 /* Only Payment Posting has an Unclaimed pool, and only cashiers can see it. */
 const getSubTabIds = (step, isCashier) =>
@@ -839,8 +838,33 @@ function ApplicationNotesModal({
 
 function EApplicationPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
-  const user = useMemo(() => getUser(), []);
-  const isCashier = userInGroup(user, CASHIER_GROUP_ID);
+  const CURRENT_USER = useMemo(() => getCurrentUserName(), []);
+
+  /* Re-checked from the server on every page load, so group changes
+     apply without logging in again. */
+  const [access, setAccess] = useState({ loaded: false, isCashier: false });
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyAccess()
+      .then((res) => {
+        if (!cancelled)
+          setAccess({ loaded: true, isCashier: !!res.is_cashier });
+      })
+      .catch(() => {
+        if (!cancelled) setAccess({ loaded: true, isCashier: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Testing switch only (see ADMIN_BYPASS); the real rule is the server's group check
+  const isAdminBypass = useMemo(
+    () => ADMIN_BYPASS && getUser()?.role === "Admin",
+    [],
+  );
+  const isCashier = access.isCashier || isAdminBypass;
 
   const [docsTargetId, setDocsTargetId] = useState(null);
   const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
@@ -924,14 +948,14 @@ function EApplicationPage({ darkMode }) {
     } finally {
       setTasksLoaded(true);
     }
-  }, []);
+  }, [CURRENT_USER]);
 
   useEffect(() => {
+    if (!access.loaded) return; // wait for the access check first
     // Only cashiers have an unclaimed pool, so skip that fetch for everyone else
     if (isCashier) loadUnclaimed();
     loadMyTasks();
-  }, [isCashier, loadUnclaimed, loadMyTasks]);
-
+  }, [access.loaded, isCashier, loadUnclaimed, loadMyTasks]);
   /* Departments (top tabs) the user can currently see:
      - group-gated ones (Payment Posting) need membership in that group
      - the others only when the user has at least one task in that step */
@@ -1400,7 +1424,7 @@ function EApplicationPage({ darkMode }) {
           fontSize: "0.8rem",
         }}
       >
-        {tasksLoaded
+        {tasksLoaded && access.loaded
           ? "You don't have access to any task queue."
           : "Loading..."}
       </div>

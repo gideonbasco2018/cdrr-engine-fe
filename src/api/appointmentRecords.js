@@ -121,7 +121,7 @@ export const mapMyTask = (task, status = "claimed") => ({
   referenceNo: task.reference_number,
   activity: task.activity,
   applicantCompany: task.applicant_company,
-  applicationStep: task.application_step || "—",
+   applicationStep: task.application_step || null,
   dueDate: task.deadline_date || task.step_duedate || null,
   lastModified: formatStamp(task.updated_at || task.start_date),
   priority: task.priority || null,
@@ -171,6 +171,23 @@ export const postClaimedPayments = async (referenceNo, payload) => {
       (detail ? "The payment details are invalid" : null) ||
       error.message ||
       "Failed to post payment";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Get the logged-in user's current access (re-read from the server)
+ * @returns {Promise<{ group_ids: number[], is_cashier: boolean }>}
+ */
+export const getMyAccess = async () => {
+  try {
+    const response = await API.get("/appointment-records/my-access");
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch access";
     throw new Error(errorMessage);
   }
 };
