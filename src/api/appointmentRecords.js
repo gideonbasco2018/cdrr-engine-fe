@@ -64,13 +64,6 @@ export const claimAppointmentRecords = async (referenceNumbers) => {
 
 
 
-// Maps the activity name to the process code used by processRegistry.
-// Unknown activities get no code and fall back to the placeholder modal.
-const PROCESS_CODE_BY_ACTIVITY = {
-  "Minor Variation Notification": "MIVN",
-  "FDA GMP Certification": "FGMP",
-  "CDRR Certificate of Product Registration": "CPR",
-};
 const formatStamp = (iso) =>
   iso
     ? new Date(iso).toLocaleString("en-PH", {
@@ -88,7 +81,7 @@ export const mapAppointmentRecord = (record) => ({
   id: record.id,
   source: "appointment", // marks rows that came from the external DB
   department: "payment_posting",
-  processCode: PROCESS_CODE_BY_ACTIVITY[record.activity],
+
   referenceNo: record.reference_no,
   activity: record.activity,
   applicantCompany: record.company_name,
@@ -124,7 +117,7 @@ export const mapMyTask = (task, status = "claimed") => ({
   id: task.application_uuid,
   source: "internal", // marks rows that came from the internal DB
   department: "payment_posting",
-  processCode: PROCESS_CODE_BY_ACTIVITY[(task.activity || "").trim()],
+  processCode: task.process_code,
   referenceNo: task.reference_number,
   activity: task.activity,
   applicantCompany: task.applicant_company,
