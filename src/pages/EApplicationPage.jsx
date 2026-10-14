@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
+import { getUser } from "../api/auth";
 import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
 import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
 
@@ -30,23 +31,37 @@ const CURRENT_USER = "Gideon Basco";
 const STEP_PAYMENT = "Payment Verification/Posting";
 const STEP_QUALITY = "Quality Evaluation";
 
+const CASHIER_GROUP_ID = 41;
+
+/* Testing switch: lets Admin users see group-gated tabs even when they
+   are not in the group. Set to false for the real rule. */
+const ADMIN_BYPASS = false;
+
 /* `key` is the application_step value itself.
-   `alwaysVisible: false` means the tab only shows when the current
+   `requiredGroupId`: the tab only shows if the user belongs to that group.
+   `null` means no group is required; the tab then shows only when the
    user has at least one task in that step. */
 const DEPARTMENTS = [
   {
     key: STEP_PAYMENT,
     title: "Payment Posting",
     icon: "💵",
-    alwaysVisible: true,
+    requiredGroupId: CASHIER_GROUP_ID,
   },
   {
     key: STEP_QUALITY,
     title: "Quality Evaluation",
     icon: "🧪",
-    alwaysVisible: false,
+    requiredGroupId: null,
   },
 ];
+
+/* user.groups comes from the login response: [{ id, name }, ...] */
+const userInGroup = (user, groupId) => {
+  if (!user) return false;
+  if (ADMIN_BYPASS && user.role === "Admin") return true;
+  return (user.groups || []).some((g) => Number(g.id) === groupId);
+};
 
 /* Quality Evaluation has no "Unclaimed" pool — tasks route straight
    to the decker, so this department only shows Task / Processed. */
@@ -842,6 +857,9 @@ function ApplicationNotesModal({
 
 function EApplicationPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
+  const user = useMemo(() => getUser(), []);
+  const isCashier = userInGroup(user, CASHIER_GROUP_ID);
+
   const [docsTargetId, setDocsTargetId] = useState(null);
   const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
   const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key); // value is an application_step
@@ -924,29 +942,31 @@ function EApplicationPage({ darkMode }) {
   }, []);
 
   useEffect(() => {
-    loadUnclaimed();
+    // Only cashiers have an unclaimed pool, so skip that fetch for everyone else
+    if (isCashier) loadUnclaimed();
     loadMyTasks();
-  }, [loadUnclaimed, loadMyTasks]);
+  }, [isCashier, loadUnclaimed, loadMyTasks]);
 
   /* Departments (top tabs) the user can currently see:
-     - always-visible ones (Payment Posting)
+     - group-gated ones (Payment Posting) need membership in that group
      - the others only when the user has at least one task in that step */
   const visibleDepartments = useMemo(
     () =>
-      DEPARTMENTS.filter(
-        (dept) =>
-          dept.alwaysVisible ||
-          applications.some(
-            (row) =>
-              getRowStep(row) === dept.key && row.claimedBy === CURRENT_USER,
-          ),
+      DEPARTMENTS.filter((dept) =>
+        dept.requiredGroupId
+          ? userInGroup(user, dept.requiredGroupId)
+          : applications.some(
+              (row) =>
+                getRowStep(row) === dept.key && row.claimedBy === CURRENT_USER,
+            ),
       ),
-    [applications],
+    [applications, user],
   );
 
-  /* If the active department disappears (e.g. the last Quality Evaluation
-     task was processed), fall back to the first visible department. */
+  /* If the active department is no longer visible (e.g. the last Quality
+     Evaluation task was processed), fall back to the first visible one. */
   useEffect(() => {
+    if (visibleDepartments.length === 0) return;
     if (!visibleDepartments.some((d) => d.key === activeDepartment)) {
       const fallback = visibleDepartments[0].key;
       setActiveDepartment(fallback);
@@ -1377,6 +1397,24 @@ function EApplicationPage({ darkMode }) {
   const subTabs = ALL_SUB_TABS.filter((tab) =>
     (SUBTABS_BY_DEPARTMENT[activeDepartment] || []).includes(tab.id),
   );
+
+  if (visibleDepartments.length === 0) {
+    return (
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: colors.pageBg,
+          color: colors.textTertiary,
+          fontSize: "0.8rem",
+        }}
+      >
+        You don't have access to any task queue.
+      </div>
+    );
+  }
   return (
     <div
       style={{
