@@ -34,6 +34,15 @@ const peso = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
+/* Today's date as YYYY-MM-DD in the browser's local time.
+   (toISOString would shift the date to UTC.) */
+const todayStr = () => {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+};
+
 const PRODUCT_FIELDS = [
   "Brand Name",
   "Generic Name",
@@ -242,10 +251,12 @@ export default function CprDetailsModal({
       ];
   const lastStep = steps.length;
 
+  const today = todayStr();
   const canAdd =
     form.paymentType &&
     form.orNo.trim() &&
     form.dateOfPayment &&
+    form.dateOfPayment <= today &&
     Number(form.amountPaid) > 0;
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
@@ -709,6 +720,7 @@ export default function CprDetailsModal({
               <label style={labelStyle}>Date of Payment</label>
               <input
                 type="date"
+                max={today}
                 style={inputStyle}
                 value={form.dateOfPayment}
                 onChange={(e) => setField("dateOfPayment", e.target.value)}
