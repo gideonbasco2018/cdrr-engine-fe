@@ -3,7 +3,7 @@ import {
   OopHeader,
   OopSection,
   OopNotices,
-} from "../mivn/MivnDetailsModal.jsx";
+} from "../../paymentVerification/PaymentShared.jsx";
 
 const BANCNET_FEE = 15;
 

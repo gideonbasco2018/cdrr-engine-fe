@@ -1,90 +1,54 @@
-import { useState, useMemo } from "react";
+// src/components/eapplication/processes/fgmp/FgmpDetailsModal.jsx
+import { useEffect, useMemo, useState } from "react";
+import {
+  getClaimedApplication,
+  postClaimedPayments,
+} from "../../../../api/appointmentRecords.js";
+
+import {
+  PdfViewer,
+  ConfirmPostModal,
+  ConfirmAddPaymentModal,
+} from "../../paymentVerification/PaymentShared.jsx";
+
+import {
+  OrderOfPaymentPaper,
+  AdditionalOopPaper,
+  AcknowledgementReceiptPaper,
+} from "./FgmpPapers.jsx";
 
 const PAYMENT_TYPES = [
   "FDA Cashier",
   "LANDBANK ONCOLL",
   "LANDBANK Link.BizPortal",
 ];
-
-/* TODO: replace with real pre-assessment data from the API */
-const PRE_ASSESSMENT = {
-  dateTime: "13 July 2026 09:32:37",
-  assessor: "GMP-INSP-04",
-  position: "GMP Inspector I",
-  office: "GMP Inspectorate Division",
-};
-
-const uniq = (arr) => [...new Set(arr.filter(Boolean))].join(", ");
-
-const formatLongDate = (iso) =>
-  iso
-    ? new Date(`${iso}T00:00:00`).toLocaleDateString("en-PH", {
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      })
-    : "";
-
-const STEPS = [
-  { id: 1, label: "Application Details", icon: "📋" },
-  { id: 2, label: "Inspection Details", icon: "🔍" },
-  { id: 3, label: "Order of Payment", icon: "💳" },
-  { id: 4, label: "Acknowledgement Receipt", icon: "🧾" },
-];
-
-const STEP_ADDITIONAL = {
-  id: 5,
-  label: "Additional Order of Payment",
-  icon: "➕",
-};
-
-/* TODO: replace with the real Order of Payment items from the backend */
-const ORDER_OF_PAYMENT_ITEMS = [
-  { label: "GMP Certification Fee", amount: 15000 },
-  { label: "Inspection Fee", amount: 5000 },
-  { label: "Legal Research Fund (LRF)", amount: 150 },
-];
-export const AMOUNT_DUE = ORDER_OF_PAYMENT_ITEMS.reduce(
-  (sum, i) => sum + i.amount,
-  0,
-);
-const MAX_REMARKS_LENGTH = 500;
-const BANCNET_FEE = 15;
-
-const OOP_LOGOS = {
-  fda: "/images/fda-logo.png",
-  doh: "/images/doh-logo.png",
-  bagongPilipinas: "/images/bagong-pilipinas-logo.png",
-};
-
-const OOP_AUTHORIZATION = "GMP Certification";
-
-/* TODO: replace with real data from the API (application / establishment record) */
-const OOP_STATIC = {
-  productType: "Drug Manufacturing Facility",
-  email: "regulatory@torrentpharma.com.ph",
-  mobile: "0917 123 4567",
-  landline: "(02) 8123 4567",
-};
-
 const EMPTY_FORM = {
   paymentType: "",
   orNo: "",
   dateOfPayment: "",
   amountPaid: "",
 };
+const MAX_REMARKS_LENGTH = 500;
 
-const EMPTY_INSPECTION_FORM = {
-  inspectorName: "",
-  inspectionDate: "",
-  findings: "",
-};
+const PARTY_TYPES = [
+  "Manufacturer",
+  "Trader",
+  "Repacker",
+  "Importer",
+  "Distributor",
+];
 
-const php = (n) =>
-  `Php ${Number(n || 0).toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+// form_data keys that are already shown in the fixed sections above
+const HANDLED_FORM_KEYS = new Set([
+  "Scheduled Date",
+  "Time Slot",
+  "Remarks",
+  "Validity",
+  "Address",
+  "TIN",
+  "LTO No.",
+  "Application Type",
+]);
 
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", {
@@ -92,809 +56,63 @@ const peso = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
-/* TODO: replace with real data from the API (application details endpoint) */
-const getStaticDetails = (row) => [
-  {
-    title: "Application Information",
-    fields: [
-      ["Reference Number", row.referenceNo],
-      ["Activity", row.activity],
-      ["Application Step", row.applicationStep],
-      ["Priority", row.priority],
-      ["Due Date", row.dueDate],
-      ["Last Modified", row.lastModified],
-    ],
-  },
-  {
-    title: "Establishment",
-    fields: [
-      ["Company", row.applicantCompany],
-      ["LTO Number", "LTO-2024-000123"],
-      ["LTO Validity", "2027-03-31"],
-      ["TIN", "123-456-789-000"],
-      ["Contact No.", "0917 123 4567"],
-      ["Address", "123 Ayala Ave., Makati City, Metro Manila"],
-    ],
-  },
-  {
-    title: "Facility / Manufacturing Lines",
-    fields: [
-      ["Facility Type", "Drug Manufacturing Plant"],
-      ["Product Lines", "Solid Oral Dosage, Liquid Oral"],
-      ["Manufacturing Area", "2,500 sqm"],
-      ["Number of Production Lines", "3"],
-      ["GMP Classification", "Grade C / Grade D"],
-      ["Certificate Validity Sought", "3 years"],
-    ],
-  },
-];
+// Original OP first, then additional OPs in the order they were issued
+const byOrder = (a, b) => {
+  if (a.op_type !== b.op_type) return a.op_type === "INITIAL" ? -1 : 1;
+  return String(a.issued_at || "").localeCompare(String(b.issued_at || ""));
+};
 
-/* ── Mock PDF viewer. Uses an iframe when pdfUrl is provided; otherwise renders the children (mock paper) ── */
-export function PdfViewer({
-  colors,
-  fileName,
-  pdfUrl,
-  defaultZoom = 0.7,
-  children,
-}) {
-  const [zoom, setZoom] = useState(defaultZoom);
-  const zoomBtn = {
-    width: "24px",
-    height: "24px",
-    border: `1px solid ${colors.cardBorder}`,
-    borderRadius: "5px",
-    background: colors.cardBg,
-    color: colors.textPrimary,
-    cursor: "pointer",
-    fontSize: "0.8rem",
-    lineHeight: 1,
-  };
-
+function Section({ title, colors, children }) {
   return (
     <div
       style={{
-        display: "flex",
-        flexDirection: "column",
+        background: colors.cardBg,
         border: `1px solid ${colors.cardBorder}`,
         borderRadius: "10px",
         overflow: "hidden",
-        height: "100%",
-        minHeight: "360px",
       }}
     >
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0.45rem 0.75rem",
+          padding: "0.5rem 0.85rem",
+          fontSize: "0.72rem",
+          fontWeight: 700,
+          color: colors.textPrimary,
           background: colors.tableBg,
           borderBottom: `1px solid ${colors.cardBorder}`,
-          flexShrink: 0,
-        }}
-      >
-        <span
-          style={{
-            fontSize: "0.68rem",
-            fontWeight: 600,
-            color: colors.textPrimary,
-          }}
-        >
-          📄 {fileName} · A4
-        </span>
-        {!pdfUrl && (
-          <div
-            style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}
-          >
-            <button
-              style={zoomBtn}
-              onClick={() =>
-                setZoom((z) => Math.max(0.3, +(z - 0.1).toFixed(1)))
-              }
-            >
-              −
-            </button>
-            <span
-              style={{
-                fontSize: "0.62rem",
-                color: colors.textTertiary,
-                minWidth: "34px",
-                textAlign: "center",
-              }}
-            >
-              {Math.round(zoom * 100)}%
-            </span>
-            <button
-              style={zoomBtn}
-              onClick={() =>
-                setZoom((z) => Math.min(1.5, +(z + 0.1).toFixed(1)))
-              }
-            >
-              +
-            </button>
-          </div>
-        )}
-      </div>
-
-      {pdfUrl ? (
-        <iframe
-          title={fileName}
-          src={pdfUrl}
-          style={{ flex: 1, border: "none", width: "100%" }}
-        />
-      ) : (
-        <div
-          style={{
-            flex: 1,
-            overflow: "auto",
-            background: "#6b7280",
-            padding: "1rem",
-          }}
-        >
-          <div
-            style={{
-              zoom,
-              width: "794px",
-              minHeight: "1123px",
-              boxSizing: "border-box",
-              margin: "0 auto",
-              background: "#fff",
-              color: "#111",
-              padding: "72px 64px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
-              fontSize: "14px",
-              lineHeight: 1.7,
-              fontFamily: "Georgia, 'Times New Roman', serif",
-            }}
-          >
-            {children}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LogoImage({ src, alt, width, height }) {
-  const [failed, setFailed] = useState(false);
-  if (!src || failed) {
-    return (
-      <div
-        style={{
-          width,
-          height,
-          border: "1px dashed #999",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: "11px",
-          color: "#555",
-          textAlign: "center",
-          flexShrink: 0,
-        }}
-      >
-        {alt}
-      </div>
-    );
-  }
-  return (
-    <img
-      src={src}
-      alt={alt}
-      onError={() => setFailed(true)}
-      style={{ width, height, objectFit: "contain", flexShrink: 0 }}
-    />
-  );
-}
-
-function OopHeader({ title, subtitle }) {
-  return (
-    <>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "14px",
-          marginBottom: "20px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <LogoImage
-            src={OOP_LOGOS.fda}
-            alt="FDA logo"
-            width="110px"
-            height="64px"
-          />
-          <LogoImage
-            src={OOP_LOGOS.doh}
-            alt="DOH seal"
-            width="64px"
-            height="64px"
-          />
-        </div>
-        <div
-          style={{
-            borderLeft: "1px solid #111",
-            paddingLeft: "14px",
-            flex: 1,
-            lineHeight: 1.35,
-          }}
-        >
-          <div style={{ fontSize: "14px" }}>Republic of the Philippines</div>
-          <div style={{ fontSize: "16px" }}>Department of Health</div>
-          <div style={{ fontSize: "16px", fontWeight: 700 }}>
-            FOOD AND DRUG ADMINISTRATION
-          </div>
-        </div>
-        <LogoImage
-          src={OOP_LOGOS.bagongPilipinas}
-          alt="Bagong Pilipinas"
-          width="96px"
-          height="64px"
-        />
-      </div>
-      <div
-        style={{
-          textAlign: "center",
-          fontSize: "22px",
-          fontWeight: 700,
-          letterSpacing: "1px",
-          margin: "14px 0 4px",
         }}
       >
         {title}
       </div>
-      {subtitle && (
-        <div
-          style={{
-            textAlign: "center",
-            fontSize: "13px",
-            fontWeight: 700,
-            marginBottom: "10px",
-          }}
-        >
-          {subtitle}
-        </div>
-      )}
-    </>
-  );
-}
-
-function OopSection({ title, rows }) {
-  return (
-    <div style={{ margin: "16px 0" }}>
-      <div
-        style={{
-          fontWeight: 700,
-          textDecoration: "underline",
-          marginBottom: "4px",
-        }}
-      >
-        {title}
-      </div>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          {rows.map(([label, value, bold]) => (
-            <tr key={label}>
-              <td
-                style={{
-                  width: "38%",
-                  padding: "3px 0",
-                  verticalAlign: "top",
-                  fontWeight: bold ? 700 : 400,
-                  borderTop: bold ? "1px solid #111" : "none",
-                }}
-              >
-                {label}
-              </td>
-              <td
-                style={{
-                  padding: "3px 0",
-                  verticalAlign: "top",
-                  fontWeight: bold ? 700 : 400,
-                  borderTop: bold ? "1px solid #111" : "none",
-                }}
-              >
-                {value}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div style={{ padding: "0.5rem 0.85rem" }}>{children}</div>
     </div>
   );
 }
 
-function OopNotices({ bancnetAmount }) {
-  return (
-    <div style={{ color: "#c00000", fontSize: "12.5px", lineHeight: 1.45 }}>
-      <p style={{ margin: "0 0 8px" }}>
-        Your application has passed the pre-assessment phase. Please pay the
-        corresponding amount indicated above. Evaluation of your application
-        shall commence after a payment was made and posted on our system. Kindly
-        present this document upon payment thru landbank.
-      </p>
-      <p style={{ margin: "0 0 8px" }}>
-        If payment is made using Bancnet Online Bills Payment Facility
-        (www.bancnetonline.com), an additional Php15.00 should be included to
-        the amount due.
-      </p>
-      <p style={{ margin: 0, fontSize: "14px" }}>
-        BancNet Amount: <strong>{php(bancnetAmount)}</strong>
-      </p>
-    </div>
-  );
-}
-
-const getGeneralInfoRows = (row, refNo) => [
-  ["Reference Number:", refNo],
-  ["Authorization:", OOP_AUTHORIZATION],
-  ["Type of Application:", row.activity],
-  ["Facility Type:", OOP_STATIC.productType],
-  ["Name of Establishment:", row.applicantCompany],
-  ["E-mail Address:", OOP_STATIC.email],
-  ["Mobile Number:", OOP_STATIC.mobile],
-  ["Landline Number:", OOP_STATIC.landline],
-];
-
-export function OrderOfPaymentPaper({ row, refNo }) {
-  return (
-    <>
-      <OopHeader title="ORDER OF PAYMENT" />
-      <OopSection
-        title="General Information"
-        rows={getGeneralInfoRows(row, refNo)}
-      />
-      <OopSection
-        title="Payment Details"
-        rows={[
-          ...ORDER_OF_PAYMENT_ITEMS.map((i) => [`${i.label}:`, php(i.amount)]),
-          ["Total Amount:", php(AMOUNT_DUE), true],
-        ]}
-      />
-      <OopNotices bancnetAmount={AMOUNT_DUE + BANCNET_FEE} />
-    </>
-  );
-}
-
-export function AdditionalOopPaper({
-  row,
-  refNo,
-  originalDue,
-  alreadyPaid,
-  additionalDue,
-  remarks,
-}) {
-  return (
-    <>
-      <OopHeader title="ORDER OF PAYMENT" subtitle="(ADDITIONAL)" />
-      <OopSection
-        title="General Information"
-        rows={getGeneralInfoRows(row, refNo)}
-      />
-      <OopSection
-        title="Payment Details"
-        rows={[
-          ["Original Amount Due:", php(originalDue)],
-          ["Total Amount Paid:", php(alreadyPaid)],
-          ["Additional Amount Due:", php(additionalDue), true],
-        ]}
-      />
-      <div style={{ margin: "16px 0" }}>
-        <div style={{ fontWeight: 700, marginBottom: "4px" }}>
-          REMARKS / NOTES:
-        </div>
-        <div
-          style={{
-            border: "1px solid #999",
-            minHeight: "90px",
-            padding: "8px 10px",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {remarks}
-        </div>
-      </div>
-      <OopNotices bancnetAmount={additionalDue + BANCNET_FEE} />
-    </>
-  );
-}
-
-export function AcknowledgementReceiptPaper({
-  row,
-  refNo,
-  payments,
-  totalPaid,
-  postingStamp,
-  cashierName,
-  cashierPosition,
-}) {
-  return (
-    <>
-      <OopHeader title="ACKNOWLEDGEMENT RECEIPT" />
-      <OopSection
-        title="General Information"
-        rows={getGeneralInfoRows(row, refNo)}
-      />
-      <OopSection
-        title="PRE-ASSESSMENT DETAILS:"
-        rows={[
-          ["Date and Time of Pre-Assessment:", PRE_ASSESSMENT.dateTime],
-          ["Pre-Assessor:", PRE_ASSESSMENT.assessor],
-          ["Position / Designation:", PRE_ASSESSMENT.position],
-          ["Center / Office:", PRE_ASSESSMENT.office],
-        ]}
-      />
-      <OopSection
-        title="VERIFICATION AND POSTING DETAILS:"
-        rows={[
-          [
-            "Date of Payment:",
-            uniq(payments.map((p) => formatLongDate(p.dateOfPayment))),
-          ],
-          ["Date and Time of Posting:", postingStamp],
-          ["FDA Cashier Officer:", cashierName],
-          ["Position / Designation:", cashierPosition],
-          ["OR Number:", uniq(payments.map((p) => p.orNo))],
-          ["Total Amount Paid:", payments.length ? php(totalPaid) : ""],
-        ]}
-      />
-      <p
-        style={{
-          color: "#c00000",
-          fontSize: "12.5px",
-          lineHeight: 1.45,
-          margin: "28px 0 0",
-        }}
-      >
-        This serves as your Acknowledgement Receipt. Complete payment and
-        application have been successfully submitted. Status of your application
-        shall be sent through the email address indicated above.
-      </p>
-    </>
-  );
-}
-
-function ConfirmPostModal({
-  row,
-  colors,
-  totalPaid,
-  balance,
-  hasBalance,
-  onConfirm,
-  onCancel,
-}) {
+function Field({ label, value, colors }) {
   return (
     <div
-      onClick={onCancel}
       style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10001,
+        gap: "0.75rem",
+        padding: "0.28rem 0",
+        fontSize: "0.7rem",
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
+      <span
+        style={{ width: "150px", flexShrink: 0, color: colors.textTertiary }}
+      >
+        {label}
+      </span>
+      <span
         style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "12px",
-          padding: "1.25rem",
-          width: "400px",
-          maxWidth: "90vw",
-          boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+          color: colors.textPrimary,
+          fontWeight: 500,
+          wordBreak: "break-word",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            marginBottom: "0.6rem",
-          }}
-        >
-          <span style={{ fontSize: "1.3rem" }}>❓</span>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: "0.95rem",
-              fontWeight: 700,
-              color: colors.textPrimary,
-            }}
-          >
-            Are you sure you want to post?
-          </h3>
-        </div>
-        <p
-          style={{
-            margin: "0 0 0.6rem",
-            fontSize: "0.75rem",
-            color: colors.textTertiary,
-            lineHeight: 1.5,
-          }}
-        >
-          You are about to post a payment of{" "}
-          <strong style={{ color: colors.textPrimary }}>
-            {peso(totalPaid)}
-          </strong>{" "}
-          for{" "}
-          <strong style={{ color: colors.textPrimary }}>
-            {row.referenceNo}
-          </strong>
-          . This cannot be changed after posting.
-        </p>
-        {hasBalance && (
-          <p
-            style={{
-              margin: "0 0 0.9rem",
-              padding: "0.5rem 0.65rem",
-              fontSize: "0.72rem",
-              lineHeight: 1.5,
-              color: "#b45309",
-              background: "rgba(245,158,11,0.12)",
-              border: "1px solid rgba(245,158,11,0.35)",
-              borderRadius: "8px",
-            }}
-          >
-            ⚠️ The payment is short by <strong>{peso(balance)}</strong>. An
-            Additional Order of Payment will be generated for the balance.
-          </p>
-        )}
-        <div
-          style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
-        >
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "0.45rem 0.9rem",
-              fontSize: "0.72rem",
-              fontWeight: 600,
-              borderRadius: "6px",
-              border: `1px solid ${colors.cardBorder}`,
-              background: "transparent",
-              color: colors.textPrimary,
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            style={{
-              padding: "0.45rem 0.9rem",
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              borderRadius: "6px",
-              border: "none",
-              background: "linear-gradient(135deg,#4CAF50,#43A047)",
-              color: "#fff",
-              cursor: "pointer",
-              boxShadow: "0 2px 8px rgba(76,175,80,0.35)",
-            }}
-          >
-            ✔ Yes, Post
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ConfirmAddPaymentModal({
-  colors,
-  payment,
-  amountDue,
-  paidSoFar,
-  onConfirm,
-  onCancel,
-}) {
-  const amount = Number(payment.amountPaid);
-  const projected = +(paidSoFar + amount).toFixed(2);
-  const diff = +(projected - amountDue).toFixed(2);
-
-  const status =
-    diff > 0
-      ? {
-          icon: "⚠️",
-          color: "#b45309",
-          bg: "rgba(245,158,11,0.12)",
-          border: "rgba(245,158,11,0.35)",
-          text: `Overpayment: the total paid (${peso(projected)}) exceeds the amount due by ${peso(diff)}. Please confirm this is correct.`,
-        }
-      : diff < 0
-        ? {
-            icon: "⚠️",
-            color: "#dc2626",
-            bg: "rgba(239,68,68,0.10)",
-            border: "rgba(239,68,68,0.35)",
-            text: `Short payment: ${peso(-diff)} will still be unpaid after this payment. Confirm only if the payer really paid less than the amount due. You can still add another payment.`,
-          }
-        : {
-            icon: "✅",
-            color: "#059669",
-            bg: "rgba(16,185,129,0.10)",
-            border: "rgba(16,185,129,0.35)",
-            text: "The total paid matches the amount due.",
-          };
-
-  const details = [
-    ["Reference Number", payment.referenceNo],
-    ["Type of Payment", payment.paymentType],
-    ["OR Number", payment.orNo],
-    ["Date of Payment", payment.dateOfPayment],
-    ["Amount Paid", peso(amount)],
-  ];
-
-  return (
-    <div
-      onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10001,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "12px",
-          padding: "1.25rem",
-          width: "420px",
-          maxWidth: "90vw",
-          boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            marginBottom: "0.7rem",
-          }}
-        >
-          <span style={{ fontSize: "1.3rem" }}>🧾</span>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: "0.95rem",
-              fontWeight: 700,
-              color: colors.textPrimary,
-            }}
-          >
-            Confirm payment details
-          </h3>
-        </div>
-
-        <div
-          style={{
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "8px",
-            padding: "0.5rem 0.75rem",
-            marginBottom: "0.7rem",
-          }}
-        >
-          {details.map(([label, value]) => (
-            <div
-              key={label}
-              style={{
-                display: "flex",
-                gap: "0.75rem",
-                padding: "0.22rem 0",
-                fontSize: "0.72rem",
-              }}
-            >
-              <span
-                style={{
-                  width: "120px",
-                  flexShrink: 0,
-                  color: colors.textTertiary,
-                }}
-              >
-                {label}
-              </span>
-              <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
-                {value}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div
-          style={{
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "8px",
-            padding: "0.5rem 0.75rem",
-            marginBottom: "0.7rem",
-            fontSize: "0.7rem",
-            color: colors.textPrimary,
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.2rem",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: colors.textTertiary }}>Amount due</span>
-            <span>{peso(amountDue)}</span>
-          </div>
-          {paidSoFar > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ color: colors.textTertiary }}>
-                Already added this visit
-              </span>
-              <span>{peso(paidSoFar)}</span>
-            </div>
-          )}
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <span style={{ color: colors.textTertiary }}>
-              Total paid after this payment
-            </span>
-            <span style={{ fontWeight: 700 }}>{peso(projected)}</span>
-          </div>
-        </div>
-
-        <p
-          style={{
-            margin: "0 0 0.9rem",
-            padding: "0.5rem 0.65rem",
-            fontSize: "0.72rem",
-            lineHeight: 1.5,
-            color: status.color,
-            background: status.bg,
-            border: `1px solid ${status.border}`,
-            borderRadius: "8px",
-          }}
-        >
-          {status.icon} {status.text}
-        </p>
-
-        <div
-          style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
-        >
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "0.45rem 0.9rem",
-              fontSize: "0.72rem",
-              fontWeight: 600,
-              borderRadius: "6px",
-              border: `1px solid ${colors.cardBorder}`,
-              background: "transparent",
-              color: colors.textPrimary,
-              cursor: "pointer",
-            }}
-          >
-            Go Back & Edit
-          </button>
-          <button
-            onClick={onConfirm}
-            style={{
-              padding: "0.45rem 0.9rem",
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              borderRadius: "6px",
-              border: "none",
-              background: "linear-gradient(135deg,#4CAF50,#43A047)",
-              color: "#fff",
-              cursor: "pointer",
-              boxShadow: "0 2px 8px rgba(76,175,80,0.35)",
-            }}
-          >
-            ✔ Confirm & Add Payment
-          </button>
-        </div>
-      </div>
+        {value || "—"}
+      </span>
     </div>
   );
 }
@@ -904,20 +122,22 @@ export default function FgmpDetailsModal({
   colors,
   cashierName = "Cashier",
   cashierPosition = "Cashier",
-  onPost,
+  onPosted,
   onClose,
 }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(EMPTY_FORM);
   const [payments, setPayments] = useState([]);
   const [remarks, setRemarks] = useState("");
   const [showConfirm, setShowConfirm] = useState(false);
   const [showAddConfirm, setShowAddConfirm] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState(null);
 
-  // Inspection Details — placeholder fields only, not sent to the backend yet
-  const [inspection, setInspection] = useState(EMPTY_INSPECTION_FORM);
-
-  const details = useMemo(() => (row ? getStaticDetails(row) : []), [row]);
   const postingStamp = useMemo(
     () =>
       new Date().toLocaleString("en-PH", {
@@ -927,56 +147,117 @@ export default function FgmpDetailsModal({
     [],
   );
 
-  if (!row) return null;
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getClaimedApplication(row.referenceNo)
+      .then((result) => {
+        if (!cancelled) setData(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [row.referenceNo]);
 
-  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amountPaid), 0);
+  const formData = data?.form_data || {};
+  const parties = data?.parties || [];
+  const ops = useMemo(
+    () => [...(data?.orders_of_payment || [])].sort(byOrder),
+    [data],
+  );
 
-  const priorPayments = row.payments || [];
-  const isFollowUp = priorPayments.length > 0;
+  // Every remaining form_data entry (simple values only) is listed as-is,
+  // so the details view does not depend on a fixed list of field names.
+  const extraFormFields = useMemo(
+    () =>
+      Object.entries(formData).filter(([key, value]) => {
+        if (HANDLED_FORM_KEYS.has(key)) return false;
+        if (PARTY_TYPES.some((t) => key === t || key.startsWith(`${t} `))) {
+          return false;
+        }
+        return typeof value === "string" || typeof value === "number";
+      }),
+    [formData],
+  );
+
+  const openOp =
+    [...ops].reverse().find((op) => op.status === "UNPAID") || null;
+  const initialOp = ops.find((op) => op.op_type === "INITIAL") || null;
+  const canPost = !!openOp;
+  const isFollowUp = openOp?.op_type === "ADDITIONAL";
+  const additionalCount = ops.filter(
+    (op) => op.op_type === "ADDITIONAL",
+  ).length;
+  const referenceNumber = data?.reference_number || row.referenceNo;
+
+  // Payments already posted (read-only)
+  const priorPayments = ops.flatMap((op) =>
+    (op.verifications || []).map((v) => ({
+      id: v.verification_uuid,
+      referenceNo: v.reference_number,
+      paymentType: v.type_of_payment,
+      orNo: v.official_receipt_number,
+      dateOfPayment: v.date_of_payment,
+      amountPaid: v.amount_paid,
+    })),
+  );
   const priorPaid = priorPayments.reduce(
     (sum, p) => sum + Number(p.amountPaid),
     0,
   );
-  const oopSeq = row.additionalOopCount || 0;
-  const oopRefNo = isFollowUp
-    ? `${row.referenceNo}-A${oopSeq}`
-    : row.referenceNo;
 
-  const amountDue = isFollowUp
-    ? Math.max(0, +(AMOUNT_DUE - priorPaid).toFixed(2))
-    : AMOUNT_DUE;
+  const amountDue = openOp ? Number(openOp.total_amount) : 0;
+  const originalDue = initialOp ? Number(initialOp.total_amount) : 0;
+  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amountPaid), 0);
   const balance = Math.max(0, +(amountDue - totalPaid).toFixed(2));
   const overpaid = Math.max(0, +(totalPaid - amountDue).toFixed(2));
-  const hasBalance = balance > 0;
-  const baseSteps = isFollowUp
-    ? STEPS.map((s) =>
-        s.id === 3 ? { ...s, label: "Additional Order of Payment" } : s,
-      )
-    : STEPS;
-  const steps = hasBalance
-    ? [
-        ...baseSteps,
-        isFollowUp
-          ? { ...STEP_ADDITIONAL, label: "New Additional Order of Payment" }
-          : STEP_ADDITIONAL,
-      ]
-    : baseSteps;
-  const lastStep = steps.length;
+  const hasBalance = canPost && balance > 0;
+  const oopRefNo = openOp?.op_number || referenceNumber;
+  const nextAoopRefNo = `${referenceNumber}-A${additionalCount + 1}`;
 
-  /* TODO: replace with an API call, e.g.
-     await postPayments(row.id, { payments, remarks }) and, if there is a
-     balance, generate the additional Order of Payment on the backend */
-  const handleConfirmPost = () => {
-    onPost?.({
-      row,
-      payments,
-      totalPaid,
-      balance,
-      remarks: hasBalance ? remarks.trim() : "",
-    });
-    setShowConfirm(false);
-    onClose();
+  const info = {
+    activity: data?.activity,
+    applicationType: data?.application_type,
+    company: data?.applicant_company,
+    email: data?.email_address,
+    contactNo: data?.contact_no,
   };
+
+  const steps = !canPost
+    ? [
+        { id: 1, label: "Application Details", icon: "📋" },
+        { id: 2, label: "Payment History", icon: "💳" },
+      ]
+    : [
+        { id: 1, label: "Application Details", icon: "📋" },
+        {
+          id: 2,
+          label: isFollowUp
+            ? "Additional Order of Payment"
+            : "Order of Payment",
+          icon: "💳",
+        },
+        { id: 3, label: "Acknowledgement Receipt", icon: "🧾" },
+        ...(hasBalance
+          ? [
+              {
+                id: 4,
+                label: isFollowUp
+                  ? "New Additional Order of Payment"
+                  : "Additional Order of Payment",
+                icon: "➕",
+              },
+            ]
+          : []),
+      ];
+  const lastStep = steps.length;
 
   const canAdd =
     form.paymentType &&
@@ -985,29 +266,44 @@ export default function FgmpDetailsModal({
     Number(form.amountPaid) > 0;
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
-  const setInspectionField = (key, value) =>
-    setInspection((f) => ({ ...f, [key]: value }));
 
-  const addPayment = () => {
+  const confirmAddPayment = () => {
     if (!canAdd) return;
     setPayments((prev) => [
       ...prev,
       { id: Date.now(), ...form, referenceNo: oopRefNo },
     ]);
     setForm(EMPTY_FORM);
-  };
-
-  const requestAddPayment = () => {
-    if (!canAdd) return;
-    setShowAddConfirm(true);
-  };
-  const confirmAddPayment = () => {
-    addPayment();
     setShowAddConfirm(false);
   };
 
   const removePayment = (id) =>
     setPayments((prev) => prev.filter((p) => p.id !== id));
+
+  const handleConfirmPost = async () => {
+    if (posting) return;
+    setPosting(true);
+    setPostError(null);
+    try {
+      await postClaimedPayments(row.referenceNo, {
+        payments: payments.map((p) => ({
+          type_of_payment: p.paymentType,
+          official_receipt_number: p.orNo.trim(),
+          date_of_payment: p.dateOfPayment,
+          amount_paid: Number(p.amountPaid).toFixed(2),
+        })),
+        remarks: hasBalance ? remarks.trim() : "",
+      });
+      setShowConfirm(false);
+      await onPosted?.();
+      onClose();
+    } catch (err) {
+      setShowConfirm(false);
+      setPostError(err.message);
+    } finally {
+      setPosting(false);
+    }
+  };
 
   const inputStyle = {
     width: "100%",
@@ -1070,154 +366,298 @@ export default function FgmpDetailsModal({
 
   /* ───────────── Step 1: Application Details ───────────── */
   const renderStep1 = () => (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
-        gap: "0.9rem",
-      }}
-    >
-      {details.map((section) => (
-        <div
-          key={section.title}
-          style={{
-            background: colors.cardBg,
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "10px",
-            overflow: "hidden",
-          }}
-        >
-          <div
-            style={{
-              padding: "0.5rem 0.85rem",
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              color: colors.textPrimary,
-              background: colors.tableBg,
-              borderBottom: `1px solid ${colors.cardBorder}`,
-            }}
-          >
-            {section.title}
-          </div>
-          <div style={{ padding: "0.5rem 0.85rem" }}>
-            {section.fields.map(([label, value]) => (
-              <div
-                key={label}
-                style={{
-                  display: "flex",
-                  gap: "0.75rem",
-                  padding: "0.28rem 0",
-                  fontSize: "0.7rem",
-                }}
-              >
-                <span
-                  style={{
-                    width: "140px",
-                    flexShrink: 0,
-                    color: colors.textTertiary,
-                  }}
-                >
-                  {label}
-                </span>
-                <span style={{ color: colors.textPrimary, fontWeight: 500 }}>
-                  {value}
-                </span>
-              </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+          gap: "0.9rem",
+        }}
+      >
+        <Section title="Application Information" colors={colors}>
+          <Field
+            label="Reference Number"
+            value={data.reference_number}
+            colors={colors}
+          />
+          <Field label="Activity" value={data.activity} colors={colors} />
+          <Field
+            label="Application Type"
+            value={data.application_type}
+            colors={colors}
+          />
+          <Field
+            label="Scheduled Date"
+            value={formData["Scheduled Date"]}
+            colors={colors}
+          />
+          <Field
+            label="Time Slot"
+            value={formData["Time Slot"]}
+            colors={colors}
+          />
+          <Field label="Remarks" value={formData["Remarks"]} colors={colors} />
+        </Section>
+
+        <Section title="Establishment" colors={colors}>
+          <Field
+            label="Company"
+            value={data.applicant_company}
+            colors={colors}
+          />
+          <Field label="LTO Number" value={data.lto_no} colors={colors} />
+          <Field
+            label="LTO Validity"
+            value={formData["Validity"]}
+            colors={colors}
+          />
+          <Field label="TIN" value={data.tin} colors={colors} />
+          <Field label="Email" value={data.email_address} colors={colors} />
+          <Field label="Contact No." value={data.contact_no} colors={colors} />
+          <Field label="Address" value={data.address} colors={colors} />
+        </Section>
+
+        {extraFormFields.length > 0 && (
+          <Section title="Facility / Application Form" colors={colors}>
+            {extraFormFields.map(([key, value]) => (
+              <Field
+                key={key}
+                label={key}
+                value={String(value)}
+                colors={colors}
+              />
             ))}
-          </div>
+          </Section>
+        )}
+      </div>
+
+      <Section title={`Parties (${parties.length})`} colors={colors}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Type</th>
+                <th style={thStyle}>Name</th>
+                <th style={thStyle}>Address</th>
+                <th style={thStyle}>TIN</th>
+                <th style={thStyle}>LTO No.</th>
+                <th style={thStyle}>Country</th>
+              </tr>
+            </thead>
+            <tbody>
+              {parties.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    style={{
+                      ...tdStyle,
+                      textAlign: "center",
+                      color: colors.textTertiary,
+                    }}
+                  >
+                    No parties.
+                  </td>
+                </tr>
+              ) : (
+                parties.map((p) => (
+                  <tr key={p.party_type}>
+                    <td style={tdStyle}>{p.party_type}</td>
+                    <td style={tdStyle}>{p.name || "—"}</td>
+                    <td style={tdStyle}>{p.address || "—"}</td>
+                    <td style={tdStyle}>{p.tin || "—"}</td>
+                    <td style={tdStyle}>{p.lto_no || "—"}</td>
+                    <td style={tdStyle}>{p.country || "—"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      ))}
+      </Section>
+
+      {data.drive_link && (
+        <Section title="Submitted Files" colors={colors}>
+          <a
+            href={data.drive_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: "0.72rem", color: "#2196F3" }}
+          >
+            📁 Open Google Drive folder
+          </a>
+        </Section>
+      )}
     </div>
   );
 
-  /* ───────────── Step 2: Inspection Details (placeholder only) ───────────── */
-  const renderStep2 = () => (
+  /* Payments table (prior + new) */
+  const renderPaymentsTable = (allowRemove) => (
     <div
       style={{
-        maxWidth: "520px",
         background: colors.cardBg,
         border: `1px solid ${colors.cardBorder}`,
         borderRadius: "10px",
-        padding: "0.9rem 1rem",
-        display: "flex",
-        flexDirection: "column",
-        gap: "0.75rem",
+        overflow: "hidden",
       }}
     >
       <div
         style={{
-          fontSize: "0.75rem",
-          fontWeight: 700,
-          color: colors.textPrimary,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          padding: "0.5rem 0.85rem",
+          borderBottom: `1px solid ${colors.cardBorder}`,
         }}
       >
-        🔍 Inspection Details
+        <span
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            color: colors.textPrimary,
+          }}
+        >
+          Payments ({priorPayments.length + payments.length})
+        </span>
+        {allowRemove && (
+          <span
+            style={{
+              fontSize: "0.7rem",
+              fontWeight: 700,
+              color: colors.textPrimary,
+            }}
+          >
+            Due: {peso(amountDue)} · Paid now: {peso(totalPaid)} ·{" "}
+            <span
+              style={{
+                color: hasBalance
+                  ? "#ef4444"
+                  : overpaid > 0
+                    ? "#d97706"
+                    : "#059669",
+              }}
+            >
+              {hasBalance
+                ? `Balance: ${peso(balance)}`
+                : overpaid > 0
+                  ? `Overpaid by ${peso(overpaid)}`
+                  : "Fully paid"}
+            </span>
+          </span>
+        )}
       </div>
-      <div
-        style={{
-          fontSize: "0.65rem",
-          color: colors.textTertiary,
-          padding: "0.5rem 0.65rem",
-          background: colors.tableBg,
-          borderRadius: "6px",
-        }}
-      >
-        Placeholder only for now — inspector assignment and scheduling will be
-        built out separately. These fields are not yet sent to the backend.
-      </div>
-
-      <div>
-        <label style={labelStyle}>Inspector Name</label>
-        <input
-          style={inputStyle}
-          value={inspection.inspectorName}
-          onChange={(e) => setInspectionField("inspectorName", e.target.value)}
-          placeholder="Enter assigned inspector"
-        />
-      </div>
-      <div>
-        <label style={labelStyle}>Inspection Date</label>
-        <input
-          type="date"
-          style={inputStyle}
-          value={inspection.inspectionDate}
-          onChange={(e) => setInspectionField("inspectionDate", e.target.value)}
-        />
-      </div>
-      <div>
-        <label style={labelStyle}>Findings / Remarks</label>
-        <textarea
-          rows={5}
-          style={{ ...inputStyle, resize: "vertical" }}
-          value={inspection.findings}
-          onChange={(e) => setInspectionField("findings", e.target.value)}
-          placeholder="Summary of inspection findings..."
-        />
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ ...thStyle, width: "40px", textAlign: "center" }}>
+                #
+              </th>
+              <th style={thStyle}>Reference Number</th>
+              <th style={thStyle}>Type of Payment</th>
+              <th style={thStyle}>OR Number</th>
+              <th style={thStyle}>Date of Payment</th>
+              <th style={{ ...thStyle, textAlign: "right" }}>Amount Paid</th>
+              <th style={{ ...thStyle, width: "60px", textAlign: "center" }}>
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {priorPayments.map((p, i) => (
+              <tr key={`prior-${p.id}`}>
+                <td style={{ ...tdStyle, textAlign: "center" }}>{i + 1}</td>
+                <td style={tdStyle}>{p.referenceNo}</td>
+                <td style={tdStyle}>{p.paymentType}</td>
+                <td style={tdStyle}>{p.orNo}</td>
+                <td style={tdStyle}>{p.dateOfPayment}</td>
+                <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
+                  {peso(p.amountPaid)}
+                </td>
+                <td
+                  style={{
+                    ...tdStyle,
+                    textAlign: "center",
+                    fontSize: "0.6rem",
+                    color: colors.textTertiary,
+                  }}
+                >
+                  🔒 Posted
+                </td>
+              </tr>
+            ))}
+            {payments.map((p, i) => (
+              <tr key={p.id}>
+                <td style={{ ...tdStyle, textAlign: "center" }}>
+                  {priorPayments.length + i + 1}
+                </td>
+                <td style={tdStyle}>{p.referenceNo}</td>
+                <td style={tdStyle}>{p.paymentType}</td>
+                <td style={tdStyle}>{p.orNo}</td>
+                <td style={tdStyle}>{p.dateOfPayment}</td>
+                <td style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}>
+                  {peso(p.amountPaid)}
+                </td>
+                <td style={{ ...tdStyle, textAlign: "center" }}>
+                  <button
+                    onClick={() => removePayment(p.id)}
+                    title="Remove payment"
+                    style={{
+                      border: "none",
+                      background: "rgba(239,68,68,0.12)",
+                      color: "#ef4444",
+                      borderRadius: "5px",
+                      width: "24px",
+                      height: "24px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    🗑
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {priorPayments.length + payments.length === 0 && (
+              <tr>
+                <td
+                  colSpan={7}
+                  style={{
+                    padding: "1.2rem",
+                    textAlign: "center",
+                    fontSize: "0.72rem",
+                    color: colors.textTertiary,
+                  }}
+                >
+                  No payments yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 
-  /* ───────────── Step 3: Order of Payment + payment entry ───────────── */
-  const renderStep3 = () => (
+  /* ───────────── Step 2: Order of Payment + payment entry ───────────── */
+  const renderStep2 = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
       <div style={{ display: "flex", gap: "0.9rem", flexWrap: "wrap" }}>
         <div style={{ flex: "1.6 1 420px", minWidth: 0, height: "620px" }}>
           <PdfViewer
             colors={colors}
             defaultZoom={0.7}
-            fileName={`${isFollowUp ? "Additional Order of Payment" : "Order of Payment"} - ${row.referenceNo}.pdf`}
+            fileName={`${isFollowUp ? "Additional Order of Payment" : "Order of Payment"} - ${oopRefNo}.pdf`}
           >
             {isFollowUp ? (
               <AdditionalOopPaper
+                info={info}
                 refNo={oopRefNo}
-                row={row}
-                originalDue={AMOUNT_DUE}
+                originalDue={originalDue}
                 alreadyPaid={priorPaid}
                 additionalDue={amountDue}
-                remarks={row.additionalOopRemarks || ""}
+                remarks={openOp.deficiency_reason || ""}
               />
             ) : (
-              <OrderOfPaymentPaper row={row} refNo={row.referenceNo} />
+              <OrderOfPaymentPaper info={info} refNo={oopRefNo} op={openOp} />
             )}
           </PdfViewer>
         </div>
@@ -1308,7 +748,7 @@ export default function FgmpDetailsModal({
           </div>
 
           <button
-            onClick={requestAddPayment}
+            onClick={() => canAdd && setShowAddConfirm(true)}
             disabled={!canAdd}
             style={{ ...navBtn(true, !canAdd), marginTop: "auto" }}
           >
@@ -1317,175 +757,56 @@ export default function FgmpDetailsModal({
         </div>
       </div>
 
-      <div
-        style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "10px",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "0.5rem 0.85rem",
-            borderBottom: `1px solid ${colors.cardBorder}`,
-          }}
-        >
-          <span
-            style={{
-              fontSize: "0.75rem",
-              fontWeight: 700,
-              color: colors.textPrimary,
-            }}
-          >
-            Payments ({priorPayments.length + payments.length})
-          </span>
-          <span
-            style={{
-              fontSize: "0.7rem",
-              fontWeight: 700,
-              color: colors.textPrimary,
-            }}
-          >
-            {isFollowUp
-              ? `Previously paid: ${peso(priorPaid)} · Balance due: ${peso(amountDue)}`
-              : `Due: ${peso(amountDue)}`}{" "}
-            · Paid now: {peso(totalPaid)} ·{" "}
-            <span
-              style={{
-                color: hasBalance
-                  ? "#ef4444"
-                  : overpaid > 0
-                    ? "#d97706"
-                    : "#059669",
-              }}
-            >
-              {hasBalance
-                ? `Balance: ${peso(balance)}`
-                : overpaid > 0
-                  ? `Overpaid by ${peso(overpaid)}`
-                  : "Fully paid"}
-            </span>
-          </span>
-        </div>
+      {renderPaymentsTable(true)}
+    </div>
+  );
+
+  /* Step 2 when there is nothing left to pay: history only */
+  const renderHistory = () => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+      <Section title="Orders of Payment" colors={colors}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={{ ...thStyle, width: "40px", textAlign: "center" }}>
-                  #
-                </th>
-                <th style={thStyle}>Reference Number</th>
-                <th style={thStyle}>Type of Payment</th>
-                <th style={thStyle}>OR Number</th>
-                <th style={thStyle}>Date of Payment</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Amount Paid</th>
-                <th style={{ ...thStyle, width: "60px", textAlign: "center" }}>
-                  Action
-                </th>
+                <th style={thStyle}>Type</th>
+                <th style={thStyle}>OP Number</th>
+                <th style={{ ...thStyle, textAlign: "right" }}>Total Amount</th>
+                <th style={thStyle}>Status</th>
               </tr>
             </thead>
             <tbody>
-              {priorPayments.map((p, i) => (
-                <tr key={`prior-${p.id}`}>
-                  <td style={{ ...tdStyle, textAlign: "center" }}>{i + 1}</td>
-                  <td style={tdStyle}>{p.referenceNo}</td>
-                  <td style={tdStyle}>{p.paymentType}</td>
-                  <td style={tdStyle}>{p.orNo}</td>
-                  <td style={tdStyle}>{p.dateOfPayment}</td>
+              {ops.map((op) => (
+                <tr key={op.op_uuid}>
+                  <td style={tdStyle}>{op.op_type}</td>
+                  <td style={tdStyle}>{op.op_number || referenceNumber}</td>
                   <td
                     style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}
                   >
-                    {peso(p.amountPaid)}
+                    {peso(op.total_amount)}
                   </td>
-                  <td
-                    style={{
-                      ...tdStyle,
-                      textAlign: "center",
-                      fontSize: "0.6rem",
-                      color: colors.textTertiary,
-                    }}
-                  >
-                    🔒 Posted
-                  </td>
+                  <td style={tdStyle}>{op.status}</td>
                 </tr>
               ))}
-              {payments.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={7}
-                    style={{
-                      padding: "1.2rem",
-                      textAlign: "center",
-                      fontSize: "0.72rem",
-                      color: colors.textTertiary,
-                    }}
-                  >
-                    {isFollowUp
-                      ? "No additional payment added yet."
-                      : "No payments added yet."}
-                  </td>
-                </tr>
-              ) : (
-                payments.map((p, i) => (
-                  <tr key={p.id}>
-                    <td style={{ ...tdStyle, textAlign: "center" }}>
-                      {priorPayments.length + i + 1}
-                    </td>
-                    <td style={tdStyle}>{p.referenceNo}</td>
-                    <td style={tdStyle}>{p.paymentType}</td>
-                    <td style={tdStyle}>{p.orNo}</td>
-                    <td style={tdStyle}>{p.dateOfPayment}</td>
-                    <td
-                      style={{
-                        ...tdStyle,
-                        textAlign: "right",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {peso(p.amountPaid)}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: "center" }}>
-                      <button
-                        onClick={() => removePayment(p.id)}
-                        title="Remove payment"
-                        style={{
-                          border: "none",
-                          background: "rgba(239,68,68,0.12)",
-                          color: "#ef4444",
-                          borderRadius: "5px",
-                          width: "24px",
-                          height: "24px",
-                          cursor: "pointer",
-                        }}
-                      >
-                        🗑
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
             </tbody>
           </table>
         </div>
-      </div>
+      </Section>
+      {renderPaymentsTable(false)}
     </div>
   );
 
-  /* ───────────── Step 4: Acknowledgement Receipt ───────────── */
-  const renderStep4 = () => (
+  /* ───────────── Step 3: Acknowledgement Receipt ───────────── */
+  const renderStep3 = () => (
     <div style={{ height: "680px" }}>
       <PdfViewer
         colors={colors}
         defaultZoom={0.8}
-        fileName={`Acknowledgement Receipt - ${row.referenceNo}.pdf`}
+        fileName={`Acknowledgement Receipt - ${referenceNumber}.pdf`}
       >
         <AcknowledgementReceiptPaper
-          row={row}
-          refNo={row.referenceNo}
+          info={info}
+          refNo={referenceNumber}
           payments={payments}
           totalPaid={totalPaid}
           postingStamp={postingStamp}
@@ -1496,19 +817,19 @@ export default function FgmpDetailsModal({
     </div>
   );
 
-  /* ───────────── Step 5: Additional Order of Payment (when there is a balance) ───────────── */
-  const renderStep5 = () => (
+  /* ───────────── Step 4: New Additional Order of Payment ───────────── */
+  const renderStep4 = () => (
     <div style={{ display: "flex", gap: "0.9rem", flexWrap: "wrap" }}>
       <div style={{ flex: "1.6 1 420px", minWidth: 0, height: "680px" }}>
         <PdfViewer
           colors={colors}
           defaultZoom={0.8}
-          fileName={`Additional Order of Payment - ${row.referenceNo}.pdf`}
+          fileName={`Additional Order of Payment - ${nextAoopRefNo}.pdf`}
         >
           <AdditionalOopPaper
-            refNo={`${row.referenceNo}-A${oopSeq + 1}`}
-            row={row}
-            originalDue={AMOUNT_DUE}
+            info={info}
+            refNo={nextAoopRefNo}
+            originalDue={originalDue}
             alreadyPaid={priorPaid + totalPaid}
             additionalDue={balance}
             remarks={remarks}
@@ -1538,7 +859,6 @@ export default function FgmpDetailsModal({
         >
           ➕ Additional Order of Payment
         </div>
-
         <div
           style={{
             border: `1px solid ${colors.cardBorder}`,
@@ -1600,6 +920,44 @@ export default function FgmpDetailsModal({
     </div>
   );
 
+  const renderBody = () => {
+    if (loading) {
+      return (
+        <div
+          style={{
+            padding: "2rem",
+            textAlign: "center",
+            fontSize: "0.75rem",
+            color: colors.textTertiary,
+          }}
+        >
+          Loading application details...
+        </div>
+      );
+    }
+    if (error || !data) {
+      return (
+        <div
+          style={{
+            padding: "0.75rem 1rem",
+            fontSize: "0.75rem",
+            color: "#dc2626",
+            background: "rgba(239,68,68,0.10)",
+            border: "1px solid rgba(239,68,68,0.35)",
+            borderRadius: "8px",
+          }}
+        >
+          Could not load application details: {error || "No data"}
+        </div>
+      );
+    }
+    if (step === 1) return renderStep1();
+    if (!canPost) return renderHistory();
+    if (step === 2) return renderStep2();
+    if (step === 3) return renderStep3();
+    return renderStep4();
+  };
+
   return (
     <div
       onClick={onClose}
@@ -1628,6 +986,7 @@ export default function FgmpDetailsModal({
           overflow: "hidden",
         }}
       >
+        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -1668,115 +1027,137 @@ export default function FgmpDetailsModal({
           </button>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            gap: "0.5rem",
-            padding: "0.65rem 1.1rem",
-            background: colors.cardBg,
-            borderBottom: `1px solid ${colors.cardBorder}`,
-            flexShrink: 0,
-          }}
-        >
-          {steps.map((s) => {
-            const active = step === s.id;
-            const done = step > s.id;
-            return (
-              <div
-                key={s.id}
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.5rem",
-                  padding: "0.4rem 0.7rem",
-                  borderRadius: "8px",
-                  border: `1px solid ${active ? "#4CAF50" : colors.cardBorder}`,
-                  background: active ? "rgba(76,175,80,0.1)" : "transparent",
-                }}
-              >
-                <span
+        {/* Stepper */}
+        {data && (
+          <div
+            style={{
+              display: "flex",
+              gap: "0.5rem",
+              padding: "0.65rem 1.1rem",
+              background: colors.cardBg,
+              borderBottom: `1px solid ${colors.cardBorder}`,
+              flexShrink: 0,
+            }}
+          >
+            {steps.map((s) => {
+              const active = step === s.id;
+              const done = step > s.id;
+              return (
+                <div
+                  key={s.id}
                   style={{
-                    width: "20px",
-                    height: "20px",
-                    borderRadius: "50%",
+                    flex: 1,
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "0.62rem",
-                    fontWeight: 700,
-                    background: active || done ? "#4CAF50" : colors.badgeBg,
-                    color: active || done ? "#fff" : colors.textTertiary,
-                    flexShrink: 0,
+                    gap: "0.5rem",
+                    padding: "0.4rem 0.7rem",
+                    borderRadius: "8px",
+                    border: `1px solid ${active ? "#4CAF50" : colors.cardBorder}`,
+                    background: active ? "rgba(76,175,80,0.1)" : "transparent",
                   }}
                 >
-                  {done ? "✓" : s.id}
-                </span>
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    fontWeight: active ? 700 : 500,
-                    color: active ? colors.textPrimary : colors.textTertiary,
-                  }}
-                >
-                  {s.icon} {s.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.1rem" }}>
-          {step === 1 && renderStep1()}
-          {step === 2 && renderStep2()}
-          {step === 3 && renderStep3()}
-          {step === 4 && renderStep4()}
-          {step === 5 && renderStep5()}
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "0.65rem 1.1rem",
-            background: colors.cardBg,
-            borderTop: `1px solid ${colors.cardBorder}`,
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontSize: "0.65rem", color: colors.textTertiary }}>
-            Step {step} of {lastStep}
-            {step === 3 && payments.length === 0
-              ? " — add at least 1 payment to continue to Step 4"
-              : ""}
-            {step === 4 && hasBalance
-              ? ` — payment is short by ${peso(balance)}, continue to Step 5`
-              : ""}
-          </span>
-          <div style={{ display: "flex", gap: "0.5rem" }}>
-            {step > 1 && (
-              <button style={navBtn(false)} onClick={() => setStep(step - 1)}>
-                ‹ Back
-              </button>
-            )}
-            {step < lastStep ? (
-              <button
-                style={navBtn(true, step === 3 && payments.length === 0)}
-                disabled={step === 3 && payments.length === 0}
-                onClick={() => setStep(step + 1)}
-              >
-                Next ›
-              </button>
-            ) : (
-              <button style={navBtn(true)} onClick={() => setShowConfirm(true)}>
-                {hasBalance
-                  ? "✔ Post & Generate Additional OOP"
-                  : "✔ Post Payment"}
-              </button>
-            )}
+                  <span
+                    style={{
+                      width: "20px",
+                      height: "20px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.62rem",
+                      fontWeight: 700,
+                      background: active || done ? "#4CAF50" : colors.badgeBg,
+                      color: active || done ? "#fff" : colors.textTertiary,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {done ? "✓" : s.id}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      fontWeight: active ? 700 : 500,
+                      color: active ? colors.textPrimary : colors.textTertiary,
+                    }}
+                  >
+                    {s.icon} {s.label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
+        )}
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.1rem" }}>
+          {renderBody()}
         </div>
+
+        {/* Footer */}
+        {data && (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.65rem 1.1rem",
+              background: colors.cardBg,
+              borderTop: `1px solid ${colors.cardBorder}`,
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                fontSize: "0.65rem",
+                color: postError ? "#dc2626" : colors.textTertiary,
+              }}
+            >
+              {postError
+                ? `Could not post the payment: ${postError}`
+                : `Step ${step} of ${lastStep}${
+                    canPost && step === 2 && payments.length === 0
+                      ? " — add at least 1 payment to continue to Step 3"
+                      : ""
+                  }${
+                    canPost && step === 3 && hasBalance
+                      ? ` — payment is short by ${peso(balance)}, continue to Step 4`
+                      : ""
+                  }`}
+            </span>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              {step > 1 && (
+                <button style={navBtn(false)} onClick={() => setStep(step - 1)}>
+                  ‹ Back
+                </button>
+              )}
+              {step < lastStep ? (
+                <button
+                  style={navBtn(
+                    true,
+                    canPost && step === 2 && payments.length === 0,
+                  )}
+                  disabled={canPost && step === 2 && payments.length === 0}
+                  onClick={() => setStep(step + 1)}
+                >
+                  Next ›
+                </button>
+              ) : (
+                canPost && (
+                  <button
+                    style={navBtn(true, posting)}
+                    disabled={posting}
+                    onClick={() => setShowConfirm(true)}
+                  >
+                    {hasBalance
+                      ? "✔ Post & Generate Additional OOP"
+                      : "✔ Post Payment"}
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+        )}
 
         {showAddConfirm && (
           <ConfirmAddPaymentModal
