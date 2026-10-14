@@ -2021,6 +2021,11 @@ function EApplicationPage({ darkMode }) {
 
       {detailsTarget &&
         (() => {
+          console.log(
+            "details target",
+            detailsTarget.processCode,
+            detailsTarget,
+          );
           const { DetailsModal } = getProcessModule(detailsTarget.processCode);
           return (
             <DetailsModal
