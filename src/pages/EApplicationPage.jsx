@@ -29,6 +29,7 @@ const CURRENT_USER = "Gideon Basco";
 /* Group IDs from cdrr_engine.groups */
 const GROUP_IDS = {
   CASHIER: 41,
+  QUALITY_EVALUATION: 3,
 };
 
 /* Every department the page knows about, in display order.
@@ -45,13 +46,20 @@ const ALL_DEPARTMENTS = [
     key: "quality_evaluation",
     title: "Quality Evaluation",
     icon: "🧪",
-    // TODO: add allowedGroupIds once the QE group is known
+    allowedGroupIds: [GROUP_IDS.QUALITY_EVALUATION],
+    // Hidden when the user has no in-progress (claimed) application in this department
+    requiresInProgress: true,
   },
 ];
 
-const canAccessDepartment = (dept, userGroupIds = []) =>
-  !dept.allowedGroupIds ||
-  dept.allowedGroupIds.some((id) => userGroupIds.includes(id));
+const canAccessDepartment = (dept, userGroupIds = [], inProgressCount = 0) => {
+  const inGroup =
+    !dept.allowedGroupIds ||
+    dept.allowedGroupIds.some((id) => userGroupIds.includes(id));
+  if (!inGroup) return false;
+  if (dept.requiresInProgress && inProgressCount === 0) return false;
+  return true;
+};
 
 /* Quality Evaluation has no "Unclaimed" pool — tasks route straight
    to the decker, so this department only shows Task / Processed. */
@@ -869,9 +877,20 @@ function EApplicationPage({ darkMode }) {
   console.log("current user", currentUser, "group ids", userGroupIds);
   const canSeePayments = userGroupIds.includes(GROUP_IDS.CASHIER);
 
+  const [applications, setApplications] = useState(MOCK_APPLICATIONS);
+
   const DEPARTMENTS = useMemo(
-    () => ALL_DEPARTMENTS.filter((d) => canAccessDepartment(d, userGroupIds)),
-    [userGroupIds],
+    () =>
+      ALL_DEPARTMENTS.filter((d) => {
+        const inProgressCount = applications.filter(
+          (row) =>
+            row.department === d.key &&
+            row.status === "claimed" &&
+            row.claimedBy === CURRENT_USER,
+        ).length;
+        return canAccessDepartment(d, userGroupIds, inProgressCount);
+      }),
+    [userGroupIds, applications],
   );
 
   const [activeDepartment, setActiveDepartment] = useState(null);
@@ -887,7 +906,6 @@ function EApplicationPage({ darkMode }) {
       setActiveSubTab(SUBTABS_BY_DEPARTMENT[first][0]);
     }
   }, [DEPARTMENTS, activeDepartment]);
-  const [applications, setApplications] = useState(MOCK_APPLICATIONS);
   const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [claiming, setClaiming] = useState(false);
