@@ -1,250 +1,73 @@
-// src/pages/EApplicationPage.jsx
+// src/pages/EApplicationTasksPage.jsx
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
 import { getUser } from "../api/auth";
+import { getWorkflowTasks } from "../api/workflow-tasks";
+import { mapEAppTask } from "../components/eapplication/workflowTaskMapper.js";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
-import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
-import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
-
-import {
-  getAppointmentRecords,
-  mapAppointmentRecord,
-  claimAppointmentRecords,
-  getMyAppointmentTasks,
-  mapMyTask,
-} from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
-   Two-level task page:
-   - Top tabs   = departments/queues the user has access to
-                  (Payment Posting, Quality Evaluation, etc.)
-                  A user can belong to more than one.
-   - Sub-tabs   = lifecycle of a task within that department:
-                  Unclaimed Task → Task → Processed Task
+   Two-level task page, fully driven by e_app_history:
+   - Top level  = department (Payment Posting, Quality Evaluation).
+                  Shown only if the user is in the department's group
+                  AND has at least one open task in it.
+   - Sub-tabs   = one tab per application_step of the user's open tasks.
+
+   Open tasks = rows of the logged-in user with
+   del_last_index = 1 and del_thread = "Open".
    ────────────────────────────────────────────────────────── */
 
-/* TODO: replace with real logged-in user (from auth context) */
-const CURRENT_USER = "Gideon Basco";
-
-/* Group IDs from cdrr_engine.groups */
+/* Group ids from cdrr_engine.groups */
 const GROUP_IDS = {
   CASHIER: 41,
   QUALITY_EVALUATION: 3,
 };
 
-/* Every department the page knows about, in display order.
-   allowedGroupIds: only members of these groups can see the department.
-   If omitted, the department is visible to everyone. */
-const ALL_DEPARTMENTS = [
+/* ADAPT: replace the step names with the real application_step values.
+   A task belongs to the department whose `steps` list contains its application_step.
+   Steps that are not listed here are ignored by this page (see the console hint below). */
+const DEPARTMENTS = [
   {
     key: "payment_posting",
     title: "Payment Posting",
     icon: "💵",
-    allowedGroupIds: [GROUP_IDS.CASHIER],
+    groupId: GROUP_IDS.CASHIER,
+    steps: ["Payment Posting"],
   },
   {
     key: "quality_evaluation",
     title: "Quality Evaluation",
     icon: "🧪",
-    allowedGroupIds: [GROUP_IDS.QUALITY_EVALUATION],
-    // Hidden when the user has no in-progress (claimed) application in this department
-    requiresInProgress: true,
+    groupId: GROUP_IDS.QUALITY_EVALUATION,
+    steps: ["QE Review"],
   },
 ];
-
-const canAccessDepartment = (dept, userGroupIds = [], inProgressCount = 0) => {
-  const inGroup =
-    !dept.allowedGroupIds ||
-    dept.allowedGroupIds.some((id) => userGroupIds.includes(id));
-  if (!inGroup) return false;
-  if (dept.requiresInProgress && inProgressCount === 0) return false;
-  return true;
-};
-
-/* Quality Evaluation has no "Unclaimed" pool — tasks route straight
-   to the decker, so this department only shows Task / Processed. */
-const SUBTABS_BY_DEPARTMENT = {
-  payment_posting: ["unclaimed", "claimed", "processed"],
-  quality_evaluation: ["claimed", "processed"],
-};
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const DEFAULT_PAGE_SIZE = 10;
-const MAX_NOTE_LENGTH = 1500;
 
-/* ── Static mock data — replace with an API call later.
-   Each row carries `department` and `status`:
-   status: "unclaimed" | "claimed" | "processed" ── */
-const MOCK_APPLICATIONS = [
-  {
-    id: 6,
-    department: "quality_evaluation",
-    processCode: "FGMP",
-    referenceNo: "EA-2026-00160",
-    activity: "FDA GMP Certification",
-    applicantCompany: "Fresenius Kabi Philippines, Inc.",
-    applicationStep: "QE Review",
-    dueDate: "2026-09-10",
-    lastModified: "2026-08-25 10:00 AM",
-    priority: "Medium",
-    // Quality Evaluation has no Unclaimed pool — tasks route straight
-    // to the assigned reviewer, so this starts as already "claimed".
-    status: "claimed",
-    claimedBy: CURRENT_USER,
-  },
-  {
-    id: 7,
-    department: "quality_evaluation",
-    processCode: "FGMP",
-    referenceNo: "EA-2026-00161",
-    activity: "FDA GMP Certification",
-    applicantCompany: "Getz Pharma Inc",
-    applicationStep: "QE Review",
-    dueDate: "2026-09-11",
-    lastModified: "2026-08-25 02:30 PM",
-    priority: "High",
-    status: "claimed",
-    claimedBy: CURRENT_USER,
-  },
-];
-
-const formatPeso = (n) =>
-  `₱${Number(n || 0).toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-
-/* TODO: replace with the client's real email from the application record */
-const CLIENT_EMAIL = "regulatory@torrentpharma.com.ph";
-
-/* Sample only: chance that a newly sent email fails, so Resend can be tested.
-   Use 0 for no failures and 1 for always failing. */
-const SAMPLE_FAIL_RATE = 0.4;
-
-const nowStamp = () =>
-  new Date().toLocaleString("en-PH", {
-    dateStyle: "long",
-    timeStyle: "short",
-  });
-
-const DOC_LABELS = {
-  OOP: "Order of Payment",
-  AOOP: "Additional Order of Payment",
-  AR: "Acknowledgement Receipt",
-  NOTE: "Application Note",
+/* ── Helpers ── */
+const getUserGroupIds = (user) => {
+  // ADAPT: confirm which field holds the group ids (groups, group_ids, ...)
+  const raw = user?.groups ?? user?.group_ids ?? [];
+  return raw.map((g) => Number(typeof g === "object" ? g.id : g));
 };
 
-/* TODO: replace with the real email log from the backend (Gmail / mail service) */
-const makeEmailLog = (docType, refNo) => {
-  const failed = Math.random() < SAMPLE_FAIL_RATE;
-  const at = nowStamp();
-  const error = failed
-    ? "SMTP 550: Mailbox unavailable or server timeout."
-    : null;
-  return {
-    id: `${docType}-${refNo}-${Date.now()}`,
-    docType,
-    subject: `${DOC_LABELS[docType]} - ${refNo}`,
-    to: CLIENT_EMAIL,
-    attachment: `${DOC_LABELS[docType]} - ${refNo}.pdf`,
-    status: failed ? "failed" : "sent",
-    sentAt: at,
-    attempts: 1,
-    error,
-    // One entry per attempt, oldest first
-    history: [{ attempt: 1, status: failed ? "failed" : "sent", at, error }],
-  };
-};
-
-/* TODO: replace with the real email log from the backend (Gmail / mail service).
-   An Application Note has no PDF attachment; the note text is the email body. */
-const makeNoteEmailLog = (refNo, noteText) => {
-  const failed = Math.random() < SAMPLE_FAIL_RATE;
-  const at = nowStamp();
-  const error = failed
-    ? "SMTP 550: Mailbox unavailable or server timeout."
-    : null;
-  return {
-    id: `NOTE-${refNo}-${Date.now()}`,
-    docType: "NOTE",
-    subject: `${DOC_LABELS.NOTE} - ${refNo}`,
-    to: CLIENT_EMAIL,
-    attachment: null,
-    body: noteText,
-    status: failed ? "failed" : "sent",
-    sentAt: at,
-    attempts: 1,
-    error,
-    history: [{ attempt: 1, status: failed ? "failed" : "sent", at, error }],
-  };
-};
-
-/* The original Order of Payment is emailed when it is generated (before this
-   screen), so every application starts with one "sent" log for it. */
-const seedOopLog = (app) => ({
-  id: `OOP-${app.referenceNo}`,
-  docType: "OOP",
-  subject: `${DOC_LABELS.OOP} - ${app.referenceNo}`,
-  to: CLIENT_EMAIL,
-  attachment: `${DOC_LABELS.OOP} - ${app.referenceNo}.pdf`,
-  status: "sent",
-  sentAt: "13 July 2026 09:45",
-  attempts: 1,
-  error: null,
-  history: [
-    { attempt: 1, status: "sent", at: "13 July 2026 09:45", error: null },
-  ],
-});
+const getUserName = (user) =>
+  user?.name ??
+  user?.full_name ??
+  [user?.first_name, user?.last_name].filter(Boolean).join(" ") ??
+  "";
 
 /* ── Badges ── */
-function renderRemarks(row) {
-  if (!row.remarks) {
-    return <span style={{ opacity: 0.5 }}>—</span>;
-  }
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "flex-start",
-        gap: "0.35rem",
-        padding: "0.3rem 0.6rem",
-        background: "rgba(245,158,11,0.12)",
-        border: "1px solid rgba(245,158,11,0.35)",
-        color: "#d97706",
-        borderRadius: "6px",
-        fontSize: "0.6rem",
-        fontWeight: 600,
-        lineHeight: 1.4,
-        whiteSpace: "normal",
-        maxWidth: "280px",
-      }}
-    >
-      <span>⚠️</span>
-      <span>{row.remarks}</span>
-    </span>
-  );
-}
-function renderPriorityBadge(priority) {
+function PriorityBadge({ priority }) {
   const map = {
-    High: {
-      bg: "linear-gradient(135deg,#ef4444,#dc2626)",
-      sh: "rgba(239,68,68,0.3)",
-      icon: "🔴",
-    },
-    Medium: {
-      bg: "linear-gradient(135deg,#f59e0b,#d97706)",
-      sh: "rgba(245,158,11,0.3)",
-      icon: "🟠",
-    },
-    Low: {
-      bg: "linear-gradient(135deg,#10b981,#059669)",
-      sh: "rgba(16,185,129,0.3)",
-      icon: "🟢",
-    },
+    High: { bg: "linear-gradient(135deg,#ef4444,#dc2626)", icon: "🔴" },
+    Medium: { bg: "linear-gradient(135deg,#f59e0b,#d97706)", icon: "🟠" },
+    Low: { bg: "linear-gradient(135deg,#10b981,#059669)", icon: "🟢" },
   };
   const c = map[priority] || {
     bg: "linear-gradient(135deg,#6b7280,#4b5563)",
-    sh: "rgba(107,114,128,0.3)",
     icon: "•",
   };
   return (
@@ -255,10 +78,9 @@ function renderPriorityBadge(priority) {
         color: "#fff",
         borderRadius: "8px",
         fontSize: "0.55rem",
-        fontWeight: "700",
+        fontWeight: 700,
         letterSpacing: "0.5px",
         textTransform: "uppercase",
-        boxShadow: `0 2px 8px ${c.sh}`,
         display: "inline-flex",
         alignItems: "center",
         gap: "0.4rem",
@@ -271,746 +93,151 @@ function renderPriorityBadge(priority) {
   );
 }
 
-function renderStepBadge(step) {
+function RefNoBadge({ refNo }) {
   return (
     <span
       style={{
-        padding: "0.25rem 0.6rem",
-        background: "linear-gradient(135deg,#2196F3,#1976D2)",
-        color: "#fff",
-        borderRadius: "6px",
-        fontSize: "0.55rem",
-        fontWeight: "600",
         display: "inline-flex",
         alignItems: "center",
+        padding: "0.3rem 0.7rem",
+        background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
+        color: "#fff",
+        borderRadius: "8px",
+        fontSize: "0.55rem",
+        fontWeight: 700,
+        letterSpacing: "0.5px",
         whiteSpace: "nowrap",
-        boxShadow: "0 2px 6px rgba(33,150,243,0.3)",
       }}
     >
-      {step}
+      {refNo}
     </span>
   );
 }
 
-function renderRefNo(
-  refNo,
-  noteCount = 0,
-  isHovered = false,
-  onEnter,
-  onLeave,
-) {
-  return (
-    <span
-      onMouseEnter={onEnter}
-      onMouseLeave={onLeave}
-      style={{ position: "relative", display: "inline-block" }}
-    >
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          padding: "0.3rem 0.7rem",
-          background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-          color: "#fff",
-          borderRadius: "8px",
-          fontSize: "0.55rem",
-          fontWeight: "700",
-          letterSpacing: "0.5px",
-          boxShadow: "0 2px 8px rgba(8,8,8,0.3)",
-          whiteSpace: "nowrap",
-          cursor: "default",
-        }}
-      >
-        {refNo}
-      </span>
-
-      {isHovered && (
-        <span
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            zIndex: 20,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.35rem",
-            padding: "0.35rem 0.6rem",
-            background: "#1f2937",
-            color: "#fff",
-            borderRadius: "6px",
-            fontSize: "0.62rem",
-            fontWeight: 600,
-            whiteSpace: "nowrap",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-          }}
-        >
-          <span>📝</span>
-          <span>
-            {noteCount} Application {noteCount === 1 ? "Note" : "Notes"}
-          </span>
-        </span>
-      )}
-    </span>
-  );
-}
-/* ── Claim confirmation modal (single or bulk) ── */
-function ClaimConfirmModal({ rows, colors, onConfirm, onCancel }) {
-  if (!rows || rows.length === 0) return null;
-  const isBulk = rows.length > 1;
-
-  return (
-    <div
-      onClick={onCancel}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10000,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "12px",
-          padding: "1.25rem",
-          width: "380px",
-          maxWidth: "90vw",
-          boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            marginBottom: "0.6rem",
-          }}
-        >
-          <span style={{ fontSize: "1.3rem" }}>✋</span>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: "0.95rem",
-              fontWeight: 700,
-              color: colors.textPrimary,
-            }}
-          >
-            {isBulk ? `Claim ${rows.length} tasks?` : "Claim this task?"}
-          </h3>
-        </div>
-
-        {isBulk ? (
-          <>
-            <p
-              style={{
-                margin: "0 0 0.5rem",
-                fontSize: "0.75rem",
-                color: colors.textTertiary,
-                lineHeight: 1.5,
-              }}
-            >
-              You're about to claim{" "}
-              <strong style={{ color: colors.textPrimary }}>
-                {rows.length} applications
-              </strong>
-              . Once claimed, they will move to your <strong>Task</strong> tab
-              and other users will no longer be able to pick them up.
-            </p>
-            <div
-              style={{
-                maxHeight: "140px",
-                overflowY: "auto",
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "8px",
-                padding: "0.5rem 0.65rem",
-                marginBottom: "0.9rem",
-              }}
-            >
-              {rows.map((r) => (
-                <div
-                  key={r.id}
-                  style={{
-                    fontSize: "0.68rem",
-                    color: colors.textPrimary,
-                    padding: "0.2rem 0",
-                  }}
-                >
-                  <strong>{r.referenceNo}</strong> — {r.applicantCompany}
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <p
-            style={{
-              margin: "0 0 0.9rem",
-              fontSize: "0.75rem",
-              color: colors.textTertiary,
-              lineHeight: 1.5,
-            }}
-          >
-            You're about to claim{" "}
-            <strong style={{ color: colors.textPrimary }}>
-              {rows[0].referenceNo}
-            </strong>{" "}
-            ({rows[0].applicantCompany}). Once claimed, it will move to your{" "}
-            <strong>Task</strong> tab and other users will no longer be able to
-            pick it up.
-          </p>
-        )}
-
-        <div
-          style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
-        >
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "0.45rem 0.9rem",
-              fontSize: "0.72rem",
-              fontWeight: 600,
-              borderRadius: "6px",
-              border: `1px solid ${colors.cardBorder}`,
-              background: "transparent",
-              color: colors.textPrimary,
-              cursor: "pointer",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            style={{
-              padding: "0.45rem 0.9rem",
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              borderRadius: "6px",
-              border: "none",
-              background: "linear-gradient(135deg,#4CAF50,#43A047)",
-              color: "#fff",
-              cursor: "pointer",
-              boxShadow: "0 2px 8px rgba(76,175,80,0.35)",
-            }}
-          >
-            {isBulk ? `✔ Yes, Claim ${rows.length} Tasks` : "✔ Yes, Claim Task"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Application Notes modal ── */
-function ApplicationNotesModal({
-  row,
-  notes,
-  colors,
-  isComposing,
-  noteText,
-  sendEmail,
-  onStartCompose,
-  onCancelCompose,
-  onChangeNoteText,
-  onToggleSendEmail,
-  onPost,
-  onClose,
-}) {
-  if (!row) return null;
-  const noteList = notes || [];
-  const remaining = MAX_NOTE_LENGTH - noteText.length;
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.45)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 10000,
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: colors.cardBg,
-          border: `1px solid ${colors.cardBorder}`,
-          borderRadius: "12px",
-          width: "460px",
-          maxWidth: "92vw",
-          maxHeight: "80vh",
-          display: "flex",
-          flexDirection: "column",
-          boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
-          overflow: "hidden",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "0.75rem 1rem",
-            borderBottom: `1px solid ${colors.cardBorder}`,
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              fontSize: "0.85rem",
-              fontWeight: 700,
-              color: colors.textPrimary,
-            }}
-          >
-            <span>📝</span>
-            <span>Application Notes ({noteList.length})</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
-            {!isComposing && (
-              <button
-                onClick={onStartCompose}
-                title="Add note"
-                style={{
-                  width: "26px",
-                  height: "26px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "none",
-                  borderRadius: "6px",
-                  background: "linear-gradient(135deg,#2196F3,#1976D2)",
-                  color: "#fff",
-                  fontSize: "0.85rem",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  boxShadow: "0 2px 6px rgba(33,150,243,0.3)",
-                }}
-              >
-                +
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              title="Close"
-              style={{
-                width: "26px",
-                height: "26px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                border: "none",
-                background: "transparent",
-                color: colors.textTertiary,
-                fontSize: "0.95rem",
-                cursor: "pointer",
-              }}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        {/* Ref no context */}
-        <div
-          style={{
-            padding: "0.5rem 1rem",
-            fontSize: "0.68rem",
-            color: colors.textTertiary,
-            borderBottom: `1px solid ${colors.tableBorder}`,
-            flexShrink: 0,
-          }}
-        >
-          {row.referenceNo} — {row.applicantCompany}
-        </div>
-
-        {/* Notes list */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "0.85rem 1rem",
-            background: colors.tableBg,
-            minHeight: "160px",
-          }}
-        >
-          {noteList.length === 0 ? (
-            <div
-              style={{
-                height: "100%",
-                minHeight: "150px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "0.72rem",
-                color: colors.textTertiary,
-              }}
-            >
-              No notes yet.
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "0.6rem",
-              }}
-            >
-              {noteList.map((note) => (
-                <div
-                  key={note.id}
-                  style={{
-                    background: colors.cardBg,
-                    border: `1px solid ${colors.cardBorder}`,
-                    borderRadius: "8px",
-                    padding: "0.55rem 0.7rem",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "0.25rem",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: "0.68rem",
-                        fontWeight: 700,
-                        color: colors.textPrimary,
-                      }}
-                    >
-                      {note.author}
-                    </span>
-                    <span
-                      style={{ fontSize: "0.6rem", color: colors.textTertiary }}
-                    >
-                      {note.timestamp}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.72rem",
-                      color: colors.textPrimary,
-                      lineHeight: 1.5,
-                      whiteSpace: "pre-wrap",
-                    }}
-                  >
-                    {note.text}
-                  </div>
-                  {note.emailSent && (
-                    <div
-                      style={{
-                        marginTop: "0.35rem",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.3rem",
-                        fontSize: "0.58rem",
-                        fontWeight: 600,
-                        color: "#059669",
-                      }}
-                    >
-                      ✉️ Email sent to participants
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Compose area */}
-        {isComposing && (
-          <div
-            style={{
-              borderTop: `1px solid ${colors.cardBorder}`,
-              padding: "0.75rem 1rem",
-              flexShrink: 0,
-            }}
-          >
-            <textarea
-              autoFocus
-              value={noteText}
-              onChange={(e) =>
-                onChangeNoteText(e.target.value.slice(0, MAX_NOTE_LENGTH))
-              }
-              placeholder="Write a note..."
-              rows={4}
-              style={{
-                width: "100%",
-                resize: "vertical",
-                padding: "0.6rem 0.7rem",
-                fontSize: "0.75rem",
-                fontFamily: "inherit",
-                borderRadius: "8px",
-                border: `1px solid ${colors.cardBorder}`,
-                background: colors.pageBg,
-                color: colors.textPrimary,
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                marginTop: "0.55rem",
-                flexWrap: "wrap",
-                gap: "0.5rem",
-              }}
-            >
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  fontSize: "0.68rem",
-                  color: colors.textPrimary,
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={sendEmail}
-                  onChange={(e) => onToggleSendEmail(e.target.checked)}
-                  style={{ cursor: "pointer" }}
-                />
-                Send email (Application Participants)
-              </label>
-
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-              >
-                <span
-                  style={{ fontSize: "0.62rem", color: colors.textTertiary }}
-                >
-                  {remaining}
-                </span>
-                <button
-                  onClick={onCancelCompose}
-                  title="Cancel"
-                  style={{
-                    width: "26px",
-                    height: "26px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "50%",
-                    border: "none",
-                    background: "rgba(239,68,68,0.12)",
-                    color: "#ef4444",
-                    cursor: "pointer",
-                    fontSize: "0.8rem",
-                  }}
-                >
-                  ⛔
-                </button>
-                <button
-                  onClick={onPost}
-                  disabled={!noteText.trim()}
-                  style={{
-                    padding: "0.4rem 0.9rem",
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    borderRadius: "6px",
-                    border: "none",
-                    background: noteText.trim()
-                      ? "linear-gradient(135deg,#4CAF50,#43A047)"
-                      : colors.badgeBg,
-                    color: noteText.trim() ? "#fff" : colors.textTertiary,
-                    cursor: noteText.trim() ? "pointer" : "not-allowed",
-                    boxShadow: noteText.trim()
-                      ? "0 2px 8px rgba(76,175,80,0.35)"
-                      : "none",
-                  }}
-                >
-                  Post
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Status bar */}
-        {!isComposing && (
-          <div
-            style={{
-              padding: "0.4rem 1rem",
-              borderTop: `1px solid ${colors.cardBorder}`,
-              fontSize: "0.62rem",
-              color: colors.textTertiary,
-              flexShrink: 0,
-            }}
-          >
-            Ready
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function EApplicationPage({ darkMode }) {
+/* ── Page ── */
+function EApplicationTasksPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
-  const [docsTargetId, setDocsTargetId] = useState(null);
-  const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
-  // Logged-in user from the existing auth helper.
-  // ADAPT: confirm which field holds the group ids (user.groups, user.group_ids, ...)
+
   const currentUser = useMemo(() => getUser(), []);
-  const userGroupIds = useMemo(() => {
-    const raw = currentUser?.groups ?? currentUser?.group_ids ?? [];
-    return raw.map((g) => Number(typeof g === "object" ? g.id : g));
-  }, [currentUser]);
-
-  // TEMPORARY: remove after checking the shape of the user object
-  console.log("current user", currentUser, "group ids", userGroupIds);
-  const canSeePayments = userGroupIds.includes(GROUP_IDS.CASHIER);
-
-  const [applications, setApplications] = useState(MOCK_APPLICATIONS);
-
-  const DEPARTMENTS = useMemo(
-    () =>
-      ALL_DEPARTMENTS.filter((d) => {
-        const inProgressCount = applications.filter(
-          (row) =>
-            row.department === d.key &&
-            row.status === "claimed" &&
-            row.claimedBy === CURRENT_USER,
-        ).length;
-        return canAccessDepartment(d, userGroupIds, inProgressCount);
-      }),
-    [userGroupIds, applications],
+  const userGroupIds = useMemo(
+    () => getUserGroupIds(currentUser),
+    [currentUser],
   );
+  const userName = getUserName(currentUser);
+
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   const [activeDepartment, setActiveDepartment] = useState(null);
-  const [activeSubTab, setActiveSubTab] = useState(null); // unclaimed | claimed | processed
-
-  // Select the first allowed department once the user's groups are known,
-  // and fall back if the current one is no longer allowed.
-  useEffect(() => {
-    if (DEPARTMENTS.length === 0) return;
-    if (!DEPARTMENTS.some((d) => d.key === activeDepartment)) {
-      const first = DEPARTMENTS[0].key;
-      setActiveDepartment(first);
-      setActiveSubTab(SUBTABS_BY_DEPARTMENT[first][0]);
-    }
-  }, [DEPARTMENTS, activeDepartment]);
-  const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
-  const [loadError, setLoadError] = useState(null);
-  const [claiming, setClaiming] = useState(false);
+  const [activeStep, setActiveStep] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
 
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
-  const [claimRows, setClaimRows] = useState(null); // array of rows being claimed, or null
-  const [selectedIds, setSelectedIds] = useState([]); // ids checked for bulk claim
+  const [detailsTarget, setDetailsTarget] = useState(null);
 
-  /* Application Notes modal state */
-  const [notesTarget, setNotesTarget] = useState(null); // row whose notes are open
-  /* View Details modal state */
-  const [detailsTarget, setDetailsTarget] = useState(null); // row whose details are open
-
-  const [applicationNotes, setApplicationNotes] = useState({}); // { [rowId]: Note[] }
-  const [isComposingNote, setIsComposingNote] = useState(false);
-  const [noteText, setNoteText] = useState("");
-  const [sendNoteEmail, setSendNoteEmail] = useState(true);
-  const [hoveredNoteRowId, setHoveredNoteRowId] = useState(null); // row id whose ref-no badge is hovered
-
-  const loadUnclaimed = useCallback(async () => {
-    setLoadingUnclaimed(true);
+  /* Open tasks of the logged-in user from e_app_history */
+  const loadTasks = useCallback(async () => {
+    if (!currentUser?.id) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
     setLoadError(null);
     try {
-      const data = await getAppointmentRecords({
-        status: "Accepted",
-        unclaimed_only: true,
-        page_size: 100,
+      const res = await getWorkflowTasks({
+        page: 1,
+        page_size: 10000,
+        user_id: currentUser.id, // ADAPT: use user_uuid if that is what the API expects
+        only_latest_per_thread: false,
+        del_last_index: 1,
+        del_thread: "Open",
       });
-      const incoming = data.items.map(mapAppointmentRecord);
-      setApplications((prev) => {
-        // drop stale unclaimed rows from the external DB, keep everything else
-        const keep = prev.filter(
-          (a) => !(a.source === "appointment" && a.status === "unclaimed"),
-        );
-        const keptIds = new Set(keep.map((a) => a.id));
-        return [...keep, ...incoming.filter((r) => !keptIds.has(r.id))];
-      });
-    } catch (err) {
-      setLoadError(err.message);
-    } finally {
-      setLoadingUnclaimed(false);
-    }
-  }, []);
+      const raw = res.data || [];
+      const mapped = raw.map(mapEAppTask);
 
-  const loadMyTasks = useCallback(async () => {
-    try {
-      const [open, processed] = await Promise.all([
-        getMyAppointmentTasks("open"),
-        getMyAppointmentTasks("processed"),
+      // TEMPORARY: remove after confirming the raw column names and step names
+      console.log("raw workflow row", raw[0]);
+      console.log("application steps found", [
+        ...new Set(mapped.map((m) => m.applicationStep)),
       ]);
-      const incoming = [
-        ...open.map((t) => ({
-          ...mapMyTask(t, "claimed"),
-          claimedBy: CURRENT_USER,
-        })),
-        ...processed.map((t) => ({
-          ...mapMyTask(t, "processed"),
-          claimedBy: CURRENT_USER,
-        })),
-      ];
-      setApplications((prev) => {
-        const refs = new Set(incoming.map((r) => r.referenceNo));
-        const keep = prev.filter(
-          (a) => a.source !== "internal" && !refs.has(a.referenceNo),
-        );
-        return [...keep, ...incoming];
-      });
+
+      setTasks(mapped);
     } catch (err) {
       setLoadError(err.message);
+      setTasks([]);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   useEffect(() => {
-    // Payment posting data is only needed by Cashier group members
-    if (!canSeePayments) return;
-    loadUnclaimed();
-    loadMyTasks();
-  }, [canSeePayments, loadUnclaimed, loadMyTasks]);
+    loadTasks();
+  }, [loadTasks]);
 
-  /* Scope everything to the currently selected department first */
-  const departmentData = useMemo(
-    () => applications.filter((row) => row.department === activeDepartment),
-    [applications, activeDepartment],
-  );
-
-  const unclaimedData = departmentData.filter(
-    (row) => row.status === "unclaimed",
-  );
-  const myTasksData = departmentData.filter(
-    (row) => row.status === "claimed" && row.claimedBy === CURRENT_USER,
-  );
-  const processedData = departmentData.filter(
-    (row) => row.status === "processed" && row.claimedBy === CURRENT_USER,
+  /* Attach a department to each task using its application_step */
+  const tasksWithDepartment = useMemo(
+    () =>
+      tasks
+        .map((t) => ({
+          ...t,
+          department:
+            DEPARTMENTS.find((d) => d.steps.includes(t.applicationStep))?.key ??
+            null,
+        }))
+        .filter((t) => t.department),
+    [tasks],
   );
 
-  const baseData =
-    activeSubTab === "unclaimed"
-      ? unclaimedData
-      : activeSubTab === "claimed"
-        ? myTasksData
-        : processedData;
+  /* A department is visible only if the user is in its group
+     and has at least one open task in it. */
+  const visibleDepartments = useMemo(
+    () =>
+      DEPARTMENTS.filter(
+        (d) =>
+          userGroupIds.includes(d.groupId) &&
+          tasksWithDepartment.some((t) => t.department === d.key),
+      ),
+    [userGroupIds, tasksWithDepartment],
+  );
+
+  /* Derived selection: falls back to the first available option,
+     so no effect is needed when tasks change. */
+  const currentDepartment =
+    visibleDepartments.find((d) => d.key === activeDepartment) ||
+    visibleDepartments[0] ||
+    null;
+
+  const departmentTasks = useMemo(
+    () =>
+      currentDepartment
+        ? tasksWithDepartment.filter(
+            (t) => t.department === currentDepartment.key,
+          )
+        : [],
+    [tasksWithDepartment, currentDepartment],
+  );
+
+  const stepTabs = useMemo(() => {
+    const counts = new Map();
+    departmentTasks.forEach((t) =>
+      counts.set(t.applicationStep, (counts.get(t.applicationStep) || 0) + 1),
+    );
+    return [...counts.entries()].map(([step, count]) => ({ step, count }));
+  }, [departmentTasks]);
+
+  const currentStep =
+    stepTabs.find((s) => s.step === activeStep)?.step ??
+    stepTabs[0]?.step ??
+    null;
+
+  const baseData = useMemo(
+    () => departmentTasks.filter((t) => t.applicationStep === currentStep),
+    [departmentTasks, currentStep],
+  );
 
   const filteredData = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -1018,7 +245,7 @@ function EApplicationPage({ darkMode }) {
     return baseData.filter((row) =>
       [row.referenceNo, row.activity, row.applicantCompany, row.priority]
         .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(term)),
+        .some((field) => String(field).toLowerCase().includes(term)),
     );
   }, [baseData, searchTerm]);
 
@@ -1029,278 +256,24 @@ function EApplicationPage({ darkMode }) {
     safePage * rowsPerPage,
   );
 
-  const handleDepartmentChange = (deptKey) => {
-    setActiveDepartment(deptKey);
-    setActiveSubTab(SUBTABS_BY_DEPARTMENT[deptKey][0]);
+  /* ── Handlers ── */
+  const resetView = () => {
     setSearchTerm("");
     setCurrentPage(1);
-    setSelectedIds([]);
+    setOpenMenuId(null);
   };
 
-  const handleSubTabChange = (tabId) => {
-    setActiveSubTab(tabId);
-    setSearchTerm("");
-    setCurrentPage(1);
-    setSelectedIds([]);
+  const handleDepartmentChange = (key) => {
+    setActiveDepartment(key);
+    setActiveStep(null);
+    resetView();
   };
 
-  const handleSearchChange = (value) => {
-    setSearchTerm(value);
-    setCurrentPage(1);
+  const handleStepChange = (step) => {
+    setActiveStep(step);
+    resetView();
   };
 
-  const handlePageSizeChange = (value) => {
-    setRowsPerPage(Number(value));
-    setCurrentPage(1);
-  };
-
-  const requestClaim = (row) => setClaimRows([row]);
-
-  const requestBulkClaim = () => {
-    const rows = applications.filter((app) => selectedIds.includes(app.id));
-    if (rows.length === 0) return;
-    setClaimRows(rows);
-  };
-
-  const confirmClaim = async () => {
-    if (claiming || !claimRows || claimRows.length === 0) return;
-    setClaiming(true);
-    try {
-      const results = await claimAppointmentRecords(
-        claimRows.map((r) => r.referenceNo),
-      );
-      const claimedRefs = results
-        .filter((r) => r.result === "claimed")
-        .map((r) => r.reference_no);
-      const failed = results.filter((r) => r.result !== "claimed");
-
-      // Remove claimed rows from the unclaimed pool; the Task tab is loaded from the server
-      setApplications((prev) =>
-        prev.filter(
-          (app) =>
-            !(
-              app.source === "appointment" &&
-              claimedRefs.includes(app.referenceNo)
-            ),
-        ),
-      );
-      setSelectedIds((prev) =>
-        prev.filter(
-          (id) =>
-            !claimRows.some(
-              (r) => r.id === id && claimedRefs.includes(r.referenceNo),
-            ),
-        ),
-      );
-
-      await loadMyTasks();
-
-      if (failed.length > 0) {
-        // ADAPT: use your toast component if you have one
-        window.alert(
-          failed
-            .map((f) => `${f.reference_no}: ${f.detail || f.result}`)
-            .join("\n"),
-        );
-        loadUnclaimed(); // refresh so rows claimed by others disappear
-      }
-    } catch (err) {
-      window.alert(err.message);
-    } finally {
-      setClaiming(false);
-      setClaimRows(null);
-    }
-  };
-  const cancelClaim = () => setClaimRows(null);
-
-  const toggleSelectRow = (id) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-  };
-
-  const toggleSelectAllOnPage = () => {
-    const pageIds = paginatedData.map((row) => row.id);
-    const allSelected = pageIds.every((id) => selectedIds.includes(id));
-    setSelectedIds((prev) =>
-      allSelected
-        ? prev.filter((id) => !pageIds.includes(id))
-        : [...new Set([...prev, ...pageIds])],
-    );
-  };
-
-  const handleReturnToPool = (row) => {
-    setApplications((prev) =>
-      prev.map((app) =>
-        app.id === row.id
-          ? { ...app, status: "unclaimed", claimedBy: null }
-          : app,
-      ),
-    );
-  };
-
-  /* TODO: replace with a real API call, e.g.
-   await postPayments(row.id, { payments, remarks }) then refetch.
-   If balance > 0, the backend should also generate the additional Order of Payment
-   and email the generated documents to the client. */
-  const handlePostPayment = ({
-    row,
-    payments,
-    totalPaid,
-    balance,
-    remarks,
-  }) => {
-    const isShort = balance > 0;
-    const stamp = nowStamp();
-    setApplications((prev) =>
-      prev.map((app) => {
-        if (app.id !== row.id) return app;
-        const prevPaid = Number(app.totalPaid || 0);
-        const newAoopCount = (app.additionalOopCount || 0) + (isShort ? 1 : 0);
-        return {
-          ...app,
-          // Short payment: the task stays in the Task tab.
-          // Fully paid: it moves to Processed Task.
-          status: isShort ? "claimed" : "processed",
-          lastModified: "Just now",
-          payments: [...(app.payments || []), ...payments],
-          totalPaid: prevPaid + totalPaid,
-          balance,
-          additionalOopCount: newAoopCount,
-          additionalOopRemarks: remarks,
-          // One Acknowledgement Receipt per posting
-          receipts: [
-            ...(app.receipts || []),
-            { id: Date.now(), payments, totalPaid, postingStamp: stamp },
-          ],
-          // One Additional Order of Payment per short posting
-          additionalOops: isShort
-            ? [
-                ...(app.additionalOops || []),
-                {
-                  id: Date.now() + 1,
-                  refNo: `${app.referenceNo}-A${newAoopCount}`,
-                  alreadyPaid: prevPaid + totalPaid,
-                  balance,
-                  remarks,
-                  generatedOn: stamp,
-                },
-              ]
-            : app.additionalOops || [],
-          // Emails sent to the client for each generated document
-          emailLogs: [
-            ...(app.emailLogs || [seedOopLog(app)]),
-            makeEmailLog("AR", app.referenceNo),
-            ...(isShort
-              ? [makeEmailLog("AOOP", `${app.referenceNo}-A${newAoopCount}`)]
-              : []),
-          ],
-          remarks: isShort
-            ? `Insufficient payment (${formatPeso(balance)} short). For payment verification of additional payment.`
-            : "",
-        };
-      }),
-    );
-  };
-
-  const updateEmailLog = (appId, logId, patch) =>
-    setApplications((prev) =>
-      prev.map((app) =>
-        app.id !== appId
-          ? app
-          : {
-              ...app,
-              emailLogs: (app.emailLogs || [seedOopLog(app)]).map((l) =>
-                l.id === logId
-                  ? {
-                      ...l,
-                      ...(typeof patch === "function" ? patch(l) : patch),
-                    }
-                  : l,
-              ),
-            },
-      ),
-    );
-
-  /* TODO: replace with a real API call, e.g. await resendEmail(logId) then refetch */
-  const handleResendEmail = (appId, logId) => {
-    updateEmailLog(appId, logId, { status: "sending", error: null });
-    setTimeout(() => {
-      // Sample only: a resend can also fail, so the history shows both outcomes
-      const failed = Math.random() < SAMPLE_FAIL_RATE;
-      const at = nowStamp();
-      const error = failed
-        ? "SMTP 421: Service not available, try again later."
-        : null;
-      updateEmailLog(appId, logId, (l) => {
-        const attempt = l.attempts + 1;
-        return {
-          status: failed ? "failed" : "sent",
-          sentAt: at,
-          attempts: attempt,
-          error,
-          history: [
-            ...(l.history || []),
-            { attempt, status: failed ? "failed" : "sent", at, error },
-          ],
-        };
-      });
-    }, 1200);
-  };
-
-  const openNotes = (row) => {
-    setNotesTarget(row);
-    setIsComposingNote(false);
-    setNoteText("");
-    setSendNoteEmail(true);
-  };
-
-  const closeNotes = () => {
-    setNotesTarget(null);
-    setIsComposingNote(false);
-    setNoteText("");
-  };
-
-  /* TODO: replace with real API call, e.g.
-     await postApplicationNote(row.id, { text, sendEmail }) then refetch.
-     The backend should also send the email and return its log entry. */
-  const postNote = () => {
-    if (!notesTarget || !noteText.trim()) return;
-    const trimmedText = noteText.trim();
-    const targetId = notesTarget.id;
-    const newNote = {
-      id: Date.now(),
-      author: CURRENT_USER,
-      text: trimmedText,
-      timestamp: "Just now",
-      emailSent: sendNoteEmail,
-    };
-    setApplicationNotes((prev) => ({
-      ...prev,
-      [targetId]: [...(prev[targetId] || []), newNote],
-    }));
-
-    // If "Send email" was checked, this note also shows up in
-    // Email Notifications, with the same resend/history behavior.
-    if (sendNoteEmail) {
-      setApplications((prev) =>
-        prev.map((app) =>
-          app.id === targetId
-            ? {
-                ...app,
-                emailLogs: [
-                  ...(app.emailLogs || [seedOopLog(app)]),
-                  makeNoteEmailLog(app.referenceNo, trimmedText),
-                ],
-              }
-            : app,
-        ),
-      );
-    }
-
-    setNoteText("");
-    setIsComposingNote(false);
-  };
   const handleMenuToggle = (e, rowId) => {
     e.stopPropagation();
     if (openMenuId === rowId) {
@@ -1308,69 +281,26 @@ function EApplicationPage({ darkMode }) {
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const dropdownHeight = 220;
+    const dropdownHeight = 60;
     const spaceBelow = window.innerHeight - rect.bottom;
     const top =
       spaceBelow < dropdownHeight
         ? rect.bottom - dropdownHeight
         : rect.bottom + 4;
-    const right = window.innerWidth - rect.right;
-    setMenuPosition({ top, right });
+    setMenuPosition({ top, right: window.innerWidth - rect.right });
     setOpenMenuId(rowId);
   };
 
-  const getTaskActionMenuOptions = (row) => [
-    {
-      label: "Generated Documents",
-      icon: "📄",
-      handler: () => setDocsTargetId(row.id),
-    },
-    {
-      label: "Email Notifications",
-      icon: "📧",
-      handler: () => setEmailTargetId(row.id),
-    },
+  const getActionMenuOptions = (row) => [
     {
       label: "View Details",
       icon: "👁️",
       handler: () => setDetailsTarget(row),
-    },
-    {
-      label: "Application Notes",
-      icon: "📝",
-      handler: () => openNotes(row),
-    },
-    {
-      label: "Return to Pool",
-      icon: "↩️",
-      handler: () => handleReturnToPool(row),
     },
   ];
 
-  const getProcessedActionMenuOptions = (row) => [
-    {
-      label: "Generated Documents",
-      icon: "📄",
-      handler: () => setDocsTargetId(row.id),
-    },
-    {
-      label: "Email Notifications",
-      icon: "📧",
-      handler: () => setEmailTargetId(row.id),
-    },
-    {
-      label: "View Details",
-      icon: "👁️",
-      handler: () => setDetailsTarget(row),
-    },
-    {
-      label: "Application Notes",
-      icon: "📝",
-      handler: () => openNotes(row),
-    },
-  ];
-  // No accessible department for this user
-  if (DEPARTMENTS.length === 0) {
+  /* ── Early returns (after all hooks) ── */
+  if (loading) {
     return (
       <div
         style={{
@@ -1380,19 +310,52 @@ function EApplicationPage({ darkMode }) {
           fontSize: "0.8rem",
         }}
       >
-        🔒 You don't have access to any task queues.
+        Loading tasks...
       </div>
     );
   }
 
-  // Wait for the default department to be selected
-  if (!activeDepartment || !activeSubTab) return null;
+  if (loadError) {
+    return (
+      <div
+        style={{
+          padding: "2rem",
+          textAlign: "center",
+          color: "#dc2626",
+          fontSize: "0.8rem",
+        }}
+      >
+        Could not load tasks: {loadError}
+        <div style={{ marginTop: "0.75rem" }}>
+          <button onClick={loadTasks} style={{ cursor: "pointer" }}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
+  if (!currentDepartment) {
+    return (
+      <div
+        style={{
+          padding: "2rem",
+          textAlign: "center",
+          color: colors.textTertiary,
+          fontSize: "0.8rem",
+        }}
+      >
+        🔒 You have no open tasks in any queue you have access to.
+      </div>
+    );
+  }
+
+  /* ── Styles ── */
   const thStyle = {
     padding: "0.45rem 0.6rem",
     textAlign: "left",
     fontSize: "0.55rem",
-    fontWeight: "600",
+    fontWeight: 600,
     color: colors.textTertiary,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
@@ -1409,25 +372,6 @@ function EApplicationPage({ darkMode }) {
     whiteSpace: "nowrap",
   };
 
-  const ALL_SUB_TABS = [
-    {
-      id: "unclaimed",
-      label: "Unclaimed Task",
-      icon: "📥",
-      count: unclaimedData.length,
-    },
-    { id: "claimed", label: "Task", icon: "⏳", count: myTasksData.length },
-    {
-      id: "processed",
-      label: "Processed Task",
-      icon: "✅",
-      count: processedData.length,
-    },
-  ];
-
-  const subTabs = ALL_SUB_TABS.filter((tab) =>
-    SUBTABS_BY_DEPARTMENT[activeDepartment].includes(tab.id),
-  );
   return (
     <div
       style={{
@@ -1438,7 +382,7 @@ function EApplicationPage({ darkMode }) {
         background: colors.pageBg,
       }}
     >
-      {/* ── Department tabs (top level) — stat card style ── */}
+      {/* ── Department tabs ── */}
       <div
         style={{
           display: "flex",
@@ -1447,21 +391,11 @@ function EApplicationPage({ darkMode }) {
           flexShrink: 0,
         }}
       >
-        {DEPARTMENTS.map((dept) => {
-          const hasUnclaimedPool =
-            SUBTABS_BY_DEPARTMENT[dept.key].includes("unclaimed");
-          const deptUnclaimedCount = hasUnclaimedPool
-            ? applications.filter(
-                (row) =>
-                  row.department === dept.key && row.status === "unclaimed",
-              ).length
-            : applications.filter(
-                (row) =>
-                  row.department === dept.key &&
-                  row.status === "claimed" &&
-                  row.claimedBy === CURRENT_USER,
-              ).length;
-          const isActive = activeDepartment === dept.key;
+        {visibleDepartments.map((dept) => {
+          const count = tasksWithDepartment.filter(
+            (t) => t.department === dept.key,
+          ).length;
+          const isActive = currentDepartment.key === dept.key;
           return (
             <button
               key={dept.key}
@@ -1515,7 +449,7 @@ function EApplicationPage({ darkMode }) {
                     lineHeight: 1,
                   }}
                 >
-                  {deptUnclaimedCount}
+                  {count}
                 </span>
                 <span
                   style={{
@@ -1524,7 +458,7 @@ function EApplicationPage({ darkMode }) {
                     fontWeight: 500,
                   }}
                 >
-                  {hasUnclaimedPool ? "waiting" : "in queue"}
+                  in progress
                 </span>
               </span>
             </button>
@@ -1532,7 +466,7 @@ function EApplicationPage({ darkMode }) {
         })}
       </div>
 
-      {/* ── Sub-tabs (task lifecycle within the selected department) ── */}
+      {/* ── Step tabs (one per application_step) ── */}
       <div
         style={{
           padding: "0.5rem 1.5rem 0",
@@ -1546,54 +480,51 @@ function EApplicationPage({ darkMode }) {
             borderBottom: `2px solid ${colors.cardBorder}`,
           }}
         >
-          {subTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => handleSubTabChange(tab.id)}
-              style={{
-                padding: "6px 14px",
-                fontSize: "12px",
-                background: "transparent",
-                border: "none",
-                borderBottom:
-                  activeSubTab === tab.id
+          {stepTabs.map(({ step, count }) => {
+            const isActive = currentStep === step;
+            return (
+              <button
+                key={step}
+                onClick={() => handleStepChange(step)}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: "12px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: isActive
                     ? "2px solid #4CAF50"
                     : "2px solid transparent",
-                color:
-                  activeSubTab === tab.id
-                    ? colors.textPrimary
-                    : colors.textTertiary,
-                fontWeight: activeSubTab === tab.id ? 600 : 400,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                position: "relative",
-                top: "1px",
-                whiteSpace: "nowrap",
-                transition: "all 0.2s ease",
-              }}
-            >
-              <span style={{ fontSize: "0.82rem" }}>{tab.icon}</span>
-              <span>{tab.label}</span>
-              <span
-                style={{
-                  fontSize: "10px",
-                  padding: "1px 6px",
-                  borderRadius: "999px",
-                  background:
-                    activeSubTab === tab.id ? "#4CAF50" : colors.badgeBg,
-                  color: activeSubTab === tab.id ? "#fff" : colors.textTertiary,
-                  border: `0.5px solid ${activeSubTab === tab.id ? "#4CAF50" : colors.cardBorder}`,
-                  fontWeight: 600,
-                  minWidth: "20px",
-                  textAlign: "center",
+                  color: isActive ? colors.textPrimary : colors.textTertiary,
+                  fontWeight: isActive ? 600 : 400,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  position: "relative",
+                  top: "1px",
+                  whiteSpace: "nowrap",
+                  transition: "all 0.2s ease",
                 }}
               >
-                {tab.count}
-              </span>
-            </button>
-          ))}
+                <span>{step}</span>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    padding: "1px 6px",
+                    borderRadius: "999px",
+                    background: isActive ? "#4CAF50" : colors.badgeBg,
+                    color: isActive ? "#fff" : colors.textTertiary,
+                    border: `0.5px solid ${isActive ? "#4CAF50" : colors.cardBorder}`,
+                    fontWeight: 600,
+                    minWidth: "20px",
+                    textAlign: "center",
+                  }}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -1633,13 +564,8 @@ function EApplicationPage({ darkMode }) {
                   margin: 0,
                 }}
               >
-                {activeSubTab === "unclaimed"
-                  ? "Unclaimed Applications"
-                  : activeSubTab === "claimed"
-                    ? "My Claimed Tasks"
-                    : "Processed Tasks"}
+                {currentStep}
               </h3>
-
               <span
                 style={{
                   padding: "0.2rem 0.6rem",
@@ -1647,31 +573,26 @@ function EApplicationPage({ darkMode }) {
                   borderRadius: "12px",
                   fontSize: "0.68rem",
                   color: colors.textTertiary,
-                  fontWeight: "600",
+                  fontWeight: 600,
                 }}
               >
                 {filteredData.length} total
               </span>
-              {activeSubTab === "unclaimed" && selectedIds.length > 0 && (
-                <button
-                  onClick={requestBulkClaim}
-                  style={{
-                    padding: "0.35rem 0.85rem",
-                    background: "linear-gradient(135deg,#4CAF50,#43A047)",
-                    color: "#fff",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "0.68rem",
-                    fontWeight: 700,
-                    letterSpacing: "0.3px",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 6px rgba(76,175,80,0.35)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  ✋ Claim Selected ({selectedIds.length})
-                </button>
-              )}
+              <button
+                onClick={loadTasks}
+                title="Refresh"
+                style={{
+                  padding: "0.3rem 0.6rem",
+                  fontSize: "0.68rem",
+                  borderRadius: "6px",
+                  border: `1px solid ${colors.cardBorder}`,
+                  background: "transparent",
+                  color: colors.textPrimary,
+                  cursor: "pointer",
+                }}
+              >
+                🔄 Refresh
+              </button>
             </div>
             <div style={{ position: "relative", minWidth: "240px" }}>
               <span
@@ -1689,7 +610,10 @@ function EApplicationPage({ darkMode }) {
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => handleSearchChange(e.target.value)}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Search reference no., activity, company..."
                 style={{
                   width: "100%",
@@ -1700,6 +624,7 @@ function EApplicationPage({ darkMode }) {
                   background: colors.pageBg,
                   color: colors.textPrimary,
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
               />
             </div>
@@ -1716,23 +641,6 @@ function EApplicationPage({ darkMode }) {
                 }}
               >
                 <tr>
-                  {activeSubTab === "unclaimed" && (
-                    <th
-                      style={{ ...thStyle, textAlign: "center", width: "36px" }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={
-                          paginatedData.length > 0 &&
-                          paginatedData.every((row) =>
-                            selectedIds.includes(row.id),
-                          )
-                        }
-                        onChange={toggleSelectAllOnPage}
-                        style={{ cursor: "pointer" }}
-                      />
-                    </th>
-                  )}
                   <th
                     style={{ ...thStyle, textAlign: "center", width: "50px" }}
                   >
@@ -1744,13 +652,10 @@ function EApplicationPage({ darkMode }) {
                   <th style={thStyle}>Due Date</th>
                   <th style={thStyle}>Last Modified</th>
                   <th style={thStyle}>Priority</th>
-                  {activeSubTab !== "unclaimed" && (
-                    <th style={thStyle}>Remarks</th>
-                  )}
                   <th
                     style={{ ...thStyle, textAlign: "center", width: "120px" }}
                   >
-                    {activeSubTab === "unclaimed" ? "Claim" : "Actions"}
+                    Actions
                   </th>
                 </tr>
               </thead>
@@ -1758,7 +663,7 @@ function EApplicationPage({ darkMode }) {
                 {paginatedData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={8}
                       style={{
                         padding: "2rem",
                         textAlign: "center",
@@ -1766,17 +671,9 @@ function EApplicationPage({ darkMode }) {
                         fontSize: "0.75rem",
                       }}
                     >
-                      {loadingUnclaimed
-                        ? "Loading applications..."
-                        : loadError
-                          ? `Could not load applications: ${loadError}`
-                          : searchTerm
-                            ? "No matching applications found."
-                            : activeSubTab === "unclaimed"
-                              ? "No applications waiting to be claimed."
-                              : activeSubTab === "claimed"
-                                ? "You haven't claimed any tasks yet."
-                                : "No processed tasks yet."}
+                      {searchTerm
+                        ? "No matching applications found."
+                        : "No tasks in this step."}
                     </td>
                   </tr>
                 ) : (
@@ -1801,16 +698,6 @@ function EApplicationPage({ darkMode }) {
                             : colors.tableRowOdd)
                       }
                     >
-                      {activeSubTab === "unclaimed" && (
-                        <td style={{ ...tdStyle, textAlign: "center" }}>
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.includes(row.id)}
-                            onChange={() => toggleSelectRow(row.id)}
-                            style={{ cursor: "pointer" }}
-                          />
-                        </td>
-                      )}
                       <td
                         style={{
                           ...tdStyle,
@@ -1821,144 +708,91 @@ function EApplicationPage({ darkMode }) {
                       >
                         {(safePage - 1) * rowsPerPage + index + 1}
                       </td>
-                      <td
-                        style={{
-                          ...tdStyle,
-                          overflow: "visible",
-                          position: "relative",
-                        }}
-                      >
-                        {renderRefNo(
-                          row.referenceNo,
-                          (applicationNotes[row.id] || []).length,
-                          hoveredNoteRowId === row.id,
-                          () => setHoveredNoteRowId(row.id),
-                          () => setHoveredNoteRowId(null),
-                        )}
+                      <td style={tdStyle}>
+                        <RefNoBadge refNo={row.referenceNo} />
                       </td>
                       <td style={tdStyle}>{row.activity}</td>
                       <td style={tdStyle}>{row.applicantCompany}</td>
                       <td style={tdStyle}>{row.dueDate || "—"}</td>
                       <td style={tdStyle}>{row.lastModified}</td>
                       <td style={tdStyle}>
-                        {row.priority ? renderPriorityBadge(row.priority) : "—"}
-                      </td>
-                      {activeSubTab !== "unclaimed" && (
-                        <td style={{ ...tdStyle, whiteSpace: "normal" }}>
-                          {renderRemarks(row)}
-                        </td>
-                      )}
-                      <td style={{ ...tdStyle, textAlign: "center" }}>
-                        {activeSubTab === "unclaimed" ? (
-                          <button
-                            onClick={() => requestClaim(row)}
-                            style={{
-                              padding: "0.35rem 0.85rem",
-                              background:
-                                "linear-gradient(135deg,#4CAF50,#43A047)",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: "6px",
-                              fontSize: "0.65rem",
-                              fontWeight: 700,
-                              letterSpacing: "0.3px",
-                              cursor: "pointer",
-                              boxShadow: "0 2px 6px rgba(76,175,80,0.35)",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            ✋ Claim Task
-                          </button>
+                        {row.priority ? (
+                          <PriorityBadge priority={row.priority} />
                         ) : (
-                          <div
-                            style={{
-                              position: "relative",
-                              display: "inline-block",
-                            }}
-                          >
-                            <button
-                              onClick={(e) => handleMenuToggle(e, row.id)}
+                          "—"
+                        )}
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        <button
+                          onClick={(e) => handleMenuToggle(e, row.id)}
+                          style={{
+                            padding: "0.4rem",
+                            background: "transparent",
+                            border: `1px solid ${colors.cardBorder}`,
+                            borderRadius: "6px",
+                            color: colors.textPrimary,
+                            cursor: "pointer",
+                            width: "28px",
+                            height: "28px",
+                          }}
+                        >
+                          ⋮
+                        </button>
+                        {openMenuId === row.id && (
+                          <>
+                            <div
+                              onClick={() => setOpenMenuId(null)}
                               style={{
-                                padding: "0.4rem",
-                                background: "transparent",
+                                position: "fixed",
+                                inset: 0,
+                                zIndex: 9998,
+                              }}
+                            />
+                            <div
+                              style={{
+                                position: "fixed",
+                                top: `${menuPosition.top}px`,
+                                right: `${menuPosition.right}px`,
+                                background: colors.cardBg,
                                 border: `1px solid ${colors.cardBorder}`,
-                                borderRadius: "6px",
-                                color: colors.textPrimary,
-                                cursor: "pointer",
-                                width: "28px",
-                                height: "28px",
+                                borderRadius: "8px",
+                                boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                                minWidth: "190px",
+                                zIndex: 9999,
+                                overflow: "hidden",
                               }}
                             >
-                              ⋮
-                            </button>
-                            {openMenuId === row.id && (
-                              <>
-                                <div
-                                  onClick={() => setOpenMenuId(null)}
-                                  style={{
-                                    position: "fixed",
-                                    inset: 0,
-                                    zIndex: 9998,
+                              {getActionMenuOptions(row).map((item, i) => (
+                                <button
+                                  key={item.label}
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    item.handler();
                                   }}
-                                />
-                                <div
                                   style={{
-                                    position: "fixed",
-                                    top: `${menuPosition.top}px`,
-                                    right: `${menuPosition.right}px`,
-                                    background: colors.cardBg,
-                                    border: `1px solid ${colors.cardBorder}`,
-                                    borderRadius: "8px",
-                                    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                                    minWidth: "190px",
-                                    zIndex: 9999,
-                                    overflow: "hidden",
+                                    width: "100%",
+                                    padding: "0.6rem 0.85rem",
+                                    background: "transparent",
+                                    border: "none",
+                                    borderTop:
+                                      i === 0
+                                        ? "none"
+                                        : `1px solid ${colors.tableBorder}`,
+                                    color: colors.textPrimary,
+                                    fontSize: "0.78rem",
+                                    textAlign: "left",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "0.5rem",
                                   }}
                                 >
-                                  {(activeSubTab === "claimed"
-                                    ? getTaskActionMenuOptions(row)
-                                    : getProcessedActionMenuOptions(row)
-                                  ).map((item, i) => (
-                                    <button
-                                      key={item.label}
-                                      onClick={() => {
-                                        setOpenMenuId(null);
-                                        item.handler();
-                                      }}
-                                      style={{
-                                        width: "100%",
-                                        padding: "0.6rem 0.85rem",
-                                        background: "transparent",
-                                        border: "none",
-                                        borderTop:
-                                          i === 0
-                                            ? "none"
-                                            : `1px solid ${colors.tableBorder}`,
-                                        color: colors.textPrimary,
-                                        fontSize: "0.78rem",
-                                        textAlign: "left",
-                                        cursor: "pointer",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                      }}
-                                      onMouseEnter={(e) =>
-                                        (e.currentTarget.style.background =
-                                          colors.tableRowHover)
-                                      }
-                                      onMouseLeave={(e) =>
-                                        (e.currentTarget.style.background =
-                                          "transparent")
-                                      }
-                                    >
-                                      <span>{item.icon}</span>
-                                      <span>{item.label}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </div>
+                                  <span>{item.icon}</span>
+                                  <span>{item.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </>
                         )}
                       </td>
                     </tr>
@@ -2007,7 +841,10 @@ function EApplicationPage({ darkMode }) {
                   Rows per page
                   <select
                     value={rowsPerPage}
-                    onChange={(e) => handlePageSizeChange(e.target.value)}
+                    onChange={(e) => {
+                      setRowsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
                     style={{
                       padding: "0.25rem 0.4rem",
                       fontSize: "0.68rem",
@@ -2082,31 +919,7 @@ function EApplicationPage({ darkMode }) {
         </div>
       </div>
 
-      <ClaimConfirmModal
-        rows={claimRows}
-        colors={colors}
-        onConfirm={confirmClaim}
-        onCancel={cancelClaim}
-      />
-
-      <ApplicationNotesModal
-        row={notesTarget}
-        notes={notesTarget ? applicationNotes[notesTarget.id] : []}
-        colors={colors}
-        isComposing={isComposingNote}
-        noteText={noteText}
-        sendEmail={sendNoteEmail}
-        onStartCompose={() => setIsComposingNote(true)}
-        onCancelCompose={() => {
-          setIsComposingNote(false);
-          setNoteText("");
-        }}
-        onChangeNoteText={setNoteText}
-        onToggleSendEmail={setSendNoteEmail}
-        onPost={postNote}
-        onClose={closeNotes}
-      />
-
+      {/* ── Details modal, resolved per process through the registry ── */}
       {detailsTarget &&
         (() => {
           const { DetailsModal } = getProcessModule(detailsTarget.processCode);
@@ -2115,42 +928,10 @@ function EApplicationPage({ darkMode }) {
               key={detailsTarget.id}
               row={detailsTarget}
               colors={colors}
-              cashierName={CURRENT_USER}
+              cashierName={userName}
               cashierPosition="Cashier"
-              onPost={handlePostPayment}
-              onPosted={loadMyTasks}
+              onPosted={loadTasks}
               onClose={() => setDetailsTarget(null)}
-            />
-          );
-        })()}
-
-      {emailTargetId &&
-        (() => {
-          const app = applications.find((a) => a.id === emailTargetId);
-          if (!app) return null;
-          return (
-            <EmailNotificationsModal
-              row={app}
-              logs={app.emailLogs || [seedOopLog(app)]}
-              colors={colors}
-              onResend={(logId) => handleResendEmail(app.id, logId)}
-              onClose={() => setEmailTargetId(null)}
-            />
-          );
-        })()}
-
-      {docsTargetId &&
-        (() => {
-          const app = applications.find((a) => a.id === docsTargetId);
-          if (!app) return null;
-          return (
-            <GeneratedDocumentsModal
-              key={app.id}
-              row={app}
-              colors={colors}
-              cashierName={CURRENT_USER}
-              cashierPosition="Cashier"
-              onClose={() => setDocsTargetId(null)}
             />
           );
         })()}
@@ -2158,4 +939,4 @@ function EApplicationPage({ darkMode }) {
   );
 }
 
-export default EApplicationPage;
+export default EApplicationTasksPage;
