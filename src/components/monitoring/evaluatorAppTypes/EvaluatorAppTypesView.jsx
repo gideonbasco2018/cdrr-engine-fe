@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { getEvaluatorAppTypes } from "../../../api/evaluatorAppTypes";
 
 const FB = "#1877F2";
+const DEFAULT_STEP = "QUALITY EVALUATION";
+const ALL_STEPS = "__ALL__";
 
 const shortPrescription = (p) =>
   p === "Over-the-Counter (OTC)"
@@ -12,6 +14,10 @@ const shortPrescription = (p) =>
       : p;
 
 const fmtDays = (d) => (d == null ? "—" : `${d} ${d === 1 ? "day" : "days"}`);
+
+// "QUALITY EVALUATION" -> "Quality Evaluation" (keeps S&E as is)
+const prettyStep = (s) =>
+  s === "S&E" ? s : s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 
 const hdr = (ui, extra = {}) => ({
   padding: "8px 10px",
@@ -46,7 +52,7 @@ function StatCell({ stat, ui }) {
     <td
       style={{ padding: "8px 10px", textAlign: "center", whiteSpace: "nowrap" }}
     >
-      <div title="Total applications decked to this evaluator">
+      <div title="Applications decked to this user in the selected step">
         <span
           style={{
             fontSize: "0.86rem",
@@ -58,7 +64,7 @@ function StatCell({ stat, ui }) {
         </span>{" "}
         <span style={small}>decked</span>
       </div>
-      <div style={small} title="The application thread is still Open">
+      <div style={small} title="Thread is still Open">
         <span
           style={{
             color: stat.open > 0 ? "#f59e0b" : ui.textMuted,
@@ -71,7 +77,7 @@ function StatCell({ stat, ui }) {
       </div>
       <div
         style={small}
-        title="Average days from decked to completed (only rows that have a completion date)"
+        title="Average days from decked to completed in the selected step (completed rows only)"
       >
         avg stay{" "}
         <span style={{ fontWeight: 600, color: ui.textSub }}>
@@ -82,7 +88,74 @@ function StatCell({ stat, ui }) {
   );
 }
 
-function Legend({ ui }) {
+// Used when "All steps" is selected: one labeled block per step that has data
+function AllStepsCell({ statsByStep, steps, ui }) {
+  const present = steps.filter(
+    (s) => statsByStep && statsByStep[s] && statsByStep[s].count > 0,
+  );
+  if (present.length === 0) {
+    return (
+      <td
+        style={{
+          padding: "8px 10px",
+          textAlign: "center",
+          color: ui.textMuted,
+        }}
+      >
+        —
+      </td>
+    );
+  }
+  const small = { fontSize: "0.64rem", color: ui.textMuted, lineHeight: 1.4 };
+  return (
+    <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+      {present.map((s, i) => {
+        const st = statsByStep[s];
+        return (
+          <div
+            key={s}
+            style={{
+              padding: "4px 0",
+              borderTop: i === 0 ? "none" : `1px dashed ${ui.divider}`,
+              whiteSpace: "nowrap",
+              textAlign: "left",
+            }}
+          >
+            <div style={{ fontSize: "0.64rem", fontWeight: 700, color: FB }}>
+              {prettyStep(s)}
+            </div>
+            <div style={small}>
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  fontWeight: 700,
+                  color: ui.textPrimary,
+                }}
+              >
+                {st.count.toLocaleString()}
+              </span>{" "}
+              decked ·{" "}
+              <span
+                style={{
+                  color: st.open > 0 ? "#f59e0b" : ui.textMuted,
+                  fontWeight: 600,
+                }}
+              >
+                {st.open.toLocaleString()}
+              </span>{" "}
+              open · avg{" "}
+              <span style={{ fontWeight: 600, color: ui.textSub }}>
+                {fmtDays(st.avg_days)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </td>
+  );
+}
+
+function Legend({ ui, stepLabel }) {
   const item = { fontSize: "0.72rem", color: ui.textMuted };
   const b = { fontWeight: 700, color: ui.textPrimary };
   return (
@@ -99,29 +172,49 @@ function Legend({ ui }) {
       }}
     >
       <span style={item}>
-        <span style={b}>decked</span> = all applications assigned to the
-        evaluator
+        <span style={b}>decked</span> = applications that reached the user in{" "}
+        <span style={{ ...b, color: FB }}>{stepLabel}</span>
       </span>
       <span style={item}>
-        <span style={{ ...b, color: "#f59e0b" }}>open</span> = the application
-        thread is still Open
+        <span style={{ ...b, color: "#f59e0b" }}>open</span> = thread is still
+        Open
       </span>
       <span style={item}>
         <span style={b}>avg stay</span> = average days from decked to completed
-        (completed only)
+        in {stepLabel} (completed only)
       </span>
     </div>
   );
 }
 
-function UnitSection({ unit, columns, groups, ui }) {
+// Fixed heights of the two header rows, so the second row can stick right
+// below the first one.
+const HEAD_ROW_1_HEIGHT = 32;
+const HEAD_ROW_2_HEIGHT = 34;
+
+function UnitSection({ unit, columns, groups, step, steps, ui }) {
   const [open, setOpen] = useState(true);
+  const isAll = step === ALL_STEPS;
   const stickyLeft = {
     position: "sticky",
     left: 0,
     zIndex: 1,
     background: ui.cardBg,
   };
+  // Sticky header cell. A box-shadow draws the bottom line because borders
+  // of sticky cells do not follow them while scrolling in collapsed tables.
+  const frozenHead = (top, zIndex, height) => ({
+    position: "sticky",
+    top,
+    zIndex,
+    boxSizing: "border-box",
+    ...(height ? { height } : {}),
+    boxShadow: `inset 0 -1px 0 ${ui.divider}`,
+  });
+  const unitTotals = unit.totals || {};
+  const unitTotal = isAll
+    ? Object.values(unitTotals).reduce((a, b) => a + b, 0)
+    : unitTotals[step] || 0;
   return (
     <div
       style={{
@@ -154,12 +247,14 @@ function UnitSection({ unit, columns, groups, ui }) {
         </span>
         <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
           {unit.members.length} member{unit.members.length !== 1 ? "s" : ""} ·{" "}
-          {unit.total.toLocaleString()} decked
+          {unitTotal.toLocaleString()} decked{isAll ? " (all steps)" : ""}
         </span>
       </div>
 
       {open && (
-        <div style={{ overflowX: "auto" }}>
+        // Both scroll directions live in this container so the header rows
+        // (sticky top) and the User column (sticky left) stay frozen.
+        <div style={{ overflow: "auto", maxHeight: "70vh" }}>
           <table
             style={{ borderCollapse: "collapse", width: "100%", minWidth: 600 }}
           >
@@ -169,18 +264,20 @@ function UnitSection({ unit, columns, groups, ui }) {
                   rowSpan={2}
                   style={hdr(ui, {
                     ...stickyLeft,
+                    ...frozenHead(0, 4),
                     textAlign: "left",
                     paddingLeft: 14,
                     minWidth: 180,
                   })}
                 >
-                  Evaluator
+                  User
                 </th>
                 {groups.map((g) => (
                   <th
                     key={g.prescription}
                     colSpan={g.count}
                     style={hdr(ui, {
+                      ...frozenHead(0, 3, HEAD_ROW_1_HEIGHT),
                       borderLeft: `1px solid ${ui.divider}`,
                       color: FB,
                     })}
@@ -190,7 +287,10 @@ function UnitSection({ unit, columns, groups, ui }) {
                 ))}
                 <th
                   rowSpan={2}
-                  style={hdr(ui, { borderLeft: `1px solid ${ui.divider}` })}
+                  style={hdr(ui, {
+                    ...frozenHead(0, 3),
+                    borderLeft: `1px solid ${ui.divider}`,
+                  })}
                 >
                   Total decked
                 </th>
@@ -200,6 +300,7 @@ function UnitSection({ unit, columns, groups, ui }) {
                   <th
                     key={c.key}
                     style={hdr(ui, {
+                      ...frozenHead(HEAD_ROW_1_HEIGHT, 3, HEAD_ROW_2_HEIGHT),
                       fontWeight: 600,
                       borderLeft:
                         i === 0 ||
@@ -236,19 +337,55 @@ function UnitSection({ unit, columns, groups, ui }) {
                   >
                     {m.name}
                   </td>
-                  {columns.map((c) => (
-                    <StatCell key={c.key} stat={m.stats[c.key]} ui={ui} />
-                  ))}
-                  <td
-                    style={{
-                      textAlign: "center",
-                      fontSize: "0.88rem",
-                      fontWeight: 700,
-                      color: FB,
-                    }}
-                  >
-                    {m.total.toLocaleString()}
-                  </td>
+                  {columns.map((c) =>
+                    isAll ? (
+                      <AllStepsCell
+                        key={c.key}
+                        statsByStep={m.stats[c.key]}
+                        steps={steps}
+                        ui={ui}
+                      />
+                    ) : (
+                      <StatCell
+                        key={c.key}
+                        stat={m.stats[c.key] && m.stats[c.key][step]}
+                        ui={ui}
+                      />
+                    ),
+                  )}
+                  {isAll ? (
+                    <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
+                      {steps
+                        .filter((s) => m.totals && m.totals[s] > 0)
+                        .map((s) => (
+                          <div
+                            key={s}
+                            style={{
+                              fontSize: "0.7rem",
+                              whiteSpace: "nowrap",
+                              color: ui.textMuted,
+                              lineHeight: 1.6,
+                            }}
+                          >
+                            {prettyStep(s)}:{" "}
+                            <span style={{ fontWeight: 700, color: FB }}>
+                              {m.totals[s].toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                    </td>
+                  ) : (
+                    <td
+                      style={{
+                        textAlign: "center",
+                        fontSize: "0.88rem",
+                        fontWeight: 700,
+                        color: FB,
+                      }}
+                    >
+                      {((m.totals && m.totals[step]) || 0).toLocaleString()}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -263,7 +400,8 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
-  const [data, setData] = useState({ columns: [], units: [] });
+  const [step, setStep] = useState(DEFAULT_STEP);
+  const [data, setData] = useState({ columns: [], steps: [], units: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -284,6 +422,14 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
       cancelled = true;
     };
   }, [dateFrom, dateTo]);
+
+  // If the selected step does not exist in the data, fall back to the first one
+  const activeStep = useMemo(() => {
+    if (step === ALL_STEPS || data.steps.includes(step)) return step;
+    return data.steps[0] || step;
+  }, [data.steps, step]);
+  const stepLabel =
+    activeStep === ALL_STEPS ? "All steps" : prettyStep(activeStep);
 
   // Consecutive columns that share a prescription form one header group
   const groups = useMemo(() => {
@@ -322,7 +468,7 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
     <div>
       <div style={{ marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: "1.05rem", color: ui.textPrimary }}>
-          Evaluator Workload by Application Type
+          User Workload by Step
         </h2>
         <p
           style={{
@@ -331,24 +477,46 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
             color: ui.textMuted,
           }}
         >
-          Columns are Prescription classification, then Processing type / Entry
-          type.
+          Pick a step, then see per user how many were decked, how many are
+          still open, and the average stay. Columns are Product Classification,
+          then Processing type / Entry type.
         </p>
       </div>
 
-      <Legend ui={ui} />
+      <Legend ui={ui} stepLabel={stepLabel} />
 
       <div
-        style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}
+        style={{
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          marginBottom: 14,
+          alignItems: "center",
+        }}
       >
+        <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
+          Step{" "}
+          <select
+            value={activeStep}
+            onChange={(e) => setStep(e.target.value)}
+            style={{ ...inputStyle, fontWeight: 600 }}
+          >
+            <option value={ALL_STEPS}>All steps</option>
+            {data.steps.map((s) => (
+              <option key={s} value={s}>
+                {prettyStep(s)}
+              </option>
+            ))}
+          </select>
+        </label>
         <input
-          placeholder="Search evaluator…"
+          placeholder="Search user…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ ...inputStyle, width: 200 }}
         />
         <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
-          From{" "}
+          Decked from{" "}
           <input
             type="date"
             value={dateFrom}
@@ -357,7 +525,7 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
           />
         </label>
         <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
-          To{" "}
+          Decked to{" "}
           <input
             type="date"
             value={dateTo}
@@ -402,6 +570,8 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
             unit={u}
             columns={data.columns}
             groups={groups}
+            step={activeStep}
+            steps={data.steps}
             ui={ui}
           />
         ))}
