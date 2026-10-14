@@ -15,9 +15,10 @@ import {
 
 /* ──────────────────────────────────────────────────────────
    Two-level task page:
-   - Top tabs   = departments/queues the user has access to
-                  (Payment Posting, Quality Evaluation, etc.)
-                  A user can belong to more than one.
+   - Top tabs   = departments, driven by the task's application_step
+                  (e_app_history.application_step).
+                  Payment Posting is always shown; Quality Evaluation
+                  only appears when the user has a task in that step.
    - Sub-tabs   = lifecycle of a task within that department:
                   Unclaimed Task → Task → Processed Task
    ────────────────────────────────────────────────────────── */
@@ -25,59 +26,49 @@ import {
 /* TODO: replace with real logged-in user (from auth context) */
 const CURRENT_USER = "Gideon Basco";
 
-/* TODO: replace with departments the logged-in user actually
-   has access to (from auth/role config), in display order. */
+/* These strings must match e_app_history.application_step exactly. */
+const STEP_PAYMENT = "Payment Verification/Posting";
+const STEP_QUALITY = "Quality Evaluation";
+
+/* `key` is the application_step value itself.
+   `alwaysVisible: false` means the tab only shows when the current
+   user has at least one task in that step. */
 const DEPARTMENTS = [
-  { key: "payment_posting", title: "Payment Posting", icon: "💵" },
-  { key: "quality_evaluation", title: "Quality Evaluation", icon: "🧪" },
+  {
+    key: STEP_PAYMENT,
+    title: "Payment Posting",
+    icon: "💵",
+    alwaysVisible: true,
+  },
+  {
+    key: STEP_QUALITY,
+    title: "Quality Evaluation",
+    icon: "🧪",
+    alwaysVisible: false,
+  },
 ];
 
 /* Quality Evaluation has no "Unclaimed" pool — tasks route straight
    to the decker, so this department only shows Task / Processed. */
 const SUBTABS_BY_DEPARTMENT = {
-  payment_posting: ["unclaimed", "claimed", "processed"],
-  quality_evaluation: ["claimed", "processed"],
+  [STEP_PAYMENT]: ["unclaimed", "claimed", "processed"],
+  [STEP_QUALITY]: ["claimed", "processed"],
 };
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_NOTE_LENGTH = 1500;
 
-/* ── Static mock data — replace with an API call later.
-   Each row carries `department` and `status`:
+/* Resolve which department (application_step) a row belongs to.
+   Unclaimed rows come from the external appointment DB and have no
+   history step yet, so they always belong to Payment Posting. */
+const getRowStep = (row) =>
+  row.applicationStep || (row.status === "unclaimed" ? STEP_PAYMENT : null);
+
+/* ── Static mock data — intentionally empty, rows come from the API.
+   Each row carries `applicationStep` and `status`:
    status: "unclaimed" | "claimed" | "processed" ── */
-const MOCK_APPLICATIONS = [
-  {
-    id: 6,
-    department: "quality_evaluation",
-    processCode: "FGMP",
-    referenceNo: "EA-2026-00160",
-    activity: "FDA GMP Certification",
-    applicantCompany: "Fresenius Kabi Philippines, Inc.",
-    applicationStep: "QE Review",
-    dueDate: "2026-09-10",
-    lastModified: "2026-08-25 10:00 AM",
-    priority: "Medium",
-    // Quality Evaluation has no Unclaimed pool — tasks route straight
-    // to the assigned reviewer, so this starts as already "claimed".
-    status: "claimed",
-    claimedBy: CURRENT_USER,
-  },
-  {
-    id: 7,
-    department: "quality_evaluation",
-    processCode: "FGMP",
-    referenceNo: "EA-2026-00161",
-    activity: "FDA GMP Certification",
-    applicantCompany: "Getz Pharma Inc",
-    applicationStep: "QE Review",
-    dueDate: "2026-09-11",
-    lastModified: "2026-08-25 02:30 PM",
-    priority: "High",
-    status: "claimed",
-    claimedBy: CURRENT_USER,
-  },
-];
+const MOCK_APPLICATIONS = [];
 
 const formatPeso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", {
@@ -836,7 +827,7 @@ function EApplicationPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
   const [docsTargetId, setDocsTargetId] = useState(null);
   const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
-  const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key);
+  const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key); // value is an application_step
   const [activeSubTab, setActiveSubTab] = useState("unclaimed"); // unclaimed | claimed | processed
   const [applications, setApplications] = useState(MOCK_APPLICATIONS);
   const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
@@ -920,9 +911,38 @@ function EApplicationPage({ darkMode }) {
     loadMyTasks();
   }, [loadUnclaimed, loadMyTasks]);
 
-  /* Scope everything to the currently selected department first */
+  /* Departments (top tabs) the user can currently see:
+     - always-visible ones (Payment Posting)
+     - the others only when the user has at least one task in that step */
+  const visibleDepartments = useMemo(
+    () =>
+      DEPARTMENTS.filter(
+        (dept) =>
+          dept.alwaysVisible ||
+          applications.some(
+            (row) =>
+              getRowStep(row) === dept.key && row.claimedBy === CURRENT_USER,
+          ),
+      ),
+    [applications],
+  );
+
+  /* If the active department disappears (e.g. the last Quality Evaluation
+     task was processed), fall back to the first visible department. */
+  useEffect(() => {
+    if (!visibleDepartments.some((d) => d.key === activeDepartment)) {
+      const fallback = visibleDepartments[0].key;
+      setActiveDepartment(fallback);
+      setActiveSubTab(SUBTABS_BY_DEPARTMENT[fallback][0]);
+      setSearchTerm("");
+      setCurrentPage(1);
+      setSelectedIds([]);
+    }
+  }, [visibleDepartments, activeDepartment]);
+
+  /* Scope everything to the currently selected department (application_step) first */
   const departmentData = useMemo(
-    () => applications.filter((row) => row.department === activeDepartment),
+    () => applications.filter((row) => getRowStep(row) === activeDepartment),
     [applications, activeDepartment],
   );
 
@@ -1338,7 +1358,7 @@ function EApplicationPage({ darkMode }) {
   ];
 
   const subTabs = ALL_SUB_TABS.filter((tab) =>
-    SUBTABS_BY_DEPARTMENT[activeDepartment].includes(tab.id),
+    (SUBTABS_BY_DEPARTMENT[activeDepartment] || []).includes(tab.id),
   );
   return (
     <div
@@ -1359,17 +1379,17 @@ function EApplicationPage({ darkMode }) {
           flexShrink: 0,
         }}
       >
-        {DEPARTMENTS.map((dept) => {
+        {visibleDepartments.map((dept) => {
           const hasUnclaimedPool =
             SUBTABS_BY_DEPARTMENT[dept.key].includes("unclaimed");
           const deptUnclaimedCount = hasUnclaimedPool
             ? applications.filter(
                 (row) =>
-                  row.department === dept.key && row.status === "unclaimed",
+                  getRowStep(row) === dept.key && row.status === "unclaimed",
               ).length
             : applications.filter(
                 (row) =>
-                  row.department === dept.key &&
+                  getRowStep(row) === dept.key &&
                   row.status === "claimed" &&
                   row.claimedBy === CURRENT_USER,
               ).length;
