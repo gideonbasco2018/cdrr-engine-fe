@@ -9,8 +9,15 @@ export const getChecklists = async (dateFilter = null) => {
 };
 
 // DTNs (and which checklist they're on) whose DTN or subject contains q.
-export const searchChecklists = async (q) => {
-  const response = await api.get("/checklist/search", { params: { q } });
+// field: "dtn" | "subject" | "any"
+export const searchChecklists = async (q, field = "any") => {
+  const response = await api.get("/checklist/search", { params: { q, field } });
+  return response.data;
+};
+
+// Exact lookup of several DTNs at once.
+export const searchChecklistsByDtns = async (dtns) => {
+  const response = await api.get("/checklist/search/dtns", { params: { dtns: dtns.join(",") } });
   return response.data;
 };
 

@@ -14,6 +14,7 @@ import FieldAuditModal from "../components/gmp/tasks/FieldAuditModal";
 import WorkflowModal from "../components/gmp/tasks/WorkflowModal";
 import GMPBulkEndorseModal, { GMP_BULK_ENDORSE_CONFIG } from "../components/gmp/tasks/GMPBulkEndorseModal";
 import GMPBulkDeckModal from "../components/gmp/queue/GMPBulkDeckModal";
+import { parseDtnSearch, handleMultilinePaste, DtnSearchSummary } from "../components/gmp/shared/dtnSearch";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
 import GMPDocumentsModal from "../components/gmp/queue/GMPDocumentsModal";
 import { QuickFilterSidebar } from "../components/gmp/queue/QueueFilters";
@@ -391,6 +392,12 @@ export default function GMPTasksPage({ darkMode = false }) {
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  // A search box holding only 2+ DTNs becomes an exact multi-DTN filter;
+  // anything else stays the normal free-text search.
+  const dtnSearch = useMemo(() => parseDtnSearch(search), [search]);
+  const dtnList = dtnSearch?.dtns ?? null;
+  const dtnSet = useMemo(() => (dtnList ? new Set(dtnList) : null), [dtnList]);
+
   // Which table columns the user wants to see — persisted across sessions
   // so a refresh doesn't reset a deliberately trimmed-down view. Starts
   // with every column checked.
@@ -550,7 +557,7 @@ export default function GMPTasksPage({ darkMode = false }) {
   const matchesTableFilters = (r) => {
     const mstar = !filters.starredOnly || r.is_starred === 1;
     const msb = !filters.sentBy || (r.sentByUsername ?? r.sentByFullName ?? "").toLowerCase().includes(filters.sentBy.toLowerCase());
-    const msearch = taskMatchesSearch(r, search);
+    const msearch = dtnSet ? dtnSet.has(r.dtn) : taskMatchesSearch(r, search);
     let mrisk = true;
     if (filters.nearDeadline || filters.beyond) {
       const st = computeStatusTimeline(r);
@@ -611,6 +618,23 @@ export default function GMPTasksPage({ darkMode = false }) {
   const filteredData = useMemo(() => {
     return data.filter((r) => matchesTableFilters(r) && matchesQuick(r, activeQuick));
   }, [data, filters, activeQuick, search, originFilter, activeTab]);
+
+  // Multi-DTN search only: which requested DTNs are in this tab's results,
+  // and how many of the rest are waiting in one of the user's other tabs.
+  const foundDtns = useMemo(
+    () => (dtnList ? [...new Set(filteredData.map((r) => r.dtn))] : null),
+    [dtnList, filteredData]
+  );
+  const dtnNote = useMemo(() => {
+    if (!dtnList || !foundDtns) return null;
+    const found = new Set(foundDtns);
+    const elsewhere = dtnList.filter(
+      (d) => !found.has(d) && allStepsData.some((t) => t.dtn === d && getTabKey(t) !== activeTab)
+    );
+    return elsewhere.length
+      ? `${elsewhere.length} of the not-found DTN${elsewhere.length === 1 ? " is" : "s are"} in your other tabs: ${elsewhere.join(", ")}`
+      : "Searches this tab only.";
+  }, [dtnList, foundDtns, allStepsData, activeTab]);
 
   // Generic comparator — numeric-aware (so "10" sorts after "2", and DTNs
   // compare correctly), nulls/blanks always sort last regardless of
@@ -835,7 +859,8 @@ export default function GMPTasksPage({ darkMode = false }) {
                 🔍
               </span>
               <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-                placeholder="Search any field — DTN, company, address, manufacturer, certificate…"
+                onPaste={(e) => handleMultilinePaste(e, searchInput, setSearchInput)}
+                placeholder="Search any field, or paste several DTNs (one per line or comma-separated)…"
                 style={{
                   width: "100%", padding: "6px 26px 6px 30px", fontSize: "0.72rem",
                   fontFamily: FONT, borderRadius: 6, border: `1px solid ${fieldBorder}`,
@@ -1139,6 +1164,11 @@ export default function GMPTasksPage({ darkMode = false }) {
                 </>
               )}
             </div>
+            {dtnList && foundDtns && (
+              <div style={{ width: "100%" }}>
+                <DtnSearchSummary dtns={dtnList} invalid={dtnSearch.invalid} foundDtns={foundDtns} colors={colors} note={dtnNote} />
+              </div>
+            )}
           </div>
         )}
 
