@@ -12,6 +12,8 @@ import {
 } from "../api/appointmentRecords.js";
 import { mapEAppTask } from "../components/eapplication/workflowTaskMapper.js";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
+import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
+import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
 
 /* ──────────────────────────────────────────────────────────
    Two-level task page:
@@ -57,6 +59,62 @@ const POOL_TABS = [
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const DEFAULT_PAGE_SIZE = 10;
+const MAX_NOTE_LENGTH = 1500;
+
+/* TODO: replace with the client's real email from the application record */
+const CLIENT_EMAIL = "regulatory@torrentpharma.com.ph";
+
+/* Sample only: chance that a newly sent email fails, so Resend can be tested.
+   Use 0 for no failures and 1 for always failing. */
+const SAMPLE_FAIL_RATE = 0.4;
+
+const nowStamp = () =>
+  new Date().toLocaleString("en-PH", { dateStyle: "long", timeStyle: "short" });
+
+const DOC_LABELS = {
+  OOP: "Order of Payment",
+  NOTE: "Application Note",
+};
+
+/* TODO: replace with the real email log from the backend.
+   An Application Note has no PDF attachment; the note text is the email body. */
+const makeNoteEmailLog = (refNo, noteText) => {
+  const failed = Math.random() < SAMPLE_FAIL_RATE;
+  const at = nowStamp();
+  const error = failed
+    ? "SMTP 550: Mailbox unavailable or server timeout."
+    : null;
+  return {
+    id: `NOTE-${refNo}-${Date.now()}`,
+    docType: "NOTE",
+    subject: `${DOC_LABELS.NOTE} - ${refNo}`,
+    to: CLIENT_EMAIL,
+    attachment: null,
+    body: noteText,
+    status: failed ? "failed" : "sent",
+    sentAt: at,
+    attempts: 1,
+    error,
+    history: [{ attempt: 1, status: failed ? "failed" : "sent", at, error }],
+  };
+};
+
+/* The original Order of Payment is emailed when it is generated (before this
+   screen), so every application starts with one "sent" log for it. */
+const seedOopLog = (row) => ({
+  id: `OOP-${row.referenceNo}`,
+  docType: "OOP",
+  subject: `${DOC_LABELS.OOP} - ${row.referenceNo}`,
+  to: CLIENT_EMAIL,
+  attachment: `${DOC_LABELS.OOP} - ${row.referenceNo}.pdf`,
+  status: "sent",
+  sentAt: "13 July 2026 09:45",
+  attempts: 1,
+  error: null,
+  history: [
+    { attempt: 1, status: "sent", at: "13 July 2026 09:45", error: null },
+  ],
+});
 
 /* ── Helpers ── */
 const getUserGroupIds = (user) => {
@@ -271,6 +329,337 @@ function ClaimConfirmModal({ rows, colors, busy, onConfirm, onCancel }) {
   );
 }
 
+/* ── Application Notes modal ── */
+function ApplicationNotesModal({
+  row,
+  notes,
+  colors,
+  isComposing,
+  noteText,
+  sendEmail,
+  onStartCompose,
+  onCancelCompose,
+  onChangeNoteText,
+  onToggleSendEmail,
+  onPost,
+  onClose,
+}) {
+  if (!row) return null;
+  const noteList = notes || [];
+  const remaining = MAX_NOTE_LENGTH - noteText.length;
+  const canPost = !!noteText.trim();
+  const iconBtn = {
+    width: "26px",
+    height: "26px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    border: "none",
+    cursor: "pointer",
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.45)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "12px",
+          width: "460px",
+          maxWidth: "92vw",
+          maxHeight: "80vh",
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0.75rem 1rem",
+            borderBottom: `1px solid ${colors.cardBorder}`,
+            flexShrink: 0,
+          }}
+        >
+          <div
+            style={{
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              color: colors.textPrimary,
+            }}
+          >
+            📝 Application Notes ({noteList.length})
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            {!isComposing && (
+              <button
+                onClick={onStartCompose}
+                title="Add note"
+                style={{
+                  ...iconBtn,
+                  borderRadius: "6px",
+                  background: "linear-gradient(135deg,#2196F3,#1976D2)",
+                  color: "#fff",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                }}
+              >
+                +
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              title="Close"
+              style={{
+                ...iconBtn,
+                background: "transparent",
+                color: colors.textTertiary,
+                fontSize: "0.95rem",
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: "0.5rem 1rem",
+            fontSize: "0.68rem",
+            color: colors.textTertiary,
+            borderBottom: `1px solid ${colors.tableBorder}`,
+            flexShrink: 0,
+          }}
+        >
+          {row.referenceNo} — {row.applicantCompany}
+        </div>
+
+        {/* Notes list */}
+        <div
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "0.85rem 1rem",
+            background: colors.tableBg,
+            minHeight: "160px",
+          }}
+        >
+          {noteList.length === 0 ? (
+            <div
+              style={{
+                minHeight: "150px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.72rem",
+                color: colors.textTertiary,
+              }}
+            >
+              No notes yet.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.6rem",
+              }}
+            >
+              {noteList.map((note) => (
+                <div
+                  key={note.id}
+                  style={{
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: "8px",
+                    padding: "0.55rem 0.7rem",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.68rem",
+                        fontWeight: 700,
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      {note.author}
+                    </span>
+                    <span
+                      style={{ fontSize: "0.6rem", color: colors.textTertiary }}
+                    >
+                      {note.timestamp}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.72rem",
+                      color: colors.textPrimary,
+                      lineHeight: 1.5,
+                      whiteSpace: "pre-wrap",
+                    }}
+                  >
+                    {note.text}
+                  </div>
+                  {note.emailSent && (
+                    <div
+                      style={{
+                        marginTop: "0.35rem",
+                        fontSize: "0.58rem",
+                        fontWeight: 600,
+                        color: "#059669",
+                      }}
+                    >
+                      ✉️ Email sent to participants
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Compose area */}
+        {isComposing ? (
+          <div
+            style={{
+              borderTop: `1px solid ${colors.cardBorder}`,
+              padding: "0.75rem 1rem",
+              flexShrink: 0,
+            }}
+          >
+            <textarea
+              autoFocus
+              value={noteText}
+              onChange={(e) =>
+                onChangeNoteText(e.target.value.slice(0, MAX_NOTE_LENGTH))
+              }
+              placeholder="Write a note..."
+              rows={4}
+              style={{
+                width: "100%",
+                resize: "vertical",
+                padding: "0.6rem 0.7rem",
+                fontSize: "0.75rem",
+                fontFamily: "inherit",
+                borderRadius: "8px",
+                border: `1px solid ${colors.cardBorder}`,
+                background: colors.pageBg,
+                color: colors.textPrimary,
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginTop: "0.55rem",
+                flexWrap: "wrap",
+                gap: "0.5rem",
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  fontSize: "0.68rem",
+                  color: colors.textPrimary,
+                  cursor: "pointer",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sendEmail}
+                  onChange={(e) => onToggleSendEmail(e.target.checked)}
+                  style={{ cursor: "pointer" }}
+                />
+                Send email (Application Participants)
+              </label>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+              >
+                <span
+                  style={{ fontSize: "0.62rem", color: colors.textTertiary }}
+                >
+                  {remaining}
+                </span>
+                <button
+                  onClick={onCancelCompose}
+                  title="Cancel"
+                  style={{
+                    ...iconBtn,
+                    borderRadius: "50%",
+                    background: "rgba(239,68,68,0.12)",
+                    color: "#ef4444",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  ⛔
+                </button>
+                <button
+                  onClick={onPost}
+                  disabled={!canPost}
+                  style={{
+                    padding: "0.4rem 0.9rem",
+                    fontSize: "0.7rem",
+                    fontWeight: 700,
+                    borderRadius: "6px",
+                    border: "none",
+                    background: canPost
+                      ? "linear-gradient(135deg,#4CAF50,#43A047)"
+                      : colors.badgeBg,
+                    color: canPost ? "#fff" : colors.textTertiary,
+                    cursor: canPost ? "pointer" : "not-allowed",
+                  }}
+                >
+                  Post
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: "0.4rem 1rem",
+              borderTop: `1px solid ${colors.cardBorder}`,
+              fontSize: "0.62rem",
+              color: colors.textTertiary,
+              flexShrink: 0,
+            }}
+          >
+            Ready
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Page ── */
 function EApplicationTasksPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
@@ -308,6 +697,17 @@ function EApplicationTasksPage({ darkMode }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const [claimRows, setClaimRows] = useState(null);
   const [claiming, setClaiming] = useState(false);
+
+  /* Row actions: documents, email notifications, application notes.
+     TODO: these live in local state until the backend endpoints exist. */
+  const [docsTargetId, setDocsTargetId] = useState(null);
+  const [emailTargetId, setEmailTargetId] = useState(null);
+  const [emailLogsById, setEmailLogsById] = useState({}); // { [rowId]: log[] }
+  const [applicationNotes, setApplicationNotes] = useState({}); // { [rowId]: note[] }
+  const [notesTarget, setNotesTarget] = useState(null);
+  const [isComposingNote, setIsComposingNote] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [sendNoteEmail, setSendNoteEmail] = useState(true);
 
   /* Payment Posting: unclaimed pool + my open tasks + my processed tasks */
   const loadPayments = useCallback(async () => {
@@ -411,6 +811,14 @@ function EApplicationTasksPage({ darkMode }) {
     [departmentTabs],
   );
 
+  const allRows = useMemo(
+    () =>
+      Object.values(departmentTabs).flatMap((tabsOfDept) =>
+        tabsOfDept.flatMap((t) => t.rows),
+      ),
+    [departmentTabs],
+  );
+
   /* Derived selection: falls back to the first available option */
   const currentDepartment =
     visibleDepartments.find((d) => d.key === activeDepartment) ||
@@ -511,7 +919,7 @@ function EApplicationTasksPage({ darkMode }) {
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const dropdownHeight = 60;
+    const dropdownHeight = 190;
     const spaceBelow = window.innerHeight - rect.bottom;
     const top =
       spaceBelow < dropdownHeight
@@ -521,13 +929,124 @@ function EApplicationTasksPage({ darkMode }) {
     setOpenMenuId(rowId);
   };
 
-  const getActionMenuOptions = (row) => [
-    {
+  const getEmailLogs = (row) => emailLogsById[row.id] || [seedOopLog(row)];
+
+  const updateEmailLog = (rowId, logId, patch) => {
+    const row = allRows.find((r) => r.id === rowId);
+    if (!row) return;
+    setEmailLogsById((prev) => ({
+      ...prev,
+      [rowId]: (prev[rowId] || [seedOopLog(row)]).map((l) =>
+        l.id === logId
+          ? { ...l, ...(typeof patch === "function" ? patch(l) : patch) }
+          : l,
+      ),
+    }));
+  };
+
+  /* TODO: replace with a real API call, e.g. await resendEmail(logId) then refetch */
+  const handleResendEmail = (rowId, logId) => {
+    updateEmailLog(rowId, logId, { status: "sending", error: null });
+    setTimeout(() => {
+      // Sample only: a resend can also fail, so the history shows both outcomes
+      const failed = Math.random() < SAMPLE_FAIL_RATE;
+      const at = nowStamp();
+      const error = failed
+        ? "SMTP 421: Service not available, try again later."
+        : null;
+      updateEmailLog(rowId, logId, (l) => {
+        const attempt = l.attempts + 1;
+        return {
+          status: failed ? "failed" : "sent",
+          sentAt: at,
+          attempts: attempt,
+          error,
+          history: [
+            ...(l.history || []),
+            { attempt, status: failed ? "failed" : "sent", at, error },
+          ],
+        };
+      });
+    }, 1200);
+  };
+
+  const openNotes = (row) => {
+    setNotesTarget(row);
+    setIsComposingNote(false);
+    setNoteText("");
+    setSendNoteEmail(true);
+  };
+
+  const closeNotes = () => {
+    setNotesTarget(null);
+    setIsComposingNote(false);
+    setNoteText("");
+  };
+
+  /* TODO: replace with a real API call, e.g.
+     await postApplicationNote(row.id, { text, sendEmail }) then refetch.
+     The backend should also send the email and return its log entry. */
+  const postNote = () => {
+    if (!notesTarget || !noteText.trim()) return;
+    const text = noteText.trim();
+    const target = notesTarget;
+    setApplicationNotes((prev) => ({
+      ...prev,
+      [target.id]: [
+        ...(prev[target.id] || []),
+        {
+          id: Date.now(),
+          author: userName,
+          text,
+          timestamp: "Just now",
+          emailSent: sendNoteEmail,
+        },
+      ],
+    }));
+    // A note sent by email also shows up in Email Notifications
+    if (sendNoteEmail) {
+      setEmailLogsById((prev) => ({
+        ...prev,
+        [target.id]: [
+          ...(prev[target.id] || [seedOopLog(target)]),
+          makeNoteEmailLog(target.referenceNo, text),
+        ],
+      }));
+    }
+    setNoteText("");
+    setIsComposingNote(false);
+  };
+
+  const getActionMenuOptions = (row) => {
+    const viewDetails = {
       label: "View Details",
       icon: "👁️",
       handler: () => setDetailsTarget(row),
-    },
-  ];
+    };
+    const notes = {
+      label: "Application Notes",
+      icon: "📝",
+      handler: () => openNotes(row),
+    };
+    // Documents and emails only apply to the payment flow
+    if (row.department === "payment_posting") {
+      return [
+        {
+          label: "Generated Documents",
+          icon: "📄",
+          handler: () => setDocsTargetId(row.id),
+        },
+        {
+          label: "Email Notifications",
+          icon: "📧",
+          handler: () => setEmailTargetId(row.id),
+        },
+        viewDetails,
+        notes,
+      ];
+    }
+    return [viewDetails, notes];
+  };
 
   /* ── Early returns (after all hooks) ── */
   const centered = (color, text, extra) => (
@@ -1223,6 +1742,55 @@ function EApplicationTasksPage({ darkMode }) {
         onConfirm={confirmClaim}
         onCancel={() => !claiming && setClaimRows(null)}
       />
+
+      <ApplicationNotesModal
+        row={notesTarget}
+        notes={notesTarget ? applicationNotes[notesTarget.id] : []}
+        colors={colors}
+        isComposing={isComposingNote}
+        noteText={noteText}
+        sendEmail={sendNoteEmail}
+        onStartCompose={() => setIsComposingNote(true)}
+        onCancelCompose={() => {
+          setIsComposingNote(false);
+          setNoteText("");
+        }}
+        onChangeNoteText={setNoteText}
+        onToggleSendEmail={setSendNoteEmail}
+        onPost={postNote}
+        onClose={closeNotes}
+      />
+
+      {emailTargetId &&
+        (() => {
+          const target = allRows.find((r) => r.id === emailTargetId);
+          if (!target) return null;
+          return (
+            <EmailNotificationsModal
+              row={target}
+              logs={getEmailLogs(target)}
+              colors={colors}
+              onResend={(logId) => handleResendEmail(target.id, logId)}
+              onClose={() => setEmailTargetId(null)}
+            />
+          );
+        })()}
+
+      {docsTargetId &&
+        (() => {
+          const target = allRows.find((r) => r.id === docsTargetId);
+          if (!target) return null;
+          return (
+            <GeneratedDocumentsModal
+              key={target.id}
+              row={target}
+              colors={colors}
+              cashierName={userName}
+              cashierPosition="Cashier"
+              onClose={() => setDocsTargetId(null)}
+            />
+          );
+        })()}
 
       {/* Details modal, resolved per process through the registry */}
       {detailsTarget &&
