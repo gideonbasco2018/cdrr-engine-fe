@@ -1,8 +1,10 @@
-// src/pages/EApplicationTasksPage.jsx
+// src/pages/EApplicationPage.jsx
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
-import { getUser } from "../api/auth";
-import { getWorkflowTasks } from "../api/workflow-tasks";
+import { getProcessModule } from "../components/eapplication/processRegistry.js";
+import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
+import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
+
 import {
   getAppointmentRecords,
   mapAppointmentRecord,
@@ -10,56 +12,78 @@ import {
   getMyAppointmentTasks,
   mapMyTask,
 } from "../api/appointmentRecords.js";
-import { mapEAppTask } from "../components/eapplication/workflowTaskMapper.js";
-import { getProcessModule } from "../components/eapplication/processRegistry.js";
-import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
-import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
 
 /* ──────────────────────────────────────────────────────────
    Two-level task page:
-   - Top level = department the user has access to (by group).
-   - Payment Posting ("pool" department, Cashier group):
-       Unclaimed Task -> Task -> Processed Task
-   - Quality Evaluation ("steps" department, QE group):
-       one sub-tab per application_step of the user's open
-       e_app_history tasks (del_last_index = 1, del_thread = "Open").
-       Hidden when the user has no open task in it.
+   - Top tabs   = departments/queues the user has access to
+                  (Payment Posting, Quality Evaluation, etc.)
+                  A user can belong to more than one.
+   - Sub-tabs   = lifecycle of a task within that department:
+                  Unclaimed Task → Task → Processed Task
    ────────────────────────────────────────────────────────── */
 
-/* Group ids from cdrr_engine.groups */
-const GROUP_IDS = {
-  CASHIER: 41,
-  QUALITY_EVALUATION: 3,
-};
+/* TODO: replace with real logged-in user (from auth context) */
+const CURRENT_USER = "Gideon Basco";
 
-/* ADAPT: for "steps" departments, list the real application_step values. */
+/* TODO: replace with departments the logged-in user actually
+   has access to (from auth/role config), in display order. */
 const DEPARTMENTS = [
-  {
-    key: "payment_posting",
-    title: "Payment Posting",
-    icon: "💵",
-    groupId: GROUP_IDS.CASHIER,
-    kind: "pool",
-  },
-  {
-    key: "quality_evaluation",
-    title: "Quality Evaluation",
-    icon: "🧪",
-    groupId: GROUP_IDS.QUALITY_EVALUATION,
-    kind: "steps",
-    steps: ["QE Review"],
-  },
+  { key: "payment_posting", title: "Payment Posting", icon: "💵" },
+  { key: "quality_evaluation", title: "Quality Evaluation", icon: "🧪" },
 ];
 
-const POOL_TABS = [
-  { id: "unclaimed", label: "Unclaimed Task", icon: "📥" },
-  { id: "claimed", label: "Task", icon: "⏳" },
-  { id: "processed", label: "Processed Task", icon: "✅" },
-];
+/* Quality Evaluation has no "Unclaimed" pool — tasks route straight
+   to the decker, so this department only shows Task / Processed. */
+const SUBTABS_BY_DEPARTMENT = {
+  payment_posting: ["unclaimed", "claimed", "processed"],
+  quality_evaluation: ["claimed", "processed"],
+};
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_NOTE_LENGTH = 1500;
+
+/* ── Static mock data — replace with an API call later.
+   Each row carries `department` and `status`:
+   status: "unclaimed" | "claimed" | "processed" ── */
+const MOCK_APPLICATIONS = [
+  {
+    id: 6,
+    department: "quality_evaluation",
+    processCode: "FGMP",
+    referenceNo: "EA-2026-00160",
+    activity: "FDA GMP Certification",
+    applicantCompany: "Fresenius Kabi Philippines, Inc.",
+    applicationStep: "QE Review",
+    dueDate: "2026-09-10",
+    lastModified: "2026-08-25 10:00 AM",
+    priority: "Medium",
+    // Quality Evaluation has no Unclaimed pool — tasks route straight
+    // to the assigned reviewer, so this starts as already "claimed".
+    status: "claimed",
+    claimedBy: CURRENT_USER,
+  },
+  {
+    id: 7,
+    department: "quality_evaluation",
+    processCode: "FGMP",
+    referenceNo: "EA-2026-00161",
+    activity: "FDA GMP Certification",
+    applicantCompany: "Getz Pharma Inc",
+    applicationStep: "QE Review",
+    dueDate: "2026-09-11",
+    lastModified: "2026-08-25 02:30 PM",
+    priority: "High",
+    status: "claimed",
+    claimedBy: CURRENT_USER,
+  },
+];
+
+const formatPeso = (n) =>
+  `₱${Number(n || 0).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 /* TODO: replace with the client's real email from the application record */
 const CLIENT_EMAIL = "regulatory@torrentpharma.com.ph";
@@ -69,14 +93,41 @@ const CLIENT_EMAIL = "regulatory@torrentpharma.com.ph";
 const SAMPLE_FAIL_RATE = 0.4;
 
 const nowStamp = () =>
-  new Date().toLocaleString("en-PH", { dateStyle: "long", timeStyle: "short" });
+  new Date().toLocaleString("en-PH", {
+    dateStyle: "long",
+    timeStyle: "short",
+  });
 
 const DOC_LABELS = {
   OOP: "Order of Payment",
+  AOOP: "Additional Order of Payment",
+  AR: "Acknowledgement Receipt",
   NOTE: "Application Note",
 };
 
-/* TODO: replace with the real email log from the backend.
+/* TODO: replace with the real email log from the backend (Gmail / mail service) */
+const makeEmailLog = (docType, refNo) => {
+  const failed = Math.random() < SAMPLE_FAIL_RATE;
+  const at = nowStamp();
+  const error = failed
+    ? "SMTP 550: Mailbox unavailable or server timeout."
+    : null;
+  return {
+    id: `${docType}-${refNo}-${Date.now()}`,
+    docType,
+    subject: `${DOC_LABELS[docType]} - ${refNo}`,
+    to: CLIENT_EMAIL,
+    attachment: `${DOC_LABELS[docType]} - ${refNo}.pdf`,
+    status: failed ? "failed" : "sent",
+    sentAt: at,
+    attempts: 1,
+    error,
+    // One entry per attempt, oldest first
+    history: [{ attempt: 1, status: failed ? "failed" : "sent", at, error }],
+  };
+};
+
+/* TODO: replace with the real email log from the backend (Gmail / mail service).
    An Application Note has no PDF attachment; the note text is the email body. */
 const makeNoteEmailLog = (refNo, noteText) => {
   const failed = Math.random() < SAMPLE_FAIL_RATE;
@@ -101,12 +152,12 @@ const makeNoteEmailLog = (refNo, noteText) => {
 
 /* The original Order of Payment is emailed when it is generated (before this
    screen), so every application starts with one "sent" log for it. */
-const seedOopLog = (row) => ({
-  id: `OOP-${row.referenceNo}`,
+const seedOopLog = (app) => ({
+  id: `OOP-${app.referenceNo}`,
   docType: "OOP",
-  subject: `${DOC_LABELS.OOP} - ${row.referenceNo}`,
+  subject: `${DOC_LABELS.OOP} - ${app.referenceNo}`,
   to: CLIENT_EMAIL,
-  attachment: `${DOC_LABELS.OOP} - ${row.referenceNo}.pdf`,
+  attachment: `${DOC_LABELS.OOP} - ${app.referenceNo}.pdf`,
   status: "sent",
   sentAt: "13 July 2026 09:45",
   attempts: 1,
@@ -116,75 +167,11 @@ const seedOopLog = (row) => ({
   ],
 });
 
-/* ── Helpers ── */
-const getUserGroupIds = (user) => {
-  // ADAPT: confirm which field holds the group ids (groups, group_ids, ...)
-  const raw = user?.groups ?? user?.group_ids ?? [];
-  return raw.map((g) => Number(typeof g === "object" ? g.id : g));
-};
-
-const getUserName = (user) =>
-  user?.name ??
-  user?.full_name ??
-  [user?.first_name, user?.last_name].filter(Boolean).join(" ");
-
 /* ── Badges ── */
-function PriorityBadge({ priority }) {
-  const map = {
-    High: { bg: "linear-gradient(135deg,#ef4444,#dc2626)", icon: "🔴" },
-    Medium: { bg: "linear-gradient(135deg,#f59e0b,#d97706)", icon: "🟠" },
-    Low: { bg: "linear-gradient(135deg,#10b981,#059669)", icon: "🟢" },
-  };
-  const c = map[priority] || {
-    bg: "linear-gradient(135deg,#6b7280,#4b5563)",
-    icon: "•",
-  };
-  return (
-    <span
-      style={{
-        padding: "0.3rem 0.7rem",
-        background: c.bg,
-        color: "#fff",
-        borderRadius: "8px",
-        fontSize: "0.55rem",
-        fontWeight: 700,
-        letterSpacing: "0.5px",
-        textTransform: "uppercase",
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "0.4rem",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span>{c.icon}</span>
-      {priority}
-    </span>
-  );
-}
-
-function RefNoBadge({ refNo }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "0.3rem 0.7rem",
-        background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
-        color: "#fff",
-        borderRadius: "8px",
-        fontSize: "0.55rem",
-        fontWeight: 700,
-        letterSpacing: "0.5px",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {refNo}
-    </span>
-  );
-}
-
-function RemarksBadge({ remarks }) {
-  if (!remarks) return <span style={{ opacity: 0.5 }}>—</span>;
+function renderRemarks(row) {
+  if (!row.remarks) {
+    return <span style={{ opacity: 0.5 }}>—</span>;
+  }
   return (
     <span
       style={{
@@ -204,15 +191,144 @@ function RemarksBadge({ remarks }) {
       }}
     >
       <span>⚠️</span>
-      <span>{remarks}</span>
+      <span>{row.remarks}</span>
+    </span>
+  );
+}
+function renderPriorityBadge(priority) {
+  const map = {
+    High: {
+      bg: "linear-gradient(135deg,#ef4444,#dc2626)",
+      sh: "rgba(239,68,68,0.3)",
+      icon: "🔴",
+    },
+    Medium: {
+      bg: "linear-gradient(135deg,#f59e0b,#d97706)",
+      sh: "rgba(245,158,11,0.3)",
+      icon: "🟠",
+    },
+    Low: {
+      bg: "linear-gradient(135deg,#10b981,#059669)",
+      sh: "rgba(16,185,129,0.3)",
+      icon: "🟢",
+    },
+  };
+  const c = map[priority] || {
+    bg: "linear-gradient(135deg,#6b7280,#4b5563)",
+    sh: "rgba(107,114,128,0.3)",
+    icon: "•",
+  };
+  return (
+    <span
+      style={{
+        padding: "0.3rem 0.7rem",
+        background: c.bg,
+        color: "#fff",
+        borderRadius: "8px",
+        fontSize: "0.55rem",
+        fontWeight: "700",
+        letterSpacing: "0.5px",
+        textTransform: "uppercase",
+        boxShadow: `0 2px 8px ${c.sh}`,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.4rem",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span>{c.icon}</span>
+      {priority}
     </span>
   );
 }
 
+function renderStepBadge(step) {
+  return (
+    <span
+      style={{
+        padding: "0.25rem 0.6rem",
+        background: "linear-gradient(135deg,#2196F3,#1976D2)",
+        color: "#fff",
+        borderRadius: "6px",
+        fontSize: "0.55rem",
+        fontWeight: "600",
+        display: "inline-flex",
+        alignItems: "center",
+        whiteSpace: "nowrap",
+        boxShadow: "0 2px 6px rgba(33,150,243,0.3)",
+      }}
+    >
+      {step}
+    </span>
+  );
+}
+
+function renderRefNo(
+  refNo,
+  noteCount = 0,
+  isHovered = false,
+  onEnter,
+  onLeave,
+) {
+  return (
+    <span
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      style={{ position: "relative", display: "inline-block" }}
+    >
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          padding: "0.3rem 0.7rem",
+          background: "linear-gradient(135deg,#8b5cf6,#7c3aed)",
+          color: "#fff",
+          borderRadius: "8px",
+          fontSize: "0.55rem",
+          fontWeight: "700",
+          letterSpacing: "0.5px",
+          boxShadow: "0 2px 8px rgba(8,8,8,0.3)",
+          whiteSpace: "nowrap",
+          cursor: "default",
+        }}
+      >
+        {refNo}
+      </span>
+
+      {isHovered && (
+        <span
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            zIndex: 20,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.35rem",
+            padding: "0.35rem 0.6rem",
+            background: "#1f2937",
+            color: "#fff",
+            borderRadius: "6px",
+            fontSize: "0.62rem",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          }}
+        >
+          <span>📝</span>
+          <span>
+            {noteCount} Application {noteCount === 1 ? "Note" : "Notes"}
+          </span>
+        </span>
+      )}
+    </span>
+  );
+}
 /* ── Claim confirmation modal (single or bulk) ── */
-function ClaimConfirmModal({ rows, colors, busy, onConfirm, onCancel }) {
+function ClaimConfirmModal({ rows, colors, onConfirm, onCancel }) {
   if (!rows || rows.length === 0) return null;
   const isBulk = rows.length > 1;
+
   return (
     <div
       onClick={onCancel}
@@ -238,57 +354,92 @@ function ClaimConfirmModal({ rows, colors, busy, onConfirm, onCancel }) {
           boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
         }}
       >
-        <h3
-          style={{
-            margin: "0 0 0.6rem",
-            fontSize: "0.95rem",
-            fontWeight: 700,
-            color: colors.textPrimary,
-          }}
-        >
-          ✋ {isBulk ? `Claim ${rows.length} tasks?` : "Claim this task?"}
-        </h3>
-        <p
-          style={{
-            margin: "0 0 0.6rem",
-            fontSize: "0.75rem",
-            color: colors.textTertiary,
-            lineHeight: 1.5,
-          }}
-        >
-          Once claimed, {isBulk ? "they" : "it"} will move to your{" "}
-          <strong>Task</strong> tab and other users will no longer be able to
-          pick {isBulk ? "them" : "it"} up.
-        </p>
         <div
           style={{
-            maxHeight: "140px",
-            overflowY: "auto",
-            border: `1px solid ${colors.cardBorder}`,
-            borderRadius: "8px",
-            padding: "0.5rem 0.65rem",
-            marginBottom: "0.9rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            marginBottom: "0.6rem",
           }}
         >
-          {rows.map((r) => (
-            <div
-              key={r.id}
+          <span style={{ fontSize: "1.3rem" }}>✋</span>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: "0.95rem",
+              fontWeight: 700,
+              color: colors.textPrimary,
+            }}
+          >
+            {isBulk ? `Claim ${rows.length} tasks?` : "Claim this task?"}
+          </h3>
+        </div>
+
+        {isBulk ? (
+          <>
+            <p
               style={{
-                fontSize: "0.68rem",
-                color: colors.textPrimary,
-                padding: "0.2rem 0",
+                margin: "0 0 0.5rem",
+                fontSize: "0.75rem",
+                color: colors.textTertiary,
+                lineHeight: 1.5,
               }}
             >
-              <strong>{r.referenceNo}</strong> — {r.applicantCompany}
+              You're about to claim{" "}
+              <strong style={{ color: colors.textPrimary }}>
+                {rows.length} applications
+              </strong>
+              . Once claimed, they will move to your <strong>Task</strong> tab
+              and other users will no longer be able to pick them up.
+            </p>
+            <div
+              style={{
+                maxHeight: "140px",
+                overflowY: "auto",
+                border: `1px solid ${colors.cardBorder}`,
+                borderRadius: "8px",
+                padding: "0.5rem 0.65rem",
+                marginBottom: "0.9rem",
+              }}
+            >
+              {rows.map((r) => (
+                <div
+                  key={r.id}
+                  style={{
+                    fontSize: "0.68rem",
+                    color: colors.textPrimary,
+                    padding: "0.2rem 0",
+                  }}
+                >
+                  <strong>{r.referenceNo}</strong> — {r.applicantCompany}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <p
+            style={{
+              margin: "0 0 0.9rem",
+              fontSize: "0.75rem",
+              color: colors.textTertiary,
+              lineHeight: 1.5,
+            }}
+          >
+            You're about to claim{" "}
+            <strong style={{ color: colors.textPrimary }}>
+              {rows[0].referenceNo}
+            </strong>{" "}
+            ({rows[0].applicantCompany}). Once claimed, it will move to your{" "}
+            <strong>Task</strong> tab and other users will no longer be able to
+            pick it up.
+          </p>
+        )}
+
         <div
           style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
         >
           <button
             onClick={onCancel}
-            disabled={busy}
             style={{
               padding: "0.45rem 0.9rem",
               fontSize: "0.72rem",
@@ -304,7 +455,6 @@ function ClaimConfirmModal({ rows, colors, busy, onConfirm, onCancel }) {
           </button>
           <button
             onClick={onConfirm}
-            disabled={busy}
             style={{
               padding: "0.45rem 0.9rem",
               fontSize: "0.72rem",
@@ -313,15 +463,11 @@ function ClaimConfirmModal({ rows, colors, busy, onConfirm, onCancel }) {
               border: "none",
               background: "linear-gradient(135deg,#4CAF50,#43A047)",
               color: "#fff",
-              cursor: busy ? "not-allowed" : "pointer",
-              opacity: busy ? 0.7 : 1,
+              cursor: "pointer",
+              boxShadow: "0 2px 8px rgba(76,175,80,0.35)",
             }}
           >
-            {busy
-              ? "Claiming..."
-              : isBulk
-                ? `✔ Yes, Claim ${rows.length} Tasks`
-                : "✔ Yes, Claim Task"}
+            {isBulk ? `✔ Yes, Claim ${rows.length} Tasks` : "✔ Yes, Claim Task"}
           </button>
         </div>
       </div>
@@ -347,16 +493,6 @@ function ApplicationNotesModal({
   if (!row) return null;
   const noteList = notes || [];
   const remaining = MAX_NOTE_LENGTH - noteText.length;
-  const canPost = !!noteText.trim();
-  const iconBtn = {
-    width: "26px",
-    height: "26px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "none",
-    cursor: "pointer",
-  };
 
   return (
     <div
@@ -399,12 +535,16 @@ function ApplicationNotesModal({
         >
           <div
             style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
               fontSize: "0.85rem",
               fontWeight: 700,
               color: colors.textPrimary,
             }}
           >
-            📝 Application Notes ({noteList.length})
+            <span>📝</span>
+            <span>Application Notes ({noteList.length})</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
             {!isComposing && (
@@ -412,12 +552,19 @@ function ApplicationNotesModal({
                 onClick={onStartCompose}
                 title="Add note"
                 style={{
-                  ...iconBtn,
+                  width: "26px",
+                  height: "26px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "none",
                   borderRadius: "6px",
                   background: "linear-gradient(135deg,#2196F3,#1976D2)",
                   color: "#fff",
                   fontSize: "0.85rem",
                   fontWeight: 700,
+                  cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(33,150,243,0.3)",
                 }}
               >
                 +
@@ -427,10 +574,16 @@ function ApplicationNotesModal({
               onClick={onClose}
               title="Close"
               style={{
-                ...iconBtn,
+                width: "26px",
+                height: "26px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "none",
                 background: "transparent",
                 color: colors.textTertiary,
                 fontSize: "0.95rem",
+                cursor: "pointer",
               }}
             >
               ×
@@ -438,6 +591,7 @@ function ApplicationNotesModal({
           </div>
         </div>
 
+        {/* Ref no context */}
         <div
           style={{
             padding: "0.5rem 1rem",
@@ -463,6 +617,7 @@ function ApplicationNotesModal({
           {noteList.length === 0 ? (
             <div
               style={{
+                height: "100%",
                 minHeight: "150px",
                 display: "flex",
                 alignItems: "center",
@@ -495,6 +650,7 @@ function ApplicationNotesModal({
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
+                      alignItems: "center",
                       marginBottom: "0.25rem",
                     }}
                   >
@@ -527,6 +683,9 @@ function ApplicationNotesModal({
                     <div
                       style={{
                         marginTop: "0.35rem",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.3rem",
                         fontSize: "0.58rem",
                         fontWeight: 600,
                         color: "#059669",
@@ -542,7 +701,7 @@ function ApplicationNotesModal({
         </div>
 
         {/* Compose area */}
-        {isComposing ? (
+        {isComposing && (
           <div
             style={{
               borderTop: `1px solid ${colors.cardBorder}`,
@@ -600,6 +759,7 @@ function ApplicationNotesModal({
                 />
                 Send email (Application Participants)
               </label>
+
               <div
                 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
               >
@@ -612,10 +772,16 @@ function ApplicationNotesModal({
                   onClick={onCancelCompose}
                   title="Cancel"
                   style={{
-                    ...iconBtn,
+                    width: "26px",
+                    height: "26px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     borderRadius: "50%",
+                    border: "none",
                     background: "rgba(239,68,68,0.12)",
                     color: "#ef4444",
+                    cursor: "pointer",
                     fontSize: "0.8rem",
                   }}
                 >
@@ -623,18 +789,21 @@ function ApplicationNotesModal({
                 </button>
                 <button
                   onClick={onPost}
-                  disabled={!canPost}
+                  disabled={!noteText.trim()}
                   style={{
                     padding: "0.4rem 0.9rem",
                     fontSize: "0.7rem",
                     fontWeight: 700,
                     borderRadius: "6px",
                     border: "none",
-                    background: canPost
+                    background: noteText.trim()
                       ? "linear-gradient(135deg,#4CAF50,#43A047)"
                       : colors.badgeBg,
-                    color: canPost ? "#fff" : colors.textTertiary,
-                    cursor: canPost ? "pointer" : "not-allowed",
+                    color: noteText.trim() ? "#fff" : colors.textTertiary,
+                    cursor: noteText.trim() ? "pointer" : "not-allowed",
+                    boxShadow: noteText.trim()
+                      ? "0 2px 8px rgba(76,175,80,0.35)"
+                      : "none",
                   }}
                 >
                   Post
@@ -642,7 +811,10 @@ function ApplicationNotesModal({
               </div>
             </div>
           </div>
-        ) : (
+        )}
+
+        {/* Status bar */}
+        {!isComposing && (
           <div
             style={{
               padding: "0.4rem 1rem",
@@ -660,175 +832,116 @@ function ApplicationNotesModal({
   );
 }
 
-/* ── Page ── */
-function EApplicationTasksPage({ darkMode }) {
+function EApplicationPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
-
-  const currentUser = useMemo(() => getUser(), []);
-  const userGroupIds = useMemo(
-    () => getUserGroupIds(currentUser),
-    [currentUser],
-  );
-  const userName = getUserName(currentUser);
-  const canSeePayments = userGroupIds.includes(GROUP_IDS.CASHIER);
-  const canSeeQE = userGroupIds.includes(GROUP_IDS.QUALITY_EVALUATION);
-
-  // TEMPORARY: debug only, remove after the page works
-  console.log("current user", currentUser, "group ids", userGroupIds);
-
-  const [payment, setPayment] = useState({
-    unclaimed: [],
-    claimed: [],
-    processed: [],
-  });
-  const [workflowTasks, setWorkflowTasks] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [docsTargetId, setDocsTargetId] = useState(null);
+  const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
+  const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key);
+  const [activeSubTab, setActiveSubTab] = useState("unclaimed"); // unclaimed | claimed | processed
+  const [applications, setApplications] = useState(MOCK_APPLICATIONS);
+  const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
   const [loadError, setLoadError] = useState(null);
-
-  const [activeDepartment, setActiveDepartment] = useState(null);
-  const [activeTab, setActiveTab] = useState(null);
+  const [claiming, setClaiming] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
 
   const [openMenuId, setOpenMenuId] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
-  const [detailsTarget, setDetailsTarget] = useState(null);
-  const [selectedIds, setSelectedIds] = useState([]);
-  const [claimRows, setClaimRows] = useState(null);
-  const [claiming, setClaiming] = useState(false);
+  const [claimRows, setClaimRows] = useState(null); // array of rows being claimed, or null
+  const [selectedIds, setSelectedIds] = useState([]); // ids checked for bulk claim
 
-  /* Row actions: documents, email notifications, application notes.
-     TODO: these live in local state until the backend endpoints exist. */
-  const [docsTargetId, setDocsTargetId] = useState(null);
-  const [emailTargetId, setEmailTargetId] = useState(null);
-  const [emailLogsById, setEmailLogsById] = useState({}); // { [rowId]: log[] }
-  const [applicationNotes, setApplicationNotes] = useState({}); // { [rowId]: note[] }
-  const [notesTarget, setNotesTarget] = useState(null);
+  /* Application Notes modal state */
+  const [notesTarget, setNotesTarget] = useState(null); // row whose notes are open
+  /* View Details modal state */
+  const [detailsTarget, setDetailsTarget] = useState(null); // row whose details are open
+
+  const [applicationNotes, setApplicationNotes] = useState({}); // { [rowId]: Note[] }
   const [isComposingNote, setIsComposingNote] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [sendNoteEmail, setSendNoteEmail] = useState(true);
+  const [hoveredNoteRowId, setHoveredNoteRowId] = useState(null); // row id whose ref-no badge is hovered
 
-  /* Payment Posting: unclaimed pool + my open tasks + my processed tasks */
-  const loadPayments = useCallback(async () => {
-    const [pool, open, processed] = await Promise.all([
-      getAppointmentRecords({
+  const loadUnclaimed = useCallback(async () => {
+    setLoadingUnclaimed(true);
+    setLoadError(null);
+    try {
+      const data = await getAppointmentRecords({
         status: "Accepted",
         unclaimed_only: true,
         page_size: 100,
-      }),
-      getMyAppointmentTasks("open"),
-      getMyAppointmentTasks("processed"),
-    ]);
-    const base = { department: "payment_posting" };
-    setPayment({
-      unclaimed: pool.items
-        .map(mapAppointmentRecord)
-        .map((r) => ({ ...r, ...base, status: "unclaimed" })),
-      claimed: open
-        .map((t) => mapMyTask(t, "claimed"))
-        .map((r) => ({ ...r, ...base, status: "claimed" })),
-      processed: processed
-        .map((t) => mapMyTask(t, "processed"))
-        .map((r) => ({ ...r, ...base, status: "processed" })),
-    });
-  }, []);
-
-  /* Quality Evaluation: open tasks of the user from e_app_history */
-  const loadWorkflow = useCallback(async () => {
-    if (!currentUser?.id) return;
-    const res = await getWorkflowTasks({
-      page: 1,
-      page_size: 10000,
-      user_id: currentUser.id, // ADAPT: use user_uuid if the API expects it
-      only_latest_per_thread: false,
-      del_last_index: 1,
-      del_thread: "Open",
-    });
-    const raw = res.data || [];
-    const mapped = raw.map(mapEAppTask);
-
-    // TEMPORARY: remove after confirming the raw column names and step names
-    console.log("raw workflow row", raw[0]);
-    console.log("application steps found", [
-      ...new Set(mapped.map((m) => m.applicationStep)),
-    ]);
-
-    setWorkflowTasks(mapped);
-  }, [currentUser]);
-
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    setLoadError(null);
-    try {
-      await Promise.all([
-        canSeePayments ? loadPayments() : Promise.resolve(),
-        canSeeQE ? loadWorkflow() : Promise.resolve(),
-      ]);
+      });
+      const incoming = data.items.map(mapAppointmentRecord);
+      setApplications((prev) => {
+        // drop stale unclaimed rows from the external DB, keep everything else
+        const keep = prev.filter(
+          (a) => !(a.source === "appointment" && a.status === "unclaimed"),
+        );
+        const keptIds = new Set(keep.map((a) => a.id));
+        return [...keep, ...incoming.filter((r) => !keptIds.has(r.id))];
+      });
     } catch (err) {
       setLoadError(err.message);
     } finally {
-      setLoading(false);
+      setLoadingUnclaimed(false);
     }
-  }, [canSeePayments, canSeeQE, loadPayments, loadWorkflow]);
+  }, []);
+
+  const loadMyTasks = useCallback(async () => {
+    try {
+      const [open, processed] = await Promise.all([
+        getMyAppointmentTasks("open"),
+        getMyAppointmentTasks("processed"),
+      ]);
+      const incoming = [
+        ...open.map((t) => ({
+          ...mapMyTask(t, "claimed"),
+          claimedBy: CURRENT_USER,
+        })),
+        ...processed.map((t) => ({
+          ...mapMyTask(t, "processed"),
+          claimedBy: CURRENT_USER,
+        })),
+      ];
+      setApplications((prev) => {
+        const refs = new Set(incoming.map((r) => r.referenceNo));
+        const keep = prev.filter(
+          (a) => a.source !== "internal" && !refs.has(a.referenceNo),
+        );
+        return [...keep, ...incoming];
+      });
+    } catch (err) {
+      setLoadError(err.message);
+    }
+  }, []);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    loadUnclaimed();
+    loadMyTasks();
+  }, [loadUnclaimed, loadMyTasks]);
 
-  /* Tabs (with rows) of every department the user can see */
-  const departmentTabs = useMemo(() => {
-    const out = {};
-    DEPARTMENTS.forEach((d) => {
-      if (!userGroupIds.includes(d.groupId)) return;
-      if (d.kind === "pool") {
-        out[d.key] = POOL_TABS.map((t) => ({ ...t, rows: payment[t.id] }));
-      } else {
-        const rows = workflowTasks
-          .filter((t) => d.steps.includes(t.applicationStep))
-          .map((t) => ({ ...t, department: d.key }));
-        const steps = [...new Set(rows.map((r) => r.applicationStep))];
-        out[d.key] = steps.map((step) => ({
-          id: step,
-          label: step,
-          icon: "🧪",
-          rows: rows.filter((r) => r.applicationStep === step),
-        }));
-      }
-    });
-    return out;
-  }, [userGroupIds, payment, workflowTasks]);
-
-  /* Pool departments are always visible to their group.
-     Step departments need at least one open task. */
-  const visibleDepartments = useMemo(
-    () =>
-      DEPARTMENTS.filter((d) => {
-        const tabs = departmentTabs[d.key];
-        if (!tabs) return false;
-        return d.kind === "pool" || tabs.some((t) => t.rows.length > 0);
-      }),
-    [departmentTabs],
+  /* Scope everything to the currently selected department first */
+  const departmentData = useMemo(
+    () => applications.filter((row) => row.department === activeDepartment),
+    [applications, activeDepartment],
   );
 
-  const allRows = useMemo(
-    () =>
-      Object.values(departmentTabs).flatMap((tabsOfDept) =>
-        tabsOfDept.flatMap((t) => t.rows),
-      ),
-    [departmentTabs],
+  const unclaimedData = departmentData.filter(
+    (row) => row.status === "unclaimed",
+  );
+  const myTasksData = departmentData.filter(
+    (row) => row.status === "claimed" && row.claimedBy === CURRENT_USER,
+  );
+  const processedData = departmentData.filter(
+    (row) => row.status === "processed" && row.claimedBy === CURRENT_USER,
   );
 
-  /* Derived selection: falls back to the first available option */
-  const currentDepartment =
-    visibleDepartments.find((d) => d.key === activeDepartment) ||
-    visibleDepartments[0] ||
-    null;
-  const tabs = currentDepartment ? departmentTabs[currentDepartment.key] : [];
-  const currentTab = tabs.find((t) => t.id === activeTab) || tabs[0] || null;
-  const baseData = currentTab?.rows || [];
-  const isUnclaimedTab = currentTab?.id === "unclaimed";
-  const showRemarks = currentDepartment?.kind === "pool" && !isUnclaimedTab;
+  const baseData =
+    activeSubTab === "unclaimed"
+      ? unclaimedData
+      : activeSubTab === "claimed"
+        ? myTasksData
+        : processedData;
 
   const filteredData = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -836,7 +949,7 @@ function EApplicationTasksPage({ darkMode }) {
     return baseData.filter((row) =>
       [row.referenceNo, row.activity, row.applicantCompany, row.priority]
         .filter(Boolean)
-        .some((field) => String(field).toLowerCase().includes(term)),
+        .some((field) => field.toLowerCase().includes(term)),
     );
   }, [baseData, searchTerm]);
 
@@ -847,55 +960,72 @@ function EApplicationTasksPage({ darkMode }) {
     safePage * rowsPerPage,
   );
 
-  /* ── Handlers ── */
-  const resetView = () => {
+  const handleDepartmentChange = (deptKey) => {
+    setActiveDepartment(deptKey);
+    setActiveSubTab(SUBTABS_BY_DEPARTMENT[deptKey][0]);
     setSearchTerm("");
     setCurrentPage(1);
-    setOpenMenuId(null);
     setSelectedIds([]);
   };
 
-  const handleDepartmentChange = (key) => {
-    setActiveDepartment(key);
-    setActiveTab(null);
-    resetView();
+  const handleSubTabChange = (tabId) => {
+    setActiveSubTab(tabId);
+    setSearchTerm("");
+    setCurrentPage(1);
+    setSelectedIds([]);
   };
 
-  const handleTabChange = (id) => {
-    setActiveTab(id);
-    resetView();
+  const handleSearchChange = (value) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
   };
 
-  const toggleSelectRow = (id) =>
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    );
-
-  const toggleSelectAllOnPage = () => {
-    const pageIds = paginatedData.map((r) => r.id);
-    const allSelected = pageIds.every((id) => selectedIds.includes(id));
-    setSelectedIds((prev) =>
-      allSelected
-        ? prev.filter((id) => !pageIds.includes(id))
-        : [...new Set([...prev, ...pageIds])],
-    );
+  const handlePageSizeChange = (value) => {
+    setRowsPerPage(Number(value));
+    setCurrentPage(1);
   };
+
+  const requestClaim = (row) => setClaimRows([row]);
 
   const requestBulkClaim = () => {
-    const rows = payment.unclaimed.filter((r) => selectedIds.includes(r.id));
-    if (rows.length) setClaimRows(rows);
+    const rows = applications.filter((app) => selectedIds.includes(app.id));
+    if (rows.length === 0) return;
+    setClaimRows(rows);
   };
 
   const confirmClaim = async () => {
-    if (claiming || !claimRows?.length) return;
+    if (claiming || !claimRows || claimRows.length === 0) return;
     setClaiming(true);
     try {
       const results = await claimAppointmentRecords(
         claimRows.map((r) => r.referenceNo),
       );
+      const claimedRefs = results
+        .filter((r) => r.result === "claimed")
+        .map((r) => r.reference_no);
       const failed = results.filter((r) => r.result !== "claimed");
-      setSelectedIds([]);
-      await loadPayments();
+
+      // Remove claimed rows from the unclaimed pool; the Task tab is loaded from the server
+      setApplications((prev) =>
+        prev.filter(
+          (app) =>
+            !(
+              app.source === "appointment" &&
+              claimedRefs.includes(app.referenceNo)
+            ),
+        ),
+      );
+      setSelectedIds((prev) =>
+        prev.filter(
+          (id) =>
+            !claimRows.some(
+              (r) => r.id === id && claimedRefs.includes(r.referenceNo),
+            ),
+        ),
+      );
+
+      await loadMyTasks();
+
       if (failed.length > 0) {
         // ADAPT: use your toast component if you have one
         window.alert(
@@ -903,6 +1033,7 @@ function EApplicationTasksPage({ darkMode }) {
             .map((f) => `${f.reference_no}: ${f.detail || f.result}`)
             .join("\n"),
         );
+        loadUnclaimed(); // refresh so rows claimed by others disappear
       }
     } catch (err) {
       window.alert(err.message);
@@ -911,42 +1042,120 @@ function EApplicationTasksPage({ darkMode }) {
       setClaimRows(null);
     }
   };
+  const cancelClaim = () => setClaimRows(null);
 
-  const handleMenuToggle = (e, rowId) => {
-    e.stopPropagation();
-    if (openMenuId === rowId) {
-      setOpenMenuId(null);
-      return;
-    }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const dropdownHeight = 190;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const top =
-      spaceBelow < dropdownHeight
-        ? rect.bottom - dropdownHeight
-        : rect.bottom + 4;
-    setMenuPosition({ top, right: window.innerWidth - rect.right });
-    setOpenMenuId(rowId);
+  const toggleSelectRow = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   };
 
-  const getEmailLogs = (row) => emailLogsById[row.id] || [seedOopLog(row)];
+  const toggleSelectAllOnPage = () => {
+    const pageIds = paginatedData.map((row) => row.id);
+    const allSelected = pageIds.every((id) => selectedIds.includes(id));
+    setSelectedIds((prev) =>
+      allSelected
+        ? prev.filter((id) => !pageIds.includes(id))
+        : [...new Set([...prev, ...pageIds])],
+    );
+  };
 
-  const updateEmailLog = (rowId, logId, patch) => {
-    const row = allRows.find((r) => r.id === rowId);
-    if (!row) return;
-    setEmailLogsById((prev) => ({
-      ...prev,
-      [rowId]: (prev[rowId] || [seedOopLog(row)]).map((l) =>
-        l.id === logId
-          ? { ...l, ...(typeof patch === "function" ? patch(l) : patch) }
-          : l,
+  const handleReturnToPool = (row) => {
+    setApplications((prev) =>
+      prev.map((app) =>
+        app.id === row.id
+          ? { ...app, status: "unclaimed", claimedBy: null }
+          : app,
       ),
-    }));
+    );
   };
+
+  /* TODO: replace with a real API call, e.g.
+   await postPayments(row.id, { payments, remarks }) then refetch.
+   If balance > 0, the backend should also generate the additional Order of Payment
+   and email the generated documents to the client. */
+  const handlePostPayment = ({
+    row,
+    payments,
+    totalPaid,
+    balance,
+    remarks,
+  }) => {
+    const isShort = balance > 0;
+    const stamp = nowStamp();
+    setApplications((prev) =>
+      prev.map((app) => {
+        if (app.id !== row.id) return app;
+        const prevPaid = Number(app.totalPaid || 0);
+        const newAoopCount = (app.additionalOopCount || 0) + (isShort ? 1 : 0);
+        return {
+          ...app,
+          // Short payment: the task stays in the Task tab.
+          // Fully paid: it moves to Processed Task.
+          status: isShort ? "claimed" : "processed",
+          lastModified: "Just now",
+          payments: [...(app.payments || []), ...payments],
+          totalPaid: prevPaid + totalPaid,
+          balance,
+          additionalOopCount: newAoopCount,
+          additionalOopRemarks: remarks,
+          // One Acknowledgement Receipt per posting
+          receipts: [
+            ...(app.receipts || []),
+            { id: Date.now(), payments, totalPaid, postingStamp: stamp },
+          ],
+          // One Additional Order of Payment per short posting
+          additionalOops: isShort
+            ? [
+                ...(app.additionalOops || []),
+                {
+                  id: Date.now() + 1,
+                  refNo: `${app.referenceNo}-A${newAoopCount}`,
+                  alreadyPaid: prevPaid + totalPaid,
+                  balance,
+                  remarks,
+                  generatedOn: stamp,
+                },
+              ]
+            : app.additionalOops || [],
+          // Emails sent to the client for each generated document
+          emailLogs: [
+            ...(app.emailLogs || [seedOopLog(app)]),
+            makeEmailLog("AR", app.referenceNo),
+            ...(isShort
+              ? [makeEmailLog("AOOP", `${app.referenceNo}-A${newAoopCount}`)]
+              : []),
+          ],
+          remarks: isShort
+            ? `Insufficient payment (${formatPeso(balance)} short). For payment verification of additional payment.`
+            : "",
+        };
+      }),
+    );
+  };
+
+  const updateEmailLog = (appId, logId, patch) =>
+    setApplications((prev) =>
+      prev.map((app) =>
+        app.id !== appId
+          ? app
+          : {
+              ...app,
+              emailLogs: (app.emailLogs || [seedOopLog(app)]).map((l) =>
+                l.id === logId
+                  ? {
+                      ...l,
+                      ...(typeof patch === "function" ? patch(l) : patch),
+                    }
+                  : l,
+              ),
+            },
+      ),
+    );
 
   /* TODO: replace with a real API call, e.g. await resendEmail(logId) then refetch */
-  const handleResendEmail = (rowId, logId) => {
-    updateEmailLog(rowId, logId, { status: "sending", error: null });
+  const handleResendEmail = (appId, logId) => {
+    updateEmailLog(appId, logId, { status: "sending", error: null });
     setTimeout(() => {
       // Sample only: a resend can also fail, so the history shows both outcomes
       const failed = Math.random() < SAMPLE_FAIL_RATE;
@@ -954,7 +1163,7 @@ function EApplicationTasksPage({ darkMode }) {
       const error = failed
         ? "SMTP 421: Service not available, try again later."
         : null;
-      updateEmailLog(rowId, logId, (l) => {
+      updateEmailLog(appId, logId, (l) => {
         const attempt = l.attempts + 1;
         return {
           status: failed ? "failed" : "sent",
@@ -983,115 +1192,119 @@ function EApplicationTasksPage({ darkMode }) {
     setNoteText("");
   };
 
-  /* TODO: replace with a real API call, e.g.
+  /* TODO: replace with real API call, e.g.
      await postApplicationNote(row.id, { text, sendEmail }) then refetch.
      The backend should also send the email and return its log entry. */
   const postNote = () => {
     if (!notesTarget || !noteText.trim()) return;
-    const text = noteText.trim();
-    const target = notesTarget;
+    const trimmedText = noteText.trim();
+    const targetId = notesTarget.id;
+    const newNote = {
+      id: Date.now(),
+      author: CURRENT_USER,
+      text: trimmedText,
+      timestamp: "Just now",
+      emailSent: sendNoteEmail,
+    };
     setApplicationNotes((prev) => ({
       ...prev,
-      [target.id]: [
-        ...(prev[target.id] || []),
-        {
-          id: Date.now(),
-          author: userName,
-          text,
-          timestamp: "Just now",
-          emailSent: sendNoteEmail,
-        },
-      ],
+      [targetId]: [...(prev[targetId] || []), newNote],
     }));
-    // A note sent by email also shows up in Email Notifications
+
+    // If "Send email" was checked, this note also shows up in
+    // Email Notifications, with the same resend/history behavior.
     if (sendNoteEmail) {
-      setEmailLogsById((prev) => ({
-        ...prev,
-        [target.id]: [
-          ...(prev[target.id] || [seedOopLog(target)]),
-          makeNoteEmailLog(target.referenceNo, text),
-        ],
-      }));
+      setApplications((prev) =>
+        prev.map((app) =>
+          app.id === targetId
+            ? {
+                ...app,
+                emailLogs: [
+                  ...(app.emailLogs || [seedOopLog(app)]),
+                  makeNoteEmailLog(app.referenceNo, trimmedText),
+                ],
+              }
+            : app,
+        ),
+      );
     }
+
     setNoteText("");
     setIsComposingNote(false);
   };
+  const handleMenuToggle = (e, rowId) => {
+    e.stopPropagation();
+    if (openMenuId === rowId) {
+      setOpenMenuId(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropdownHeight = 220;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top =
+      spaceBelow < dropdownHeight
+        ? rect.bottom - dropdownHeight
+        : rect.bottom + 4;
+    const right = window.innerWidth - rect.right;
+    setMenuPosition({ top, right });
+    setOpenMenuId(rowId);
+  };
 
-  const getActionMenuOptions = (row) => {
-    const viewDetails = {
+  const getTaskActionMenuOptions = (row) => [
+    {
+      label: "Generated Documents",
+      icon: "📄",
+      handler: () => setDocsTargetId(row.id),
+    },
+    {
+      label: "Email Notifications",
+      icon: "📧",
+      handler: () => setEmailTargetId(row.id),
+    },
+    {
       label: "View Details",
       icon: "👁️",
       handler: () => setDetailsTarget(row),
-    };
-    const notes = {
+    },
+    {
       label: "Application Notes",
       icon: "📝",
       handler: () => openNotes(row),
-    };
-    // Documents and emails only apply to the payment flow
-    if (row.department === "payment_posting") {
-      return [
-        {
-          label: "Generated Documents",
-          icon: "📄",
-          handler: () => setDocsTargetId(row.id),
-        },
-        {
-          label: "Email Notifications",
-          icon: "📧",
-          handler: () => setEmailTargetId(row.id),
-        },
-        viewDetails,
-        notes,
-      ];
-    }
-    return [viewDetails, notes];
-  };
+    },
+    {
+      label: "Return to Pool",
+      icon: "↩️",
+      handler: () => handleReturnToPool(row),
+    },
+  ];
 
-  /* ── Early returns (after all hooks) ── */
-  const centered = (color, text, extra) => (
-    <div
-      style={{
-        padding: "2rem",
-        textAlign: "center",
-        color,
-        fontSize: "0.8rem",
-      }}
-    >
-      {text}
-      {extra}
-    </div>
-  );
-
-  if (loading) return centered(colors.textTertiary, "Loading tasks...");
-
-  if (loadError) {
-    return centered(
-      "#dc2626",
-      `Could not load tasks: ${loadError}`,
-      <div style={{ marginTop: "0.75rem" }}>
-        <button onClick={loadAll} style={{ cursor: "pointer" }}>
-          Retry
-        </button>
-      </div>,
-    );
-  }
-
-  if (!currentDepartment) {
-    return centered(
-      colors.textTertiary,
-      userGroupIds.length === 0 || (!canSeePayments && !canSeeQE)
-        ? "🔒 You don't have access to any task queues."
-        : "You have no open tasks in the queues you have access to.",
-    );
-  }
-
-  /* ── Styles ── */
+  const getProcessedActionMenuOptions = (row) => [
+    {
+      label: "Generated Documents",
+      icon: "📄",
+      handler: () => setDocsTargetId(row.id),
+    },
+    {
+      label: "Email Notifications",
+      icon: "📧",
+      handler: () => setEmailTargetId(row.id),
+    },
+    {
+      label: "View Details",
+      icon: "👁️",
+      handler: () => setDetailsTarget(row),
+    },
+    {
+      label: "Application Notes",
+      icon: "📝",
+      handler: () => openNotes(row),
+    },
+  ];
   const thStyle = {
     padding: "0.45rem 0.6rem",
     textAlign: "left",
     fontSize: "0.55rem",
-    fontWeight: 600,
+    fontWeight: "600",
     color: colors.textTertiary,
     textTransform: "uppercase",
     letterSpacing: "0.05em",
@@ -1108,18 +1321,25 @@ function EApplicationTasksPage({ darkMode }) {
     whiteSpace: "nowrap",
   };
 
-  const columnCount = 8 + (isUnclaimedTab ? 1 : 0) + (showRemarks ? 1 : 0);
+  const ALL_SUB_TABS = [
+    {
+      id: "unclaimed",
+      label: "Unclaimed Task",
+      icon: "📥",
+      count: unclaimedData.length,
+    },
+    { id: "claimed", label: "Task", icon: "⏳", count: myTasksData.length },
+    {
+      id: "processed",
+      label: "Processed Task",
+      icon: "✅",
+      count: processedData.length,
+    },
+  ];
 
-  const emptyText = searchTerm
-    ? "No matching applications found."
-    : isUnclaimedTab
-      ? "No applications waiting to be claimed."
-      : currentTab?.id === "claimed"
-        ? "You haven't claimed any tasks yet."
-        : currentTab?.id === "processed"
-          ? "No processed tasks yet."
-          : "No tasks in this step.";
-
+  const subTabs = ALL_SUB_TABS.filter((tab) =>
+    SUBTABS_BY_DEPARTMENT[activeDepartment].includes(tab.id),
+  );
   return (
     <div
       style={{
@@ -1130,7 +1350,7 @@ function EApplicationTasksPage({ darkMode }) {
         background: colors.pageBg,
       }}
     >
-      {/* ── Department tabs ── */}
+      {/* ── Department tabs (top level) — stat card style ── */}
       <div
         style={{
           display: "flex",
@@ -1139,13 +1359,21 @@ function EApplicationTasksPage({ darkMode }) {
           flexShrink: 0,
         }}
       >
-        {visibleDepartments.map((dept) => {
-          const deptTabs = departmentTabs[dept.key];
-          const isPool = dept.kind === "pool";
-          const count = isPool
-            ? deptTabs.find((t) => t.id === "unclaimed").rows.length
-            : deptTabs.reduce((sum, t) => sum + t.rows.length, 0);
-          const isActive = currentDepartment.key === dept.key;
+        {DEPARTMENTS.map((dept) => {
+          const hasUnclaimedPool =
+            SUBTABS_BY_DEPARTMENT[dept.key].includes("unclaimed");
+          const deptUnclaimedCount = hasUnclaimedPool
+            ? applications.filter(
+                (row) =>
+                  row.department === dept.key && row.status === "unclaimed",
+              ).length
+            : applications.filter(
+                (row) =>
+                  row.department === dept.key &&
+                  row.status === "claimed" &&
+                  row.claimedBy === CURRENT_USER,
+              ).length;
+          const isActive = activeDepartment === dept.key;
           return (
             <button
               key={dept.key}
@@ -1199,7 +1427,7 @@ function EApplicationTasksPage({ darkMode }) {
                     lineHeight: 1,
                   }}
                 >
-                  {count}
+                  {deptUnclaimedCount}
                 </span>
                 <span
                   style={{
@@ -1208,7 +1436,7 @@ function EApplicationTasksPage({ darkMode }) {
                     fontWeight: 500,
                   }}
                 >
-                  {isPool ? "waiting" : "in progress"}
+                  {hasUnclaimedPool ? "waiting" : "in queue"}
                 </span>
               </span>
             </button>
@@ -1216,7 +1444,7 @@ function EApplicationTasksPage({ darkMode }) {
         })}
       </div>
 
-      {/* ── Sub-tabs ── */}
+      {/* ── Sub-tabs (task lifecycle within the selected department) ── */}
       <div
         style={{
           padding: "0.5rem 1.5rem 0",
@@ -1230,52 +1458,54 @@ function EApplicationTasksPage({ darkMode }) {
             borderBottom: `2px solid ${colors.cardBorder}`,
           }}
         >
-          {tabs.map((tab) => {
-            const isActive = currentTab?.id === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
-                style={{
-                  padding: "6px 14px",
-                  fontSize: "12px",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: isActive
+          {subTabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => handleSubTabChange(tab.id)}
+              style={{
+                padding: "6px 14px",
+                fontSize: "12px",
+                background: "transparent",
+                border: "none",
+                borderBottom:
+                  activeSubTab === tab.id
                     ? "2px solid #4CAF50"
                     : "2px solid transparent",
-                  color: isActive ? colors.textPrimary : colors.textTertiary,
-                  fontWeight: isActive ? 600 : 400,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  position: "relative",
-                  top: "1px",
-                  whiteSpace: "nowrap",
-                  transition: "all 0.2s ease",
+                color:
+                  activeSubTab === tab.id
+                    ? colors.textPrimary
+                    : colors.textTertiary,
+                fontWeight: activeSubTab === tab.id ? 600 : 400,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                position: "relative",
+                top: "1px",
+                whiteSpace: "nowrap",
+                transition: "all 0.2s ease",
+              }}
+            >
+              <span style={{ fontSize: "0.82rem" }}>{tab.icon}</span>
+              <span>{tab.label}</span>
+              <span
+                style={{
+                  fontSize: "10px",
+                  padding: "1px 6px",
+                  borderRadius: "999px",
+                  background:
+                    activeSubTab === tab.id ? "#4CAF50" : colors.badgeBg,
+                  color: activeSubTab === tab.id ? "#fff" : colors.textTertiary,
+                  border: `0.5px solid ${activeSubTab === tab.id ? "#4CAF50" : colors.cardBorder}`,
+                  fontWeight: 600,
+                  minWidth: "20px",
+                  textAlign: "center",
                 }}
               >
-                <span style={{ fontSize: "0.82rem" }}>{tab.icon}</span>
-                <span>{tab.label}</span>
-                <span
-                  style={{
-                    fontSize: "10px",
-                    padding: "1px 6px",
-                    borderRadius: "999px",
-                    background: isActive ? "#4CAF50" : colors.badgeBg,
-                    color: isActive ? "#fff" : colors.textTertiary,
-                    border: `0.5px solid ${isActive ? "#4CAF50" : colors.cardBorder}`,
-                    fontWeight: 600,
-                    minWidth: "20px",
-                    textAlign: "center",
-                  }}
-                >
-                  {tab.rows.length}
-                </span>
-              </button>
-            );
-          })}
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -1315,8 +1545,13 @@ function EApplicationTasksPage({ darkMode }) {
                   margin: 0,
                 }}
               >
-                {currentTab?.label}
+                {activeSubTab === "unclaimed"
+                  ? "Unclaimed Applications"
+                  : activeSubTab === "claimed"
+                    ? "My Claimed Tasks"
+                    : "Processed Tasks"}
               </h3>
+
               <span
                 style={{
                   padding: "0.2rem 0.6rem",
@@ -1324,27 +1559,12 @@ function EApplicationTasksPage({ darkMode }) {
                   borderRadius: "12px",
                   fontSize: "0.68rem",
                   color: colors.textTertiary,
-                  fontWeight: 600,
+                  fontWeight: "600",
                 }}
               >
                 {filteredData.length} total
               </span>
-              <button
-                onClick={loadAll}
-                title="Refresh"
-                style={{
-                  padding: "0.3rem 0.6rem",
-                  fontSize: "0.68rem",
-                  borderRadius: "6px",
-                  border: `1px solid ${colors.cardBorder}`,
-                  background: "transparent",
-                  color: colors.textPrimary,
-                  cursor: "pointer",
-                }}
-              >
-                🔄 Refresh
-              </button>
-              {isUnclaimedTab && selectedIds.length > 0 && (
+              {activeSubTab === "unclaimed" && selectedIds.length > 0 && (
                 <button
                   onClick={requestBulkClaim}
                   style={{
@@ -1355,7 +1575,9 @@ function EApplicationTasksPage({ darkMode }) {
                     borderRadius: "6px",
                     fontSize: "0.68rem",
                     fontWeight: 700,
+                    letterSpacing: "0.3px",
                     cursor: "pointer",
+                    boxShadow: "0 2px 6px rgba(76,175,80,0.35)",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -1379,10 +1601,7 @@ function EApplicationTasksPage({ darkMode }) {
               <input
                 type="text"
                 value={searchTerm}
-                onChange={(e) => {
-                  setSearchTerm(e.target.value);
-                  setCurrentPage(1);
-                }}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 placeholder="Search reference no., activity, company..."
                 style={{
                   width: "100%",
@@ -1393,7 +1612,6 @@ function EApplicationTasksPage({ darkMode }) {
                   background: colors.pageBg,
                   color: colors.textPrimary,
                   outline: "none",
-                  boxSizing: "border-box",
                 }}
               />
             </div>
@@ -1410,7 +1628,7 @@ function EApplicationTasksPage({ darkMode }) {
                 }}
               >
                 <tr>
-                  {isUnclaimedTab && (
+                  {activeSubTab === "unclaimed" && (
                     <th
                       style={{ ...thStyle, textAlign: "center", width: "36px" }}
                     >
@@ -1418,7 +1636,9 @@ function EApplicationTasksPage({ darkMode }) {
                         type="checkbox"
                         checked={
                           paginatedData.length > 0 &&
-                          paginatedData.every((r) => selectedIds.includes(r.id))
+                          paginatedData.every((row) =>
+                            selectedIds.includes(row.id),
+                          )
                         }
                         onChange={toggleSelectAllOnPage}
                         style={{ cursor: "pointer" }}
@@ -1436,11 +1656,13 @@ function EApplicationTasksPage({ darkMode }) {
                   <th style={thStyle}>Due Date</th>
                   <th style={thStyle}>Last Modified</th>
                   <th style={thStyle}>Priority</th>
-                  {showRemarks && <th style={thStyle}>Remarks</th>}
+                  {activeSubTab !== "unclaimed" && (
+                    <th style={thStyle}>Remarks</th>
+                  )}
                   <th
                     style={{ ...thStyle, textAlign: "center", width: "120px" }}
                   >
-                    {isUnclaimedTab ? "Claim" : "Actions"}
+                    {activeSubTab === "unclaimed" ? "Claim" : "Actions"}
                   </th>
                 </tr>
               </thead>
@@ -1448,7 +1670,7 @@ function EApplicationTasksPage({ darkMode }) {
                 {paginatedData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={columnCount}
+                      colSpan={9}
                       style={{
                         padding: "2rem",
                         textAlign: "center",
@@ -1456,7 +1678,17 @@ function EApplicationTasksPage({ darkMode }) {
                         fontSize: "0.75rem",
                       }}
                     >
-                      {emptyText}
+                      {loadingUnclaimed
+                        ? "Loading applications..."
+                        : loadError
+                          ? `Could not load applications: ${loadError}`
+                          : searchTerm
+                            ? "No matching applications found."
+                            : activeSubTab === "unclaimed"
+                              ? "No applications waiting to be claimed."
+                              : activeSubTab === "claimed"
+                                ? "You haven't claimed any tasks yet."
+                                : "No processed tasks yet."}
                     </td>
                   </tr>
                 ) : (
@@ -1481,7 +1713,7 @@ function EApplicationTasksPage({ darkMode }) {
                             : colors.tableRowOdd)
                       }
                     >
-                      {isUnclaimedTab && (
+                      {activeSubTab === "unclaimed" && (
                         <td style={{ ...tdStyle, textAlign: "center" }}>
                           <input
                             type="checkbox"
@@ -1501,29 +1733,37 @@ function EApplicationTasksPage({ darkMode }) {
                       >
                         {(safePage - 1) * rowsPerPage + index + 1}
                       </td>
-                      <td style={tdStyle}>
-                        <RefNoBadge refNo={row.referenceNo} />
+                      <td
+                        style={{
+                          ...tdStyle,
+                          overflow: "visible",
+                          position: "relative",
+                        }}
+                      >
+                        {renderRefNo(
+                          row.referenceNo,
+                          (applicationNotes[row.id] || []).length,
+                          hoveredNoteRowId === row.id,
+                          () => setHoveredNoteRowId(row.id),
+                          () => setHoveredNoteRowId(null),
+                        )}
                       </td>
                       <td style={tdStyle}>{row.activity}</td>
                       <td style={tdStyle}>{row.applicantCompany}</td>
                       <td style={tdStyle}>{row.dueDate || "—"}</td>
                       <td style={tdStyle}>{row.lastModified}</td>
                       <td style={tdStyle}>
-                        {row.priority ? (
-                          <PriorityBadge priority={row.priority} />
-                        ) : (
-                          "—"
-                        )}
+                        {row.priority ? renderPriorityBadge(row.priority) : "—"}
                       </td>
-                      {showRemarks && (
+                      {activeSubTab !== "unclaimed" && (
                         <td style={{ ...tdStyle, whiteSpace: "normal" }}>
-                          <RemarksBadge remarks={row.remarks} />
+                          {renderRemarks(row)}
                         </td>
                       )}
                       <td style={{ ...tdStyle, textAlign: "center" }}>
-                        {isUnclaimedTab ? (
+                        {activeSubTab === "unclaimed" ? (
                           <button
-                            onClick={() => setClaimRows([row])}
+                            onClick={() => requestClaim(row)}
                             style={{
                               padding: "0.35rem 0.85rem",
                               background:
@@ -1533,14 +1773,21 @@ function EApplicationTasksPage({ darkMode }) {
                               borderRadius: "6px",
                               fontSize: "0.65rem",
                               fontWeight: 700,
+                              letterSpacing: "0.3px",
                               cursor: "pointer",
+                              boxShadow: "0 2px 6px rgba(76,175,80,0.35)",
                               whiteSpace: "nowrap",
                             }}
                           >
                             ✋ Claim Task
                           </button>
                         ) : (
-                          <>
+                          <div
+                            style={{
+                              position: "relative",
+                              display: "inline-block",
+                            }}
+                          >
                             <button
                               onClick={(e) => handleMenuToggle(e, row.id)}
                               style={{
@@ -1580,7 +1827,10 @@ function EApplicationTasksPage({ darkMode }) {
                                     overflow: "hidden",
                                   }}
                                 >
-                                  {getActionMenuOptions(row).map((item) => (
+                                  {(activeSubTab === "claimed"
+                                    ? getTaskActionMenuOptions(row)
+                                    : getProcessedActionMenuOptions(row)
+                                  ).map((item, i) => (
                                     <button
                                       key={item.label}
                                       onClick={() => {
@@ -1592,6 +1842,10 @@ function EApplicationTasksPage({ darkMode }) {
                                         padding: "0.6rem 0.85rem",
                                         background: "transparent",
                                         border: "none",
+                                        borderTop:
+                                          i === 0
+                                            ? "none"
+                                            : `1px solid ${colors.tableBorder}`,
                                         color: colors.textPrimary,
                                         fontSize: "0.78rem",
                                         textAlign: "left",
@@ -1600,6 +1854,14 @@ function EApplicationTasksPage({ darkMode }) {
                                         alignItems: "center",
                                         gap: "0.5rem",
                                       }}
+                                      onMouseEnter={(e) =>
+                                        (e.currentTarget.style.background =
+                                          colors.tableRowHover)
+                                      }
+                                      onMouseLeave={(e) =>
+                                        (e.currentTarget.style.background =
+                                          "transparent")
+                                      }
                                     >
                                       <span>{item.icon}</span>
                                       <span>{item.label}</span>
@@ -1608,7 +1870,7 @@ function EApplicationTasksPage({ darkMode }) {
                                 </div>
                               </>
                             )}
-                          </>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -1657,10 +1919,7 @@ function EApplicationTasksPage({ darkMode }) {
                   Rows per page
                   <select
                     value={rowsPerPage}
-                    onChange={(e) => {
-                      setRowsPerPage(Number(e.target.value));
-                      setCurrentPage(1);
-                    }}
+                    onChange={(e) => handlePageSizeChange(e.target.value)}
                     style={{
                       padding: "0.25rem 0.4rem",
                       fontSize: "0.68rem",
@@ -1738,9 +1997,8 @@ function EApplicationTasksPage({ darkMode }) {
       <ClaimConfirmModal
         rows={claimRows}
         colors={colors}
-        busy={claiming}
         onConfirm={confirmClaim}
-        onCancel={() => !claiming && setClaimRows(null)}
+        onCancel={cancelClaim}
       />
 
       <ApplicationNotesModal
@@ -1761,38 +2019,6 @@ function EApplicationTasksPage({ darkMode }) {
         onClose={closeNotes}
       />
 
-      {emailTargetId &&
-        (() => {
-          const target = allRows.find((r) => r.id === emailTargetId);
-          if (!target) return null;
-          return (
-            <EmailNotificationsModal
-              row={target}
-              logs={getEmailLogs(target)}
-              colors={colors}
-              onResend={(logId) => handleResendEmail(target.id, logId)}
-              onClose={() => setEmailTargetId(null)}
-            />
-          );
-        })()}
-
-      {docsTargetId &&
-        (() => {
-          const target = allRows.find((r) => r.id === docsTargetId);
-          if (!target) return null;
-          return (
-            <GeneratedDocumentsModal
-              key={target.id}
-              row={target}
-              colors={colors}
-              cashierName={userName}
-              cashierPosition="Cashier"
-              onClose={() => setDocsTargetId(null)}
-            />
-          );
-        })()}
-
-      {/* Details modal, resolved per process through the registry */}
       {detailsTarget &&
         (() => {
           const { DetailsModal } = getProcessModule(detailsTarget.processCode);
@@ -1801,10 +2027,42 @@ function EApplicationTasksPage({ darkMode }) {
               key={detailsTarget.id}
               row={detailsTarget}
               colors={colors}
-              cashierName={userName}
+              cashierName={CURRENT_USER}
               cashierPosition="Cashier"
-              onPosted={loadAll}
+              onPost={handlePostPayment}
+              onPosted={loadMyTasks}
               onClose={() => setDetailsTarget(null)}
+            />
+          );
+        })()}
+
+      {emailTargetId &&
+        (() => {
+          const app = applications.find((a) => a.id === emailTargetId);
+          if (!app) return null;
+          return (
+            <EmailNotificationsModal
+              row={app}
+              logs={app.emailLogs || [seedOopLog(app)]}
+              colors={colors}
+              onResend={(logId) => handleResendEmail(app.id, logId)}
+              onClose={() => setEmailTargetId(null)}
+            />
+          );
+        })()}
+
+      {docsTargetId &&
+        (() => {
+          const app = applications.find((a) => a.id === docsTargetId);
+          if (!app) return null;
+          return (
+            <GeneratedDocumentsModal
+              key={app.id}
+              row={app}
+              colors={colors}
+              cashierName={CURRENT_USER}
+              cashierPosition="Cashier"
+              onClose={() => setDocsTargetId(null)}
             />
           );
         })()}
@@ -1812,4 +2070,4 @@ function EApplicationTasksPage({ darkMode }) {
   );
 }
 
-export default EApplicationTasksPage;
+export default EApplicationPage;
