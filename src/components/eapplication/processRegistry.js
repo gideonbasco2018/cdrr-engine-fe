@@ -4,16 +4,16 @@ import CprDetailsModal from "./processes/cpr/CprDetailsModal.jsx";
 import PlaceholderDetailsModal from "./processes/PlaceholderDetailsModal.jsx";
 
 export const PROCESS_REGISTRY = {
-  MIVN: {
+  MVN: {
     label: "Minor Variation - Notification",
     DetailsModal: MivnDetailsModal,
   },
   FGMP: {
-    label: "FDA GMP",
+    label: "Foreign Good Manufacturing Practice for Pharmaceutical Products",
     DetailsModal: FgmpDetailsModal,
   },
   CPR: {
-    label: "Certificate of Public Health",
+    label: "Certificate of Product Registration",
     DetailsModal: CprDetailsModal,
   },
 };
