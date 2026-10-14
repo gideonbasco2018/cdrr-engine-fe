@@ -8,7 +8,7 @@ import {
   PdfViewer,
   ConfirmPostModal,
   ConfirmAddPaymentModal,
-} from "../mivn/MivnDetailsModal.jsx";
+} from "../../paymentVerification/PaymentShared.jsx";
 import {
   OrderOfPaymentPaper,
   AdditionalOopPaper,

@@ -1,11 +1,11 @@
 import { useState, useMemo } from "react";
 import {
   AMOUNT_DUE,
-  PdfViewer,
   OrderOfPaymentPaper,
   AdditionalOopPaper,
   AcknowledgementReceiptPaper,
 } from "./processes/mivn/MivnDetailsModal.jsx";
+import { PdfViewer } from "./paymentVerification/PaymentShared.jsx";
 
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", {
