@@ -2,6 +2,8 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
 import { getProcessModule } from "../components/eapplication/processRegistry.js";
+import { getUser } from "../api/auth";
+
 import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
 import GeneratedDocumentsModal from "../components/eapplication/GeneratedDocumentsModal.jsx";
 
@@ -11,73 +13,75 @@ import {
   claimAppointmentRecords,
   getMyAppointmentTasks,
   mapMyTask,
+  getMyAccess,
 } from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
    Two-level task page:
-   - Top tabs   = departments/queues the user has access to
-                  (Payment Posting, Quality Evaluation, etc.)
-                  A user can belong to more than one.
+   - Top tabs   = one per application_step (e_app_history.application_step)
+                  the user has tasks in. Cashiers (group 41, checked by the
+                  server) always get the Payment Verification/Posting tab
+                  for the Unclaimed pool.
    - Sub-tabs   = lifecycle of a task within that department:
                   Unclaimed Task → Task → Processed Task
    ────────────────────────────────────────────────────────── */
 
-/* TODO: replace with real logged-in user (from auth context) */
-const CURRENT_USER = "Gideon Basco";
-
-/* TODO: replace with departments the logged-in user actually
-   has access to (from auth/role config), in display order. */
-const DEPARTMENTS = [
-  { key: "payment_posting", title: "Payment Posting", icon: "💵" },
-  { key: "quality_evaluation", title: "Quality Evaluation", icon: "🧪" },
-];
-
-/* Quality Evaluation has no "Unclaimed" pool — tasks route straight
-   to the decker, so this department only shows Task / Processed. */
-const SUBTABS_BY_DEPARTMENT = {
-  payment_posting: ["unclaimed", "claimed", "processed"],
-  quality_evaluation: ["claimed", "processed"],
+/* Display name of the logged-in user, from the saved login response */
+const getCurrentUserName = () => {
+  const u = getUser();
+  return u ? `${u.first_name || ""} ${u.surname || ""}`.trim() : "";
 };
+
+/* These strings must match e_app_history.application_step exactly. */
+const STEP_PAYMENT = "Payment Verification/Posting";
+const STEP_QUALITY = "Quality Evaluation";
+
+/* Testing switch: lets Admin users see the cashier tab even when the
+   server says they are not in the cashier group. Keep false in production. */
+const ADMIN_BYPASS = false;
+
+/* Tab titles come straight from e_app_history.application_step.
+   Only the icon is mapped; unknown steps get a default icon. */
+const STEP_ICONS = {
+  [STEP_PAYMENT]: "💵",
+  [STEP_QUALITY]: "🧪",
+};
+const getStepMeta = (step) => ({
+  title: step,
+  icon: STEP_ICONS[step] || "📋",
+});
+
+/* Only Payment Posting has an Unclaimed pool, and only cashiers can see it. */
+const getSubTabIds = (step, isCashier) =>
+  step === STEP_PAYMENT && isCashier
+    ? ["unclaimed", "claimed", "processed"]
+    : ["claimed", "processed"];
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_NOTE_LENGTH = 1500;
 
-/* ── Static mock data — replace with an API call later.
-   Each row carries `department` and `status`:
+/* Resolve which department (application_step) a row belongs to.
+   Unclaimed rows come from the external appointment DB and have no
+   history step yet, so they always belong to Payment Posting. */
+const getRowStep = (row) => {
+  // Unclaimed rows come from the external appointment DB and have no
+  // e_app_history step yet, so they always belong to Payment Posting.
+  if (row.status === "unclaimed") return STEP_PAYMENT;
+
+  // Real step from e_app_history.application_step (any value is allowed)
+  if (row.applicationStep) return row.applicationStep;
+
+  // Temporary fallback until mapMyTask returns application_step
+  if (row.department === "payment_posting") return STEP_PAYMENT;
+
+  return null;
+};
+
+/* ── Static mock data — intentionally empty, rows come from the API.
+   Each row carries `applicationStep` and `status`:
    status: "unclaimed" | "claimed" | "processed" ── */
-const MOCK_APPLICATIONS = [
-  {
-    id: 6,
-    department: "quality_evaluation",
-    processCode: "FGMP",
-    referenceNo: "EA-2026-00160",
-    activity: "FDA GMP Certification",
-    applicantCompany: "Fresenius Kabi Philippines, Inc.",
-    applicationStep: "QE Review",
-    dueDate: "2026-09-10",
-    lastModified: "2026-08-25 10:00 AM",
-    priority: "Medium",
-    // Quality Evaluation has no Unclaimed pool — tasks route straight
-    // to the assigned reviewer, so this starts as already "claimed".
-    status: "claimed",
-    claimedBy: CURRENT_USER,
-  },
-  {
-    id: 7,
-    department: "quality_evaluation",
-    processCode: "FGMP",
-    referenceNo: "EA-2026-00161",
-    activity: "FDA GMP Certification",
-    applicantCompany: "Getz Pharma Inc",
-    applicationStep: "QE Review",
-    dueDate: "2026-09-11",
-    lastModified: "2026-08-25 02:30 PM",
-    priority: "High",
-    status: "claimed",
-    claimedBy: CURRENT_USER,
-  },
-];
+const MOCK_APPLICATIONS = [];
 
 const formatPeso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", {
@@ -834,9 +838,38 @@ function ApplicationNotesModal({
 
 function EApplicationPage({ darkMode }) {
   const colors = getColorScheme(darkMode);
+  const CURRENT_USER = useMemo(() => getCurrentUserName(), []);
+
+  /* Re-checked from the server on every page load, so group changes
+     apply without logging in again. */
+  const [access, setAccess] = useState({ loaded: false, isCashier: false });
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyAccess()
+      .then((res) => {
+        if (!cancelled)
+          setAccess({ loaded: true, isCashier: !!res.is_cashier });
+      })
+      .catch(() => {
+        if (!cancelled) setAccess({ loaded: true, isCashier: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Testing switch only (see ADMIN_BYPASS); the real rule is the server's group check
+  const isAdminBypass = useMemo(
+    () => ADMIN_BYPASS && getUser()?.role === "Admin",
+    [],
+  );
+  const isCashier = access.isCashier || isAdminBypass;
+
   const [docsTargetId, setDocsTargetId] = useState(null);
   const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
-  const [activeDepartment, setActiveDepartment] = useState(DEPARTMENTS[0].key);
+  const [activeDepartment, setActiveDepartment] = useState(STEP_PAYMENT); // value is an application_step
+  const [tasksLoaded, setTasksLoaded] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState("unclaimed"); // unclaimed | claimed | processed
   const [applications, setApplications] = useState(MOCK_APPLICATIONS);
   const [loadingUnclaimed, setLoadingUnclaimed] = useState(false);
@@ -912,17 +945,55 @@ function EApplicationPage({ darkMode }) {
       });
     } catch (err) {
       setLoadError(err.message);
+    } finally {
+      setTasksLoaded(true);
     }
-  }, []);
+  }, [CURRENT_USER]);
 
   useEffect(() => {
-    loadUnclaimed();
+    if (!access.loaded) return; // wait for the access check first
+    // Only cashiers have an unclaimed pool, so skip that fetch for everyone else
+    if (isCashier) loadUnclaimed();
     loadMyTasks();
-  }, [loadUnclaimed, loadMyTasks]);
+  }, [access.loaded, isCashier, loadUnclaimed, loadMyTasks]);
+  /* Departments (top tabs) the user can currently see:
+     - group-gated ones (Payment Posting) need membership in that group
+     - the others only when the user has at least one task in that step */
+  const visibleDepartments = useMemo(() => {
+    const steps = [];
+    // Cashiers always get Payment Posting (for the Unclaimed pool)
+    if (isCashier) steps.push(STEP_PAYMENT);
+    // Every other tab comes from the user's own e_app_history tasks
+    applications.forEach((row) => {
+      if (row.status === "unclaimed" || row.claimedBy !== CURRENT_USER) return;
+      const step = getRowStep(row);
+      if (step && !steps.includes(step)) steps.push(step);
+    });
+    return steps.map((step) => ({ key: step, ...getStepMeta(step) }));
+  }, [applications, isCashier]);
 
-  /* Scope everything to the currently selected department first */
+  /* Keep the active department and sub-tab valid: if the department
+     disappears, or the sub-tab is not allowed for it (e.g. Unclaimed for
+     a non-cashier), fall back to the first valid one. */
+  useEffect(() => {
+    if (visibleDepartments.length === 0) return;
+    const deptVisible = visibleDepartments.some(
+      (d) => d.key === activeDepartment,
+    );
+    const dept = deptVisible ? activeDepartment : visibleDepartments[0].key;
+    const allowed = getSubTabIds(dept, isCashier);
+    if (!deptVisible || !allowed.includes(activeSubTab)) {
+      setActiveDepartment(dept);
+      setActiveSubTab(allowed[0]);
+      setSearchTerm("");
+      setCurrentPage(1);
+      setSelectedIds([]);
+    }
+  }, [visibleDepartments, activeDepartment, activeSubTab, isCashier]);
+
+  /* Scope everything to the currently selected department (application_step) first */
   const departmentData = useMemo(
-    () => applications.filter((row) => row.department === activeDepartment),
+    () => applications.filter((row) => getRowStep(row) === activeDepartment),
     [applications, activeDepartment],
   );
 
@@ -962,7 +1033,7 @@ function EApplicationPage({ darkMode }) {
 
   const handleDepartmentChange = (deptKey) => {
     setActiveDepartment(deptKey);
-    setActiveSubTab(SUBTABS_BY_DEPARTMENT[deptKey][0]);
+    setActiveSubTab(getSubTabIds(deptKey, isCashier)[0]);
     setSearchTerm("");
     setCurrentPage(1);
     setSelectedIds([]);
@@ -1338,8 +1409,27 @@ function EApplicationPage({ darkMode }) {
   ];
 
   const subTabs = ALL_SUB_TABS.filter((tab) =>
-    SUBTABS_BY_DEPARTMENT[activeDepartment].includes(tab.id),
+    getSubTabIds(activeDepartment, isCashier).includes(tab.id),
   );
+  if (visibleDepartments.length === 0) {
+    return (
+      <div
+        style={{
+          height: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: colors.pageBg,
+          color: colors.textTertiary,
+          fontSize: "0.8rem",
+        }}
+      >
+        {tasksLoaded && access.loaded
+          ? "You don't have access to any task queue."
+          : "Loading..."}
+      </div>
+    );
+  }
   return (
     <div
       style={{
@@ -1359,17 +1449,18 @@ function EApplicationPage({ darkMode }) {
           flexShrink: 0,
         }}
       >
-        {DEPARTMENTS.map((dept) => {
-          const hasUnclaimedPool =
-            SUBTABS_BY_DEPARTMENT[dept.key].includes("unclaimed");
+        {visibleDepartments.map((dept) => {
+          const hasUnclaimedPool = getSubTabIds(dept.key, isCashier).includes(
+            "unclaimed",
+          );
           const deptUnclaimedCount = hasUnclaimedPool
             ? applications.filter(
                 (row) =>
-                  row.department === dept.key && row.status === "unclaimed",
+                  getRowStep(row) === dept.key && row.status === "unclaimed",
               ).length
             : applications.filter(
                 (row) =>
-                  row.department === dept.key &&
+                  getRowStep(row) === dept.key &&
                   row.status === "claimed" &&
                   row.claimedBy === CURRENT_USER,
               ).length;
@@ -2021,11 +2112,6 @@ function EApplicationPage({ darkMode }) {
 
       {detailsTarget &&
         (() => {
-          console.log(
-            "details target",
-            detailsTarget.processCode,
-            detailsTarget,
-          );
           const { DetailsModal } = getProcessModule(detailsTarget.processCode);
           return (
             <DetailsModal
