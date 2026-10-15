@@ -51,11 +51,19 @@ const STEP_ICONS = {
   [STEP_DECKING]: "🗂️",
   [STEP_QUALITY]: "🧪",
 };
+
 const getStepMeta = (step) => ({
   title: step,
   icon: STEP_ICONS[step] || "📋",
 });
 
+/* Activities that always appear in the activity filter, even when the tab has
+   no row for them yet. Activities found in the data are added automatically.
+   Spelling must match e_application.activity exactly. */
+const KNOWN_ACTIVITIES = [
+  "Foreign Good Manufacturing Practice for Pharmaceutical Products",
+  "CDRR Certificate of Product Registration",
+];
 /* Steps with an Unclaimed pool the user may claim from
    (Payment Posting for cashiers, Decking for deckers). */
 const getSubTabIds = (step, claimableSteps) =>
@@ -1043,6 +1051,7 @@ function EApplicationPage({ darkMode }) {
     if (!deptVisible || !allowed.includes(activeSubTab)) {
       setActiveDepartment(dept);
       setActiveSubTab(allowed[0]);
+      setActivityFilter("");
       setSearchTerm("");
       setCurrentPage(1);
       setSelectedIds([]);
@@ -1072,10 +1081,16 @@ function EApplicationPage({ darkMode }) {
         ? myTasksData
         : processedData;
 
-  /* Activity filter options come from the rows currently in the tab, so a
-     newly added activity shows up automatically. */
+  /* Activity filter options: the known activities plus any activity found in
+     the rows of the current tab, so a new activity shows up automatically. */
   const activityOptions = useMemo(
-    () => [...new Set(baseData.map((r) => r.activity).filter(Boolean))].sort(),
+    () =>
+      [
+        ...new Set([
+          ...KNOWN_ACTIVITIES,
+          ...baseData.map((r) => r.activity).filter(Boolean),
+        ]),
+      ].sort(),
     [baseData],
   );
   const selectedActivity = activityOptions.includes(activityFilter)
@@ -1109,6 +1124,7 @@ function EApplicationPage({ darkMode }) {
   const handleDepartmentChange = (deptKey) => {
     setActiveDepartment(deptKey);
     setActiveSubTab(getSubTabIds(deptKey, claimableSteps)[0]);
+    setActivityFilter("");
     setSearchTerm("");
     setCurrentPage(1);
     setSelectedIds([]);
@@ -1116,6 +1132,7 @@ function EApplicationPage({ darkMode }) {
 
   const handleSubTabChange = (tabId) => {
     setActiveSubTab(tabId);
+    setActivityFilter("");
     setSearchTerm("");
     setCurrentPage(1);
     setSelectedIds([]);
@@ -1422,11 +1439,16 @@ function EApplicationPage({ darkMode }) {
       icon: "📝",
       handler: () => openNotes(row),
     },
-    {
-      label: "Return to Pool",
-      icon: "↩️",
-      handler: () => handleReturnToPool(row),
-    },
+    // Only Payment Verification/Posting tasks can be returned to the pool
+    ...(getRowStep(row) === STEP_PAYMENT
+      ? [
+          {
+            label: "Return to Pool",
+            icon: "↩️",
+            handler: () => handleReturnToPool(row),
+          },
+        ]
+      : []),
   ];
 
   const getProcessedActionMenuOptions = (row) => [
@@ -1736,7 +1758,7 @@ function EApplicationPage({ darkMode }) {
               >
                 {filteredData.length} total
               </span>
-              {activityOptions.length > 1 && (
+              {activityOptions.length > 0 && (
                 <select
                   value={selectedActivity}
                   onChange={(e) => {
@@ -1882,7 +1904,7 @@ function EApplicationPage({ darkMode }) {
                         ? "Loading applications..."
                         : loadError
                           ? `Could not load applications: ${loadError}`
-                          : searchTerm
+                          : searchTerm || selectedActivity
                             ? "No matching applications found."
                             : activeSubTab === "unclaimed"
                               ? "No applications waiting to be claimed."
