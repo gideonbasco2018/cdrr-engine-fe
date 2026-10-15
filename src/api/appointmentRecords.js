@@ -233,3 +233,43 @@ export const mapDeckingTask = (task) => ({
   ...mapMyTask(task, "unclaimed"),
   source: "decking-pool",
 });
+
+/**
+ * Get the users the decker can assign as evaluator
+ * @returns {Promise<{ user_uuid: string, name: string }[]>}
+ */
+export const getDeckingEvaluators = async () => {
+  try {
+    const response = await API.get("/appointment-records/decking/evaluators");
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch evaluators";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Submit the decker's decision for a claimed Decking task
+ * @param {string} referenceNo
+ * @param {{ decision: string, remarks?: string, evaluator_uuid?: string|null }} payload
+ */
+export const submitDeckingDecision = async (referenceNo, payload) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/decking-decision`,
+      payload,
+    );
+    return response.data;
+  } catch (error) {
+    const detail = error.response?.data?.detail;
+    const errorMessage =
+      (typeof detail === "string" ? detail : null) ||
+      (detail ? "The decision details are invalid" : null) ||
+      error.message ||
+      "Failed to submit the decision";
+    throw new Error(errorMessage);
+  }
+};
