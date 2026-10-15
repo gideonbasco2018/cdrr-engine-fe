@@ -216,17 +216,24 @@ function DataTable({
         return true;
       });
 
+    // OD-Receiving's "Returned to LRD" goes back to LRD Chief Admin; the
+    // evaluator returns keep going back to Quality Evaluation.
+    const isReturnToLRD = decision === "Returned to LRD";
+
     const isReturnDecision =
       decision === "Returned to Evaluator" ||
-      decision === "Checked and returned to evaluator";
+      decision === "Checked and returned to evaluator" ||
+      isReturnToLRD;
 
-    const returnTargetStep = [
-      "PRSDD Checking",
-      "PRSDD Supervisor",
-      "PRSDD QA Admin",
-    ].includes(bulkDeckConfig.currentStep)
-      ? "PRSDD Quality Evaluation"
-      : "Quality Evaluation";
+    const returnTargetStep = isReturnToLRD
+      ? "LRD Chief Admin"
+      : [
+            "PRSDD Checking",
+            "PRSDD Supervisor",
+            "PRSDD QA Admin",
+          ].includes(bulkDeckConfig.currentStep)
+        ? "PRSDD Quality Evaluation"
+        : "Quality Evaluation";
 
     let resolvedNextStep = isReturnDecision
       ? returnTargetStep
@@ -273,6 +280,8 @@ function DataTable({
 
     let success = 0,
       failed = 0;
+    // Per-DTN failure reasons, shown on the modal's result screen.
+    const errors = [];
     const now = new Date();
     const formattedDateTime = new Date(
       now.getTime() + 8 * 60 * 60 * 1000,
@@ -317,9 +326,11 @@ function DataTable({
             const hasPRSDD = sorted.some(
               (l) => l.application_step === "PRSDD Quality Evaluation",
             );
-            const effectiveTargetStep = hasPRSDD
-              ? "PRSDD Quality Evaluation"
-              : "Quality Evaluation";
+            const effectiveTargetStep = isReturnToLRD
+              ? "LRD Chief Admin"
+              : hasPRSDD
+                ? "PRSDD Quality Evaluation"
+                : "Quality Evaluation";
 
             if (currentLogIdx > 0) {
               for (let i = currentLogIdx - 1; i >= 0; i--) {
@@ -343,6 +354,18 @@ function DataTable({
           } catch {
             resolvedAssignee = null;
             resolvedAssigneeId = null;
+          }
+
+          // "Returned to LRD" only. These records come from LRD Chief Admin in
+          // the first place, so a missing LRD Chief Admin log means something
+          // is off with this record — refuse it rather than open a log nobody
+          // owns. Counted as failed and reported by DTN; the rest of the batch
+          // still goes through. The evaluator returns keep their old
+          // behaviour on purpose.
+          if (isReturnToLRD && !resolvedAssigneeId && !resolvedAssignee) {
+            throw new Error(
+              "No LRD Chief Admin log found on this record — nothing to return it to.",
+            );
           }
         }
 
@@ -487,9 +510,14 @@ function DataTable({
       } catch (e) {
         console.error(`Bulk deck failed for row id ${row.id}:`, e);
         failed++;
+        errors.push({
+          dtn: row.dtn || row.id,
+          reason:
+            e?.response?.data?.detail ?? e?.message ?? "Processing failed.",
+        });
       }
     }
-    return { success, failed };
+    return { success, failed, errors };
   };
 
   const handleBulkComplete = async ({
