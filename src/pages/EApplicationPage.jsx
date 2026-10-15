@@ -1568,6 +1568,18 @@ function EApplicationPage({ darkMode }) {
                   row.claimedBy === CURRENT_USER,
               ).length;
           const isActive = activeDepartment === dept.key;
+          const deptTaskCount = applications.filter(
+            (row) =>
+              getRowStep(row) === dept.key &&
+              row.status === "claimed" &&
+              row.claimedBy === CURRENT_USER,
+          ).length;
+          const deptProcessedCount = applications.filter(
+            (row) =>
+              getRowStep(row) === dept.key &&
+              row.status === "processed" &&
+              row.claimedBy === CURRENT_USER,
+          ).length;
           return (
             <button
               key={dept.key}
@@ -1631,6 +1643,29 @@ function EApplicationPage({ darkMode }) {
                   }}
                 >
                   {hasUnclaimedPool ? "waiting" : "in queue"}
+                </span>
+              </span>
+              <span
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.6rem",
+                  fontSize: "0.62rem",
+                  color: colors.textTertiary,
+                  fontWeight: 500,
+                }}
+              >
+                <span>
+                  ⏳ Task{" "}
+                  <strong style={{ color: colors.textPrimary }}>
+                    {deptTaskCount}
+                  </strong>
+                </span>
+                <span>
+                  ✅ Processed{" "}
+                  <strong style={{ color: colors.textPrimary }}>
+                    {deptProcessedCount}
+                  </strong>
                 </span>
               </span>
             </button>
