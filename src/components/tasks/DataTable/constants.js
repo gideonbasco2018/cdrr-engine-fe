@@ -71,6 +71,8 @@ export const DECISION_DOCTRACK_MAP = {
 
   // OD-Receiving
   "Endorsed to CDRR Director for signature": "Received by CDRR-OD",
+  // Pre-fill only — the Doctrack Remarks box stays editable.
+  "Returned to LRD": "Returned to LRD",
 
   // CDRR-OD Signature Facilitator
   "Endorsed to OD-Releasing": "Signed by CDRR Director, forwarded to OD-Releasing",
@@ -148,7 +150,7 @@ export const BULK_DECK_CONFIG = {
     buttonLabel: "Endorse Selected Applications",
     modalTitle: "Endorse Selected Applications to CDRR-OD Signature Facilitator",
     defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to CDRR Director for signature"],
-    availableDecisions: ["Endorsed to CDRR Director for signature", "Returned to Evaluator", ],
+    availableDecisions: ["Endorsed to CDRR Director for signature", "Returned to Evaluator", "Returned to LRD", ],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
   "OD-Releasing": {

@@ -1,11 +1,12 @@
 // src/pages/GMPQueuePage.jsx
 // GMP Queue — Decker view. Owns all state, data fetching, and modals.
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { getGMPRecords, getGMPFilterCounts, downloadGMPTemplate, exportFilteredGMPRecords } from "../api/gmp";
 import { getColorScheme } from "../components/gmp/shared/colorScheme";
 import { TopTabs, QuickFilterSidebar } from "../components/gmp/queue/QueueFilters";
 import QueueTable, { COLUMNS as GMP_QUEUE_COLUMNS } from "../components/gmp/queue/QueueTable";
+import { parseDtnSearch, handleMultilinePaste, DtnSearchSummary } from "../components/gmp/shared/dtnSearch";
 import DeckModal from "../components/gmp/queue/GMPDeckModal";
 import BulkDeckModal from "../components/gmp/queue/GMPBulkDeckModal";
 import UploadModal from "../components/gmp/queue/UploadModal";
@@ -755,10 +756,14 @@ export default function GMPQueuePage({ darkMode = false }) {
   // the "export everything matching the current view" button — keeping
   // these in one place means Export can never drift out of sync with what
   // the table is actually showing.
+  // A search box holding only 2+ DTNs becomes an exact multi-DTN filter;
+  // anything else stays the normal free-text search.
+  const dtnSearch = useMemo(() => parseDtnSearch(search), [search]);
+  const dtnList = dtnSearch?.dtns ?? null;
   const buildFilterParams = useCallback(() => ({
     sort_by:   sortBy,
     sort_order: sortOrder,
-    ...(search && { search }),
+    ...(dtnList ? { dtns: dtnList.join(",") } : (search && { search })),
     ...(topTab !== "all" && { tab: topTab }),
     ...(view !== "all" && { view }),
     ...(view === "main" && duplicatesOnly && { duplicates_only: true }),
@@ -800,7 +805,10 @@ export default function GMPQueuePage({ darkMode = false }) {
     ...(advFilters.date_printed_to && { date_printed_to: advFilters.date_printed_to }),
     ...(advFilters.compliance_docs_date_received_from && { compliance_docs_date_received_from: advFilters.compliance_docs_date_received_from }),
     ...(advFilters.compliance_docs_date_received_to && { compliance_docs_date_received_to: advFilters.compliance_docs_date_received_to }),
-  }), [search, topTab, view, duplicatesOnly, nearDeadline, beyondDeadline, activeQuick, advFilters, sortBy, sortOrder]);
+  }), [search, dtnList, topTab, view, duplicatesOnly, nearDeadline, beyondDeadline, activeQuick, advFilters, sortBy, sortOrder]);
+
+  // Multi-DTN search only: which of the requested DTNs matched (across all pages).
+  const [foundDtns, setFoundDtns] = useState(null);
 
   // Load records
   const fetchRecords = useCallback(async () => {
@@ -811,9 +819,10 @@ export default function GMPQueuePage({ darkMode = false }) {
       setRows((data.data ?? []).map(mapGMPRecord));
       setTotal(data.total ?? 0);
       setTotalPages(data.total_pages ?? 1);
+      setFoundDtns(data.found_dtns ?? null);
     } catch (e) {
       console.error("Failed to load GMP records", e);
-      setRows([]); setTotal(0); setTotalPages(1);
+      setRows([]); setTotal(0); setTotalPages(1); setFoundDtns(null);
     } finally {
       setLoading(false);
     }
@@ -1122,7 +1131,8 @@ export default function GMPQueuePage({ darkMode = false }) {
               🔍
             </span>
             <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Search any field — DTN, company, address, manufacturer, certificate…"
+              onPaste={(e) => handleMultilinePaste(e, searchInput, setSearchInput)}
+              placeholder="Search any field, or paste several DTNs (one per line or comma-separated)…"
               style={{
                 width: "100%", padding: "var(--gmp-search-pad, 8px 12px 8px 34px)", fontSize: "var(--gmp-search-font, 0.78rem)",
                 fontFamily: FONT, borderRadius: 8, border: `1px solid ${colors.cardBorder}`,
@@ -1144,6 +1154,14 @@ export default function GMPQueuePage({ darkMode = false }) {
             }}>
             ⚙️ Advanced
           </button>
+          {dtnList && foundDtns && (
+            <div style={{ width: "100%" }}>
+              <DtnSearchSummary
+                dtns={dtnList} invalid={dtnSearch.invalid} foundDtns={foundDtns} colors={colors}
+                note="Matches the current tab and filters — a DTN in another tab counts as not found here."
+              />
+            </div>
+          )}
         </div>
         </div>
         {/* end toolbar card */}

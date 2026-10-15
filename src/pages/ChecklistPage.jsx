@@ -22,7 +22,23 @@ import {
   getServerTime,
   refreshChecklistSubjects,
   searchChecklists,
+  searchChecklistsByDtns,
 } from "../api/checklist";
+
+// Search box: only numbers (and , ; spaces) → search DTNs; any letter or
+// other character → search the subject text.
+const searchModeOf = (q) => (/^[\d\s,;]+$/.test(q) ? "dtn" : "subject");
+
+// Search box, DTN mode: 2+ DTNs (comma / space / one per line) → exact
+// multi-DTN lookup. Returns the list of DTNs, or null for a normal search.
+// A run of glued digits that's a multiple of 14 long is cut into 14s.
+const parseMultiDtns = (q) => {
+  const tokens = q.split(/[\s,;]+/).filter(Boolean).flatMap((t) =>
+    /^\d+$/.test(t) && t.length > 14 && t.length % 14 === 0 ? t.match(/\d{14}/g) : [t],
+  );
+  if (tokens.length < 2 || !tokens.every((t) => /^\d{14}$/.test(t))) return null;
+  return [...new Set(tokens)];
+};
 
 // Search results: mark the first case-insensitive match of q in text.
 const highlightMatch = (text, q) => {
@@ -131,7 +147,8 @@ function ChecklistPage({ darkMode }) {
   // The query the current searchResults belong to. While what's typed
   // differs (the 250 ms typing pause, or the request still running), the
   // dropdown shows "Searching…" / the older results faded — never empty.
-  const [searchedFor, setSearchedFor] = useState("");
+  const [searchedFor, setSearchedFor] = useState(""); // mode|text of the results on screen
+  const [searchMulti, setSearchMulti] = useState(null); // DTNs of a multi-DTN search, else null
   const [showResults, setShowResults] = useState(false);
   const searchInputRef = useRef(null);
   const latestQueryRef = useRef("");
@@ -537,37 +554,55 @@ function ChecklistPage({ darkMode }) {
   };
 
   // ── Search ──────────────────────────────────────────────────────────────────
+  // A search is identified by mode + text.
+  const searchKeyOf = (mode, q) => `${mode}|${q}`;
+
   const runSearch = async (raw) => {
     const q = raw.trim();
-    latestQueryRef.current = q;
+    const mode = searchModeOf(q);
+    const key = searchKeyOf(mode, q);
+    latestQueryRef.current = key;
     if (q.length < 2) {
       setSearchResults(null);
+      setSearchMulti(null);
       setSearchedFor("");
       return [];
     }
+    const multi = mode === "dtn" ? parseMultiDtns(q) : null;
     setSearching(true);
     try {
-      const results = await searchChecklists(q);
-      if (latestQueryRef.current === q) {
+      const results = multi
+        ? await searchChecklistsByDtns(multi)
+        : await searchChecklists(q, mode);
+      if (latestQueryRef.current === key) {
         // ignore late, older answers
         setSearchResults(results);
-        setSearchedFor(q);
+        setSearchMulti(multi);
+        setSearchedFor(key);
       }
       return results;
     } catch (err) {
-      if (latestQueryRef.current === q) {
+      if (latestQueryRef.current === key) {
         setSearchResults([]);
-        setSearchedFor(q);
+        setSearchMulti(multi);
+        setSearchedFor(key);
       }
       setMessage({ type: "error", text: errorText(err, "Search failed.") });
       return [];
     } finally {
-      if (latestQueryRef.current === q) setSearching(false);
+      if (latestQueryRef.current === key) setSearching(false);
     }
   };
 
+  // What's being searched follows from what was typed — no mode switch.
+  const searchMode = searchModeOf(searchQuery.trim());
+
   // True from the moment a letter is typed until that exact text's results arrive.
-  const searchPending = searching || searchQuery.trim() !== searchedFor;
+  const searchPending = searching || searchKeyOf(searchMode, searchQuery.trim()) !== searchedFor;
+
+  // Multi-DTN search: how many of the DTNs were found, and which weren't.
+  const multiFound = searchMulti ? new Set((searchResults || []).map((r) => r.dtn)) : null;
+  const multiNotFound = searchMulti ? searchMulti.filter((d) => !multiFound.has(d)) : [];
 
   // Search as they type, once they pause for 250 ms.
   useEffect(() => {
@@ -575,6 +610,19 @@ function ChecklistPage({ darkMode }) {
     const timer = setTimeout(() => runSearch(searchQuery), 250);
     return () => clearTimeout(timer);
   }, [searchQuery, searchOpen]);
+
+  // A one-line box glues pasted lines together ("…01" + "…02" → "…01…02"),
+  // so turn line breaks into ", " before the paste goes in.
+  const handleSearchPaste = (e) => {
+    const text = e.clipboardData?.getData("text") || "";
+    if (!/[\r\n]/.test(text)) return;
+    e.preventDefault();
+    const clean = text.split(/[\r\n]+/).map((s) => s.trim()).filter(Boolean).join(", ");
+    const el = e.target;
+    const next = el.value.slice(0, el.selectionStart) + clean + el.value.slice(el.selectionEnd);
+    setSearchQuery(next);
+    setShowResults(true);
+  };
 
   const openSearch = () => {
     setSearchOpen(true);
@@ -586,6 +634,7 @@ function ChecklistPage({ darkMode }) {
     setSearchOpen(false);
     setSearchQuery("");
     setSearchResults(null);
+    setSearchMulti(null);
     setSearchedFor("");
     setShowResults(false);
     latestQueryRef.current = "";
@@ -593,10 +642,10 @@ function ChecklistPage({ darkMode }) {
   };
 
   const pickResult = async (r) => {
-    setShowResults(false);
-    const q = searchQuery.trim().toLowerCase();
-    // Matched in the subject (not the DTN)? Show that row's subject in full.
-    if (q && !r.dtn.toLowerCase().includes(q)) {
+    // Multi-DTN: keep the list open so they can go through the DTNs one by one.
+    if (!searchMulti) setShowResults(false);
+    // Matched in the subject? Show that row's subject in full.
+    if (searchMode === "subject") {
       setExpandedIds((prev) => new Set(prev).add(r.item_id));
     }
     if (active?.id !== r.checklist_id) await openChecklist(r.checklist_id);
@@ -611,8 +660,9 @@ function ChecklistPage({ darkMode }) {
       e.preventDefault();
       // Search right away (don't wait for the 250 ms pause), then open the
       // first match — so typing/scanning a DTN + Enter jumps straight to it.
+      // Several DTNs: just show the found / not-found list.
       const results = await runSearch(searchQuery);
-      if (results.length) pickResult(results[0]);
+      if (results.length && !(searchMode === "dtn" && parseMultiDtns(searchQuery.trim()))) pickResult(results[0]);
       else setShowResults(true);
     }
   };
@@ -956,7 +1006,8 @@ function ChecklistPage({ darkMode }) {
               onFocus={() => setShowResults(true)}
               onBlur={() => setShowResults(false)} // clicking a result keeps focus (onMouseDown below)
               onKeyDown={handleSearchKeyDown}
-              placeholder="Search DTN or subject…"
+              onPaste={handleSearchPaste}
+              placeholder="Search DTN(s) or subject…"
               tabIndex={searchOpen ? 0 : -1}
               aria-hidden={!searchOpen}
               style={{
@@ -973,21 +1024,83 @@ function ChecklistPage({ darkMode }) {
                 transition: "width 0.3s ease, opacity 0.25s ease, padding 0.3s ease, border-color 0.3s ease",
               }}
             />
-            {searchOpen && showResults && searchQuery.trim().length > 0 && (
+            {searchOpen && showResults && (
               <div
+                onMouseDown={(e) => e.preventDefault()} // clicks inside keep focus in the box
                 style={{
                   ...card,
                   position: "absolute",
                   top: "calc(100% + 6px)",
                   right: 0,
                   width: "26rem",
-                  maxHeight: "22rem",
+                  maxHeight: "24rem",
                   overflowY: "auto",
                   zIndex: 50,
                   padding: "0.35rem",
                 }}
               >
-                {searchQuery.trim().length < 2 && (
+                {searchQuery.trim().length === 0 ? (
+                  <div style={{ padding: "0.5rem 0.6rem", fontSize: "0.78rem", color: colors.textTertiary }}>
+                    Numbers search DTNs — one, or several (one per line or comma separated).
+                    <br />
+                    Words search the subject.
+                  </div>
+                ) : (
+                  // What's being searched, worked out from what was typed.
+                  <div style={{ padding: "0.15rem 0.6rem 0.35rem", fontSize: "0.7rem", fontWeight: 700, color: "#2563eb" }}>
+                    {searchMode === "subject"
+                      ? "Searching subjects"
+                      : parseMultiDtns(searchQuery.trim())
+                        ? `Searching ${parseMultiDtns(searchQuery.trim()).length} DTNs`
+                        : "Searching DTNs"}
+                  </div>
+                )}
+                {/* Multi-DTN summary: "10 of 12 found" + which weren't */}
+                {searchMulti && !searchPending && (
+                  <div
+                    style={{
+                      padding: "0.5rem 0.6rem",
+                      marginBottom: "0.35rem",
+                      borderRadius: 8,
+                      border: `1px solid ${multiNotFound.length ? "#f59e0b66" : "#16a34a55"}`,
+                      background: multiNotFound.length ? "#f59e0b14" : "#16a34a12",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 700,
+                        color: multiNotFound.length ? "#b45309" : "#16a34a",
+                      }}
+                    >
+                      {searchMulti.length - multiNotFound.length} of {searchMulti.length} found
+                    </div>
+                    {multiNotFound.length > 0 && (
+                      <div style={{ marginTop: "0.3rem", fontSize: "0.75rem", color: colors.textSecondary }}>
+                        Not found:
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                          {multiNotFound.map((d) => (
+                            <span
+                              key={d}
+                              style={{
+                                fontFamily: "monospace",
+                                fontSize: "0.78rem",
+                                padding: "0.05rem 0.35rem",
+                                borderRadius: 4,
+                                background: "#dc262614",
+                                color: "#dc2626",
+                                border: "1px solid #dc262640",
+                              }}
+                            >
+                              {d}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {searchQuery.trim().length > 0 && searchQuery.trim().length < 2 && (
                   <div style={{ padding: "0.6rem", fontSize: "0.8rem", color: colors.textTertiary }}>
                     Type at least 2 characters.
                   </div>
@@ -995,9 +1108,9 @@ function ChecklistPage({ darkMode }) {
                 {searchQuery.trim().length >= 2 && searchPending && !searchResults?.length && (
                   <div style={{ padding: "0.6rem", fontSize: "0.8rem", color: colors.textTertiary }}>Searching…</div>
                 )}
-                {searchQuery.trim().length >= 2 && !searchPending && searchResults?.length === 0 && (
+                {searchQuery.trim().length >= 2 && !searchPending && !searchMulti && searchResults?.length === 0 && (
                   <div style={{ padding: "0.6rem", fontSize: "0.8rem", color: colors.textTertiary }}>
-                    No DTN or subject matches “{searchQuery.trim()}”.
+                    No {searchMode === "dtn" ? "DTN" : "subject"} matches “{searchQuery.trim()}”.
                   </div>
                 )}
                 {searchQuery.trim().length >= 2 &&
@@ -1036,16 +1149,18 @@ function ChecklistPage({ darkMode }) {
                         <span>· {fmtDate(r.checklist_created_at)}</span>
                       </div>
                       <div style={{ fontFamily: "monospace", fontSize: "0.9rem", color: colors.textPrimary }}>
-                        {highlightMatch(r.dtn, searchQuery.trim())}
+                        {searchMode === "dtn" && !searchMulti ? highlightMatch(r.dtn, searchQuery.trim()) : r.dtn}
                       </div>
                       {r.subject && (
                         <div style={{ fontSize: "0.75rem", color: colors.textSecondary }}>
-                          {highlightMatch(subjectSnippet(r.subject, searchQuery.trim()), searchQuery.trim())}
+                          {searchMode === "subject"
+                            ? highlightMatch(subjectSnippet(r.subject, searchQuery.trim()), searchQuery.trim())
+                            : subjectSnippet(r.subject, "")}
                         </div>
                       )}
                     </div>
                   ))}
-                {searchResults?.length === 50 && (
+                {!searchMulti && searchResults?.length === 50 && (
                   <div style={{ padding: "0.4rem 0.6rem", fontSize: "0.7rem", color: colors.textTertiary }}>
                     Showing the first 50 matches — type more to narrow it down.
                   </div>

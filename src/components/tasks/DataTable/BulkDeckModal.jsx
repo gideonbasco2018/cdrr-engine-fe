@@ -73,6 +73,10 @@ const ACTION_CONFIG = {
     options: ["Returned to Evaluator for Clarification"],
     warning: "Action is required when returning to evaluator.",
   },
+  "OD-Receiving_Returned to LRD": {
+    options: ["Returned to LRD for Clarification"],
+    warning: "Recommendation is required when returning to LRD.",
+  },
   "OD-Releasing_Signed and Scanned, forwarded to AFO Records": {
     options: ["Signed and Scanned, forwarded to AFO Records"],
     warning: "Action is required.",
@@ -90,7 +94,17 @@ const ACTION_CONFIG = {
 const RETURN_DECISIONS = new Set([
   "Returned to Evaluator",
   "Checked and returned to evaluator",
+  "Returned to LRD",
 ]);
+
+// Who each return action sends the record back to — used only for the
+// modal's copy. index.jsx resolves the actual person from the record's own
+// log history.
+const RETURN_TARGET_LABELS = {
+  "Returned to Evaluator": "previous evaluator",
+  "Checked and returned to evaluator": "previous evaluator",
+  "Returned to LRD": "previous LRD Chief Admin",
+};
 
 const DECISION_RESULT_TO_DOC_TYPE = {
   "For issuance of CPR": "CPR",
@@ -211,6 +225,8 @@ export function BulkDeckModal({
   const actionConfig = ACTION_CONFIG[actionKey] ?? null;
   const isReturnDecision = RETURN_DECISIONS.has(decision);
   const hasDecisions = availableDecisions.length >= 1;
+  const returnTargetLabel =
+    RETURN_TARGET_LABELS[decision] ?? "previous evaluator";
 
   const getDefaultDoctrack = (dec) => {
     if (!dec) return config.defaultDoctrack ?? "";
@@ -591,6 +607,61 @@ export function BulkDeckModal({
               </div>
             )}
           </div>
+          {/* Why each one failed — e.g. a record with no LRD Chief Admin log
+              to go back to. Without this the user only saw a bare count. */}
+          {result?.errors?.length > 0 && (
+            <div
+              style={{
+                padding: "0.75rem 1rem",
+                background: "rgba(239,68,68,0.06)",
+                border: "1px solid rgba(239,68,68,0.2)",
+                borderRadius: 10,
+              }}
+            >
+              <p
+                style={{
+                  margin: "0 0 0.4rem",
+                  fontSize: "0.74rem",
+                  fontWeight: 700,
+                  color: "#ef4444",
+                }}
+              >
+                Not processed:
+              </p>
+              <ul
+                style={{
+                  margin: 0,
+                  paddingLeft: "1.1rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.2rem",
+                  maxHeight: 150,
+                  overflowY: "auto",
+                }}
+              >
+                {result.errors.map((err, i) => (
+                  <li
+                    key={`${err.dtn}-${i}`}
+                    style={{
+                      fontSize: "0.74rem",
+                      color: colors.textSecondary,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    <strong
+                      style={{
+                        color: colors.textPrimary,
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {err.dtn}
+                    </strong>{" "}
+                    — {err.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {!config.isEndTask && !isReturnDecision && (
             <p
               style={{
@@ -607,7 +678,9 @@ export function BulkDeckModal({
               ({config.nextStep})
             </p>
           )}
-          {isReturnDecision && (
+          {/* Only claim records were returned if any actually were — with the
+              LRD guard in place a whole batch can come back failed. */}
+          {isReturnDecision && result?.success > 0 && (
             <p
               style={{
                 margin: 0,
@@ -616,8 +689,9 @@ export function BulkDeckModal({
                 textAlign: "center",
               }}
             >
-              ↩️ Each record was returned to its{" "}
-              <strong style={{ color: "#10b981" }}>previous evaluator</strong>{" "}
+              ↩️ {result.success} record{result.success !== 1 ? "s" : ""}{" "}
+              returned to the{" "}
+              <strong style={{ color: "#10b981" }}>{returnTargetLabel}</strong>{" "}
               automatically.
             </p>
           )}
@@ -767,7 +841,7 @@ export function BulkDeckModal({
           {config.isEndTask ? (
             "successfully completed."
           ) : isReturnDecision ? (
-            "successfully returned to previous evaluators."
+            `successfully returned to the ${returnTargetLabel}.`
           ) : (
             <>
               successfully endorsed to{" "}
@@ -937,7 +1011,7 @@ export function BulkDeckModal({
                       <strong style={{ color: "#f59e0b" }}>returned</strong>{" "}
                       from <strong>{config.fromLabel}</strong> →{" "}
                       <strong style={{ color: "#10b981" }}>
-                        previous evaluator (auto)
+                        {returnTargetLabel} (auto)
                       </strong>
                     </>
                   ) : (
@@ -1484,8 +1558,8 @@ export function BulkDeckModal({
                     }}
                   >
                     Each record will be automatically returned to its{" "}
-                    <strong>previous Quality Evaluation evaluator</strong> based
-                    on its application log history. No manual assignee needed.
+                    <strong>{returnTargetLabel}</strong> based on its
+                    application log history. No manual assignee needed.
                   </div>
                 </div>
               </div>
@@ -1636,9 +1710,9 @@ export function BulkDeckModal({
                 <>
                   <strong style={{ color: "#b45309" }}>⚠ Note:</strong> This
                   will complete the current <strong>{config.fromLabel}</strong>{" "}
-                  log and return each record to its previous{" "}
-                  <strong>Quality Evaluation</strong> evaluator. This action
-                  cannot be undone.
+                  log and return each record to its{" "}
+                  <strong>{returnTargetLabel}</strong>. This action cannot be
+                  undone.
                 </>
               ) : (
                 <>
