@@ -74,7 +74,8 @@ const getSubTabIds = (step, claimableSteps) =>
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
 const DEFAULT_PAGE_SIZE = 10;
 const MAX_NOTE_LENGTH = 1500;
-
+/* How often the page re-reads tasks from the server while it is open */
+const POLL_INTERVAL_MS = 10000;
 /* Resolve which department (application_step) a row belongs to.
    Unclaimed rows come from the external appointment DB and have no
    history step yet, so they always belong to Payment Posting. */
@@ -929,9 +930,13 @@ function EApplicationPage({ darkMode }) {
   const [sendNoteEmail, setSendNoteEmail] = useState(true);
   const [hoveredNoteRowId, setHoveredNoteRowId] = useState(null); // row id whose ref-no badge is hovered
 
-  const loadUnclaimed = useCallback(async () => {
-    setLoadingUnclaimed(true);
-    setLoadError(null);
+  /* `silent` is used by background refreshes: no loading text and no error
+     banner, so the table does not flicker while the user is working. */
+  const loadUnclaimed = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoadingUnclaimed(true);
+      setLoadError(null);
+    }
     try {
       const data = await getAppointmentRecords({
         status: "Accepted",
@@ -948,13 +953,13 @@ function EApplicationPage({ darkMode }) {
         return [...keep, ...incoming.filter((r) => !keptIds.has(r.id))];
       });
     } catch (err) {
-      setLoadError(err.message);
+      if (!silent) setLoadError(err.message);
     } finally {
-      setLoadingUnclaimed(false);
+      if (!silent) setLoadingUnclaimed(false);
     }
   }, []);
 
-  const loadDecking = useCallback(async () => {
+  const loadDecking = useCallback(async (silent = false) => {
     try {
       const items = await getDeckingUnclaimed();
       const incoming = items.map(mapDeckingTask);
@@ -963,48 +968,59 @@ function EApplicationPage({ darkMode }) {
         ...incoming,
       ]);
     } catch (err) {
-      setLoadError(err.message);
+      if (!silent) setLoadError(err.message);
     }
   }, []);
 
-  const loadMyTasks = useCallback(async () => {
-    try {
-      const [open, processed] = await Promise.all([
-        getMyAppointmentTasks("open"),
-        getMyAppointmentTasks("processed"),
-      ]);
-      const incoming = [
-        ...open.map((t) => ({
-          ...mapMyTask(t, "claimed"),
-          claimedBy: CURRENT_USER,
-        })),
-        ...processed.map((t) => ({
-          ...mapMyTask(t, "processed"),
-          claimedBy: CURRENT_USER,
-        })),
-      ];
-      setApplications((prev) => {
-        const refs = new Set(incoming.map((r) => r.referenceNo));
-        const keys = new Set(
-          incoming.map((r) => `${r.referenceNo}|${r.applicationStep}`),
-        );
-        const keep = prev.filter(
-          (a) =>
-            a.source !== "internal" &&
-            !(a.source === "appointment" && refs.has(a.referenceNo)) &&
-            !(
-              a.source === "decking-pool" &&
-              keys.has(`${a.referenceNo}|${a.applicationStep}`)
-            ),
-        );
-        return [...keep, ...incoming];
-      });
-    } catch (err) {
-      setLoadError(err.message);
-    } finally {
-      setTasksLoaded(true);
-    }
-  }, [CURRENT_USER]);
+  const loadMyTasks = useCallback(
+    async (silent = false) => {
+      try {
+        const [open, processed] = await Promise.all([
+          getMyAppointmentTasks("open"),
+          getMyAppointmentTasks("processed"),
+        ]);
+        const incoming = [
+          ...open.map((t) => ({
+            ...mapMyTask(t, "claimed"),
+            claimedBy: CURRENT_USER,
+          })),
+          ...processed.map((t) => ({
+            ...mapMyTask(t, "processed"),
+            claimedBy: CURRENT_USER,
+          })),
+        ];
+        setApplications((prev) => {
+          const refs = new Set(incoming.map((r) => r.referenceNo));
+          const keys = new Set(
+            incoming.map((r) => `${r.referenceNo}|${r.applicationStep}`),
+          );
+          // Sample email logs live only in the browser (not on the server yet),
+          // so carry them over; otherwise every refresh would wipe them.
+          const logsById = new Map(
+            prev.filter((a) => a.emailLogs).map((a) => [a.id, a.emailLogs]),
+          );
+          const keep = prev.filter(
+            (a) =>
+              a.source !== "internal" &&
+              !(a.source === "appointment" && refs.has(a.referenceNo)) &&
+              !(
+                a.source === "decking-pool" &&
+                keys.has(`${a.referenceNo}|${a.applicationStep}`)
+              ),
+          );
+          const merged = incoming.map((r) =>
+            logsById.has(r.id) ? { ...r, emailLogs: logsById.get(r.id) } : r,
+          );
+          return [...keep, ...merged];
+        });
+      } catch (err) {
+        if (!silent) setLoadError(err.message);
+      } finally {
+        setTasksLoaded(true);
+      }
+    },
+    [CURRENT_USER],
+  );
 
   useEffect(() => {
     if (!access.loaded) return; // wait for the access check first
@@ -1020,6 +1036,32 @@ function EApplicationPage({ darkMode }) {
     loadDecking,
     loadMyTasks,
   ]);
+
+  /* Re-read everything the user can see from the server (silent). */
+  const refreshAll = useCallback(
+    () =>
+      Promise.all([
+        isCashier ? loadUnclaimed(true) : null,
+        isDecker ? loadDecking(true) : null,
+        loadMyTasks(true),
+      ]),
+    [isCashier, isDecker, loadUnclaimed, loadDecking, loadMyTasks],
+  );
+
+  /* Near real-time updates: poll while the browser tab is visible, and
+     refresh right away when the user comes back to it. */
+  useEffect(() => {
+    if (!access.loaded || claiming) return; // no background refresh mid-claim
+    const tick = () => {
+      if (document.visibilityState === "visible") refreshAll();
+    };
+    const id = setInterval(tick, POLL_INTERVAL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [access.loaded, claiming, refreshAll]);
   /* Departments (top tabs) the user can currently see:
      - group-gated ones (Payment Posting) need membership in that group
      - the others only when the user has at least one task in that step */
@@ -2288,7 +2330,7 @@ function EApplicationPage({ darkMode }) {
               cashierName={CURRENT_USER}
               cashierPosition="Cashier"
               onPost={handlePostPayment}
-              onPosted={loadMyTasks}
+              onPosted={refreshAll}
               onClose={() => setDetailsTarget(null)}
             />
           );
