@@ -14,6 +14,9 @@ import {
   getMyAppointmentTasks,
   mapMyTask,
   getMyAccess,
+  getDeckingUnclaimed,
+  claimDeckingTasks,
+  mapDeckingTask,
 } from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
@@ -35,6 +38,7 @@ const getCurrentUserName = () => {
 /* These strings must match e_app_history.application_step exactly. */
 const STEP_PAYMENT = "Payment Verification/Posting";
 const STEP_QUALITY = "Quality Evaluation";
+const STEP_DECKING = "Decking";
 
 /* Testing switch: lets Admin users see the cashier tab even when the
    server says they are not in the cashier group. Keep false in production. */
@@ -44,6 +48,7 @@ const ADMIN_BYPASS = false;
    Only the icon is mapped; unknown steps get a default icon. */
 const STEP_ICONS = {
   [STEP_PAYMENT]: "💵",
+  [STEP_DECKING]: "🗂️",
   [STEP_QUALITY]: "🧪",
 };
 const getStepMeta = (step) => ({
@@ -51,9 +56,10 @@ const getStepMeta = (step) => ({
   icon: STEP_ICONS[step] || "📋",
 });
 
-/* Only Payment Posting has an Unclaimed pool, and only cashiers can see it. */
-const getSubTabIds = (step, isCashier) =>
-  step === STEP_PAYMENT && isCashier
+/* Steps with an Unclaimed pool the user may claim from
+   (Payment Posting for cashiers, Decking for deckers). */
+const getSubTabIds = (step, claimableSteps) =>
+  claimableSteps.includes(step)
     ? ["unclaimed", "claimed", "processed"]
     : ["claimed", "processed"];
 
@@ -67,7 +73,9 @@ const MAX_NOTE_LENGTH = 1500;
 const getRowStep = (row) => {
   // Unclaimed rows come from the external appointment DB and have no
   // e_app_history step yet, so they always belong to Payment Posting.
-  if (row.status === "unclaimed") return STEP_PAYMENT;
+  if (row.status === "unclaimed" && row.source !== "decking-pool") {
+    return STEP_PAYMENT;
+  }
 
   // Real step from e_app_history.application_step (any value is allowed)
   if (row.applicationStep) return row.applicationStep;
@@ -842,17 +850,26 @@ function EApplicationPage({ darkMode }) {
 
   /* Re-checked from the server on every page load, so group changes
      apply without logging in again. */
-  const [access, setAccess] = useState({ loaded: false, isCashier: false });
+  const [access, setAccess] = useState({
+    loaded: false,
+    isCashier: false,
+    isDecker: false,
+  });
 
   useEffect(() => {
     let cancelled = false;
     getMyAccess()
       .then((res) => {
         if (!cancelled)
-          setAccess({ loaded: true, isCashier: !!res.is_cashier });
+          setAccess({
+            loaded: true,
+            isCashier: !!res.is_cashier,
+            isDecker: !!res.is_decker,
+          });
       })
       .catch(() => {
-        if (!cancelled) setAccess({ loaded: true, isCashier: false });
+        if (!cancelled)
+          setAccess({ loaded: true, isCashier: false, isDecker: false });
       });
     return () => {
       cancelled = true;
@@ -865,6 +882,14 @@ function EApplicationPage({ darkMode }) {
     [],
   );
   const isCashier = access.isCashier || isAdminBypass;
+  const isDecker = access.isDecker;
+  const claimableSteps = useMemo(
+    () => [
+      ...(isCashier ? [STEP_PAYMENT] : []),
+      ...(isDecker ? [STEP_DECKING] : []),
+    ],
+    [isCashier, isDecker],
+  );
 
   const [docsTargetId, setDocsTargetId] = useState(null);
   const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
@@ -876,6 +901,7 @@ function EApplicationPage({ darkMode }) {
   const [loadError, setLoadError] = useState(null);
   const [claiming, setClaiming] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activityFilter, setActivityFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
 
@@ -920,6 +946,19 @@ function EApplicationPage({ darkMode }) {
     }
   }, []);
 
+  const loadDecking = useCallback(async () => {
+    try {
+      const items = await getDeckingUnclaimed();
+      const incoming = items.map(mapDeckingTask);
+      setApplications((prev) => [
+        ...prev.filter((a) => a.source !== "decking-pool"),
+        ...incoming,
+      ]);
+    } catch (err) {
+      setLoadError(err.message);
+    }
+  }, []);
+
   const loadMyTasks = useCallback(async () => {
     try {
       const [open, processed] = await Promise.all([
@@ -938,8 +977,17 @@ function EApplicationPage({ darkMode }) {
       ];
       setApplications((prev) => {
         const refs = new Set(incoming.map((r) => r.referenceNo));
+        const keys = new Set(
+          incoming.map((r) => `${r.referenceNo}|${r.applicationStep}`),
+        );
         const keep = prev.filter(
-          (a) => a.source !== "internal" && !refs.has(a.referenceNo),
+          (a) =>
+            a.source !== "internal" &&
+            !(a.source === "appointment" && refs.has(a.referenceNo)) &&
+            !(
+              a.source === "decking-pool" &&
+              keys.has(`${a.referenceNo}|${a.applicationStep}`)
+            ),
         );
         return [...keep, ...incoming];
       });
@@ -952,10 +1000,18 @@ function EApplicationPage({ darkMode }) {
 
   useEffect(() => {
     if (!access.loaded) return; // wait for the access check first
-    // Only cashiers have an unclaimed pool, so skip that fetch for everyone else
+    // Only users with a claimable pool need that fetch
     if (isCashier) loadUnclaimed();
+    if (isDecker) loadDecking();
     loadMyTasks();
-  }, [access.loaded, isCashier, loadUnclaimed, loadMyTasks]);
+  }, [
+    access.loaded,
+    isCashier,
+    isDecker,
+    loadUnclaimed,
+    loadDecking,
+    loadMyTasks,
+  ]);
   /* Departments (top tabs) the user can currently see:
      - group-gated ones (Payment Posting) need membership in that group
      - the others only when the user has at least one task in that step */
@@ -963,6 +1019,8 @@ function EApplicationPage({ darkMode }) {
     const steps = [];
     // Cashiers always get Payment Posting (for the Unclaimed pool)
     if (isCashier) steps.push(STEP_PAYMENT);
+    // Deckers always get Decking (for the Unclaimed pool)
+    if (isDecker) steps.push(STEP_DECKING);
     // Every other tab comes from the user's own e_app_history tasks
     applications.forEach((row) => {
       if (row.status === "unclaimed" || row.claimedBy !== CURRENT_USER) return;
@@ -970,7 +1028,7 @@ function EApplicationPage({ darkMode }) {
       if (step && !steps.includes(step)) steps.push(step);
     });
     return steps.map((step) => ({ key: step, ...getStepMeta(step) }));
-  }, [applications, isCashier]);
+  }, [applications, isCashier, isDecker]);
 
   /* Keep the active department and sub-tab valid: if the department
      disappears, or the sub-tab is not allowed for it (e.g. Unclaimed for
@@ -981,7 +1039,7 @@ function EApplicationPage({ darkMode }) {
       (d) => d.key === activeDepartment,
     );
     const dept = deptVisible ? activeDepartment : visibleDepartments[0].key;
-    const allowed = getSubTabIds(dept, isCashier);
+    const allowed = getSubTabIds(dept, claimableSteps);
     if (!deptVisible || !allowed.includes(activeSubTab)) {
       setActiveDepartment(dept);
       setActiveSubTab(allowed[0]);
@@ -989,7 +1047,7 @@ function EApplicationPage({ darkMode }) {
       setCurrentPage(1);
       setSelectedIds([]);
     }
-  }, [visibleDepartments, activeDepartment, activeSubTab, isCashier]);
+  }, [visibleDepartments, activeDepartment, activeSubTab, claimableSteps]);
 
   /* Scope everything to the currently selected department (application_step) first */
   const departmentData = useMemo(
@@ -1014,15 +1072,32 @@ function EApplicationPage({ darkMode }) {
         ? myTasksData
         : processedData;
 
+  /* Activity filter options come from the rows currently in the tab, so a
+     newly added activity shows up automatically. */
+  const activityOptions = useMemo(
+    () => [...new Set(baseData.map((r) => r.activity).filter(Boolean))].sort(),
+    [baseData],
+  );
+  const selectedActivity = activityOptions.includes(activityFilter)
+    ? activityFilter
+    : "";
+
   const filteredData = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
-    if (!term) return baseData;
-    return baseData.filter((row) =>
-      [row.referenceNo, row.activity, row.applicantCompany, row.priority]
+    return baseData.filter((row) => {
+      if (selectedActivity && row.activity !== selectedActivity) return false;
+      if (!term) return true;
+      return [
+        row.referenceNo,
+        row.activity,
+        row.applicationType,
+        row.applicantCompany,
+        row.priority,
+      ]
         .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(term)),
-    );
-  }, [baseData, searchTerm]);
+        .some((field) => field.toLowerCase().includes(term));
+    });
+  }, [baseData, searchTerm, selectedActivity]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
   const safePage = Math.min(currentPage, totalPages);
@@ -1033,7 +1108,7 @@ function EApplicationPage({ darkMode }) {
 
   const handleDepartmentChange = (deptKey) => {
     setActiveDepartment(deptKey);
-    setActiveSubTab(getSubTabIds(deptKey, isCashier)[0]);
+    setActiveSubTab(getSubTabIds(deptKey, claimableSteps)[0]);
     setSearchTerm("");
     setCurrentPage(1);
     setSelectedIds([]);
@@ -1059,7 +1134,8 @@ function EApplicationPage({ darkMode }) {
   const requestClaim = (row) => setClaimRows([row]);
 
   const requestBulkClaim = () => {
-    const rows = applications.filter((app) => selectedIds.includes(app.id));
+    // Scoped to the open tab: ids can repeat across steps of the same application
+    const rows = unclaimedData.filter((app) => selectedIds.includes(app.id));
     if (rows.length === 0) return;
     setClaimRows(rows);
   };
@@ -1067,22 +1143,24 @@ function EApplicationPage({ darkMode }) {
   const confirmClaim = async () => {
     if (claiming || !claimRows || claimRows.length === 0) return;
     setClaiming(true);
+    const isDeckingClaim = activeDepartment === STEP_DECKING;
+    const poolSource = isDeckingClaim ? "decking-pool" : "appointment";
     try {
-      const results = await claimAppointmentRecords(
-        claimRows.map((r) => r.referenceNo),
-      );
+      const refsToClaim = claimRows.map((r) => r.referenceNo);
+      const results = isDeckingClaim
+        ? await claimDeckingTasks(refsToClaim)
+        : await claimAppointmentRecords(refsToClaim);
       const claimedRefs = results
         .filter((r) => r.result === "claimed")
         .map((r) => r.reference_no);
       const failed = results.filter((r) => r.result !== "claimed");
 
-      // Remove claimed rows from the unclaimed pool; the Task tab is loaded from the server
+      // Remove claimed rows from the pool; the Task tab is loaded from the server
       setApplications((prev) =>
         prev.filter(
           (app) =>
             !(
-              app.source === "appointment" &&
-              claimedRefs.includes(app.referenceNo)
+              app.source === poolSource && claimedRefs.includes(app.referenceNo)
             ),
         ),
       );
@@ -1104,7 +1182,9 @@ function EApplicationPage({ darkMode }) {
             .map((f) => `${f.reference_no}: ${f.detail || f.result}`)
             .join("\n"),
         );
-        loadUnclaimed(); // refresh so rows claimed by others disappear
+        // refresh so rows claimed by others disappear
+        if (isDeckingClaim) loadDecking();
+        else loadUnclaimed();
       }
     } catch (err) {
       window.alert(err.message);
@@ -1409,7 +1489,7 @@ function EApplicationPage({ darkMode }) {
   ];
 
   const subTabs = ALL_SUB_TABS.filter((tab) =>
-    getSubTabIds(activeDepartment, isCashier).includes(tab.id),
+    getSubTabIds(activeDepartment, claimableSteps).includes(tab.id),
   );
   if (visibleDepartments.length === 0) {
     return (
@@ -1450,9 +1530,10 @@ function EApplicationPage({ darkMode }) {
         }}
       >
         {visibleDepartments.map((dept) => {
-          const hasUnclaimedPool = getSubTabIds(dept.key, isCashier).includes(
-            "unclaimed",
-          );
+          const hasUnclaimedPool = getSubTabIds(
+            dept.key,
+            claimableSteps,
+          ).includes("unclaimed");
           const deptUnclaimedCount = hasUnclaimedPool
             ? applications.filter(
                 (row) =>
@@ -1655,6 +1736,33 @@ function EApplicationPage({ darkMode }) {
               >
                 {filteredData.length} total
               </span>
+              {activityOptions.length > 1 && (
+                <select
+                  value={selectedActivity}
+                  onChange={(e) => {
+                    setActivityFilter(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    padding: "0.3rem 0.5rem",
+                    fontSize: "0.68rem",
+                    borderRadius: "6px",
+                    border: `1px solid ${colors.cardBorder}`,
+                    background: colors.pageBg,
+                    color: colors.textPrimary,
+                    cursor: "pointer",
+                    outline: "none",
+                    maxWidth: "260px",
+                  }}
+                >
+                  <option value="">All activities</option>
+                  {activityOptions.map((activity) => (
+                    <option key={activity} value={activity}>
+                      {activity}
+                    </option>
+                  ))}
+                </select>
+              )}
               {activeSubTab === "unclaimed" && selectedIds.length > 0 && (
                 <button
                   onClick={requestBulkClaim}
@@ -1743,6 +1851,7 @@ function EApplicationPage({ darkMode }) {
                   </th>
                   <th style={thStyle}>Reference Number</th>
                   <th style={thStyle}>Activity</th>
+                  <th style={thStyle}>Application Type</th>
                   <th style={thStyle}>Applicant Company</th>
                   <th style={thStyle}>Due Date</th>
                   <th style={thStyle}>Last Modified</th>
@@ -1761,7 +1870,7 @@ function EApplicationPage({ darkMode }) {
                 {paginatedData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       style={{
                         padding: "2rem",
                         textAlign: "center",
@@ -1840,6 +1949,7 @@ function EApplicationPage({ darkMode }) {
                         )}
                       </td>
                       <td style={tdStyle}>{row.activity}</td>
+                      <td style={tdStyle}>{row.applicationType || "—"}</td>
                       <td style={tdStyle}>{row.applicantCompany}</td>
                       <td style={tdStyle}>{row.dueDate || "—"}</td>
                       <td style={tdStyle}>{row.lastModified}</td>
