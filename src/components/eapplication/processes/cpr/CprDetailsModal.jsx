@@ -34,9 +34,8 @@ const PAYMENT_STEP = "Payment Verification/Posting";
 const DECKING_STEP = "Decking";
 
 // Must match DECISIONS in app/services/decking_decision.py
-const DECISION_ACCEPT = "Accepted for Evaluation";
-const DECISION_RETURN = "Returned to Applicant";
-const DECISIONS = [DECISION_ACCEPT, DECISION_RETURN];
+const DECISION_FOR_DECKING = "For Quality Evaluation";
+const DECISIONS = [DECISION_FOR_DECKING];
 
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", {
@@ -409,7 +408,7 @@ export default function CprDetailsModal({
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
-  const needsEvaluator = decision === DECISION_ACCEPT;
+  const needsEvaluator = decision === DECISION_FOR_DECKING;
   const canSubmitDecision =
     !!decision && (needsEvaluator ? !!evaluatorUuid : !!deckRemarks.trim());
   const selectedEvaluator = evaluators.find(
@@ -1108,7 +1107,8 @@ export default function CprDetailsModal({
               value={decision}
               onChange={(e) => {
                 setDecision(e.target.value);
-                if (e.target.value !== DECISION_ACCEPT) setEvaluatorUuid("");
+                if (e.target.value !== DECISION_FOR_DECKING)
+                  setEvaluatorUuid("");
               }}
             >
               <option value="">Select decision</option>
