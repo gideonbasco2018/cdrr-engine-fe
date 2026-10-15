@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import {
   getClaimedApplication,
   postClaimedPayments,
+  getDeckingEvaluators,
+  submitDeckingDecision,
 } from "../../../../api/appointmentRecords.js";
 
 import {
@@ -30,6 +32,13 @@ const EMPTY_FORM = {
 };
 const MAX_REMARKS_LENGTH = 500;
 
+const PAYMENT_STEP = "Payment Verification/Posting";
+const DECKING_STEP = "Decking";
+
+// Must match DECISIONS in app/services/decking_decision.py
+const DECISION_FOR_DECKING = "For Quality Evaluation";
+const DECISIONS = [DECISION_FOR_DECKING];
+
 const PARTY_TYPES = [
   "Manufacturer",
   "Trader",
@@ -55,6 +64,15 @@ const peso = (n) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+
+/* Today's date as YYYY-MM-DD in the browser's local time.
+   (toISOString would shift the date to UTC.) */
+const todayStr = () => {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+};
 
 // Original OP first, then additional OPs in the order they were issued
 const byOrder = (a, b) => {
@@ -117,6 +135,109 @@ function Field({ label, value, colors }) {
   );
 }
 
+function DecisionConfirmModal({
+  colors,
+  decision,
+  evaluatorName,
+  onConfirm,
+  onCancel,
+}) {
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10001,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "12px",
+          padding: "1.25rem",
+          width: "400px",
+          maxWidth: "90vw",
+          boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 0.6rem",
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            color: colors.textPrimary,
+          }}
+        >
+          ❓ Submit this decision?
+        </h3>
+        <p
+          style={{
+            margin: "0 0 0.9rem",
+            fontSize: "0.75rem",
+            lineHeight: 1.5,
+            color: colors.textTertiary,
+          }}
+        >
+          Decision:{" "}
+          <strong style={{ color: colors.textPrimary }}>{decision}</strong>.
+          {evaluatorName && (
+            <>
+              {" "}
+              The application will be assigned to{" "}
+              <strong style={{ color: colors.textPrimary }}>
+                {evaluatorName}
+              </strong>
+              .
+            </>
+          )}{" "}
+          This cannot be changed after submitting.
+        </p>
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
+        >
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "0.45rem 0.9rem",
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              borderRadius: "6px",
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textPrimary,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: "0.45rem 0.9rem",
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              borderRadius: "6px",
+              border: "none",
+              background: "linear-gradient(135deg,#4CAF50,#43A047)",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            ✔ Yes, Submit
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FgmpDetailsModal({
   row,
   colors,
@@ -137,6 +258,16 @@ export default function FgmpDetailsModal({
   const [showAddConfirm, setShowAddConfirm] = useState(false);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState(null);
+
+  /* Decker decision (Decking step only) */
+  const isDeckingOpen =
+    row.applicationStep === DECKING_STEP && row.status === "claimed";
+  const [decision, setDecision] = useState("");
+  const [deckRemarks, setDeckRemarks] = useState("");
+  const [evaluatorUuid, setEvaluatorUuid] = useState("");
+  const [evaluators, setEvaluators] = useState([]);
+  const [showDecisionConfirm, setShowDecisionConfirm] = useState(false);
+  const [submittingDecision, setSubmittingDecision] = useState(false);
 
   const postingStamp = useMemo(
     () =>
@@ -166,6 +297,22 @@ export default function FgmpDetailsModal({
     };
   }, [row.referenceNo]);
 
+  useEffect(() => {
+    if (!isDeckingOpen) return;
+    let cancelled = false;
+    getDeckingEvaluators()
+      .then((list) => {
+        if (!cancelled) setEvaluators(list);
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setPostError(`Could not load evaluators: ${err.message}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isDeckingOpen]);
+
   const formData = data?.form_data || {};
   const parties = data?.parties || [];
   const ops = useMemo(
@@ -190,7 +337,10 @@ export default function FgmpDetailsModal({
   const openOp =
     [...ops].reverse().find((op) => op.status === "UNPAID") || null;
   const initialOp = ops.find((op) => op.op_type === "INITIAL") || null;
-  const canPost = !!openOp;
+  // Posting belongs to the cashier step only; other steps (e.g. Decking)
+  // get the read-only application details and payment history.
+  const isPaymentStep = row.applicationStep === PAYMENT_STEP;
+  const canPost = isPaymentStep && !!openOp;
   const isFollowUp = openOp?.op_type === "ADDITIONAL";
   const additionalCount = ops.filter(
     (op) => op.op_type === "ADDITIONAL",
@@ -230,42 +380,78 @@ export default function FgmpDetailsModal({
     contactNo: data?.contact_no,
   };
 
-  const steps = !canPost
+  const steps = isDeckingOpen
     ? [
         { id: 1, label: "Application Details", icon: "📋" },
         { id: 2, label: "Payment History", icon: "💳" },
+        { id: 3, label: "Decker Decision", icon: "🗂️" },
       ]
-    : [
-        { id: 1, label: "Application Details", icon: "📋" },
-        {
-          id: 2,
-          label: isFollowUp
-            ? "Additional Order of Payment"
-            : "Order of Payment",
-          icon: "💳",
-        },
-        { id: 3, label: "Acknowledgement Receipt", icon: "🧾" },
-        ...(hasBalance
-          ? [
-              {
-                id: 4,
-                label: isFollowUp
-                  ? "New Additional Order of Payment"
-                  : "Additional Order of Payment",
-                icon: "➕",
-              },
-            ]
-          : []),
-      ];
+    : !canPost
+      ? [
+          { id: 1, label: "Application Details", icon: "📋" },
+          { id: 2, label: "Payment History", icon: "💳" },
+        ]
+      : [
+          { id: 1, label: "Application Details", icon: "📋" },
+          {
+            id: 2,
+            label: isFollowUp
+              ? "Additional Order of Payment"
+              : "Order of Payment",
+            icon: "💳",
+          },
+          { id: 3, label: "Acknowledgement Receipt", icon: "🧾" },
+          ...(hasBalance
+            ? [
+                {
+                  id: 4,
+                  label: isFollowUp
+                    ? "New Additional Order of Payment"
+                    : "Additional Order of Payment",
+                  icon: "➕",
+                },
+              ]
+            : []),
+        ];
   const lastStep = steps.length;
 
+  const today = todayStr();
   const canAdd =
     form.paymentType &&
     form.orNo.trim() &&
     form.dateOfPayment &&
+    form.dateOfPayment <= today &&
     Number(form.amountPaid) > 0;
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+
+  const needsEvaluator = decision === DECISION_FOR_DECKING;
+  const canSubmitDecision =
+    !!decision && (needsEvaluator ? !!evaluatorUuid : !!deckRemarks.trim());
+  const selectedEvaluator = evaluators.find(
+    (e) => e.user_uuid === evaluatorUuid,
+  );
+
+  const handleSubmitDecision = async () => {
+    if (submittingDecision) return;
+    setSubmittingDecision(true);
+    setPostError(null);
+    try {
+      await submitDeckingDecision(row.referenceNo, {
+        decision,
+        remarks: deckRemarks.trim(),
+        evaluator_uuid: needsEvaluator ? evaluatorUuid : null,
+      });
+      setShowDecisionConfirm(false);
+      await onPosted?.();
+      onClose();
+    } catch (err) {
+      setShowDecisionConfirm(false);
+      setPostError(`Could not submit the decision: ${err.message}`);
+    } finally {
+      setSubmittingDecision(false);
+    }
+  };
 
   const confirmAddPayment = () => {
     if (!canAdd) return;
@@ -299,7 +485,7 @@ export default function FgmpDetailsModal({
       onClose();
     } catch (err) {
       setShowConfirm(false);
-      setPostError(err.message);
+      setPostError(`Could not post the payment: ${err.message}`);
     } finally {
       setPosting(false);
     }
@@ -728,6 +914,7 @@ export default function FgmpDetailsModal({
               <label style={labelStyle}>Date of Payment</label>
               <input
                 type="date"
+                max={today}
                 style={inputStyle}
                 value={form.dateOfPayment}
                 onChange={(e) => setField("dateOfPayment", e.target.value)}
@@ -920,6 +1107,85 @@ export default function FgmpDetailsModal({
     </div>
   );
 
+  /* ───────────── Decking Step 3: Decker Decision ───────────── */
+  const renderDeckerDecision = () => (
+    <div style={{ maxWidth: "640px" }}>
+      <Section title="Decker Decision" colors={colors}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.7rem",
+            padding: "0.4rem 0",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>Decker Decision</label>
+            <select
+              style={inputStyle}
+              value={decision}
+              onChange={(e) => {
+                setDecision(e.target.value);
+                if (e.target.value !== DECISION_FOR_DECKING)
+                  setEvaluatorUuid("");
+              }}
+            >
+              <option value="">Select decision</option>
+              {DECISIONS.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>
+              Decker Remarks{needsEvaluator || !decision ? "" : " (required)"}
+            </label>
+            <textarea
+              value={deckRemarks}
+              onChange={(e) =>
+                setDeckRemarks(e.target.value.slice(0, MAX_REMARKS_LENGTH))
+              }
+              placeholder="Write your remarks..."
+              rows={5}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+            <div
+              style={{
+                textAlign: "right",
+                fontSize: "0.6rem",
+                color: colors.textTertiary,
+                marginTop: "0.2rem",
+              }}
+            >
+              {MAX_REMARKS_LENGTH - deckRemarks.length} characters left
+            </div>
+          </div>
+
+          {needsEvaluator && (
+            <div>
+              <label style={labelStyle}>Assign Evaluator</label>
+              <select
+                style={inputStyle}
+                value={evaluatorUuid}
+                onChange={(e) => setEvaluatorUuid(e.target.value)}
+              >
+                <option value="">Select evaluator</option>
+                {evaluators.map((ev) => (
+                  <option key={ev.user_uuid} value={ev.user_uuid}>
+                    {ev.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      </Section>
+    </div>
+  );
+
   const renderBody = () => {
     if (loading) {
       return (
@@ -952,6 +1218,7 @@ export default function FgmpDetailsModal({
       );
     }
     if (step === 1) return renderStep1();
+    if (isDeckingOpen && step === 3) return renderDeckerDecision();
     if (!canPost) return renderHistory();
     if (step === 2) return renderStep2();
     if (step === 3) return renderStep3();
@@ -1114,7 +1381,7 @@ export default function FgmpDetailsModal({
               }}
             >
               {postError
-                ? `Could not post the payment: ${postError}`
+                ? postError
                 : `Step ${step} of ${lastStep}${
                     canPost && step === 2 && payments.length === 0
                       ? " — add at least 1 payment to continue to Step 3"
@@ -1142,6 +1409,14 @@ export default function FgmpDetailsModal({
                 >
                   Next ›
                 </button>
+              ) : isDeckingOpen ? (
+                <button
+                  style={navBtn(true, !canSubmitDecision || submittingDecision)}
+                  disabled={!canSubmitDecision || submittingDecision}
+                  onClick={() => setShowDecisionConfirm(true)}
+                >
+                  ✔ Submit Decision
+                </button>
               ) : (
                 canPost && (
                   <button
@@ -1167,6 +1442,16 @@ export default function FgmpDetailsModal({
             paidSoFar={totalPaid}
             onConfirm={confirmAddPayment}
             onCancel={() => setShowAddConfirm(false)}
+          />
+        )}
+
+        {showDecisionConfirm && (
+          <DecisionConfirmModal
+            colors={colors}
+            decision={decision}
+            evaluatorName={needsEvaluator ? selectedEvaluator?.name : null}
+            onConfirm={handleSubmitDecision}
+            onCancel={() => setShowDecisionConfirm(false)}
           />
         )}
 
