@@ -192,3 +192,44 @@ export const getMyAccess = async () => {
     throw new Error(errorMessage);
   }
 };
+
+/**
+ * Get Decking tasks nobody has claimed yet
+ */
+export const getDeckingUnclaimed = async () => {
+  try {
+    const response = await API.get("/appointment-records/decking/unclaimed");
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch Decking tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Claim one or more Decking tasks for the logged-in user
+ * @param {string[]} referenceNumbers
+ */
+export const claimDeckingTasks = async (referenceNumbers) => {
+  try {
+    const response = await API.post("/appointment-records/decking/claim", {
+      reference_numbers: referenceNumbers,
+    });
+    return response.data; // [{ reference_no, result, detail }]
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to claim Decking tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+// Converts one unassigned Decking task into an "unclaimed" row for EApplicationPage
+export const mapDeckingTask = (task) => ({
+  ...mapMyTask(task, "unclaimed"),
+  source: "decking-pool",
+});
