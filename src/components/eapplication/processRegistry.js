@@ -26,3 +26,16 @@ const FALLBACK_MODULE = {
 export function getProcessModule(processCode) {
   return PROCESS_REGISTRY[processCode] || FALLBACK_MODULE;
 }
+
+/* Decides which module (folder) a row belongs to.
+   Application type wins over the process code: a Minor Variation
+   application always opens the MVN modal, even when its activity is CPR.
+   Everything else follows the process code (FGMP, CPR, ...). */
+export function resolveProcessCode(row) {
+  if (/minor variation/i.test(row?.applicationType || "")) return "MVN";
+  return row?.processCode;
+}
+
+export function getProcessModuleForRow(row) {
+  return getProcessModule(resolveProcessCode(row));
+}

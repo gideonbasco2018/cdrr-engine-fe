@@ -1,7 +1,7 @@
 // src/pages/EApplicationPage.jsx
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { getColorScheme } from "../components/reports/utils.js";
-import { getProcessModule } from "../components/eapplication/processRegistry.js";
+import { getProcessModuleForRow } from "../components/eapplication/processRegistry.js";
 import { getUser } from "../api/auth";
 
 import EmailNotificationsModal from "../components/eapplication/EmailNotificationsModal.jsx";
@@ -2112,7 +2112,7 @@ function EApplicationPage({ darkMode }) {
 
       {detailsTarget &&
         (() => {
-          const { DetailsModal } = getProcessModule(detailsTarget.processCode);
+          const { DetailsModal } = getProcessModuleForRow(detailsTarget);
           return (
             <DetailsModal
               key={detailsTarget.id}

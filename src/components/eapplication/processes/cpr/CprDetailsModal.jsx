@@ -28,6 +28,8 @@ const EMPTY_FORM = {
 };
 const MAX_REMARKS_LENGTH = 500;
 
+const PAYMENT_STEP = "Payment Verification/Posting";
+
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString("en-PH", {
     minimumFractionDigits: 2,
@@ -181,7 +183,10 @@ export default function CprDetailsModal({
   const openOp =
     [...ops].reverse().find((op) => op.status === "UNPAID") || null;
   const initialOp = ops.find((op) => op.op_type === "INITIAL") || null;
-  const canPost = !!openOp;
+  // Posting belongs to the cashier step only; other steps (e.g. Decking)
+  // get the read-only application details and payment history.
+  const isPaymentStep = row.applicationStep === PAYMENT_STEP;
+  const canPost = isPaymentStep && !!openOp;
   const isFollowUp = openOp?.op_type === "ADDITIONAL";
   const additionalCount = ops.filter(
     (op) => op.op_type === "ADDITIONAL",
