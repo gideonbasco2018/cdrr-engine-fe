@@ -1,3 +1,5 @@
+// src/pages/ApplicationCorrectionPage.jsx
+
 import { useState } from "react";
 import { DTNEntryScreen } from "../components/applicationCorrection/DTNEntryScreen";
 import { LoadingModal } from "../components/applicationCorrection/LoadingModal";
