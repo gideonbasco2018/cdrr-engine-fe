@@ -7,24 +7,31 @@ export const WORKFLOW = {
     "Returned to S&E Evaluator": "S&E",
     "Endorsed to S&E (Parallel)": "S&E", 
   },
-   "S&E": {
+  "S&E": {
     "Endorsed to S&E Supervisor": "S&E Supervisor",
-    "Endorsed to S&E Checker": "S&E Checker",  
-    "Approved": "Quality Evaluation",   
-    "Rejected": "Quality Evaluation",   
+    "Endorsed to S&E Checker": "S&E Checker",
+    "Endorsed to S&E Supervisor and Statistician (Parallel)": "S&E Supervisor",
+    "Approved": "Quality Evaluation",
+    "Rejected": "Quality Evaluation",
   },
   "S&E Supervisor": {
     "Checked and Returned to S&E Evaluator": "S&E",
     "Signed and Returned to S&E Evaluator": "S&E",
+    "Endorsed to S&E Evaluator and Statistician (Parallel)": "S&E",
   },
   "S&E Checker": {                                   
     "Checked and Returned to S&E Evaluator": "S&E",
     "Signed and Returned to S&E Evaluator": "S&E",
   },
+  "S&E Statistician": {
+    "Return to S&E Evaluator": "S&E",
+    "Endorsed to S&E Supervisor": "S&E Supervisor",
+  },
   Compliance: {
     "For Compliance": "Compliance",
     "Endorsed to Checker": "Checking",
     "Endorsed to Supervisor": "Supervisor",
+    "Endorsed to S&E (Parallel)": "S&E",
   },
   Checking: {
     "Checked and returned to evaluator": "Quality Evaluation",
@@ -99,6 +106,7 @@ export const STEP_GROUP_MAP = {
   Record: 15,
   "S&E Supervisor": 20,
   "S&E Checker": 21,
+  "S&E Statistician": 41,
   "OD Review": 22,
   "PRSDD PMS SEC & MSU": 23,
   "PRSDD Checking": 25,
@@ -119,20 +127,31 @@ export const STEP_DECISIONS = {
     "Endorsed to S&E (Parallel)", 
   ],
   "S&E": [
-    "Endorsed to S&E Supervisor",  
+    "Endorsed to S&E Supervisor",
     "Endorsed to S&E Checker",
+    "Endorsed to S&E Supervisor and Statistician (Parallel)",
     "Approved",
     "Rejected",
   ],
   "S&E Supervisor": [
     "Checked and Returned to S&E Evaluator",
     "Signed and Returned to S&E Evaluator",
+    "Endorsed to S&E Evaluator and Statistician (Parallel)",
   ],
   "S&E Checker": [                                 
     "Checked and Returned to S&E Evaluator",
     "Signed and Returned to S&E Evaluator",
   ],
-  Compliance: ["Endorsed to Checker", "For Compliance", "Endorsed to Supervisor"],
+  "S&E Statistician": [
+    "Return to S&E Evaluator",
+    "Endorsed to S&E Supervisor",
+  ],
+  Compliance: [
+    "Endorsed to Checker",
+    "For Compliance",
+    "Endorsed to Supervisor",
+    "Endorsed to S&E (Parallel)",
+  ],
   Checking: ["Checked and returned to evaluator", "Forwarded to Supervisor", ],
   Supervisor: ["Endorsed to QA Admin", "Returned to Evaluator"],
   "QA Admin": [
@@ -197,6 +216,8 @@ export const DECISION_DOCTRACK = {
   "Approved OD": "Approved by CDRR Director",
   "Disapproved OD": "Disapproved by CDRR Director",
   "Endorsed to S&E (Parallel)": "Forwarded to S&E for parallel evaluation; Quality Evaluation continues processing simultaneously",
+  "Endorsed to S&E Supervisor and Statistician (Parallel)": "Forwarded to S&E Supervisor and S&E Statistician for parallel review",
+  "Endorsed to S&E Evaluator and Statistician (Parallel)": "Reviewed by S&E Supervisor. Forwarded to S&E Evaluator and S&E Statistician for parallel processing",
 };
 
 export const EDITABLE_STEPS = [
@@ -209,6 +230,7 @@ export const EDITABLE_STEPS = [
   "S&E",             
   "S&E Supervisor",
   "S&E Checker",
+  "S&E Statistician",
   "OD Review",
 ];
 
@@ -227,6 +249,12 @@ export const STEP_DECISION_DOCTRACK = {
     "Signed and Returned to S&E Evaluator":
       "Reviewed and signed by S&E Checker. Returned to S&E Evaluator for further processing.",
   },
+  "S&E Statistician": {
+    "Return to S&E Evaluator":
+      "Reviewed and Checked by S&E Statistician. Returned to S&E Evaluator for processing",
+    "Endorsed to S&E Supervisor":
+      "Reviewed and Checked by S&E Statistician. Forwarded to S&E Supervisor for review",
+  },
   "PRSDD Quality Evaluation": {
     "Endorsed to Checker": "Forwarded to Senior Evaluator for checking",
   },
@@ -242,4 +270,9 @@ export const STEP_DECISION_DOCTRACK = {
     "Endorsed to PRSDD Chief Admin": "Checked and Forwarded to PRSDD Admin",
     "Returned to Evaluator": "Returned to evaluator for correction/clarification",
   },
+  Compliance: {
+    "Endorsed to S&E (Parallel)":
+      "Forwarded to S&E for parallel evaluation; Compliance continues processing simultaneously",
+  },
+
 };

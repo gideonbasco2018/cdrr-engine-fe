@@ -44,7 +44,9 @@ const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
   decision === "Returned to S&E Evaluator" ||
   decision === "Checked and Returned to S&E Evaluator" ||
   decision === "Signed and Returned to S&E Evaluator" ||
-  decision === "Returned to Quality Evaluation";
+  decision === "Returned to Quality Evaluation" ||
+  decision === "Return to S&E Evaluator" ||
+  decision === PARALLEL_SUPERVISOR_DECISION;
 
 /* Group ID for Decision Authority options (QA) */
 const LRD_AUTHORITY_GROUP_ID = 6;
@@ -55,6 +57,20 @@ const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 
 /* Next steps that can be assigned to several users at once (either-one completes) */
 const MULTI_ASSIGNEE_STEPS = ["CDRR-OD Signature Facilitator"];
+/* Parallel endorsement: S&E Supervisor + S&E Statistician */
+const PARALLEL_SE_STATISTICIAN_DECISION =
+  "Endorsed to S&E Supervisor and Statistician (Parallel)";
+const PARALLEL_SUPERVISOR_DECISION =
+  "Endorsed to S&E Evaluator and Statistician (Parallel)";
+
+/* Steps that count as "already active" for a given next step.
+   When S&E returns to Quality Evaluation, an open Compliance log
+   (from a parallel endorsement) also means the evaluator is still working. */
+const getActiveStepNames = (currentStep, nextStep) =>
+  currentStep === "S&E" && nextStep === "Quality Evaluation"
+    ? ["Quality Evaluation", "Compliance"]
+    : [nextStep];
+const SE_STATISTICIAN_STEP = "S&E Statistician";
 
 /* decisions that need an extra "Action" dropdown */
 const ACTION_CONFIG = {
@@ -313,6 +329,10 @@ export function Step4ActionForm({
   const [loadingSeCheck, setLoadingSeCheck] = useState(false);
   const [nextStepActive, setNextStepActive] = useState(false);
   const [assignees, setAssignees] = useState([]);
+  // ── Second assignee for the parallel S&E Statistician log ──
+  const [statisticianAssignee, setStatisticianAssignee] = useState("");
+  const [statisticianOptions, setStatisticianOptions] = useState([]);
+  const [loadingStatisticians, setLoadingStatisticians] = useState(false);
 
   // ── QA "For Approval" approval fields ──
   const [approvalFields, setApprovalFields] = useState(() => {
@@ -354,6 +374,9 @@ export function Step4ActionForm({
     formData.decision,
   );
   const isParallelSE = formData.decision === "Endorsed to S&E (Parallel)";
+  const isParallelSEStatistician =
+    formData.decision === PARALLEL_SE_STATISTICIAN_DECISION ||
+    formData.decision === PARALLEL_SUPERVISOR_DECISION;
   const needsAssignee =
     nextStep !== null && !isForCompliance && !nextStepActive;
   const isMultiAssignee = MULTI_ASSIGNEE_STEPS.includes(nextStep);
@@ -434,10 +457,11 @@ export function Step4ActionForm({
       try {
         const data = await getApplicationLogs(record.mainDbId);
         const logs = Array.isArray(data) ? data : [];
+        const activeSteps = getActiveStepNames(currentStep, nextStep);
         setNextStepActive(
           logs.some(
             (l) =>
-              l.application_step === nextStep &&
+              activeSteps.includes(l.application_step) &&
               l.application_status === "IN PROGRESS",
           ),
         );
@@ -445,7 +469,7 @@ export function Step4ActionForm({
         setNextStepActive(false);
       }
     })();
-  }, [nextStep, record?.mainDbId]);
+  }, [nextStep, currentStep, record?.mainDbId]);
 
   /* ── Shared label style ── */
   const labelStyle = {
@@ -527,7 +551,9 @@ export function Step4ActionForm({
         const targetStep =
           formData.decision === "Returned to S&E Evaluator" ||
           formData.decision === "Checked and Returned to S&E Evaluator" ||
-          formData.decision === "Signed and Returned to S&E Evaluator"
+          formData.decision === "Signed and Returned to S&E Evaluator" ||
+          formData.decision === "Return to S&E Evaluator" ||
+          formData.decision === PARALLEL_SUPERVISOR_DECISION
             ? "S&E"
             : formData.decision === "Returned to Quality Evaluation" ||
                 (currentStep === "PRSDD Supervisor" &&
@@ -576,6 +602,27 @@ export function Step4ActionForm({
       }
     })();
   }, [nextGroupId, needsAssignee]);
+
+  /* ── Load S&E Statistician users for the parallel endorsement ── */
+  useEffect(() => {
+    if (!isParallelSEStatistician) {
+      setStatisticianOptions([]);
+      setStatisticianAssignee("");
+      return;
+    }
+    (async () => {
+      try {
+        setLoadingStatisticians(true);
+        setStatisticianOptions(
+          await getUsersByGroup(STEP_GROUP_MAP[SE_STATISTICIAN_STEP]),
+        );
+      } catch {
+        setStatisticianOptions([]);
+      } finally {
+        setLoadingStatisticians(false);
+      }
+    })();
+  }, [isParallelSEStatistician]);
 
   /* ── Load Decision Authority users (LRD Chief Admin or OD-Releasing) ── */
   useEffect(() => {
@@ -628,6 +675,7 @@ export function Step4ActionForm({
         updated.action = "";
         updated.assignee = "";
         setAssignees([]);
+        setStatisticianAssignee("");
         updated.decisionResult = "";
         updated.decisionAuthorityId = null;
         updated.decisionAuthorityName = "";
@@ -666,6 +714,10 @@ export function Step4ActionForm({
       !isReturnToEvaluator &&
       (loadingUsers || assigneeOptions.length === 0 || !hasAssignee)) ||
     (needsAssignee && isReturnToEvaluator && !formData.assignee) ||
+    (isParallelSEStatistician &&
+      (loadingStatisticians ||
+        statisticianOptions.length === 0 ||
+        !statisticianAssignee)) ||
     (isQEApprovalRequired &&
       [...effectiveRequiredFields].some(
         (k) => !approvalFields[k]?.toString().trim(),
@@ -674,15 +726,19 @@ export function Step4ActionForm({
     ? "Select a decision to proceed."
     : isForCompliance
       ? `Your log will be completed and a Compliance log will be self-assigned to you (${currentUser?.username ?? ""}) with deadline: ${deadlineDate}.`
-      : isReturnToEvaluator && autoAssignee
-        ? `Your log will be completed and automatically returned to the previous evaluator: ${autoAssignee}.`
-        : nextStepActive
-          ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
-          : nextStep
-            ? isMultiAssignee
-              ? `Your log will be completed and a new "${nextStep}" log will be created for each selected user. The first one to complete it will automatically close the others.`
-              : `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
-            : "Your log will be completed. This is the final step — no further assignment needed.";
+      : isParallelSEStatistician
+        ? formData.decision === PARALLEL_SUPERVISOR_DECISION
+          ? `Your log will be completed. Parallel "S&E" and "S&E Statistician" logs will be created for the evaluator and the assigned Statistician.`
+          : `Your log will be completed. Parallel "S&E Supervisor" and "S&E Statistician" logs will be created for the assigned users.`
+        : isReturnToEvaluator && autoAssignee
+          ? `Your log will be completed and automatically returned to the previous evaluator: ${autoAssignee}.`
+          : nextStepActive
+            ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
+            : nextStep
+              ? isMultiAssignee
+                ? `Your log will be completed and a new "${nextStep}" log will be created for each selected user. The first one to complete it will automatically close the others.`
+                : `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
+              : "Your log will be completed. This is the final step — no further assignment needed.";
 
   console.log("🔍 entryType received:", entryType);
   console.log("🔍 record.entryType:", record.entryType);
@@ -718,6 +774,10 @@ export function Step4ActionForm({
     }
     if (needsAssignee && !hasAssignee) {
       alert("⚠️ Please assign a next user.");
+      return;
+    }
+    if (isParallelSEStatistician && !statisticianAssignee) {
+      alert("⚠️ Please assign an S&E Statistician.");
       return;
     }
     if (
@@ -798,6 +858,15 @@ export function Step4ActionForm({
 
       const indexData = await getLastApplicationLogIndex(record.mainDbId);
       const nextIndex = (indexData.last_index ?? 0) + 1;
+
+      // The parent of every new log is the log being completed right now,
+      // not the highest index in the application (they differ when logs run in parallel).
+      const currentLogs = await getApplicationLogs(record.mainDbId);
+      const currentLogRecord = (
+        Array.isArray(currentLogs) ? currentLogs : []
+      ).find((l) => l.id === record.id);
+      const currentLogIndex =
+        currentLogRecord?.del_index ?? indexData.last_index;
 
       if (doctrackEnabled) {
         const doctrackResult = await createDoctrackLogByRsn(
@@ -902,9 +971,10 @@ export function Step4ActionForm({
         // ── Check if next step already has an IN PROGRESS log ──
         const allLogs = await getApplicationLogs(record.mainDbId);
         const logsArr = Array.isArray(allLogs) ? allLogs : [];
+        const activeSteps = getActiveStepNames(currentStep, effectiveNextStep);
         const nextStepAlreadyActive = logsArr.some(
           (l) =>
-            l.application_step === effectiveNextStep &&
+            activeSteps.includes(l.application_step) &&
             l.application_status === "IN PROGRESS",
         );
 
@@ -928,7 +998,7 @@ export function Step4ActionForm({
               start_date: formattedDateTime,
               accomplished_date: null,
               del_index: nextIndex + i,
-              del_previous: indexData.last_index,
+              del_previous: currentLogIndex,
               del_last_index: 1,
               del_thread: "Open",
               user_id: targets[i].id,
@@ -949,7 +1019,7 @@ export function Step4ActionForm({
 
           await createApplicationLog({
             main_db_id: record.mainDbId,
-            application_step: "Quality Evaluation",
+            application_step: currentStep, // "Quality Evaluation" or "Compliance"
             user_name: currentUser?.username || formData.currentUserDisplay,
             application_status: "IN PROGRESS",
             application_decision: "",
@@ -957,17 +1027,49 @@ export function Step4ActionForm({
             start_date: formattedDateTime,
             accomplished_date: null,
             del_index: parallelNextIndex,
-            del_previous: parallelIndexData.last_index,
+            del_previous: currentLogIndex,
             del_last_index: 1,
             del_thread: "Open",
             user_id: currentUser?.id ?? null,
+            // Keep the original compliance deadline on the continuation log
+            ...(currentStep === "Compliance" && currentLogRecord?.deadline_date
+              ? {
+                  deadline_date: currentLogRecord.deadline_date,
+                  working_days: currentLogRecord.working_days,
+                }
+              : {}),
           });
         } catch (err) {
           console.warn(
-            "⚠️ Failed to create parallel QE log (non-fatal):",
+            "⚠️ Failed to create parallel continuation log (non-fatal):",
             err.message,
           );
         }
+      }
+
+      if (isParallelSEStatistician) {
+        const statUser = statisticianOptions.find(
+          (u) => u.username === statisticianAssignee,
+        );
+
+        // Reuse the index data fetched before the Supervisor log was created,
+        // so both parallel logs point to the same parent (the S&E log).
+        // The Supervisor log took `nextIndex`, so the Statistician takes the next one.
+        await createApplicationLog({
+          main_db_id: record.mainDbId,
+          application_step: SE_STATISTICIAN_STEP,
+          user_name: statisticianAssignee,
+          application_status: "IN PROGRESS",
+          application_decision: "",
+          application_remarks: "",
+          start_date: formattedDateTime,
+          accomplished_date: null,
+          del_index: nextIndex + 1,
+          del_previous: currentLogIndex,
+          del_last_index: 1,
+          del_thread: "Open",
+          user_id: statUser?.id ?? null,
+        });
       }
 
       console.log(
@@ -1820,7 +1922,8 @@ export function Step4ActionForm({
               ↩️ Automatically returning to previous{" "}
               {formData.decision === "Returned to S&E Evaluator" ||
               currentStep === "S&E Supervisor" ||
-              currentStep === "S&E Checker"
+              currentStep === "S&E Checker" ||
+              currentStep === "S&E Statistician"
                 ? "S&E"
                 : "evaluator"}
               : <strong>{autoAssignee}</strong>
@@ -1936,6 +2039,47 @@ export function Step4ActionForm({
                 ⚠️ No users found in {nextStep} group.
               </p>
             )}
+        </div>
+      )}
+
+      {/* S&E Statistician assignee (parallel endorsement) */}
+      {isParallelSEStatistician && (
+        <div>
+          <label style={labelStyle}>
+            Assign to {SE_STATISTICIAN_STEP}{" "}
+            <span style={{ color: "#ef4444" }}>*</span>
+          </label>
+          {loadingStatisticians ? (
+            <div
+              style={{
+                ...inp,
+                color: colors.textTertiary,
+              }}
+            >
+              Loading users...
+            </div>
+          ) : (
+            <AssigneeSearchDropdown
+              value={statisticianAssignee}
+              onChange={setStatisticianAssignee}
+              options={statisticianOptions}
+              placeholder={`Select ${SE_STATISTICIAN_STEP}...`}
+              colors={colors}
+              inp={inp}
+            />
+          )}
+          {!loadingStatisticians && statisticianOptions.length === 0 && (
+            <p
+              style={{
+                fontSize: "0.68rem",
+                color: "#ef4444",
+                marginTop: "0.3rem",
+                marginBottom: 0,
+              }}
+            >
+              ⚠️ No users found in {SE_STATISTICIAN_STEP} group.
+            </p>
+          )}
         </div>
       )}
 
