@@ -377,6 +377,8 @@ export function Step4ActionForm({
   const isParallelSEStatistician =
     formData.decision === PARALLEL_SE_STATISTICIAN_DECISION ||
     formData.decision === PARALLEL_SUPERVISOR_DECISION;
+  // Compliance keeps working while S&E evaluates, so it needs a deadline too
+  const isComplianceParallel = currentStep === "Compliance" && isParallelSE;
   const needsAssignee =
     nextStep !== null && !isForCompliance && !nextStepActive;
   const isMultiAssignee = MULTI_ASSIGNEE_STEPS.includes(nextStep);
@@ -624,6 +626,25 @@ export function Step4ActionForm({
     })();
   }, [isParallelSEStatistician]);
 
+  /* ── Prefill the previous Compliance deadline for a parallel endorsement ── */
+  useEffect(() => {
+    if (!isComplianceParallel || !record?.mainDbId) return;
+    (async () => {
+      try {
+        const data = await getApplicationLogs(record.mainDbId);
+        const ownLog = (Array.isArray(data) ? data : []).find(
+          (l) => l.id === record.id,
+        );
+        if (!ownLog?.deadline_date) return; // keep the default deadline
+        const dateOnly = String(ownLog.deadline_date).slice(0, 10);
+        setDeadlineDate(dateOnly);
+        setWorkingDays(countWorkingDays(todayStr(), dateOnly));
+      } catch {
+        // keep the default deadline
+      }
+    })();
+  }, [isComplianceParallel, record?.mainDbId, record?.id]);
+
   /* ── Load Decision Authority users (LRD Chief Admin or OD-Releasing) ── */
   useEffect(() => {
     if (!isLRDChiefAdmin && !isPRSDDChiefAdmin && !isODReleasing) {
@@ -704,7 +725,7 @@ export function Step4ActionForm({
     loading ||
     !formData.decision ||
     !formData.doctrackRemarks.trim() ||
-    (isForCompliance && !deadlineDate) ||
+    ((isForCompliance || isComplianceParallel) && !deadlineDate) ||
     (actionConfig && !formData.action) ||
     ((isLRDChiefAdmin || isPRSDDChiefAdmin || isODReleasing) &&
       !formData.decisionResult) ||
@@ -1031,12 +1052,9 @@ export function Step4ActionForm({
             del_last_index: 1,
             del_thread: "Open",
             user_id: currentUser?.id ?? null,
-            // Keep the original compliance deadline on the continuation log
-            ...(currentStep === "Compliance" && currentLogRecord?.deadline_date
-              ? {
-                  deadline_date: currentLogRecord.deadline_date,
-                  working_days: currentLogRecord.working_days,
-                }
+            // The continuation Compliance log keeps the (possibly edited) deadline
+            ...(isComplianceParallel
+              ? { deadline_date: deadlineDate, working_days: workingDays }
               : {}),
           });
         } catch (err) {
@@ -1717,8 +1735,8 @@ export function Step4ActionForm({
         </div>
       )}
 
-      {/* Compliance Deadline */}
-      {isForCompliance && (
+      {/* Compliance Deadline (For Compliance, or Compliance parallel to S&E) */}
+      {(isForCompliance || isComplianceParallel) && (
         <DeadlinePicker
           deadlineDate={deadlineDate}
           workingDays={workingDays}
