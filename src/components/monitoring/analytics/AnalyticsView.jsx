@@ -12,6 +12,7 @@ import {
   getDocTypeReleased,
 } from "../../../api/analytics";
 
+import * as XLSX from "xlsx";
 // ── Split modules ─────────────────────────────────────────────
 import "./analyticsAnimations";
 import { FB, MONTHS, ENTITY_TYPES, COUNTRY_FLAGS } from "./analyticsConstants";
@@ -32,9 +33,11 @@ const DOC_TYPE_COLOR = {
   LOD: "#e02020",
   GLE: "#0891b2",
   Cert: "#9333ea",
+  CERT: "#9333ea", // merged Cert + Certificate
   COPP: "#f59e0b",
   CFS: "#e87c13",
 };
+
 const TYPE_COLORS = {
   RX: "#4f8ef7",
   OTC: "#f59e0b",
@@ -44,6 +47,16 @@ const TYPE_COLORS = {
 
 const docTypeColor = (dt) => DOC_TYPE_COLOR[dt] ?? FB;
 const classTypeColor = (short) => TYPE_COLORS[short] ?? FB;
+
+// Cert / CERT / Certificate -> "CERT"
+const normalizeDocType = (dt) => {
+  const raw = String(dt).trim();
+  const k = raw.toLowerCase();
+  return k === "cert" || k === "certificate" ? "CERT" : raw;
+};
+// LOD ay "LETTER" sa header
+const docTypeLabel = (dt) => dt;
+const DOC_ORDER = ["CERT", "CPR", "GLE", "LOD"];
 
 // ── Pure SVG pie chart (no deps) ─────────────────────────────
 function PieChart({ slices, darkMode, ui }) {
@@ -404,6 +417,26 @@ export default function AnalyticsView({
   const activePieSlices =
     pieView === "classification" ? classPieSlices : docTypePieSlices;
 
+  // ── Merged doc types for Year Summary (Cert + Certificate = CERT) ──
+  const mergedDocTypes = [
+    ...new Set((docTypeData.doc_types ?? []).map(normalizeDocType)),
+  ].sort((a, b) => {
+    const ia = DOC_ORDER.indexOf(a),
+      ib = DOC_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  const getDocCounts = (year) => {
+    const docRow = docTypeData.data.find(
+      (d) => String(d.year) === String(year),
+    );
+    const counts = Object.fromEntries(mergedDocTypes.map((dt) => [dt, 0]));
+    Object.entries(docRow?.by_doc_type ?? {}).forEach(([dt, n]) => {
+      const k = normalizeDocType(dt);
+      counts[k] = (counts[k] ?? 0) + (Number(n) || 0);
+    });
+    return counts;
+  };
   // ── Styles ────────────────────────────────────────────────────
   const inputSt = {
     background: neuCardBg(darkMode),
@@ -537,6 +570,44 @@ export default function AnalyticsView({
           </button>
         </div>
       </div>
+    );
+  };
+
+  // ── Export Year-by-Year Summary to Excel ──────────────────────
+  const handleExportYearSummary = () => {
+    const header = [
+      "Year",
+      "Received Application",
+      "Total Released",
+      ...mergedDocTypes.map(docTypeLabel),
+      "No Doc Type",
+      "Rate (%)",
+    ];
+
+    const rows = yearSummaryData.map((row) => {
+      const counts = getDocCounts(row.year);
+      const docCounts = mergedDocTypes.map((dt) => counts[dt]);
+      const docSum = docCounts.reduce((s, n) => s + n, 0);
+      return [
+        Number(row.year) || row.year,
+        row.received ?? 0,
+        row.total,
+        ...docCounts,
+        Math.max(row.total - docSum, 0),
+        parseFloat(row.rate) || 0,
+      ];
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws["!cols"] = header.map((h, i) => ({
+      wch: i === 0 ? 8 : Math.max(10, String(h).length + 2),
+    }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Year Summary");
+    XLSX.writeFile(
+      wb,
+      `year-by-year-summary_${new Date().toISOString().slice(0, 10)}.xlsx`,
     );
   };
 
@@ -819,6 +890,25 @@ export default function AnalyticsView({
           icon="📅"
           ui={ui}
           darkMode={darkMode}
+          action={
+            <button
+              onClick={handleExportYearSummary}
+              disabled={yearSummaryData.length === 0}
+              title="Download as Excel"
+              style={{
+                ...neuBtnStyle(false),
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                opacity: yearSummaryData.length === 0 ? 0.4 : 1,
+                cursor:
+                  yearSummaryData.length === 0 ? "not-allowed" : "pointer",
+              }}
+            >
+              <span>⬇</span>
+              <span>Export Excel</span>
+            </button>
+          }
         >
           {yearSummaryData.length === 0 ? (
             <div
@@ -842,24 +932,52 @@ export default function AnalyticsView({
               >
                 <thead>
                   <tr>
-                    {["Year", "Total"].map((h) => (
-                      <th key={h} style={thStyle(h === "Year")}>
-                        {h}
-                      </th>
-                    ))}
-                    {docTypeData.doc_types.map((dt) => (
+                    <th rowSpan={2} style={thStyle(true)}>
+                      Year
+                    </th>
+                    <th rowSpan={2} style={thStyle()}>
+                      Received Application
+                    </th>
+                    <th
+                      colSpan={1 + mergedDocTypes.length}
+                      style={{
+                        ...thStyle(),
+                        borderLeft: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                      }}
+                    >
+                      Released
+                    </th>
+                    <th rowSpan={2} style={thStyle()}>
+                      No Doc Type
+                    </th>
+                    <th rowSpan={2} style={thStyle()}>
+                      Rate
+                    </th>
+                  </tr>
+                  <tr>
+                    <th
+                      style={{
+                        ...thStyle(),
+                        borderLeft: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                      }}
+                    >
+                      Total Released
+                    </th>
+                    {mergedDocTypes.map((dt) => (
                       <th key={dt} style={thStyle()}>
-                        {dt}
+                        {docTypeLabel(dt)}
                       </th>
                     ))}
-                    <th style={thStyle()}>Rate</th>
                   </tr>
                 </thead>
                 <tbody>
                   {yearSummaryData.map((row, i) => {
-                    const docRow = docTypeData.data.find(
-                      (d) => String(d.year) === String(row.year),
+                    const counts = getDocCounts(row.year);
+                    const docTypeSum = mergedDocTypes.reduce(
+                      (s, dt) => s + counts[dt],
+                      0,
                     );
+                    const noDocType = Math.max(row.total - docTypeSum, 0);
                     return (
                       <tr
                         key={row.year}
@@ -878,20 +996,25 @@ export default function AnalyticsView({
                           (e.currentTarget.style.background = "transparent")
                         }
                       >
-                        <td style={tdStyle(FB, true)}>{row.year}</td>
-                        <td style={tdStyle(ui.textPrimary)}>{row.total}</td>
-                        {docTypeData.doc_types.map((dt) => (
-                          <td key={dt} style={tdStyle(docTypeColor(dt))}>
-                            {docRow?.by_doc_type?.[dt] ?? 0}
+                        <td style={tdStyle(ui.textPrimary, true)}>
+                          {row.year}
+                        </td>
+                        <td style={tdStyle(ui.textPrimary)}>{row.received}</td>
+                        <td
+                          style={{
+                            ...tdStyle(ui.textPrimary),
+                            borderLeft: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                          }}
+                        >
+                          {row.total}
+                        </td>
+                        {mergedDocTypes.map((dt) => (
+                          <td key={dt} style={tdStyle(ui.textPrimary)}>
+                            {counts[dt]}
                           </td>
                         ))}
-                        <td
-                          style={tdStyle(
-                            parseFloat(row.rate) >= 60 ? "#36a420" : "#f59e0b",
-                          )}
-                        >
-                          {row.rate}%
-                        </td>
+                        <td style={tdStyle(ui.textMuted)}>{noDocType}</td>
+                        <td style={tdStyle(ui.textPrimary)}>{row.rate}%</td>
                       </tr>
                     );
                   })}
