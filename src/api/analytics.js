@@ -27,6 +27,11 @@ export const getAnalyticsYearSummary = async (params = {}) => {
     return res.data;
 };
 
+export const getAnalyticsYearRecords = async (params = {}) => {
+    const res = await API.get("/analytics/year-summary/records", { params });
+    return res.data;
+};
+
 export const getAnalyticsTopDrugs = async (params = {}) => {
     const res = await API.get("/analytics/top-drugs", { params });
     return res.data;
