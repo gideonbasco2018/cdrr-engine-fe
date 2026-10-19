@@ -1,6 +1,7 @@
 // components/tasks/viewdetails/steps/Step3AppLogs.jsx
 import { useState, useEffect } from "react";
 import { getApplicationLogs } from "../../../../api/application-logs";
+import { todayStr, countWorkingDays } from "../config/helpers";
 
 const STATUS_CONFIG = {
   COMPLETED: {
@@ -239,6 +240,59 @@ function DateBlock({ startDate, accomplishedDate }) {
         value={fmt(accomplishedDate)}
         color="#2196F3"
       />
+    </div>
+  );
+}
+
+function DeadlineBlock({ deadlineDate, workingDays, status }) {
+  const dateOnly = String(deadlineDate).slice(0, 10);
+  const today = todayStr();
+  const isDone = status === "COMPLETED";
+  const isOverdue = !isDone && dateOnly < today;
+  const remaining =
+    !isDone && !isOverdue ? countWorkingDays(today, dateOnly) : null;
+
+  const formatted = new Date(dateOnly + "T00:00:00").toLocaleDateString(
+    "en-US",
+    { month: "short", day: "numeric", year: "numeric" },
+  );
+
+  const tone = isDone
+    ? { bg: "rgba(100,100,100,0.08)", color: "var(--color-text-secondary)" }
+    : isOverdue
+      ? { bg: "rgba(239,68,68,0.1)", color: "#ef4444" }
+      : remaining <= 3
+        ? { bg: "rgba(245,158,11,0.1)", color: "#b45309" }
+        : { bg: "rgba(16,185,129,0.1)", color: "#059669" };
+
+  const statusText = isDone
+    ? "Closed"
+    : isOverdue
+      ? "Overdue"
+      : `${remaining} working day${remaining !== 1 ? "s" : ""} remaining`;
+
+  return (
+    <div>
+      <FieldLabel>Compliance Deadline</FieldLabel>
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "3px 8px",
+          borderRadius: 5,
+          background: tone.bg,
+          color: tone.color,
+          fontSize: 11,
+          fontWeight: 500,
+        }}
+      >
+        <span>{formatted}</span>
+        {workingDays != null && (
+          <span style={{ opacity: 0.75 }}>({workingDays}d)</span>
+        )}
+        <span>· {statusText}</span>
+      </div>
     </div>
   );
 }
@@ -496,6 +550,7 @@ function LogCard({ log, index, isLast }) {
               {/* Row 2 (optional): Decision result + Authority + Remarks */}
               {(log.decision_result ||
                 log.decision_authority_name ||
+                log.deadline_date ||
                 log.doctrack_remarks ||
                 log.application_remarks) && (
                 <div
@@ -566,6 +621,14 @@ function LogCard({ log, index, isLast }) {
                     </div>
                   )}
 
+                  {log.deadline_date && (
+                    <DeadlineBlock
+                      deadlineDate={log.deadline_date}
+                      workingDays={log.working_days}
+                      status={status}
+                    />
+                  )}
+
                   {log.doctrack_remarks && (
                     <div style={{ flex: 1, minWidth: 120 }}>
                       <FieldLabel>Doctrack Remarks</FieldLabel>
@@ -629,14 +692,12 @@ export function Step3AppLogs({ record, colors }) {
         setLoading(true);
         const data = await getApplicationLogs(record.mainDbId);
         const sorted = [...(Array.isArray(data) ? data : [])].sort((a, b) => {
-          // IN PROGRESS logs — laging nasa DULO
-          const aActive = a.application_status === "IN PROGRESS";
-          const bActive = b.application_status === "IN PROGRESS";
-          if (aActive && !bActive) return 1;
-          if (!aActive && bActive) return -1;
+          // Primary sort: del_index ascending
+          const indexDiff = (a.del_index ?? 0) - (b.del_index ?? 0);
+          if (indexDiff !== 0) return indexDiff;
 
-          // Primary sort — del_index ascending
-          return (a.del_index ?? 0) - (b.del_index ?? 0);
+          // Tiebreaker: log id ascending, so the order stays stable
+          return (a.id ?? 0) - (b.id ?? 0);
         });
         setLogs(sorted);
       } catch {
