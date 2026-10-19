@@ -56,6 +56,13 @@ const normalizeDocType = (dt) => {
 };
 // LOD ay "LETTER" sa header
 const docTypeLabel = (dt) => dt;
+
+// Rate = Total Released / Received Application (lahat ng released)
+const releasedRate = (row) => {
+  const received = Number(row.received) || 0;
+  const released = Number(row.total) || 0;
+  return received > 0 ? (released / received) * 100 : 0;
+};
 const DOC_ORDER = ["CERT", "CPR", "GLE", "LOD"];
 
 // ── Pure SVG pie chart (no deps) ─────────────────────────────
@@ -288,6 +295,10 @@ export default function AnalyticsView({
   // ── Pie toggle: "classification" | "doctype" ─────────────────
   const [pieView, setPieView] = useState("classification");
 
+  // ── Year summary basis: "released" | "received" ──────────────
+  const [yearBasis, setYearBasis] = useState("released");
+  const [loadingYear, setLoadingYear] = useState(false);
+
   // ── Pagination ────────────────────────────────────────────────
   const [drugsPage, setDrugsPage] = useState(1);
   useEffect(() => {
@@ -308,34 +319,22 @@ export default function AnalyticsView({
         entity_type: topCountryTab,
         limit: 999,
       };
-      const [
-        years,
-        sum,
-        trend,
-        classification,
-        yearSum,
-        drugs,
-        countries,
-        docType,
-      ] = await Promise.all([
-        getAnalyticsAvailableYears(),
-        getAnalyticsSummary(params),
-        getAnalyticsTrend(params),
-        getAnalyticsByClassification(params),
-        getAnalyticsYearSummary(),
-        getAnalyticsTopDrugs(params),
-        getAnalyticsTopCountries(countryParams),
-        getDocTypeReleased(),
-      ]);
+      const [years, sum, trend, classification, drugs, countries] =
+        await Promise.all([
+          getAnalyticsAvailableYears(),
+          getAnalyticsSummary(params),
+          getAnalyticsTrend(params),
+          getAnalyticsByClassification(params),
+          getAnalyticsTopDrugs(params),
+          getAnalyticsTopCountries(countryParams),
+        ]);
       setAvailableYears(years.years ?? ["All"]);
       setSummary(sum);
       setTrendData(trend.data ?? []);
       setClassificationData(classification.data ?? []);
       setClassDocTypes(classification.doc_types ?? []);
-      setYearSummaryData(yearSum.data ?? []);
       setTopDrugsData(drugs.data ?? []);
       setTopCountriesData(countries.data ?? []);
-      setDocTypeData(docType ?? { doc_types: [], data: [] });
       setLastUpdated(new Date());
     } catch (err) {
       console.error("Analytics fetch error:", err);
@@ -362,9 +361,29 @@ export default function AnalyticsView({
     }
   }, [chartYear, chartMonth, rxFilter, topCountryTab]);
 
+  const fetchYearSummary = useCallback(async () => {
+    setLoadingYear(true);
+    try {
+      const [yearSum, docType] = await Promise.all([
+        getAnalyticsYearSummary({ basis: yearBasis }),
+        getDocTypeReleased({ basis: yearBasis }),
+      ]);
+      setYearSummaryData(yearSum.data ?? []);
+      setDocTypeData(docType ?? { doc_types: [], data: [] });
+    } catch (err) {
+      console.error("Year summary fetch error:", err);
+    } finally {
+      setLoadingYear(false);
+    }
+  }, [yearBasis]);
+
   useEffect(() => {
     fetchMain();
   }, [chartYear, chartMonth, rxFilter]);
+
+  useEffect(() => {
+    fetchYearSummary();
+  }, [yearBasis]);
 
   const isFirstCountryRender = useRef(true);
   useEffect(() => {
@@ -489,6 +508,17 @@ export default function AnalyticsView({
     whiteSpace: "nowrap",
   });
 
+  // ── Year Summary bordered cells ──
+  const ysLine = `1px solid ${darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.15)"}`;
+  const ysTh = (left = false) => ({
+    ...thStyle(left),
+    border: ysLine,
+  });
+  const ysTd = (color = ui.textPrimary, left = false) => ({
+    ...tdStyle(color, left),
+    border: ysLine,
+  });
+
   // ── Pagination component ──────────────────────────────────────
   const Pagination = ({ page, totalPages, onPageChange, total, pageSize }) => {
     if (totalPages <= 1) return null;
@@ -579,9 +609,9 @@ export default function AnalyticsView({
       "Year",
       "Received Application",
       "Total Released",
+      "Rate (%) = Released ÷ Received × 100",
       ...mergedDocTypes.map(docTypeLabel),
       "No Doc Type",
-      "Rate (%)",
     ];
 
     const rows = yearSummaryData.map((row) => {
@@ -592,9 +622,9 @@ export default function AnalyticsView({
         Number(row.year) || row.year,
         row.received ?? 0,
         row.total,
+        Number(releasedRate(row).toFixed(1)),
         ...docCounts,
         Math.max(row.total - docSum, 0),
-        parseFloat(row.rate) || 0,
       ];
     });
 
@@ -607,7 +637,7 @@ export default function AnalyticsView({
     XLSX.utils.book_append_sheet(wb, ws, "Year Summary");
     XLSX.writeFile(
       wb,
-      `year-by-year-summary_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      `year-by-year-summary_${yearBasis}_${new Date().toISOString().slice(0, 10)}.xlsx`,
     );
   };
 
@@ -774,7 +804,10 @@ export default function AnalyticsView({
               </select>
             </div>
             <button
-              onClick={fetchMain}
+              onClick={() => {
+                fetchMain();
+                fetchYearSummary();
+              }}
               title="Refresh"
               style={{
                 ...inputSt,
@@ -887,27 +920,57 @@ export default function AnalyticsView({
       <FadeSlideIn delay={500}>
         <SectionCard
           title="Year-by-Year Summary"
+          subtitle={
+            yearBasis === "released"
+              ? "Released counted by the year it was released"
+              : "Released counted by the year it was received"
+          }
           icon="📅"
           ui={ui}
           darkMode={darkMode}
           action={
-            <button
-              onClick={handleExportYearSummary}
-              disabled={yearSummaryData.length === 0}
-              title="Download as Excel"
-              style={{
-                ...neuBtnStyle(false),
-                display: "flex",
-                alignItems: "center",
-                gap: 5,
-                opacity: yearSummaryData.length === 0 ? 0.4 : 1,
-                cursor:
-                  yearSummaryData.length === 0 ? "not-allowed" : "pointer",
-              }}
-            >
-              <span>⬇</span>
-              <span>Export Excel</span>
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  background: neuCardBg(darkMode),
+                  borderRadius: 10,
+                  padding: 3,
+                  gap: 2,
+                  boxShadow: neuShadow(darkMode, false),
+                }}
+              >
+                {[
+                  { key: "released", label: "By Release Date" },
+                  { key: "received", label: "By Received Date" },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setYearBasis(key)}
+                    style={neuBtnStyle(yearBasis === key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleExportYearSummary}
+                disabled={yearSummaryData.length === 0}
+                title="Download as Excel"
+                style={{
+                  ...neuBtnStyle(false),
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  opacity: yearSummaryData.length === 0 ? 0.4 : 1,
+                  cursor:
+                    yearSummaryData.length === 0 ? "not-allowed" : "pointer",
+                }}
+              >
+                <span>⬇</span>
+                <span>Export Excel</span>
+              </button>
+            </div>
           }
         >
           {yearSummaryData.length === 0 ? (
@@ -922,7 +985,13 @@ export default function AnalyticsView({
               No year data available
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div
+              style={{
+                overflowX: "auto",
+                opacity: loadingYear ? 0.5 : 1,
+                transition: "opacity 0.2s",
+              }}
+            >
               <table
                 style={{
                   width: "100%",
@@ -932,46 +1001,50 @@ export default function AnalyticsView({
               >
                 <thead>
                   <tr>
-                    <th rowSpan={2} style={thStyle(true)}>
+                    <th rowSpan={2} style={ysTh(true)}>
                       Year
                     </th>
-                    <th rowSpan={2} style={thStyle()}>
+                    <th rowSpan={2} style={ysTh()}>
                       Received Application
                     </th>
+                    <th rowSpan={2} style={ysTh()}>
+                      {yearBasis === "released"
+                        ? "Total Released"
+                        : "Released (of Received)"}
+                    </th>
                     <th
-                      colSpan={1 + mergedDocTypes.length}
-                      style={{
-                        ...thStyle(),
-                        borderLeft: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
-                      }}
+                      rowSpan={2}
+                      style={ysTh()}
+                      title="Rate = Total Released ÷ Received Application × 100"
                     >
-                      Released
-                    </th>
-                    <th rowSpan={2} style={thStyle()}>
-                      No Doc Type
-                    </th>
-                    <th rowSpan={2} style={thStyle()}>
                       Rate
+                      <div
+                        style={{
+                          fontSize: "0.58rem",
+                          fontWeight: 500,
+                          textTransform: "none",
+                          letterSpacing: 0,
+                          marginTop: 2,
+                        }}
+                      >
+                        Released ÷ Received × 100
+                      </div>
+                    </th>
+                    <th colSpan={mergedDocTypes.length + 1} style={ysTh()}>
+                      Released
                     </th>
                   </tr>
                   <tr>
-                    <th
-                      style={{
-                        ...thStyle(),
-                        borderLeft: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
-                      }}
-                    >
-                      Total Released
-                    </th>
                     {mergedDocTypes.map((dt) => (
-                      <th key={dt} style={thStyle()}>
+                      <th key={dt} style={ysTh()}>
                         {docTypeLabel(dt)}
                       </th>
                     ))}
+                    <th style={ysTh()}>No Doc Type</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {yearSummaryData.map((row, i) => {
+                  {yearSummaryData.map((row) => {
                     const counts = getDocCounts(row.year);
                     const docTypeSum = mergedDocTypes.reduce(
                       (s, dt) => s + counts[dt],
@@ -981,12 +1054,6 @@ export default function AnalyticsView({
                     return (
                       <tr
                         key={row.year}
-                        style={{
-                          borderBottom:
-                            i < yearSummaryData.length - 1
-                              ? `1px solid ${darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}`
-                              : "none",
-                        }}
                         onMouseEnter={(e) =>
                           (e.currentTarget.style.background = darkMode
                             ? "rgba(255,255,255,0.03)"
@@ -996,25 +1063,21 @@ export default function AnalyticsView({
                           (e.currentTarget.style.background = "transparent")
                         }
                       >
-                        <td style={tdStyle(ui.textPrimary, true)}>
-                          {row.year}
-                        </td>
-                        <td style={tdStyle(ui.textPrimary)}>{row.received}</td>
+                        <td style={ysTd(ui.textPrimary, true)}>{row.year}</td>
+                        <td style={ysTd()}>{row.received}</td>
+                        <td style={ysTd()}>{row.total}</td>
                         <td
-                          style={{
-                            ...tdStyle(ui.textPrimary),
-                            borderLeft: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
-                          }}
+                          style={ysTd()}
+                          title={`${row.total} ÷ ${row.received} × 100`}
                         >
-                          {row.total}
+                          {releasedRate(row).toFixed(1)}%
                         </td>
                         {mergedDocTypes.map((dt) => (
-                          <td key={dt} style={tdStyle(ui.textPrimary)}>
+                          <td key={dt} style={ysTd()}>
                             {counts[dt]}
                           </td>
                         ))}
-                        <td style={tdStyle(ui.textMuted)}>{noDocType}</td>
-                        <td style={tdStyle(ui.textPrimary)}>{row.rate}%</td>
+                        <td style={ysTd(ui.textMuted)}>{noDocType}</td>
                       </tr>
                     );
                   })}
