@@ -7,6 +7,7 @@ import {
   getAnalyticsTrend,
   getAnalyticsByClassification,
   getAnalyticsYearSummary,
+  getAnalyticsYearRecords,
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
   getDocTypeReleased,
@@ -64,6 +65,338 @@ const releasedRate = (row) => {
   return received > 0 ? (released / received) * 100 : 0;
 };
 const DOC_ORDER = ["CERT", "CPR", "GLE", "LOD"];
+
+// ── Year Summary drill-down modal ─────────────────────────────
+const RECORDS_PAGE_SIZE = 50;
+
+const statusColor = (status) => {
+  const s = String(status ?? "")
+    .toUpperCase()
+    .replace(/[\s_-]+/g, " ")
+    .trim();
+  if (s === "COMPLETED") return "#36a420";
+  if (s === "ON PROCESS") return "#f59e0b";
+  return "#9ca3af";
+};
+
+function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // debounce DTN search
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQuery(search.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await getAnalyticsYearRecords({
+          year: target.year,
+          kind: target.kind,
+          basis,
+          page,
+          page_size: RECORDS_PAGE_SIZE,
+          search: query || undefined,
+        });
+        if (cancelled) return;
+        setRows(res.data ?? []);
+        setTotal(res.total ?? 0);
+      } catch (err) {
+        console.error("Year records fetch error:", err);
+        if (!cancelled) setError("Failed to load records.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [target.year, target.kind, basis, page, query]);
+
+  // close on Esc
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+  const totalPages = Math.max(Math.ceil(total / RECORDS_PAGE_SIZE), 1);
+  const start = total === 0 ? 0 : (page - 1) * RECORDS_PAGE_SIZE + 1;
+  const end = Math.min(page * RECORDS_PAGE_SIZE, total);
+
+  const title =
+    target.kind === "received"
+      ? `${target.year} — Received Applications`
+      : basis === "received"
+        ? `${target.year} — Released (of Received in ${target.year})`
+        : `${target.year} — Released in ${target.year}`;
+
+  const th = {
+    padding: "8px 10px",
+    textAlign: "left",
+    fontSize: "0.65rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: ui.textMuted,
+    border: `1px solid ${line}`,
+    whiteSpace: "nowrap",
+    background: neuCardBg(darkMode),
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+  };
+  const td = {
+    padding: "8px 10px",
+    fontSize: "0.78rem",
+    fontWeight: 500,
+    color: ui.textPrimary,
+    border: `1px solid ${line}`,
+    whiteSpace: "nowrap",
+  };
+  const pageBtn = (disabled) => ({
+    padding: "4px 12px",
+    fontSize: "0.75rem",
+    borderRadius: 8,
+    border: "none",
+    background: neuCardBg(darkMode),
+    color: ui.textPrimary,
+    boxShadow: neuShadow(darkMode, true),
+    fontFamily: font,
+    opacity: disabled ? 0.35 : 1,
+    cursor: disabled ? "not-allowed" : "pointer",
+  });
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(1100px, 100%)",
+          maxHeight: "88vh",
+          display: "flex",
+          flexDirection: "column",
+          background: neuCardBg(darkMode),
+          borderRadius: 16,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+          fontFamily: font,
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "14px 18px",
+            borderBottom: `1px solid ${line}`,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: ui.textPrimary,
+              }}
+            >
+              {title}
+            </div>
+            <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+              {loading ? "Loading…" : `${total.toLocaleString()} record(s)`}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search DTN…"
+              style={{
+                background: neuCardBg(darkMode),
+                border: `1px solid ${line}`,
+                borderRadius: 8,
+                padding: "6px 10px",
+                fontSize: "0.78rem",
+                color: ui.textPrimary,
+                outline: "none",
+                fontFamily: font,
+                colorScheme: darkMode ? "dark" : "light",
+              }}
+            />
+            <button
+              onClick={onClose}
+              title="Close (Esc)"
+              style={{
+                ...pageBtn(false),
+                fontSize: "0.9rem",
+                padding: "4px 10px",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div
+          style={{
+            overflow: "auto",
+            flex: 1,
+            opacity: loading ? 0.5 : 1,
+            transition: "opacity 0.2s",
+          }}
+        >
+          {error ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: 40,
+                color: ui.textMuted,
+                fontSize: "0.85rem",
+              }}
+            >
+              {error}
+            </div>
+          ) : !loading && rows.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: 40,
+                color: ui.textMuted,
+                fontSize: "0.85rem",
+              }}
+            >
+              No records found
+            </div>
+          ) : (
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "0.8rem",
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={{ ...th, textAlign: "center" }}>#</th>
+                  <th style={th}>DTN</th>
+                  <th style={th}>Date Received (Center)</th>
+                  <th style={th}>Date Released</th>
+                  <th style={th}>Type of Doc Released</th>
+                  <th style={th}>Status</th>
+                  <th style={th}>Brand Name</th>
+                  <th style={th}>Generic Name</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.db_id}>
+                    <td
+                      style={{
+                        ...td,
+                        textAlign: "center",
+                        color: ui.textMuted,
+                      }}
+                    >
+                      {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
+                    </td>
+                    <td style={td}>{r.dtn ?? "—"}</td>
+                    <td style={td}>{r.date_received_cent ?? "—"}</td>
+                    <td style={td}>{r.date_released ?? "—"}</td>
+                    <td style={td}>{r.type_doc_released ?? "—"}</td>
+                    <td style={td}>
+                      {r.app_status ? (
+                        <span
+                          style={{
+                            fontSize: "0.68rem",
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: 99,
+                            color: statusColor(r.app_status),
+                            background: `${statusColor(r.app_status)}22`,
+                          }}
+                        >
+                          {r.app_status}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td style={td}>{r.brand_name ?? "—"}</td>
+                    <td style={td}>{r.generic_name ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer / pagination */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 18px",
+            borderTop: `1px solid ${line}`,
+          }}
+        >
+          <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+            {start}–{end} of {total.toLocaleString()}
+          </span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button
+              style={pageBtn(page === 1)}
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              ‹ Prev
+            </button>
+            <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+              Page {page} / {totalPages}
+            </span>
+            <button
+              style={pageBtn(page >= totalPages)}
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ── Pure SVG pie chart (no deps) ─────────────────────────────
 function PieChart({ slices, darkMode, ui }) {
@@ -297,6 +630,7 @@ export default function AnalyticsView({
 
   // ── Year summary basis: "released" | "received" ──────────────
   const [yearBasis, setYearBasis] = useState("released");
+  const [recordsTarget, setRecordsTarget] = useState(null); // { year, kind }
   const [loadingYear, setLoadingYear] = useState(false);
 
   // ── Pagination ────────────────────────────────────────────────
@@ -1064,8 +1398,33 @@ export default function AnalyticsView({
                         }
                       >
                         <td style={ysTd(ui.textPrimary, true)}>{row.year}</td>
-                        <td style={ysTd()}>{row.received}</td>
-                        <td style={ysTd()}>{row.total}</td>
+                        {[
+                          { kind: "received", value: row.received },
+                          { kind: "released", value: row.total },
+                        ].map(({ kind, value }) => (
+                          <td key={kind} style={ysTd()}>
+                            {Number(value) > 0 ? (
+                              <span
+                                onClick={() =>
+                                  setRecordsTarget({
+                                    year: Number(row.year),
+                                    kind,
+                                  })
+                                }
+                                title="Click to view records"
+                                style={{
+                                  cursor: "pointer",
+                                  textDecoration: "underline dotted",
+                                  textUnderlineOffset: 3,
+                                }}
+                              >
+                                {value}
+                              </span>
+                            ) : (
+                              value
+                            )}
+                          </td>
+                        ))}
                         <td
                           style={ysTd()}
                           title={`${row.total} ÷ ${row.received} × 100`}
@@ -1814,6 +2173,16 @@ export default function AnalyticsView({
           )}
         </SectionCard>
       </FadeSlideIn>
+
+      {recordsTarget && (
+        <YearRecordsModal
+          target={recordsTarget}
+          basis={yearBasis}
+          ui={ui}
+          darkMode={darkMode}
+          onClose={() => setRecordsTarget(null)}
+        />
+      )}
     </div>
   );
 }
