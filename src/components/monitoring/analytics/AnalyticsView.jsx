@@ -14,6 +14,10 @@ import {
   getDocTypeReleased,
 } from "../../../api/analytics";
 
+import DoctrackModal from "../../reports/actions/DoctrackModal";
+import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
+import ApplicationLogsModal from "../../tasks/ApplicationLogsModal";
+import EditRecordModal from "../../reports/actions/EditRecordModal";
 import * as XLSX from "xlsx";
 // ── Split modules ─────────────────────────────────────────────
 import "./analyticsAnimations";
@@ -84,6 +88,155 @@ const statusColor = (status) => {
 };
 const facetLabel = (key, noneLabel) => (key === NONE_KEY ? noneLabel : key);
 
+// ── Password gate shown before editing a record ──────────────
+const EDIT_PASSWORD = "dikoalam12345";
+
+// TODO: replace with the real update function used by the Records page.
+// Until it is wired, saving will show this error instead of failing silently.
+const updateUploadReport = async () => {
+  throw new Error("updateUploadReport is not wired yet.");
+};
+
+function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = () => {
+    if (value === EDIT_PASSWORD) {
+      onConfirm();
+    } else {
+      setError("Incorrect password. Please try again.");
+      setValue("");
+      inputRef.current?.focus();
+    }
+  };
+
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.6)",
+        zIndex: 1200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(380px, 100%)",
+          background: neuCardBg(darkMode),
+          borderRadius: 14,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          padding: 20,
+          fontFamily: font,
+        }}
+      >
+        <div
+          style={{
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            color: ui.textPrimary,
+          }}
+        >
+          🔒 Password required
+        </div>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            color: ui.textMuted,
+            margin: "4px 0 14px",
+          }}
+        >
+          Enter the password to update this application's information.
+        </div>
+        <input
+          ref={inputRef}
+          type="password"
+          value={value}
+          placeholder="Password"
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError("");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+            if (e.key === "Escape") onCancel();
+          }}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: neuCardBg(darkMode),
+            border: `1px solid ${error ? "#e02020" : line}`,
+            borderRadius: 8,
+            padding: "8px 10px",
+            fontSize: "0.85rem",
+            color: ui.textPrimary,
+            outline: "none",
+            fontFamily: font,
+            colorScheme: darkMode ? "dark" : "light",
+          }}
+        />
+        {error && (
+          <div style={{ fontSize: "0.72rem", color: "#e02020", marginTop: 6 }}>
+            {error}
+          </div>
+        )}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 16,
+          }}
+        >
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "6px 14px",
+              fontSize: "0.78rem",
+              borderRadius: 8,
+              border: `1px solid ${line}`,
+              background: "transparent",
+              color: ui.textPrimary,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            style={{
+              padding: "6px 14px",
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              borderRadius: 8,
+              border: "none",
+              background: FB,
+              color: "#fff",
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -91,11 +244,68 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [docFilter, setDocFilter] = useState("All");
+  const [docFilter, setDocFilter] = useState(target.docType ?? "All");
   const [statusCounts, setStatusCounts] = useState([]);
   const [docCounts, setDocCounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [doctrackRow, setDoctrackRow] = useState(null);
+  const [detail, setDetail] = useState(null); // full or partial record
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [menu, setMenu] = useState(null); // { row, top, right }
+  const subOpenRef = useRef(false);
+  const [logsRow, setLogsRow] = useState(null);
+  const [passwordRow, setPasswordRow] = useState(null); // row waiting for password
+  const [editRecord, setEditRecord] = useState(null); // record being edited
+  const [reloadKey, setReloadKey] = useState(0); // bump to refetch rows after save
+  subOpenRef.current = !!(
+    doctrackRow ||
+    detail ||
+    logsRow ||
+    passwordRow ||
+    editRecord
+  );
+
+  const buildEditRecord = (r) => ({
+    id: r.db_id,
+    dtn: r.dtn,
+    entryType: r.entry_type,
+    dateReceivedCent: r.date_received_cent,
+    dateReleased: r.date_released,
+    typeDocReleased: r.type_doc_released,
+    appStatus: r.app_status,
+    prodBrName: r.brand_name,
+    prodGenName: r.generic_name,
+    secpaExpDate: r.secpa_exp_date,
+  });
+
+  const openDetails = async (r) => {
+    const partial = {
+      dtn: r.dtn,
+      entryType: r.entry_type,
+      dateReceivedCent: r.date_received_cent,
+      dateReleased: r.date_released,
+      typeDocReleased: r.type_doc_released,
+      appStatus: r.app_status,
+      prodBrName: r.brand_name,
+      prodGenName: r.generic_name,
+      secpaExpDate: r.secpa_exp_date,
+    };
+    setDetail(partial);
+    setDetailLoading(false);
+  };
+
+  const colors = {
+    cardBg: neuCardBg(darkMode),
+    cardBorder: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)",
+    tableBg: darkMode ? "#222222" : "#f7f8fa",
+    tableRowHover: darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+    inputBg: darkMode ? "#222222" : "#f7f8fa",
+    badgeBg: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+    textPrimary: ui.textPrimary,
+    textSecondary: ui.textSub ?? ui.textPrimary,
+    textTertiary: ui.textMuted,
+  };
 
   // debounce DTN search
   useEffect(() => {
@@ -142,11 +352,10 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [target, basis, page, query, statusFilter, docFilter]);
+  }, [target, basis, page, query, statusFilter, docFilter, reloadKey]);
 
-  // close on Esc
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose();
+    const onKey = (e) => e.key === "Escape" && !subOpenRef.current && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -176,13 +385,15 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     setQuery("");
     setPage(1);
   };
-
-  const title =
+  const baseTitle =
     target.kind === "received"
       ? `${target.year} — Received Applications`
       : basis === "received"
         ? `${target.year} — Released (of Received in ${target.year})`
         : `${target.year} — Released in ${target.year}`;
+  const title = target.docType
+    ? `${baseTitle} · ${facetLabel(target.docType, "No Doc Type")}`
+    : baseTitle;
 
   const th = {
     padding: "8px 10px",
@@ -246,315 +457,535 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     colorScheme: darkMode ? "dark" : "light",
     maxWidth: 220,
   };
-
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.55)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
+    <>
       <div
-        onClick={(e) => e.stopPropagation()}
+        onClick={onClose}
         style={{
-          width: "min(1100px, 100%)",
-          maxHeight: "88vh",
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.55)",
+          zIndex: 1000,
           display: "flex",
-          flexDirection: "column",
-          background: neuCardBg(darkMode),
-          borderRadius: 16,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-          fontFamily: font,
-          overflow: "hidden",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 20,
         }}
       >
-        {/* Header */}
         <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenu(null);
+          }}
           style={{
+            width: "min(1100px, 100%)",
+            maxHeight: "88vh",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "14px 18px",
-            borderBottom: `1px solid ${line}`,
-            flexWrap: "wrap",
+            flexDirection: "column",
+            background: neuCardBg(darkMode),
+            borderRadius: 16,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+            fontFamily: font,
+            overflow: "hidden",
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: "0.95rem",
-                fontWeight: 700,
-                color: ui.textPrimary,
-              }}
-            >
-              {target.title ?? title}
-            </div>
-            <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-              {loading
-                ? "Loading…"
-                : `${total.toLocaleString()} record(s)${filtersActive ? " (filtered)" : ""}`}
-            </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search DTN…"
-              style={{
-                background: neuCardBg(darkMode),
-                border: `1px solid ${line}`,
-                borderRadius: 8,
-                padding: "6px 10px",
-                fontSize: "0.78rem",
-                color: ui.textPrimary,
-                outline: "none",
-                fontFamily: font,
-                colorScheme: darkMode ? "dark" : "light",
-              }}
-            />
-            <button
-              onClick={onClose}
-              title="Close (Esc)"
-              style={{
-                ...pageBtn(false),
-                fontSize: "0.9rem",
-                padding: "4px 10px",
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
-        {/* Filters + status counts */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 10,
-            padding: "10px 18px",
-            borderBottom: `1px solid ${line}`,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button
-              onClick={() => {
-                setStatusFilter("All");
-                setPage(1);
-              }}
-              style={chip(statusFilter === "All", FB)}
-            >
-              All <b>{statusAll.toLocaleString()}</b>
-            </button>
-            {statusOptions.map((s) => {
-              const color = statusColor(s.key);
-              return (
-                <button
-                  key={s.key}
-                  onClick={() => {
-                    setStatusFilter(statusFilter === s.key ? "All" : s.key);
-                    setPage(1);
-                  }}
-                  style={chip(statusFilter === s.key, color)}
-                >
-                  <span
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      background: color,
-                    }}
-                  />
-                  {facetLabel(s.key, "No Status")}{" "}
-                  <b>{s.count.toLocaleString()}</b>
-                </button>
-              );
-            })}
-          </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span
-              style={{
-                fontSize: "0.65rem",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: ui.textMuted,
-              }}
-            >
-              Doc Type
-            </span>
-            <select
-              value={docFilter}
-              onChange={(e) => {
-                setDocFilter(e.target.value);
-                setPage(1);
-              }}
-              style={selectSt}
-            >
-              <option value="All">All</option>
-              {docOptions.map((d) => (
-                <option key={d.key} value={d.key}>
-                  {facetLabel(d.key, "No Doc Type")} ({d.count.toLocaleString()}
-                  )
-                </option>
-              ))}
-            </select>
-            {filtersActive && (
-              <button
-                onClick={clearFilters}
-                style={{ ...pageBtn(false), fontSize: "0.7rem" }}
+          {/* Header */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "14px 18px",
+              borderBottom: `1px solid ${line}`,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 700,
+                  color: ui.textPrimary,
+                }}
               >
-                Clear
+                {target.title ?? title}
+              </div>
+              <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                {loading
+                  ? "Loading…"
+                  : `${total.toLocaleString()} record(s)${filtersActive ? " (filtered)" : ""}`}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search DTN…"
+                style={{
+                  background: neuCardBg(darkMode),
+                  border: `1px solid ${line}`,
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  fontSize: "0.78rem",
+                  color: ui.textPrimary,
+                  outline: "none",
+                  fontFamily: font,
+                  colorScheme: darkMode ? "dark" : "light",
+                }}
+              />
+              <button
+                onClick={onClose}
+                title="Close (Esc)"
+                style={{
+                  ...pageBtn(false),
+                  fontSize: "0.9rem",
+                  padding: "4px 10px",
+                }}
+              >
+                ✕
               </button>
-            )}
+            </div>
           </div>
-        </div>
 
-        {/* Table */}
-        <div
-          style={{
-            overflow: "auto",
-            flex: 1,
-            opacity: loading ? 0.5 : 1,
-            transition: "opacity 0.2s",
-          }}
-        >
-          {error ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 40,
-                color: ui.textMuted,
-                fontSize: "0.85rem",
-              }}
-            >
-              {error}
-            </div>
-          ) : !loading && rows.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 40,
-                color: ui.textMuted,
-                fontSize: "0.85rem",
-              }}
-            >
-              No records found
-            </div>
-          ) : (
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.8rem",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th style={{ ...th, textAlign: "center" }}>#</th>
-                  <th style={th}>DTN</th>
-                  <th style={th}>Entry Type</th>
-                  <th style={th}>Date Received (Center)</th>
-                  <th style={th}>Date Released</th>
-                  {target.summary && <th style={th}>Validity</th>}
-                  <th style={th}>Type of Doc Released</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Brand Name</th>
-                  <th style={th}>Generic Name</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.db_id}>
-                    <td
+          {/* Filters + status counts */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "10px 18px",
+              borderBottom: `1px solid ${line}`,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                onClick={() => {
+                  setStatusFilter("All");
+                  setPage(1);
+                }}
+                style={chip(statusFilter === "All", FB)}
+              >
+                All <b>{statusAll.toLocaleString()}</b>
+              </button>
+              {statusOptions.map((s) => {
+                const color = statusColor(s.key);
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => {
+                      setStatusFilter(statusFilter === s.key ? "All" : s.key);
+                      setPage(1);
+                    }}
+                    style={chip(statusFilter === s.key, color)}
+                  >
+                    <span
                       style={{
-                        ...td,
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: color,
+                      }}
+                    />
+                    {facetLabel(s.key, "No Status")}{" "}
+                    <b>{s.count.toLocaleString()}</b>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span
+                style={{
+                  fontSize: "0.65rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  color: ui.textMuted,
+                }}
+              >
+                Doc Type
+              </span>
+              <select
+                value={docFilter}
+                onChange={(e) => {
+                  setDocFilter(e.target.value);
+                  setPage(1);
+                }}
+                style={selectSt}
+              >
+                <option value="All">All</option>
+                {docOptions.map((d) => (
+                  <option key={d.key} value={d.key}>
+                    {facetLabel(d.key, "No Doc Type")} (
+                    {d.count.toLocaleString()})
+                  </option>
+                ))}
+              </select>
+              {filtersActive && (
+                <button
+                  onClick={clearFilters}
+                  style={{ ...pageBtn(false), fontSize: "0.7rem" }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Table */}
+          <div
+            style={{
+              overflow: "auto",
+              flex: 1,
+              opacity: loading ? 0.5 : 1,
+              transition: "opacity 0.2s",
+            }}
+          >
+            {error ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: 40,
+                  color: ui.textMuted,
+                  fontSize: "0.85rem",
+                }}
+              >
+                {error}
+              </div>
+            ) : !loading && rows.length === 0 ? (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: 40,
+                  color: ui.textMuted,
+                  fontSize: "0.85rem",
+                }}
+              >
+                No records found
+              </div>
+            ) : (
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: "0.8rem",
+                }}
+              >
+                <thead>
+                  <tr>
+                    <th style={{ ...th, textAlign: "center" }}>#</th>
+                    <th style={th}>DTN</th>
+                    <th style={th}>Entry Type</th>
+                    <th style={th}>Date Received (Center)</th>
+                    <th style={th}>Date Released</th>
+                    {target.summary && <th style={th}>Validity</th>}
+                    <th style={th}>Type of Doc Released</th>
+                    <th style={th}>Status</th>
+                    <th style={th}>Brand Name</th>
+                    <th style={th}>Generic Name</th>
+                    <th
+                      style={{
+                        ...th,
+                        position: "sticky",
+                        top: 0,
+                        right: 0,
+                        zIndex: 3,
                         textAlign: "center",
-                        color: ui.textMuted,
+                        boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
                       }}
                     >
-                      {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
-                    </td>
-                    <td style={td}>{r.dtn ?? "—"}</td>
-                    <td style={td}>{r.entry_type ?? "—"}</td>
-                    <td style={td}>{r.date_received_cent ?? "—"}</td>
-                    <td style={td}>{r.date_released ?? "—"}</td>
-                    {target.summary && (
-                      <td style={td}>{r.secpa_exp_date ?? "—"}</td>
-                    )}
-                    <td style={td}>{r.type_doc_released ?? "—"}</td>
-                    <td style={td}>
-                      {r.app_status ? (
-                        <span
-                          style={{
-                            fontSize: "0.68rem",
-                            fontWeight: 700,
-                            padding: "2px 8px",
-                            borderRadius: 99,
-                            color: statusColor(r.app_status),
-                            background: `${statusColor(r.app_status)}22`,
-                          }}
-                        >
-                          {r.app_status}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td style={td}>{r.brand_name ?? "—"}</td>
-                    <td style={td}>{r.generic_name ?? "—"}</td>
+                      Action
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={r.db_id}>
+                      <td
+                        style={{
+                          ...td,
+                          textAlign: "center",
+                          color: ui.textMuted,
+                        }}
+                      >
+                        {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
+                      </td>
+                      <td style={td}>
+                        {r.dtn ? (
+                          <span
+                            onClick={() => setDoctrackRow(r)}
+                            title="View document tracking"
+                            style={{
+                              cursor: "pointer",
+                              color: FB,
+                              textDecoration: "underline dotted",
+                              textUnderlineOffset: 3,
+                            }}
+                          >
+                            {r.dtn}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td style={td}>{r.entry_type ?? "—"}</td>
+                      <td style={td}>{r.date_received_cent ?? "—"}</td>
+                      <td style={td}>{r.date_released ?? "—"}</td>
+                      {target.summary && (
+                        <td style={td}>{r.secpa_exp_date ?? "—"}</td>
+                      )}
+                      <td style={td}>{r.type_doc_released ?? "—"}</td>
+                      <td style={td}>
+                        {r.app_status ? (
+                          <span
+                            style={{
+                              fontSize: "0.68rem",
+                              fontWeight: 700,
+                              padding: "2px 8px",
+                              borderRadius: 99,
+                              color: statusColor(r.app_status),
+                              background: `${statusColor(r.app_status)}22`,
+                            }}
+                          >
+                            {r.app_status}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td style={td}>{r.brand_name ?? "—"}</td>
+                      <td style={td}>{r.generic_name ?? "—"}</td>
+                      <td
+                        style={{
+                          ...td,
+                          position: "sticky",
+                          right: 0,
+                          zIndex: 2,
+                          textAlign: "center",
+                          background: neuCardBg(darkMode),
+                          boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                        }}
+                      >
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const rect =
+                              e.currentTarget.getBoundingClientRect();
+                            setMenu({
+                              row: r,
+                              top: rect.bottom + 4,
+                              right: window.innerWidth - rect.right,
+                            });
+                          }}
+                          style={{ ...pageBtn(false), padding: "3px 10px" }}
+                        >
+                          Actions ▾
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
 
-        {/* Footer / pagination */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "10px 18px",
-            borderTop: `1px solid ${line}`,
-          }}
-        >
-          <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-            {start}–{end} of {total.toLocaleString()}
-          </span>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <button
-              style={pageBtn(page === 1)}
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              ‹ Prev
-            </button>
+          {/* Footer / pagination */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 18px",
+              borderTop: `1px solid ${line}`,
+            }}
+          >
             <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-              Page {page} / {totalPages}
+              {start}–{end} of {total.toLocaleString()}
             </span>
-            <button
-              style={pageBtn(page >= totalPages)}
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next ›
-            </button>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                style={pageBtn(page === 1)}
+                disabled={page === 1}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                ‹ Prev
+              </button>
+              <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                Page {page} / {totalPages}
+              </span>
+              <button
+                style={pageBtn(page >= totalPages)}
+                disabled={page >= totalPages}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next ›
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Actions dropdown */}
+      {menu && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            top: menu.top,
+            right: menu.right,
+            zIndex: 1100,
+            minWidth: 150,
+            background: neuCardBg(darkMode),
+            border: `1px solid ${line}`,
+            borderRadius: 10,
+            boxShadow: "0 12px 32px rgba(0,0,0,0.4)",
+            padding: 4,
+            fontFamily: font,
+          }}
+        >
+          <button
+            onClick={() => {
+              const row = menu.row;
+              setMenu(null);
+              openDetails(row);
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              padding: "7px 12px",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 8,
+              background: "transparent",
+              color: ui.textPrimary,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = darkMode
+                ? "rgba(255,255,255,0.07)"
+                : "rgba(0,0,0,0.05)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            👁 View Details
+          </button>
+          <button
+            onClick={() => {
+              const row = menu.row;
+              setMenu(null);
+              setLogsRow(row);
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              padding: "7px 12px",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 8,
+              background: "transparent",
+              color: ui.textPrimary,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = darkMode
+                ? "rgba(255,255,255,0.07)"
+                : "rgba(0,0,0,0.05)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            📋 View Application Logs
+          </button>
+          <button
+            onClick={() => {
+              const row = menu.row;
+              setMenu(null);
+              setPasswordRow(row);
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              padding: "7px 12px",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 8,
+              background: "transparent",
+              color: ui.textPrimary,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = darkMode
+                ? "rgba(255,255,255,0.07)"
+                : "rgba(0,0,0,0.05)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            ✏️ Update Application Info
+          </button>
+        </div>
+      )}
+      {doctrackRow && (
+        <DoctrackModal
+          record={{ dtn: doctrackRow.dtn }}
+          onClose={() => setDoctrackRow(null)}
+          colors={colors}
+        />
+      )}
+      {logsRow && (
+        <ApplicationLogsModal
+          record={{ dtn: logsRow.dtn, mainDbId: logsRow.db_id }}
+          onClose={() => setLogsRow(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {passwordRow && (
+        <PasswordPromptModal
+          ui={ui}
+          darkMode={darkMode}
+          onCancel={() => setPasswordRow(null)}
+          onConfirm={() => {
+            setEditRecord(buildEditRecord(passwordRow));
+            setPasswordRow(null);
+          }}
+        />
+      )}
+
+      {editRecord && (
+        <EditRecordModal
+          record={editRecord}
+          colors={colors}
+          darkMode={darkMode}
+          updateUploadReport={updateUploadReport}
+          onClose={() => setEditRecord(null)}
+          onSuccess={() => setReloadKey((k) => k + 1)}
+        />
+      )}
+
+      {detail && (
+        <ViewDetailsModal
+          record={detail}
+          loading={detailLoading}
+          onClose={() => setDetail(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+    </>
   );
 }
 
@@ -1211,6 +1642,29 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     });
     return counts;
   };
+
+  const yearTotals = (() => {
+    const t = {
+      received: 0,
+      total: 0,
+      docs: Object.fromEntries(mergedDocTypes.map((dt) => [dt, 0])),
+      noDoc: 0,
+    };
+    yearSummaryData.forEach((row) => {
+      const counts = getDocCounts(row.year);
+      const released = Number(row.total) || 0;
+      let docSum = 0;
+      mergedDocTypes.forEach((dt) => {
+        t.docs[dt] += counts[dt];
+        docSum += counts[dt];
+      });
+      t.received += Number(row.received) || 0;
+      t.total += released;
+      t.noDoc += Math.max(released - docSum, 0);
+    });
+    return t;
+  })();
+
   // ── Styles ────────────────────────────────────────────────────
   const inputSt = {
     background: neuCardBg(darkMode),
@@ -1273,6 +1727,19 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     ...tdStyle(color, left),
     border: ysLine,
   });
+
+  const linkSt = {
+    cursor: "pointer",
+    textDecoration: "underline dotted",
+    textUnderlineOffset: 3,
+  };
+  const totalCell = {
+    fontWeight: 800,
+    background: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+    borderTop: `2px solid ${darkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)"}`,
+  };
+  const openYearDocRecords = (year, docType) =>
+    setRecordsTarget({ year: Number(year), kind: "released", docType });
 
   // ── Pagination component ──────────────────────────────────────
   const Pagination = ({ page, totalPages, onPageChange, total, pageSize }) => {
@@ -1382,6 +1849,20 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         Math.max(row.total - docSum, 0),
       ];
     });
+
+    rows.push([
+      "Total",
+      yearTotals.received,
+      yearTotals.total,
+      Number(
+        releasedRate({
+          received: yearTotals.received,
+          total: yearTotals.total,
+        }).toFixed(1),
+      ),
+      ...mergedDocTypes.map((dt) => yearTotals.docs[dt]),
+      yearTotals.noDoc,
+    ]);
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     ws["!cols"] = header.map((h, i) => ({
@@ -1800,13 +2281,65 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                         </td>
                         {mergedDocTypes.map((dt) => (
                           <td key={dt} style={ysTd()}>
-                            {counts[dt]}
+                            {counts[dt] > 0 ? (
+                              <span
+                                onClick={() => openYearDocRecords(row.year, dt)}
+                                title="Click to view records"
+                                style={linkSt}
+                              >
+                                {counts[dt]}
+                              </span>
+                            ) : (
+                              counts[dt]
+                            )}
                           </td>
                         ))}
-                        <td style={ysTd(ui.textMuted)}>{noDocType}</td>
+                        <td style={ysTd(ui.textMuted)}>
+                          {noDocType > 0 ? (
+                            <span
+                              onClick={() =>
+                                openYearDocRecords(row.year, NONE_KEY)
+                              }
+                              title="Click to view records"
+                              style={linkSt}
+                            >
+                              {noDocType}
+                            </span>
+                          ) : (
+                            noDocType
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
+
+                  {/* Total row */}
+                  <tr>
+                    <td style={{ ...ysTd(ui.textPrimary, true), ...totalCell }}>
+                      Total
+                    </td>
+                    <td style={{ ...ysTd(), ...totalCell }}>
+                      {yearTotals.received.toLocaleString()}
+                    </td>
+                    <td style={{ ...ysTd(), ...totalCell }}>
+                      {yearTotals.total.toLocaleString()}
+                    </td>
+                    <td style={{ ...ysTd(), ...totalCell }}>
+                      {releasedRate({
+                        received: yearTotals.received,
+                        total: yearTotals.total,
+                      }).toFixed(1)}
+                      %
+                    </td>
+                    {mergedDocTypes.map((dt) => (
+                      <td key={dt} style={{ ...ysTd(), ...totalCell }}>
+                        {yearTotals.docs[dt].toLocaleString()}
+                      </td>
+                    ))}
+                    <td style={{ ...ysTd(ui.textMuted), ...totalCell }}>
+                      {yearTotals.noDoc.toLocaleString()}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
