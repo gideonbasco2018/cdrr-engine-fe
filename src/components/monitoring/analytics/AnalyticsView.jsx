@@ -2598,6 +2598,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                 ].map((t) => (
                   <div
                     key={t.label}
+                    title={`${t.sub} → ${t.p.toFixed(1)}%`}
                     style={{
                       padding: "12px 14px",
                       borderRadius: 12,
@@ -2724,7 +2725,23 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                         Doc Type · Missing
                       </th>
                       <th style={ysTh()}>Complete</th>
-                      <th style={ysTh()}>Completeness</th>
+                      <th
+                        style={ysTh()}
+                        title="Completeness = Complete records ÷ Total records × 100"
+                      >
+                        Completeness
+                        <div
+                          style={{
+                            fontSize: "0.58rem",
+                            fontWeight: 500,
+                            textTransform: "none",
+                            letterSpacing: 0,
+                            marginTop: 2,
+                          }}
+                        >
+                          Complete ÷ Total × 100
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2765,7 +2782,10 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                             {miss(r.missing_doc ?? 0, "missing_doc")}
                           </td>
                           <td style={ysTd()}>{r.complete.toLocaleString()}</td>
-                          <td style={ysTd()}>
+                          <td
+                            style={ysTd()}
+                            title={`${r.complete.toLocaleString()} ÷ ${r.total.toLocaleString()} × 100 = ${p.toFixed(1)}%`}
+                          >
                             <div
                               style={{
                                 display: "flex",
@@ -2840,7 +2860,10 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                       <td style={{ ...ysTd(), ...totalCell }}>
                         {qualityTotals.complete.toLocaleString()}
                       </td>
-                      <td style={{ ...ysTd(), ...totalCell }}>
+                      <td
+                        style={{ ...ysTd(), ...totalCell }}
+                        title={`${qualityTotals.complete.toLocaleString()} ÷ ${qualityTotals.total.toLocaleString()} × 100`}
+                      >
                         {pct(
                           qualityTotals.complete,
                           qualityTotals.total,
