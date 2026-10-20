@@ -77,6 +77,9 @@ const RECORDS_PAGE_SIZE = 50;
 
 const NONE_KEY = "__NONE__";
 
+const NO_DATE = "No Date";
+const yearKey = (y) => (y === NO_DATE ? "nodate" : Number(y));
+
 const statusColor = (status) => {
   const s = String(status ?? "")
     .toUpperCase()
@@ -385,12 +388,15 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     setQuery("");
     setPage(1);
   };
+  const yearLabel = target.year === "nodate" ? "No Date" : target.year;
   const baseTitle =
     target.kind === "received"
-      ? `${target.year} — Received Applications`
-      : basis === "received"
-        ? `${target.year} — Released (of Received in ${target.year})`
-        : `${target.year} — Released in ${target.year}`;
+      ? `${yearLabel} — Received Applications`
+      : target.year === "nodate"
+        ? `${yearLabel} — Completed, no valid date`
+        : basis === "received"
+          ? `${yearLabel} — Released (of Received in ${yearLabel})`
+          : `${yearLabel} — Released in ${yearLabel}`;
   const title = target.docType
     ? `${baseTitle} · ${facetLabel(target.docType, "No Doc Type")}`
     : baseTitle;
@@ -1584,7 +1590,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const trendYearOptions = [
     ...new Set([...yearSummaryData.map((r) => String(r.year)), trendYear]),
   ]
-    .filter((y) => y !== "All")
+    .filter((y) => y !== "All" && y !== NO_DATE)
     .sort((a, b) => Number(b) - Number(a));
   const maxDrug = Math.max(...topDrugsData.map((d) => d.total), 1);
   const maxCountry = Math.max(...topCountriesData.map((d) => d.count), 1);
@@ -1739,7 +1745,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     borderTop: `2px solid ${darkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)"}`,
   };
   const openYearDocRecords = (year, docType) =>
-    setRecordsTarget({ year: Number(year), kind: "released", docType });
+    setRecordsTarget({ year: yearKey(year), kind: "released", docType });
 
   // ── Pagination component ──────────────────────────────────────
   const Pagination = ({ page, totalPages, onPageChange, total, pageSize }) => {
@@ -2255,7 +2261,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                               <span
                                 onClick={() =>
                                   setRecordsTarget({
-                                    year: Number(row.year),
+                                    year: yearKey(row.year),
                                     kind,
                                   })
                                 }
@@ -2277,7 +2283,9 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                           style={ysTd()}
                           title={`${row.total} ÷ ${row.received} × 100`}
                         >
-                          {releasedRate(row).toFixed(1)}%
+                          {row.year === NO_DATE
+                            ? "—"
+                            : `${releasedRate(row).toFixed(1)}%`}
                         </td>
                         {mergedDocTypes.map((dt) => (
                           <td key={dt} style={ysTd()}>
