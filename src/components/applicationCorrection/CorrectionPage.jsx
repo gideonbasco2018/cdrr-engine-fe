@@ -6,6 +6,7 @@ import { ReviewStep } from "./ReviewStep";
 import { MOCK_RECORD } from "./constants";
 import { cleanValue, formatDate } from "./utils";
 import { getTheme } from "./theme";
+import { ConfirmDateModal } from "./ConfirmDateModal";
 import {
   createApplicationLog,
   getLastApplicationLogIndex,
@@ -28,7 +29,14 @@ export function CorrectionPage({
   subject,
 }) {
   const t = getTheme(darkMode);
-  const rec = record ?? MOCK_RECORD;
+  const baseRec = record ?? MOCK_RECORD;
+
+  const [showDateConfirm, setShowDateConfirm] = useState(false);
+  const [dateReceivedCent, setDateReceivedCent] = useState(
+    baseRec.dateReceivedCent,
+  );
+  // Used by all child components so the edited date is reflected everywhere
+  const rec = { ...baseRec, dateReceivedCent };
 
   const [step, setStep] = useState(1);
   const [submitResult, setSubmitResult] = useState(null); // { success, message, new_dtn }
@@ -100,7 +108,8 @@ export function CorrectionPage({
 
   const handleNext = () => {
     if (step === 1) {
-      setStep(2);
+      // Ask for confirmation of the Date Received Central before moving on
+      setShowDateConfirm(true);
       return;
     }
     if (step === 2) {
@@ -115,6 +124,13 @@ export function CorrectionPage({
       }
       setStep(3);
     }
+  };
+
+  const handleDateConfirm = (newDate) => {
+    setDateReceivedCent(newDate);
+    setEditedFields((prev) => ({ ...prev, dateReceivedCent: newDate }));
+    setShowDateConfirm(false);
+    setStep(2);
   };
 
   const handleBack = () => (step > 1 ? setStep(step - 1) : onBack());
@@ -836,6 +852,14 @@ export function CorrectionPage({
           </div>
         </div>
       </div>
+
+      <ConfirmDateModal
+        open={showDateConfirm}
+        value={dateReceivedCent}
+        onConfirm={handleDateConfirm}
+        onCancel={() => setShowDateConfirm(false)}
+        darkMode={darkMode}
+      />
 
       {previewDoc && (
         <div
