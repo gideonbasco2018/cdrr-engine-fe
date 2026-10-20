@@ -8,6 +8,8 @@ import {
   getAnalyticsByClassification,
   getAnalyticsYearSummary,
   getAnalyticsYearRecords,
+  getAnalyticsDataQuality,
+  getAnalyticsQualityRecords,
   getAnalyticsSummaryRecords,
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
@@ -79,6 +81,10 @@ const NONE_KEY = "__NONE__";
 
 const NO_DATE = "No Date";
 const yearKey = (y) => (y === NO_DATE ? "nodate" : Number(y));
+
+const pct = (n, d) => (d > 0 ? (n / d) * 100 : 0);
+const completenessColor = (p) =>
+  p >= 95 ? "#36a420" : p >= 80 ? "#f59e0b" : "#e02020";
 
 const statusColor = (status) => {
   const s = String(status ?? "")
@@ -332,14 +338,20 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
           status: statusFilter === "All" ? undefined : statusFilter,
           doc_type: docFilter === "All" ? undefined : docFilter,
         };
-        const res = target.summary
-          ? await getAnalyticsSummaryRecords({ ...target.summary, ...common })
-          : await getAnalyticsYearRecords({
+        const res = target.quality
+          ? await getAnalyticsQualityRecords({
               year: target.year,
-              kind: target.kind,
-              basis,
+              issue: target.quality,
               ...common,
-            });
+            })
+          : target.summary
+            ? await getAnalyticsSummaryRecords({ ...target.summary, ...common })
+            : await getAnalyticsYearRecords({
+                year: target.year,
+                kind: target.kind,
+                basis,
+                ...common,
+              });
         if (cancelled) return;
         setRows(res.data ?? []);
         setTotal(res.total ?? 0);
@@ -691,6 +703,7 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                     <th style={th}>Status</th>
                     <th style={th}>Brand Name</th>
                     <th style={th}>Generic Name</th>
+                    {target.quality && <th style={th}>Missing</th>}
                     <th
                       style={{
                         ...th,
@@ -763,6 +776,28 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                       </td>
                       <td style={td}>{r.brand_name ?? "—"}</td>
                       <td style={td}>{r.generic_name ?? "—"}</td>
+                      {target.quality && (
+                        <td style={td}>
+                          {(r.issues ?? []).length
+                            ? r.issues.map((iss) => (
+                                <span
+                                  key={iss}
+                                  style={{
+                                    fontSize: "0.65rem",
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: 99,
+                                    color: "#e02020",
+                                    background: "#e0202022",
+                                    marginRight: 4,
+                                  }}
+                                >
+                                  {iss}
+                                </span>
+                              ))
+                            : "—"}
+                        </td>
+                      )}
                       <td
                         style={{
                           ...td,
@@ -1444,6 +1479,12 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [recordsTarget, setRecordsTarget] = useState(null); // { year, kind }
   const [loadingYear, setLoadingYear] = useState(true);
 
+  // ── Data completeness ────────────────────────────────────────
+  const [qualityData, setQualityData] = useState([]);
+  const [loadingQuality, setLoadingQuality] = useState(true);
+  const [showQualityNote, setShowQualityNote] = useState(false);
+  const qualityFetched = useRef(false);
+
   // ── Pagination ────────────────────────────────────────────────
   const [drugsPage, setDrugsPage] = useState(1);
   useEffect(() => {
@@ -1575,6 +1616,25 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     fetchTrend();
   }, [fetchTrend]);
 
+  const fetchQuality = useCallback(async () => {
+    setLoadingQuality(true);
+    try {
+      const res = await getAnalyticsDataQuality();
+      setQualityData(res.data ?? []);
+    } catch (err) {
+      console.error("Data quality fetch error:", err);
+    } finally {
+      setLoadingQuality(false);
+    }
+  }, []);
+
+  // load after the heavy sections finish (top drugs is last)
+  useEffect(() => {
+    if (loadingSec.drugs || qualityFetched.current) return;
+    qualityFetched.current = true;
+    fetchQuality();
+  }, [loadingSec.drugs]);
+
   useEffect(() => {
     if (loadedTabRef.current === topCountryTab) return;
     fetchCountries();
@@ -1671,6 +1731,33 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     return t;
   })();
 
+  const qualityTotals = qualityData.reduce(
+    (t, r) => ({
+      total: t.total + r.total,
+      received_filled: t.received_filled + r.received_filled,
+      release_expected: t.release_expected + r.release_expected,
+      released_filled: t.released_filled + r.released_filled,
+      doc_expected: t.doc_expected + (r.doc_expected ?? 0),
+      doc_filled: t.doc_filled + (r.doc_filled ?? 0),
+      complete: t.complete + r.complete,
+    }),
+    {
+      total: 0,
+      received_filled: 0,
+      release_expected: 0,
+      released_filled: 0,
+      doc_expected: 0,
+      doc_filled: 0,
+      complete: 0,
+    },
+  );
+  const qualityMissing = {
+    received: qualityTotals.total - qualityTotals.received_filled,
+    released: qualityTotals.release_expected - qualityTotals.released_filled,
+    doc: qualityTotals.doc_expected - qualityTotals.doc_filled,
+    incomplete: qualityTotals.total - qualityTotals.complete,
+  };
+
   // ── Styles ────────────────────────────────────────────────────
   const inputSt = {
     background: neuCardBg(darkMode),
@@ -1746,6 +1833,21 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   };
   const openYearDocRecords = (year, docType) =>
     setRecordsTarget({ year: yearKey(year), kind: "released", docType });
+
+  const openQualityRecords = (year, issue) => {
+    const labels = {
+      missing_received: "Missing Date Received",
+      missing_released: "Missing Date Released",
+      missing_doc: "Missing Type of Doc Released",
+      incomplete: "Incomplete records",
+      complete: "Complete records",
+    };
+    setRecordsTarget({
+      year: year === "all" ? "all" : yearKey(year),
+      quality: issue,
+      title: `${year === "all" ? "All years" : year} — ${labels[issue]}`,
+    });
+  };
 
   // ── Pagination component ──────────────────────────────────────
   const Pagination = ({ page, totalPages, onPageChange, total, pageSize }) => {
@@ -2351,6 +2453,405 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                 </tbody>
               </table>
             </div>
+          )}
+        </SectionCard>
+      </FadeSlideIn>
+
+      {/* ── Data Completeness ── */}
+      <FadeSlideIn delay={540}>
+        <SectionCard
+          title="Data Completeness"
+          subtitle="How complete the Date Received / Date Released fields are"
+          icon="🧮"
+          ui={ui}
+          darkMode={darkMode}
+          action={
+            <button
+              onClick={() => setShowQualityNote((v) => !v)}
+              style={neuBtnStyle(showQualityNote)}
+            >
+              ⓘ How is this measured?
+            </button>
+          }
+        >
+          {loadingQuality && qualityData.length === 0 ? (
+            <LoadingRows rows={6} height={28} darkMode={darkMode} />
+          ) : qualityData.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                color: ui.textMuted,
+                fontSize: "0.82rem",
+                padding: "24px 0",
+              }}
+            >
+              No data available
+            </div>
+          ) : (
+            <>
+              {showQualityNote && (
+                <div
+                  style={{
+                    marginBottom: 14,
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    fontSize: "0.74rem",
+                    lineHeight: 1.6,
+                    color: ui.textMuted,
+                    border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)"}`,
+                  }}
+                >
+                  <b style={{ color: ui.textPrimary }}>How it is measured</b>
+                  <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                    <li>
+                      A record is <b>complete</b> when its Date Received
+                      (Center) is valid, its Date Released is valid if it is
+                      expected to have one, and its Type of Doc Released is
+                      filled if it is expected to have one.
+                    </li>
+                    <li>
+                      <b>Date Released is expected</b> only when the status is
+                      COMPLETED. In progress, on-process and cancelled
+                      applications are not penalized for having no release date.
+                    </li>
+                    <li>
+                      <b>Type of Doc Released is expected</b> when the status is
+                      COMPLETED, or when the record already has a valid release
+                      date.
+                    </li>
+                    <li>
+                      <b>Valid date</b> = readable YYYY-MM-DD between 2000 and
+                      2100. Blanks, "N/A" and text such as "NOD 90" count as
+                      missing.
+                    </li>
+                    <li>
+                      <b>Completeness %</b> = complete records ÷ total records.
+                      Released % and Doc Type % only count records where the
+                      field is expected.
+                    </li>
+                    <li>
+                      Records are grouped by the year received; if there is no
+                      valid received date, by the year released; if neither,
+                      under "No Date".
+                    </li>
+                    <li>
+                      Limit: this checks that the data is present, not that it
+                      is correct. A wrong but valid-looking date still counts as
+                      complete.
+                    </li>
+                    <li>
+                      To fix a record, click a red number, then use{" "}
+                      <b>Actions ▾ → Update Application Info</b>.
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {/* Summary tiles */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: 12,
+                  marginBottom: 16,
+                }}
+              >
+                {[
+                  {
+                    label: "Overall completeness",
+                    p: pct(qualityTotals.complete, qualityTotals.total),
+                    sub: `${qualityTotals.complete.toLocaleString()} of ${qualityTotals.total.toLocaleString()} records`,
+                    missing: qualityMissing.incomplete,
+                    missingText: "need fixing",
+                    issue: "incomplete",
+                  },
+                  {
+                    label: "Date Received filled",
+                    p: pct(qualityTotals.received_filled, qualityTotals.total),
+                    sub: `${qualityTotals.received_filled.toLocaleString()} of ${qualityTotals.total.toLocaleString()} records`,
+                    missing: qualityMissing.received,
+                    missingText: "missing",
+                    issue: "missing_received",
+                  },
+                  {
+                    label: "Date Released filled",
+                    p: pct(
+                      qualityTotals.released_filled,
+                      qualityTotals.release_expected,
+                    ),
+                    sub: `${qualityTotals.released_filled.toLocaleString()} of ${qualityTotals.release_expected.toLocaleString()} expected`,
+                    missing: qualityMissing.released,
+                    missingText: "missing",
+                    issue: "missing_released",
+                  },
+                  {
+                    label: "Type of Doc Released filled",
+                    p: pct(
+                      qualityTotals.doc_filled,
+                      qualityTotals.doc_expected,
+                    ),
+                    sub: `${qualityTotals.doc_filled.toLocaleString()} of ${qualityTotals.doc_expected.toLocaleString()} expected`,
+                    missing: qualityMissing.doc,
+                    missingText: "missing",
+                    issue: "missing_doc",
+                  },
+                ].map((t) => (
+                  <div
+                    key={t.label}
+                    style={{
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      background: neuCardBg(darkMode),
+                      boxShadow: neuShadow(darkMode),
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.62rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        color: ui.textMuted,
+                      }}
+                    >
+                      {t.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "1.5rem",
+                        fontWeight: 800,
+                        color: completenessColor(t.p),
+                        lineHeight: 1.2,
+                        margin: "4px 0 6px",
+                      }}
+                    >
+                      {t.p.toFixed(1)}%
+                    </div>
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 99,
+                        overflow: "hidden",
+                        background: darkMode
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.min(t.p, 100)}%`,
+                          height: "100%",
+                          background: completenessColor(t.p),
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        marginTop: 6,
+                        fontSize: "0.68rem",
+                        color: ui.textMuted,
+                      }}
+                    >
+                      <span>{t.sub}</span>
+                      {t.missing > 0 ? (
+                        <span
+                          onClick={() => openQualityRecords("all", t.issue)}
+                          title="Click to view records"
+                          style={{
+                            ...linkSt,
+                            color: "#e02020",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {t.missing.toLocaleString()} {t.missingText}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#36a420", fontWeight: 700 }}>
+                          All filled
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Per-year table */}
+              <div
+                style={{
+                  overflowX: "auto",
+                  opacity: loadingQuality ? 0.5 : 1,
+                  transition: "opacity 0.2s",
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={ysTh(true)}>Year</th>
+                      <th style={ysTh()}>Total Records</th>
+                      <th style={ysTh()}>Received · Filled</th>
+                      <th style={ysTh()}>Received · Missing</th>
+                      <th
+                        style={ysTh()}
+                        title="Counts only records expected to be released"
+                      >
+                        Released · Filled
+                      </th>
+                      <th
+                        style={ysTh()}
+                        title="Expected to be released but no valid Date Released"
+                      >
+                        Released · Missing
+                      </th>
+                      <th
+                        style={ysTh()}
+                        title="Counts only records that are COMPLETED or already have a release date"
+                      >
+                        Doc Type · Filled
+                      </th>
+                      <th
+                        style={ysTh()}
+                        title="Expected to have a Type of Doc Released but blank"
+                      >
+                        Doc Type · Missing
+                      </th>
+                      <th style={ysTh()}>Complete</th>
+                      <th style={ysTh()}>Completeness</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {qualityData.map((r) => {
+                      const p = pct(r.complete, r.total);
+                      const miss = (n, issue) =>
+                        n > 0 ? (
+                          <span
+                            onClick={() => openQualityRecords(r.year, issue)}
+                            title="Click to view records"
+                            style={{ ...linkSt, color: "#e02020" }}
+                          >
+                            {n.toLocaleString()}
+                          </span>
+                        ) : (
+                          n
+                        );
+                      return (
+                        <tr key={r.year}>
+                          <td style={ysTd(ui.textPrimary, true)}>{r.year}</td>
+                          <td style={ysTd()}>{r.total.toLocaleString()}</td>
+                          <td style={ysTd()}>
+                            {r.received_filled.toLocaleString()}
+                          </td>
+                          <td style={ysTd()}>
+                            {miss(r.missing_received, "missing_received")}
+                          </td>
+                          <td style={ysTd()}>
+                            {r.released_filled.toLocaleString()}
+                          </td>
+                          <td style={ysTd()}>
+                            {miss(r.missing_released, "missing_released")}
+                          </td>
+                          <td style={ysTd()}>
+                            {(r.doc_filled ?? 0).toLocaleString()}
+                          </td>
+                          <td style={ysTd()}>
+                            {miss(r.missing_doc ?? 0, "missing_doc")}
+                          </td>
+                          <td style={ysTd()}>{r.complete.toLocaleString()}</td>
+                          <td style={ysTd()}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                minWidth: 150,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  flex: 1,
+                                  height: 6,
+                                  borderRadius: 99,
+                                  overflow: "hidden",
+                                  background: darkMode
+                                    ? "rgba(255,255,255,0.08)"
+                                    : "rgba(0,0,0,0.08)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${Math.min(p, 100)}%`,
+                                    height: "100%",
+                                    background: completenessColor(p),
+                                  }}
+                                />
+                              </div>
+                              <span
+                                style={{
+                                  color: completenessColor(p),
+                                  fontWeight: 700,
+                                  minWidth: 44,
+                                  textAlign: "right",
+                                }}
+                              >
+                                {p.toFixed(1)}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Total row */}
+                    <tr>
+                      <td
+                        style={{ ...ysTd(ui.textPrimary, true), ...totalCell }}
+                      >
+                        Total
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.total.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.received_filled.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityMissing.received.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.released_filled.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityMissing.released.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.doc_filled.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityMissing.doc.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.complete.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {pct(
+                          qualityTotals.complete,
+                          qualityTotals.total,
+                        ).toFixed(1)}
+                        %
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </SectionCard>
       </FadeSlideIn>
@@ -3095,7 +3596,10 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
           basis={yearBasis}
           ui={ui}
           darkMode={darkMode}
-          onClose={() => setRecordsTarget(null)}
+          onClose={() => {
+            if (recordsTarget?.quality) fetchQuality();
+            setRecordsTarget(null);
+          }}
         />
       )}
     </div>
