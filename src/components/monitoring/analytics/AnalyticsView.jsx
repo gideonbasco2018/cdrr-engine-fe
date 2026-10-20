@@ -1,5 +1,8 @@
 // src/components/monitoring/analytics/AnalyticsView.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import { updateUploadReport, getUploadReports } from "../../../api/reports";
+import { mapDataItem } from "../../reports/utils.js";
 
 import {
   getAnalyticsAvailableYears,
@@ -100,12 +103,6 @@ const facetLabel = (key, noneLabel) => (key === NONE_KEY ? noneLabel : key);
 // ── Password gate shown before editing a record ──────────────
 const EDIT_PASSWORD = "dikoalam12345";
 
-// TODO: replace with the real update function used by the Records page.
-// Until it is wired, saving will show this error instead of failing silently.
-const updateUploadReport = async () => {
-  throw new Error("updateUploadReport is not wired yet.");
-};
-
 function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
@@ -126,9 +123,11 @@ function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
     }
   };
 
-  return (
+  // Rendered in <body> so it is independent of the records modal.
+  // No click-outside-to-close on purpose: an accidental click or the
+  // browser's autofill popup must not dismiss it. Use Cancel or Esc.
+  return createPortal(
     <div
-      onClick={onCancel}
       style={{
         position: "fixed",
         inset: 0,
@@ -141,7 +140,6 @@ function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         style={{
           width: "min(380px, 100%)",
           background: neuCardBg(darkMode),
@@ -172,6 +170,10 @@ function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
         <input
           ref={inputRef}
           type="password"
+          name="edit-confirm-code"
+          autoComplete="new-password"
+          data-lpignore="true"
+          data-1p-ignore="true"
           value={value}
           placeholder="Password"
           onChange={(e) => {
@@ -242,7 +244,8 @@ function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -266,27 +269,37 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [logsRow, setLogsRow] = useState(null);
   const [passwordRow, setPasswordRow] = useState(null); // row waiting for password
   const [editRecord, setEditRecord] = useState(null); // record being edited
+  const [editLoading, setEditLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0); // bump to refetch rows after save
   subOpenRef.current = !!(
     doctrackRow ||
     detail ||
     logsRow ||
     passwordRow ||
-    editRecord
+    editRecord ||
+    editLoading
   );
 
-  const buildEditRecord = (r) => ({
-    id: r.db_id,
-    dtn: r.dtn,
-    entryType: r.entry_type,
-    dateReceivedCent: r.date_received_cent,
-    dateReleased: r.date_released,
-    typeDocReleased: r.type_doc_released,
-    appStatus: r.app_status,
-    prodBrName: r.brand_name,
-    prodGenName: r.generic_name,
-    secpaExpDate: r.secpa_exp_date,
-  });
+  // Load the FULL record (same shape the Records page uses) so saving
+  // never overwrites other columns with blanks.
+  const fetchFullRecord = async (r) => {
+    if (!r.dtn)
+      throw new Error("This record has no DTN, so it cannot be loaded.");
+    const res = await getUploadReports({
+      page: 1,
+      pageSize: 20,
+      search: "",
+      status: "",
+      sortBy: "DB_DATE_EXCEL_UPLOAD",
+      sortOrder: "desc",
+      dtn: parseInt(r.dtn, 10),
+    });
+    const match = (res?.data ?? [])
+      .map(mapDataItem)
+      .find((x) => String(x.id) === String(r.db_id));
+    if (!match) throw new Error("Full record not found.");
+    return match;
+  };
 
   const openDetails = async (r) => {
     const partial = {
@@ -537,6 +550,9 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
             </div>
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
+                type="text"
+                name="dtn-search"
+                autoComplete="off"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search DTN…"
@@ -999,12 +1015,42 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
           ui={ui}
           darkMode={darkMode}
           onCancel={() => setPasswordRow(null)}
-          onConfirm={() => {
-            setEditRecord(buildEditRecord(passwordRow));
+          onConfirm={async () => {
+            const row = passwordRow;
             setPasswordRow(null);
+            setEditLoading(true);
+            try {
+              setEditRecord(await fetchFullRecord(row));
+            } catch (err) {
+              console.error("Load full record failed:", err);
+              alert(`Could not open the record for editing.\n${err.message}`);
+            } finally {
+              setEditLoading(false);
+            }
           }}
         />
       )}
+
+      {editLoading &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.5)",
+              zIndex: 1300,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              fontFamily: font,
+              fontSize: "0.85rem",
+            }}
+          >
+            Loading record…
+          </div>,
+          document.body,
+        )}
 
       {editRecord && (
         <EditRecordModal
