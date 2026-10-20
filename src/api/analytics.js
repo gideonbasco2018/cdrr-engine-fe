@@ -12,6 +12,11 @@ export const getAnalyticsSummary = async (params = {}) => {
     return res.data;
 };
 
+export const getAnalyticsSummaryRecords = async (params = {}) => {
+    const res = await API.get("/analytics/summary/records", { params });
+    return res.data;
+};
+
 export const getAnalyticsTrend = async (params = {}) => {
     const res = await API.get("/analytics/trend", { params });
     return res.data;

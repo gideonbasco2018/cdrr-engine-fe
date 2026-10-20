@@ -8,8 +8,8 @@ export function SkeletonBox({
   darkMode,
 }) {
   const shimmerBg = darkMode
-    ? "linear-gradient(90deg, #252636 25%, #2f3045 50%, #252636 75%)"
-    : "linear-gradient(90deg, #e8ecf2 25%, #f4f6f9 50%, #e8ecf2 75%)";
+    ? "linear-gradient(90deg, #262626 25%, #333333 50%, #262626 75%)"
+    : "linear-gradient(90deg, #e8e8e8 25%, #f4f4f4 50%, #e8e8e8 75%)";
   return (
     <div
       style={{
@@ -160,11 +160,11 @@ export function AnalyticsSkeleton({ ui, darkMode }) {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(6, 1fr)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 200px))",
           gap: 10,
         }}
       >
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 4 }).map((_, i) => (
           <KpiCardSkeleton key={i} darkMode={darkMode} index={i} />
         ))}
       </div>
