@@ -175,6 +175,7 @@ function CountryYearTooltip({
                 ❌{d.lod ?? 0}
               </span>
               <span
+                title="In Progress"
                 style={{
                   fontSize: "0.65rem",
                   color: "#f59e0b",
@@ -182,7 +183,7 @@ function CountryYearTooltip({
                   textAlign: "right",
                 }}
               >
-                ⏳{d.on_process ?? 0}
+                ⏳{d.in_progress ?? d.on_process ?? 0}
               </span>
             </div>
           ))}
@@ -286,8 +287,11 @@ export function CountryRow({
           <span style={{ fontSize: "0.62rem", color: "#e02020" }}>
             ❌ {d.lod}
           </span>
-          <span style={{ fontSize: "0.62rem", color: "#f59e0b" }}>
-            ⏳ {d.on_process}
+          <span
+            title="In Progress"
+            style={{ fontSize: "0.62rem", color: "#f59e0b" }}
+          >
+            ⏳ {d.in_progress ?? d.on_process ?? 0}
           </span>
         </div>
       </div>

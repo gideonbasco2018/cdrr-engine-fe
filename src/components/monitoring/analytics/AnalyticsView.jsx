@@ -7,17 +7,20 @@ import {
   getAnalyticsTrend,
   getAnalyticsByClassification,
   getAnalyticsYearSummary,
+  getAnalyticsYearRecords,
+  getAnalyticsSummaryRecords,
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
   getDocTypeReleased,
 } from "../../../api/analytics";
 
+import * as XLSX from "xlsx";
 // ── Split modules ─────────────────────────────────────────────
 import "./analyticsAnimations";
 import { FB, MONTHS, ENTITY_TYPES, COUNTRY_FLAGS } from "./analyticsConstants";
 import { neuCardBg, neuShadow, neuInputShadow } from "./analyticsHelpers";
-import { AnalyticsSkeleton } from "./SkeletonComponents";
-import { FadeSlideIn, KpiCard } from "./KpiCard";
+import { SkeletonBox, SectionCardSkeleton } from "./SkeletonComponents";
+import { FadeSlideIn } from "./KpiCard";
 import { SectionCard } from "./SectionCard";
 import { MiniBar, TrendChart, DonutChart } from "./ChartComponents";
 import { CountryList } from "./CountryComponents";
@@ -25,6 +28,7 @@ import { CountryList } from "./CountryComponents";
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
+const CHART_SKELETON_HEIGHT = 260;
 const DRUGS_PAGE_SIZE = 10;
 
 const DOC_TYPE_COLOR = {
@@ -32,9 +36,11 @@ const DOC_TYPE_COLOR = {
   LOD: "#e02020",
   GLE: "#0891b2",
   Cert: "#9333ea",
+  CERT: "#9333ea", // merged Cert + Certificate
   COPP: "#f59e0b",
   CFS: "#e87c13",
 };
+
 const TYPE_COLORS = {
   RX: "#4f8ef7",
   OTC: "#f59e0b",
@@ -44,6 +50,698 @@ const TYPE_COLORS = {
 
 const docTypeColor = (dt) => DOC_TYPE_COLOR[dt] ?? FB;
 const classTypeColor = (short) => TYPE_COLORS[short] ?? FB;
+
+// Cert / CERT / Certificate -> "CERT"
+const normalizeDocType = (dt) => {
+  const raw = String(dt).trim();
+  const k = raw.toLowerCase();
+  return k === "cert" || k === "certificate" ? "CERT" : raw;
+};
+// LOD ay "LETTER" sa header
+const docTypeLabel = (dt) => dt;
+
+// Rate = Total Released / Received Application (lahat ng released)
+const releasedRate = (row) => {
+  const received = Number(row.received) || 0;
+  const released = Number(row.total) || 0;
+  return received > 0 ? (released / received) * 100 : 0;
+};
+const DOC_ORDER = ["CERT", "CPR", "GLE", "LOD"];
+
+// ── Year Summary drill-down modal ─────────────────────────────
+const RECORDS_PAGE_SIZE = 50;
+
+const NONE_KEY = "__NONE__";
+
+const statusColor = (status) => {
+  const s = String(status ?? "")
+    .toUpperCase()
+    .replace(/[\s_-]+/g, " ")
+    .trim();
+  if (s === "COMPLETED") return "#36a420";
+  if (s === "ON PROCESS" || s === "IN PROGRESS") return "#f59e0b";
+  return "#9ca3af";
+};
+const facetLabel = (key, noneLabel) => (key === NONE_KEY ? noneLabel : key);
+
+function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [docFilter, setDocFilter] = useState("All");
+  const [statusCounts, setStatusCounts] = useState([]);
+  const [docCounts, setDocCounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // debounce DTN search
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setQuery(search.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const common = {
+          page,
+          page_size: RECORDS_PAGE_SIZE,
+          search: query || undefined,
+          status: statusFilter === "All" ? undefined : statusFilter,
+          doc_type: docFilter === "All" ? undefined : docFilter,
+        };
+        const res = target.summary
+          ? await getAnalyticsSummaryRecords({ ...target.summary, ...common })
+          : await getAnalyticsYearRecords({
+              year: target.year,
+              kind: target.kind,
+              basis,
+              ...common,
+            });
+        if (cancelled) return;
+        setRows(res.data ?? []);
+        setTotal(res.total ?? 0);
+        setStatusCounts(res.status_counts ?? []);
+        setDocCounts(res.doc_type_counts ?? []);
+      } catch (err) {
+        console.error("Year records fetch error:", err);
+        if (!cancelled) setError("Failed to load records.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [target, basis, page, query, statusFilter, docFilter]);
+
+  // close on Esc
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+  const totalPages = Math.max(Math.ceil(total / RECORDS_PAGE_SIZE), 1);
+  const start = total === 0 ? 0 : (page - 1) * RECORDS_PAGE_SIZE + 1;
+  const end = Math.min(page * RECORDS_PAGE_SIZE, total);
+  const filtersActive =
+    statusFilter !== "All" || docFilter !== "All" || query !== "";
+
+  const statusAll = statusCounts.reduce((s, x) => s + x.count, 0);
+  // keep the selected option visible even if its count dropped to 0
+  const statusOptions =
+    statusFilter !== "All" && !statusCounts.some((x) => x.key === statusFilter)
+      ? [...statusCounts, { key: statusFilter, count: 0 }]
+      : statusCounts;
+  const docOptions =
+    docFilter !== "All" && !docCounts.some((x) => x.key === docFilter)
+      ? [...docCounts, { key: docFilter, count: 0 }]
+      : docCounts;
+
+  const clearFilters = () => {
+    setStatusFilter("All");
+    setDocFilter("All");
+    setSearch("");
+    setQuery("");
+    setPage(1);
+  };
+
+  const title =
+    target.kind === "received"
+      ? `${target.year} — Received Applications`
+      : basis === "received"
+        ? `${target.year} — Released (of Received in ${target.year})`
+        : `${target.year} — Released in ${target.year}`;
+
+  const th = {
+    padding: "8px 10px",
+    textAlign: "left",
+    fontSize: "0.65rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: ui.textMuted,
+    border: `1px solid ${line}`,
+    whiteSpace: "nowrap",
+    background: neuCardBg(darkMode),
+    position: "sticky",
+    top: 0,
+    zIndex: 1,
+  };
+  const td = {
+    padding: "8px 10px",
+    fontSize: "0.78rem",
+    fontWeight: 500,
+    color: ui.textPrimary,
+    border: `1px solid ${line}`,
+    whiteSpace: "nowrap",
+  };
+  const pageBtn = (disabled) => ({
+    padding: "4px 12px",
+    fontSize: "0.75rem",
+    borderRadius: 8,
+    border: "none",
+    background: neuCardBg(darkMode),
+    color: ui.textPrimary,
+    boxShadow: neuShadow(darkMode, true),
+    fontFamily: font,
+    opacity: disabled ? 0.35 : 1,
+    cursor: disabled ? "not-allowed" : "pointer",
+  });
+  const chip = (active, color) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 12px",
+    fontSize: "0.72rem",
+    fontWeight: active ? 700 : 500,
+    borderRadius: 99,
+    border: `1px solid ${active ? color : line}`,
+    background: active ? `${color}22` : "transparent",
+    color: active ? color : ui.textMuted,
+    cursor: "pointer",
+    fontFamily: font,
+    transition: "all 0.15s",
+  });
+  const selectSt = {
+    background: neuCardBg(darkMode),
+    border: `1px solid ${line}`,
+    borderRadius: 8,
+    padding: "5px 10px",
+    fontSize: "0.75rem",
+    color: ui.textPrimary,
+    outline: "none",
+    fontFamily: font,
+    colorScheme: darkMode ? "dark" : "light",
+    maxWidth: 220,
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        zIndex: 1000,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(1100px, 100%)",
+          maxHeight: "88vh",
+          display: "flex",
+          flexDirection: "column",
+          background: neuCardBg(darkMode),
+          borderRadius: 16,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+          fontFamily: font,
+          overflow: "hidden",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "14px 18px",
+            borderBottom: `1px solid ${line}`,
+            flexWrap: "wrap",
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: "0.95rem",
+                fontWeight: 700,
+                color: ui.textPrimary,
+              }}
+            >
+              {target.title ?? title}
+            </div>
+            <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+              {loading
+                ? "Loading…"
+                : `${total.toLocaleString()} record(s)${filtersActive ? " (filtered)" : ""}`}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search DTN…"
+              style={{
+                background: neuCardBg(darkMode),
+                border: `1px solid ${line}`,
+                borderRadius: 8,
+                padding: "6px 10px",
+                fontSize: "0.78rem",
+                color: ui.textPrimary,
+                outline: "none",
+                fontFamily: font,
+                colorScheme: darkMode ? "dark" : "light",
+              }}
+            />
+            <button
+              onClick={onClose}
+              title="Close (Esc)"
+              style={{
+                ...pageBtn(false),
+                fontSize: "0.9rem",
+                padding: "4px 10px",
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+
+        {/* Filters + status counts */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            padding: "10px 18px",
+            borderBottom: `1px solid ${line}`,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            <button
+              onClick={() => {
+                setStatusFilter("All");
+                setPage(1);
+              }}
+              style={chip(statusFilter === "All", FB)}
+            >
+              All <b>{statusAll.toLocaleString()}</b>
+            </button>
+            {statusOptions.map((s) => {
+              const color = statusColor(s.key);
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => {
+                    setStatusFilter(statusFilter === s.key ? "All" : s.key);
+                    setPage(1);
+                  }}
+                  style={chip(statusFilter === s.key, color)}
+                >
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      background: color,
+                    }}
+                  />
+                  {facetLabel(s.key, "No Status")}{" "}
+                  <b>{s.count.toLocaleString()}</b>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                color: ui.textMuted,
+              }}
+            >
+              Doc Type
+            </span>
+            <select
+              value={docFilter}
+              onChange={(e) => {
+                setDocFilter(e.target.value);
+                setPage(1);
+              }}
+              style={selectSt}
+            >
+              <option value="All">All</option>
+              {docOptions.map((d) => (
+                <option key={d.key} value={d.key}>
+                  {facetLabel(d.key, "No Doc Type")} ({d.count.toLocaleString()}
+                  )
+                </option>
+              ))}
+            </select>
+            {filtersActive && (
+              <button
+                onClick={clearFilters}
+                style={{ ...pageBtn(false), fontSize: "0.7rem" }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Table */}
+        <div
+          style={{
+            overflow: "auto",
+            flex: 1,
+            opacity: loading ? 0.5 : 1,
+            transition: "opacity 0.2s",
+          }}
+        >
+          {error ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: 40,
+                color: ui.textMuted,
+                fontSize: "0.85rem",
+              }}
+            >
+              {error}
+            </div>
+          ) : !loading && rows.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: 40,
+                color: ui.textMuted,
+                fontSize: "0.85rem",
+              }}
+            >
+              No records found
+            </div>
+          ) : (
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "0.8rem",
+              }}
+            >
+              <thead>
+                <tr>
+                  <th style={{ ...th, textAlign: "center" }}>#</th>
+                  <th style={th}>DTN</th>
+                  <th style={th}>Entry Type</th>
+                  <th style={th}>Date Received (Center)</th>
+                  <th style={th}>Date Released</th>
+                  {target.summary && <th style={th}>Validity</th>}
+                  <th style={th}>Type of Doc Released</th>
+                  <th style={th}>Status</th>
+                  <th style={th}>Brand Name</th>
+                  <th style={th}>Generic Name</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={r.db_id}>
+                    <td
+                      style={{
+                        ...td,
+                        textAlign: "center",
+                        color: ui.textMuted,
+                      }}
+                    >
+                      {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
+                    </td>
+                    <td style={td}>{r.dtn ?? "—"}</td>
+                    <td style={td}>{r.entry_type ?? "—"}</td>
+                    <td style={td}>{r.date_received_cent ?? "—"}</td>
+                    <td style={td}>{r.date_released ?? "—"}</td>
+                    {target.summary && (
+                      <td style={td}>{r.secpa_exp_date ?? "—"}</td>
+                    )}
+                    <td style={td}>{r.type_doc_released ?? "—"}</td>
+                    <td style={td}>
+                      {r.app_status ? (
+                        <span
+                          style={{
+                            fontSize: "0.68rem",
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: 99,
+                            color: statusColor(r.app_status),
+                            background: `${statusColor(r.app_status)}22`,
+                          }}
+                        >
+                          {r.app_status}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td style={td}>{r.brand_name ?? "—"}</td>
+                    <td style={td}>{r.generic_name ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer / pagination */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 18px",
+            borderTop: `1px solid ${line}`,
+          }}
+        >
+          <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+            {start}–{end} of {total.toLocaleString()}
+          </span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button
+              style={pageBtn(page === 1)}
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              ‹ Prev
+            </button>
+            <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+              Page {page} / {totalPages}
+            </span>
+            <button
+              style={pageBtn(page >= totalPages)}
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next ›
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Compact KPI tile (optional hover breakdown) ──────────────
+function KpiTile({
+  icon,
+  label,
+  value,
+  sub,
+  color,
+  darkMode,
+  ui,
+  delay = 0,
+  breakdown,
+}) {
+  const [hov, setHov] = useState(false);
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+
+  // number that becomes a clickable link when onClick is given
+  const Val = ({ n, c, onClick, size }) =>
+    onClick && n > 0 ? (
+      <span
+        onClick={onClick}
+        title="Click to view records"
+        style={{
+          fontSize: size,
+          fontWeight: size === "1rem" ? 800 : 700,
+          color: c,
+          cursor: "pointer",
+          textDecoration: "underline dotted",
+          textUnderlineOffset: 3,
+        }}
+      >
+        {n.toLocaleString()}
+      </span>
+    ) : (
+      <span
+        style={{
+          fontSize: size,
+          fontWeight: size === "1rem" ? 800 : 700,
+          color: c,
+        }}
+      >
+        {n.toLocaleString()}
+      </span>
+    );
+
+  return (
+    <div
+      onMouseEnter={() => breakdown && setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        position: "relative",
+        zIndex: hov ? 10 : 1,
+        background: neuCardBg(darkMode),
+        borderRadius: 12,
+        padding: "9px 14px 10px",
+        boxShadow: neuShadow(darkMode),
+        borderTop: `2px solid ${color}`,
+        cursor: breakdown ? "help" : "default",
+        animation: "analytics-fade-slide-up 0.4s ease both",
+        animationDelay: `${delay}ms`,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 6,
+        }}
+      >
+        <span
+          style={{
+            fontSize: "0.62rem",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            color: ui.textMuted,
+          }}
+        >
+          {label}
+          {breakdown && <span style={{ marginLeft: 4, opacity: 0.7 }}>ⓘ</span>}
+        </span>
+        <span style={{ fontSize: "0.85rem" }}>{icon}</span>
+      </div>
+      <div
+        style={{
+          fontSize: "1.3rem",
+          fontWeight: 800,
+          color,
+          lineHeight: 1.2,
+          margin: "3px 0 1px",
+        }}
+      >
+        {typeof value === "number" ? value.toLocaleString() : value}
+      </div>
+      <div style={{ fontSize: "0.62rem", color: ui.textMuted }}>{sub}</div>
+
+      {hov && breakdown && (
+        // paddingTop bridges the gap so the popup stays open while moving the mouse into it
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            paddingTop: 8,
+            zIndex: 20,
+          }}
+        >
+          <div
+            style={{
+              minWidth: 250,
+              background: neuCardBg(darkMode),
+              border: `1px solid ${line}`,
+              borderRadius: 12,
+              padding: "12px 14px",
+              boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+            }}
+          >
+            {breakdown.map((sec, i) => (
+              <div
+                key={sec.title}
+                style={{
+                  borderTop: i > 0 ? `1px solid ${line}` : "none",
+                  paddingTop: i > 0 ? 10 : 0,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: 16,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                      color: sec.color,
+                    }}
+                  >
+                    {sec.title}
+                  </span>
+                  <Val
+                    n={sec.total}
+                    c={sec.color}
+                    onClick={sec.onClick}
+                    size="1rem"
+                  />
+                </div>
+                {(sec.rows ?? [])
+                  .filter((r) => r.show !== false)
+                  .map((r) => (
+                    <div
+                      key={r.label}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 16,
+                        padding: "4px 0 0 10px",
+                        fontSize: "0.72rem",
+                      }}
+                    >
+                      <span style={{ color: ui.textMuted }}>{r.label}</span>
+                      <Val
+                        n={r.value}
+                        c={r.color}
+                        onClick={r.onClick}
+                        size="0.72rem"
+                      />
+                    </div>
+                  ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Pure SVG pie chart (no deps) ─────────────────────────────
 function PieChart({ slices, darkMode, ui }) {
@@ -240,24 +938,42 @@ function PieChart({ slices, darkMode, ui }) {
   );
 }
 
-export default function AnalyticsView({
-  ui,
-  darkMode,
-  chartYear,
-  setChartYear,
-  chartMonth,
-  setChartMonth,
-  rxFilter,
-  setRxFilter,
-  onSliceClick,
-}) {
+// ── Skeleton rows shown while a section is loading ───────────
+function LoadingRows({ rows = 5, height = 28, darkMode }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {Array.from({ length: rows }).map((_, i) => (
+        <SkeletonBox
+          key={i}
+          width="100%"
+          height={height}
+          radius={6}
+          darkMode={darkMode}
+          style={{ opacity: 1 - i * 0.1 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
+  // Filtering is temporarily disabled: always show all data.
+  const chartYear = "All";
+  const chartMonth = "All";
+  const rxFilter = "All";
   const [availableYears, setAvailableYears] = useState(["All"]);
   const [summary, setSummary] = useState({
     total: 0,
     cpr: 0,
     lod: 0,
     on_process: 0,
+    in_progress: 0,
     completed: 0,
+    cpr_expired: 0,
+    cpr_not_expired: 0,
+    cpr_no_expiry: 0,
+    cpr_completed: 0,
+    lod_completed: 0,
     approval_rate: 0,
   });
   const [trendData, setTrendData] = useState([]);
@@ -267,13 +983,29 @@ export default function AnalyticsView({
   const [topDrugsData, setTopDrugsData] = useState([]);
   const [topCountriesData, setTopCountriesData] = useState([]);
   const [docTypeData, setDocTypeData] = useState({ doc_types: [], data: [] });
-  const [loading, setLoading] = useState(true);
+  const [loadingSec, setLoadingSec] = useState({
+    kpi: true,
+    trend: true,
+    classification: true,
+    countries: true,
+    drugs: true,
+  });
+  const runId = useRef(0);
+  const loadedTabRef = useRef("mfr");
   const [loadingCountries, setLoadingCountries] = useState(false);
   const [topCountryTab, setTopCountryTab] = useState("mfr");
   const [lastUpdated, setLastUpdated] = useState(null);
+  // ── Trend card has its own year filter (default 2026) ────────
+  const [trendYear, setTrendYear] = useState("2026");
+  const trendRunId = useRef(0);
 
   // ── Pie toggle: "classification" | "doctype" ─────────────────
   const [pieView, setPieView] = useState("classification");
+
+  // ── Year summary basis: "released" | "received" ──────────────
+  const [yearBasis, setYearBasis] = useState("released");
+  const [recordsTarget, setRecordsTarget] = useState(null); // { year, kind }
+  const [loadingYear, setLoadingYear] = useState(true);
 
   // ── Pagination ────────────────────────────────────────────────
   const [drugsPage, setDrugsPage] = useState(1);
@@ -282,53 +1014,61 @@ export default function AnalyticsView({
   }, [chartYear, chartMonth, rxFilter]);
 
   // ── Fetch main ────────────────────────────────────────────────
+
   const fetchMain = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = {
-        year: chartYear,
-        month: chartMonth,
-        prescription: rxFilter,
-      };
-      const countryParams = {
+    const id = ++runId.current;
+    const stale = () => id !== runId.current;
+    const params = {
+      year: chartYear,
+      month: chartMonth,
+      prescription: rxFilter,
+    };
+
+    const run = async (key, task) => {
+      setLoadingSec((s) => ({ ...s, [key]: true }));
+      try {
+        await task();
+      } catch (err) {
+        console.error(`Analytics ${key} fetch error:`, err);
+      } finally {
+        if (!stale()) setLoadingSec((s) => ({ ...s, [key]: false }));
+      }
+    };
+
+    // 1)
+    await run("kpi", async () => {
+      const sum = await getAnalyticsSummary(params);
+      if (!stale()) setSummary(sum);
+    });
+    if (stale()) return;
+
+    // 2)
+    await run("classification", async () => {
+      const res = await getAnalyticsByClassification(params);
+      if (stale()) return;
+      setClassificationData(res.data ?? []);
+      setClassDocTypes(res.doc_types ?? []);
+    });
+    if (stale()) return;
+
+    await run("countries", async () => {
+      const res = await getAnalyticsTopCountries({
         ...params,
         entity_type: topCountryTab,
         limit: 999,
-      };
-      const [
-        years,
-        sum,
-        trend,
-        classification,
-        yearSum,
-        drugs,
-        countries,
-        docType,
-      ] = await Promise.all([
-        getAnalyticsAvailableYears(),
-        getAnalyticsSummary(params),
-        getAnalyticsTrend(params),
-        getAnalyticsByClassification(params),
-        getAnalyticsYearSummary(),
-        getAnalyticsTopDrugs(params),
-        getAnalyticsTopCountries(countryParams),
-        getDocTypeReleased(),
-      ]);
-      setAvailableYears(years.years ?? ["All"]);
-      setSummary(sum);
-      setTrendData(trend.data ?? []);
-      setClassificationData(classification.data ?? []);
-      setClassDocTypes(classification.doc_types ?? []);
-      setYearSummaryData(yearSum.data ?? []);
-      setTopDrugsData(drugs.data ?? []);
-      setTopCountriesData(countries.data ?? []);
-      setDocTypeData(docType ?? { doc_types: [], data: [] });
-      setLastUpdated(new Date());
-    } catch (err) {
-      console.error("Analytics fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
+      });
+      if (stale()) return;
+      setTopCountriesData(res.data ?? []);
+      loadedTabRef.current = topCountryTab;
+    });
+    if (stale()) return;
+
+    // 3)
+    await run("drugs", async () => {
+      const res = await getAnalyticsTopDrugs(params);
+      if (!stale()) setTopDrugsData(res.data ?? []);
+    });
+    if (!stale()) setLastUpdated(new Date());
   }, [chartYear, chartMonth, rxFilter]);
 
   const fetchCountries = useCallback(async () => {
@@ -342,6 +1082,7 @@ export default function AnalyticsView({
         limit: 999,
       });
       setTopCountriesData(countries.data ?? []);
+      loadedTabRef.current = topCountryTab;
     } catch (err) {
       console.error("Top countries fetch error:", err);
     } finally {
@@ -349,16 +1090,56 @@ export default function AnalyticsView({
     }
   }, [chartYear, chartMonth, rxFilter, topCountryTab]);
 
+  const fetchYearSummary = useCallback(async () => {
+    setLoadingYear(true);
+    try {
+      const [yearSum, docType] = await Promise.all([
+        getAnalyticsYearSummary({ basis: yearBasis }),
+        getDocTypeReleased({ basis: yearBasis }),
+      ]);
+      setYearSummaryData(yearSum.data ?? []);
+      setDocTypeData(docType ?? { doc_types: [], data: [] });
+    } catch (err) {
+      console.error("Year summary fetch error:", err);
+    } finally {
+      setLoadingYear(false);
+    }
+  }, [yearBasis]);
+
+  const fetchTrend = useCallback(async () => {
+    const id = ++trendRunId.current;
+    setLoadingSec((s) => ({ ...s, trend: true }));
+    try {
+      const trend = await getAnalyticsTrend({
+        year: trendYear,
+        month: chartMonth,
+        prescription: rxFilter,
+      });
+      if (id !== trendRunId.current) return;
+      setTrendData(trend.data ?? []);
+    } catch (err) {
+      console.error("Trend fetch error:", err);
+    } finally {
+      if (id === trendRunId.current) {
+        setLoadingSec((s) => ({ ...s, trend: false }));
+      }
+    }
+  }, [trendYear, chartMonth, rxFilter]);
+
   useEffect(() => {
     fetchMain();
   }, [chartYear, chartMonth, rxFilter]);
 
-  const isFirstCountryRender = useRef(true);
   useEffect(() => {
-    if (isFirstCountryRender.current) {
-      isFirstCountryRender.current = false;
-      return;
-    }
+    fetchYearSummary();
+  }, [yearBasis]);
+
+  useEffect(() => {
+    fetchTrend();
+  }, [fetchTrend]);
+
+  useEffect(() => {
+    if (loadedTabRef.current === topCountryTab) return;
     fetchCountries();
   }, [topCountryTab]);
 
@@ -366,8 +1147,14 @@ export default function AnalyticsView({
   const pieData = [
     { name: "CPR Released", value: summary.cpr },
     { name: "LOD Released", value: summary.lod },
-    { name: "On Process", value: summary.on_process },
+    { name: "In Progress", value: summary.in_progress ?? summary.on_process },
   ];
+
+  const trendYearOptions = [
+    ...new Set([...yearSummaryData.map((r) => String(r.year)), trendYear]),
+  ]
+    .filter((y) => y !== "All")
+    .sort((a, b) => Number(b) - Number(a));
   const maxDrug = Math.max(...topDrugsData.map((d) => d.total), 1);
   const maxCountry = Math.max(...topCountriesData.map((d) => d.count), 1);
 
@@ -404,6 +1191,26 @@ export default function AnalyticsView({
   const activePieSlices =
     pieView === "classification" ? classPieSlices : docTypePieSlices;
 
+  // ── Merged doc types for Year Summary (Cert + Certificate = CERT) ──
+  const mergedDocTypes = [
+    ...new Set((docTypeData.doc_types ?? []).map(normalizeDocType)),
+  ].sort((a, b) => {
+    const ia = DOC_ORDER.indexOf(a),
+      ib = DOC_ORDER.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+
+  const getDocCounts = (year) => {
+    const docRow = docTypeData.data.find(
+      (d) => String(d.year) === String(year),
+    );
+    const counts = Object.fromEntries(mergedDocTypes.map((dt) => [dt, 0]));
+    Object.entries(docRow?.by_doc_type ?? {}).forEach(([dt, n]) => {
+      const k = normalizeDocType(dt);
+      counts[k] = (counts[k] ?? 0) + (Number(n) || 0);
+    });
+    return counts;
+  };
   // ── Styles ────────────────────────────────────────────────────
   const inputSt = {
     background: neuCardBg(darkMode),
@@ -454,6 +1261,17 @@ export default function AnalyticsView({
     fontWeight: 600,
     color,
     whiteSpace: "nowrap",
+  });
+
+  // ── Year Summary bordered cells ──
+  const ysLine = `1px solid ${darkMode ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.15)"}`;
+  const ysTh = (left = false) => ({
+    ...thStyle(left),
+    border: ysLine,
+  });
+  const ysTd = (color = ui.textPrimary, left = false) => ({
+    ...tdStyle(color, left),
+    border: ysLine,
   });
 
   // ── Pagination component ──────────────────────────────────────
@@ -540,7 +1358,65 @@ export default function AnalyticsView({
     );
   };
 
-  if (loading) return <AnalyticsSkeleton ui={ui} darkMode={darkMode} />;
+  // ── Export Year-by-Year Summary to Excel ──────────────────────
+  const handleExportYearSummary = () => {
+    const header = [
+      "Year",
+      "Received Application",
+      "Total Released",
+      "Rate (%) = Released ÷ Received × 100",
+      ...mergedDocTypes.map(docTypeLabel),
+      "No Doc Type",
+    ];
+
+    const rows = yearSummaryData.map((row) => {
+      const counts = getDocCounts(row.year);
+      const docCounts = mergedDocTypes.map((dt) => counts[dt]);
+      const docSum = docCounts.reduce((s, n) => s + n, 0);
+      return [
+        Number(row.year) || row.year,
+        row.received ?? 0,
+        row.total,
+        Number(releasedRate(row).toFixed(1)),
+        ...docCounts,
+        Math.max(row.total - docSum, 0),
+      ];
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
+    ws["!cols"] = header.map((h, i) => ({
+      wch: i === 0 ? 8 : Math.max(10, String(h).length + 2),
+    }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Year Summary");
+    XLSX.writeFile(
+      wb,
+      `year-by-year-summary_${yearBasis}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+    );
+  };
+
+  // ── KPI hover drill-down (CPR / LOD) ──
+  const openSummaryRecords = (label, doc, expiry = "all") => {
+    const scope = [
+      chartYear === "All" ? "All years" : chartYear,
+      chartMonth !== "All" ? (MONTHS[chartMonth] ?? chartMonth) : null,
+      rxFilter !== "All" ? rxFilter : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    setRecordsTarget({
+      title: `${label} — ${scope}`,
+      summary: {
+        year: chartYear,
+        month: chartMonth,
+        prescription: rxFilter,
+        doc,
+        expiry,
+        completed_only: true,
+      },
+    });
+  };
 
   return (
     <div
@@ -554,273 +1430,251 @@ export default function AnalyticsView({
         borderRadius: 20,
       }}
     >
-      {/* ── Header ── */}
-      <FadeSlideIn delay={0}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          <div>
-            <h2
-              style={{
-                margin: 0,
-                fontSize: "1.1rem",
-                fontWeight: 700,
-                color: ui.textPrimary,
-              }}
-            >
-              📊 Analytics Overview
-            </h2>
-            <p
-              style={{
-                margin: "3px 0 0",
-                fontSize: "0.75rem",
-                color: ui.textMuted,
-              }}
-            >
-              Real-time data from main database
-              {lastUpdated && (
-                <span>
-                  {" "}
-                  · Updated{" "}
-                  {lastUpdated.toLocaleTimeString("en-PH", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </span>
-              )}
-            </p>
-          </div>
+      {/* ── KPI (side) + Trend + Donut ── */}
+      <div style={{ position: "relative", zIndex: 30 }}>
+        <FadeSlideIn delay={420}>
           <div
             style={{
-              display: "flex",
-              gap: 8,
-              alignItems: "flex-end",
-              flexWrap: "wrap",
+              display: "grid",
+              gridTemplateColumns: "190px 2fr 1fr",
+              gap: 14,
+              alignItems: "start",
             }}
           >
-            <div>
-              <p
-                style={{
-                  margin: "0 0 4px",
-                  fontSize: "0.65rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: ui.textMuted,
-                }}
-              >
-                Classification
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  background: neuCardBg(darkMode),
-                  borderRadius: 12,
-                  padding: 4,
-                  gap: 3,
-                  boxShadow: neuShadow(darkMode, false),
-                }}
-              >
-                {[
-                  { key: "All", label: "All" },
-                  { key: "Over-the-Counter (OTC)", label: "OTC" },
-                  { key: "Vaccine", label: "Vaccine" },
-                  { key: "Prescription Drug (RX)", label: "RX" },
-                ].map(({ key, label }) => (
-                  <button
-                    key={key}
-                    onClick={() => setRxFilter(key)}
-                    style={neuBtnStyle(rxFilter === key)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p
-                style={{
-                  margin: "0 0 4px",
-                  fontSize: "0.65rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: ui.textMuted,
-                }}
-              >
-                Year
-              </p>
-              <select
-                value={chartYear}
-                onChange={(e) => {
-                  setChartYear(e.target.value);
-                  setChartMonth("All");
-                }}
-                style={{ ...inputSt, minWidth: 85 }}
-              >
-                {availableYears.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <p
-                style={{
-                  margin: "0 0 4px",
-                  fontSize: "0.65rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: ui.textMuted,
-                }}
-              >
-                Month
-              </p>
-              <select
-                value={chartMonth}
-                onChange={(e) => setChartMonth(e.target.value)}
-                disabled={chartYear === "All"}
-                style={{
-                  ...inputSt,
-                  minWidth: 110,
-                  opacity: chartYear === "All" ? 0.4 : 1,
-                }}
-              >
-                <option value="All">All Months</option>
-                {MONTHS.map((m, i) => (
-                  <option key={i} value={i}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={fetchMain}
-              title="Refresh"
+            {/* KPI column */}
+            <div
               style={{
-                ...inputSt,
-                padding: "7px 12px",
-                cursor: "pointer",
                 display: "flex",
-                alignItems: "center",
-                gap: 5,
-                boxShadow: neuShadow(darkMode),
+                flexDirection: "column",
+                gap: 10,
+                position: "relative",
+                zIndex: 5,
               }}
             >
-              <span style={{ fontSize: "0.85rem" }}>↻</span>
-              <span style={{ fontSize: "0.75rem", fontWeight: 500 }}>
-                Refresh
-              </span>
-            </button>
+              {loadingSec.kpi ? (
+                [0, 1, 2].map((i) => (
+                  <SkeletonBox
+                    key={i}
+                    width="100%"
+                    height={84}
+                    radius={12}
+                    darkMode={darkMode}
+                  />
+                ))
+              ) : (
+                <>
+                  <KpiTile
+                    icon="📥"
+                    label="Total"
+                    value={summary.total}
+                    color={FB}
+                    sub="All applications"
+                    darkMode={darkMode}
+                    ui={ui}
+                    delay={0}
+                  />
+                  <KpiTile
+                    icon="⏳"
+                    label="In Progress"
+                    value={summary.in_progress}
+                    color="#f59e0b"
+                    sub="Pending completion"
+                    darkMode={darkMode}
+                    ui={ui}
+                    delay={60}
+                  />
+                  <KpiTile
+                    icon="🏁"
+                    label="Completed"
+                    value={summary.completed}
+                    color="#0891b2"
+                    sub="With other application categories"
+                    darkMode={darkMode}
+                    ui={ui}
+                    delay={120}
+                    breakdown={[
+                      {
+                        title: "CPR Released",
+                        color: "#36a420",
+                        total: summary.cpr_completed,
+                        onClick: () =>
+                          openSummaryRecords("CPR Released", "cpr"),
+                        rows: [
+                          {
+                            label: "Valid CPR",
+                            value: summary.cpr_not_expired,
+                            color: "#36a420",
+                            onClick: () =>
+                              openSummaryRecords(
+                                "CPR — Not expired",
+                                "cpr",
+                                "not_expired",
+                              ),
+                          },
+                          {
+                            label: "Expired CPR",
+                            value: summary.cpr_expired,
+                            color: "#e87c13",
+                            onClick: () =>
+                              openSummaryRecords(
+                                "CPR — Expired",
+                                "cpr",
+                                "expired",
+                              ),
+                          },
+                          {
+                            label: "No expiry date",
+                            value: summary.cpr_no_expiry,
+                            color: ui.textMuted,
+                            show: summary.cpr_no_expiry > 0,
+                            onClick: () =>
+                              openSummaryRecords(
+                                "CPR — No expiry date",
+                                "cpr",
+                                "none",
+                              ),
+                          },
+                        ],
+                      },
+                      {
+                        title: "LOD Released",
+                        color: "#e02020",
+                        total: summary.lod_completed,
+                        onClick: () =>
+                          openSummaryRecords("LOD Released", "lod"),
+                      },
+                    ]}
+                  />
+                </>
+              )}
+            </div>
+
+            {/* Trend */}
+            {loadingSec.trend && trendData.length === 0 ? (
+              <SectionCardSkeleton
+                height={CHART_SKELETON_HEIGHT}
+                darkMode={darkMode}
+              />
+            ) : (
+              <SectionCard
+                title="Trend Overview"
+                subtitle={`Grouped by ${trendYear === "All" ? "year" : "month"}`}
+                icon="📈"
+                ui={ui}
+                darkMode={darkMode}
+                action={
+                  <select
+                    value={trendYear}
+                    onChange={(e) => setTrendYear(e.target.value)}
+                    title="Filter trend by year"
+                    style={{
+                      ...inputSt,
+                      padding: "5px 10px",
+                      fontSize: "0.75rem",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <option value="All">All years</option>
+                    {trendYearOptions.map((y) => (
+                      <option key={y} value={y}>
+                        {y}
+                      </option>
+                    ))}
+                  </select>
+                }
+              >
+                <div
+                  style={{
+                    opacity: loadingSec.trend ? 0.5 : 1,
+                    transition: "opacity 0.2s",
+                  }}
+                >
+                  <TrendChart data={trendData} ui={ui} darkMode={darkMode} />
+                </div>
+              </SectionCard>
+            )}
+
+            {/* Donut */}
+            {loadingSec.kpi ? (
+              <SectionCardSkeleton
+                height={CHART_SKELETON_HEIGHT}
+                darkMode={darkMode}
+              />
+            ) : (
+              <SectionCard
+                title="Approval Breakdown"
+                subtitle="CPR vs LOD vs In Progress"
+                icon="🍩"
+                ui={ui}
+                darkMode={darkMode}
+              >
+                <DonutChart data={pieData} ui={ui} darkMode={darkMode} />
+              </SectionCard>
+            )}
           </div>
-        </div>
-      </FadeSlideIn>
-
-      {/* ── KPI Cards ── */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(6, 1fr)",
-          gap: 10,
-        }}
-      >
-        {[
-          {
-            icon: "📥",
-            label: "Total",
-            value: summary.total,
-            color: FB,
-            sub: "All applications",
-          },
-          {
-            icon: "✅",
-            label: "CPR Released",
-            value: summary.cpr,
-            color: "#36a420",
-            sub: "Documents issued",
-          },
-          {
-            icon: "❌",
-            label: "LOD Released",
-            value: summary.lod,
-            color: "#e02020",
-            sub: "Disapproved",
-          },
-          {
-            icon: "⏳",
-            label: "On Process",
-            value: summary.on_process,
-            color: "#f59e0b",
-            sub: "Pending completion",
-          },
-          {
-            icon: "🏁",
-            label: "Completed",
-            value: summary.completed,
-            color: "#0891b2",
-            sub: "With other application categories",
-          },
-          {
-            icon: "📈",
-            label: "Approval %",
-            value: `${summary.approval_rate}%`,
-            color: "#9333ea",
-            sub: "CPR over total",
-          },
-        ].map((kpi, i) => (
-          <KpiCard
-            key={kpi.label}
-            {...kpi}
-            darkMode={darkMode}
-            ui={ui}
-            animDelay={i * 60}
-          />
-        ))}
+        </FadeSlideIn>
       </div>
-
-      {/* ── Trend + Donut ── */}
-      <FadeSlideIn delay={420}>
-        <div
-          style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 14 }}
-        >
-          <SectionCard
-            title="Trend Overview"
-            subtitle={`Grouped by ${chartYear === "All" ? "year" : "month"}`}
-            icon="📈"
-            ui={ui}
-            darkMode={darkMode}
-          >
-            <TrendChart data={trendData} ui={ui} darkMode={darkMode} />
-          </SectionCard>
-          <SectionCard
-            title="Approval Breakdown"
-            subtitle="CPR vs LOD vs On Process"
-            icon="🍩"
-            ui={ui}
-            darkMode={darkMode}
-          >
-            <DonutChart data={pieData} ui={ui} darkMode={darkMode} />
-          </SectionCard>
-        </div>
-      </FadeSlideIn>
 
       {/* ── Year Summary ── */}
       <FadeSlideIn delay={500}>
         <SectionCard
           title="Year-by-Year Summary"
+          subtitle={
+            yearBasis === "released"
+              ? "Released counted by the year it was released"
+              : "Released counted by the year it was received"
+          }
           icon="📅"
           ui={ui}
           darkMode={darkMode}
+          action={
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                style={{
+                  display: "flex",
+                  background: neuCardBg(darkMode),
+                  borderRadius: 10,
+                  padding: 3,
+                  gap: 2,
+                  boxShadow: neuShadow(darkMode, false),
+                }}
+              >
+                {[
+                  { key: "released", label: "By Release Date" },
+                  { key: "received", label: "By Received Date" },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setYearBasis(key)}
+                    style={neuBtnStyle(yearBasis === key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={handleExportYearSummary}
+                disabled={yearSummaryData.length === 0}
+                title="Download as Excel"
+                style={{
+                  ...neuBtnStyle(false),
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                  opacity: yearSummaryData.length === 0 ? 0.4 : 1,
+                  cursor:
+                    yearSummaryData.length === 0 ? "not-allowed" : "pointer",
+                }}
+              >
+                <span>⬇</span>
+                <span>Export Excel</span>
+              </button>
+            </div>
+          }
         >
-          {yearSummaryData.length === 0 ? (
+          {loadingYear && yearSummaryData.length === 0 ? (
+            <LoadingRows rows={8} height={30} darkMode={darkMode} />
+          ) : yearSummaryData.length === 0 ? (
             <div
               style={{
                 textAlign: "center",
@@ -832,7 +1686,13 @@ export default function AnalyticsView({
               No year data available
             </div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div
+              style={{
+                overflowX: "auto",
+                opacity: loadingYear ? 0.5 : 1,
+                transition: "opacity 0.2s",
+              }}
+            >
               <table
                 style={{
                   width: "100%",
@@ -842,33 +1702,59 @@ export default function AnalyticsView({
               >
                 <thead>
                   <tr>
-                    {["Year", "Total"].map((h) => (
-                      <th key={h} style={thStyle(h === "Year")}>
-                        {h}
+                    <th rowSpan={2} style={ysTh(true)}>
+                      Year
+                    </th>
+                    <th rowSpan={2} style={ysTh()}>
+                      Received Application
+                    </th>
+                    <th rowSpan={2} style={ysTh()}>
+                      {yearBasis === "released"
+                        ? "Total Released"
+                        : "Released (of Received)"}
+                    </th>
+                    <th
+                      rowSpan={2}
+                      style={ysTh()}
+                      title="Rate = Total Released ÷ Received Application × 100"
+                    >
+                      Rate
+                      <div
+                        style={{
+                          fontSize: "0.58rem",
+                          fontWeight: 500,
+                          textTransform: "none",
+                          letterSpacing: 0,
+                          marginTop: 2,
+                        }}
+                      >
+                        Released ÷ Received × 100
+                      </div>
+                    </th>
+                    <th colSpan={mergedDocTypes.length + 1} style={ysTh()}>
+                      Released
+                    </th>
+                  </tr>
+                  <tr>
+                    {mergedDocTypes.map((dt) => (
+                      <th key={dt} style={ysTh()}>
+                        {docTypeLabel(dt)}
                       </th>
                     ))}
-                    {docTypeData.doc_types.map((dt) => (
-                      <th key={dt} style={thStyle()}>
-                        {dt}
-                      </th>
-                    ))}
-                    <th style={thStyle()}>Rate</th>
+                    <th style={ysTh()}>No Doc Type</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {yearSummaryData.map((row, i) => {
-                    const docRow = docTypeData.data.find(
-                      (d) => String(d.year) === String(row.year),
+                  {yearSummaryData.map((row) => {
+                    const counts = getDocCounts(row.year);
+                    const docTypeSum = mergedDocTypes.reduce(
+                      (s, dt) => s + counts[dt],
+                      0,
                     );
+                    const noDocType = Math.max(row.total - docTypeSum, 0);
                     return (
                       <tr
                         key={row.year}
-                        style={{
-                          borderBottom:
-                            i < yearSummaryData.length - 1
-                              ? `1px solid ${darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}`
-                              : "none",
-                        }}
                         onMouseEnter={(e) =>
                           (e.currentTarget.style.background = darkMode
                             ? "rgba(255,255,255,0.03)"
@@ -878,20 +1764,46 @@ export default function AnalyticsView({
                           (e.currentTarget.style.background = "transparent")
                         }
                       >
-                        <td style={tdStyle(FB, true)}>{row.year}</td>
-                        <td style={tdStyle(ui.textPrimary)}>{row.total}</td>
-                        {docTypeData.doc_types.map((dt) => (
-                          <td key={dt} style={tdStyle(docTypeColor(dt))}>
-                            {docRow?.by_doc_type?.[dt] ?? 0}
+                        <td style={ysTd(ui.textPrimary, true)}>{row.year}</td>
+                        {[
+                          { kind: "received", value: row.received },
+                          { kind: "released", value: row.total },
+                        ].map(({ kind, value }) => (
+                          <td key={kind} style={ysTd()}>
+                            {Number(value) > 0 ? (
+                              <span
+                                onClick={() =>
+                                  setRecordsTarget({
+                                    year: Number(row.year),
+                                    kind,
+                                  })
+                                }
+                                title="Click to view records"
+                                style={{
+                                  cursor: "pointer",
+                                  textDecoration: "underline dotted",
+                                  textUnderlineOffset: 3,
+                                }}
+                              >
+                                {value}
+                              </span>
+                            ) : (
+                              value
+                            )}
                           </td>
                         ))}
                         <td
-                          style={tdStyle(
-                            parseFloat(row.rate) >= 60 ? "#36a420" : "#f59e0b",
-                          )}
+                          style={ysTd()}
+                          title={`${row.total} ÷ ${row.received} × 100`}
                         >
-                          {row.rate}%
+                          {releasedRate(row).toFixed(1)}%
                         </td>
+                        {mergedDocTypes.map((dt) => (
+                          <td key={dt} style={ysTd()}>
+                            {counts[dt]}
+                          </td>
+                        ))}
+                        <td style={ysTd(ui.textMuted)}>{noDocType}</td>
                       </tr>
                     );
                   })}
@@ -915,7 +1827,9 @@ export default function AnalyticsView({
             ui={ui}
             darkMode={darkMode}
           >
-            {classificationData.length === 0 ? (
+            {loadingSec.classification && classificationData.length === 0 ? (
+              <LoadingRows rows={6} height={28} darkMode={darkMode} />
+            ) : classificationData.length === 0 ? (
               <div
                 style={{
                   textAlign: "center",
@@ -1107,11 +2021,15 @@ export default function AnalyticsView({
             darkMode={darkMode}
             action={
               <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
-                Top {topDrugsData.length}
+                {loadingSec.drugs && topDrugsData.length === 0
+                  ? ""
+                  : `Top ${topDrugsData.length}`}
               </span>
             }
           >
-            {topDrugsData.length === 0 ? (
+            {loadingSec.drugs && topDrugsData.length === 0 ? (
+              <LoadingRows rows={8} height={40} darkMode={darkMode} />
+            ) : topDrugsData.length === 0 ? (
               <div
                 style={{
                   textAlign: "center",
@@ -1356,7 +2274,8 @@ export default function AnalyticsView({
             })}
           </div>
 
-          {loadingCountries ? (
+          {loadingCountries ||
+          (loadingSec.countries && topCountriesData.length === 0) ? (
             <div
               style={{
                 display: "flex",
@@ -1628,6 +2547,16 @@ export default function AnalyticsView({
           )}
         </SectionCard>
       </FadeSlideIn>
+
+      {recordsTarget && (
+        <YearRecordsModal
+          target={recordsTarget}
+          basis={yearBasis}
+          ui={ui}
+          darkMode={darkMode}
+          onClose={() => setRecordsTarget(null)}
+        />
+      )}
     </div>
   );
 }
