@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { neuCardBg, neuInputShadow } from "./analyticsHelpers";
 import { FB } from "./analyticsConstants";
 
@@ -30,6 +30,7 @@ export function MiniBar({ value, max, color, darkMode }) {
 
 export function TrendChart({ data, ui, darkMode }) {
   const [hov, setHov] = useState(null);
+  const svgRef = useRef(null);
   if (!data || data.length === 0) {
     return (
       <div
@@ -54,7 +55,7 @@ export function TrendChart({ data, ui, darkMode }) {
   const series = [
     { key: "cpr", color: "#36a420", label: "CPR" },
     { key: "lod", color: "#e02020", label: "LOD" },
-    { key: "on_process", color: "#f59e0b", label: "On Process" },
+    { key: "in_progress", color: "#f59e0b", label: "In Progress" },
     { key: "completed", color: FB, label: "Completed" },
   ];
   const maxVal =
@@ -62,6 +63,15 @@ export function TrendChart({ data, ui, darkMode }) {
   const toX = (i) => PAD.left + (i / Math.max(data.length - 1, 1)) * cW;
   const toY = (v) => PAD.top + cH - (v / maxVal) * cH;
   const yticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(maxVal * f));
+  const handleMove = (e) => {
+    const el = svgRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * W; // to viewBox units
+    const idx = Math.round(((x - PAD.left) / cW) * (data.length - 1));
+    setHov(Math.max(0, Math.min(data.length - 1, idx)));
+  };
+
   function makePath(s) {
     const pts = data.map((d, i) => [toX(i), toY(d[s.key] ?? 0)]);
     if (pts.length < 2) return "";
@@ -105,6 +115,9 @@ export function TrendChart({ data, ui, darkMode }) {
         ))}
       </div>
       <svg
+        ref={svgRef}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHov(null)}
         viewBox={`0 0 ${W} ${H}`}
         style={{
           width: "100%",
@@ -149,15 +162,6 @@ export function TrendChart({ data, ui, darkMode }) {
         ))}
         {data.map((d, i) => (
           <g key={i}>
-            <rect
-              x={toX(i) - cW / data.length / 2}
-              y={PAD.top}
-              width={cW / data.length}
-              height={cH}
-              fill="transparent"
-              onMouseEnter={() => setHov(i)}
-              onMouseLeave={() => setHov(null)}
-            />
             {hov === i && (
               <>
                 <line
@@ -181,7 +185,7 @@ export function TrendChart({ data, ui, darkMode }) {
                     strokeWidth={2}
                   />
                 ))}
-                <g>
+                <g pointerEvents="none">
                   <rect
                     x={toX(i) > W * 0.65 ? toX(i) - 130 : toX(i) + 10}
                     y={PAD.top + 4}
