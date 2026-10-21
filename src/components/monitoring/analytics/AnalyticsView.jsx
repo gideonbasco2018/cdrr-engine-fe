@@ -271,6 +271,11 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [editRecord, setEditRecord] = useState(null); // record being edited
   const [editLoading, setEditLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0); // bump to refetch rows after save
+  const [recFrom, setRecFrom] = useState("");
+  const [recTo, setRecTo] = useState("");
+  const [relFrom, setRelFrom] = useState("");
+  const [relTo, setRelTo] = useState("");
+  const [exporting, setExporting] = useState(false);
   subOpenRef.current = !!(
     doctrackRow ||
     detail ||
@@ -338,33 +343,41 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     return () => clearTimeout(t);
   }, [search]);
 
+  const requestRecords = (pageNum, pageSize) => {
+    const common = {
+      page: pageNum,
+      page_size: pageSize,
+      search: query || undefined,
+      status: statusFilter === "All" ? undefined : statusFilter,
+      doc_type: docFilter === "All" ? undefined : docFilter,
+      received_from: recFrom || undefined,
+      received_to: recTo || undefined,
+      released_from: relFrom || undefined,
+      released_to: relTo || undefined,
+    };
+    return target.quality
+      ? getAnalyticsQualityRecords({
+          year: target.year,
+          issue: target.quality,
+          ...common,
+        })
+      : target.summary
+        ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
+        : getAnalyticsYearRecords({
+            year: target.year,
+            kind: target.kind,
+            basis,
+            ...common,
+          });
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const common = {
-          page,
-          page_size: RECORDS_PAGE_SIZE,
-          search: query || undefined,
-          status: statusFilter === "All" ? undefined : statusFilter,
-          doc_type: docFilter === "All" ? undefined : docFilter,
-        };
-        const res = target.quality
-          ? await getAnalyticsQualityRecords({
-              year: target.year,
-              issue: target.quality,
-              ...common,
-            })
-          : target.summary
-            ? await getAnalyticsSummaryRecords({ ...target.summary, ...common })
-            : await getAnalyticsYearRecords({
-                year: target.year,
-                kind: target.kind,
-                basis,
-                ...common,
-              });
+        const res = await requestRecords(page, RECORDS_PAGE_SIZE);
         if (cancelled) return;
         setRows(res.data ?? []);
         setTotal(res.total ?? 0);
@@ -380,7 +393,19 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [target, basis, page, query, statusFilter, docFilter, reloadKey]);
+  }, [
+    target,
+    basis,
+    page,
+    query,
+    statusFilter,
+    docFilter,
+    recFrom,
+    recTo,
+    relFrom,
+    relTo,
+    reloadKey,
+  ]);
 
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && !subOpenRef.current && onClose();
@@ -393,7 +418,11 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const start = total === 0 ? 0 : (page - 1) * RECORDS_PAGE_SIZE + 1;
   const end = Math.min(page * RECORDS_PAGE_SIZE, total);
   const filtersActive =
-    statusFilter !== "All" || docFilter !== "All" || query !== "";
+    statusFilter !== "All" ||
+    docFilter !== "All" ||
+    query !== "" ||
+    !!(recFrom || recTo || relFrom || relTo);
+  const rangeInvalid = (a, b) => a && b && a > b;
 
   const statusAll = statusCounts.reduce((s, x) => s + x.count, 0);
   // keep the selected option visible even if its count dropped to 0
@@ -411,6 +440,10 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     setDocFilter("All");
     setSearch("");
     setQuery("");
+    setRecFrom("");
+    setRecTo("");
+    setRelFrom("");
+    setRelTo("");
     setPage(1);
   };
   const yearLabel = target.year === "nodate" ? "No Date" : target.year;
@@ -425,6 +458,63 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const title = target.docType
     ? `${baseTitle} · ${facetLabel(target.docType, "No Doc Type")}`
     : baseTitle;
+
+  const handleExport = async () => {
+    if (exporting || total === 0) return;
+    setExporting(true);
+    try {
+      const size = 200;
+      const pages = Math.ceil(total / size);
+      let all = [];
+      for (let p = 1; p <= pages; p++) {
+        const res = await requestRecords(p, size);
+        all = all.concat(res.data ?? []);
+      }
+
+      const header = [
+        "DTN",
+        "Entry Type",
+        "Date Received (Center)",
+        "Date Released",
+        ...(target.summary ? ["Validity"] : []),
+        "Type of Doc Released",
+        "Status",
+        "Brand Name",
+        "Generic Name",
+        ...(target.quality ? ["Missing"] : []),
+      ];
+      const body = all.map((r) => [
+        r.dtn ? String(r.dtn) : "",
+        r.entry_type ?? "",
+        r.date_received_cent ?? "",
+        r.date_released ?? "",
+        ...(target.summary ? [r.secpa_exp_date ?? ""] : []),
+        r.type_doc_released ?? "",
+        r.app_status ?? "",
+        r.brand_name ?? "",
+        r.generic_name ?? "",
+        ...(target.quality ? [(r.issues ?? []).join(", ")] : []),
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+      ws["!cols"] = header.map((h) => ({ wch: Math.max(14, h.length + 2) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Records");
+      const safe = String(target.title ?? title)
+        .replace(/[\\/:*?"<>|·—]+/g, "-")
+        .replace(/\s+/g, "_")
+        .slice(0, 80);
+      XLSX.writeFile(
+        wb,
+        `${safe}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      );
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to export records.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const th = {
     padding: "8px 10px",
@@ -569,6 +659,20 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                 }}
               />
               <button
+                onClick={handleExport}
+                disabled={exporting || loading || total === 0}
+                title="Export filtered records to Excel"
+                style={{
+                  ...pageBtn(exporting || loading || total === 0),
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <span>⬇</span>
+                <span>{exporting ? "Exporting…" : "Export Excel"}</span>
+              </button>
+              <button
                 onClick={onClose}
                 title="Close (Esc)"
                 style={{
@@ -666,6 +770,87 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Date range filters */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 18,
+              padding: "10px 18px",
+              borderBottom: `1px solid ${line}`,
+              flexWrap: "wrap",
+            }}
+          >
+            {[
+              {
+                label: "Date Received",
+                from: recFrom,
+                to: recTo,
+                setFrom: setRecFrom,
+                setTo: setRecTo,
+              },
+              {
+                label: "Date Released",
+                from: relFrom,
+                to: relTo,
+                setFrom: setRelFrom,
+                setTo: setRelTo,
+              },
+            ].map((f) => {
+              const bad = rangeInvalid(f.from, f.to);
+              const st = {
+                ...selectSt,
+                border: `1px solid ${bad ? "#e02020" : line}`,
+              };
+              return (
+                <div
+                  key={f.label}
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: ui.textMuted,
+                    }}
+                  >
+                    {f.label}
+                  </span>
+                  <input
+                    type="date"
+                    value={f.from}
+                    max={f.to || undefined}
+                    onChange={(e) => {
+                      f.setFrom(e.target.value);
+                      setPage(1);
+                    }}
+                    style={st}
+                  />
+                  <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                    to
+                  </span>
+                  <input
+                    type="date"
+                    value={f.to}
+                    min={f.from || undefined}
+                    onChange={(e) => {
+                      f.setTo(e.target.value);
+                      setPage(1);
+                    }}
+                    style={st}
+                  />
+                  {bad && (
+                    <span style={{ fontSize: "0.68rem", color: "#e02020" }}>
+                      "From" is after "To"
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Table */}

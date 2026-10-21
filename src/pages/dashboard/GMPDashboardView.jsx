@@ -1,8 +1,6 @@
 // FILE: src/pages/dashboard/GMPDashboardView.jsx
-// GMP taskforce unit's dashboard — same KPI / Insights-chart / data-table /
-// recent-applications layout as the main (licensing) dashboard, but scoped
-// entirely to GMP records (GMPRecord / GMPApplicationLogs) instead of
-// licensing's MainDB / ApplicationLogs.
+// FGMP taskforce dashboard — same Monitoring-style layout as the main
+// dashboard, scoped to GMP records.
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   getGMPDashboardSummary,
@@ -11,22 +9,12 @@ import {
   getGMPPostEvalStatusSummary,
   getGMPPostEvalStatusRows,
 } from "../../api/dashboard";
+import { buildChartParams, mapPoint } from "../../components/dashboard/utils";
 import {
-  buildChartParams,
-  mapPoint,
-} from "../../components/dashboard/utils";
-import {
-  FB,
   ALL_MONTHS,
   CURRENT_YEAR,
   CURRENT_MONTH_IDX,
-  MONTHS_BY_YEAR,
-  AVAILABLE_YEARS,
 } from "../../components/dashboard/constants";
-import { Card } from "../../components/dashboard/CardPrimitives";
-import MetricTile from "../../components/dashboard/MetricTile";
-import AreaChart from "../../components/dashboard/AreaChart";
-import DataTable from "../../components/dashboard/DataTable";
 import RecentApplicationsCard from "../../components/dashboard/RecentApplicationsCard";
 import RecentApplicationsModal from "../../components/dashboard/RecentApplicationsModal";
 import GMPMetricDetailModal from "../../components/dashboard/GMPMetricDetailModal";
@@ -35,11 +23,15 @@ import GMPPostEvalStatusCard, {
   POST_EVAL_CARD_ROWS,
 } from "../../components/dashboard/GMPPostEvalStatusCard";
 import GMPPostEvalStatusModal from "../../components/dashboard/GMPPostEvalStatusModal";
-import SystemStatusCard from "../../components/dashboard/SystemStatusCard";
+import InsightsSection, {
+  ErrorToasts,
+} from "../../components/dashboard/InsightsSection";
+
+const RECENT_PAGE_SIZE = 6;
 
 export default function GMPDashboardView({ darkMode, ui, isMobile }) {
   // ── Controls ──────────────────────────────────────────────────────────────
-  const [breakdown, setBreakdown] = useState("year");
+  const [breakdown, setBreakdown] = useState("month");
   const [selYear, setSelYear] = useState(String(CURRENT_YEAR));
   const [selMonth, setSelMonth] = useState(ALL_MONTHS[CURRENT_MONTH_IDX]);
   const [activeMetric, setActiveMetric] = useState(0);
@@ -69,23 +61,16 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
   const [recentApps, setRecentApps] = useState([]);
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState(null);
+  const [recentPage, setRecentPage] = useState(1);
+  const [recentTotal, setRecentTotal] = useState(0);
+  const [recentTotalPages, setRecentTotalPages] = useState(1);
 
-  // ── Post-Evaluation Status (FGMP only — no CPR counterpart) ────────────────
+  // ── Post-Evaluation Status ────────────────────────────────────────────────
   const [postEvalBreakdown, setPostEvalBreakdown] = useState([]);
   const [postEvalRows, setPostEvalRows] = useState([]);
   const [postEvalLoading, setPostEvalLoading] = useState(true);
   const [postEvalError, setPostEvalError] = useState(null);
   const [showPostEvalModal, setShowPostEvalModal] = useState(false);
-
-  // ── DB connections ────────────────────────────────────────────────────────
-  const [dbConnections, setDbConnections] = useState([
-    { id: "doctrack", label: "Doctrack", desc: "Document Tracking DB", icon: "🗂️", active: true },
-    { id: "aws", label: "AWS", desc: "Cloud Storage & Services", icon: "☁️", active: true },
-    { id: "gmpdb", label: "FGMP DB", desc: "FGMP Records Database", icon: "🏭", active: true },
-  ]);
-
-  const toggleConn = (id) =>
-    setDbConnections((prev) => prev.map((c) => (c.id === id ? { ...c, active: !c.active } : c)));
 
   // ── Fetches ───────────────────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
@@ -98,7 +83,9 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
       if (p.date_to) params.date_to = p.date_to;
       setLiveStats(await getGMPDashboardSummary(params));
     } catch (err) {
-      setStatsError(err?.response?.data?.detail || err.message || "Failed to load stats");
+      setStatsError(
+        err?.response?.data?.detail || err.message || "Failed to load stats",
+      );
       setLiveStats(null);
     } finally {
       setStatsLoading(false);
@@ -123,7 +110,11 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
       if (breakdown === "month") setChartSubtitle(selYear);
       if (breakdown === "year") setChartSubtitle("All Years");
     } catch (err) {
-      setChartError(err?.response?.data?.detail || err.message || "Failed to load chart data");
+      setChartError(
+        err?.response?.data?.detail ||
+          err.message ||
+          "Failed to load chart data",
+      );
       setChartData([]);
     } finally {
       setChartLoading(false);
@@ -134,15 +125,22 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
     setRecentLoading(true);
     setRecentError(null);
     try {
-      const res = await getGMPDashboardRecentApplications({ page_size: 10 });
+      const res = await getGMPDashboardRecentApplications({
+        page: recentPage,
+        page_size: RECENT_PAGE_SIZE,
+      });
       setRecentApps(res.data);
+      setRecentTotal(res.total ?? res.data.length);
+      setRecentTotalPages(res.total_pages ?? 1);
     } catch (err) {
-      setRecentError(err?.response?.data?.detail || err.message || "Failed to load");
+      setRecentError(
+        err?.response?.data?.detail || err.message || "Failed to load",
+      );
       setRecentApps([]);
     } finally {
       setRecentLoading(false);
     }
-  }, []);
+  }, [recentPage]);
 
   const fetchPostEvalStatus = useCallback(async () => {
     setPostEvalLoading(true);
@@ -155,7 +153,9 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
       setPostEvalBreakdown(summary.breakdown);
       setPostEvalRows(rows.data);
     } catch (err) {
-      setPostEvalError(err?.response?.data?.detail || err.message || "Failed to load");
+      setPostEvalError(
+        err?.response?.data?.detail || err.message || "Failed to load",
+      );
       setPostEvalBreakdown([]);
       setPostEvalRows([]);
     } finally {
@@ -182,7 +182,6 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
       label: "Total Received",
       metricKey: "received",
       value: liveStats ? liveStats.received : chartTotals.received,
-      change: 8,
       isLive: true,
     },
     {
@@ -190,7 +189,6 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
       label: "Completed",
       metricKey: "completed",
       value: liveStats ? liveStats.completed : chartTotals.completed,
-      change: -3,
       isLive: true,
     },
     {
@@ -198,7 +196,6 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
       label: "On Process",
       metricKey: "on_process",
       value: liveStats ? liveStats.on_process : chartTotals.onProcess,
-      change: 12,
       isLive: true,
     },
     {
@@ -206,7 +203,6 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
       label: "Target",
       metricKey: null,
       value: chartTotals.target,
-      change: 0,
       isLive: false,
     },
   ];
@@ -219,8 +215,9 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
     return out;
   }, [breakdown, selYear, selMonth]);
 
-  const openDetail = useCallback(
-    (m) => {
+  const handleMetricClick = useCallback(
+    (i, m) => {
+      setActiveMetric(i);
       if (!m.metricKey) return;
       setDetailModal({
         metricKey: m.metricKey,
@@ -236,284 +233,53 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
     setSelectedGmpId(row.gmp_id);
   }, []);
 
+  const donutTotals = {
+    received: liveStats?.received ?? chartTotals.received,
+    completed: liveStats?.completed ?? chartTotals.completed,
+    onProcess: liveStats?.on_process ?? chartTotals.onProcess,
+  };
+
   return (
     <>
-      {/* Error toasts */}
-      {(statsError || chartError) && (
+      <ErrorToasts
+        statsError={statsError}
+        chartError={chartError}
+        onRetryStats={fetchStats}
+        onRetryChart={fetchChart}
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <InsightsSection
+          ui={ui}
+          isMobile={isMobile}
+          title="FGMP Insights"
+          subtitle="Learn how FGMP certification applications are performing."
+          metrics={metrics}
+          activeMetric={activeMetric}
+          onMetricClick={handleMetricClick}
+          statsLoading={statsLoading}
+          breakdown={breakdown}
+          setBreakdown={setBreakdown}
+          selYear={selYear}
+          setSelYear={setSelYear}
+          selMonth={selMonth}
+          setSelMonth={setSelMonth}
+          chartData={chartData}
+          chartTotals={chartTotals}
+          donutTotals={donutTotals}
+          chartSubtitle={chartSubtitle}
+          chartLoading={chartLoading}
+        />
+
+        {/* Recent Applications | Post-Evaluation Status — side by side */}
         <div
           style={{
-            position: "fixed",
-            bottom: 20,
-            right: 20,
-            zIndex: 9999,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+            gap: 16,
+            alignItems: "start",
           }}
         >
-          {statsError && (
-            <div
-              style={{
-                background: "#e02020",
-                color: "#fff",
-                padding: "10px 16px",
-                borderRadius: 8,
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                maxWidth: 320,
-              }}
-            >
-              <span>⚠️ Stats: {statsError}</span>
-              <button
-                onClick={fetchStats}
-                style={{
-                  background: "rgba(255,255,255,0.2)",
-                  border: "none",
-                  color: "#fff",
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: "0.76rem",
-                  fontWeight: 700,
-                  fontFamily: "inherit",
-                }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-          {chartError && (
-            <div
-              style={{
-                background: "#e02020",
-                color: "#fff",
-                padding: "10px 16px",
-                borderRadius: 8,
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                maxWidth: 320,
-              }}
-            >
-              <span>⚠️ Chart: {chartError}</span>
-              <button
-                onClick={fetchChart}
-                style={{
-                  background: "rgba(255,255,255,0.2)",
-                  border: "none",
-                  color: "#fff",
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: "0.76rem",
-                  fontWeight: 700,
-                  fontFamily: "inherit",
-                }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "1fr 290px",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        {/* ── Left column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Insights card */}
-          <Card ui={ui}>
-            <div style={{ padding: "14px 16px 0" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  marginBottom: 12,
-                  flexWrap: "wrap",
-                  gap: 8,
-                }}
-              >
-                <div>
-                  <h2 style={{ fontSize: "1.1rem", fontWeight: 700, color: ui.textPrimary, margin: 0 }}>
-                    FGMP Insights
-                  </h2>
-                  <p style={{ fontSize: "0.8rem", color: ui.textSub, margin: "2px 0 0" }}>
-                    Learn how FGMP certification applications are performing.
-                  </p>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 2,
-                      padding: "3px",
-                      borderRadius: 8,
-                      background: ui.inputBg,
-                      border: `1px solid ${ui.cardBorder}`,
-                    }}
-                  >
-                    {[
-                      { key: "day", label: "Daily" },
-                      { key: "month", label: "Monthly" },
-                      { key: "year", label: "Yearly" },
-                    ].map((opt) => (
-                      <button
-                        key={opt.key}
-                        onClick={() => setBreakdown(opt.key)}
-                        style={{
-                          padding: "4px 11px",
-                          borderRadius: 6,
-                          border: "none",
-                          background: breakdown === opt.key ? FB : "transparent",
-                          color: breakdown === opt.key ? "#fff" : ui.textSub,
-                          fontSize: "0.76rem",
-                          fontWeight: breakdown === opt.key ? 700 : 500,
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {(breakdown === "day" || breakdown === "month") && (
-                    <select
-                      value={selYear}
-                      onChange={(e) => {
-                        setSelYear(e.target.value);
-                        if (breakdown === "day") {
-                          const months = MONTHS_BY_YEAR[e.target.value] || [];
-                          if (!months.includes(selMonth)) setSelMonth(months[months.length - 1] || "Jan");
-                        }
-                      }}
-                      style={{
-                        padding: "4px 24px 4px 10px",
-                        borderRadius: 7,
-                        border: `1px solid ${ui.cardBorder}`,
-                        background: ui.inputBg,
-                        color: ui.textPrimary,
-                        fontSize: "0.76rem",
-                        fontFamily: "inherit",
-                        outline: "none",
-                        cursor: "pointer",
-                        appearance: "none",
-                        WebkitAppearance: "none",
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 8px center",
-                      }}
-                    >
-                      {AVAILABLE_YEARS.map((y) => (
-                        <option key={y} value={y}>
-                          {y}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {breakdown === "day" && (
-                    <select
-                      value={selMonth}
-                      onChange={(e) => setSelMonth(e.target.value)}
-                      style={{
-                        padding: "4px 24px 4px 10px",
-                        borderRadius: 7,
-                        border: `1px solid ${ui.cardBorder}`,
-                        background: ui.inputBg,
-                        color: ui.textPrimary,
-                        fontSize: "0.76rem",
-                        fontFamily: "inherit",
-                        outline: "none",
-                        cursor: "pointer",
-                        appearance: "none",
-                        WebkitAppearance: "none",
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 8px center",
-                      }}
-                    >
-                      {(MONTHS_BY_YEAR[selYear] || []).map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: "flex", gap: isMobile ? 6 : 10, marginBottom: 14 }}>
-                {metrics.map((m, i) => (
-                  <MetricTile
-                    key={i}
-                    icon={m.icon}
-                    label={m.label}
-                    value={m.value}
-                    change={m.change}
-                    active={activeMetric === i}
-                    onClick={() => {
-                      setActiveMetric(i);
-                      openDetail(m);
-                    }}
-                    ui={ui}
-                    loading={m.isLive ? statsLoading : false}
-                    isLive={m.isLive}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div style={{ padding: "0 16px 12px", position: "relative" }}>
-              {chartLoading && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: `${ui.cardBg}cc`,
-                    zIndex: 2,
-                    borderRadius: 8,
-                  }}
-                >
-                  <span style={{ fontSize: "0.82rem", color: ui.textMuted }}>⏳ Loading chart…</span>
-                </div>
-              )}
-              <AreaChart data={chartData} subtitle={chartSubtitle} ui={ui} />
-            </div>
-
-            <DataTable
-              chartData={chartData}
-              chartTotals={chartTotals}
-              breakdown={breakdown}
-              chartSubtitle={chartSubtitle}
-              chartLoading={chartLoading}
-              ui={ui}
-            />
-          </Card>
-
           <RecentApplicationsCard
             ui={ui}
             isMobile={isMobile}
@@ -524,8 +290,12 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
             onSeeAll={() => setShowRecentModal(true)}
             onRowClick={handleRowClick}
             emptyLabel="No recent FGMP applications found."
+            page={recentPage}
+            totalPages={recentTotalPages}
+            total={recentTotal}
+            onPageChange={setRecentPage}
+            pageSize={RECENT_PAGE_SIZE}
           />
-
           <GMPPostEvalStatusCard
             ui={ui}
             breakdown={postEvalBreakdown}
@@ -536,17 +306,7 @@ export default function GMPDashboardView({ darkMode, ui, isMobile }) {
             onSeeAll={() => setShowPostEvalModal(true)}
             onRowClick={handleRowClick}
           />
-
-          {isMobile && (
-            <SystemStatusCard connections={dbConnections} onToggle={toggleConn} ui={ui} />
-          )}
         </div>
-
-        {!isMobile && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <SystemStatusCard connections={dbConnections} onToggle={toggleConn} ui={ui} />
-          </div>
-        )}
       </div>
 
       {/* ── Modals ── */}

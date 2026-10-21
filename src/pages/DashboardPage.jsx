@@ -13,12 +13,40 @@ import {
   stopImpersonation,
 } from "../api/auth";
 import { FB } from "../components/dashboard/constants";
-import TawkChat from "../components/TawkChat";
+// import TawkChat from "../components/TawkChat";
 import LicensingDashboardView from "./dashboard/LicensingDashboardView";
 import GMPDashboardView from "./dashboard/GMPDashboardView";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+// ─── Simple monochrome rail icons (follow the text color) ─────────────────────
+const railIconProps = {
+  width: 16,
+  height: 16,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.8,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+};
+
+const IconMain = () => (
+  <svg {...railIconProps}>
+    <rect x="3" y="3" width="7" height="9" rx="1" />
+    <rect x="14" y="3" width="7" height="5" rx="1" />
+    <rect x="14" y="12" width="7" height="9" rx="1" />
+    <rect x="3" y="16" width="7" height="5" rx="1" />
+  </svg>
+);
+
+const IconGmp = () => (
+  <svg {...railIconProps}>
+    <path d="M2 20V8l6 4V8l6 4V5h4v15z" />
+    <line x1="2" y1="20" x2="22" y2="20" />
+  </svg>
+);
 
 // ─── Impersonation Banner ─────────────────────────────────────────────────────
 function ImpersonationPrompt({ ui, onClose }) {
@@ -375,11 +403,14 @@ function DashboardSubSidebar({
           <span
             key={item.key}
             title={item.label}
-            aria-hidden="true"
+            onClick={() => setActiveDashboard(item.key)}
             style={{
-              fontSize: "0.85rem",
+              display: "flex",
               lineHeight: 1,
-              opacity: activeDashboard === item.key ? 1 : 0.3,
+              color:
+                activeDashboard === item.key ? ui.textPrimary : ui.textMuted,
+              opacity: activeDashboard === item.key ? 1 : 0.6,
+              cursor: "pointer",
               userSelect: "none",
             }}
           >
@@ -540,13 +571,23 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
   }, []);
 
   const navItems = [
-    { key: "main", label: "Main Dashboard", subtitle: "Licensing unit", icon: "📊" },
-    { key: "gmp", label: "FGMP Dashboard", subtitle: "FGMP taskforce unit", icon: "🏭" },
+    {
+      key: "main",
+      label: "Main Dashboard",
+      subtitle: "Licensing unit",
+      icon: <IconMain />,
+    },
+    {
+      key: "gmp",
+      label: "FGMP Dashboard",
+      subtitle: "FGMP taskforce unit",
+      icon: <IconGmp />,
+    },
   ];
 
   return (
     <>
-      <TawkChat />
+      {/* <TawkChat /> */}
       {showImpersonationPrompt && (
         <ImpersonationPrompt
           ui={ui}
@@ -609,8 +650,9 @@ export default function DashboardPage({ darkMode: darkModeProp }) {
             style={{
               flex: 1,
               minWidth: 0,
+              alignSelf: "flex-start",
               padding: isMobile ? "12px" : "16px",
-              paddingBottom: 120,
+              paddingBottom: 48,
               boxSizing: "border-box",
             }}
           >
