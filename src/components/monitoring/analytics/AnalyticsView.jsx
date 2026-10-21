@@ -33,6 +33,7 @@ import { FadeSlideIn } from "./KpiCard";
 import { SectionCard } from "./SectionCard";
 import { MiniBar, TrendChart, DonutChart } from "./ChartComponents";
 import { CountryList } from "./CountryComponents";
+import InProgressByUserModal from "./InProgressByUserModal";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -1327,6 +1328,7 @@ function KpiTile({
   ui,
   delay = 0,
   breakdown,
+  onClick,
 }) {
   const [hov, setHov] = useState(false);
   const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
@@ -1362,6 +1364,7 @@ function KpiTile({
 
   return (
     <div
+      onClick={onClick}
       onMouseEnter={() => breakdown && setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -1372,7 +1375,7 @@ function KpiTile({
         padding: "9px 14px 10px",
         boxShadow: neuShadow(darkMode),
         borderTop: `2px solid ${color}`,
-        cursor: breakdown ? "help" : "default",
+        cursor: onClick ? "pointer" : breakdown ? "help" : "default",
         animation: "analytics-fade-slide-up 0.4s ease both",
         animationDelay: `${delay}ms`,
       }}
@@ -1763,6 +1766,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   // ── Year summary basis: "released" | "received" ──────────────
   const [yearBasis, setYearBasis] = useState("released");
   const [recordsTarget, setRecordsTarget] = useState(null); // { year, kind }
+  const [showInProgress, setShowInProgress] = useState(false);
   const [loadingYear, setLoadingYear] = useState(true);
 
   // ── Data completeness ────────────────────────────────────────
@@ -2357,6 +2361,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                     darkMode={darkMode}
                     ui={ui}
                     delay={60}
+                    onClick={() => setShowInProgress(true)}
                   />
                   <KpiTile
                     icon="🏁"
@@ -3898,6 +3903,15 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
           )}
         </SectionCard>
       </FadeSlideIn>
+
+      {showInProgress && (
+        <InProgressByUserModal
+          ui={ui}
+          darkMode={darkMode}
+          expectedTotal={summary.in_progress}
+          onClose={() => setShowInProgress(false)}
+        />
+      )}
 
       {recordsTarget && (
         <YearRecordsModal
