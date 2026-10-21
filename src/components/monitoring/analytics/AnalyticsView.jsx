@@ -13,6 +13,7 @@ import {
   getAnalyticsYearRecords,
   getAnalyticsDataQuality,
   getAnalyticsQualityRecords,
+  getAnalyticsCompanyRecords,
   getAnalyticsSummaryRecords,
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
@@ -250,7 +251,7 @@ function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
   );
 }
 
-function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
+export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -356,20 +357,22 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       released_from: relFrom || undefined,
       released_to: relTo || undefined,
     };
-    return target.quality
-      ? getAnalyticsQualityRecords({
-          year: target.year,
-          issue: target.quality,
-          ...common,
-        })
-      : target.summary
-        ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
-        : getAnalyticsYearRecords({
+    return target.topco
+      ? getAnalyticsCompanyRecords({ ...target.topco, ...common })
+      : target.quality
+        ? getAnalyticsQualityRecords({
             year: target.year,
-            kind: target.kind,
-            basis,
+            issue: target.quality,
             ...common,
-          });
+          })
+        : target.summary
+          ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
+          : getAnalyticsYearRecords({
+              year: target.year,
+              kind: target.kind,
+              basis,
+              ...common,
+            });
   };
 
   useEffect(() => {

@@ -20,6 +20,7 @@ import GMPMonitoringAnalyticsView from "../components/gmp/dashboard/GMPMonitorin
 import PriorityMedsView from "../components/monitoring/priorityMeds/PriorityMedsView";
 import ClidpEservicesView from "../components/monitoring/clidpEservices/ClidpEservicesView";
 import EvaluatorAppTypesView from "../components/monitoring/evaluatorAppTypes/EvaluatorAppTypesView";
+import TopCompaniesView from "../components/monitoring/topCompanies/TopCompaniesView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1034,6 +1035,8 @@ function renderContent(
       return <ProcessingTrendView ui={ui} darkMode={darkMode} />;
     case "teamoverview":
       return <TeamOverviewView darkMode={darkMode} />;
+    case "topcompanies":
+      return <TopCompaniesView ui={ui} darkMode={darkMode} />;
     case "gmpanalytics":
       return <GMPMonitoringAnalyticsView ui={ui} darkMode={darkMode} />;
     case "prioritymeds":
@@ -1278,6 +1281,11 @@ function MonitoringPage({ darkMode }) {
       key: "teamoverview",
       label: "Team Overview",
       subtitle: "Diagram & target table",
+    },
+    {
+      key: "topcompanies",
+      label: "Top Applicants",
+      subtitle: "Companies & evaluators per month",
     },
     // Turnaround & Trends (6-9)
     { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
