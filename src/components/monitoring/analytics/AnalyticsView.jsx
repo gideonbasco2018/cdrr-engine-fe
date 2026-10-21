@@ -671,181 +671,236 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
           {/* Table */}
           <div
             style={{
-              overflow: "auto",
+              position: "relative",
               flex: 1,
-              opacity: loading ? 0.5 : 1,
-              transition: "opacity 0.2s",
+              minHeight: 240,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
             }}
           >
-            {error ? (
+            {/* Spinner overlay while refetching (page / filter / search) */}
+            {loading && rows.length > 0 && (
               <div
                 style={{
-                  textAlign: "center",
-                  padding: 40,
-                  color: ui.textMuted,
-                  fontSize: "0.85rem",
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 5,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: darkMode
+                    ? "rgba(0,0,0,0.35)"
+                    : "rgba(255,255,255,0.55)",
+                  pointerEvents: "none",
                 }}
               >
-                {error}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    background: neuCardBg(darkMode),
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    color: ui.textPrimary,
+                    fontFamily: font,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 16,
+                      height: 16,
+                      border: `2px solid ${FB}`,
+                      borderTopColor: "transparent",
+                      borderRadius: "50%",
+                      animation: "spin 0.7s linear infinite",
+                      display: "inline-block",
+                    }}
+                  />
+                  Loading records…
+                </div>
               </div>
-            ) : !loading && rows.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: 40,
-                  color: ui.textMuted,
-                  fontSize: "0.85rem",
-                }}
-              >
-                No records found
-              </div>
-            ) : (
-              <table
-                style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: "0.8rem",
-                }}
-              >
-                <thead>
-                  <tr>
-                    <th style={{ ...th, textAlign: "center" }}>#</th>
-                    <th style={th}>DTN</th>
-                    <th style={th}>Entry Type</th>
-                    <th style={th}>Date Received (Center)</th>
-                    <th style={th}>Date Released</th>
-                    {target.summary && <th style={th}>Validity</th>}
-                    <th style={th}>Type of Doc Released</th>
-                    <th style={th}>Status</th>
-                    <th style={th}>Brand Name</th>
-                    <th style={th}>Generic Name</th>
-                    {target.quality && <th style={th}>Missing</th>}
-                    <th
-                      style={{
-                        ...th,
-                        position: "sticky",
-                        top: 0,
-                        right: 0,
-                        zIndex: 3,
-                        textAlign: "center",
-                        boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
-                      }}
-                    >
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => (
-                    <tr key={r.db_id}>
-                      <td
+            )}
+
+            <div style={{ overflow: "auto", flex: 1 }}>
+              {loading && rows.length === 0 ? (
+                <div style={{ padding: 18 }}>
+                  <LoadingRows rows={10} height={30} darkMode={darkMode} />
+                </div>
+              ) : error ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: 40,
+                    color: ui.textMuted,
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  {error}
+                </div>
+              ) : !loading && rows.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: 40,
+                    color: ui.textMuted,
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  No records found
+                </div>
+              ) : (
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={{ ...th, textAlign: "center" }}>#</th>
+                      <th style={th}>DTN</th>
+                      <th style={th}>Entry Type</th>
+                      <th style={th}>Date Received (Center)</th>
+                      <th style={th}>Date Released</th>
+                      {target.summary && <th style={th}>Validity</th>}
+                      <th style={th}>Type of Doc Released</th>
+                      <th style={th}>Status</th>
+                      <th style={th}>Brand Name</th>
+                      <th style={th}>Generic Name</th>
+                      {target.quality && <th style={th}>Missing</th>}
+                      <th
                         style={{
-                          ...td,
-                          textAlign: "center",
-                          color: ui.textMuted,
-                        }}
-                      >
-                        {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
-                      </td>
-                      <td style={td}>
-                        {r.dtn ? (
-                          <span
-                            onClick={() => setDoctrackRow(r)}
-                            title="View document tracking"
-                            style={{
-                              cursor: "pointer",
-                              color: FB,
-                              textDecoration: "underline dotted",
-                              textUnderlineOffset: 3,
-                            }}
-                          >
-                            {r.dtn}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td style={td}>{r.entry_type ?? "—"}</td>
-                      <td style={td}>{r.date_received_cent ?? "—"}</td>
-                      <td style={td}>{r.date_released ?? "—"}</td>
-                      {target.summary && (
-                        <td style={td}>{r.secpa_exp_date ?? "—"}</td>
-                      )}
-                      <td style={td}>{r.type_doc_released ?? "—"}</td>
-                      <td style={td}>
-                        {r.app_status ? (
-                          <span
-                            style={{
-                              fontSize: "0.68rem",
-                              fontWeight: 700,
-                              padding: "2px 8px",
-                              borderRadius: 99,
-                              color: statusColor(r.app_status),
-                              background: `${statusColor(r.app_status)}22`,
-                            }}
-                          >
-                            {r.app_status}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td style={td}>{r.brand_name ?? "—"}</td>
-                      <td style={td}>{r.generic_name ?? "—"}</td>
-                      {target.quality && (
-                        <td style={td}>
-                          {(r.issues ?? []).length
-                            ? r.issues.map((iss) => (
-                                <span
-                                  key={iss}
-                                  style={{
-                                    fontSize: "0.65rem",
-                                    fontWeight: 700,
-                                    padding: "2px 8px",
-                                    borderRadius: 99,
-                                    color: "#e02020",
-                                    background: "#e0202022",
-                                    marginRight: 4,
-                                  }}
-                                >
-                                  {iss}
-                                </span>
-                              ))
-                            : "—"}
-                        </td>
-                      )}
-                      <td
-                        style={{
-                          ...td,
+                          ...th,
                           position: "sticky",
+                          top: 0,
                           right: 0,
-                          zIndex: 2,
+                          zIndex: 3,
                           textAlign: "center",
-                          background: neuCardBg(darkMode),
                           boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
                         }}
                       >
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const rect =
-                              e.currentTarget.getBoundingClientRect();
-                            setMenu({
-                              row: r,
-                              top: rect.bottom + 4,
-                              right: window.innerWidth - rect.right,
-                            });
-                          }}
-                          style={{ ...pageBtn(false), padding: "3px 10px" }}
-                        >
-                          Actions ▾
-                        </button>
-                      </td>
+                        Action
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={r.db_id}>
+                        <td
+                          style={{
+                            ...td,
+                            textAlign: "center",
+                            color: ui.textMuted,
+                          }}
+                        >
+                          {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
+                        </td>
+                        <td style={td}>
+                          {r.dtn ? (
+                            <span
+                              onClick={() => setDoctrackRow(r)}
+                              title="View document tracking"
+                              style={{
+                                cursor: "pointer",
+                                color: FB,
+                                textDecoration: "underline dotted",
+                                textUnderlineOffset: 3,
+                              }}
+                            >
+                              {r.dtn}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={td}>{r.entry_type ?? "—"}</td>
+                        <td style={td}>{r.date_received_cent ?? "—"}</td>
+                        <td style={td}>{r.date_released ?? "—"}</td>
+                        {target.summary && (
+                          <td style={td}>{r.secpa_exp_date ?? "—"}</td>
+                        )}
+                        <td style={td}>{r.type_doc_released ?? "—"}</td>
+                        <td style={td}>
+                          {r.app_status ? (
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                padding: "2px 8px",
+                                borderRadius: 99,
+                                color: statusColor(r.app_status),
+                                background: `${statusColor(r.app_status)}22`,
+                              }}
+                            >
+                              {r.app_status}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={td}>{r.brand_name ?? "—"}</td>
+                        <td style={td}>{r.generic_name ?? "—"}</td>
+                        {target.quality && (
+                          <td style={td}>
+                            {(r.issues ?? []).length
+                              ? r.issues.map((iss) => (
+                                  <span
+                                    key={iss}
+                                    style={{
+                                      fontSize: "0.65rem",
+                                      fontWeight: 700,
+                                      padding: "2px 8px",
+                                      borderRadius: 99,
+                                      color: "#e02020",
+                                      background: "#e0202022",
+                                      marginRight: 4,
+                                    }}
+                                  >
+                                    {iss}
+                                  </span>
+                                ))
+                              : "—"}
+                          </td>
+                        )}
+                        <td
+                          style={{
+                            ...td,
+                            position: "sticky",
+                            right: 0,
+                            zIndex: 2,
+                            textAlign: "center",
+                            background: neuCardBg(darkMode),
+                            boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                          }}
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect =
+                                e.currentTarget.getBoundingClientRect();
+                              setMenu({
+                                row: r,
+                                top: rect.bottom + 4,
+                                right: window.innerWidth - rect.right,
+                              });
+                            }}
+                            style={{ ...pageBtn(false), padding: "3px 10px" }}
+                          >
+                            Actions ▾
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
 
           {/* Footer / pagination */}
@@ -863,8 +918,8 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
             </span>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <button
-                style={pageBtn(page === 1)}
-                disabled={page === 1}
+                style={pageBtn(page === 1 || loading)}
+                disabled={page === 1 || loading}
                 onClick={() => setPage((p) => p - 1)}
               >
                 ‹ Prev
@@ -873,8 +928,8 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                 Page {page} / {totalPages}
               </span>
               <button
-                style={pageBtn(page >= totalPages)}
-                disabled={page >= totalPages}
+                style={pageBtn(page >= totalPages || loading)}
+                disabled={page >= totalPages || loading}
                 onClick={() => setPage((p) => p + 1)}
               >
                 Next ›
