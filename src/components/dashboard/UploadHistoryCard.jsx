@@ -2,9 +2,12 @@ import { useState, useEffect, useCallback } from "react";
 import { getDashboardUploadHistory } from "../../api/dashboard";
 import { Card, CardHeader } from "./CardPrimitives";
 import { FB } from "./constants";
+import Pagination from "./Pagination";
 import { getImpersonatedUserId, isImpersonating } from "../../api/auth";
 
-const PAGE_SIZE = 10;
+const ROW_HEIGHT = 70; // keep in sync with LIST_ROW_HEIGHT in RecentApplicationsCard
+const font =
+  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 function StatusBadge({ count }) {
   return (
@@ -25,8 +28,6 @@ function StatusBadge({ count }) {
 }
 
 function DateInput({ label, value, onChange, ui }) {
-  const font =
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <label
@@ -61,7 +62,7 @@ function DateInput({ label, value, onChange, ui }) {
   );
 }
 
-export default function UploadHistoryCard({ ui }) {
+export default function UploadHistoryCard({ ui, pageSize = 6 }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -69,69 +70,55 @@ export default function UploadHistoryCard({ ui }) {
   const [total, setTotal] = useState(0);
   const [filteredRecordSum, setFilteredRecordSum] = useState(0);
 
-  // Draft inputs (hindi pa applied)
+  // Draft inputs (not applied yet)
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-
-  // Applied/committed filter values — these trigger the fetch
+  // Applied filter values — these trigger the fetch
   const [appliedFrom, setAppliedFrom] = useState("");
   const [appliedTo, setAppliedTo] = useState("");
 
   const isFiltered = !!(appliedFrom || appliedTo);
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const font =
-    "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const totalPages = Math.ceil(total / pageSize);
 
-  // ── Fetch ──────────────────────────────────────────────────────
-  const fetchPage = useCallback(async (pageNum, from, to) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {
-        limit: PAGE_SIZE,
-        offset: (pageNum - 1) * PAGE_SIZE,
-      };
-      if (from) params.date_from = from;
-      if (to) params.date_to = to;
-      if (isImpersonating()) {
-        params.impersonated_user_id = getImpersonatedUserId();
+  const fetchPage = useCallback(
+    async (pageNum, from, to) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const params = { limit: pageSize, offset: (pageNum - 1) * pageSize };
+        if (from) params.date_from = from;
+        if (to) params.date_to = to;
+        if (isImpersonating()) {
+          params.impersonated_user_id = getImpersonatedUserId();
+        }
+        const res = await getDashboardUploadHistory(params);
+        setRows(res.data);
+        setTotal(res.total ?? res.count ?? res.data.length);
+        if (res.total_records != null) {
+          setFilteredRecordSum(res.total_records);
+        } else {
+          setFilteredRecordSum(
+            res.data.reduce((sum, row) => sum + (row.record_count || 0), 0),
+          );
+        }
+      } catch (e) {
+        setError(e?.response?.data?.detail || e.message || "Failed to load");
+      } finally {
+        setLoading(false);
       }
+    },
+    [pageSize],
+  );
 
-      const res = await getDashboardUploadHistory(params);
-      setRows(res.data);
-      setTotal(res.total ?? res.count ?? res.data.length);
-
-      // ── Sum of record_count across all returned rows ──
-      // If backend returns total_records (Option B), use that
-      // Otherwise fallback to summing current page (Option A)
-      if (res.total_records != null) {
-        setFilteredRecordSum(res.total_records);
-      } else {
-        const pageSum = res.data.reduce(
-          (sum, row) => sum + (row.record_count || 0),
-          0,
-        );
-        setFilteredRecordSum(pageSum);
-      }
-    } catch (e) {
-      setError(e?.response?.data?.detail || e.message || "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Re-fetch when page or applied filters change
   useEffect(() => {
     fetchPage(page, appliedFrom, appliedTo);
   }, [fetchPage, page, appliedFrom, appliedTo]);
 
-  // ── Handlers ───────────────────────────────────────────────────
   const handleFilter = () => {
     setAppliedFrom(dateFrom);
     setAppliedTo(dateTo);
     setPage(1);
   };
-
   const handleClear = () => {
     setDateFrom("");
     setDateTo("");
@@ -139,15 +126,25 @@ export default function UploadHistoryCard({ ui }) {
     setAppliedTo("");
     setPage(1);
   };
-
   const handlePageChange = (newPage) => {
     if (newPage < 1 || newPage > totalPages) return;
     setPage(newPage);
   };
 
+  const rowBase = {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "0 16px",
+    height: ROW_HEIGHT,
+    boxSizing: "border-box",
+  };
+
   return (
-    <Card ui={ui}>
-      {/* ── Header ── */}
+    <Card
+      ui={ui}
+      style={{ display: "flex", flexDirection: "column", height: "100%" }}
+    >
       <div style={{ borderBottom: `1px solid ${ui.divider}` }}>
         <CardHeader
           title="Upload History"
@@ -156,7 +153,7 @@ export default function UploadHistoryCard({ ui }) {
         />
       </div>
 
-      {/* ── Filter Bar ── */}
+      {/* Filter bar */}
       <div
         style={{
           display: "flex",
@@ -174,7 +171,6 @@ export default function UploadHistoryCard({ ui }) {
           ui={ui}
         />
         <DateInput label="To" value={dateTo} onChange={setDateTo} ui={ui} />
-
         <button
           onClick={handleFilter}
           style={{
@@ -187,12 +183,10 @@ export default function UploadHistoryCard({ ui }) {
             fontWeight: 600,
             cursor: "pointer",
             fontFamily: font,
-            alignSelf: "flex-end",
           }}
         >
           Filter
         </button>
-
         {isFiltered && (
           <button
             onClick={handleClear}
@@ -206,16 +200,12 @@ export default function UploadHistoryCard({ ui }) {
               fontWeight: 600,
               cursor: "pointer",
               fontFamily: font,
-              alignSelf: "flex-end",
             }}
           >
             Clear
           </button>
         )}
-
-        {/* ── summary badge — batches + total records ── */}
-
-        <div style={{ alignSelf: "flex-end", marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto" }}>
           <span
             style={{
               fontSize: "0.72rem",
@@ -235,326 +225,213 @@ export default function UploadHistoryCard({ ui }) {
         </div>
       </div>
 
-      {/* ── Loading skeletons ── */}
-      {loading &&
-        Array.from({ length: PAGE_SIZE }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "11px 16px",
-              borderBottom:
-                i < PAGE_SIZE - 1 ? `1px solid ${ui.divider}` : "none",
-            }}
-          >
-            <div
-              style={{
-                width: 36,
-                height: 36,
-                borderRadius: 8,
-                background: ui.progressBg,
-                animation: "cdrrPulse 1.2s ease-in-out infinite",
-                flexShrink: 0,
-              }}
-            />
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              <div
-                style={{
-                  width: 160,
-                  height: 10,
-                  borderRadius: 4,
-                  background: ui.progressBg,
-                  animation: "cdrrPulse 1.2s ease-in-out infinite",
-                }}
-              />
-              <div
-                style={{
-                  width: 100,
-                  height: 8,
-                  borderRadius: 4,
-                  background: ui.progressBg,
-                  animation: "cdrrPulse 1.2s ease-in-out infinite",
-                }}
-              />
-            </div>
-            <div
-              style={{
-                width: 80,
-                height: 20,
-                borderRadius: 99,
-                background: ui.progressBg,
-                animation: "cdrrPulse 1.2s ease-in-out infinite",
-                flexShrink: 0,
-              }}
-            />
-          </div>
-        ))}
-
-      {/* ── Error ── */}
-      {!loading && error && (
-        <div
-          style={{
-            padding: "1.5rem",
-            textAlign: "center",
-            color: "#e02020",
-            fontSize: "0.82rem",
-          }}
-        >
-          ⚠️ {error}{" "}
-          <button
-            onClick={() => fetchPage(page, appliedFrom, appliedTo)}
-            style={{
-              background: "none",
-              border: "none",
-              color: FB,
-              cursor: "pointer",
-              fontSize: "0.82rem",
-              fontWeight: 600,
-              fontFamily: font,
-            }}
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {/* ── Empty ── */}
-      {!loading && !error && rows.length === 0 && (
-        <div
-          style={{
-            padding: "2rem",
-            textAlign: "center",
-            color: ui.textMuted,
-            fontSize: "0.82rem",
-          }}
-        >
-          {isFiltered
-            ? "No uploads found for the selected date range."
-            : "No upload history found."}
-        </div>
-      )}
-
-      {/* ── Rows ── */}
-      {!loading &&
-        !error &&
-        rows.map((row, i, arr) => {
-          const dt = row.upload_date ? new Date(row.upload_date) : null;
-          const dateStr = dt
-            ? dt.toLocaleDateString("en-PH", {
-                year: "numeric",
-                month: "short",
-                day: "numeric",
-              })
-            : "—";
-          const timeStr = dt
-            ? dt.toLocaleTimeString("en-PH", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "";
-
-          return (
+      <div style={{ flex: 1 }}>
+        {loading &&
+          Array.from({ length: pageSize }).map((_, i) => (
             <div
               key={i}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "11px 16px",
-                borderBottom:
-                  i < arr.length - 1 ? `1px solid ${ui.divider}` : "none",
-                cursor: "default",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = ui.hoverBg)
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "transparent")
-              }
+              style={{ ...rowBase, borderBottom: `1px solid ${ui.divider}` }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: ui.progressBg,
+                  animation: "cdrrPulse 1.2s ease-in-out infinite",
+                  flexShrink: 0,
+                }}
+              />
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
                 <div
                   style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 8,
-                    background: `${FB}18`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1rem",
-                    flexShrink: 0,
+                    width: 160,
+                    height: 10,
+                    borderRadius: 4,
+                    background: ui.progressBg,
+                    animation: "cdrrPulse 1.2s ease-in-out infinite",
                   }}
-                >
-                  📤
-                </div>
-                <div>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.86rem",
-                      fontWeight: 600,
-                      color: ui.textPrimary,
-                    }}
-                  >
-                    {dateStr}
-                    {timeStr && (
-                      <span
-                        style={{
-                          marginLeft: 6,
-                          fontSize: "0.72rem",
-                          color: ui.textMuted,
-                          fontWeight: 400,
-                        }}
-                      >
-                        {timeStr}
-                      </span>
-                    )}
-                  </p>
-                  <p
-                    style={{
-                      margin: 0,
-                      fontSize: "0.75rem",
-                      color: ui.textSub,
-                    }}
-                  >
-                    by {row.uploader}
-                  </p>
-                </div>
+                />
+                <div
+                  style={{
+                    width: 100,
+                    height: 8,
+                    borderRadius: 4,
+                    background: ui.progressBg,
+                    animation: "cdrrPulse 1.2s ease-in-out infinite",
+                  }}
+                />
               </div>
-              <StatusBadge count={row.record_count} />
+              <div
+                style={{
+                  width: 80,
+                  height: 20,
+                  borderRadius: 99,
+                  background: ui.progressBg,
+                  animation: "cdrrPulse 1.2s ease-in-out infinite",
+                  flexShrink: 0,
+                }}
+              />
             </div>
-          );
-        })}
+          ))}
 
-      {/* ── Pagination ── */}
-      {!loading && !error && totalPages > 1 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "10px 16px",
-            borderTop: `1px solid ${ui.divider}`,
-            gap: 8,
-          }}
-        >
-          <span
+        {!loading && error && (
+          <div
             style={{
-              fontSize: "0.74rem",
-              color: ui.textMuted,
-              fontFamily: font,
+              padding: "1.5rem",
+              textAlign: "center",
+              color: "#e02020",
+              fontSize: "0.82rem",
             }}
           >
-            Page {page} of {totalPages}
-            {total > 0 && (
-              <span style={{ marginLeft: 6 }}>
-                · {total.toLocaleString()} total
-              </span>
-            )}
-          </span>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            ⚠️ {error}{" "}
             <button
-              onClick={() => handlePageChange(page - 1)}
-              disabled={page === 1}
+              onClick={() => fetchPage(page, appliedFrom, appliedTo)}
               style={{
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: `1px solid ${page === 1 ? ui.cardBorder : ui.metricBorder}`,
-                background: "transparent",
-                color: page === 1 ? ui.textMuted : ui.textPrimary,
-                fontSize: "0.76rem",
+                background: "none",
+                border: "none",
+                color: FB,
+                cursor: "pointer",
+                fontSize: "0.82rem",
                 fontWeight: 600,
-                cursor: page === 1 ? "not-allowed" : "pointer",
-                opacity: page === 1 ? 0.4 : 1,
                 fontFamily: font,
               }}
             >
-              ‹ Prev
-            </button>
-
-            {Array.from({ length: totalPages }, (_, pi) => {
-              const pageNum = pi + 1;
-              const show =
-                pageNum === 1 ||
-                pageNum === totalPages ||
-                Math.abs(pageNum - page) <= 1;
-              const showEllipsisBefore = pageNum === page - 2 && pageNum > 1;
-              const showEllipsisAfter =
-                pageNum === page + 2 && pageNum < totalPages;
-
-              if (!show && !showEllipsisBefore && !showEllipsisAfter)
-                return null;
-              if (showEllipsisBefore || showEllipsisAfter)
-                return (
-                  <span
-                    key={pi}
-                    style={{
-                      fontSize: "0.74rem",
-                      color: ui.textMuted,
-                      padding: "0 2px",
-                    }}
-                  >
-                    …
-                  </span>
-                );
-
-              const isActive = pageNum === page;
-              return (
-                <button
-                  key={pi}
-                  onClick={() => handlePageChange(pageNum)}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    border: `1px solid ${isActive ? FB : ui.cardBorder}`,
-                    background: isActive ? FB : "transparent",
-                    color: isActive ? "#fff" : ui.textPrimary,
-                    fontSize: "0.76rem",
-                    fontWeight: isActive ? 700 : 500,
-                    cursor: "pointer",
-                    fontFamily: font,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => handlePageChange(page + 1)}
-              disabled={page === totalPages}
-              style={{
-                padding: "4px 10px",
-                borderRadius: 6,
-                border: `1px solid ${page === totalPages ? ui.cardBorder : ui.metricBorder}`,
-                background: "transparent",
-                color: page === totalPages ? ui.textMuted : ui.textPrimary,
-                fontSize: "0.76rem",
-                fontWeight: 600,
-                cursor: page === totalPages ? "not-allowed" : "pointer",
-                opacity: page === totalPages ? 0.4 : 1,
-                fontFamily: font,
-              }}
-            >
-              Next ›
+              Retry
             </button>
           </div>
-        </div>
+        )}
+
+        {!loading && !error && rows.length === 0 && (
+          <div
+            style={{
+              padding: "2rem",
+              textAlign: "center",
+              color: ui.textMuted,
+              fontSize: "0.82rem",
+            }}
+          >
+            {isFiltered
+              ? "No uploads found for the selected date range."
+              : "No upload history found."}
+          </div>
+        )}
+
+        {!loading &&
+          !error &&
+          rows.map((row, i, arr) => {
+            const dt = row.upload_date ? new Date(row.upload_date) : null;
+            const dateStr = dt
+              ? dt.toLocaleDateString("en-PH", {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                })
+              : "—";
+            const timeStr = dt
+              ? dt.toLocaleTimeString("en-PH", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "";
+            return (
+              <div
+                key={i}
+                style={{
+                  ...rowBase,
+                  justifyContent: "space-between",
+                  borderBottom:
+                    i < arr.length - 1 ? `1px solid ${ui.divider}` : "none",
+                  cursor: "default",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = ui.hoverBg)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    minWidth: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: `${FB}18`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1rem",
+                      flexShrink: 0,
+                    }}
+                  >
+                    📤
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "0.86rem",
+                        fontWeight: 600,
+                        color: ui.textPrimary,
+                      }}
+                    >
+                      {dateStr}
+                      {timeStr && (
+                        <span
+                          style={{
+                            marginLeft: 6,
+                            fontSize: "0.72rem",
+                            color: ui.textMuted,
+                            fontWeight: 400,
+                          }}
+                        >
+                          {timeStr}
+                        </span>
+                      )}
+                    </p>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: "0.75rem",
+                        color: ui.textSub,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      by {row.uploader}
+                    </p>
+                  </div>
+                </div>
+                <StatusBadge count={row.record_count} />
+              </div>
+            );
+          })}
+      </div>
+
+      {!loading && !error && (
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          total={total}
+          onChange={handlePageChange}
+          ui={ui}
+        />
       )}
     </Card>
   );
