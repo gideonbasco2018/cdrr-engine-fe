@@ -74,3 +74,13 @@ export const getAnalyticsQualityRecords = async (params = {}) => {
     const res = await API.get("/analytics/data-quality/records", { params });
     return res.data;
 };
+
+export const getAnalyticsTopCompanies = async (params = {}) => {
+    const res = await API.get("/analytics/top-companies", { params });
+    return res.data;
+};
+
+export const getAnalyticsCompanyRecords = async (params = {}) => {
+    const res = await API.get("/analytics/top-companies/records", { params });
+    return res.data;
+};
