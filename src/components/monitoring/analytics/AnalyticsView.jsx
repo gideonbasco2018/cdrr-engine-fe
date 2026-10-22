@@ -14,6 +14,7 @@ import {
   getAnalyticsDataQuality,
   getAnalyticsQualityRecords,
   getAnalyticsCompanyRecords,
+  getAnalyticsFastestRecords,
   getAnalyticsSummaryRecords,
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
@@ -357,22 +358,24 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       released_from: relFrom || undefined,
       released_to: relTo || undefined,
     };
-    return target.topco
-      ? getAnalyticsCompanyRecords({ ...target.topco, ...common })
-      : target.quality
-        ? getAnalyticsQualityRecords({
-            year: target.year,
-            issue: target.quality,
-            ...common,
-          })
-        : target.summary
-          ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
-          : getAnalyticsYearRecords({
+    return target.fastest
+      ? getAnalyticsFastestRecords({ ...target.fastest, ...common })
+      : target.topco
+        ? getAnalyticsCompanyRecords({ ...target.topco, ...common })
+        : target.quality
+          ? getAnalyticsQualityRecords({
               year: target.year,
-              kind: target.kind,
-              basis,
+              issue: target.quality,
               ...common,
-            });
+            })
+          : target.summary
+            ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
+            : getAnalyticsYearRecords({
+                year: target.year,
+                kind: target.kind,
+                basis,
+                ...common,
+              });
   };
 
   useEffect(() => {
@@ -480,6 +483,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
         "Entry Type",
         "Date Received (Center)",
         "Date Released",
+        ...(target.fastest ? ["Working Days"] : []),
         ...(target.summary ? ["Validity"] : []),
         "Type of Doc Released",
         "Status",
@@ -492,6 +496,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
         r.entry_type ?? "",
         r.date_received_cent ?? "",
         r.date_released ?? "",
+        ...(target.fastest ? [r.days ?? ""] : []),
         ...(target.summary ? [r.secpa_exp_date ?? ""] : []),
         r.type_doc_released ?? "",
         r.app_status ?? "",
@@ -957,6 +962,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                       <th style={th}>Entry Type</th>
                       <th style={th}>Date Received (Center)</th>
                       <th style={th}>Date Released</th>
+                      {target.fastest && <th style={th}>Working Days</th>}
                       {target.summary && <th style={th}>Validity</th>}
                       <th style={th}>Type of Doc Released</th>
                       <th style={th}>Status</th>
@@ -1011,6 +1017,13 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                         <td style={td}>{r.entry_type ?? "—"}</td>
                         <td style={td}>{r.date_received_cent ?? "—"}</td>
                         <td style={td}>{r.date_released ?? "—"}</td>
+                        {target.fastest && (
+                          <td
+                            style={{ ...td, fontWeight: 800, color: "#36a420" }}
+                          >
+                            {r.days ?? "—"}
+                          </td>
+                        )}
                         {target.summary && (
                           <td style={td}>{r.secpa_exp_date ?? "—"}</td>
                         )}
