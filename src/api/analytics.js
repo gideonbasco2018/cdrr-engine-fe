@@ -84,3 +84,18 @@ export const getAnalyticsCompanyRecords = async (params = {}) => {
     const res = await API.get("/analytics/top-companies/records", { params });
     return res.data;
 };
+
+export const getAnalyticsFastestApplications = async (params = {}) => {
+    const res = await API.get("/analytics/fastest/applications", { params });
+    return res.data;
+};
+
+export const getAnalyticsFastestCompanies = async (params = {}) => {
+    const res = await API.get("/analytics/fastest/companies", { params });
+    return res.data;
+};
+
+export const getAnalyticsFastestRecords = async (params = {}) => {
+    const res = await API.get("/analytics/fastest/records", { params });
+    return res.data;
+};
