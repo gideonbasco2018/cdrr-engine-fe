@@ -15,6 +15,13 @@ import {
   getAnalyticsFastestCompanies,
 } from "../../../api/analytics";
 import { YearRecordsModal } from "../analytics/AnalyticsView";
+import DoctrackModal from "../../reports/actions/DoctrackModal";
+import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
+import ApplicationLogsModal from "../../tasks/ApplicationLogsModal";
+
+import { createPortal } from "react-dom";
+import { getUploadReports } from "../../../api/reports";
+import { mapDataItem } from "../../reports/utils.js";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -31,6 +38,260 @@ const evLabel = (ev) =>
     : ev.full_name
       ? `${ev.code} — ${ev.full_name}`
       : ev.code;
+
+function RowActions({ row, items, darkMode, ui }) {
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+
+  useEffect(() => {
+    if (!pos) return;
+    const close = () => setPos(null);
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [pos]);
+
+  const toggle = (e) => {
+    e.stopPropagation();
+    if (pos) return setPos(null);
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 210) });
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggle}
+        title="Actions"
+        style={{
+          border: "none",
+          background: "transparent",
+          cursor: "pointer",
+          fontSize: "1rem",
+          fontWeight: 800,
+          lineHeight: 1,
+          padding: "2px 8px",
+          color: ui.textPrimary,
+        }}
+      >
+        ⋮
+      </button>
+      {pos &&
+        createPortal(
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              zIndex: 10000,
+              minWidth: 210,
+              padding: 6,
+              borderRadius: 10,
+              background: darkMode ? "#1e1e1e" : "#ffffff",
+              border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)"}`,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            }}
+          >
+            {items.map((it) => (
+              <div
+                key={it.label}
+                onClick={() => {
+                  setPos(null);
+                  it.onClick(row);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 12px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontSize: "0.78rem",
+                  fontWeight: 600,
+                  color: ui.textPrimary,
+                  textAlign: "left",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = darkMode
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.06)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                <span>{it.icon}</span>
+                <span>{it.label}</span>
+              </div>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+function MultiSelect({
+  options,
+  selected,
+  onChange,
+  getLabel,
+  darkMode,
+  ui,
+  style,
+}) {
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    if (!pos) return;
+    const close = () => setPos(null);
+    const onScroll = (e) => {
+      if (panelRef.current?.contains(e.target)) return;
+      setPos(null);
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [pos]);
+
+  const toggleOpen = (e) => {
+    e.stopPropagation();
+    if (pos) return setPos(null);
+    const r = btnRef.current.getBoundingClientRect();
+    setPos({ top: r.bottom + 4, left: Math.max(8, r.right - 260) });
+  };
+
+  const toggleItem = (key) =>
+    onChange(
+      selected.includes(key)
+        ? selected.filter((k) => k !== key)
+        : [...selected, key],
+    );
+
+  const summary =
+    selected.length === 0
+      ? "All"
+      : selected.length === 1
+        ? getLabel(selected[0])
+        : `${selected.length} selected`;
+
+  const hoverBg = darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggleOpen}
+        style={{
+          ...style,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          textAlign: "left",
+        }}
+      >
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {summary}
+        </span>
+        <span style={{ fontSize: "0.6rem" }}>▾</span>
+      </button>
+      {pos &&
+        createPortal(
+          <div
+            ref={panelRef}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              zIndex: 10000,
+              width: 260,
+              maxHeight: 320,
+              overflowY: "auto",
+              padding: 6,
+              borderRadius: 10,
+              background: darkMode ? "#1e1e1e" : "#ffffff",
+              border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)"}`,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+            }}
+          >
+            <div
+              onClick={() => onChange([])}
+              style={{
+                padding: "6px 10px",
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                color: ui.textMuted,
+                cursor: "pointer",
+                borderRadius: 8,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = hoverBg)}
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+            >
+              Clear (show all)
+            </div>
+            {options.map((o) => (
+              <label
+                key={o.key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontSize: "0.76rem",
+                  fontWeight: 600,
+                  color: ui.textPrimary,
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = hoverBg)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(o.key)}
+                  onChange={() => toggleItem(o.key)}
+                />
+                <span style={{ flex: 1 }}>{getLabel(o.key)}</span>
+                <span style={{ color: ui.textMuted, fontWeight: 500 }}>
+                  {o.count.toLocaleString()}
+                </span>
+              </label>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
 
 export default function FastestProcessingView({ ui, darkMode }) {
   const [year, setYear] = useState("2026");
@@ -49,6 +310,57 @@ export default function FastestProcessingView({ ui, darkMode }) {
   const [open, setOpen] = useState({});
 
   const [target, setTarget] = useState(null);
+  const [entry, setEntry] = useState("All");
+  const [appTypes, setAppTypes] = useState([]); // empty = all
+  const appTypesKey = appTypes.join("|");
+  const [doctrackRow, setDoctrackRow] = useState(null);
+  const [detailsRow, setDetailsRow] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const [logsRow, setLogsRow] = useState(null);
+
+  // Load the FULL record (same shape the Records page uses)
+  const openDetails = async (r) => {
+    if (!r.dtn) {
+      alert("This record has no DTN, so it cannot be loaded.");
+      return;
+    }
+    setDetail({ dtn: r.dtn });
+    setDetailLoading(true);
+    try {
+      const res = await getUploadReports({
+        page: 1,
+        pageSize: 20,
+        search: "",
+        status: "",
+        sortBy: "DB_DATE_EXCEL_UPLOAD",
+        sortOrder: "desc",
+        dtn: parseInt(r.dtn, 10),
+      });
+      const match = (res?.data ?? [])
+        .map(mapDataItem)
+        .find((x) => String(x.id) === String(r.db_id));
+      if (!match) throw new Error("Full record not found.");
+      setDetail(match);
+    } catch (err) {
+      console.error("Load full record failed:", err);
+      setDetail(null);
+      alert(`Could not load the record.\n${err.message}`);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const rowActions = [
+    { icon: "👁", label: "View Details", onClick: (r) => openDetails(r) },
+    {
+      icon: "📋",
+      label: "View Application Logs",
+      onClick: (r) => setLogsRow(r),
+    },
+  ];
+
   const idA = useRef(0);
   const idC = useRef(0);
 
@@ -58,14 +370,21 @@ export default function FastestProcessingView({ ui, darkMode }) {
     const id = ++idA.current;
     setLoadingA(true);
     setErrA("");
-    getAnalyticsFastestApplications({ year, month, top, doc })
+    getAnalyticsFastestApplications({
+      year,
+      month,
+      top,
+      doc,
+      entry_type: entry === "All" ? undefined : entry,
+      app_type: appTypesKey || undefined,
+    })
       .then((r) => id === idA.current && setApps(r))
       .catch((err) => {
         console.error("Fastest applications error:", err);
         if (id === idA.current) setErrA("Failed to load data.");
       })
       .finally(() => id === idA.current && setLoadingA(false));
-  }, [year, month, top, doc]);
+  }, [year, month, top, doc, entry, appTypesKey]);
 
   useEffect(() => {
     const id = ++idC.current;
@@ -88,9 +407,43 @@ export default function FastestProcessingView({ ui, darkMode }) {
     month === "All" ? year : `${MONTHS[Number(month) - 1] ?? month} ${year}`;
   const docLabel = { cpr: "CPR", cert: "Cert", both: "CPR + Cert" }[doc];
 
+  const entryLabel = (k) => (k === "__REGULAR__" ? "Regular Application" : k);
+  const appTypeLabel = (k) => (k === "__NONE__" ? "No Application Type" : k);
+  const appTypeList = apps?.app_types ?? [];
+  // keep selected options visible even if their count dropped to 0
+  const appTypeOptions = [
+    ...appTypeList,
+    ...appTypes
+      .filter((k) => !appTypeList.some((x) => x.key === k))
+      .map((k) => ({ key: k, count: 0 })),
+  ];
+  const entryList = apps?.entry_types ?? [];
+  // keep the selected option visible even if its count dropped to 0
+  const entryOptions =
+    entry !== "All" && !entryList.some((x) => x.key === entry)
+      ? [...entryList, { key: entry, count: 0 }]
+      : entryList;
+
+  const colors = {
+    cardBg: neuCardBg(darkMode),
+    cardBorder: line,
+    tableBg: darkMode ? "#222222" : "#f7f8fa",
+    tableRowHover: darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+    inputBg: darkMode ? "#222222" : "#f7f8fa",
+    badgeBg: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+    textPrimary: ui.textPrimary,
+    textSecondary: ui.textSub ?? ui.textPrimary,
+    textTertiary: ui.textMuted,
+  };
   // Open the applications behind a number. company=undefined -> all companies,
   // ev=null -> all evaluators. kind: "cpr" | "cert" | "both"
-  const openRecords = ({ company, ev = null, kind = "both" }) => {
+  const openRecords = ({
+    company,
+    ev = null,
+    kind = "both",
+    entryType,
+    appType,
+  }) => {
     const docName = { cpr: "CPR", cert: "Cert", both: "CPR + Cert" }[kind];
     setTarget({
       title: [company, docName, ev ? evLabel(ev) : null, periodLabel]
@@ -100,6 +453,8 @@ export default function FastestProcessingView({ ui, darkMode }) {
         year,
         month,
         doc: kind,
+        entry_type: entryType,
+        app_type: appType,
         company,
         user_id: !ev ? undefined : ev.unassigned ? "none" : String(ev.user_id),
       },
@@ -371,7 +726,12 @@ export default function FastestProcessingView({ ui, darkMode }) {
             color: FB,
             onClick:
               (apps?.total ?? 0) > 0
-                ? () => openRecords({ kind: doc })
+                ? () =>
+                    openRecords({
+                      kind: doc,
+                      entryType: entry === "All" ? undefined : entry,
+                      appType: appTypesKey || undefined,
+                    })
                 : undefined,
           },
           {
@@ -403,20 +763,55 @@ export default function FastestProcessingView({ ui, darkMode }) {
         ui={ui}
         darkMode={darkMode}
         action={
-          <div style={seg}>
-            {[
-              { key: "cpr", label: "CPR" },
-              { key: "cert", label: "Cert" },
-              { key: "both", label: "Both" },
-            ].map(({ key, label: l }) => (
-              <button
-                key={key}
-                onClick={() => setDoc(key)}
-                style={btn(doc === key)}
-              >
-                {l}
-              </button>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ ...label, margin: 0 }}>Entry Type</span>
+            <select
+              value={entry}
+              onChange={(e) => setEntry(e.target.value)}
+              style={{
+                ...inputSt,
+                padding: "5px 10px",
+                fontSize: "0.75rem",
+                maxWidth: 200,
+              }}
+            >
+              <option value="All">All</option>
+              {entryOptions.map((x) => (
+                <option key={x.key} value={x.key}>
+                  {entryLabel(x.key)} ({x.count.toLocaleString()})
+                </option>
+              ))}
+            </select>
+            <span style={{ ...label, margin: 0 }}>App Type</span>
+            <MultiSelect
+              options={appTypeOptions}
+              selected={appTypes}
+              onChange={setAppTypes}
+              getLabel={appTypeLabel}
+              darkMode={darkMode}
+              ui={ui}
+              style={{
+                ...inputSt,
+                padding: "5px 10px",
+                fontSize: "0.75rem",
+                width: 170,
+              }}
+            />
+            <div style={seg}>
+              {[
+                { key: "cpr", label: "CPR" },
+                { key: "cert", label: "Cert" },
+                { key: "both", label: "Both" },
+              ].map(({ key, label: l }) => (
+                <button
+                  key={key}
+                  onClick={() => setDoc(key)}
+                  style={btn(doc === key)}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
           </div>
         }
       >
@@ -425,7 +820,9 @@ export default function FastestProcessingView({ ui, darkMode }) {
         ) : errA ? (
           empty(errA)
         ) : (apps?.data ?? []).length === 0 ? (
-          empty(`No ${docLabel} released in ${periodLabel}`)
+          empty(
+            `No ${docLabel} released in ${periodLabel}${entry !== "All" ? ` with entry type "${entryLabel(entry)}"` : ""}`,
+          )
         ) : (
           <div
             style={{
@@ -446,6 +843,7 @@ export default function FastestProcessingView({ ui, darkMode }) {
                   {[
                     "#",
                     "DTN",
+                    "Entry Type",
                     "Company",
                     "Brand / Generic",
                     "Doc",
@@ -453,6 +851,7 @@ export default function FastestProcessingView({ ui, darkMode }) {
                     "Date Released",
                     "Working Days",
                     "Evaluator",
+                    "Actions",
                   ].map((h) => (
                     <th key={h} style={th}>
                       {h}
@@ -472,9 +871,26 @@ export default function FastestProcessingView({ ui, darkMode }) {
                     >
                       {r.rank}
                     </td>
-                    <td style={{ ...td, color: FB, fontWeight: 700 }}>
-                      {r.dtn ?? "—"}
+                    <td style={td}>
+                      {r.dtn ? (
+                        <span
+                          onClick={() => setDoctrackRow(r)}
+                          title="View document tracking"
+                          style={{
+                            cursor: "pointer",
+                            color: FB,
+                            fontWeight: 700,
+                            textDecoration: "underline dotted",
+                            textUnderlineOffset: 3,
+                          }}
+                        >
+                          {r.dtn}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
+                    <td style={td}>{r.entry_type ?? "—"}</td>
                     <td
                       style={{
                         ...td,
@@ -534,6 +950,14 @@ export default function FastestProcessingView({ ui, darkMode }) {
                       }}
                     >
                       {evLabel(r.evaluator)}
+                    </td>
+                    <td style={td}>
+                      <RowActions
+                        row={r}
+                        items={rowActions}
+                        darkMode={darkMode}
+                        ui={ui}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -829,6 +1253,31 @@ export default function FastestProcessingView({ ui, darkMode }) {
           evaluator's share of that company's CPR/Cert and their own average.
         </div>
       </SectionCard>
+      {doctrackRow && (
+        <DoctrackModal
+          record={{ dtn: doctrackRow.dtn }}
+          onClose={() => setDoctrackRow(null)}
+          colors={colors}
+        />
+      )}
+
+      {detail && (
+        <ViewDetailsModal
+          record={detail}
+          loading={detailLoading}
+          onClose={() => setDetail(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+      {logsRow && (
+        <ApplicationLogsModal
+          record={{ dtn: logsRow.dtn, mainDbId: logsRow.db_id }}
+          onClose={() => setLogsRow(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
       {target && (
         <YearRecordsModal
           target={target}
