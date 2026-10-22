@@ -321,8 +321,15 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       prodGenName: r.generic_name,
       secpaExpDate: r.secpa_exp_date,
     };
-    setDetail(partial);
-    setDetailLoading(false);
+    setDetail(partial); // shown first as a fallback
+    setDetailLoading(true);
+    try {
+      setDetail(await fetchFullRecord(r));
+    } catch (err) {
+      console.error("Load full record failed:", err);
+    } finally {
+      setDetailLoading(false);
+    }
   };
 
   const colors = {
