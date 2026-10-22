@@ -29,6 +29,13 @@ const EVAL_COLORS = [
   "#14b8a6",
 ];
 
+// Escape one CSV cell and neutralize spreadsheet formula injection
+const csvCell = (v) => {
+  let s = v == null ? "" : String(v);
+  if (typeof v === "string" && /^[=+\-@]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
 export default function TopCompaniesView({ ui, darkMode }) {
   const [year, setYear] = useState("2026");
   const [month, setMonth] = useState("All");
@@ -94,6 +101,55 @@ export default function TopCompaniesView({ ui, darkMode }) {
   const maxCount = Math.max(...data.map((c) => c.count), 1);
   const allOpen = data.length > 0 && data.every((c) => open[c.rank]);
   const share = res?.total_apps > 0 ? (res.top_apps / res.total_apps) * 100 : 0;
+
+  const exportCsv = () => {
+    if (data.length === 0) return;
+
+    const header = [
+      "Rank",
+      "Company",
+      "Company Total Apps",
+      "Evaluator Code",
+      "Evaluator Name",
+      "Evaluator Apps",
+      "% of Company",
+    ];
+
+    const rows = [];
+    data.forEach((c) => {
+      const evs = c.evaluators ?? [];
+      if (evs.length === 0) {
+        rows.push([c.rank, c.company, c.count, "", "", "", ""]);
+        return;
+      }
+      evs.forEach((ev) => {
+        rows.push([
+          c.rank,
+          c.company,
+          c.count,
+          ev.unassigned ? "Unassigned" : ev.code,
+          ev.unassigned ? "" : (ev.full_name ?? ""),
+          ev.count,
+          ((ev.count / c.count) * 100).toFixed(1),
+        ]);
+      });
+    });
+
+    // BOM so Excel reads UTF-8 correctly
+    const csv =
+      "\uFEFF" +
+      [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `top-${top}-companies_${year}-${month}_${basis}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const inputSt = {
     background: neuCardBg(darkMode),
@@ -288,19 +344,32 @@ export default function TopCompaniesView({ ui, darkMode }) {
         ui={ui}
         darkMode={darkMode}
         action={
-          <button
-            onClick={() =>
-              setOpen(
-                allOpen
-                  ? {}
-                  : Object.fromEntries(data.map((c) => [c.rank, true])),
-              )
-            }
-            disabled={data.length === 0}
-            style={{ ...btn(false), opacity: data.length === 0 ? 0.4 : 1 }}
-          >
-            {allOpen ? "Collapse all" : "Expand all"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={exportCsv}
+              disabled={data.length === 0 || loading}
+              title="Download as CSV (includes evaluator breakdown)"
+              style={{
+                ...btn(false),
+                opacity: data.length === 0 || loading ? 0.4 : 1,
+              }}
+            >
+              ⬇ Export CSV
+            </button>
+            <button
+              onClick={() =>
+                setOpen(
+                  allOpen
+                    ? {}
+                    : Object.fromEntries(data.map((c) => [c.rank, true])),
+                )
+              }
+              disabled={data.length === 0}
+              style={{ ...btn(false), opacity: data.length === 0 ? 0.4 : 1 }}
+            >
+              {allOpen ? "Collapse all" : "Expand all"}
+            </button>
+          </div>
         }
       >
         {loading && !res ? (
@@ -593,8 +662,9 @@ export default function TopCompaniesView({ ui, darkMode }) {
           <b style={{ color: ui.textPrimary }}>How it is counted:</b> company =
           LTO company name (same names are combined). Month is based on{" "}
           {basis === "received" ? "Date Received (Center)" : "Date Released"}.
-          The evaluator is the user on the Quality Evaluation step with no
-          reroute or reassign mark; if there are several, the latest one.
+          The evaluator is the user on the Quality Evaluation step; rerouted
+          entries are counted, reassigned entries are skipped (the new assignee
+          is counted instead). If there are several, the latest one.
           Applications with no such evaluator are shown as "Unassigned".
           {res?.matched_steps?.length > 0 && (
             <>
