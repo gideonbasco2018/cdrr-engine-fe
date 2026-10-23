@@ -64,6 +64,28 @@ export const getCmdrTrend = async (params = {}, config = {}) => {
   }
 };
 
+
+/**
+ * Applications behind one point of the trend chart.
+ * @param {Object} params
+ * @param {string} params.month - "YYYY-MM"
+ * @param {string} params.metric - "received" | "completed"
+ * @param {number} params.skip
+ * @param {number} params.limit - max 200
+ * @returns {Object} { items, total, skip, limit }
+ */
+export const getCmdrTrendApplications = async (params = {}, config = {}) => {
+  try {
+    const response = await axios.get(`${BASE_URL}/all/trend/applications`, {
+      params: clean(params),
+      ...config,
+    });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
 /**
  * All CMDR tables in one paginated list. Each item has CMDR_TYPE.
  * @param {Object} params
