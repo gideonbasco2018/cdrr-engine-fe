@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCmdrAll, getCmdrApplication, getCmdrFacets } from "../api/cmdr";
 import { getColorScheme } from "../components/reports/utils.js";
 import TablePagination from "../components/reports/TablePagination";
+import DoctrackModal from "../components/reports/actions/DoctrackModal";
 
 /* ───────────────────────── constants ───────────────────────── */
 
@@ -474,6 +475,7 @@ function SidebarSection({
 function DetailModal({ target, onClose, colors, darkMode }) {
   const [tab, setTab] = useState(target.tab || "info");
   const [detail, setDetail] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const closeRef = useRef(null);
@@ -1021,6 +1023,7 @@ function CmdrPage({ darkMode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [openMenu, setOpenMenu] = useState(null); // { key, top, right }
   const [detail, setDetail] = useState(null); // { cmdr_type, app_uid, company, tab }
+  const [doctrackRecord, setDoctrackRecord] = useState(null); // { dtn }
 
   const filterParams = useMemo(
     () => ({
@@ -1103,6 +1106,7 @@ function CmdrPage({ darkMode }) {
     setCurrentPage(1);
   };
   const closeDetail = useCallback(() => setDetail(null), []);
+  const closeDoctrack = useCallback(() => setDoctrackRecord(null), []);
 
   const handleMenuToggle = (e, rowKey) => {
     e.stopPropagation();
@@ -1231,10 +1235,26 @@ function CmdrPage({ darkMode }) {
           </span>
         );
       case "DTN":
+        if (!row.DTN) return <span>—</span>;
         return (
-          <span style={{ fontSize: "0.65rem", fontWeight: 600 }}>
-            {show(row.DTN)}
-          </span>
+          <button
+            type="button"
+            onClick={() => setDoctrackRecord({ dtn: row.DTN })}
+            title="View document tracking"
+            style={{
+              padding: 0,
+              background: "transparent",
+              border: "none",
+              color: "#3b82f6",
+              fontSize: "0.65rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: 2,
+            }}
+          >
+            {row.DTN}
+          </button>
         );
       default:
         return (
@@ -1922,6 +1942,14 @@ function CmdrPage({ darkMode }) {
           onClose={closeDetail}
           colors={colors}
           darkMode={darkMode}
+        />
+      )}
+
+      {doctrackRecord && (
+        <DoctrackModal
+          record={doctrackRecord}
+          onClose={closeDoctrack}
+          colors={colors}
         />
       )}
     </div>
