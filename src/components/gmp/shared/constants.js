@@ -4,8 +4,8 @@
 // loops back to the Evaluator afterwards, see resolve_next_step()
 // in app/crud/gmp_record.py)
 // Group IDs: Decking=30, Evaluator=31, Checker=32,
-//            QA Admin=34, LRD Chief Admin=17, OD Receiving=18, OD Releasing=19,
-//            FROO=37
+//            QA Admin=34, LRD Chief Admin=17, OD Receiving=18,
+//            CDRR-OD Signature Facilitator=40, OD Releasing=19, FROO=37
 // NOTE: The "QA Supervisor" step/group (33) has been removed on the backend.
 // Evaluator now routes directly to QA Admin. Keep this file's `id` values in
 // sync with GMP_LOG_STEPS in app/crud/gmp_record.py.
@@ -40,6 +40,14 @@ export const GMP_STEPS = [
   {
     id: "OD Receiving", label: "OD Receiving", icon: "📥", color: "#06b6d4", del_index: 6,
     group_id: 18,
+  },
+  // Multi-assignee: several people can be picked at once here (whoever
+  // completes it first wins — see GMP_MULTI_ASSIGNEE_STEPS in
+  // app/crud/gmp_record.py). Same group (40) and name CPR already uses for
+  // its identical step — same real office either way.
+  {
+    id: "CDRR-OD Signature Facilitator", label: "CDRR-OD Signature Facilitator", icon: "✍️", color: "#a855f7", del_index: 9,
+    group_id: 40,
   },
   {
     id: "OD Releasing", label: "OD Releasing", icon: "📤", color: "#f97316", del_index: 7,
