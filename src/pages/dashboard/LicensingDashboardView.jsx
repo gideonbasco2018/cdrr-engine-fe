@@ -1,12 +1,11 @@
 // FILE: src/pages/dashboard/LicensingDashboardView.jsx
-// The original main Dashboard — licensing unit KPIs (received / completed /
-// on-process / target), Insights chart, data table, and recent applications,
-// scoped to the current user's ApplicationLogs/MainDB records.
+// Main dashboard — licensing unit. Monitoring-style layout (4 stat cards,
+// trend chart + breakdown donut, data table, recent applications).
+// Accomplishment Report is removed for now.
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   getDashboardSummary,
   getDashboardChart,
-  getDashboardRecentApplications,
   getDashboardRecordByDtn,
   getDashboardAllRecentApplications,
 } from "../../api/dashboard";
@@ -15,121 +14,33 @@ import ViewDetailsModal from "../../components/reports/actions/ViewDetailsModal"
 import HowToUseDashboardModal, {
   useHowToUseDashboardGuide,
 } from "../../components/dashboard/HowToUseDashboardModal";
-import {
-  buildChartParams,
-  mapPoint,
-  getWorkingWeek,
-} from "../../components/dashboard/utils";
-
+import { buildChartParams, mapPoint } from "../../components/dashboard/utils";
 import {
   FB,
   ALL_MONTHS,
   CURRENT_YEAR,
   CURRENT_MONTH_IDX,
-  MONTHS_BY_YEAR,
-  AVAILABLE_YEARS,
 } from "../../components/dashboard/constants";
-import { Card, SeeAll } from "../../components/dashboard/CardPrimitives";
-import MetricTile from "../../components/dashboard/MetricTile";
-import AreaChart from "../../components/dashboard/AreaChart";
-import DataTable from "../../components/dashboard/DataTable";
 import RecentApplicationsCard from "../../components/dashboard/RecentApplicationsCard";
 import MetricDetailModal from "../../components/dashboard/MetricDetailModal";
 import RecentApplicationsModal from "../../components/dashboard/RecentApplicationsModal";
 import TargetModal from "../../components/dashboard/TargetModal";
-import AccomplishmentReport from "../../components/dashboard/AccomplishmentReport";
-
 import UploadHistoryCard from "../../components/dashboard/UploadHistoryCard";
+import InsightsSection, {
+  ErrorToasts,
+} from "../../components/dashboard/InsightsSection";
 
-const font =
-  "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+// Recent Applications shows 7 rows and Upload History 6 (it also has a filter
+// bar), so the two side-by-side cards come out the same height.
+const RECENT_PAGE_SIZE = 7;
 
-// ─── Right panel ──────────────────────────────────────────────────────────────
-function RightPanel({
-  ui,
-  canGenReport,
-  reportStart,
-  reportEnd,
-  setCustomReportDates,
-  setShowReport,
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <Card ui={ui}>
-        <div style={{ padding: "14px 16px 10px" }}>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: "0.95rem",
-              fontWeight: 700,
-              color: ui.textPrimary,
-            }}
-          >
-            Accomplishment Report
-          </h3>
-          <p
-            style={{
-              margin: "2px 0 0",
-              fontSize: "0.72rem",
-              color: ui.textMuted,
-            }}
-          >
-            Select a date range to generate
-          </p>
-        </div>
-        <div
-          style={{
-            padding: "0 16px 14px",
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <button
-            onClick={() =>
-              canGenReport &&
-              (setCustomReportDates({ start: reportStart, end: reportEnd }),
-              setShowReport(true))
-            }
-            disabled={!canGenReport}
-            style={{
-              width: "100%",
-              padding: "9px 0",
-              borderRadius: 8,
-              border: `1.5px solid ${canGenReport ? FB : ui.metricBorder}`,
-              background: canGenReport ? FB : "transparent",
-              color: canGenReport ? "#fff" : ui.textMuted,
-              fontSize: "0.84rem",
-              fontWeight: 700,
-              cursor: canGenReport ? "pointer" : "not-allowed",
-              opacity: canGenReport ? 1 : 0.5,
-              fontFamily: "inherit",
-            }}
-            onMouseEnter={(e) => {
-              if (canGenReport) e.currentTarget.style.background = "#1565d8";
-            }}
-            onMouseLeave={(e) => {
-              if (canGenReport) e.currentTarget.style.background = FB;
-            }}
-          >
-            📋 Generate Report
-          </button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-// ─── MAIN ─────────────────────────────────────────────────────────────────────
 export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
   // ── Controls ──────────────────────────────────────────────────────────────
-  const [breakdown, setBreakdown] = useState("year");
+  const [breakdown, setBreakdown] = useState("month");
   const [selYear, setSelYear] = useState(String(CURRENT_YEAR));
   const [selMonth, setSelMonth] = useState(ALL_MONTHS[CURRENT_MONTH_IDX]);
   const [activeMetric, setActiveMetric] = useState(0);
   const [activeTarget, setActiveTarget] = useState(null);
-  const [showReport, setShowReport] = useState(false);
-  const [customReportDates, setCustomReportDates] = useState(null);
   const [showRecentModal, setShowRecentModal] = useState(false);
   const [selectedDtnRecord, setSelectedDtnRecord] = useState(null);
   const { showGuide, openGuide, closeGuide } = useHowToUseDashboardGuide();
@@ -154,17 +65,13 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
   const [chartError, setChartError] = useState(null);
   const [chartSubtitle, setChartSubtitle] = useState("");
 
-  // ── Report dates ──────────────────────────────────────────────────────────
-  const week = getWorkingWeek();
-  const [reportStart, setReportStart] = useState(week.start);
-  const [reportEnd, setReportEnd] = useState(week.end);
-  const [reportDateErr] = useState("");
-  const canGenReport = !reportDateErr && reportStart && reportEnd;
-
   // ── Recent apps ───────────────────────────────────────────────────────────
   const [recentApps, setRecentApps] = useState([]);
   const [recentLoading, setRecentLoading] = useState(true);
   const [recentError, setRecentError] = useState(null);
+  const [recentPage, setRecentPage] = useState(1);
+  const [recentTotal, setRecentTotal] = useState(0);
+  const [recentTotalPages, setRecentTotalPages] = useState(1);
 
   // ── Fetches ───────────────────────────────────────────────────────────────
   const fetchStats = useCallback(async () => {
@@ -219,8 +126,13 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
     setRecentLoading(true);
     setRecentError(null);
     try {
-      const res = await getDashboardRecentApplications({ limit: 10 });
+      const res = await getDashboardAllRecentApplications({
+        page: recentPage,
+        page_size: RECENT_PAGE_SIZE,
+      });
       setRecentApps(res.data);
+      setRecentTotal(res.total ?? res.data.length);
+      setRecentTotalPages(res.total_pages ?? 1);
     } catch (err) {
       setRecentError(
         err?.response?.data?.detail || err.message || "Failed to load",
@@ -229,7 +141,7 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
     } finally {
       setRecentLoading(false);
     }
-  }, []);
+  }, [recentPage]);
 
   useEffect(() => {
     fetchStats();
@@ -247,7 +159,6 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
       label: "Total Received",
       metricKey: "received",
       value: liveStats ? liveStats.received : chartTotals.received,
-      change: 8,
       isLive: true,
     },
     {
@@ -255,7 +166,6 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
       label: "Completed",
       metricKey: "completed",
       value: liveStats ? liveStats.completed : chartTotals.completed,
-      change: -3,
       isLive: true,
     },
     {
@@ -263,7 +173,6 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
       label: "On Process",
       metricKey: "on_process",
       value: liveStats ? liveStats.on_process : chartTotals.onProcess,
-      change: 12,
       isLive: true,
     },
     {
@@ -271,7 +180,6 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
       label: "Target",
       metricKey: null,
       value: chartTotals.target,
-      change: 0,
       isLive: false,
     },
   ];
@@ -284,8 +192,9 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
     return out;
   }, [breakdown, selYear, selMonth]);
 
-  const openDetail = useCallback(
-    (m) => {
+  const handleMetricClick = useCallback(
+    (i, m) => {
+      setActiveMetric(i);
       if (!m.metricKey) return;
       setDetailModal({
         metricKey: m.metricKey,
@@ -306,348 +215,73 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
     }
   }, []);
 
-  const rightPanelProps = {
-    ui,
-    canGenReport,
-    reportStart,
-    reportEnd,
-    setCustomReportDates,
-    setShowReport,
+  // Totals shown in the donut: prefer live stats, fall back to chart totals.
+  const donutTotals = {
+    received: liveStats?.received ?? chartTotals.received,
+    completed: liveStats?.completed ?? chartTotals.completed,
+    onProcess: liveStats?.on_process ?? chartTotals.onProcess,
   };
 
   return (
     <>
-      {/* Error toasts */}
-      {(statsError || chartError) && (
+      <ErrorToasts
+        statsError={statsError}
+        chartError={chartError}
+        onRetryStats={fetchStats}
+        onRetryChart={fetchChart}
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <InsightsSection
+          ui={ui}
+          isMobile={isMobile}
+          title="Insights"
+          subtitle="Learn how your applications are performing."
+          subtitleExtra={
+            <button
+              onClick={openGuide}
+              style={{
+                background: "none",
+                border: "none",
+                color: FB,
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                cursor: "pointer",
+                padding: "0 6px",
+                fontFamily: "inherit",
+                textDecoration: "underline",
+                textUnderlineOffset: "2px",
+              }}
+            >
+              ? How to use
+            </button>
+          }
+          metrics={metrics}
+          activeMetric={activeMetric}
+          onMetricClick={handleMetricClick}
+          statsLoading={statsLoading}
+          breakdown={breakdown}
+          setBreakdown={setBreakdown}
+          selYear={selYear}
+          setSelYear={setSelYear}
+          selMonth={selMonth}
+          setSelMonth={setSelMonth}
+          chartData={chartData}
+          chartTotals={chartTotals}
+          donutTotals={donutTotals}
+          chartSubtitle={chartSubtitle}
+          chartLoading={chartLoading}
+        />
+
+        {/* Recent Applications | Upload History — side by side */}
         <div
           style={{
-            position: "fixed",
-            bottom: 20,
-            right: 20,
-            zIndex: 9999,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+            gap: 16,
+            alignItems: "stretch",
           }}
         >
-          {statsError && (
-            <div
-              style={{
-                background: "#e02020",
-                color: "#fff",
-                padding: "10px 16px",
-                borderRadius: 8,
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                maxWidth: 320,
-              }}
-            >
-              <span>⚠️ Stats: {statsError}</span>
-              <button
-                onClick={fetchStats}
-                style={{
-                  background: "rgba(255,255,255,0.2)",
-                  border: "none",
-                  color: "#fff",
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: "0.76rem",
-                  fontWeight: 700,
-                  fontFamily: "inherit",
-                }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-          {chartError && (
-            <div
-              style={{
-                background: "#e02020",
-                color: "#fff",
-                padding: "10px 16px",
-                borderRadius: 8,
-                fontSize: "0.8rem",
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                maxWidth: 320,
-              }}
-            >
-              <span>⚠️ Chart: {chartError}</span>
-              <button
-                onClick={fetchChart}
-                style={{
-                  background: "rgba(255,255,255,0.2)",
-                  border: "none",
-                  color: "#fff",
-                  padding: "3px 10px",
-                  borderRadius: 6,
-                  cursor: "pointer",
-                  fontSize: "0.76rem",
-                  fontWeight: 700,
-                  fontFamily: "inherit",
-                }}
-              >
-                Retry
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "1fr 290px",
-          gap: 16,
-          alignItems: "start",
-        }}
-      >
-        {/* ── Left column ── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Insights card */}
-          <Card ui={ui}>
-            <div style={{ padding: "14px 16px 0" }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  justifyContent: "space-between",
-                  marginBottom: 12,
-                  flexWrap: "wrap",
-                  gap: 8,
-                }}
-              >
-                <div>
-                  <h2
-                    style={{
-                      fontSize: "1.1rem",
-                      fontWeight: 700,
-                      color: ui.textPrimary,
-                      margin: 0,
-                    }}
-                  >
-                    Insights
-                  </h2>
-                  <p
-                    style={{
-                      fontSize: "0.8rem",
-                      color: ui.textSub,
-                      margin: "2px 0 0",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    Learn how your applications are performing.
-                    <button
-                      onClick={openGuide}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: FB,
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                        cursor: "pointer",
-                        padding: "0 6px",
-                        borderRadius: 4,
-                        fontFamily: "inherit",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 3,
-                        opacity: 0.85,
-                        textDecoration: "underline",
-                        textUnderlineOffset: "2px",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.opacity = "1")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.opacity = "0.85")
-                      }
-                    >
-                      ? How to use
-                    </button>
-                  </p>
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    flexWrap: "wrap",
-                    justifyContent: "flex-end",
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 2,
-                      padding: "3px",
-                      borderRadius: 8,
-                      background: ui.inputBg,
-                      border: `1px solid ${ui.cardBorder}`,
-                    }}
-                  >
-                    {[
-                      { key: "day", label: "Daily" },
-                      { key: "month", label: "Monthly" },
-                      { key: "year", label: "Yearly" },
-                    ].map((opt) => (
-                      <button
-                        key={opt.key}
-                        onClick={() => setBreakdown(opt.key)}
-                        style={{
-                          padding: "4px 11px",
-                          borderRadius: 6,
-                          border: "none",
-                          background:
-                            breakdown === opt.key ? FB : "transparent",
-                          color: breakdown === opt.key ? "#fff" : ui.textSub,
-                          fontSize: "0.76rem",
-                          fontWeight: breakdown === opt.key ? 700 : 500,
-                          cursor: "pointer",
-                          fontFamily: "inherit",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {(breakdown === "day" || breakdown === "month") && (
-                    <select
-                      value={selYear}
-                      onChange={(e) => {
-                        setSelYear(e.target.value);
-                        if (breakdown === "day") {
-                          const months = MONTHS_BY_YEAR[e.target.value] || [];
-                          if (!months.includes(selMonth))
-                            setSelMonth(months[months.length - 1] || "Jan");
-                        }
-                      }}
-                      style={{
-                        padding: "4px 24px 4px 10px",
-                        borderRadius: 7,
-                        border: `1px solid ${ui.cardBorder}`,
-                        background: ui.inputBg,
-                        color: ui.textPrimary,
-                        fontSize: "0.76rem",
-                        fontFamily: "inherit",
-                        outline: "none",
-                        cursor: "pointer",
-                        appearance: "none",
-                        WebkitAppearance: "none",
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 8px center",
-                      }}
-                    >
-                      {AVAILABLE_YEARS.map((y) => (
-                        <option key={y} value={y}>
-                          {y}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {breakdown === "day" && (
-                    <select
-                      value={selMonth}
-                      onChange={(e) => setSelMonth(e.target.value)}
-                      style={{
-                        padding: "4px 24px 4px 10px",
-                        borderRadius: 7,
-                        border: `1px solid ${ui.cardBorder}`,
-                        background: ui.inputBg,
-                        color: ui.textPrimary,
-                        fontSize: "0.76rem",
-                        fontFamily: "inherit",
-                        outline: "none",
-                        cursor: "pointer",
-                        appearance: "none",
-                        WebkitAppearance: "none",
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%2365676b' d='M5 7L0 2h10z'/%3E%3C/svg%3E")`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 8px center",
-                      }}
-                    >
-                      {(MONTHS_BY_YEAR[selYear] || []).map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <SeeAll />
-                </div>
-              </div>
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: isMobile ? 6 : 10,
-                  marginBottom: 14,
-                }}
-              >
-                {metrics.map((m, i) => (
-                  <MetricTile
-                    key={i}
-                    icon={m.icon}
-                    label={m.label}
-                    value={m.value}
-                    change={m.change}
-                    active={activeMetric === i}
-                    onClick={() => {
-                      setActiveMetric(i);
-                      openDetail(m);
-                    }}
-                    ui={ui}
-                    loading={m.isLive ? statsLoading : false}
-                    isLive={m.isLive}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div style={{ padding: "0 16px 12px", position: "relative" }}>
-              {chartLoading && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: `${ui.cardBg}cc`,
-                    zIndex: 2,
-                    borderRadius: 8,
-                  }}
-                >
-                  <span style={{ fontSize: "0.82rem", color: ui.textMuted }}>
-                    ⏳ Loading chart…
-                  </span>
-                </div>
-              )}
-              <AreaChart data={chartData} subtitle={chartSubtitle} ui={ui} />
-            </div>
-
-            <DataTable
-              chartData={chartData}
-              chartTotals={chartTotals}
-              breakdown={breakdown}
-              chartSubtitle={chartSubtitle}
-              chartLoading={chartLoading}
-              ui={ui}
-            />
-          </Card>
-
           <RecentApplicationsCard
             ui={ui}
             isMobile={isMobile}
@@ -656,13 +290,14 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
             error={recentError}
             onRetry={fetchRecentApps}
             onSeeAll={() => setShowRecentModal(true)}
+            page={recentPage}
+            totalPages={recentTotalPages}
+            total={recentTotal}
+            onPageChange={setRecentPage}
+            pageSize={RECENT_PAGE_SIZE}
           />
-
-          <UploadHistoryCard ui={ui} />
-          {isMobile && <RightPanel {...rightPanelProps} />}
+          <UploadHistoryCard ui={ui} pageSize={6} />
         </div>
-
-        {!isMobile && <RightPanel {...rightPanelProps} />}
       </div>
 
       {/* ── Modals ── */}
@@ -688,18 +323,6 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
           onClose={() => setSelectedDtnRecord(null)}
           colors={ui}
           darkMode={darkMode}
-        />
-      )}
-      {showReport && (
-        <AccomplishmentReport
-          onClose={() => setShowReport(false)}
-          totals={{
-            received: liveStats?.received ?? chartTotals.received,
-            completed: liveStats?.completed ?? chartTotals.completed,
-            onProcess: liveStats?.on_process ?? chartTotals.onProcess,
-          }}
-          ui={ui}
-          customDates={customReportDates}
         />
       )}
       {showRecentModal && (

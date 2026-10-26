@@ -1,5 +1,8 @@
 // src/components/monitoring/analytics/AnalyticsView.jsx
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import { updateUploadReport, getUploadReports } from "../../../api/reports";
+import { mapDataItem } from "../../reports/utils.js";
 
 import {
   getAnalyticsAvailableYears,
@@ -8,12 +11,20 @@ import {
   getAnalyticsByClassification,
   getAnalyticsYearSummary,
   getAnalyticsYearRecords,
+  getAnalyticsDataQuality,
+  getAnalyticsQualityRecords,
+  getAnalyticsCompanyRecords,
+  getAnalyticsFastestRecords,
   getAnalyticsSummaryRecords,
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
   getDocTypeReleased,
 } from "../../../api/analytics";
 
+import DoctrackModal from "../../reports/actions/DoctrackModal";
+import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
+import ApplicationLogsModal from "../../tasks/ApplicationLogsModal";
+import EditRecordModal from "../../reports/actions/EditRecordModal";
 import * as XLSX from "xlsx";
 // ── Split modules ─────────────────────────────────────────────
 import "./analyticsAnimations";
@@ -24,6 +35,7 @@ import { FadeSlideIn } from "./KpiCard";
 import { SectionCard } from "./SectionCard";
 import { MiniBar, TrendChart, DonutChart } from "./ChartComponents";
 import { CountryList } from "./CountryComponents";
+import InProgressByUserModal from "./InProgressByUserModal";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -73,6 +85,13 @@ const RECORDS_PAGE_SIZE = 50;
 
 const NONE_KEY = "__NONE__";
 
+const NO_DATE = "No Date";
+const yearKey = (y) => (y === NO_DATE ? "nodate" : Number(y));
+
+const pct = (n, d) => (d > 0 ? (n / d) * 100 : 0);
+const completenessColor = (p) =>
+  p >= 95 ? "#36a420" : p >= 80 ? "#f59e0b" : "#e02020";
+
 const statusColor = (status) => {
   const s = String(status ?? "")
     .toUpperCase()
@@ -84,18 +103,246 @@ const statusColor = (status) => {
 };
 const facetLabel = (key, noneLabel) => (key === NONE_KEY ? noneLabel : key);
 
-function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
+// ── Password gate shown before editing a record ──────────────
+const EDIT_PASSWORD = "dikoalam12345";
+
+function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+  const inputRef = useRef(null);
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const submit = () => {
+    if (value === EDIT_PASSWORD) {
+      onConfirm();
+    } else {
+      setError("Incorrect password. Please try again.");
+      setValue("");
+      inputRef.current?.focus();
+    }
+  };
+
+  // Rendered in <body> so it is independent of the records modal.
+  // No click-outside-to-close on purpose: an accidental click or the
+  // browser's autofill popup must not dismiss it. Use Cancel or Esc.
+  return createPortal(
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.6)",
+        zIndex: 1200,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          width: "min(380px, 100%)",
+          background: neuCardBg(darkMode),
+          borderRadius: 14,
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+          padding: 20,
+          fontFamily: font,
+        }}
+      >
+        <div
+          style={{
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            color: ui.textPrimary,
+          }}
+        >
+          🔒 Password required
+        </div>
+        <div
+          style={{
+            fontSize: "0.75rem",
+            color: ui.textMuted,
+            margin: "4px 0 14px",
+          }}
+        >
+          Enter the password to update this application's information.
+        </div>
+        <input
+          ref={inputRef}
+          type="password"
+          name="edit-confirm-code"
+          autoComplete="new-password"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          value={value}
+          placeholder="Password"
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError("");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+            if (e.key === "Escape") onCancel();
+          }}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            background: neuCardBg(darkMode),
+            border: `1px solid ${error ? "#e02020" : line}`,
+            borderRadius: 8,
+            padding: "8px 10px",
+            fontSize: "0.85rem",
+            color: ui.textPrimary,
+            outline: "none",
+            fontFamily: font,
+            colorScheme: darkMode ? "dark" : "light",
+          }}
+        />
+        {error && (
+          <div style={{ fontSize: "0.72rem", color: "#e02020", marginTop: 6 }}>
+            {error}
+          </div>
+        )}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 16,
+          }}
+        >
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "6px 14px",
+              fontSize: "0.78rem",
+              borderRadius: 8,
+              border: `1px solid ${line}`,
+              background: "transparent",
+              color: ui.textPrimary,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            style={{
+              padding: "6px 14px",
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              borderRadius: 8,
+              border: "none",
+              background: FB,
+              color: "#fff",
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [docFilter, setDocFilter] = useState("All");
+  const [docFilter, setDocFilter] = useState(target.docType ?? "All");
   const [statusCounts, setStatusCounts] = useState([]);
   const [docCounts, setDocCounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [doctrackRow, setDoctrackRow] = useState(null);
+  const [detail, setDetail] = useState(null); // full or partial record
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [menu, setMenu] = useState(null); // { row, top, right }
+  const subOpenRef = useRef(false);
+  const [logsRow, setLogsRow] = useState(null);
+  const [passwordRow, setPasswordRow] = useState(null); // row waiting for password
+  const [editRecord, setEditRecord] = useState(null); // record being edited
+  const [editLoading, setEditLoading] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0); // bump to refetch rows after save
+  const [recFrom, setRecFrom] = useState("");
+  const [recTo, setRecTo] = useState("");
+  const [relFrom, setRelFrom] = useState("");
+  const [relTo, setRelTo] = useState("");
+  const [exporting, setExporting] = useState(false);
+  subOpenRef.current = !!(
+    doctrackRow ||
+    detail ||
+    logsRow ||
+    passwordRow ||
+    editRecord ||
+    editLoading
+  );
+
+  // Load the FULL record (same shape the Records page uses) so saving
+  // never overwrites other columns with blanks.
+  const fetchFullRecord = async (r) => {
+    if (!r.dtn)
+      throw new Error("This record has no DTN, so it cannot be loaded.");
+    const res = await getUploadReports({
+      page: 1,
+      pageSize: 20,
+      search: "",
+      status: "",
+      sortBy: "DB_DATE_EXCEL_UPLOAD",
+      sortOrder: "desc",
+      dtn: parseInt(r.dtn, 10),
+    });
+    const match = (res?.data ?? [])
+      .map(mapDataItem)
+      .find((x) => String(x.id) === String(r.db_id));
+    if (!match) throw new Error("Full record not found.");
+    return match;
+  };
+
+  const openDetails = async (r) => {
+    const partial = {
+      dtn: r.dtn,
+      entryType: r.entry_type,
+      dateReceivedCent: r.date_received_cent,
+      dateReleased: r.date_released,
+      typeDocReleased: r.type_doc_released,
+      appStatus: r.app_status,
+      prodBrName: r.brand_name,
+      prodGenName: r.generic_name,
+      secpaExpDate: r.secpa_exp_date,
+    };
+    setDetail(partial); // shown first as a fallback
+    setDetailLoading(true);
+    try {
+      setDetail(await fetchFullRecord(r));
+    } catch (err) {
+      console.error("Load full record failed:", err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const colors = {
+    cardBg: neuCardBg(darkMode),
+    cardBorder: darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)",
+    tableBg: darkMode ? "#222222" : "#f7f8fa",
+    tableRowHover: darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+    inputBg: darkMode ? "#222222" : "#f7f8fa",
+    badgeBg: darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+    textPrimary: ui.textPrimary,
+    textSecondary: ui.textSub ?? ui.textPrimary,
+    textTertiary: ui.textMuted,
+  };
 
   // debounce DTN search
   useEffect(() => {
@@ -106,27 +353,45 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     return () => clearTimeout(t);
   }, [search]);
 
+  const requestRecords = (pageNum, pageSize) => {
+    const common = {
+      page: pageNum,
+      page_size: pageSize,
+      search: query || undefined,
+      status: statusFilter === "All" ? undefined : statusFilter,
+      doc_type: docFilter === "All" ? undefined : docFilter,
+      received_from: recFrom || undefined,
+      received_to: recTo || undefined,
+      released_from: relFrom || undefined,
+      released_to: relTo || undefined,
+    };
+    return target.fastest
+      ? getAnalyticsFastestRecords({ ...target.fastest, ...common })
+      : target.topco
+        ? getAnalyticsCompanyRecords({ ...target.topco, ...common })
+        : target.quality
+          ? getAnalyticsQualityRecords({
+              year: target.year,
+              issue: target.quality,
+              ...common,
+            })
+          : target.summary
+            ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
+            : getAnalyticsYearRecords({
+                year: target.year,
+                kind: target.kind,
+                basis,
+                ...common,
+              });
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const common = {
-          page,
-          page_size: RECORDS_PAGE_SIZE,
-          search: query || undefined,
-          status: statusFilter === "All" ? undefined : statusFilter,
-          doc_type: docFilter === "All" ? undefined : docFilter,
-        };
-        const res = target.summary
-          ? await getAnalyticsSummaryRecords({ ...target.summary, ...common })
-          : await getAnalyticsYearRecords({
-              year: target.year,
-              kind: target.kind,
-              basis,
-              ...common,
-            });
+        const res = await requestRecords(page, RECORDS_PAGE_SIZE);
         if (cancelled) return;
         setRows(res.data ?? []);
         setTotal(res.total ?? 0);
@@ -142,11 +407,22 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [target, basis, page, query, statusFilter, docFilter]);
+  }, [
+    target,
+    basis,
+    page,
+    query,
+    statusFilter,
+    docFilter,
+    recFrom,
+    recTo,
+    relFrom,
+    relTo,
+    reloadKey,
+  ]);
 
-  // close on Esc
   useEffect(() => {
-    const onKey = (e) => e.key === "Escape" && onClose();
+    const onKey = (e) => e.key === "Escape" && !subOpenRef.current && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -156,7 +432,11 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const start = total === 0 ? 0 : (page - 1) * RECORDS_PAGE_SIZE + 1;
   const end = Math.min(page * RECORDS_PAGE_SIZE, total);
   const filtersActive =
-    statusFilter !== "All" || docFilter !== "All" || query !== "";
+    statusFilter !== "All" ||
+    docFilter !== "All" ||
+    query !== "" ||
+    !!(recFrom || recTo || relFrom || relTo);
+  const rangeInvalid = (a, b) => a && b && a > b;
 
   const statusAll = statusCounts.reduce((s, x) => s + x.count, 0);
   // keep the selected option visible even if its count dropped to 0
@@ -174,15 +454,83 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     setDocFilter("All");
     setSearch("");
     setQuery("");
+    setRecFrom("");
+    setRecTo("");
+    setRelFrom("");
+    setRelTo("");
     setPage(1);
   };
-
-  const title =
+  const yearLabel = target.year === "nodate" ? "No Date" : target.year;
+  const baseTitle =
     target.kind === "received"
-      ? `${target.year} — Received Applications`
-      : basis === "received"
-        ? `${target.year} — Released (of Received in ${target.year})`
-        : `${target.year} — Released in ${target.year}`;
+      ? `${yearLabel} — Received Applications`
+      : target.year === "nodate"
+        ? `${yearLabel} — Completed, no valid date`
+        : basis === "received"
+          ? `${yearLabel} — Released (of Received in ${yearLabel})`
+          : `${yearLabel} — Released in ${yearLabel}`;
+  const title = target.docType
+    ? `${baseTitle} · ${facetLabel(target.docType, "No Doc Type")}`
+    : baseTitle;
+
+  const handleExport = async () => {
+    if (exporting || total === 0) return;
+    setExporting(true);
+    try {
+      const size = 200;
+      const pages = Math.ceil(total / size);
+      let all = [];
+      for (let p = 1; p <= pages; p++) {
+        const res = await requestRecords(p, size);
+        all = all.concat(res.data ?? []);
+      }
+
+      const header = [
+        "DTN",
+        "Entry Type",
+        "Date Received (Center)",
+        "Date Released",
+        ...(target.fastest ? ["Working Days"] : []),
+        ...(target.summary ? ["Validity"] : []),
+        "Type of Doc Released",
+        "Status",
+        "Brand Name",
+        "Generic Name",
+        ...(target.quality ? ["Missing"] : []),
+      ];
+      const body = all.map((r) => [
+        r.dtn ? String(r.dtn) : "",
+        r.entry_type ?? "",
+        r.date_received_cent ?? "",
+        r.date_released ?? "",
+        ...(target.fastest ? [r.days ?? ""] : []),
+        ...(target.summary ? [r.secpa_exp_date ?? ""] : []),
+        r.type_doc_released ?? "",
+        r.app_status ?? "",
+        r.brand_name ?? "",
+        r.generic_name ?? "",
+        ...(target.quality ? [(r.issues ?? []).join(", ")] : []),
+      ]);
+
+      const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+      ws["!cols"] = header.map((h) => ({ wch: Math.max(14, h.length + 2) }));
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Records");
+      const safe = String(target.title ?? title)
+        .replace(/[\\/:*?"<>|·—]+/g, "-")
+        .replace(/\s+/g, "_")
+        .slice(0, 80);
+      XLSX.writeFile(
+        wb,
+        `${safe}_${new Date().toISOString().slice(0, 10)}.xlsx`,
+      );
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to export records.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const th = {
     padding: "8px 10px",
@@ -246,315 +594,749 @@ function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     colorScheme: darkMode ? "dark" : "light",
     maxWidth: 220,
   };
-
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.55)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
+    <>
       <div
-        onClick={(e) => e.stopPropagation()}
+        onClick={onClose}
         style={{
-          width: "min(1100px, 100%)",
-          maxHeight: "88vh",
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.55)",
+          zIndex: 1000,
           display: "flex",
-          flexDirection: "column",
-          background: neuCardBg(darkMode),
-          borderRadius: 16,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-          fontFamily: font,
-          overflow: "hidden",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 20,
         }}
       >
-        {/* Header */}
         <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setMenu(null);
+          }}
           style={{
+            width: "min(1100px, 100%)",
+            maxHeight: "88vh",
             display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "14px 18px",
-            borderBottom: `1px solid ${line}`,
-            flexWrap: "wrap",
+            flexDirection: "column",
+            background: neuCardBg(darkMode),
+            borderRadius: 16,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
+            fontFamily: font,
+            overflow: "hidden",
           }}
         >
-          <div>
-            <div
-              style={{
-                fontSize: "0.95rem",
-                fontWeight: 700,
-                color: ui.textPrimary,
-              }}
-            >
-              {target.title ?? title}
+          {/* Header */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              padding: "14px 18px",
+              borderBottom: `1px solid ${line}`,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontSize: "0.95rem",
+                  fontWeight: 700,
+                  color: ui.textPrimary,
+                }}
+              >
+                {target.title ?? title}
+              </div>
+              <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                {loading
+                  ? "Loading…"
+                  : `${total.toLocaleString()} record(s)${filtersActive ? " (filtered)" : ""}`}
+              </div>
             </div>
-            <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-              {loading
-                ? "Loading…"
-                : `${total.toLocaleString()} record(s)${filtersActive ? " (filtered)" : ""}`}
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="text"
+                name="dtn-search"
+                autoComplete="off"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search DTN…"
+                style={{
+                  background: neuCardBg(darkMode),
+                  border: `1px solid ${line}`,
+                  borderRadius: 8,
+                  padding: "6px 10px",
+                  fontSize: "0.78rem",
+                  color: ui.textPrimary,
+                  outline: "none",
+                  fontFamily: font,
+                  colorScheme: darkMode ? "dark" : "light",
+                }}
+              />
+              <button
+                onClick={handleExport}
+                disabled={exporting || loading || total === 0}
+                title="Export filtered records to Excel"
+                style={{
+                  ...pageBtn(exporting || loading || total === 0),
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <span>⬇</span>
+                <span>{exporting ? "Exporting…" : "Export Excel"}</span>
+              </button>
+              <button
+                onClick={onClose}
+                title="Close (Esc)"
+                style={{
+                  ...pageBtn(false),
+                  fontSize: "0.9rem",
+                  padding: "4px 10px",
+                }}
+              >
+                ✕
+              </button>
             </div>
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search DTN…"
-              style={{
-                background: neuCardBg(darkMode),
-                border: `1px solid ${line}`,
-                borderRadius: 8,
-                padding: "6px 10px",
-                fontSize: "0.78rem",
-                color: ui.textPrimary,
-                outline: "none",
-                fontFamily: font,
-                colorScheme: darkMode ? "dark" : "light",
-              }}
-            />
-            <button
-              onClick={onClose}
-              title="Close (Esc)"
-              style={{
-                ...pageBtn(false),
-                fontSize: "0.9rem",
-                padding: "4px 10px",
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        </div>
 
-        {/* Filters + status counts */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 10,
-            padding: "10px 18px",
-            borderBottom: `1px solid ${line}`,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <button
-              onClick={() => {
-                setStatusFilter("All");
-                setPage(1);
-              }}
-              style={chip(statusFilter === "All", FB)}
-            >
-              All <b>{statusAll.toLocaleString()}</b>
-            </button>
-            {statusOptions.map((s) => {
-              const color = statusColor(s.key);
-              return (
+          {/* Filters + status counts */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "10px 18px",
+              borderBottom: `1px solid ${line}`,
+              flexWrap: "wrap",
+            }}
+          >
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <button
+                onClick={() => {
+                  setStatusFilter("All");
+                  setPage(1);
+                }}
+                style={chip(statusFilter === "All", FB)}
+              >
+                All <b>{statusAll.toLocaleString()}</b>
+              </button>
+              {statusOptions.map((s) => {
+                const color = statusColor(s.key);
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => {
+                      setStatusFilter(statusFilter === s.key ? "All" : s.key);
+                      setPage(1);
+                    }}
+                    style={chip(statusFilter === s.key, color)}
+                  >
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: color,
+                      }}
+                    />
+                    {facetLabel(s.key, "No Status")}{" "}
+                    <b>{s.count.toLocaleString()}</b>
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span
+                style={{
+                  fontSize: "0.65rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  color: ui.textMuted,
+                }}
+              >
+                Doc Type
+              </span>
+              <select
+                value={docFilter}
+                onChange={(e) => {
+                  setDocFilter(e.target.value);
+                  setPage(1);
+                }}
+                style={selectSt}
+              >
+                <option value="All">All</option>
+                {docOptions.map((d) => (
+                  <option key={d.key} value={d.key}>
+                    {facetLabel(d.key, "No Doc Type")} (
+                    {d.count.toLocaleString()})
+                  </option>
+                ))}
+              </select>
+              {filtersActive && (
                 <button
-                  key={s.key}
-                  onClick={() => {
-                    setStatusFilter(statusFilter === s.key ? "All" : s.key);
-                    setPage(1);
-                  }}
-                  style={chip(statusFilter === s.key, color)}
+                  onClick={clearFilters}
+                  style={{ ...pageBtn(false), fontSize: "0.7rem" }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Date range filters */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 18,
+              padding: "10px 18px",
+              borderBottom: `1px solid ${line}`,
+              flexWrap: "wrap",
+            }}
+          >
+            {[
+              {
+                label: "Date Received",
+                from: recFrom,
+                to: recTo,
+                setFrom: setRecFrom,
+                setTo: setRecTo,
+              },
+              {
+                label: "Date Released",
+                from: relFrom,
+                to: relTo,
+                setFrom: setRelFrom,
+                setTo: setRelTo,
+              },
+            ].map((f) => {
+              const bad = rangeInvalid(f.from, f.to);
+              const st = {
+                ...selectSt,
+                border: `1px solid ${bad ? "#e02020" : line}`,
+              };
+              return (
+                <div
+                  key={f.label}
+                  style={{ display: "flex", alignItems: "center", gap: 6 }}
                 >
                   <span
                     style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      background: color,
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      color: ui.textMuted,
                     }}
+                  >
+                    {f.label}
+                  </span>
+                  <input
+                    type="date"
+                    value={f.from}
+                    max={f.to || undefined}
+                    onChange={(e) => {
+                      f.setFrom(e.target.value);
+                      setPage(1);
+                    }}
+                    style={st}
                   />
-                  {facetLabel(s.key, "No Status")}{" "}
-                  <b>{s.count.toLocaleString()}</b>
-                </button>
+                  <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                    to
+                  </span>
+                  <input
+                    type="date"
+                    value={f.to}
+                    min={f.from || undefined}
+                    onChange={(e) => {
+                      f.setTo(e.target.value);
+                      setPage(1);
+                    }}
+                    style={st}
+                  />
+                  {bad && (
+                    <span style={{ fontSize: "0.68rem", color: "#e02020" }}>
+                      "From" is after "To"
+                    </span>
+                  )}
+                </div>
               );
             })}
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span
-              style={{
-                fontSize: "0.65rem",
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                color: ui.textMuted,
-              }}
-            >
-              Doc Type
-            </span>
-            <select
-              value={docFilter}
-              onChange={(e) => {
-                setDocFilter(e.target.value);
-                setPage(1);
-              }}
-              style={selectSt}
-            >
-              <option value="All">All</option>
-              {docOptions.map((d) => (
-                <option key={d.key} value={d.key}>
-                  {facetLabel(d.key, "No Doc Type")} ({d.count.toLocaleString()}
-                  )
-                </option>
-              ))}
-            </select>
-            {filtersActive && (
-              <button
-                onClick={clearFilters}
-                style={{ ...pageBtn(false), fontSize: "0.7rem" }}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
 
-        {/* Table */}
-        <div
-          style={{
-            overflow: "auto",
-            flex: 1,
-            opacity: loading ? 0.5 : 1,
-            transition: "opacity 0.2s",
-          }}
-        >
-          {error ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 40,
-                color: ui.textMuted,
-                fontSize: "0.85rem",
-              }}
-            >
-              {error}
-            </div>
-          ) : !loading && rows.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 40,
-                color: ui.textMuted,
-                fontSize: "0.85rem",
-              }}
-            >
-              No records found
-            </div>
-          ) : (
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.8rem",
-              }}
-            >
-              <thead>
-                <tr>
-                  <th style={{ ...th, textAlign: "center" }}>#</th>
-                  <th style={th}>DTN</th>
-                  <th style={th}>Entry Type</th>
-                  <th style={th}>Date Received (Center)</th>
-                  <th style={th}>Date Released</th>
-                  {target.summary && <th style={th}>Validity</th>}
-                  <th style={th}>Type of Doc Released</th>
-                  <th style={th}>Status</th>
-                  <th style={th}>Brand Name</th>
-                  <th style={th}>Generic Name</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => (
-                  <tr key={r.db_id}>
-                    <td
-                      style={{
-                        ...td,
-                        textAlign: "center",
-                        color: ui.textMuted,
-                      }}
-                    >
-                      {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
-                    </td>
-                    <td style={td}>{r.dtn ?? "—"}</td>
-                    <td style={td}>{r.entry_type ?? "—"}</td>
-                    <td style={td}>{r.date_received_cent ?? "—"}</td>
-                    <td style={td}>{r.date_released ?? "—"}</td>
-                    {target.summary && (
-                      <td style={td}>{r.secpa_exp_date ?? "—"}</td>
-                    )}
-                    <td style={td}>{r.type_doc_released ?? "—"}</td>
-                    <td style={td}>
-                      {r.app_status ? (
-                        <span
+          {/* Table */}
+          <div
+            style={{
+              position: "relative",
+              flex: 1,
+              minHeight: 240,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            {/* Spinner overlay while refetching (page / filter / search) */}
+            {loading && rows.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 5,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: darkMode
+                    ? "rgba(0,0,0,0.35)"
+                    : "rgba(255,255,255,0.55)",
+                  pointerEvents: "none",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    background: neuCardBg(darkMode),
+                    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                    fontSize: "0.78rem",
+                    fontWeight: 600,
+                    color: ui.textPrimary,
+                    fontFamily: font,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 16,
+                      height: 16,
+                      border: `2px solid ${FB}`,
+                      borderTopColor: "transparent",
+                      borderRadius: "50%",
+                      animation: "spin 0.7s linear infinite",
+                      display: "inline-block",
+                    }}
+                  />
+                  Loading records…
+                </div>
+              </div>
+            )}
+
+            <div style={{ overflow: "auto", flex: 1 }}>
+              {loading && rows.length === 0 ? (
+                <div style={{ padding: 18 }}>
+                  <LoadingRows rows={10} height={30} darkMode={darkMode} />
+                </div>
+              ) : error ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: 40,
+                    color: ui.textMuted,
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  {error}
+                </div>
+              ) : !loading && rows.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: 40,
+                    color: ui.textMuted,
+                    fontSize: "0.85rem",
+                  }}
+                >
+                  No records found
+                </div>
+              ) : (
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={{ ...th, textAlign: "center" }}>#</th>
+                      <th style={th}>DTN</th>
+                      <th style={th}>Entry Type</th>
+                      <th style={th}>Date Received (Center)</th>
+                      <th style={th}>Date Released</th>
+                      {target.fastest && <th style={th}>Working Days</th>}
+                      {target.summary && <th style={th}>Validity</th>}
+                      <th style={th}>Type of Doc Released</th>
+                      <th style={th}>Status</th>
+                      <th style={th}>Brand Name</th>
+                      <th style={th}>Generic Name</th>
+                      {target.quality && <th style={th}>Missing</th>}
+                      <th
+                        style={{
+                          ...th,
+                          position: "sticky",
+                          top: 0,
+                          right: 0,
+                          zIndex: 3,
+                          textAlign: "center",
+                          boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                        }}
+                      >
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => (
+                      <tr key={r.db_id}>
+                        <td
                           style={{
-                            fontSize: "0.68rem",
-                            fontWeight: 700,
-                            padding: "2px 8px",
-                            borderRadius: 99,
-                            color: statusColor(r.app_status),
-                            background: `${statusColor(r.app_status)}22`,
+                            ...td,
+                            textAlign: "center",
+                            color: ui.textMuted,
                           }}
                         >
-                          {r.app_status}
-                        </span>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td style={td}>{r.brand_name ?? "—"}</td>
-                    <td style={td}>{r.generic_name ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                          {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
+                        </td>
+                        <td style={td}>
+                          {r.dtn ? (
+                            <span
+                              onClick={() => setDoctrackRow(r)}
+                              title="View document tracking"
+                              style={{
+                                cursor: "pointer",
+                                color: FB,
+                                textDecoration: "underline dotted",
+                                textUnderlineOffset: 3,
+                              }}
+                            >
+                              {r.dtn}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={td}>{r.entry_type ?? "—"}</td>
+                        <td style={td}>{r.date_received_cent ?? "—"}</td>
+                        <td style={td}>{r.date_released ?? "—"}</td>
+                        {target.fastest && (
+                          <td
+                            style={{ ...td, fontWeight: 800, color: "#36a420" }}
+                          >
+                            {r.days ?? "—"}
+                          </td>
+                        )}
+                        {target.summary && (
+                          <td style={td}>{r.secpa_exp_date ?? "—"}</td>
+                        )}
+                        <td style={td}>{r.type_doc_released ?? "—"}</td>
+                        <td style={td}>
+                          {r.app_status ? (
+                            <span
+                              style={{
+                                fontSize: "0.68rem",
+                                fontWeight: 700,
+                                padding: "2px 8px",
+                                borderRadius: 99,
+                                color: statusColor(r.app_status),
+                                background: `${statusColor(r.app_status)}22`,
+                              }}
+                            >
+                              {r.app_status}
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td style={td}>{r.brand_name ?? "—"}</td>
+                        <td style={td}>{r.generic_name ?? "—"}</td>
+                        {target.quality && (
+                          <td style={td}>
+                            {(r.issues ?? []).length
+                              ? r.issues.map((iss) => (
+                                  <span
+                                    key={iss}
+                                    style={{
+                                      fontSize: "0.65rem",
+                                      fontWeight: 700,
+                                      padding: "2px 8px",
+                                      borderRadius: 99,
+                                      color: "#e02020",
+                                      background: "#e0202022",
+                                      marginRight: 4,
+                                    }}
+                                  >
+                                    {iss}
+                                  </span>
+                                ))
+                              : "—"}
+                          </td>
+                        )}
+                        <td
+                          style={{
+                            ...td,
+                            position: "sticky",
+                            right: 0,
+                            zIndex: 2,
+                            textAlign: "center",
+                            background: neuCardBg(darkMode),
+                            boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                          }}
+                        >
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const rect =
+                                e.currentTarget.getBoundingClientRect();
+                              setMenu({
+                                row: r,
+                                top: rect.bottom + 4,
+                                right: window.innerWidth - rect.right,
+                              });
+                            }}
+                            style={{ ...pageBtn(false), padding: "3px 10px" }}
+                          >
+                            Actions ▾
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
 
-        {/* Footer / pagination */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "10px 18px",
-            borderTop: `1px solid ${line}`,
-          }}
-        >
-          <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-            {start}–{end} of {total.toLocaleString()}
-          </span>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <button
-              style={pageBtn(page === 1)}
-              disabled={page === 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              ‹ Prev
-            </button>
+          {/* Footer / pagination */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "10px 18px",
+              borderTop: `1px solid ${line}`,
+            }}
+          >
             <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-              Page {page} / {totalPages}
+              {start}–{end} of {total.toLocaleString()}
             </span>
-            <button
-              style={pageBtn(page >= totalPages)}
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Next ›
-            </button>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                style={pageBtn(page === 1 || loading)}
+                disabled={page === 1 || loading}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                ‹ Prev
+              </button>
+              <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                Page {page} / {totalPages}
+              </span>
+              <button
+                style={pageBtn(page >= totalPages || loading)}
+                disabled={page >= totalPages || loading}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next ›
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Actions dropdown */}
+      {menu && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            top: menu.top,
+            right: menu.right,
+            zIndex: 1100,
+            minWidth: 150,
+            background: neuCardBg(darkMode),
+            border: `1px solid ${line}`,
+            borderRadius: 10,
+            boxShadow: "0 12px 32px rgba(0,0,0,0.4)",
+            padding: 4,
+            fontFamily: font,
+          }}
+        >
+          <button
+            onClick={() => {
+              const row = menu.row;
+              setMenu(null);
+              openDetails(row);
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              padding: "7px 12px",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 8,
+              background: "transparent",
+              color: ui.textPrimary,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = darkMode
+                ? "rgba(255,255,255,0.07)"
+                : "rgba(0,0,0,0.05)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            👁 View Details
+          </button>
+          <button
+            onClick={() => {
+              const row = menu.row;
+              setMenu(null);
+              setLogsRow(row);
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              padding: "7px 12px",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 8,
+              background: "transparent",
+              color: ui.textPrimary,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = darkMode
+                ? "rgba(255,255,255,0.07)"
+                : "rgba(0,0,0,0.05)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            📋 View Application Logs
+          </button>
+          <button
+            onClick={() => {
+              const row = menu.row;
+              setMenu(null);
+              setPasswordRow(row);
+            }}
+            style={{
+              width: "100%",
+              textAlign: "left",
+              padding: "7px 12px",
+              fontSize: "0.78rem",
+              fontWeight: 600,
+              border: "none",
+              borderRadius: 8,
+              background: "transparent",
+              color: ui.textPrimary,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.background = darkMode
+                ? "rgba(255,255,255,0.07)"
+                : "rgba(0,0,0,0.05)")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.background = "transparent")
+            }
+          >
+            ✏️ Update Application Info
+          </button>
+        </div>
+      )}
+      {doctrackRow && (
+        <DoctrackModal
+          record={{ dtn: doctrackRow.dtn }}
+          onClose={() => setDoctrackRow(null)}
+          colors={colors}
+        />
+      )}
+      {logsRow && (
+        <ApplicationLogsModal
+          record={{ dtn: logsRow.dtn, mainDbId: logsRow.db_id }}
+          onClose={() => setLogsRow(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+
+      {passwordRow && (
+        <PasswordPromptModal
+          ui={ui}
+          darkMode={darkMode}
+          onCancel={() => setPasswordRow(null)}
+          onConfirm={async () => {
+            const row = passwordRow;
+            setPasswordRow(null);
+            setEditLoading(true);
+            try {
+              setEditRecord(await fetchFullRecord(row));
+            } catch (err) {
+              console.error("Load full record failed:", err);
+              alert(`Could not open the record for editing.\n${err.message}`);
+            } finally {
+              setEditLoading(false);
+            }
+          }}
+        />
+      )}
+
+      {editLoading &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.5)",
+              zIndex: 1300,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#fff",
+              fontFamily: font,
+              fontSize: "0.85rem",
+            }}
+          >
+            Loading record…
+          </div>,
+          document.body,
+        )}
+
+      {editRecord && (
+        <EditRecordModal
+          record={editRecord}
+          colors={colors}
+          darkMode={darkMode}
+          updateUploadReport={updateUploadReport}
+          onClose={() => setEditRecord(null)}
+          onSuccess={() => setReloadKey((k) => k + 1)}
+        />
+      )}
+
+      {detail && (
+        <ViewDetailsModal
+          record={detail}
+          loading={detailLoading}
+          onClose={() => setDetail(null)}
+          colors={colors}
+          darkMode={darkMode}
+        />
+      )}
+    </>
   );
 }
 
@@ -569,6 +1351,7 @@ function KpiTile({
   ui,
   delay = 0,
   breakdown,
+  onClick,
 }) {
   const [hov, setHov] = useState(false);
   const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
@@ -604,6 +1387,7 @@ function KpiTile({
 
   return (
     <div
+      onClick={onClick}
       onMouseEnter={() => breakdown && setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -614,7 +1398,7 @@ function KpiTile({
         padding: "9px 14px 10px",
         boxShadow: neuShadow(darkMode),
         borderTop: `2px solid ${color}`,
-        cursor: breakdown ? "help" : "default",
+        cursor: onClick ? "pointer" : breakdown ? "help" : "default",
         animation: "analytics-fade-slide-up 0.4s ease both",
         animationDelay: `${delay}ms`,
       }}
@@ -1005,7 +1789,14 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   // ── Year summary basis: "released" | "received" ──────────────
   const [yearBasis, setYearBasis] = useState("released");
   const [recordsTarget, setRecordsTarget] = useState(null); // { year, kind }
+  const [showInProgress, setShowInProgress] = useState(false);
   const [loadingYear, setLoadingYear] = useState(true);
+
+  // ── Data completeness ────────────────────────────────────────
+  const [qualityData, setQualityData] = useState([]);
+  const [loadingQuality, setLoadingQuality] = useState(true);
+  const [showQualityNote, setShowQualityNote] = useState(false);
+  const qualityFetched = useRef(false);
 
   // ── Pagination ────────────────────────────────────────────────
   const [drugsPage, setDrugsPage] = useState(1);
@@ -1138,6 +1929,25 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     fetchTrend();
   }, [fetchTrend]);
 
+  const fetchQuality = useCallback(async () => {
+    setLoadingQuality(true);
+    try {
+      const res = await getAnalyticsDataQuality();
+      setQualityData(res.data ?? []);
+    } catch (err) {
+      console.error("Data quality fetch error:", err);
+    } finally {
+      setLoadingQuality(false);
+    }
+  }, []);
+
+  // load after the heavy sections finish (top drugs is last)
+  useEffect(() => {
+    if (loadingSec.drugs || qualityFetched.current) return;
+    qualityFetched.current = true;
+    fetchQuality();
+  }, [loadingSec.drugs]);
+
   useEffect(() => {
     if (loadedTabRef.current === topCountryTab) return;
     fetchCountries();
@@ -1153,7 +1963,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const trendYearOptions = [
     ...new Set([...yearSummaryData.map((r) => String(r.year)), trendYear]),
   ]
-    .filter((y) => y !== "All")
+    .filter((y) => y !== "All" && y !== NO_DATE)
     .sort((a, b) => Number(b) - Number(a));
   const maxDrug = Math.max(...topDrugsData.map((d) => d.total), 1);
   const maxCountry = Math.max(...topCountriesData.map((d) => d.count), 1);
@@ -1211,6 +2021,56 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     });
     return counts;
   };
+
+  const yearTotals = (() => {
+    const t = {
+      received: 0,
+      total: 0,
+      docs: Object.fromEntries(mergedDocTypes.map((dt) => [dt, 0])),
+      noDoc: 0,
+    };
+    yearSummaryData.forEach((row) => {
+      const counts = getDocCounts(row.year);
+      const released = Number(row.total) || 0;
+      let docSum = 0;
+      mergedDocTypes.forEach((dt) => {
+        t.docs[dt] += counts[dt];
+        docSum += counts[dt];
+      });
+      t.received += Number(row.received) || 0;
+      t.total += released;
+      t.noDoc += Math.max(released - docSum, 0);
+    });
+    return t;
+  })();
+
+  const qualityTotals = qualityData.reduce(
+    (t, r) => ({
+      total: t.total + r.total,
+      received_filled: t.received_filled + r.received_filled,
+      release_expected: t.release_expected + r.release_expected,
+      released_filled: t.released_filled + r.released_filled,
+      doc_expected: t.doc_expected + (r.doc_expected ?? 0),
+      doc_filled: t.doc_filled + (r.doc_filled ?? 0),
+      complete: t.complete + r.complete,
+    }),
+    {
+      total: 0,
+      received_filled: 0,
+      release_expected: 0,
+      released_filled: 0,
+      doc_expected: 0,
+      doc_filled: 0,
+      complete: 0,
+    },
+  );
+  const qualityMissing = {
+    received: qualityTotals.total - qualityTotals.received_filled,
+    released: qualityTotals.release_expected - qualityTotals.released_filled,
+    doc: qualityTotals.doc_expected - qualityTotals.doc_filled,
+    incomplete: qualityTotals.total - qualityTotals.complete,
+  };
+
   // ── Styles ────────────────────────────────────────────────────
   const inputSt = {
     background: neuCardBg(darkMode),
@@ -1273,6 +2133,34 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     ...tdStyle(color, left),
     border: ysLine,
   });
+
+  const linkSt = {
+    cursor: "pointer",
+    textDecoration: "underline dotted",
+    textUnderlineOffset: 3,
+  };
+  const totalCell = {
+    fontWeight: 800,
+    background: darkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+    borderTop: `2px solid ${darkMode ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)"}`,
+  };
+  const openYearDocRecords = (year, docType) =>
+    setRecordsTarget({ year: yearKey(year), kind: "released", docType });
+
+  const openQualityRecords = (year, issue) => {
+    const labels = {
+      missing_received: "Missing Date Received",
+      missing_released: "Missing Date Released",
+      missing_doc: "Missing Type of Doc Released",
+      incomplete: "Incomplete records",
+      complete: "Complete records",
+    };
+    setRecordsTarget({
+      year: year === "all" ? "all" : yearKey(year),
+      quality: issue,
+      title: `${year === "all" ? "All years" : year} — ${labels[issue]}`,
+    });
+  };
 
   // ── Pagination component ──────────────────────────────────────
   const Pagination = ({ page, totalPages, onPageChange, total, pageSize }) => {
@@ -1383,6 +2271,20 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
       ];
     });
 
+    rows.push([
+      "Total",
+      yearTotals.received,
+      yearTotals.total,
+      Number(
+        releasedRate({
+          received: yearTotals.received,
+          total: yearTotals.total,
+        }).toFixed(1),
+      ),
+      ...mergedDocTypes.map((dt) => yearTotals.docs[dt]),
+      yearTotals.noDoc,
+    ]);
+
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     ws["!cols"] = header.map((h, i) => ({
       wch: i === 0 ? 8 : Math.max(10, String(h).length + 2),
@@ -1482,6 +2384,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                     darkMode={darkMode}
                     ui={ui}
                     delay={60}
+                    onClick={() => setShowInProgress(true)}
                   />
                   <KpiTile
                     icon="🏁"
@@ -1774,7 +2677,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                               <span
                                 onClick={() =>
                                   setRecordsTarget({
-                                    year: Number(row.year),
+                                    year: yearKey(row.year),
                                     kind,
                                   })
                                 }
@@ -1796,20 +2699,496 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                           style={ysTd()}
                           title={`${row.total} ÷ ${row.received} × 100`}
                         >
-                          {releasedRate(row).toFixed(1)}%
+                          {row.year === NO_DATE
+                            ? "—"
+                            : `${releasedRate(row).toFixed(1)}%`}
                         </td>
                         {mergedDocTypes.map((dt) => (
                           <td key={dt} style={ysTd()}>
-                            {counts[dt]}
+                            {counts[dt] > 0 ? (
+                              <span
+                                onClick={() => openYearDocRecords(row.year, dt)}
+                                title="Click to view records"
+                                style={linkSt}
+                              >
+                                {counts[dt]}
+                              </span>
+                            ) : (
+                              counts[dt]
+                            )}
                           </td>
                         ))}
-                        <td style={ysTd(ui.textMuted)}>{noDocType}</td>
+                        <td style={ysTd(ui.textMuted)}>
+                          {noDocType > 0 ? (
+                            <span
+                              onClick={() =>
+                                openYearDocRecords(row.year, NONE_KEY)
+                              }
+                              title="Click to view records"
+                              style={linkSt}
+                            >
+                              {noDocType}
+                            </span>
+                          ) : (
+                            noDocType
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
+
+                  {/* Total row */}
+                  <tr>
+                    <td style={{ ...ysTd(ui.textPrimary, true), ...totalCell }}>
+                      Total
+                    </td>
+                    <td style={{ ...ysTd(), ...totalCell }}>
+                      {yearTotals.received.toLocaleString()}
+                    </td>
+                    <td style={{ ...ysTd(), ...totalCell }}>
+                      {yearTotals.total.toLocaleString()}
+                    </td>
+                    <td style={{ ...ysTd(), ...totalCell }}>
+                      {releasedRate({
+                        received: yearTotals.received,
+                        total: yearTotals.total,
+                      }).toFixed(1)}
+                      %
+                    </td>
+                    {mergedDocTypes.map((dt) => (
+                      <td key={dt} style={{ ...ysTd(), ...totalCell }}>
+                        {yearTotals.docs[dt].toLocaleString()}
+                      </td>
+                    ))}
+                    <td style={{ ...ysTd(ui.textMuted), ...totalCell }}>
+                      {yearTotals.noDoc.toLocaleString()}
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
+          )}
+        </SectionCard>
+      </FadeSlideIn>
+
+      {/* ── Data Completeness ── */}
+      <FadeSlideIn delay={540}>
+        <SectionCard
+          title="Data Completeness"
+          subtitle="How complete the Date Received / Date Released fields are"
+          icon="🧮"
+          ui={ui}
+          darkMode={darkMode}
+          action={
+            <button
+              onClick={() => setShowQualityNote((v) => !v)}
+              style={neuBtnStyle(showQualityNote)}
+            >
+              ⓘ How is this measured?
+            </button>
+          }
+        >
+          {loadingQuality && qualityData.length === 0 ? (
+            <LoadingRows rows={6} height={28} darkMode={darkMode} />
+          ) : qualityData.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                color: ui.textMuted,
+                fontSize: "0.82rem",
+                padding: "24px 0",
+              }}
+            >
+              No data available
+            </div>
+          ) : (
+            <>
+              {showQualityNote && (
+                <div
+                  style={{
+                    marginBottom: 14,
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    fontSize: "0.74rem",
+                    lineHeight: 1.6,
+                    color: ui.textMuted,
+                    border: `1px solid ${darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)"}`,
+                  }}
+                >
+                  <b style={{ color: ui.textPrimary }}>How it is measured</b>
+                  <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                    <li>
+                      A record is <b>complete</b> when its Date Received
+                      (Center) is valid, its Date Released is valid if it is
+                      expected to have one, and its Type of Doc Released is
+                      filled if it is expected to have one.
+                    </li>
+                    <li>
+                      <b>Date Released is expected</b> only when the status is
+                      COMPLETED. In progress, on-process and cancelled
+                      applications are not penalized for having no release date.
+                    </li>
+                    <li>
+                      <b>Type of Doc Released is expected</b> when the status is
+                      COMPLETED, or when the record already has a valid release
+                      date.
+                    </li>
+                    <li>
+                      <b>Valid date</b> = readable YYYY-MM-DD between 2000 and
+                      2100. Blanks, "N/A" and text such as "NOD 90" count as
+                      missing.
+                    </li>
+                    <li>
+                      <b>Completeness %</b> = complete records ÷ total records.
+                      Released % and Doc Type % only count records where the
+                      field is expected.
+                    </li>
+                    <li>
+                      Records are grouped by the year received; if there is no
+                      valid received date, by the year released; if neither,
+                      under "No Date".
+                    </li>
+                    <li>
+                      Limit: this checks that the data is present, not that it
+                      is correct. A wrong but valid-looking date still counts as
+                      complete.
+                    </li>
+                    <li>
+                      To fix a record, click a red number, then use{" "}
+                      <b>Actions ▾ → Update Application Info</b>.
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {/* Summary tiles */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: 12,
+                  marginBottom: 16,
+                }}
+              >
+                {[
+                  {
+                    label: "Overall completeness",
+                    p: pct(qualityTotals.complete, qualityTotals.total),
+                    sub: `${qualityTotals.complete.toLocaleString()} of ${qualityTotals.total.toLocaleString()} records`,
+                    missing: qualityMissing.incomplete,
+                    missingText: "need fixing",
+                    issue: "incomplete",
+                  },
+                  {
+                    label: "Date Received filled",
+                    p: pct(qualityTotals.received_filled, qualityTotals.total),
+                    sub: `${qualityTotals.received_filled.toLocaleString()} of ${qualityTotals.total.toLocaleString()} records`,
+                    missing: qualityMissing.received,
+                    missingText: "missing",
+                    issue: "missing_received",
+                  },
+                  {
+                    label: "Date Released filled",
+                    p: pct(
+                      qualityTotals.released_filled,
+                      qualityTotals.release_expected,
+                    ),
+                    sub: `${qualityTotals.released_filled.toLocaleString()} of ${qualityTotals.release_expected.toLocaleString()} expected`,
+                    missing: qualityMissing.released,
+                    missingText: "missing",
+                    issue: "missing_released",
+                  },
+                  {
+                    label: "Type of Doc Released filled",
+                    p: pct(
+                      qualityTotals.doc_filled,
+                      qualityTotals.doc_expected,
+                    ),
+                    sub: `${qualityTotals.doc_filled.toLocaleString()} of ${qualityTotals.doc_expected.toLocaleString()} expected`,
+                    missing: qualityMissing.doc,
+                    missingText: "missing",
+                    issue: "missing_doc",
+                  },
+                ].map((t) => (
+                  <div
+                    key={t.label}
+                    title={`${t.sub} → ${t.p.toFixed(1)}%`}
+                    style={{
+                      padding: "12px 14px",
+                      borderRadius: 12,
+                      background: neuCardBg(darkMode),
+                      boxShadow: neuShadow(darkMode),
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "0.62rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.06em",
+                        color: ui.textMuted,
+                      }}
+                    >
+                      {t.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "1.5rem",
+                        fontWeight: 800,
+                        color: completenessColor(t.p),
+                        lineHeight: 1.2,
+                        margin: "4px 0 6px",
+                      }}
+                    >
+                      {t.p.toFixed(1)}%
+                    </div>
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 99,
+                        overflow: "hidden",
+                        background: darkMode
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.min(t.p, 100)}%`,
+                          height: "100%",
+                          background: completenessColor(t.p),
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        marginTop: 6,
+                        fontSize: "0.68rem",
+                        color: ui.textMuted,
+                      }}
+                    >
+                      <span>{t.sub}</span>
+                      {t.missing > 0 ? (
+                        <span
+                          onClick={() => openQualityRecords("all", t.issue)}
+                          title="Click to view records"
+                          style={{
+                            ...linkSt,
+                            color: "#e02020",
+                            fontWeight: 700,
+                          }}
+                        >
+                          {t.missing.toLocaleString()} {t.missingText}
+                        </span>
+                      ) : (
+                        <span style={{ color: "#36a420", fontWeight: 700 }}>
+                          All filled
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Per-year table */}
+              <div
+                style={{
+                  overflowX: "auto",
+                  opacity: loadingQuality ? 0.5 : 1,
+                  transition: "opacity 0.2s",
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={ysTh(true)}>Year</th>
+                      <th style={ysTh()}>Total Records</th>
+                      <th style={ysTh()}>Received · Filled</th>
+                      <th style={ysTh()}>Received · Missing</th>
+                      <th
+                        style={ysTh()}
+                        title="Counts only records expected to be released"
+                      >
+                        Released · Filled
+                      </th>
+                      <th
+                        style={ysTh()}
+                        title="Expected to be released but no valid Date Released"
+                      >
+                        Released · Missing
+                      </th>
+                      <th
+                        style={ysTh()}
+                        title="Counts only records that are COMPLETED or already have a release date"
+                      >
+                        Doc Type · Filled
+                      </th>
+                      <th
+                        style={ysTh()}
+                        title="Expected to have a Type of Doc Released but blank"
+                      >
+                        Doc Type · Missing
+                      </th>
+                      <th style={ysTh()}>Complete</th>
+                      <th
+                        style={ysTh()}
+                        title="Completeness = Complete records ÷ Total records × 100"
+                      >
+                        Completeness
+                        <div
+                          style={{
+                            fontSize: "0.58rem",
+                            fontWeight: 500,
+                            textTransform: "none",
+                            letterSpacing: 0,
+                            marginTop: 2,
+                          }}
+                        >
+                          Complete ÷ Total × 100
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {qualityData.map((r) => {
+                      const p = pct(r.complete, r.total);
+                      const miss = (n, issue) =>
+                        n > 0 ? (
+                          <span
+                            onClick={() => openQualityRecords(r.year, issue)}
+                            title="Click to view records"
+                            style={{ ...linkSt, color: "#e02020" }}
+                          >
+                            {n.toLocaleString()}
+                          </span>
+                        ) : (
+                          n
+                        );
+                      return (
+                        <tr key={r.year}>
+                          <td style={ysTd(ui.textPrimary, true)}>{r.year}</td>
+                          <td style={ysTd()}>{r.total.toLocaleString()}</td>
+                          <td style={ysTd()}>
+                            {r.received_filled.toLocaleString()}
+                          </td>
+                          <td style={ysTd()}>
+                            {miss(r.missing_received, "missing_received")}
+                          </td>
+                          <td style={ysTd()}>
+                            {r.released_filled.toLocaleString()}
+                          </td>
+                          <td style={ysTd()}>
+                            {miss(r.missing_released, "missing_released")}
+                          </td>
+                          <td style={ysTd()}>
+                            {(r.doc_filled ?? 0).toLocaleString()}
+                          </td>
+                          <td style={ysTd()}>
+                            {miss(r.missing_doc ?? 0, "missing_doc")}
+                          </td>
+                          <td style={ysTd()}>{r.complete.toLocaleString()}</td>
+                          <td
+                            style={ysTd()}
+                            title={`${r.complete.toLocaleString()} ÷ ${r.total.toLocaleString()} × 100 = ${p.toFixed(1)}%`}
+                          >
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                minWidth: 150,
+                              }}
+                            >
+                              <div
+                                style={{
+                                  flex: 1,
+                                  height: 6,
+                                  borderRadius: 99,
+                                  overflow: "hidden",
+                                  background: darkMode
+                                    ? "rgba(255,255,255,0.08)"
+                                    : "rgba(0,0,0,0.08)",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: `${Math.min(p, 100)}%`,
+                                    height: "100%",
+                                    background: completenessColor(p),
+                                  }}
+                                />
+                              </div>
+                              <span
+                                style={{
+                                  color: completenessColor(p),
+                                  fontWeight: 700,
+                                  minWidth: 44,
+                                  textAlign: "right",
+                                }}
+                              >
+                                {p.toFixed(1)}%
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Total row */}
+                    <tr>
+                      <td
+                        style={{ ...ysTd(ui.textPrimary, true), ...totalCell }}
+                      >
+                        Total
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.total.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.received_filled.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityMissing.received.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.released_filled.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityMissing.released.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.doc_filled.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityMissing.doc.toLocaleString()}
+                      </td>
+                      <td style={{ ...ysTd(), ...totalCell }}>
+                        {qualityTotals.complete.toLocaleString()}
+                      </td>
+                      <td
+                        style={{ ...ysTd(), ...totalCell }}
+                        title={`${qualityTotals.complete.toLocaleString()} ÷ ${qualityTotals.total.toLocaleString()} × 100`}
+                      >
+                        {pct(
+                          qualityTotals.complete,
+                          qualityTotals.total,
+                        ).toFixed(1)}
+                        %
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </SectionCard>
       </FadeSlideIn>
@@ -2548,13 +3927,25 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         </SectionCard>
       </FadeSlideIn>
 
+      {showInProgress && (
+        <InProgressByUserModal
+          ui={ui}
+          darkMode={darkMode}
+          expectedTotal={summary.in_progress}
+          onClose={() => setShowInProgress(false)}
+        />
+      )}
+
       {recordsTarget && (
         <YearRecordsModal
           target={recordsTarget}
           basis={yearBasis}
           ui={ui}
           darkMode={darkMode}
-          onClose={() => setRecordsTarget(null)}
+          onClose={() => {
+            if (recordsTarget?.quality) fetchQuality();
+            setRecordsTarget(null);
+          }}
         />
       )}
     </div>

@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { startImpersonation, stopImpersonation } from "../api/auth";
 
 // ── Child Views ───────────────────────────────────────────────────────────────
-import OverviewView from "../components/monitoring/overview/OverviewView";
+
 import RecordsView from "../components/monitoring/records/RecordsView";
 import AnalyticsView from "../components/monitoring/analytics/AnalyticsView";
 import DeadlinesView from "../components/monitoring/deadlines/DeadlinesView";
@@ -12,7 +12,7 @@ import WorkloadView from "../components/monitoring/workload/WorkloadView";
 import ActivityFeedView from "../components/monitoring/activityFeed/ActivityFeedView";
 import UsersView from "../components/monitoring/users/UsersView";
 import FRPTatView from "../components/monitoring/frpTat/FRPTatView";
-import CprTrendView from "../components/monitoring/cprTrend/CprTrendView";
+
 import ProcessingTrendView from "../components/monitoring/processingTrend/ProcessingTrendView";
 import FRPMonitoringView from "../components/monitoring/frpMonitoring/FRPMonitoringView";
 import TeamOverviewView from "../components/monitoring/teamOverview/TeamOverviewView";
@@ -20,6 +20,8 @@ import GMPMonitoringAnalyticsView from "../components/gmp/dashboard/GMPMonitorin
 import PriorityMedsView from "../components/monitoring/priorityMeds/PriorityMedsView";
 import ClidpEservicesView from "../components/monitoring/clidpEservices/ClidpEservicesView";
 import EvaluatorAppTypesView from "../components/monitoring/evaluatorAppTypes/EvaluatorAppTypesView";
+import TopCompaniesView from "../components/monitoring/topCompanies/TopCompaniesView";
+import FastestProcessingView from "../components/monitoring/fastestProcessing/FastestProcessingView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -987,21 +989,7 @@ function renderContent(
     setActiveNav,
   },
 ) {
-  const COMING_SOON = ["deadlines", "compliance", "workload"];
-  if (COMING_SOON.includes(activeNav)) {
-    const found = navItems.find((n) => n.key === activeNav);
-    return <ComingSoonView label={found?.label ?? activeNav} ui={ui} />;
-  }
   switch (activeNav) {
-    case "overview":
-      return (
-        <OverviewView
-          {...sharedProps}
-          setActiveNav={setActiveNav}
-          setModalEval={setModalEval}
-          userDatabase={userDatabase}
-        />
-      );
     case "records":
       return <RecordsView {...sharedProps} setModalEval={setModalEval} />;
     case "analytics":
@@ -1041,14 +1029,17 @@ function renderContent(
       );
     case "frptat":
       return <FRPTatView ui={ui} darkMode={darkMode} />;
-    case "cprtrend":
-      return <CprTrendView ui={ui} darkMode={darkMode} />;
+
     case "frpmonitoring":
       return <FRPMonitoringView ui={ui} darkMode={darkMode} />;
     case "processingtrend":
       return <ProcessingTrendView ui={ui} darkMode={darkMode} />;
     case "teamoverview":
       return <TeamOverviewView darkMode={darkMode} />;
+    case "topcompanies":
+      return <TopCompaniesView ui={ui} darkMode={darkMode} />;
+    case "fastestprocessing":
+      return <FastestProcessingView ui={ui} darkMode={darkMode} />;
     case "gmpanalytics":
       return <GMPMonitoringAnalyticsView ui={ui} darkMode={darkMode} />;
     case "prioritymeds":
@@ -1275,31 +1266,37 @@ function MonitoringPage({ darkMode }) {
   };
 
   const navItems = [
-    { key: "overview", label: "Overview", subtitle: "Summary of all activity" },
-    { key: "records", label: "Records", subtitle: "Browse all applications" },
+    // Core (0-3)
     { key: "analytics", label: "Analytics", subtitle: "Charts & breakdowns" },
+    { key: "records", label: "Records", subtitle: "Browse all applications" },
     {
       key: "gmpanalytics",
       label: "FGMP Monitoring & Analytics",
       subtitle: "Live status & workflow trends",
     },
-    { key: "deadlines", label: "Deadlines", comingSoon: true },
-    { key: "compliance", label: "Compliance", comingSoon: true },
-    { key: "workload", label: "Workload", comingSoon: true },
+    // Tracking (4-5)
     {
-      key: "prioritymeds",
-      label: "Priority Meds",
-      subtitle: "Cancer, vaccines & rare disease",
+      key: "evalapptypes",
+      label: "Workload",
+      subtitle: "Count & avg stay per unit",
     },
     {
-      key: "clidpeservices",
-      label: "Priority Meds (CLIDP)",
-      subtitle: "From eServices DB",
+      key: "teamoverview",
+      label: "Team Overview",
+      subtitle: "Diagram & target table",
     },
-    { key: "activity", label: "Activity Feed", subtitle: "Live event stream" },
-    { key: "users", label: "Users", subtitle: "Manage evaluators" },
+    {
+      key: "topcompanies",
+      label: "Top Applicants",
+      subtitle: "Companies & evaluators per month",
+    },
+    {
+      key: "fastestprocessing",
+      label: "Fastest Processing",
+      subtitle: "CPR / Cert time & evaluators",
+    },
+    // Turnaround & Trends (6-9)
     { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
-    { key: "cprtrend", label: "CPR Trend", subtitle: "Received & Released" },
     {
       key: "frpmonitoring",
       label: "FRP and CRP Monitoring",
@@ -1310,19 +1307,27 @@ function MonitoringPage({ darkMode }) {
       label: "Processing Trend",
       subtitle: "App trend & breakdown",
     },
+    // Priority Programs (10-11)
     {
-      key: "teamoverview",
-      label: "Team Overview",
-      subtitle: "Diagram & target table",
+      key: "prioritymeds",
+      label: "Priority Meds",
+      subtitle: "Cancer, vaccines & rare disease",
     },
     {
-      key: "evalapptypes",
-      label: "Evaluator App Types",
-      subtitle: "Count & avg stay per unit",
+      key: "clidpeservices",
+      label: "Priority Meds (CLIDP)",
+      subtitle: "From eServices DB",
     },
+    // Admin (12-13)
+    { key: "activity", label: "Activity Feed", subtitle: "Live event stream" },
+    { key: "users", label: "Users", subtitle: "Manage evaluators" },
   ];
 
-  const [activeNav, setActiveNav] = useState(location.state?.tab ?? "overview");
+  const [activeNav, setActiveNav] = useState(
+    location.state?.tab && location.state.tab !== "overview"
+      ? location.state.tab
+      : "analytics",
+  );
   const [isMobile, setIsMobile] = useState(
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
   );
@@ -1554,7 +1559,7 @@ function MonitoringPage({ darkMode }) {
 
                   {/* Core group */}
                   {navItems
-                    .slice(0, 4)
+                    .slice(0, 3)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
@@ -1589,7 +1594,42 @@ function MonitoringPage({ darkMode }) {
                     Tracking
                   </p>
                   {navItems
-                    .slice(4, 7)
+                    .slice(3, 5)
+                    .map(({ key, comingSoon, icon, ...rest }) => (
+                      <NavItem
+                        key={key}
+                        {...rest}
+                        active={activeNav === key}
+                        onClick={() => setActiveNav(key)}
+                        ui={ui}
+                        comingSoon={comingSoon}
+                        darkMode={darkMode}
+                      />
+                    ))}
+
+                  <div
+                    style={{
+                      height: "0.5px",
+                      background: ui.divider,
+                      margin: "10px 8px",
+                    }}
+                  />
+
+                  {/* Turnaround & Trends group */}
+                  <p
+                    style={{
+                      fontSize: "0.6rem",
+                      fontWeight: 700,
+                      color: ui.textMuted,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      margin: "0 0 6px 14px",
+                    }}
+                  >
+                    Turnaround & Trends
+                  </p>
+                  {navItems
+                    .slice(5, 8)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
@@ -1624,7 +1664,7 @@ function MonitoringPage({ darkMode }) {
                     Priority Programs
                   </p>
                   {navItems
-                    .slice(7, 9)
+                    .slice(8, 10)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
@@ -1659,7 +1699,7 @@ function MonitoringPage({ darkMode }) {
                     Admin
                   </p>
                   {navItems
-                    .slice(9)
+                    .slice(10)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}

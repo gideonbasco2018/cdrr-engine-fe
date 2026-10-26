@@ -47,6 +47,46 @@ export const getCmdrFacets = async (params = {}, config = {}) => {
 };
 
 /**
+ * Applications received vs completed per month.
+ * @param {Object} params
+ * @param {number} params.months - How many months back, including the current one (default: 12)
+ * @returns {Array} [{ month: "2026-10", received: 120, completed: 95 }, ...]
+ */
+export const getCmdrTrend = async (params = {}, config = {}) => {
+  try {
+    const response = await axios.get(`${BASE_URL}/all/trend`, {
+      params: clean(params),
+      ...config,
+    });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+
+/**
+ * Applications behind one point of the trend chart.
+ * @param {Object} params
+ * @param {string} params.month - "YYYY-MM"
+ * @param {string} params.metric - "received" | "completed"
+ * @param {number} params.skip
+ * @param {number} params.limit - max 200
+ * @returns {Object} { items, total, skip, limit }
+ */
+export const getCmdrTrendApplications = async (params = {}, config = {}) => {
+  try {
+    const response = await axios.get(`${BASE_URL}/all/trend/applications`, {
+      params: clean(params),
+      ...config,
+    });
+    return response.data;
+  } catch (error) {
+    throw error.response?.data || error;
+  }
+};
+
+/**
  * All CMDR tables in one paginated list. Each item has CMDR_TYPE.
  * @param {Object} params
  * @param {number} params.skip - Rows to skip (default: 0)
@@ -116,6 +156,7 @@ export const getCmdrDelegations = async (cmdrType, appUid, config = {}) => {
 export default {
   getCmdrFilters,
   getCmdrFacets,
+  getCmdrTrend,
   getCmdrAll,
   getCmdrByType,
   getCmdrApplication,

@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCmdrAll, getCmdrApplication, getCmdrFacets } from "../api/cmdr";
 import { getColorScheme } from "../components/reports/utils.js";
 import TablePagination from "../components/reports/TablePagination";
+import DoctrackModal from "../components/reports/actions/DoctrackModal";
+import CmdrMonitoring from "../components/cmdr/CmdrMonitoring";
 
 /* ───────────────────────── constants ───────────────────────── */
 
@@ -474,6 +476,7 @@ function SidebarSection({
 function DetailModal({ target, onClose, colors, darkMode }) {
   const [tab, setTab] = useState(target.tab || "info");
   const [detail, setDetail] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const closeRef = useRef(null);
@@ -1021,6 +1024,8 @@ function CmdrPage({ darkMode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [openMenu, setOpenMenu] = useState(null); // { key, top, right }
   const [detail, setDetail] = useState(null); // { cmdr_type, app_uid, company, tab }
+  const [doctrackRecord, setDoctrackRecord] = useState(null); // { dtn }
+  const [view, setView] = useState("applications"); // "applications" | "monitoring"
 
   const filterParams = useMemo(
     () => ({
@@ -1103,6 +1108,7 @@ function CmdrPage({ darkMode }) {
     setCurrentPage(1);
   };
   const closeDetail = useCallback(() => setDetail(null), []);
+  const closeDoctrack = useCallback(() => setDoctrackRecord(null), []);
 
   const handleMenuToggle = (e, rowKey) => {
     e.stopPropagation();
@@ -1231,10 +1237,26 @@ function CmdrPage({ darkMode }) {
           </span>
         );
       case "DTN":
+        if (!row.DTN) return <span>—</span>;
         return (
-          <span style={{ fontSize: "0.65rem", fontWeight: 600 }}>
-            {show(row.DTN)}
-          </span>
+          <button
+            type="button"
+            onClick={() => setDoctrackRecord({ dtn: row.DTN })}
+            title="View document tracking"
+            style={{
+              padding: 0,
+              background: "transparent",
+              border: "none",
+              color: "#3b82f6",
+              fontSize: "0.65rem",
+              fontWeight: 600,
+              cursor: "pointer",
+              textDecoration: "underline",
+              textUnderlineOffset: 2,
+            }}
+          >
+            {row.DTN}
+          </button>
         );
       default:
         return (
@@ -1270,162 +1292,163 @@ function CmdrPage({ darkMode }) {
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden" }}>
       {/* ── Quick Filters sidebar ── */}
-      <div
-        style={{
-          width: isSidebarOpen ? "190px" : "44px",
-          minWidth: isSidebarOpen ? "190px" : "44px",
-          background: darkMode ? "#0a0a0a" : "#ffffff",
-          borderRight: `1px solid ${colors.cardBorder}`,
-          display: "flex",
-          flexDirection: "column",
-          flexShrink: 0,
-          overflow: "hidden",
-          transition: "width 0.25s ease, min-width 0.25s ease",
-        }}
-      >
-        {isSidebarOpen ? (
-          <>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0.6rem 0.75rem 0.6rem 0.85rem",
-                borderBottom: `1px solid ${colors.cardBorder}`,
-                flexShrink: 0,
-              }}
-            >
+      {view === "applications" && (
+        <div
+          style={{
+            width: isSidebarOpen ? "190px" : "44px",
+            minWidth: isSidebarOpen ? "190px" : "44px",
+            background: darkMode ? "#0a0a0a" : "#ffffff",
+            borderRight: `1px solid ${colors.cardBorder}`,
+            display: "flex",
+            flexDirection: "column",
+            flexShrink: 0,
+            overflow: "hidden",
+            transition: "width 0.25s ease, min-width 0.25s ease",
+          }}
+        >
+          {isSidebarOpen ? (
+            <>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.45rem",
+                  justifyContent: "space-between",
+                  padding: "0.6rem 0.75rem 0.6rem 0.85rem",
+                  borderBottom: `1px solid ${colors.cardBorder}`,
+                  flexShrink: 0,
                 }}
               >
-                <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#6366f1"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-                </svg>
-                <h2
+                <div
                   style={{
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                    color: colors.textPrimary,
-                    margin: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.45rem",
                   }}
                 >
-                  Quick Filters
-                </h2>
-                {activeFilterCount > 0 && (
-                  <span
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#6366f1"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                  </svg>
+                  <h2
                     style={{
-                      fontSize: "0.58rem",
+                      fontSize: "0.78rem",
                       fontWeight: 700,
-                      background: "#6366f1",
-                      color: "#fff",
-                      borderRadius: 99,
-                      padding: "1px 6px",
+                      color: colors.textPrimary,
+                      margin: 0,
                     }}
                   >
-                    {activeFilterCount}
-                  </span>
+                    Quick Filters
+                  </h2>
+                  {activeFilterCount > 0 && (
+                    <span
+                      style={{
+                        fontSize: "0.58rem",
+                        fontWeight: 700,
+                        background: "#6366f1",
+                        color: "#fff",
+                        borderRadius: 99,
+                        padding: "1px 6px",
+                      }}
+                    >
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </div>
+                {iconBtn(() => setIsSidebarOpen(false), "Hide filters", "◀")}
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  padding: "0.6rem 0.6rem 1rem",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.25rem",
+                }}
+              >
+                {sidebarSections.map(
+                  (s) =>
+                    (s.items.length > 0 || s.active !== null) && (
+                      <SidebarSection
+                        key={s.title}
+                        title={s.title}
+                        groupColor={s.color}
+                        items={s.items}
+                        activeItem={s.active}
+                        onItemClick={s.set}
+                        colors={colors}
+                        darkMode={darkMode}
+                        totalCount={sumCounts(s.items)}
+                      />
+                    ),
                 )}
               </div>
-              {iconBtn(() => setIsSidebarOpen(false), "Hide filters", "◀")}
-            </div>
-
+            </>
+          ) : (
             <div
               style={{
-                flex: 1,
-                overflowY: "auto",
-                overflowX: "hidden",
-                padding: "0.6rem 0.6rem 1rem",
                 display: "flex",
                 flexDirection: "column",
-                gap: "0.25rem",
+                alignItems: "center",
+                gap: "0.85rem",
+                padding: "0.75rem 0",
               }}
             >
-              {sidebarSections.map(
-                (s) =>
-                  (s.items.length > 0 || s.active !== null) && (
-                    <SidebarSection
-                      key={s.title}
-                      title={s.title}
-                      groupColor={s.color}
-                      items={s.items}
-                      activeItem={s.active}
-                      onItemClick={s.set}
-                      colors={colors}
-                      darkMode={darkMode}
-                      totalCount={sumCounts(s.items)}
-                    />
-                  ),
+              {iconBtn(() => setIsSidebarOpen(true), "Show filters", "▶")}
+              {activeFilterCount > 0 && (
+                <div
+                  onClick={() => setIsSidebarOpen(true)}
+                  title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""}`}
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    background: "#6366f1",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "0.6rem",
+                    fontWeight: 700,
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  {activeFilterCount}
+                </div>
               )}
+              {[
+                { icon: "🗂️", key: appType, title: "Application Type" },
+                { icon: "⚙️", key: appOption, title: "Application Option" },
+                { icon: "📌", key: appStatus, title: "Status" },
+              ].map(({ icon, key, title }) => (
+                <span
+                  key={title}
+                  title={title}
+                  onClick={() => setIsSidebarOpen(true)}
+                  style={{
+                    fontSize: "1rem",
+                    cursor: "pointer",
+                    opacity: key !== null ? 1 : 0.3,
+                    transition: "opacity 0.2s",
+                  }}
+                >
+                  {icon}
+                </span>
+              ))}
             </div>
-          </>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "0.85rem",
-              padding: "0.75rem 0",
-            }}
-          >
-            {iconBtn(() => setIsSidebarOpen(true), "Show filters", "▶")}
-            {activeFilterCount > 0 && (
-              <div
-                onClick={() => setIsSidebarOpen(true)}
-                title={`${activeFilterCount} active filter${activeFilterCount > 1 ? "s" : ""}`}
-                style={{
-                  width: "18px",
-                  height: "18px",
-                  background: "#6366f1",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "0.6rem",
-                  fontWeight: 700,
-                  color: "#fff",
-                  cursor: "pointer",
-                }}
-              >
-                {activeFilterCount}
-              </div>
-            )}
-            {[
-              { icon: "🗂️", key: appType, title: "Application Type" },
-              { icon: "⚙️", key: appOption, title: "Application Option" },
-              { icon: "📌", key: appStatus, title: "Status" },
-            ].map(({ icon, key, title }) => (
-              <span
-                key={title}
-                title={title}
-                onClick={() => setIsSidebarOpen(true)}
-                style={{
-                  fontSize: "1rem",
-                  cursor: "pointer",
-                  opacity: key !== null ? 1 : 0.3,
-                  transition: "opacity 0.2s",
-                }}
-              >
-                {icon}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
+          )}
+        </div>
+      )}
       {/* ── Main content ── */}
       <div
         style={{
@@ -1436,492 +1459,551 @@ function CmdrPage({ darkMode }) {
           minHeight: 0,
         }}
       >
-        {/* tabs */}
+        {/* view switcher */}
         <div
+          role="tablist"
           style={{
-            padding: "0.85rem 1.5rem",
+            display: "flex",
+            padding: "0 1.5rem",
             background: colors.pageBg,
             borderBottom: `1px solid ${colors.cardBorder}`,
           }}
         >
-          <div
-            role="tablist"
-            style={{
-              display: "flex",
-              overflowX: "auto",
-              scrollbarWidth: "none",
-              msOverflowStyle: "none",
-              borderBottom: `1px solid ${colors.cardBorder}`,
-              marginTop: "0.5rem",
-            }}
-          >
-            <button
-              role="tab"
-              aria-selected={kind === null}
-              onClick={() => pick(setKind)(null)}
-              style={tabButtonStyle(kind === null)}
-            >
-              <span>📋</span>
-              <span>All Applications</span>
-              <span style={tabBadgeStyle(kind === null)}>
-                {allKindsCount.toLocaleString()}
-              </span>
-            </button>
-            {TYPE_KEYS.map((key) => (
+          {[
+            { id: "applications", label: "📋 Applications" },
+            { id: "monitoring", label: "📊 Monitoring" },
+          ].map((t) => {
+            const active = view === t.id;
+            return (
               <button
-                key={key}
+                key={t.id}
                 role="tab"
-                aria-selected={kind === key}
-                onClick={() => pick(setKind)(key)}
-                style={tabButtonStyle(kind === key)}
+                aria-selected={active}
+                onClick={() => setView(t.id)}
+                style={{
+                  padding: "10px 18px",
+                  fontSize: "13px",
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: active
+                    ? "2px solid #6366f1"
+                    : "2px solid transparent",
+                  color: active ? colors.textPrimary : colors.textTertiary,
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                  position: "relative",
+                  top: 1,
+                }}
               >
-                <span>{TYPE_LABELS[key]}</span>
-                <span style={tabBadgeStyle(kind === key)}>
-                  {kindCount(key).toLocaleString()}
-                </span>
+                {t.label}
               </button>
-            ))}
-          </div>
+            );
+          })}
         </div>
 
-        {/* content */}
-        <div
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "0.85rem 1.5rem",
-            background: colors.pageBg,
-          }}
-        >
-          {/* search */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              padding: "0.5rem",
-              marginBottom: "0.85rem",
-              background: colors.cardBg,
-              border: `1px solid ${colors.cardBorder}`,
-              borderRadius: "12px",
-            }}
-          >
+        {view === "monitoring" && (
+          <CmdrMonitoring colors={colors} darkMode={darkMode} />
+        )}
+
+        {view === "applications" && (
+          <>
+            {/* tabs */}
+            <div
+              style={{
+                padding: "0.85rem 1.5rem",
+                background: colors.pageBg,
+                borderBottom: `1px solid ${colors.cardBorder}`,
+              }}
+            >
+              <div
+                role="tablist"
+                style={{
+                  display: "flex",
+                  overflowX: "auto",
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none",
+                  borderBottom: `1px solid ${colors.cardBorder}`,
+                  marginTop: "0.5rem",
+                }}
+              >
+                <button
+                  role="tab"
+                  aria-selected={kind === null}
+                  onClick={() => pick(setKind)(null)}
+                  style={tabButtonStyle(kind === null)}
+                >
+                  <span>📋</span>
+                  <span>All Applications</span>
+                  <span style={tabBadgeStyle(kind === null)}>
+                    {allKindsCount.toLocaleString()}
+                  </span>
+                </button>
+                {TYPE_KEYS.map((key) => (
+                  <button
+                    key={key}
+                    role="tab"
+                    aria-selected={kind === key}
+                    onClick={() => pick(setKind)(key)}
+                    style={tabButtonStyle(kind === key)}
+                  >
+                    <span>{TYPE_LABELS[key]}</span>
+                    <span style={tabBadgeStyle(kind === key)}>
+                      {kindCount(key).toLocaleString()}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* content */}
             <div
               style={{
                 flex: 1,
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                padding: "0 0.75rem",
-                height: 32,
+                overflowY: "auto",
+                padding: "0.85rem 1.5rem",
                 background: colors.pageBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: 8,
               }}
             >
-              <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>🔍</span>
-              <input
-                type="search"
-                value={searchInput}
-                onChange={(e) => {
-                  setSearchInput(e.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="Search by company, DTN or application number"
-                aria-label="Search applications"
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  background: "transparent",
-                  border: "none",
-                  outline: "none",
-                  color: colors.textPrimary,
-                  fontSize: "0.7rem",
-                }}
-              />
-            </div>
-            {hasFilters && (
-              <button
-                onClick={clearAll}
-                style={{
-                  height: 32,
-                  padding: "0 12px",
-                  background: "transparent",
-                  border: `1px solid ${colors.cardBorder}`,
-                  borderRadius: 8,
-                  color: colors.textSecondary,
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
-
-          {error && (
-            <div
-              role="alert"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "0.75rem",
-                marginBottom: "0.85rem",
-                padding: "0.6rem 0.85rem",
-                borderRadius: 10,
-                border: "1px solid #ef4444",
-                background: "rgba(239,68,68,0.1)",
-                color: "#ef4444",
-                fontSize: "0.75rem",
-              }}
-            >
-              <span>{error}</span>
-              <button
-                onClick={() => setReloadKey((k) => k + 1)}
-                style={{
-                  padding: "4px 10px",
-                  background: "transparent",
-                  border: "1px solid #ef4444",
-                  borderRadius: 6,
-                  color: "#ef4444",
-                  fontSize: "0.7rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                Try again
-              </button>
-            </div>
-          )}
-
-          {loading && (
-            <LoadingSpinner
-              darkMode={darkMode}
-              colors={colors}
-              progress={loadProgress}
-            />
-          )}
-
-          {!loading && !error && rows.length === 0 && (
-            <div
-              style={{
-                background: colors.cardBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "12px",
-                padding: "3rem",
-                textAlign: "center",
-                color: colors.textSecondary,
-              }}
-            >
-              <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
-                📭
-              </div>
+              {/* search */}
               <div
                 style={{
-                  fontSize: "0.88rem",
-                  fontWeight: 600,
-                  marginBottom: "0.35rem",
-                }}
-              >
-                No applications found
-              </div>
-              <div style={{ fontSize: "0.75rem" }}>
-                No records found for the selected criteria
-              </div>
-            </div>
-          )}
-
-          {!loading && rows.length > 0 && (
-            <div
-              style={{
-                background: colors.cardBg,
-                border: `1px solid ${colors.cardBorder}`,
-                borderRadius: "12px",
-                overflow: "hidden",
-                display: "flex",
-                flexDirection: "column",
-                height: "100%",
-                minHeight: 0,
-              }}
-            >
-              <div
-                style={{
-                  padding: "0.45rem 0.85rem",
-                  borderBottom: `1px solid ${colors.tableBorder}`,
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.75rem",
-                  flexShrink: 0,
+                  gap: "0.5rem",
+                  padding: "0.5rem",
+                  marginBottom: "0.85rem",
+                  background: colors.cardBg,
+                  border: `1px solid ${colors.cardBorder}`,
+                  borderRadius: "12px",
                 }}
               >
-                <h3
+                <div
                   style={{
-                    fontSize: "0.7rem",
-                    fontWeight: 600,
-                    color: colors.textPrimary,
-                    margin: 0,
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0 0.75rem",
+                    height: 32,
+                    background: colors.pageBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: 8,
                   }}
                 >
-                  CMDR Data
-                </h3>
-                <span
-                  style={{
-                    padding: "0.2rem 0.6rem",
-                    background: colors.badgeBg,
-                    borderRadius: "12px",
-                    fontSize: "0.55rem",
-                    color: colors.textTertiary,
-                    fontWeight: 600,
-                  }}
-                >
-                  {totalRecords.toLocaleString()} total records
-                </span>
-              </div>
-
-              <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    minWidth: "1300px",
-                  }}
-                >
-                  <thead
+                  <span style={{ fontSize: "0.7rem", opacity: 0.7 }}>🔍</span>
+                  <input
+                    type="search"
+                    value={searchInput}
+                    onChange={(e) => {
+                      setSearchInput(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    placeholder="Search by company, DTN or application number"
+                    aria-label="Search applications"
                     style={{
-                      position: "sticky",
-                      top: 0,
-                      background: colors.tableBg,
-                      zIndex: 20,
+                      flex: 1,
+                      minWidth: 0,
+                      background: "transparent",
+                      border: "none",
+                      outline: "none",
+                      color: colors.textPrimary,
+                      fontSize: "0.7rem",
+                    }}
+                  />
+                </div>
+                {hasFilters && (
+                  <button
+                    onClick={clearAll}
+                    style={{
+                      height: 32,
+                      padding: "0 12px",
+                      background: "transparent",
+                      border: `1px solid ${colors.cardBorder}`,
+                      borderRadius: 8,
+                      color: colors.textSecondary,
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    <tr>
-                      <th
+                    Clear filters
+                  </button>
+                )}
+              </div>
+
+              {error && (
+                <div
+                  role="alert"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                    marginBottom: "0.85rem",
+                    padding: "0.6rem 0.85rem",
+                    borderRadius: 10,
+                    border: "1px solid #ef4444",
+                    background: "rgba(239,68,68,0.1)",
+                    color: "#ef4444",
+                    fontSize: "0.75rem",
+                  }}
+                >
+                  <span>{error}</span>
+                  <button
+                    onClick={() => setReloadKey((k) => k + 1)}
+                    style={{
+                      padding: "4px 10px",
+                      background: "transparent",
+                      border: "1px solid #ef4444",
+                      borderRadius: 6,
+                      color: "#ef4444",
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {loading && (
+                <LoadingSpinner
+                  darkMode={darkMode}
+                  colors={colors}
+                  progress={loadProgress}
+                />
+              )}
+
+              {!loading && !error && rows.length === 0 && (
+                <div
+                  style={{
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: "12px",
+                    padding: "3rem",
+                    textAlign: "center",
+                    color: colors.textSecondary,
+                  }}
+                >
+                  <div style={{ fontSize: "1.75rem", marginBottom: "0.75rem" }}>
+                    📭
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.88rem",
+                      fontWeight: 600,
+                      marginBottom: "0.35rem",
+                    }}
+                  >
+                    No applications found
+                  </div>
+                  <div style={{ fontSize: "0.75rem" }}>
+                    No records found for the selected criteria
+                  </div>
+                </div>
+              )}
+
+              {!loading && rows.length > 0 && (
+                <div
+                  style={{
+                    background: colors.cardBg,
+                    border: `1px solid ${colors.cardBorder}`,
+                    borderRadius: "12px",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
+                    minHeight: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "0.45rem 0.85rem",
+                      borderBottom: `1px solid ${colors.tableBorder}`,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.75rem",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <h3
+                      style={{
+                        fontSize: "0.7rem",
+                        fontWeight: 600,
+                        color: colors.textPrimary,
+                        margin: 0,
+                      }}
+                    >
+                      CMDR Data
+                    </h3>
+                    <span
+                      style={{
+                        padding: "0.2rem 0.6rem",
+                        background: colors.badgeBg,
+                        borderRadius: "12px",
+                        fontSize: "0.55rem",
+                        color: colors.textTertiary,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {totalRecords.toLocaleString()} total records
+                    </span>
+                  </div>
+
+                  <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        minWidth: "1300px",
+                      }}
+                    >
+                      <thead
                         style={{
-                          ...thBase,
-                          textAlign: "center",
-                          width: "40px",
-                          minWidth: "40px",
                           position: "sticky",
-                          left: 0,
-                          zIndex: 22,
-                          boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
+                          top: 0,
+                          background: colors.tableBg,
+                          zIndex: 20,
                         }}
                       >
-                        #
-                      </th>
-                      {COLUMNS.map((col) => (
-                        <th
-                          key={col.key}
-                          style={{ ...thBase, minWidth: col.width }}
-                        >
-                          {col.label}
-                        </th>
-                      ))}
-                      <th
-                        style={{
-                          ...thBase,
-                          textAlign: "center",
-                          width: "60px",
-                          position: "sticky",
-                          right: 0,
-                          zIndex: 21,
-                          boxShadow: "-4px 0 8px rgba(0,0,0,0.15)",
-                        }}
-                      >
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, index) => {
-                      const rowKey = `${row.CMDR_TYPE}-${row.APP_UID}`;
-                      const rowBg =
-                        index % 2 === 0
-                          ? colors.tableRowEven
-                          : colors.tableRowOdd;
-                      return (
-                        <tr
-                          key={rowKey}
-                          style={{
-                            background: rowBg,
-                            transition: "background 0.2s",
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background =
-                              colors.tableRowHover)
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = rowBg)
-                          }
-                        >
-                          <td
+                        <tr>
+                          <th
                             style={{
-                              ...tdBase,
-                              fontWeight: 700,
-                              color: colors.textTertiary,
+                              ...thBase,
                               textAlign: "center",
-                              whiteSpace: "nowrap",
                               width: "40px",
                               minWidth: "40px",
                               position: "sticky",
                               left: 0,
-                              background: rowBg,
-                              zIndex: 10,
+                              zIndex: 22,
                               boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
                             }}
                           >
-                            {indexOfFirstRow + index}
-                          </td>
+                            #
+                          </th>
                           {COLUMNS.map((col) => (
-                            <td
+                            <th
                               key={col.key}
-                              style={{
-                                ...tdBase,
-                                whiteSpace: "normal",
-                                wordBreak: "break-word",
-                                minWidth: col.width,
-                              }}
+                              style={{ ...thBase, minWidth: col.width }}
                             >
-                              {renderCell(col, row)}
-                            </td>
+                              {col.label}
+                            </th>
                           ))}
-                          <td
+                          <th
                             style={{
-                              ...tdBase,
+                              ...thBase,
                               textAlign: "center",
-                              whiteSpace: "nowrap",
+                              width: "60px",
                               position: "sticky",
                               right: 0,
-                              background: rowBg,
-                              zIndex: openMenu?.key === rowKey ? 9999 : 9,
+                              zIndex: 21,
                               boxShadow: "-4px 0 8px rgba(0,0,0,0.15)",
                             }}
                           >
-                            <button
-                              onClick={(e) => handleMenuToggle(e, rowKey)}
-                              aria-label="Row actions"
-                              aria-haspopup="menu"
-                              aria-expanded={openMenu?.key === rowKey}
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row, index) => {
+                          const rowKey = `${row.CMDR_TYPE}-${row.APP_UID}`;
+                          const rowBg =
+                            index % 2 === 0
+                              ? colors.tableRowEven
+                              : colors.tableRowOdd;
+                          return (
+                            <tr
+                              key={rowKey}
                               style={{
-                                padding: "0.4rem",
-                                background: "transparent",
-                                border: `1px solid ${colors.cardBorder}`,
-                                borderRadius: "6px",
-                                color: colors.textPrimary,
-                                cursor: "pointer",
-                                width: "24px",
-                                height: "24px",
-                                lineHeight: 0,
+                                background: rowBg,
+                                transition: "background 0.2s",
                               }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.background =
+                                  colors.tableRowHover)
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.background = rowBg)
+                              }
                             >
-                              ⋮
-                            </button>
-                            {openMenu?.key === rowKey && (
-                              <>
-                                <div
-                                  onClick={() => setOpenMenu(null)}
+                              <td
+                                style={{
+                                  ...tdBase,
+                                  fontWeight: 700,
+                                  color: colors.textTertiary,
+                                  textAlign: "center",
+                                  whiteSpace: "nowrap",
+                                  width: "40px",
+                                  minWidth: "40px",
+                                  position: "sticky",
+                                  left: 0,
+                                  background: rowBg,
+                                  zIndex: 10,
+                                  boxShadow: "2px 0 4px rgba(0,0,0,0.15)",
+                                }}
+                              >
+                                {indexOfFirstRow + index}
+                              </td>
+                              {COLUMNS.map((col) => (
+                                <td
+                                  key={col.key}
                                   style={{
-                                    position: "fixed",
-                                    inset: 0,
-                                    zIndex: 9998,
-                                  }}
-                                />
-                                <div
-                                  role="menu"
-                                  style={{
-                                    position: "fixed",
-                                    top: `${openMenu.top}px`,
-                                    right: `${openMenu.right}px`,
-                                    left: "auto",
-                                    background: colors.cardBg,
-                                    border: `1px solid ${colors.cardBorder}`,
-                                    borderRadius: "8px",
-                                    boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
-                                    minWidth: "190px",
-                                    zIndex: 9999,
-                                    textAlign: "left",
+                                    ...tdBase,
+                                    whiteSpace: "normal",
+                                    wordBreak: "break-word",
+                                    minWidth: col.width,
                                   }}
                                 >
-                                  {MENU_ITEMS.map((item, i) => (
-                                    <button
-                                      key={item.label}
-                                      role="menuitem"
-                                      onClick={() => openDetail(row, item.tab)}
+                                  {renderCell(col, row)}
+                                </td>
+                              ))}
+                              <td
+                                style={{
+                                  ...tdBase,
+                                  textAlign: "center",
+                                  whiteSpace: "nowrap",
+                                  position: "sticky",
+                                  right: 0,
+                                  background: rowBg,
+                                  zIndex: openMenu?.key === rowKey ? 9999 : 9,
+                                  boxShadow: "-4px 0 8px rgba(0,0,0,0.15)",
+                                }}
+                              >
+                                <button
+                                  onClick={(e) => handleMenuToggle(e, rowKey)}
+                                  aria-label="Row actions"
+                                  aria-haspopup="menu"
+                                  aria-expanded={openMenu?.key === rowKey}
+                                  style={{
+                                    padding: "0.4rem",
+                                    background: "transparent",
+                                    border: `1px solid ${colors.cardBorder}`,
+                                    borderRadius: "6px",
+                                    color: colors.textPrimary,
+                                    cursor: "pointer",
+                                    width: "24px",
+                                    height: "24px",
+                                    lineHeight: 0,
+                                  }}
+                                >
+                                  ⋮
+                                </button>
+                                {openMenu?.key === rowKey && (
+                                  <>
+                                    <div
+                                      onClick={() => setOpenMenu(null)}
                                       style={{
-                                        width: "100%",
-                                        padding: "0.6rem 0.85rem",
-                                        background: "transparent",
-                                        border: "none",
-                                        borderTop:
-                                          i > 0
-                                            ? `1px solid ${colors.tableBorder}`
-                                            : "none",
-                                        color: colors.textPrimary,
-                                        fontSize: "0.78rem",
-                                        textAlign: "left",
-                                        cursor: "pointer",
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: "0.5rem",
-                                        transition: "background 0.2s",
+                                        position: "fixed",
+                                        inset: 0,
+                                        zIndex: 9998,
                                       }}
-                                      onMouseEnter={(e) =>
-                                        (e.currentTarget.style.background =
-                                          colors.tableRowHover)
-                                      }
-                                      onMouseLeave={(e) =>
-                                        (e.currentTarget.style.background =
-                                          "transparent")
-                                      }
+                                    />
+                                    <div
+                                      role="menu"
+                                      style={{
+                                        position: "fixed",
+                                        top: `${openMenu.top}px`,
+                                        right: `${openMenu.right}px`,
+                                        left: "auto",
+                                        background: colors.cardBg,
+                                        border: `1px solid ${colors.cardBorder}`,
+                                        borderRadius: "8px",
+                                        boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+                                        minWidth: "190px",
+                                        zIndex: 9999,
+                                        textAlign: "left",
+                                      }}
                                     >
-                                      <span>{item.icon}</span>
-                                      <span>{item.label}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                                      {MENU_ITEMS.map((item, i) => (
+                                        <button
+                                          key={item.label}
+                                          role="menuitem"
+                                          onClick={() =>
+                                            openDetail(row, item.tab)
+                                          }
+                                          style={{
+                                            width: "100%",
+                                            padding: "0.6rem 0.85rem",
+                                            background: "transparent",
+                                            border: "none",
+                                            borderTop:
+                                              i > 0
+                                                ? `1px solid ${colors.tableBorder}`
+                                                : "none",
+                                            color: colors.textPrimary,
+                                            fontSize: "0.78rem",
+                                            textAlign: "left",
+                                            cursor: "pointer",
+                                            display: "flex",
+                                            alignItems: "center",
+                                            gap: "0.5rem",
+                                            transition: "background 0.2s",
+                                          }}
+                                          onMouseEnter={(e) =>
+                                            (e.currentTarget.style.background =
+                                              colors.tableRowHover)
+                                          }
+                                          onMouseLeave={(e) =>
+                                            (e.currentTarget.style.background =
+                                              "transparent")
+                                          }
+                                        >
+                                          <span>{item.icon}</span>
+                                          <span>{item.label}</span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
 
-              <div
-                style={{
-                  flexShrink: 0,
-                  borderTop: `1px solid ${colors.tableBorder}`,
-                  background: colors.cardBg,
-                }}
-              >
-                <TablePagination
-                  currentPage={currentPage}
-                  rowsPerPage={rowsPerPage}
-                  totalRecords={totalRecords}
-                  totalPages={totalPages}
-                  indexOfFirstRow={indexOfFirstRow}
-                  indexOfLastRow={indexOfLastRow}
-                  onPageChange={setCurrentPage}
-                  onRowsPerPageChange={handleRowsPerPageChange}
-                  colors={colors}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      borderTop: `1px solid ${colors.tableBorder}`,
+                      background: colors.cardBg,
+                    }}
+                  >
+                    <TablePagination
+                      currentPage={currentPage}
+                      rowsPerPage={rowsPerPage}
+                      totalRecords={totalRecords}
+                      totalPages={totalPages}
+                      indexOfFirstRow={indexOfFirstRow}
+                      indexOfLastRow={indexOfLastRow}
+                      onPageChange={setCurrentPage}
+                      onRowsPerPageChange={handleRowsPerPageChange}
+                      colors={colors}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>{" "}
+            {/* end of content div */}
+          </>
+        )}
+      </div>{" "}
+      {/* end of main content */}
       {detail && (
         <DetailModal
           target={detail}
           onClose={closeDetail}
           colors={colors}
           darkMode={darkMode}
+        />
+      )}
+      {doctrackRecord && (
+        <DoctrackModal
+          record={doctrackRecord}
+          onClose={closeDoctrack}
+          colors={colors}
         />
       )}
     </div>

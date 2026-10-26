@@ -63,3 +63,39 @@ export const getDocTypeReleased = async (params = {}) => {
     const res = await API.get("/doc-type-released/", { params });
     return res.data;
 };
+
+
+export const getAnalyticsDataQuality = async () => {
+    const res = await API.get("/analytics/data-quality");
+    return res.data;
+};
+
+export const getAnalyticsQualityRecords = async (params = {}) => {
+    const res = await API.get("/analytics/data-quality/records", { params });
+    return res.data;
+};
+
+export const getAnalyticsTopCompanies = async (params = {}) => {
+    const res = await API.get("/analytics/top-companies", { params });
+    return res.data;
+};
+
+export const getAnalyticsCompanyRecords = async (params = {}) => {
+    const res = await API.get("/analytics/top-companies/records", { params });
+    return res.data;
+};
+
+export const getAnalyticsFastestApplications = async (params = {}) => {
+    const res = await API.get("/analytics/fastest/applications", { params });
+    return res.data;
+};
+
+export const getAnalyticsFastestCompanies = async (params = {}) => {
+    const res = await API.get("/analytics/fastest/companies", { params });
+    return res.data;
+};
+
+export const getAnalyticsFastestRecords = async (params = {}) => {
+    const res = await API.get("/analytics/fastest/records", { params });
+    return res.data;
+};
