@@ -40,6 +40,69 @@ const STEP_PAYMENT = "Payment Verification/Posting";
 const STEP_QUALITY = "Quality Evaluation";
 const STEP_DECKING = "Decking";
 
+/* Steps only FGMP applications reach. On these tabs the table also shows the
+   FGMP details; other tabs are unchanged, because CPR rows have none. */
+/* Filter buttons. The wording comes from ACTION_ROUTES in
+   app/services/fgmp_workflow.py.
+
+   On the Task tab they describe how the work ARRIVED (so an evaluator's
+   "Returned" means applications a checker sent back to them), and on the
+   Processed tab what the user DID with it. */
+const TASK_FILTERS = [
+  {
+    id: "compliance",
+    label: "For Compliance",
+    matches: (row) => row.fromDecision === "For Compliance",
+  },
+  {
+    id: "returned",
+    label: "Returned",
+    matches: (row) => (row.fromDecision || "").startsWith("Return"),
+  },
+];
+
+const PROCESSED_FILTERS = [
+  {
+    id: "forwarded",
+    label: "Forwarded",
+    matches: (row) => (row.decision || "").startsWith("Endorse"),
+  },
+  {
+    id: "approved",
+    label: "Approved",
+    matches: (row) => row.decision === "Approved",
+  },
+];
+
+/* Tabs where every row has the same activity, so the activity dropdown is
+   pointless. LRD Chief and Director keep it. */
+const STEPS_WITHOUT_ACTIVITY_FILTER = [
+  "Quality Evaluation",
+  "Checker",
+  "Supervisor",
+];
+
+const FGMP_ONLY_STEPS = [
+  "Quality Evaluation",
+  "Checker",
+  "Supervisor",
+  "LRD Chief",
+  "Director",
+];
+
+/* Top tabs follow the workflow, so the order does not depend on which task
+   happens to be newest. A step not listed here (the CPR ones) goes after
+   these, in the order it arrived. */
+const TAB_ORDER = [
+  STEP_PAYMENT,
+  STEP_DECKING,
+  STEP_QUALITY,
+  "Checker",
+  "Supervisor",
+  "LRD Chief",
+  "Director",
+];
+
 /* Testing switch: lets Admin users see the cashier tab even when the
    server says they are not in the cashier group. Keep false in production. */
 const ADMIN_BYPASS = false;
@@ -911,6 +974,7 @@ function EApplicationPage({ darkMode }) {
   const [claiming, setClaiming] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [activityFilter, setActivityFilter] = useState("");
+  const [outcomeFilter, setOutcomeFilter] = useState(""); // Processed tab only
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
 
@@ -1077,7 +1141,14 @@ function EApplicationPage({ darkMode }) {
       const step = getRowStep(row);
       if (step && !steps.includes(step)) steps.push(step);
     });
-    return steps.map((step) => ({ key: step, ...getStepMeta(step) }));
+    const rank = (step) => {
+      const i = TAB_ORDER.indexOf(step);
+      return i === -1 ? TAB_ORDER.length : i;
+    };
+    // a stable sort keeps unlisted steps in the order they arrived
+    return [...steps]
+      .sort((a, b) => rank(a) - rank(b))
+      .map((step) => ({ key: step, ...getStepMeta(step) }));
   }, [applications, isCashier, isDecker]);
 
   /* Keep the active department and sub-tab valid: if the department
@@ -1112,9 +1183,39 @@ function EApplicationPage({ darkMode }) {
   const myTasksData = departmentData.filter(
     (row) => row.status === "claimed" && row.claimedBy === CURRENT_USER,
   );
-  const processedData = departmentData.filter(
-    (row) => row.status === "processed" && row.claimedBy === CURRENT_USER,
-  );
+  /* One row per application: an application you acted on twice (say For
+     Compliance, then endorsed) is listed under its most recent action only,
+     so it is counted once. */
+  const processedData = useMemo(() => {
+    /* An application sent back to you (For Compliance) is open on your Task
+       tab again, so it is not finished — keep it off the Processed tab until
+       you pass it on. */
+    const stillOpen = new Set(myTasksData.map((row) => row.id));
+    const latest = new Map();
+    departmentData
+      .filter(
+        (row) =>
+          row.status === "processed" &&
+          row.claimedBy === CURRENT_USER &&
+          !stillOpen.has(row.id),
+      )
+      .forEach((row) => {
+        const seen = latest.get(row.id);
+        // Two decisions can land in the same second, so the step number
+        // breaks the tie: a later step always wins.
+        const rank = (r) => [String(r.accomplishedAt || ""), r.stepIndex ?? -1];
+        if (!seen) {
+          latest.set(row.id, row);
+          return;
+        }
+        const [aTime, aStep] = rank(row);
+        const [bTime, bStep] = rank(seen);
+        if (aTime > bTime || (aTime === bTime && aStep > bStep)) {
+          latest.set(row.id, row);
+        }
+      });
+    return [...latest.values()];
+  }, [departmentData, myTasksData, CURRENT_USER]);
 
   const baseData =
     activeSubTab === "unclaimed"
@@ -1139,9 +1240,37 @@ function EApplicationPage({ darkMode }) {
     ? activityFilter
     : "";
 
+  /* Whether the tab on screen is an FGMP-only step */
+  const showFgmpColumns = FGMP_ONLY_STEPS.includes(activeDepartment);
+
+  /* The buttons only apply to FGMP steps, where these decisions exist.
+     Task tab: how the work arrived. Processed tab: what was done with it. */
+  const activeFilters = !FGMP_ONLY_STEPS.includes(activeDepartment)
+    ? []
+    : activeSubTab === "claimed"
+      ? TASK_FILTERS
+      : activeSubTab === "processed"
+        ? PROCESSED_FILTERS
+        : [];
+  const showOutcomeFilters = activeFilters.length > 0;
+
+  /* Counted before the chosen filter is applied, so the numbers stay put
+     as you click between them. */
+  const outcomeCounts = useMemo(() => {
+    const counts = {};
+    activeFilters.forEach((f) => {
+      counts[f.id] = baseData.filter((row) => f.matches(row)).length;
+    });
+    return counts;
+  }, [baseData, activeFilters]);
+
   const filteredData = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
+    const outcome = showOutcomeFilters
+      ? activeFilters.find((f) => f.id === outcomeFilter)
+      : null;
     return baseData.filter((row) => {
+      if (outcome && !outcome.matches(row)) return false;
       if (selectedActivity && row.activity !== selectedActivity) return false;
       if (!term) return true;
       return [
@@ -1154,7 +1283,14 @@ function EApplicationPage({ darkMode }) {
         .filter(Boolean)
         .some((field) => field.toLowerCase().includes(term));
     });
-  }, [baseData, searchTerm, selectedActivity]);
+  }, [
+    baseData,
+    searchTerm,
+    selectedActivity,
+    outcomeFilter,
+    showOutcomeFilters,
+    activeFilters,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
   const safePage = Math.min(currentPage, totalPages);
@@ -1167,6 +1303,7 @@ function EApplicationPage({ darkMode }) {
     setActiveDepartment(deptKey);
     setActiveSubTab(getSubTabIds(deptKey, claimableSteps)[0]);
     setActivityFilter("");
+    setOutcomeFilter("");
     setSearchTerm("");
     setCurrentPage(1);
     setSelectedIds([]);
@@ -1175,6 +1312,7 @@ function EApplicationPage({ darkMode }) {
   const handleSubTabChange = (tabId) => {
     setActiveSubTab(tabId);
     setActivityFilter("");
+    setOutcomeFilter("");
     setSearchTerm("");
     setCurrentPage(1);
     setSelectedIds([]);
@@ -1448,14 +1586,16 @@ function EApplicationPage({ darkMode }) {
       setOpenMenuId(null);
       return;
     }
-    const rect = e.currentTarget.getBoundingClientRect();
+    // Opens at the click itself (clientX/clientY), not the row's or the
+    // button's bounding box, so a row click and a ⋮ click both land where
+    // the cursor actually is.
     const dropdownHeight = 220;
-    const spaceBelow = window.innerHeight - rect.bottom;
+    const spaceBelow = window.innerHeight - e.clientY;
     const top =
       spaceBelow < dropdownHeight
-        ? rect.bottom - dropdownHeight
-        : rect.bottom + 4;
-    const right = window.innerWidth - rect.right;
+        ? e.clientY - dropdownHeight
+        : e.clientY + 4;
+    const right = window.innerWidth - e.clientX;
     setMenuPosition({ top, right });
     setOpenMenuId(rowId);
   };
@@ -1535,6 +1675,27 @@ function EApplicationPage({ darkMode }) {
     borderBottom: `1px solid ${colors.tableBorder}`,
     whiteSpace: "nowrap",
   };
+
+  /* The Actions column stays put when the table is scrolled sideways.
+     The cell needs its own solid background, or the row shows through. */
+  const stickyActionTh = {
+    ...thStyle,
+    textAlign: "center",
+    width: "120px",
+    position: "sticky",
+    right: 0,
+    zIndex: 6,
+    boxShadow: `-1px 0 0 ${colors.tableBorder}`,
+  };
+  const stickyActionTd = (rowBg) => ({
+    ...tdStyle,
+    textAlign: "center",
+    position: "sticky",
+    right: 0,
+    zIndex: 2,
+    background: rowBg,
+    boxShadow: `-1px 0 0 ${colors.tableBorder}`,
+  });
 
   const ALL_SUB_TABS = [
     {
@@ -1835,7 +1996,63 @@ function EApplicationPage({ darkMode }) {
               >
                 {filteredData.length} total
               </span>
-              {activityOptions.length > 0 && (
+              {showOutcomeFilters &&
+                activeFilters.map((f) => {
+                  const active = outcomeFilter === f.id;
+                  // Hidden while empty, so only the buttons worth pressing
+                  // are on screen. The chosen one stays until it is cleared.
+                  if (!outcomeCounts[f.id] && !active) return null;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => {
+                        setOutcomeFilter(active ? "" : f.id);
+                        setCurrentPage(1);
+                      }}
+                      title={
+                        active ? "Click again to show all" : `Show only ${f.label}`
+                      }
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.35rem",
+                        padding: "0.3rem 0.6rem",
+                        fontSize: "0.66rem",
+                        fontWeight: 600,
+                        borderRadius: "999px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                        border: `1px solid ${
+                          active ? "transparent" : colors.cardBorder
+                        }`,
+                        background: active
+                          ? "linear-gradient(135deg,#4CAF50,#43A047)"
+                          : colors.pageBg,
+                        color: active ? "#fff" : colors.textPrimary,
+                      }}
+                    >
+                      {f.label}
+                      <span
+                        style={{
+                          minWidth: "1.1rem",
+                          padding: "0 0.3rem",
+                          borderRadius: "999px",
+                          fontSize: "0.6rem",
+                          fontWeight: 700,
+                          textAlign: "center",
+                          background: active
+                            ? "rgba(255,255,255,0.28)"
+                            : colors.tableBg,
+                          color: active ? "#fff" : colors.textTertiary,
+                        }}
+                      >
+                        {outcomeCounts[f.id] ?? 0}
+                      </span>
+                    </button>
+                  );
+                })}
+              {activityOptions.length > 0 &&
+                !STEPS_WITHOUT_ACTIVITY_FILTER.includes(activeDepartment) && (
                 <select
                   value={selectedActivity}
                   onChange={(e) => {
@@ -1952,15 +2169,20 @@ function EApplicationPage({ darkMode }) {
                   <th style={thStyle}>Activity</th>
                   <th style={thStyle}>Application Type</th>
                   <th style={thStyle}>Applicant Company</th>
+                  {showFgmpColumns && (
+                    <>
+                      <th style={thStyle}>Category</th>
+                      <th style={thStyle}>Foreign Manufacturer</th>
+                      <th style={thStyle}>Type of Issuance</th>
+                    </>
+                  )}
                   <th style={thStyle}>Due Date</th>
                   <th style={thStyle}>Last Modified</th>
                   <th style={thStyle}>Priority</th>
                   {activeSubTab !== "unclaimed" && (
                     <th style={thStyle}>Remarks</th>
                   )}
-                  <th
-                    style={{ ...thStyle, textAlign: "center", width: "120px" }}
-                  >
+                  <th style={stickyActionTh}>
                     {activeSubTab === "unclaimed" ? "Claim" : "Actions"}
                   </th>
                 </tr>
@@ -1969,7 +2191,7 @@ function EApplicationPage({ darkMode }) {
                 {paginatedData.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={showFgmpColumns ? 13 : 10}
                       style={{
                         padding: "2rem",
                         textAlign: "center",
@@ -2000,6 +2222,13 @@ function EApplicationPage({ darkMode }) {
                             ? colors.tableRowEven
                             : colors.tableRowOdd,
                         transition: "background 0.2s",
+                        // FGMP only, for now: the whole row opens the action
+                        // menu, same as clicking the ⋮ button.
+                        cursor:
+                          row.processCode === "FGMP" &&
+                          activeSubTab !== "unclaimed"
+                            ? "pointer"
+                            : undefined,
                       }}
                       onMouseEnter={(e) =>
                         (e.currentTarget.style.background =
@@ -2011,6 +2240,14 @@ function EApplicationPage({ darkMode }) {
                             ? colors.tableRowEven
                             : colors.tableRowOdd)
                       }
+                      onClick={(e) => {
+                        if (
+                          row.processCode === "FGMP" &&
+                          activeSubTab !== "unclaimed"
+                        ) {
+                          handleMenuToggle(e, row.id);
+                        }
+                      }}
                     >
                       {activeSubTab === "unclaimed" && (
                         <td style={{ ...tdStyle, textAlign: "center" }}>
@@ -2050,6 +2287,15 @@ function EApplicationPage({ darkMode }) {
                       <td style={tdStyle}>{row.activity}</td>
                       <td style={tdStyle}>{row.applicationType || "—"}</td>
                       <td style={tdStyle}>{row.applicantCompany}</td>
+                      {showFgmpColumns && (
+                        <>
+                          <td style={tdStyle}>{row.category || "—"}</td>
+                          <td style={tdStyle}>
+                            {row.foreignManufacturer || "—"}
+                          </td>
+                          <td style={tdStyle}>{row.typeOfIssuance || "—"}</td>
+                        </>
+                      )}
                       <td style={tdStyle}>{row.dueDate || "—"}</td>
                       <td style={tdStyle}>{row.lastModified}</td>
                       <td style={tdStyle}>
@@ -2060,7 +2306,13 @@ function EApplicationPage({ darkMode }) {
                           {renderRemarks(row)}
                         </td>
                       )}
-                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                      <td
+                        style={stickyActionTd(
+                          index % 2 === 0
+                            ? colors.tableRowEven
+                            : colors.tableRowOdd,
+                        )}
+                      >
                         {activeSubTab === "unclaimed" ? (
                           <button
                             onClick={() => requestClaim(row)}

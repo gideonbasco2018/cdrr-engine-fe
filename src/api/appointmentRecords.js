@@ -127,6 +127,17 @@ export const mapMyTask = (task, status = "claimed") => ({
   lastModified: formatStamp(task.updated_at || task.start_date),
   priority: task.priority || null,
   remarks: task.application_remarks || "",
+  decision: task.application_decision || null,
+  accomplishedAt: task.accomplished_date || null,
+  stepIndex: task.del_index ?? null,
+  // how an open task arrived: who handed it over, and with what decision
+  fromDecision: task.from_decision || null,
+  fromStep: task.from_step || null,
+  // FGMP-only; null for other processes
+  dtn: task.dtn || null,
+  category: task.category || null,
+  foreignManufacturer: task.foreign_manufacturer || null,
+  typeOfIssuance: task.type_of_issuance || null,
   status,
   claimedBy: null, // set by the page (it knows the current user)
 });
@@ -260,6 +271,129 @@ export const submitDeckingDecision = async (referenceNo, payload) => {
   try {
     const response = await API.post(
       `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/decking-decision`,
+      payload,
+    );
+    return response.data;
+  } catch (error) {
+    const detail = error.response?.data?.detail;
+    const errorMessage =
+      (typeof detail === "string" ? detail : null) ||
+      (detail ? "The decision details are invalid" : null) ||
+      error.message ||
+      "Failed to submit the decision";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * What the holder of this task may do at the step it is on. The list comes
+ * from the server so the dropdown can never offer an invalid action.
+ * @param {string} referenceNo
+ * @returns {Promise<{ action: string, next_step: string|null }[]>}
+ */
+export const getStepActions = async (referenceNo) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/step-actions`,
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch the available actions";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Get the people who can take the application at the next step
+ * @param {string} nextStep e.g. "Checker", "Supervisor"
+ * @returns {Promise<{ user_uuid: string, name: string }[]>}
+ */
+export const getStepAssignees = async (nextStep) => {
+  try {
+    const response = await API.get("/appointment-records/workflow/assignees", {
+      params: { next_step: nextStep },
+    });
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      `Failed to fetch the ${nextStep} list`;
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * What may be issued for an FGMP application. Comes from the server so the
+ * list cannot drift from the manual FGMP screen's.
+ * @returns {Promise<string[]>}
+ */
+export const getIssuanceTypes = async () => {
+  try {
+    const response = await API.get("/appointment-records/workflow/issuance-types");
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch the issuance types";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * The number the next certificate would get, for the preview. Nothing is
+ * reserved — the number is only taken when the decision is submitted.
+ * @param {string} typeOfIssuance
+ * @returns {Promise<string|null>}
+ */
+export const getNextCertificateNumber = async (typeOfIssuance) => {
+  try {
+    const response = await API.get(
+      "/appointment-records/workflow/next-certificate-number",
+      { params: { type_of_issuance: typeOfIssuance } },
+    );
+    return response.data?.certificate_number ?? null;
+  } catch {
+    return null; // only a preview, so a failure just leaves it blank
+  }
+};
+
+/**
+ * The files the applicant submitted with an application (one row per file,
+ * newest first). The same list endpoint serves every e-application process.
+ * @param {string} applicationUuid
+ * @returns {Promise<{ id: number, requirement_group: string, requirement_code: string,
+ *   original_filename: string, file_size_bytes: number|null, drive_file_url: string,
+ *   created_at: string|null }[]>}
+ */
+export const getApplicationDocuments = async (applicationUuid) => {
+  try {
+    const response = await API.get(
+      `/cpr-app-documents/${encodeURIComponent(applicationUuid)}`,
+    );
+    return response.data?.data || [];
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch the submitted documents";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Submit the decision for whichever workflow step the user is holding
+ * @param {string} referenceNo
+ * @param {{ decision: string, remarks?: string, assignee_uuid?: string|null }} payload
+ */
+export const submitStepDecision = async (referenceNo, payload) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/step-decision`,
       payload,
     );
     return response.data;

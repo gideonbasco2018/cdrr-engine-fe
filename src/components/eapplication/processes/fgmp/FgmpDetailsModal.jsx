@@ -1,10 +1,17 @@
 // src/components/eapplication/processes/fgmp/FgmpDetailsModal.jsx
 import { useEffect, useMemo, useState } from "react";
+import { getUser } from "../../../../api/auth";
 import {
   getClaimedApplication,
   postClaimedPayments,
   getDeckingEvaluators,
   submitDeckingDecision,
+  getIssuanceTypes,
+  getNextCertificateNumber,
+  getApplicationDocuments,
+  getStepActions,
+  getStepAssignees,
+  submitStepDecision,
 } from "../../../../api/appointmentRecords.js";
 
 import {
@@ -18,6 +25,23 @@ import {
   AdditionalOopPaper,
   AcknowledgementReceiptPaper,
 } from "./FgmpPapers.jsx";
+
+import {
+  CgmpClearancePaper,
+  LetterOfDisapprovalPaper,
+  ExtensionLetterPaper,
+  InspectionNoticePaper,
+  ISSUANCE_PAPERS,
+  LETTERHEAD_PAGE_STYLE,
+  buildIssuanceDoc,
+} from "./FgmpIssuancePapers.jsx";
+
+import {
+  FgmpWorksheetPaper,
+  buildWorksheetDoc,
+  GMP_EVIDENCE_OPTIONS,
+  ANNEX_C_FIELDS,
+} from "./FgmpWorksheetPaper.jsx";
 
 const PAYMENT_TYPES = [
   "FDA Cashier",
@@ -39,6 +63,32 @@ const DECKING_STEP = "Decking";
 const DECISION_FOR_DECKING = "For Quality Evaluation";
 const DECISIONS = [DECISION_FOR_DECKING];
 
+/* The FGMP e-application workflow:
+     Decker -> Quality Evaluation -> Checker -> Supervisor -> LRD Chief ->
+     Director
+   The actions for each step and where they lead come from the server
+   (app/services/fgmp_workflow.py), so this file carries no copy of them. */
+/* The step whose holder decides what will be issued — must match
+   TYPE_OF_ISSUANCE_STEP in app/services/fgmp_workflow.py. */
+const ISSUANCE_STEP = "Quality Evaluation";
+
+const WORKFLOW_STEPS = [
+  "Quality Evaluation",
+  "Checker",
+  "Supervisor",
+  "LRD Chief",
+  "Director",
+];
+
+/* Today's date as YYYY-MM-DD in the browser's local time.
+   (toISOString would shift the date to UTC.) */
+const todayStr = () => {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
+};
+
 const PARTY_TYPES = [
   "Manufacturer",
   "Trader",
@@ -56,6 +106,7 @@ const HANDLED_FORM_KEYS = new Set([
   "Address",
   "TIN",
   "LTO No.",
+  "LTO Number",
   "Application Type",
 ]);
 
@@ -64,15 +115,6 @@ const peso = (n) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-
-/* Today's date as YYYY-MM-DD in the browser's local time.
-   (toISOString would shift the date to UTC.) */
-const todayStr = () => {
-  const d = new Date();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${d.getFullYear()}-${month}-${day}`;
-};
 
 // Original OP first, then additional OPs in the order they were issued
 const byOrder = (a, b) => {
@@ -107,6 +149,99 @@ function Section({ title, colors, children }) {
   );
 }
 
+const formatFileSize = (bytes) => {
+  if (bytes == null) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+/* The files the applicant submitted, General first then Technical. Opening a
+   file goes to its Google Drive link. */
+function SubmittedDocuments({ documents, error, driveLink, colors }) {
+  const note = { fontSize: "0.7rem", color: colors.textTertiary, padding: "0.3rem 0" };
+  if (error) return <div style={{ ...note, color: "#dc2626" }}>{error}</div>;
+  if (documents === null) return <div style={note}>Loading documents…</div>;
+
+  const groups = [
+    ["General Requirements", documents.filter((d) => d.requirement_group === "general")],
+    ["Technical Requirements", documents.filter((d) => d.requirement_group === "technical")],
+  ].filter(([, list]) => list.length > 0);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
+      {groups.length === 0 && <div style={note}>No documents were submitted.</div>}
+      {groups.map(([title, list]) => (
+        <div key={title}>
+          <div
+            style={{
+              fontSize: "0.64rem",
+              fontWeight: 700,
+              letterSpacing: "0.03em",
+              textTransform: "uppercase",
+              color: colors.textTertiary,
+              padding: "0.2rem 0",
+            }}
+          >
+            {title}
+          </div>
+          {list.map((doc) => (
+            <div
+              key={doc.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+                padding: "0.35rem 0",
+                borderTop: `1px solid ${colors.cardBorder}`,
+                fontSize: "0.7rem",
+              }}
+            >
+              <span style={{ width: "190px", flexShrink: 0, fontWeight: 600, color: colors.textPrimary }}>
+                {doc.requirement_code}
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  color: colors.textSecondary || colors.textPrimary,
+                }}
+                title={doc.original_filename}
+              >
+                {doc.original_filename}
+              </span>
+              <span style={{ width: "60px", textAlign: "right", color: colors.textTertiary }}>
+                {formatFileSize(doc.file_size_bytes)}
+              </span>
+              <a
+                href={doc.drive_file_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: "#2196F3", fontWeight: 600, textDecoration: "none" }}
+              >
+                Open
+              </a>
+            </div>
+          ))}
+        </div>
+      ))}
+      {driveLink && (
+        <a
+          href={driveLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ fontSize: "0.72rem", color: "#2196F3" }}
+        >
+          📁 Open Google Drive folder
+        </a>
+      )}
+    </div>
+  );
+}
+
 function Field({ label, value, colors }) {
   return (
     <div
@@ -135,10 +270,59 @@ function Field({ label, value, colors }) {
   );
 }
 
+/* ── Unsent decisions ───────────────────────────────────────────────────
+   Nothing reaches the server until Submit, so a half-filled decision is kept
+   in this browser and put back when the application is reopened. It is wiped
+   once the decision is submitted.
+
+   Keyed by user, application and step: two people sharing a machine never see
+   each other's notes, and a draft written at Quality Evaluation never turns
+   up at the
+   Checker step. */
+const DRAFT_PREFIX = "fgmp-decision-draft";
+
+function draftKey(row) {
+  const user = getUser();
+  const who = user?.user_uuid || user?.username || "anon";
+  return `${DRAFT_PREFIX}:${who}:${row.referenceNo}:${row.applicationStep}`;
+}
+
+function readDraft(row) {
+  try {
+    return JSON.parse(localStorage.getItem(draftKey(row)) || "null");
+  } catch {
+    return null; // private browsing, or something else wrote over the key
+  }
+}
+
+function writeDraft(row, draft) {
+  try {
+    // [] and {} are truthy, so look inside them
+    const isEmpty = !Object.values(draft).some((v) => {
+      if (Array.isArray(v)) return v.length > 0;
+      if (v && typeof v === "object") return Object.values(v).some(Boolean);
+      return v;
+    });
+    if (isEmpty) localStorage.removeItem(draftKey(row));
+    else localStorage.setItem(draftKey(row), JSON.stringify(draft));
+  } catch {
+    // storage full or blocked — the decision still works, it just is not kept
+  }
+}
+
+function clearDraft(row) {
+  try {
+    localStorage.removeItem(draftKey(row));
+  } catch {
+    /* nothing to do */
+  }
+}
+
 function DecisionConfirmModal({
   colors,
   decision,
-  evaluatorName,
+  nextStep,
+  assigneeName,
   onConfirm,
   onCancel,
 }) {
@@ -187,15 +371,17 @@ function DecisionConfirmModal({
         >
           Decision:{" "}
           <strong style={{ color: colors.textPrimary }}>{decision}</strong>.
-          {evaluatorName && (
+          {assigneeName ? (
             <>
               {" "}
-              The application will be assigned to{" "}
+              The application will go to {nextStep}{" "}
               <strong style={{ color: colors.textPrimary }}>
-                {evaluatorName}
+                {assigneeName}
               </strong>
               .
             </>
+          ) : (
+            <> The application stays with you for compliance.</>
           )}{" "}
           This cannot be changed after submitting.
         </p>
@@ -246,9 +432,13 @@ export default function FgmpDetailsModal({
   onPosted,
   onClose,
 }) {
+  const currentUser = useMemo(() => getUser(), []);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  // submitted files: null while loading, then the list
+  const [documents, setDocuments] = useState(null);
+  const [documentsError, setDocumentsError] = useState(null);
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -262,11 +452,47 @@ export default function FgmpDetailsModal({
   /* Decker decision (Decking step only) */
   const isDeckingOpen =
     row.applicationStep === DECKING_STEP && row.status === "claimed";
-  const [decision, setDecision] = useState("");
   const [deckRemarks, setDeckRemarks] = useState("");
   const [evaluatorUuid, setEvaluatorUuid] = useState("");
   const [evaluators, setEvaluators] = useState([]);
+
+  /* Workflow decision — any step from Quality Evaluation onwards that you hold.
+     Decking and these are different steps, so they share `decision`,
+     `showDecisionConfirm` and `submittingDecision` without clashing. */
+  const isWorkflowStepOpen =
+    WORKFLOW_STEPS.includes(row.applicationStep) && row.status === "claimed";
+  // Only the step that decides what will be issued (declared early: the
+  // steps array below needs it to order Decision vs. the Issuance Document).
+  const canSetIssuance =
+    isWorkflowStepOpen && row.applicationStep === ISSUANCE_STEP;
+  const [decision, setDecision] = useState("");
+  const [evalRemarks, setEvalRemarks] = useState("");
+  const [assigneeUuid, setAssigneeUuid] = useState("");
+  const [stepActions, setStepActions] = useState([]);
+  const [assignees, setAssignees] = useState([]);
+  const [issuanceTypes, setIssuanceTypes] = useState([]);
+  const [typeOfIssuance, setTypeOfIssuance] = useState("");
+
+  /* Evaluation Worksheet — 7 fields, Quality Evaluation step only. NOT YET
+     SAVED anywhere real; kept only in the draft (this browser), same as the
+     decision fields above. See FgmpWorksheetPaper.jsx. */
+  const [gmpEvidence, setGmpEvidence] = useState([]);
+  const [issuingAuthority, setIssuingAuthority] = useState("");
+  const [issuingCountry, setIssuingCountry] = useState("");
+  const [foreignCertificateNumber, setForeignCertificateNumber] = useState("");
+  const [foreignCertificateValidity, setForeignCertificateValidity] =
+    useState("");
+  const [inspectionDate, setInspectionDate] = useState("");
+  const [worksheetRemarks, setWorksheetRemarks] = useState("");
+  // Worksheet B's Annex C fill-ins, {fieldKey: typed text}
+  const [annexC, setAnnexC] = useState({});
+  // Rows the evaluator adds to Annex C on the paper: [{ id, after, contents, remarks }]
+  const [annexRows, setAnnexRows] = useState([]);
+  // which worksheet field has the cursor, so the preview can light it up
+  const [activeField, setActiveField] = useState(null);
+  const [loadingAssignees, setLoadingAssignees] = useState(false);
   const [showDecisionConfirm, setShowDecisionConfirm] = useState(false);
+  const [draftRestored, setDraftRestored] = useState(false);
   const [submittingDecision, setSubmittingDecision] = useState(false);
 
   const postingStamp = useMemo(
@@ -297,24 +523,28 @@ export default function FgmpDetailsModal({
     };
   }, [row.referenceNo]);
 
+  /* What the applicant submitted. A failure here only affects this card, so
+     it keeps its own error instead of blocking the whole popup. */
   useEffect(() => {
-    if (!isDeckingOpen) return;
+    const uuid = data?.application_uuid;
+    if (!uuid) return undefined;
     let cancelled = false;
-    getDeckingEvaluators()
+    setDocuments(null);
+    setDocumentsError(null);
+    getApplicationDocuments(uuid)
       .then((list) => {
-        if (!cancelled) setEvaluators(list);
+        if (!cancelled) setDocuments(list);
       })
       .catch((err) => {
-        if (!cancelled)
-          setPostError(`Could not load evaluators: ${err.message}`);
+        if (!cancelled) setDocumentsError(err.message);
       });
     return () => {
       cancelled = true;
     };
-  }, [isDeckingOpen]);
+  }, [data?.application_uuid]);
 
   const formData = data?.form_data || {};
-  const parties = data?.parties || [];
+  // FGMP has no parties list — Foreign Manufacturer is its own card above.
   const ops = useMemo(
     () => [...(data?.orders_of_payment || [])].sort(byOrder),
     [data],
@@ -337,7 +567,8 @@ export default function FgmpDetailsModal({
   const openOp =
     [...ops].reverse().find((op) => op.status === "UNPAID") || null;
   const initialOp = ops.find((op) => op.op_type === "INITIAL") || null;
-  // Posting belongs to the cashier step only; other steps (e.g. Decking)
+  // Posting belongs to the cashier step only; other steps (e.g. Quality
+  // Evaluation)
   // get the read-only application details and payment history.
   const isPaymentStep = row.applicationStep === PAYMENT_STEP;
   const canPost = isPaymentStep && !!openOp;
@@ -380,59 +611,333 @@ export default function FgmpDetailsModal({
     contactNo: data?.contact_no,
   };
 
+  /* The issuance document, available to everyone once the evaluator has
+     chosen what will be issued. */
+  const previewedIssuance = typeOfIssuance || data?.type_of_issuance;
+  const [previewCertNo, setPreviewCertNo] = useState(null);
+
+  /* Until the decision is submitted no number exists yet, so show the one it
+     would get. It is not reserved — a certificate issued elsewhere first
+     would take it, hence "provisional" on the document. */
+  useEffect(() => {
+    if (!previewedIssuance || data?.certificate_number) {
+      setPreviewCertNo(null);
+      return;
+    }
+    let cancelled = false;
+    getNextCertificateNumber(previewedIssuance).then((n) => {
+      if (!cancelled) setPreviewCertNo(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewedIssuance, data?.certificate_number]);
+  const issuancePaper = previewedIssuance
+    ? ISSUANCE_PAPERS[previewedIssuance]
+    : null;
+  const issuanceDoc = useMemo(
+    () =>
+      issuancePaper && data
+        ? buildIssuanceDoc(data, formData, previewCertNo)
+        : null,
+    [issuancePaper, data, formData, previewCertNo],
+  );
+
+  /* The non-posting layouts are numbered here rather than written out, so
+     the Issuance Document can slip in without disturbing Next/Back. Each
+     step carries a `kind`, and renderBody switches on that instead of a
+     hardcoded number. */
+  const numbered = (kinds) =>
+    kinds.filter(Boolean).map((step, i) => ({ ...step, id: i + 1 }));
+
   const steps = isDeckingOpen
-    ? [
-        { id: 1, label: "Application Details", icon: "📋" },
-        { id: 2, label: "Payment History", icon: "💳" },
-        { id: 3, label: "Decker Decision", icon: "🗂️" },
-      ]
+    ? numbered([
+        { kind: "details", label: "Application Details", icon: "📋" },
+        { kind: "history", label: "Payment History", icon: "💳" },
+        { kind: "deckerDecision", label: "Decker Decision", icon: "🗂️" },
+      ])
+    : isWorkflowStepOpen
+    ? numbered(
+        canSetIssuance
+          ? // Quality Evaluation chooses the issuance type as part of the
+            // decision, so the document comes after — a preview of what was
+            // just decided. The worksheet comes before the decision, since
+            // it's the evaluator's own working notes leading up to it.
+            [
+              { kind: "details", label: "Application Details", icon: "📋" },
+              { kind: "history", label: "Payment History", icon: "💳" },
+              {
+                kind: "worksheet",
+                label: "Evaluation Worksheet",
+                icon: "📝",
+              },
+              {
+                kind: "decision",
+                label: `${row.applicationStep} Decision`,
+                icon: "🔬",
+              },
+              issuancePaper && {
+                kind: "issuance",
+                label: "Issuance Document",
+                icon: "📜",
+              },
+            ]
+          : // Checker, Supervisor, LRD Chief, Director only review a document
+            // someone else prepared, so they read it before deciding.
+            [
+              { kind: "details", label: "Application Details", icon: "📋" },
+              { kind: "history", label: "Payment History", icon: "💳" },
+              issuancePaper && {
+                kind: "issuance",
+                label: "Issuance Document",
+                icon: "📜",
+              },
+              {
+                kind: "decision",
+                label: `${row.applicationStep} Decision`,
+                icon: "🔬",
+              },
+            ],
+      )
     : !canPost
-      ? [
-          { id: 1, label: "Application Details", icon: "📋" },
-          { id: 2, label: "Payment History", icon: "💳" },
-        ]
-      : [
-          { id: 1, label: "Application Details", icon: "📋" },
-          {
-            id: 2,
-            label: isFollowUp
-              ? "Additional Order of Payment"
-              : "Order of Payment",
-            icon: "💳",
-          },
-          { id: 3, label: "Acknowledgement Receipt", icon: "🧾" },
-          ...(hasBalance
-            ? [
-                {
-                  id: 4,
-                  label: isFollowUp
-                    ? "New Additional Order of Payment"
-                    : "Additional Order of Payment",
-                  icon: "➕",
-                },
-              ]
-            : []),
-        ];
+    ? numbered([
+        { kind: "details", label: "Application Details", icon: "📋" },
+        { kind: "history", label: "Payment History", icon: "💳" },
+        issuancePaper && {
+          kind: "issuance",
+          label: "Issuance Document",
+          icon: "📜",
+        },
+      ])
+    : [
+        { id: 1, label: "Application Details", icon: "📋" },
+        {
+          id: 2,
+          label: isFollowUp
+            ? "Additional Order of Payment"
+            : "Order of Payment",
+          icon: "💳",
+        },
+        { id: 3, label: "Acknowledgement Receipt", icon: "🧾" },
+        ...(hasBalance
+          ? [
+              {
+                id: 4,
+                label: isFollowUp
+                  ? "New Additional Order of Payment"
+                  : "Additional Order of Payment",
+                icon: "➕",
+              },
+            ]
+          : []),
+      ];
   const lastStep = steps.length;
 
-  const today = todayStr();
-  const canAdd =
-    form.paymentType &&
-    form.orNo.trim() &&
-    form.dateOfPayment &&
-    form.dateOfPayment <= today &&
-    Number(form.amountPaid) > 0;
+  /* Picking or clearing an issuance type adds or removes the document step,
+     so keep the open step within range. */
+  useEffect(() => {
+    if (step > lastStep) setStep(lastStep);
+  }, [step, lastStep]);
 
-  const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
-
-  const needsEvaluator = decision === DECISION_FOR_DECKING;
+  /* ── Workflow decision helpers ── */
+  const chosen = stepActions.find((a) => a.action === decision);
+  // Where this action sends it. null = it stays here or ends the workflow.
+  const nextStep = chosen?.next_step ?? null;
+  // Nobody is picked when the action loops back to this same step
+  // (For Compliance) or ends the workflow (Approved).
+  const needsAssignee = !!nextStep && nextStep !== row.applicationStep;
   const canSubmitDecision =
+    !!decision && (needsAssignee ? !!assigneeUuid : !!evalRemarks.trim());
+  const selectedAssignee = assignees.find((a) => a.user_uuid === assigneeUuid);
+
+  /* ── Decker decision helpers (the Decking step) ── */
+  const needsEvaluator = decision === DECISION_FOR_DECKING;
+  const canSubmitDeckerDecision =
     !!decision && (needsEvaluator ? !!evaluatorUuid : !!deckRemarks.trim());
   const selectedEvaluator = evaluators.find(
     (e) => e.user_uuid === evaluatorUuid,
   );
 
+  /* Whichever decision this step is making */
+  const canSubmit = isDeckingOpen
+    ? canSubmitDeckerDecision
+    : canSubmitDecision;
+
+  /* Who the decker may hand the application to */
+  useEffect(() => {
+    if (!isDeckingOpen) return;
+    let cancelled = false;
+    getDeckingEvaluators()
+      .then((list) => {
+        if (!cancelled) setEvaluators(list);
+      })
+      .catch((err) => {
+        if (!cancelled)
+          setPostError(`Could not load evaluators: ${err.message}`);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isDeckingOpen]);
+
+  /* Put back anything typed but not submitted last time */
+  useEffect(() => {
+    if (!isWorkflowStepOpen) return;
+    const draft = readDraft(row);
+    if (!draft) return;
+    setDecision(draft.decision || "");
+    setEvalRemarks(draft.remarks || "");
+    setAssigneeUuid(draft.assigneeUuid || "");
+    setTypeOfIssuance(draft.typeOfIssuance || "");
+    setGmpEvidence(draft.gmpEvidence || []);
+    setIssuingAuthority(draft.issuingAuthority || "");
+    setIssuingCountry(draft.issuingCountry || "");
+    setForeignCertificateNumber(draft.foreignCertificateNumber || "");
+    setForeignCertificateValidity(draft.foreignCertificateValidity || "");
+    setInspectionDate(draft.inspectionDate || "");
+    setWorksheetRemarks(draft.worksheetRemarks || "");
+    setAnnexC(draft.annexC || {});
+    setAnnexRows(draft.annexRows || []);
+    setDraftRestored(true);
+  }, [isWorkflowStepOpen, row.referenceNo, row.applicationStep]);
+
+  /* Keep it up to date as they work */
+  useEffect(() => {
+    if (!isWorkflowStepOpen) return;
+    writeDraft(row, {
+      decision,
+      remarks: evalRemarks,
+      assigneeUuid,
+      typeOfIssuance,
+      gmpEvidence,
+      issuingAuthority,
+      issuingCountry,
+      foreignCertificateNumber,
+      foreignCertificateValidity,
+      inspectionDate,
+      worksheetRemarks,
+      annexC,
+      annexRows,
+    });
+  }, [
+    isWorkflowStepOpen,
+    row.referenceNo,
+    row.applicationStep,
+    decision,
+    evalRemarks,
+    assigneeUuid,
+    typeOfIssuance,
+    gmpEvidence,
+    issuingAuthority,
+    issuingCountry,
+    foreignCertificateNumber,
+    foreignCertificateValidity,
+    inspectionDate,
+    worksheetRemarks,
+    annexC,
+    annexRows,
+  ]);
+
+  /* A restored action the step no longer allows would sit in the dropdown
+     unmatched, so drop it once the real list arrives. */
+  useEffect(() => {
+    if (!decision || stepActions.length === 0) return;
+    if (!stepActions.some((a) => a.action === decision)) {
+      setDecision("");
+      setAssigneeUuid("");
+    }
+  }, [decision, stepActions]);
+
+  /* What this step allows comes from the server, so the dropdown can never
+     offer an action the server would reject. */
+  useEffect(() => {
+    if (!isWorkflowStepOpen) {
+      setStepActions([]);
+      return;
+    }
+    let cancelled = false;
+    getStepActions(row.referenceNo)
+      .then((list) => {
+        if (!cancelled) setStepActions(list);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setStepActions([]);
+          setPostError(`Could not load the available actions: ${err.message}`);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isWorkflowStepOpen, row.referenceNo]);
+
+  /* The issuance list, for the step that decides what will be issued */
+  useEffect(() => {
+    if (!isWorkflowStepOpen || row.applicationStep !== ISSUANCE_STEP) return;
+    let cancelled = false;
+    getIssuanceTypes()
+      .then((list) => {
+        if (!cancelled) setIssuanceTypes(list);
+      })
+      .catch(() => {
+        if (!cancelled) setIssuanceTypes([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isWorkflowStepOpen, row.applicationStep]);
+
+  /* The people list depends on where the application is going, so it is
+     fetched after an action is picked. */
+  useEffect(() => {
+    if (!needsAssignee) {
+      setAssignees([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingAssignees(true);
+    getStepAssignees(nextStep)
+      .then((list) => {
+        if (!cancelled) setAssignees(list);
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setAssignees([]);
+          setPostError(`Could not load the ${nextStep} list: ${err.message}`);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingAssignees(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsAssignee, nextStep]);
+
   const handleSubmitDecision = async () => {
+    if (submittingDecision) return;
+    setSubmittingDecision(true);
+    setPostError(null);
+    try {
+      await submitStepDecision(row.referenceNo, {
+        decision,
+        remarks: evalRemarks.trim(),
+        assignee_uuid: needsAssignee ? assigneeUuid : null,
+        type_of_issuance: canSetIssuance ? typeOfIssuance || null : null,
+      });
+      setShowDecisionConfirm(false);
+      clearDraft(row);
+      await onPosted?.();
+      onClose();
+    } catch (err) {
+      setShowDecisionConfirm(false);
+      setPostError(`Could not submit the decision: ${err.message}`);
+    } finally {
+      setSubmittingDecision(false);
+    }
+  };
+
+  const handleSubmitDeckerDecision = async () => {
     if (submittingDecision) return;
     setSubmittingDecision(true);
     setPostError(null);
@@ -452,6 +957,16 @@ export default function FgmpDetailsModal({
       setSubmittingDecision(false);
     }
   };
+
+  const today = todayStr();
+  const canAdd =
+    form.paymentType &&
+    form.orNo.trim() &&
+    form.dateOfPayment &&
+    form.dateOfPayment <= today &&
+    Number(form.amountPaid) > 0;
+
+  const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
   const confirmAddPayment = () => {
     if (!canAdd) return;
@@ -573,6 +1088,11 @@ export default function FgmpDetailsModal({
             colors={colors}
           />
           <Field
+            label="Related DTN"
+            value={data.related_dtn}
+            colors={colors}
+          />
+          <Field
             label="Scheduled Date"
             value={formData["Scheduled Date"]}
             colors={colors}
@@ -591,7 +1111,13 @@ export default function FgmpDetailsModal({
             value={data.applicant_company}
             colors={colors}
           />
-          <Field label="LTO Number" value={data.lto_no} colors={colors} />
+          {/* The FGMP form calls this "LTO Number" while the claim code reads
+              "LTO No.", so lto_no is empty for FGMP — fall back to the form. */}
+          <Field
+            label="LTO Number"
+            value={data.lto_no || formData["LTO Number"]}
+            colors={colors}
+          />
           <Field
             label="LTO Validity"
             value={formData["Validity"]}
@@ -602,6 +1128,43 @@ export default function FgmpDetailsModal({
           <Field label="Contact No." value={data.contact_no} colors={colors} />
           <Field label="Address" value={data.address} colors={colors} />
         </Section>
+
+        {(data.foreign_manufacturer || data.foreign_manufacturer_address) && (
+          <Section title="Foreign Manufacturer" colors={colors}>
+            <Field
+              label="Name"
+              value={data.foreign_manufacturer}
+              colors={colors}
+            />
+            <Field
+              label="Address"
+              value={data.foreign_manufacturer_address}
+              colors={colors}
+            />
+            <Field
+              label="Country"
+              value={data.foreign_manufacturer_country}
+              colors={colors}
+            />
+          </Section>
+        )}
+
+        {data.type_of_issuance && (
+          <Section title="Issuance" colors={colors}>
+            <Field
+              label="Type of Issuance"
+              value={data.type_of_issuance}
+              colors={colors}
+            />
+            {data.certificate_number && (
+              <Field
+                label="Certificate Number"
+                value={data.certificate_number}
+                colors={colors}
+              />
+            )}
+          </Section>
+        )}
 
         {extraFormFields.length > 0 && (
           <Section title="Facility / Application Form" colors={colors}>
@@ -617,62 +1180,19 @@ export default function FgmpDetailsModal({
         )}
       </div>
 
-      <Section title={`Parties (${parties.length})`} colors={colors}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Type</th>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Address</th>
-                <th style={thStyle}>TIN</th>
-                <th style={thStyle}>LTO No.</th>
-                <th style={thStyle}>Country</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parties.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    style={{
-                      ...tdStyle,
-                      textAlign: "center",
-                      color: colors.textTertiary,
-                    }}
-                  >
-                    No parties.
-                  </td>
-                </tr>
-              ) : (
-                parties.map((p) => (
-                  <tr key={p.party_type}>
-                    <td style={tdStyle}>{p.party_type}</td>
-                    <td style={tdStyle}>{p.name || "—"}</td>
-                    <td style={tdStyle}>{p.address || "—"}</td>
-                    <td style={tdStyle}>{p.tin || "—"}</td>
-                    <td style={tdStyle}>{p.lto_no || "—"}</td>
-                    <td style={tdStyle}>{p.country || "—"}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <Section
+        title={`Submitted Documents${
+          documents ? ` (${documents.length})` : ""
+        }`}
+        colors={colors}
+      >
+        <SubmittedDocuments
+          documents={documents}
+          error={documentsError}
+          driveLink={data.drive_link}
+          colors={colors}
+        />
       </Section>
-
-      {data.drive_link && (
-        <Section title="Submitted Files" colors={colors}>
-          <a
-            href={data.drive_link}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ fontSize: "0.72rem", color: "#2196F3" }}
-          >
-            📁 Open Google Drive folder
-          </a>
-        </Section>
-      )}
     </div>
   );
 
@@ -1107,7 +1627,7 @@ export default function FgmpDetailsModal({
     </div>
   );
 
-  /* ───────────── Decking Step 3: Decker Decision ───────────── */
+  /* ───────────── Decking: Decker Decision ───────────── */
   const renderDeckerDecision = () => (
     <div style={{ maxWidth: "640px" }}>
       <Section title="Decker Decision" colors={colors}>
@@ -1186,6 +1706,492 @@ export default function FgmpDetailsModal({
     </div>
   );
 
+  /* ───────── Step 3: the decision for whichever step you hold ───────── */
+  /* ───────── Evaluation Worksheet (Quality Evaluation only) ─────────
+     NOT YET SAVED anywhere real — see the note at the top of
+     FgmpWorksheetPaper.jsx. The fields feed the live preview beneath them,
+     and both are kept only in this browser's draft until the FGMP unit
+     confirms where each value belongs and the real columns are added. */
+  const worksheetVariant = data?.category === "PIC/S" ? "A" : "B";
+  const worksheetDoc = buildWorksheetDoc(data || {}, formData, {
+    gmpEvidence,
+    issuingAuthority,
+    issuingCountry,
+    foreignCertificateNumber,
+    foreignCertificateValidity,
+    inspectionDate,
+    worksheetRemarks,
+    annexC,
+    typeOfIssuance: previewedIssuance,
+    decision,
+  });
+  worksheetDoc.evaluatedBy = [currentUser?.first_name, currentUser?.surname]
+    .filter(Boolean)
+    .join(" ");
+
+  const setAnnexCField = (key, value) =>
+    setAnnexC((prev) => ({ ...prev, [key]: value }));
+
+  /* Lets the paper edit the same values the left-hand fields do */
+  const worksheetEditor = {
+    get: (id) =>
+      id.startsWith("annexC.")
+        ? annexC[id.slice(7)] || ""
+        : {
+            issuingAuthority,
+            issuingCountry,
+            foreignCertificateNumber,
+            foreignCertificateValidity,
+            inspectionDate,
+            worksheetRemarks,
+            gmpEvidence,
+          }[id],
+    set: (id, value) => {
+      if (id.startsWith("annexC.")) return setAnnexCField(id.slice(7), value);
+      const setters = {
+        issuingAuthority: setIssuingAuthority,
+        issuingCountry: setIssuingCountry,
+        foreignCertificateNumber: setForeignCertificateNumber,
+        foreignCertificateValidity: setForeignCertificateValidity,
+        inspectionDate: setInspectionDate,
+        worksheetRemarks: setWorksheetRemarks,
+        gmpEvidence: setGmpEvidence,
+      };
+      return setters[id]?.(value);
+    },
+  };
+
+  const toggleGmpEvidence = (option) =>
+    setGmpEvidence((prev) =>
+      prev.includes(option)
+        ? prev.filter((o) => o !== option)
+        : [...prev, option],
+    );
+
+  const renderWorksheet = () => (
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+      <div
+        style={{
+          padding: "0.5rem 0.7rem",
+          borderRadius: "6px",
+          fontSize: "0.66rem",
+          lineHeight: 1.5,
+          background: "rgba(245,158,11,0.12)",
+          color: "#b45309",
+        }}
+      >
+        Not yet saved to the application record — kept only in your browser,
+        and not visible to the Checker. For your own working notes while
+        evaluating.
+      </div>
+
+      {/* Fields on the left, the worksheet building up on the right. The
+          fields stay in view while the long preview is scrolled. */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(280px, 360px) minmax(0, 1fr)",
+          gap: "0.9rem",
+          alignItems: "start",
+          // a soft gray tray (works in light and dark) so the fields and the
+          // white pages read as one working area
+          padding: "0.8rem",
+          borderRadius: "10px",
+          background: "rgba(100,116,139,0.2)",
+        }}
+      >
+      {/* Focus events bubble, so one listener here covers every field below:
+          each input names itself in data-field, and the paper lights up the
+          matching spot. */}
+      <div
+        onFocus={(e) => setActiveField(e.target.dataset?.field || null)}
+        onBlur={() => setActiveField(null)}
+        style={{
+          position: "sticky",
+          top: 0,
+          // the popup is 90vh tall and its header, stepper and footer take
+          // about 170px, so this must stay under 90vh - 170px or the bottom
+          // of the column is cut off
+          maxHeight: "calc(90vh - 215px)",
+          overflowY: "auto",
+        }}
+      >
+      <Section
+        title={`Worksheet ${worksheetVariant} — ${
+          worksheetVariant === "A" ? "PIC/S" : "Non-PIC/S"
+        } Member`}
+        colors={colors}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.7rem",
+            padding: "0.4rem 0",
+          }}
+        >
+          <div>
+            <label style={labelStyle}>GMP Evidence Submitted</label>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
+            >
+              {GMP_EVIDENCE_OPTIONS.map((opt) => (
+                <label
+                  key={opt}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    fontSize: "0.7rem",
+                    color: colors.textPrimary,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    data-field="gmpEvidence"
+                    checked={gmpEvidence.includes(opt)}
+                    onChange={() => toggleGmpEvidence(opt)}
+                  />
+                  {opt}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
+            <div>
+              <label style={labelStyle}>Regulatory Authority (DRA)</label>
+              <input
+                data-field="issuingAuthority"
+                style={inputStyle}
+                value={issuingAuthority}
+                onChange={(e) => setIssuingAuthority(e.target.value)}
+                placeholder="e.g. US FDA"
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Issuing Country</label>
+              <input
+                data-field="issuingCountry"
+                style={inputStyle}
+                value={issuingCountry}
+                onChange={(e) => setIssuingCountry(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
+            <div>
+              <label style={labelStyle}>Foreign Cert./Document No.</label>
+              <input
+                data-field="foreignCertificateNumber"
+                style={inputStyle}
+                value={foreignCertificateNumber}
+                onChange={(e) => setForeignCertificateNumber(e.target.value)}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Validity</label>
+              <input
+                data-field="foreignCertificateValidity"
+                style={inputStyle}
+                value={foreignCertificateValidity}
+                onChange={(e) => setForeignCertificateValidity(e.target.value)}
+                placeholder="e.g. 31 December 2027"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Inspection Date</label>
+            <input
+              type="date"
+              data-field="inspectionDate"
+              style={inputStyle}
+              value={inspectionDate}
+              onChange={(e) => setInspectionDate(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Remarks</label>
+            <textarea
+              data-field="worksheetRemarks"
+              value={worksheetRemarks}
+              onChange={(e) => setWorksheetRemarks(e.target.value)}
+              placeholder="Notes for this evaluation..."
+              rows={4}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+
+          {/* Worksheet B only: the red prompts in Annex C. Left empty, the
+              paper keeps showing the form's own red prompt. */}
+          {worksheetVariant === "B" && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.7rem",
+                paddingTop: "0.7rem",
+                borderTop: `1px solid ${colors.cardBorder}`,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  color: colors.textPrimary,
+                }}
+              >
+                Annex C — documents provided
+              </div>
+              {ANNEX_C_FIELDS.map((f) => (
+                <div key={f.key}>
+                  <label style={labelStyle}>{f.label}</label>
+                  {f.type === "textarea" ? (
+                    <textarea
+                      data-field={f.key}
+                      value={annexC[f.key] || ""}
+                      onChange={(e) => setAnnexCField(f.key, e.target.value)}
+                      rows={3}
+                      style={{ ...inputStyle, resize: "vertical" }}
+                    />
+                  ) : (
+                    <input
+                      type={f.type || "text"}
+                      data-field={f.key}
+                      style={inputStyle}
+                      value={annexC[f.key] || ""}
+                      onChange={(e) => setAnnexCField(f.key, e.target.value)}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </Section>
+      </div>
+
+      {/* no white card here: the pages sit straight on the gray tray */}
+      <div style={{ minWidth: 0 }}>
+        <div
+          style={{
+            padding: "0.15rem 0.2rem 0.5rem",
+            fontSize: "0.72rem",
+            fontWeight: 700,
+            color: colors.textPrimary,
+          }}
+        >
+          Live Preview
+        </div>
+        <FgmpWorksheetPaper
+          doc={worksheetDoc}
+          variant={worksheetVariant}
+          activeField={activeField}
+          annexRows={annexRows}
+          onAnnexRowsChange={setAnnexRows}
+          editor={worksheetEditor}
+        />
+      </div>
+      </div>
+    </div>
+  );
+
+  const renderStepDecision = () => (
+    <div style={{ maxWidth: "640px" }}>
+      <Section title={`${row.applicationStep} Decision`} colors={colors}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.7rem",
+            padding: "0.4rem 0",
+          }}
+        >
+          {draftRestored && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.6rem",
+                padding: "0.4rem 0.6rem",
+                borderRadius: "6px",
+                fontSize: "0.66rem",
+                background: "rgba(245,158,11,0.12)",
+                color: "#b45309",
+              }}
+            >
+              <span>
+                Restored what you had typed here before. It was never
+                submitted.
+              </span>
+              <button
+                onClick={() => {
+                  setDecision("");
+                  setEvalRemarks("");
+                  setAssigneeUuid("");
+                  setTypeOfIssuance("");
+                  clearDraft(row);
+                  setDraftRestored(false);
+                }}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "#b45309",
+                  fontWeight: 700,
+                  fontSize: "0.66rem",
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Start over
+              </button>
+            </div>
+          )}
+
+          <div>
+            <label style={labelStyle}>Action</label>
+            <select
+              style={inputStyle}
+              value={decision}
+              onChange={(e) => {
+                setDecision(e.target.value);
+                setAssigneeUuid("");
+              }}
+            >
+              <option value="">Select action</option>
+              {stepActions.map((a) => (
+                <option key={a.action} value={a.action}>
+                  {a.action}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label style={labelStyle}>
+              Remarks{needsAssignee || !decision ? "" : " (required)"}
+            </label>
+            <textarea
+              value={evalRemarks}
+              onChange={(e) =>
+                setEvalRemarks(e.target.value.slice(0, MAX_REMARKS_LENGTH))
+              }
+              placeholder="Write your remarks..."
+              rows={5}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+            <div
+              style={{
+                textAlign: "right",
+                fontSize: "0.6rem",
+                color: colors.textTertiary,
+                marginTop: "0.2rem",
+              }}
+            >
+              {MAX_REMARKS_LENGTH - evalRemarks.length} characters left
+            </div>
+          </div>
+
+          {canSetIssuance && (
+            <div>
+              <label style={labelStyle}>Type of Issuance</label>
+              <select
+                style={inputStyle}
+                value={typeOfIssuance}
+                onChange={(e) => setTypeOfIssuance(e.target.value)}
+              >
+                <option value="">Not decided yet</option>
+                {issuanceTypes.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+              <div
+                style={{
+                  fontSize: "0.6rem",
+                  color: colors.textTertiary,
+                  marginTop: "0.2rem",
+                }}
+              >
+                Saved on the application and carried to the next step.
+              </div>
+            </div>
+          )}
+
+          {needsAssignee && (
+            <div>
+              <label style={labelStyle}>Assign {nextStep}</label>
+              <select
+                style={inputStyle}
+                value={assigneeUuid}
+                onChange={(e) => setAssigneeUuid(e.target.value)}
+                disabled={loadingAssignees}
+              >
+                <option value="">
+                  {loadingAssignees
+                    ? "Loading..."
+                    : `Select ${nextStep.toLowerCase()}`}
+                </option>
+                {assignees.map((a) => (
+                  <option key={a.user_uuid} value={a.user_uuid}>
+                    {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {decision && !needsAssignee && nextStep === row.applicationStep && (
+            <div
+              style={{
+                fontSize: "0.68rem",
+                lineHeight: 1.5,
+                color: colors.textTertiary,
+              }}
+            >
+              The application stays with you. This round is recorded in the
+              application's history and a fresh task opens on your queue.
+            </div>
+          )}
+        </div>
+      </Section>
+    </div>
+  );
+
+  /* ───────────── The issuance document ───────────── */
+  const renderIssuanceDocument = () => (
+    <div style={{ height: "680px" }}>
+      <PdfViewer
+        colors={colors}
+        defaultZoom={0.8}
+        fileName={`${previewedIssuance} - ${referenceNumber}.pdf`}
+        pageStyle={LETTERHEAD_PAGE_STYLE}
+      >
+        {issuancePaper.paper === "disapproval" ? (
+          <LetterOfDisapprovalPaper
+            doc={issuanceDoc}
+            reason={issuancePaper.reason}
+          />
+        ) : issuancePaper.paper === "extension" ? (
+          <ExtensionLetterPaper doc={issuanceDoc} />
+        ) : issuancePaper.paper === "inspectionNotice" ? (
+          <InspectionNoticePaper doc={issuanceDoc} />
+        ) : (
+          <CgmpClearancePaper
+            doc={issuanceDoc}
+            variant={issuancePaper.variant}
+          />
+        )}
+      </PdfViewer>
+    </div>
+  );
+
   const renderBody = () => {
     if (loading) {
       return (
@@ -1217,8 +2223,18 @@ export default function FgmpDetailsModal({
         </div>
       );
     }
+    // The numbered layouts (everything but the cashier's posting flow) say
+    // what each step is, so the order can change without touching this.
+    const kind = steps.find((s) => s.id === step)?.kind;
+    if (kind === "details") return renderStep1();
+    if (kind === "issuance") return renderIssuanceDocument();
+    if (kind === "deckerDecision") return renderDeckerDecision();
+    if (kind === "worksheet") return renderWorksheet();
+    if (kind === "decision") return renderStepDecision();
+    if (kind === "history") return renderHistory();
+
+    // The cashier's posting flow keeps its fixed numbering
     if (step === 1) return renderStep1();
-    if (isDeckingOpen && step === 3) return renderDeckerDecision();
     if (!canPost) return renderHistory();
     if (step === 2) return renderStep2();
     if (step === 3) return renderStep3();
@@ -1409,13 +2425,13 @@ export default function FgmpDetailsModal({
                 >
                   Next ›
                 </button>
-              ) : isDeckingOpen ? (
+              ) : isDeckingOpen || isWorkflowStepOpen ? (
                 <button
-                  style={navBtn(true, !canSubmitDecision || submittingDecision)}
-                  disabled={!canSubmitDecision || submittingDecision}
+                  style={navBtn(true, !canSubmit || submittingDecision)}
+                  disabled={!canSubmit || submittingDecision}
                   onClick={() => setShowDecisionConfirm(true)}
                 >
-                  ✔ Submit Decision
+                  ✔ Submit
                 </button>
               ) : (
                 canPost && (
@@ -1449,8 +2465,19 @@ export default function FgmpDetailsModal({
           <DecisionConfirmModal
             colors={colors}
             decision={decision}
-            evaluatorName={needsEvaluator ? selectedEvaluator?.name : null}
-            onConfirm={handleSubmitDecision}
+            nextStep={isDeckingOpen ? ISSUANCE_STEP : nextStep}
+            assigneeName={
+              isDeckingOpen
+                ? needsEvaluator
+                  ? selectedEvaluator?.name
+                  : null
+                : needsAssignee
+                  ? selectedAssignee?.name
+                  : null
+            }
+            onConfirm={
+              isDeckingOpen ? handleSubmitDeckerDecision : handleSubmitDecision
+            }
             onCancel={() => setShowDecisionConfirm(false)}
           />
         )}
