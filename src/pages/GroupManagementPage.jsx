@@ -21,6 +21,8 @@ import MenuPermissionsModal from "../components/groupManagement/MenuPermissionsM
 import AccessDenied from "../components/groupManagement/AccessDenied";
 import GroupsTab from "../components/groupManagement/GroupsTab";
 import MenuPermissionsTab from "../components/groupManagement/MenuPermissionsTab";
+import SneAssignmentsTab from "../components/groupManagement/SneAssignmentsTab";
+import WorkflowRolesTab from "../components/groupManagement/WorkflowRolesTab";
 import { useColors } from "../components/groupManagement/useColors";
 import { allMenuItems } from "../components/groupManagement/menuDefinitions";
 import { useIsMobile } from "../hooks/useIsMobile";
@@ -682,6 +684,12 @@ function GroupManagementPage({ darkMode, userRole }) {
           {[
             { id: "groups", label: "Groups & Users", icon: "👥" },
             { id: "menu-permissions", label: "Menu Permissions", icon: "🔐" },
+            { id: "sne-assignments", label: "S&E Assignments", icon: "🧪" },
+            {
+              id: "workflow-roles",
+              label: "E-Application Workflow Roles",
+              icon: "🧩",
+            },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -765,6 +773,38 @@ function GroupManagementPage({ darkMode, userRole }) {
           colors={colors}
           darkMode={darkMode}
         />
+      )}
+
+      {activeTab === "sne-assignments" && (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
+          <SneAssignmentsTab
+            colors={colors}
+            darkMode={darkMode}
+            showToast={showToast}
+          />
+        </div>
+      )}
+
+      {activeTab === "workflow-roles" && (
+        <div
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
+          <WorkflowRolesTab colors={colors} showToast={showToast} />
+        </div>
       )}
 
       <style>{`
