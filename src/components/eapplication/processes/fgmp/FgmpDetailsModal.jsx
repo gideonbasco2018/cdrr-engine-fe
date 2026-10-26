@@ -43,6 +43,19 @@ import {
   ANNEX_C_FIELDS,
 } from "./FgmpWorksheetPaper.jsx";
 
+import { NodForm, NodsCard } from "./FgmpNodParts.jsx";
+import {
+  canIssueNod,
+  issueNod,
+  latestNod,
+  readNods,
+  writeNods,
+} from "./fgmpNod.js";
+
+/* The action that sends the application back to the applicant, and so issues
+   a Notice of Deficiency (NOD). Must match ACTION_ROUTES in the backend. */
+const COMPLIANCE_ACTION = "For Compliance";
+
 const PAYMENT_TYPES = [
   "FDA Cashier",
   "LANDBANK ONCOLL",
@@ -490,6 +503,13 @@ export default function FgmpDetailsModal({
   const [annexRows, setAnnexRows] = useState([]);
   // which worksheet field has the cursor, so the preview can light it up
   const [activeField, setActiveField] = useState(null);
+
+  /* Notice of Deficiency (For Compliance). MOCK-UP: the NODs already issued
+     live in this browser only (fgmpNod.js); what is being typed for the next
+     one goes in the draft with the rest. */
+  const [nods, setNods] = useState([]);
+  const [nodDeficiencies, setNodDeficiencies] = useState("");
+  const [nodDocLines, setNodDocLines] = useState([]);
   const [loadingAssignees, setLoadingAssignees] = useState(false);
   const [showDecisionConfirm, setShowDecisionConfirm] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
@@ -746,8 +766,52 @@ export default function FgmpDetailsModal({
   // Nobody is picked when the action loops back to this same step
   // (For Compliance) or ends the workflow (Approved).
   const needsAssignee = !!nextStep && nextStep !== row.applicationStep;
+
+  /* For Compliance issues a Notice of Deficiency: "what is lacking" is what
+     the decision needs (it also becomes the remarks), and there is a limit of
+     MAX_NODS per application. */
+  const isCompliance = decision === COMPLIANCE_ACTION;
+  const nodLimitReached = !canIssueNod(nods);
   const canSubmitDecision =
-    !!decision && (needsAssignee ? !!assigneeUuid : !!evalRemarks.trim());
+    !!decision &&
+    (isCompliance
+      ? !!nodDeficiencies.trim() && !nodLimitReached
+      : needsAssignee
+        ? !!assigneeUuid
+        : !!evalRemarks.trim());
+
+  /* NODs are kept per user and application in this browser (mock-up) */
+  const nodWho = currentUser?.user_uuid || currentUser?.username || "anon";
+  useEffect(() => {
+    setNods(readNods(nodWho, row.referenceNo));
+  }, [nodWho, row.referenceNo]);
+  const saveNods = (next) => {
+    setNods(next);
+    writeNods(nodWho, row.referenceNo, next);
+  };
+  const changeNod = (changed) =>
+    saveNods(nods.map((n) => (n.nodNumber === changed.nodNumber ? changed : n)));
+  const removeNod = (nodNumber) =>
+    saveNods(nods.filter((n) => n.nodNumber !== nodNumber));
+  const nodApplication = {
+    manufacturer: data?.foreign_manufacturer,
+    country: data?.foreign_manufacturer_country,
+    dtn: data?.dtn,
+    email: data?.email_address,
+  };
+  // Only the evaluator who holds the task may extend or record documents
+  const renderNodsCard = () => (
+    <NodsCard
+      colors={colors}
+      labelStyle={labelStyle}
+      inputStyle={inputStyle}
+      nods={nods}
+      onChangeNod={changeNod}
+      onRemoveNod={removeNod}
+      canAct={canSetIssuance}
+      application={nodApplication}
+    />
+  );
   const selectedAssignee = assignees.find((a) => a.user_uuid === assigneeUuid);
 
   /* ── Decker decision helpers (the Decking step) ── */
@@ -798,6 +862,8 @@ export default function FgmpDetailsModal({
     setWorksheetRemarks(draft.worksheetRemarks || "");
     setAnnexC(draft.annexC || {});
     setAnnexRows(draft.annexRows || []);
+    setNodDeficiencies(draft.nodDeficiencies || "");
+    setNodDocLines(draft.nodDocLines || []);
     setDraftRestored(true);
   }, [isWorkflowStepOpen, row.referenceNo, row.applicationStep]);
 
@@ -818,6 +884,8 @@ export default function FgmpDetailsModal({
       worksheetRemarks,
       annexC,
       annexRows,
+      nodDeficiencies,
+      nodDocLines,
     });
   }, [
     isWorkflowStepOpen,
@@ -836,6 +904,8 @@ export default function FgmpDetailsModal({
     worksheetRemarks,
     annexC,
     annexRows,
+    nodDeficiencies,
+    nodDocLines,
   ]);
 
   /* A restored action the step no longer allows would sit in the dropdown
@@ -919,12 +989,26 @@ export default function FgmpDetailsModal({
     setSubmittingDecision(true);
     setPostError(null);
     try {
+      // Built first, so a problem with the NOD stops the decision before
+      // anything is sent.
+      const newNod = isCompliance
+        ? issueNod(nods, {
+            activity: data?.activity,
+            deficiencies: nodDeficiencies,
+            documentLines: nodDocLines,
+            issuedBy: [currentUser?.first_name, currentUser?.surname]
+              .filter(Boolean)
+              .join(" "),
+          })
+        : null;
       await submitStepDecision(row.referenceNo, {
         decision,
-        remarks: evalRemarks.trim(),
+        // For Compliance: the remarks default to what is lacking
+        remarks: evalRemarks.trim() || (isCompliance ? newNod.deficiencies : ""),
         assignee_uuid: needsAssignee ? assigneeUuid : null,
         type_of_issuance: canSetIssuance ? typeOfIssuance || null : null,
       });
+      if (newNod) writeNods(nodWho, row.referenceNo, [...nods, newNod]);
       setShowDecisionConfirm(false);
       clearDraft(row);
       await onPosted?.();
@@ -1179,6 +1263,8 @@ export default function FgmpDetailsModal({
           </Section>
         )}
       </div>
+
+      {renderNodsCard()}
 
       <Section
         title={`Submitted Documents${
@@ -1728,6 +1814,7 @@ export default function FgmpDetailsModal({
   worksheetDoc.evaluatedBy = [currentUser?.first_name, currentUser?.surname]
     .filter(Boolean)
     .join(" ");
+  worksheetDoc.emailDate = latestNod(nods)?.issuedDate || "";
 
   const setAnnexCField = (key, value) =>
     setAnnexC((prev) => ({ ...prev, [key]: value }));
@@ -2001,7 +2088,14 @@ export default function FgmpDetailsModal({
   );
 
   const renderStepDecision = () => (
-    <div style={{ maxWidth: "640px" }}>
+    <div
+      style={{
+        maxWidth: "640px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.9rem",
+      }}
+    >
       <Section title={`${row.applicationStep} Decision`} colors={colors}>
         <div
           style={{
@@ -2035,6 +2129,8 @@ export default function FgmpDetailsModal({
                   setEvalRemarks("");
                   setAssigneeUuid("");
                   setTypeOfIssuance("");
+                  setNodDeficiencies("");
+                  setNodDocLines([]);
                   clearDraft(row);
                   setDraftRestored(false);
                 }}
@@ -2074,7 +2170,8 @@ export default function FgmpDetailsModal({
 
           <div>
             <label style={labelStyle}>
-              Remarks{needsAssignee || !decision ? "" : " (required)"}
+              Remarks
+              {needsAssignee || !decision || isCompliance ? "" : " (required)"}
             </label>
             <textarea
               value={evalRemarks}
@@ -2096,6 +2193,21 @@ export default function FgmpDetailsModal({
               {MAX_REMARKS_LENGTH - evalRemarks.length} characters left
             </div>
           </div>
+
+          {isCompliance && (
+            <NodForm
+              colors={colors}
+              labelStyle={labelStyle}
+              inputStyle={inputStyle}
+              form={{ deficiencies: nodDeficiencies, documentLines: nodDocLines }}
+              onChange={(f) => {
+                setNodDeficiencies(f.deficiencies);
+                setNodDocLines(f.documentLines);
+              }}
+              nods={nods}
+              application={nodApplication}
+            />
+          )}
 
           {canSetIssuance && (
             <div>
@@ -2161,6 +2273,7 @@ export default function FgmpDetailsModal({
           )}
         </div>
       </Section>
+      {renderNodsCard()}
     </div>
   );
 

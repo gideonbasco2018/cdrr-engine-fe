@@ -702,6 +702,8 @@ function Recommendation({ doc, variant }) {
   const A = variant === "A";
   const rec = doc.recommendation;
   const size = pt(A ? 10 : 11);
+  // the date the latest NOD was issued, from the For Compliance action
+  const emailDate = `Email date: ${longDate(doc.emailDate)}`;
   const validity = (
     <>
       Validity:{" "}
@@ -740,7 +742,7 @@ function Recommendation({ doc, variant }) {
               size={size}
               checked={rec === "FOR COMPLIANCE"}
               label="FOR COMPLIANCE"
-              detail="Email date: "
+              detail={emailDate}
             />
           </Td>
           <Td>
@@ -782,7 +784,7 @@ function Recommendation({ doc, variant }) {
             center
             checked={rec === "FOR COMPLIANCE"}
             label="FOR COMPLIANCE"
-            detail="Email date: "
+            detail={emailDate}
           />
         </Td>
         <Td>
