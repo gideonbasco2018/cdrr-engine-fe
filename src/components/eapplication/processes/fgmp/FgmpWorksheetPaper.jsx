@@ -31,6 +31,7 @@ import {
   useState,
 } from "react";
 import { buildIssuanceDoc } from "./FgmpIssuancePapers.jsx";
+import { newFormRow, shortDate } from "./fgmpWorksheetSync.js";
 
 const longDate = (value) =>
   value
@@ -95,6 +96,10 @@ const FIELD_REGION = {
   inspectionDate: "inspectionDate",
   worksheetRemarks: "remarks",
   gmpEvidence: "gmpEvidence",
+  recommendationChoice: "recommendation",
+  dateIssuedText: "dateIssuedText",
+  approvedDosageFormsNote: "approvedDosageFormsNote",
+  complianceNotes: "complianceNotes",
 };
 
 const HIGHLIGHT = {
@@ -107,9 +112,7 @@ const HIGHLIGHT = {
 /* Dates cannot be typed freely (they are stored as a date), so those spots
    still open a small date picker; every other value is typed straight on the
    paper. `id` is the name the screen knows the value by. */
-const FIELD_DEFS = {
-  inspectionDate: [{ id: "inspectionDate", label: "Inspection Date", type: "date" }],
-};
+const FIELD_DEFS = {};
 ANNEX_C_FIELDS.filter((f) => f.type === "date").forEach((f) => {
   FIELD_DEFS[f.key] = [{ id: `annexC.${f.key}`, label: f.label, type: "date" }];
 });
@@ -252,11 +255,14 @@ function EditPopover({ at, fields, editor, onClose }) {
    rewritten from the screen's value when this spot is NOT being typed in
    (for example when the same value is edited in the left column, or shown a
    second time elsewhere on the paper). Without an editor it is plain text. */
-function Ed({ k, id, value, hole, ph = "click to fill", multiline }) {
+function Ed({ k, id, value, hole, ph = "click to fill", multiline, write, fallback, leftRef }) {
   const editor = useContext(EditCtx)?.editor;
+  const notify = useContext(EditCtx)?.notify;
   const active = useContext(ActiveRegion) === k;
   const ref = useRef(null);
   const text = value || "";
+  // which left-column field this spot is (an Annex C spot is named annexC.<key>)
+  const left = leftRef || { field: id && id.startsWith("annexC.") ? id.slice(7) : id };
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -268,7 +274,7 @@ function Ed({ k, id, value, hole, ph = "click to fill", multiline }) {
   if (!editor) {
     return (
       <Hl k={k} empty={!text}>
-        {text ? text : hole ? <Red>{hole}</Red> : null}
+        {text ? text : fallback ? fallback : hole ? <Red>{hole}</Red> : null}
       </Hl>
     );
   }
@@ -276,16 +282,26 @@ function Ed({ k, id, value, hole, ph = "click to fill", multiline }) {
     <span
       ref={ref}
       data-hl={k}
-      data-ph={hole || ph}
-      className={hole ? "ws-ph ws-ph-red" : "ws-ph ws-ph-faint"}
+      data-ph={hole || fallback || ph}
+      className={
+        hole
+          ? "ws-ph ws-ph-red"
+          : fallback
+            ? "ws-ph ws-ph-black"
+            : "ws-ph ws-ph-faint"
+      }
       contentEditable="plaintext-only"
       suppressContentEditableWarning
       spellCheck={false}
+      onFocus={() => notify?.(left)}
+      onBlur={() => notify?.(null)}
       onInput={(e) => {
         const el = e.currentTarget;
         if (!el.textContent && el.innerHTML) el.innerHTML = ""; // keep :empty true
         const v = el.textContent;
-        editor.set(id, multiline ? v : v.replace(/\n/g, " "));
+        const clean = multiline ? v : v.replace(/\n/g, " ");
+        if (write) write(clean);
+        else editor.set(id, clean);
       }}
       onKeyDown={(e) => {
         if (e.key === "Enter" && !multiline) {
@@ -308,7 +324,9 @@ function Dra({ doc }) {
   const editor = useContext(EditCtx)?.editor;
   if (!editor) {
     return (
-      <Dra doc={doc} />
+      <Hl k="dra" empty={!doc.dra}>
+        {doc.dra}
+      </Hl>
     );
   }
   return (
@@ -324,6 +342,7 @@ function Dra({ doc }) {
 const PAPER_CSS = `
 .ws-ph:empty::before { content: attr(data-ph); }
 .ws-ph-red:empty::before { color: #ff0000; }
+.ws-ph-black:empty::before { color: #000; }
 .ws-ph-faint:empty::before { color: #94a3b8; font-style: italic; font-weight: 400; }
 .ws-ph:focus { background: #fff9c4; box-shadow: 0 0 0 2px #f59e0b; border-radius: 2px; }
 `;
@@ -341,6 +360,13 @@ const Fill = ({ k, value, hole }) =>
    two inspection notices are FOR INSPECTION, a certificate is APPROVED, and
    the "For Compliance" action is FOR COMPLIANCE. Anything else (extension,
    permit, acknowledgement) leaves every box empty rather than guess. */
+export const RECOMMENDATION_LABELS = [
+  "APPROVED",
+  "FOR INSPECTION",
+  "FOR COMPLIANCE",
+  "DENIAL",
+];
+
 export function recommendationFor(typeOfIssuance, decision) {
   if (decision === "For Compliance") return "FOR COMPLIANCE";
   const t = typeOfIssuance || "";
@@ -397,6 +423,8 @@ function Td({ span, fill, plain, style, children }) {
         padding: "0 7px",
         verticalAlign: "top",
         background: fill,
+        // a long word with no spaces breaks inside the cell, never wider
+        overflowWrap: "anywhere",
         ...style,
       }}
     >
@@ -517,7 +545,10 @@ function Page({ n, total, variant, bodyTop, children }) {
           style={{ display: "block", width: 601.6 }}
         />
       </div>
-      <div style={{ padding: `${bodyTop}px 0 110px 102px` }}>{children}</div>
+      {/* 76px on the right makes the writing area exactly as wide as the
+          widest table (616px), so a long typed line stops where the tables
+          stop instead of running to the edge of the paper */}
+      <div style={{ padding: `${bodyTop}px 76px 110px 102px` }}>{children}</div>
     </div>
   );
 }
@@ -571,7 +602,9 @@ function TopTable({ doc, variant }) {
 
 function EvidenceList({ doc, size }) {
   const editor = useContext(EditCtx)?.editor;
+  const notify = useContext(EditCtx)?.notify;
   const toggle = (opt) => {
+    notify?.({ field: "gmpEvidence", transient: true });
     const now = editor.get("gmpEvidence") || [];
     editor.set(
       "gmpEvidence",
@@ -603,19 +636,179 @@ function EvidenceList({ doc, size }) {
   );
 }
 
-/* the little "Applied the following dosage forms" grid inside Annex B */
-function DosageGrid({ withHeadings }) {
-  const cell = { border: LINE, padding: "0 5px", height: 18 };
+/* The rows of Annex B and of "Approved Medicinal Products". Each row has a
+   list of dosage forms (one per line), a product type, and the operations
+   (one per line). The evaluator types straight in the cells; "+" adds a row
+   and "x" removes one. With no rows the table shows one blank row, as printed. */
+const BLANK_ROW_ID = "blank-row";
+
+/* a gray line under an editable table, telling the evaluator how to fill it.
+   Shown only while editing, never in the read-only view */
+function TableHint() {
+  const editing = !!useContext(EditCtx)?.editor;
+  if (!editing) return null;
   return (
+    <div
+      style={{
+        fontSize: pt(8),
+        color: "#9ca3af",
+        fontStyle: "italic",
+        fontFamily: "Arial, sans-serif",
+        padding: "2px 0 0 2px",
+      }}
+    >
+      Click a cell and type. Press Enter for another line in a cell. Use + (at
+      the left) to add a row and × to remove one.
+    </div>
+  );
+}
+
+function FormRows({ listId, rows, cell }) {
+  const editor = useContext(EditCtx)?.editor;
+  const list = rows || [];
+  // Every change is built from the latest rows (a function, as React's own
+  // setState takes), so two edits made close together never undo each other.
+  const put = (update) => editor.set(listId, update);
+  const patch = (id, change) =>
+    put((cur) => {
+      const rows = cur || [];
+      // typing in the blank row starts the first real row. It keeps the same
+      // id, so the cell is not replaced and the cursor stays where it is.
+      if (!rows.some((r) => r.id === id)) {
+        return [...rows, { ...newFormRow(), id, ...change }];
+      }
+      return rows.map((r) => (r.id === id ? { ...r, ...change } : r));
+    });
+  const lines = (arr) => (arr || []).join("\n");
+  const blankRow = (
+    <tr>
+      <td style={cell} />
+      <td style={cell} />
+      <td style={cell} />
+    </tr>
+  );
+
+  if (!editor) {
+    const shown = list.filter(
+      (r) =>
+        (r.dosageForms || []).some((x) => x && x.trim()) ||
+        (r.productType || "").trim() ||
+        (r.operations || []).some((x) => x && x.trim()),
+    );
+    if (shown.length === 0) return blankRow;
+    const stack = (arr) =>
+      (arr || [])
+        .filter((x) => x && x.trim())
+        .map((x, i) => <div key={i}>{x}</div>);
+    return shown.map((r) => (
+      <tr key={r.id}>
+        <td style={cell}>{stack(r.dosageForms)}</td>
+        <td style={cell}>{r.productType}</td>
+        <td style={cell}>{stack(r.operations)}</td>
+      </tr>
+    ));
+  }
+  // With no rows yet, the blank row is a real row to type in straight away.
+  const shown = list.length ? list : [{ ...newFormRow(), id: BLANK_ROW_ID }];
+  return (
+    <>
+      {shown.map((r, i) => (
+        <tr key={r.id}>
+          <td style={cell}>
+            <Ed
+              k={listId}
+              leftRef={{ field: listId, rowId: r.id }}
+              value={lines(r.dosageForms)}
+              ph="dosage forms, one per line"
+              multiline
+              write={(v) => patch(r.id, { dosageForms: v.split("\n") })}
+            />
+          </td>
+          <td style={cell}>
+            <Ed
+              k={listId}
+              leftRef={{ field: listId, rowId: r.id }}
+              value={r.productType}
+              ph="product type"
+              write={(v) => patch(r.id, { productType: v })}
+            />
+          </td>
+          <td style={{ ...cell, position: "relative" }}>
+            <Ed
+              k={listId}
+              leftRef={{ field: listId, rowId: r.id }}
+              value={lines(r.operations)}
+              ph="operations, one per line"
+              multiline
+              write={(v) => patch(r.id, { operations: v.split("\n") })}
+            />
+            {list.length > 0 && (
+              <button
+                type="button"
+                title="Remove this row"
+                onClick={() => put((cur) => (cur || []).filter((x) => x.id !== r.id))}
+                style={{ ...roundButton, right: -26, top: 1 }}
+              >
+                ×
+              </button>
+            )}
+          </td>
+        </tr>
+      ))}
+      <tr style={{ height: 0 }}>
+        <td colSpan={3} style={{ padding: 0, border: "none", height: 0, position: "relative" }}>
+          <button
+            type="button"
+            title="Add a row"
+            onClick={() =>
+              put((cur) => {
+                const rows = cur || [];
+                // The blank row you see is the first row. Adding to an empty
+                // table keeps it (same id, so the cell is not replaced) and
+                // adds a new one below it.
+                const first = rows.length
+                  ? rows
+                  : [{ ...newFormRow(), id: BLANK_ROW_ID }];
+                return [...first, newFormRow()];
+              })
+            }
+            style={{ ...roundButton, left: -26, top: -9 }}
+          >
+            +
+          </button>
+        </td>
+      </tr>
+    </>
+  );
+}
+
+/* the little "Applied the following dosage forms" grid inside Annex B */
+function DosageGrid({ withHeadings, doc }) {
+  const cell = {
+    border: LINE,
+    padding: "0 5px",
+    height: 18,
+    verticalAlign: "top",
+    overflowWrap: "anywhere",
+  };
+  return (
+    <>
     <table
       style={{
         borderCollapse: "collapse",
+        // fixed columns: the table keeps its width however long the text is
+        tableLayout: "fixed",
         width: "83%",
         marginLeft: 2,
         fontSize: pt(10),
         lineHeight: 1.15,
       }}
     >
+      <colgroup>
+        <col style={{ width: "32%" }} />
+        <col style={{ width: "31%" }} />
+        <col style={{ width: "37%" }} />
+      </colgroup>
       <tbody>
         <tr>
           <td colSpan={3} style={{ ...cell, textAlign: "center", height: "auto" }}>
@@ -628,19 +821,25 @@ function DosageGrid({ withHeadings }) {
           <td style={cell}>{withHeadings ? "Product Type" : ""}</td>
           <td style={cell}>{withHeadings ? "Manufacturing Operation/s" : ""}</td>
         </tr>
-        <tr>
-          <td style={cell} />
-          <td style={cell} />
-          <td style={cell} />
-        </tr>
+        <FormRows listId="appliedForms" rows={doc.appliedForms} cell={cell} />
       </tbody>
     </table>
+    <TableHint />
+    </>
   );
 }
 
-function ApprovedProducts() {
-  const blank = { textAlign: "center", height: 20 };
+function ApprovedProducts({ doc }) {
+  const cell = {
+    border: LINE,
+    padding: "0 7px",
+    verticalAlign: "top",
+    textAlign: "center",
+    height: 20,
+    overflowWrap: "anywhere",
+  };
   return (
+    <>
     <Tbl cols={[2978, 2960, 3271]}>
       <tr>
         <Td span={3} fill={GREEN} style={{ textAlign: "center", fontWeight: 700 }}>
@@ -652,12 +851,29 @@ function ApprovedProducts() {
         <Td>Product Type</Td>
         <Td>Manufacturing Operation/s</Td>
       </tr>
-      <tr>
-        <Td style={blank} />
-        <Td style={blank} />
-        <Td style={blank} />
-      </tr>
+      <FormRows listId="approvedProducts" rows={doc.approvedProducts} cell={cell} />
     </Tbl>
+    <TableHint />
+    </>
+  );
+}
+
+/* Worksheet B: what the Notices of Deficiency asked for, listed by themselves
+   (dated, as the unit writes them), then any extra notes typed by hand. */
+function ComplianceNotes({ doc }) {
+  const nods = [...(doc.nods || [])].sort((a, b) => a.nodNumber - b.nodNumber);
+  return (
+    <div style={{ fontSize: pt(10) }}>
+      <b>If for compliance, indicate the deficiency noted:</b>
+      {nods.map((n) => (
+        <div key={n.nodNumber} style={{ paddingLeft: 14, textIndent: -14, whiteSpace: "pre-wrap" }}>
+          ➢ {shortDate(n.issuedDate)} - {n.deficiencies}
+        </div>
+      ))}
+      <div style={{ whiteSpace: "pre-wrap" }}>
+        <Ed k="complianceNotes" id="complianceNotes" value={doc.complianceNotes} multiline />
+      </div>
+    </div>
   );
 }
 
@@ -673,9 +889,18 @@ function RemarksLine({ doc }) {
 }
 
 /* one RECOMMENDATION box: tick, label, and a line of detail underneath */
-function RecCell({ checked, label, detail, center, size }) {
+function RecCell({ checked, label, detail, center, size, onToggle }) {
   return (
-    <div style={{ position: "relative", fontSize: size, minHeight: 48 }}>
+    <div
+      onClick={onToggle}
+      title={onToggle ? "Click to tick or untick" : undefined}
+      style={{
+        position: "relative",
+        fontSize: size,
+        minHeight: 48,
+        cursor: onToggle ? "pointer" : undefined,
+      }}
+    >
       <div style={{ position: "absolute", left: 0, top: 2 }}>
         <Box checked={checked} />
       </div>
@@ -701,6 +926,16 @@ function RecCell({ checked, label, detail, center, size }) {
 function Recommendation({ doc, variant }) {
   const A = variant === "A";
   const rec = doc.recommendation;
+  const editor = useContext(EditCtx)?.editor;
+  const notify = useContext(EditCtx)?.notify;
+  // One box at a time, as on the printed form. Clicking the ticked one
+  // empties it again; ticking another moves the tick.
+  const toggle = editor
+    ? (label) => () => {
+        notify?.({ field: "recommendationChoice", transient: true });
+        editor.set("recommendationChoice", rec === label ? "" : label);
+      }
+    : () => undefined;
   const size = pt(A ? 10 : 11);
   // the date the latest NOD was issued, from the For Compliance action
   const emailDate = `Email date: ${longDate(doc.emailDate)}`;
@@ -726,6 +961,7 @@ function Recommendation({ doc, variant }) {
   );
   if (A) {
     return (
+      <Hl k="recommendation" block>
       <Tbl cols={[3618, 3420, 2171]}>
         <tr>{heading}</tr>
         <tr style={{ height: px(450) }}>
@@ -734,6 +970,7 @@ function Recommendation({ doc, variant }) {
               size={size}
               checked={rec === "APPROVED"}
               label="APPROVED"
+              onToggle={toggle("APPROVED")}
               detail={validity}
             />
           </Td>
@@ -742,6 +979,7 @@ function Recommendation({ doc, variant }) {
               size={size}
               checked={rec === "FOR COMPLIANCE"}
               label="FOR COMPLIANCE"
+              onToggle={toggle("FOR COMPLIANCE")}
               detail={emailDate}
             />
           </Td>
@@ -750,14 +988,17 @@ function Recommendation({ doc, variant }) {
               size={size}
               checked={rec === "DENIAL"}
               label="DENIAL"
+              onToggle={toggle("DENIAL")}
               center
             />
           </Td>
         </tr>
       </Tbl>
+      </Hl>
     );
   }
   return (
+    <Hl k="recommendation" block>
     <Tbl cols={[2718, 1813, 3090, 1588]}>
       <tr>{heading}</tr>
       <tr>
@@ -767,6 +1008,7 @@ function Recommendation({ doc, variant }) {
             center
             checked={rec === "APPROVED"}
             label="APPROVED"
+              onToggle={toggle("APPROVED")}
             detail={validity}
           />
         </Td>
@@ -776,6 +1018,7 @@ function Recommendation({ doc, variant }) {
             center
             checked={rec === "FOR INSPECTION"}
             label="FOR INSPECTION"
+            onToggle={toggle("FOR INSPECTION")}
           />
         </Td>
         <Td>
@@ -784,6 +1027,7 @@ function Recommendation({ doc, variant }) {
             center
             checked={rec === "FOR COMPLIANCE"}
             label="FOR COMPLIANCE"
+              onToggle={toggle("FOR COMPLIANCE")}
             detail={emailDate}
           />
         </Td>
@@ -793,10 +1037,12 @@ function Recommendation({ doc, variant }) {
             center
             checked={rec === "DENIAL"}
             label="DENIAL"
+              onToggle={toggle("DENIAL")}
           />
         </Td>
       </tr>
     </Tbl>
+    </Hl>
   );
 }
 
@@ -809,9 +1055,9 @@ function Signatures({ doc }) {
       </tr>
       <tr>
         <Td>Evaluated by:</Td>
-        <Td>Date: </Td>
+        <Td>Date: {(doc.evaluatedDates || []).map(shortDate).join("; ")}</Td>
         <Td>Checked by:</Td>
-        <Td>Date</Td>
+        <Td>Date: {shortDate(doc.checkedDate)}</Td>
       </tr>
       <tr style={{ height: 46 }}>
         <Td />
@@ -827,9 +1073,9 @@ function Signatures({ doc }) {
       </tr>
       <tr>
         <Td>Designation</Td>
-        <Td />
+        <Td>{doc.evaluatorDesignation}</Td>
         <Td>Designation</Td>
-        <Td />
+        <Td>{doc.checkerDesignation}</Td>
       </tr>
     </Tbl>
   );
@@ -906,11 +1152,12 @@ function WorksheetA({ doc }) {
               </div>
               <div>
                 Inspection date:{" "}
-                <Hl k="inspectionDate" empty={!doc.inspectionDate}>
-                  {longDate(doc.inspectionDate)}
-                </Hl>
+                <Ed k="inspectionDate" id="inspectionDate" value={doc.inspectionDate} />
               </div>
-              <div>Date issued: </div>
+              <div>
+                Date issued:{" "}
+                <Ed k="dateIssuedText" id="dateIssuedText" value={doc.dateIssuedText} multiline />
+              </div>
             </Td>
           </tr>
           <tr>
@@ -923,7 +1170,7 @@ function WorksheetA({ doc }) {
               <div>GMP Evidence Evaluation Form</div>
             </Td>
             <Td style={{ paddingTop: 18 }}>
-              <DosageGrid />
+              <DosageGrid doc={doc} />
             </Td>
           </tr>
           <tr>
@@ -936,7 +1183,7 @@ function WorksheetA({ doc }) {
         </Tbl>
 
         <Gap h={16} />
-        <ApprovedProducts />
+        <ApprovedProducts doc={doc} />
         <RemarksLine doc={doc} />
         <Gap h={9} />
         <Recommendation doc={doc} variant="A" />
@@ -983,7 +1230,7 @@ const newRowId = () =>
   `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 /* a text box that grows with what is typed, drawn like the paper's own text */
-function AutoText({ value, onChange, placeholder }) {
+function AutoText({ value, onChange, placeholder, onFocus, onBlur }) {
   const ref = useRef(null);
   useEffect(() => {
     const el = ref.current;
@@ -998,6 +1245,8 @@ function AutoText({ value, onChange, placeholder }) {
       rows={2}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
+      onFocus={onFocus}
+      onBlur={onBlur}
       style={{
         width: "100%",
         boxSizing: "border-box",
@@ -1057,6 +1306,14 @@ function AddRowSlot({ slot }) {
 /* the rows added at this boundary, then the "+" for adding another */
 function ExtraRows({ slot }) {
   const { rows, onChange } = useContext(AnnexRows);
+  // the left column's "added rows" list lights these rows up while it has the cursor
+  const notify = useContext(EditCtx)?.notify;
+  const here = (id) => ({
+    onFocus: () => notify?.({ field: "annexRows", rowId: id }),
+    onBlur: () => notify?.(null),
+  });
+  const lit = useContext(ActiveRegion) === "annexRows";
+  const litStyle = lit ? { background: "#fff9c4" } : undefined;
   const mine = rows.filter((r) => r.after === slot);
   const edit = (id, field, value) =>
     onChange(rows.map((r) => (r.id === id ? { ...r, [field]: value } : r)));
@@ -1064,19 +1321,21 @@ function ExtraRows({ slot }) {
     <>
       {mine.map((r) =>
         onChange ? (
-          <tr key={r.id}>
-            <Td>
+          <tr key={r.id} data-hl="annexRows">
+            <Td style={litStyle}>
               <AutoText
                 value={r.contents}
                 placeholder="Contents"
                 onChange={(v) => edit(r.id, "contents", v)}
+                {...here(r.id)}
               />
             </Td>
-            <Td style={{ position: "relative" }}>
+            <Td style={{ position: "relative", ...litStyle }}>
               <AutoText
                 value={r.remarks}
                 placeholder="Remarks"
                 onChange={(v) => edit(r.id, "remarks", v)}
+                {...here(r.id)}
               />
               <button
                 type="button"
@@ -1150,15 +1409,22 @@ function WorksheetB({ doc }) {
                 </div>
                 <div>
                   Inspection date:{" "}
-                  <Hl k="inspectionDate" empty={!doc.inspectionDate}>
-                    {longDate(doc.inspectionDate)}
-                  </Hl>
+                  <Ed k="inspectionDate" id="inspectionDate" value={doc.inspectionDate} />
                 </div>
-                <div>Date issued: </div>
+                <div>
+                  Date issued:{" "}
+                  <Ed k="dateIssuedText" id="dateIssuedText" value={doc.dateIssuedText} multiline />
+                </div>
               </div>
               <div style={justify}>
-                Approved dosage forms: &nbsp;See attached GMP evidence for the
-                list of approved dosage forms.
+                Approved dosage forms:{" "}
+                <Ed
+                  k="approvedDosageFormsNote"
+                  id="approvedDosageFormsNote"
+                  value={doc.approvedDosageFormsNote}
+                  multiline
+                  fallback="See attached GMP evidence for the list of approved dosage forms."
+                />
               </div>
             </Td>
           </tr>
@@ -1172,7 +1438,7 @@ function WorksheetB({ doc }) {
               <div>GMP Evidence Evaluation Form</div>
             </Td>
             <Td style={{ paddingTop: 18 }}>
-              <DosageGrid withHeadings />
+              <DosageGrid withHeadings doc={doc} />
             </Td>
           </tr>
           <tr>
@@ -1207,9 +1473,10 @@ function WorksheetB({ doc }) {
               The submitted compliance report specifies all the appropriate
               actions taken by the manufacturing company for the deficiencies
               found during the inspection conducted on{" "}
-              <Fill
+              <Ed
                 k="inspectionDate"
-                value={longDate(doc.inspectionDate)}
+                id="inspectionDate"
+                value={doc.inspectionDate}
                 hole="<date of inspection>"
               />{" "}
               by{" "}
@@ -1335,9 +1602,11 @@ function WorksheetB({ doc }) {
         </Tbl>
 
         <Gap h={30} />
-        <ApprovedProducts />
+        <ApprovedProducts doc={doc} />
         <Gap h={24} />
         <RemarksLine doc={doc} />
+        <Gap h={12} />
+        <ComplianceNotes doc={doc} />
         <Gap h={24} />
         <Recommendation doc={doc} variant="B" />
       </Page>
@@ -1392,6 +1661,9 @@ export function FgmpWorksheetPaper({
   annexRows = [],
   onAnnexRowsChange = null,
   editor = null,
+  // called with where the cursor is: { field, rowId? }, or null when it leaves.
+  // `transient` spots (a click, no cursor) are for the caller to clear.
+  onPaperFocus = null,
 }) {
   const [editing, setEditing] = useState(null); // { region, at } while a box is open
   const focused = activeField ? FIELD_REGION[activeField] || activeField : null;
@@ -1414,8 +1686,11 @@ export function FgmpWorksheetPaper({
           editor
             ? {
                 editor,
-                open: (k, el) =>
-                  setEditing({ region: k, at: el.getBoundingClientRect() }),
+                notify: onPaperFocus,
+                open: (k, el) => {
+                  onPaperFocus?.({ field: k, transient: true });
+                  setEditing({ region: k, at: el.getBoundingClientRect() });
+                },
               }
             : null
         }
@@ -1447,7 +1722,9 @@ export function buildWorksheetDoc(data, formData = {}, draft = {}) {
   const base = buildIssuanceDoc(data, formData);
   return {
     ...base,
-    dtn: data?.dtn,
+    // The form's "Reference Number" line. The reference number is the tracking
+    // number; a DTN is only the backup.
+    dtn: data?.reference_number || data?.dtn,
     ltoValidity: formData["Validity"],
     gmpEvidence: draft.gmpEvidence || [],
     issuingAuthority: draft.issuingAuthority || "",
@@ -1459,8 +1736,18 @@ export function buildWorksheetDoc(data, formData = {}, draft = {}) {
     foreignCertificateNumber: draft.foreignCertificateNumber || "",
     foreignCertificateValidity: draft.foreignCertificateValidity || "",
     inspectionDate: draft.inspectionDate || "",
+    dateIssuedText: draft.dateIssuedText || "",
+    approvedDosageFormsNote: draft.approvedDosageFormsNote || "",
+    appliedForms: draft.appliedForms || [],
+    approvedProducts: draft.approvedProducts || [],
+    complianceNotes: draft.complianceNotes || "",
     worksheetRemarks: draft.worksheetRemarks || "",
     annexC: draft.annexC || {},
-    recommendation: recommendationFor(draft.typeOfIssuance, draft.decision),
+    // Only what the evaluator ticked; every box starts empty. (An older draft
+    // may hold "NONE", which also means empty.)
+    recommendation:
+      draft.recommendationChoice && draft.recommendationChoice !== "NONE"
+        ? draft.recommendationChoice
+        : null,
   };
 }

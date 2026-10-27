@@ -1,5 +1,5 @@
 // src/components/eapplication/processes/fgmp/FgmpDetailsModal.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getUser } from "../../../../api/auth";
 import {
   getClaimedApplication,
@@ -9,6 +9,11 @@ import {
   getIssuanceTypes,
   getNextCertificateNumber,
   getApplicationDocuments,
+  getNods,
+  getWorksheet,
+  saveWorksheet,
+  extendNod,
+  receiveNodDocuments,
   getStepActions,
   getStepAssignees,
   submitStepDecision,
@@ -41,15 +46,22 @@ import {
   buildWorksheetDoc,
   GMP_EVIDENCE_OPTIONS,
   ANNEX_C_FIELDS,
+  RECOMMENDATION_LABELS,
 } from "./FgmpWorksheetPaper.jsx";
 
 import { NodForm, NodsCard } from "./FgmpNodParts.jsx";
 import {
+  emptyWorksheet,
+  fromApiWorksheet,
+  hasWorksheetContent,
+  metaFromApi,
+  newFormRow,
+  toApiWorksheet,
+} from "./fgmpWorksheetSync.js";
+import {
   canIssueNod,
-  issueNod,
   latestNod,
-  readNods,
-  writeNods,
+  MAX_NODS,
 } from "./fgmpNod.js";
 
 /* The action that sends the application back to the applicant, and so issues
@@ -437,6 +449,349 @@ function DecisionConfirmModal({
   );
 }
 
+/* Asks before "Start over" throws away what was typed. Only the unsent draft in
+   this browser is cleared; anything already saved on the server stays. */
+function StartOverConfirmModal({ colors, onConfirm, onCancel }) {
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10001,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: colors.cardBg,
+          border: `1px solid ${colors.cardBorder}`,
+          borderRadius: "12px",
+          padding: "1.25rem",
+          width: "400px",
+          maxWidth: "90vw",
+          boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+        }}
+      >
+        <h3
+          style={{
+            margin: "0 0 0.6rem",
+            fontSize: "0.95rem",
+            fontWeight: 700,
+            color: colors.textPrimary,
+          }}
+        >
+          ⚠️ Start over?
+        </h3>
+        <p
+          style={{
+            margin: "0 0 0.9rem",
+            fontSize: "0.75rem",
+            lineHeight: 1.5,
+            color: colors.textTertiary,
+          }}
+        >
+          This clears everything you typed here and have not submitted: the
+          decision, the Notice of Deficiency text, and the whole Evaluation
+          Worksheet, including rows you added. Nothing already saved is
+          affected. This cannot be undone.
+        </p>
+        <div
+          style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}
+        >
+          <button
+            onClick={onCancel}
+            style={{
+              padding: "0.45rem 0.9rem",
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              borderRadius: "6px",
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textPrimary,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            style={{
+              padding: "0.45rem 0.9rem",
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              borderRadius: "6px",
+              border: "none",
+              background: "linear-gradient(135deg,#dc2626,#b91c1c)",
+              color: "#fff",
+              cursor: "pointer",
+            }}
+          >
+            Clear everything
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────── the worksheet's rows, edited from the left column ─────────
+   These are the same rows the paper shows (the paper edits them in place), so
+   a change on either side shows on the other. */
+
+const linkButton = {
+  alignSelf: "flex-start",
+  border: "none",
+  background: "transparent",
+  color: "#2196F3",
+  fontSize: "0.68rem",
+  fontWeight: 700,
+  cursor: "pointer",
+  padding: "0.15rem 0",
+};
+
+function RowCard({ colors, label, onRemove, rowId, children }) {
+  return (
+    <div
+      data-row={rowId}
+      style={{
+        border: `1px solid ${colors.cardBorder}`,
+        borderRadius: "8px",
+        padding: "0.5rem",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.35rem",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontSize: "0.62rem",
+          color: colors.textTertiary,
+        }}
+      >
+        <span>{label}</span>
+        {onRemove && (
+          <button
+            type="button"
+            title="Remove this row"
+            onClick={onRemove}
+            style={{
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textTertiary,
+              borderRadius: "6px",
+              padding: "0 0.5rem",
+              cursor: "pointer",
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/* When the cursor is on the paper, mark the same field in the left column and
+   scroll the column to it. Only the column is scrolled, and the cursor is never
+   moved, so typing on the paper is not interrupted. `target` is
+   { field, rowId? } or null. */
+export function useLeftHighlight(boxRef, target) {
+  const esc = (v) => (window.CSS && window.CSS.escape ? window.CSS.escape(v) : v);
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return undefined;
+    box.querySelectorAll('[data-lit="1"]').forEach((e) => e.removeAttribute("data-lit"));
+    if (!target) return undefined;
+    let el = null;
+    if (target.rowId) {
+      el = box.querySelector(`[data-row="${esc(target.rowId)}"]`);
+    }
+    if (!el && target.field) {
+      const input = box.querySelector(`[data-field="${esc(target.field)}"]`);
+      // the field's own block (label and box), or the list of ticks
+      el = input ? input.closest("div") : null;
+    }
+    if (!el) return undefined;
+    el.setAttribute("data-lit", "1");
+    const spot = el.getBoundingClientRect();
+    const view = box.getBoundingClientRect();
+    if (spot.top < view.top + 6 || spot.bottom > view.bottom - 6) {
+      box.scrollTo({
+        top: box.scrollTop + (spot.top - view.top) - view.height / 3,
+        behavior: "smooth",
+      });
+    }
+    return () => el.removeAttribute("data-lit");
+  }, [boxRef, target]);
+}
+
+// The paper's empty table shows one blank row to type in; the left column
+// does the same, and both use this id, so they agree on which row it is.
+const BLANK_ROW_ID = "blank-row";
+
+/* Annex B and "Approved Medicinal Products": dosage forms (one per line),
+   product type, and operations (one per line) */
+export function DosageRowsEditor({ title, field, rows, setRows, colors, labelStyle, inputStyle }) {
+  // Row 1 is always there to type in. Typing in it makes it a real row, with
+  // the same id, so the box is not replaced and the cursor stays.
+  const shown = rows.length ? rows : [{ ...newFormRow(), id: BLANK_ROW_ID }];
+  const patch = (id, change) =>
+    setRows((cur) => {
+      const list = cur || [];
+      if (!list.some((r) => r.id === id)) {
+        return [...list, { ...newFormRow(), id, ...change }];
+      }
+      return list.map((r) => (r.id === id ? { ...r, ...change } : r));
+    });
+  return (
+    <div>
+      <label style={labelStyle}>{title}</label>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {shown.map((r, i) => (
+          <RowCard
+            key={r.id}
+            rowId={r.id}
+            colors={colors}
+            label={`Row ${i + 1}`}
+            // nothing to remove while Row 1 is only the blank one
+            onRemove={rows.length ? () => setRows((cur) => (cur || []).filter((x) => x.id !== r.id)) : null}
+          >
+            <textarea
+              data-field={field}
+              rows={2}
+              placeholder="Dosage forms, one per line"
+              value={(r.dosageForms || []).join("\n")}
+              onChange={(e) => patch(r.id, { dosageForms: e.target.value.split("\n") })}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+            <input
+              data-field={field}
+              placeholder="Product type, e.g. Sterile"
+              value={r.productType || ""}
+              onChange={(e) => patch(r.id, { productType: e.target.value })}
+              style={inputStyle}
+            />
+            <textarea
+              data-field={field}
+              rows={2}
+              placeholder="Manufacturing operations, one per line"
+              value={(r.operations || []).join("\n")}
+              onChange={(e) => patch(r.id, { operations: e.target.value.split("\n") })}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </RowCard>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            setRows((cur) => {
+              const list = cur || [];
+              // adding to an empty list keeps Row 1 (the blank one) and adds Row 2
+              const first = list.length ? list : [{ ...newFormRow(), id: BLANK_ROW_ID }];
+              return [...first, newFormRow()];
+            })
+          }
+          style={linkButton}
+        >
+          + Add a row
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Where a row added to Annex C sits: after how many of the form's own rows
+const ANNEX_C_PLACES = [
+  "At the top, above “Original or notarized copy of GMP Cert”",
+  "After “Original or notarized copy of GMP Cert”",
+  "After “Copy of the last inspection report…”",
+  "After “Copy of GMP contract…”",
+  "After “Site Master File or equivalent”",
+  "After “Validation Master Plan…”",
+  "After “Rationale for test method validation…”",
+  "After “Procedure for handling deviations and OOS”",
+];
+
+const newAnnexRowId = () =>
+  `r${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/* The extra rows the evaluator adds to Worksheet B's Annex C table */
+export function AnnexRowsEditor({ rows, setRows, colors, labelStyle, inputStyle }) {
+  const patch = (id, change) =>
+    setRows((cur) => (cur || []).map((r) => (r.id === id ? { ...r, ...change } : r)));
+  return (
+    <div>
+      <label style={labelStyle}>Extra Annex C rows</label>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+        {rows.length === 0 && (
+          <div style={{ fontSize: "0.64rem", color: colors.textTertiary }}>
+            No extra rows yet.
+          </div>
+        )}
+        {rows.map((r, i) => (
+          <RowCard
+            key={r.id}
+            rowId={r.id}
+            colors={colors}
+            label={`Extra row ${i + 1}`}
+            onRemove={() => setRows((cur) => (cur || []).filter((x) => x.id !== r.id))}
+          >
+            <select
+              data-field="annexRows"
+              value={r.after}
+              onChange={(e) => patch(r.id, { after: Number(e.target.value) })}
+              style={inputStyle}
+            >
+              {ANNEX_C_PLACES.map((text, k) => (
+                <option key={k} value={k}>
+                  {text}
+                </option>
+              ))}
+            </select>
+            <textarea
+              data-field="annexRows"
+              rows={2}
+              placeholder="Contents"
+              value={r.contents || ""}
+              onChange={(e) => patch(r.id, { contents: e.target.value })}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+            <textarea
+              data-field="annexRows"
+              rows={2}
+              placeholder="Remarks"
+              value={r.remarks || ""}
+              onChange={(e) => patch(r.id, { remarks: e.target.value })}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </RowCard>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            setRows((cur) => [
+              ...(cur || []),
+              { id: newAnnexRowId(), after: ANNEX_C_PLACES.length - 1, contents: "", remarks: "" },
+            ])
+          }
+          style={linkButton}
+        >
+          + Add a row
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function FgmpDetailsModal({
   row,
   colors,
@@ -501,8 +856,47 @@ export default function FgmpDetailsModal({
   const [annexC, setAnnexC] = useState({});
   // Rows the evaluator adds to Annex C on the paper: [{ id, after, contents, remarks }]
   const [annexRows, setAnnexRows] = useState([]);
+  // The Recommendation box the evaluator ticked: "" = none ticked, otherwise
+  // its label. One at a time.
+  const [recommendationChoice, setRecommendationChoice] = useState("");
+  // typed on the paper: the "Date issued" statement, Worksheet B's approved
+  // dosage forms note, the compliance notes, and the two dosage tables
+  const [dateIssuedText, setDateIssuedText] = useState("");
+  const [approvedDosageFormsNote, setApprovedDosageFormsNote] = useState("");
+  const [complianceNotes, setComplianceNotes] = useState("");
+  const [appliedForms, setAppliedForms] = useState([]);
+  const [approvedProducts, setApprovedProducts] = useState([]);
+
+  /* The worksheet is saved on the server (e_app_fgmp_worksheet): the
+     evaluator's draft auto-saves as they type, and the Checker and the later
+     steps read the version that was sent on. */
+  const [worksheetLoaded, setWorksheetLoaded] = useState(false);
+  // what the server last had, so nothing is saved that has not changed
+  const lastSavedRef = useRef("");
+  // "idle" | "pending" | "saving" | "saved" | "error"
+  const [saveState, setSaveState] = useState("idle");
+  const [saveError, setSaveError] = useState(null);
+  const [savedAt, setSavedAt] = useState(null);
+  // version, status and the parts the server fills in (names, dates)
+  const [worksheetMeta, setWorksheetMeta] = useState(null);
+  // for everyone but the evaluator: the version that was sent on
+  const [readWorksheet, setReadWorksheet] = useState(null);
   // which worksheet field has the cursor, so the preview can light it up
   const [activeField, setActiveField] = useState(null);
+  // the other way round: which spot on the paper has the cursor (or was
+  // just clicked), so the left column can mark and scroll to its field
+  const [paperSpot, setPaperSpot] = useState(null);
+  const paperSpotTimer = useRef(null);
+  const leftBoxRef = useRef(null);
+  const onPaperFocus = (spot) => {
+    clearTimeout(paperSpotTimer.current);
+    setPaperSpot(spot);
+    // a click leaves no cursor behind, so its mark fades by itself
+    if (spot?.transient) {
+      paperSpotTimer.current = setTimeout(() => setPaperSpot(null), 1600);
+    }
+  };
+  useLeftHighlight(leftBoxRef, paperSpot);
 
   /* Notice of Deficiency (For Compliance). MOCK-UP: the NODs already issued
      live in this browser only (fgmpNod.js); what is being typed for the next
@@ -512,6 +906,7 @@ export default function FgmpDetailsModal({
   const [nodDocLines, setNodDocLines] = useState([]);
   const [loadingAssignees, setLoadingAssignees] = useState(false);
   const [showDecisionConfirm, setShowDecisionConfirm] = useState(false);
+  const [showStartOverConfirm, setShowStartOverConfirm] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [submittingDecision, setSubmittingDecision] = useState(false);
 
@@ -707,6 +1102,11 @@ export default function FgmpDetailsModal({
             [
               { kind: "details", label: "Application Details", icon: "📋" },
               { kind: "history", label: "Payment History", icon: "💳" },
+              {
+                kind: "worksheet",
+                label: "Evaluation Worksheet",
+                icon: "📝",
+              },
               issuancePaper && {
                 kind: "issuance",
                 label: "Issuance Document",
@@ -780,23 +1180,37 @@ export default function FgmpDetailsModal({
         ? !!assigneeUuid
         : !!evalRemarks.trim());
 
-  /* NODs are kept per user and application in this browser (mock-up) */
-  const nodWho = currentUser?.user_uuid || currentUser?.username || "anon";
+  /* The Notices of Deficiency saved on this application. They are loaded from
+     the server, so everyone who worked on it sees the same ones. A failed load
+     only leaves the list empty; it never blocks the popup. */
   useEffect(() => {
-    setNods(readNods(nodWho, row.referenceNo));
-  }, [nodWho, row.referenceNo]);
-  const saveNods = (next) => {
-    setNods(next);
-    writeNods(nodWho, row.referenceNo, next);
-  };
-  const changeNod = (changed) =>
-    saveNods(nods.map((n) => (n.nodNumber === changed.nodNumber ? changed : n)));
-  const removeNod = (nodNumber) =>
-    saveNods(nods.filter((n) => n.nodNumber !== nodNumber));
+    let cancelled = false;
+    getNods(row.referenceNo)
+      .then((list) => {
+        if (!cancelled) setNods(list);
+      })
+      .catch(() => {
+        if (!cancelled) setNods([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [row.referenceNo]);
+  // Replace one NOD with what the server sent back
+  const putNod = (saved) =>
+    setNods((list) => list.map((n) => (n.nodNumber === saved.nodNumber ? saved : n)));
+  // These throw the server's message, which the NOD card shows under the form
+  const handleExtendNod = async (nodNumber, newDueDate, reason) =>
+    putNod(await extendNod(row.referenceNo, nodNumber, newDueDate, reason));
+  const handleReceiveNod = async (nodNumber, receivedIds, receivedDate) =>
+    putNod(
+      await receiveNodDocuments(row.referenceNo, nodNumber, receivedIds, receivedDate),
+    );
   const nodApplication = {
     manufacturer: data?.foreign_manufacturer,
     country: data?.foreign_manufacturer_country,
-    dtn: data?.dtn,
+    // The reference number is the tracking number; a DTN is only the backup.
+    dtn: data?.reference_number || data?.dtn,
     email: data?.email_address,
   };
   // Only the evaluator who holds the task may extend or record documents
@@ -806,8 +1220,8 @@ export default function FgmpDetailsModal({
       labelStyle={labelStyle}
       inputStyle={inputStyle}
       nods={nods}
-      onChangeNod={changeNod}
-      onRemoveNod={removeNod}
+      onExtend={handleExtendNod}
+      onReceive={handleReceiveNod}
       canAct={canSetIssuance}
       application={nodApplication}
     />
@@ -826,6 +1240,29 @@ export default function FgmpDetailsModal({
   const canSubmit = isDeckingOpen
     ? canSubmitDeckerDecision
     : canSubmitDecision;
+
+  /* Why Submit is greyed out, in words, so nobody has to guess. Empty when
+     nothing is missing. Mirrors the rules above, one reason at a time. */
+  const submitBlocker = (() => {
+    if (!decision) return "choose an action";
+    if (isDeckingOpen) {
+      if (needsEvaluator && !evaluatorUuid) return "choose the evaluator";
+      if (!needsEvaluator && !deckRemarks.trim()) return "write your remarks";
+      return "";
+    }
+    if (isCompliance) {
+      if (nodLimitReached) return `the limit of ${MAX_NODS} NODs is reached`;
+      if (!nodDeficiencies.trim()) return "write what is lacking in the NOD";
+      return "";
+    }
+    if (needsAssignee && !assigneeUuid) return `choose who to assign the ${nextStep} to`;
+    if (!needsAssignee && !evalRemarks.trim()) return "write your remarks";
+    return "";
+  })();
+  // The step the missing piece is on, so the hint can point to it
+  const decisionStepNumber = steps.find(
+    (s) => s.kind === "decision" || s.kind === "deckerDecision",
+  )?.id;
 
   /* Who the decker may hand the application to */
   useEffect(() => {
@@ -862,6 +1299,12 @@ export default function FgmpDetailsModal({
     setWorksheetRemarks(draft.worksheetRemarks || "");
     setAnnexC(draft.annexC || {});
     setAnnexRows(draft.annexRows || []);
+    setRecommendationChoice(draft.recommendationChoice || "");
+    setDateIssuedText(draft.dateIssuedText || "");
+    setApprovedDosageFormsNote(draft.approvedDosageFormsNote || "");
+    setComplianceNotes(draft.complianceNotes || "");
+    setAppliedForms(draft.appliedForms || []);
+    setApprovedProducts(draft.approvedProducts || []);
     setNodDeficiencies(draft.nodDeficiencies || "");
     setNodDocLines(draft.nodDocLines || []);
     setDraftRestored(true);
@@ -884,6 +1327,12 @@ export default function FgmpDetailsModal({
       worksheetRemarks,
       annexC,
       annexRows,
+      recommendationChoice,
+      dateIssuedText,
+      approvedDosageFormsNote,
+      complianceNotes,
+      appliedForms,
+      approvedProducts,
       nodDeficiencies,
       nodDocLines,
     });
@@ -904,9 +1353,157 @@ export default function FgmpDetailsModal({
     worksheetRemarks,
     annexC,
     annexRows,
+    recommendationChoice,
+    dateIssuedText,
+    approvedDosageFormsNote,
+    complianceNotes,
+    appliedForms,
+    approvedProducts,
     nodDeficiencies,
     nodDocLines,
   ]);
+
+  /* ───────── the worksheet on the server ───────── */
+
+  // everything the evaluator has filled in, as one object
+  const worksheetValues = useMemo(
+    () => ({
+      gmpEvidence,
+      issuingAuthority,
+      issuingCountry,
+      foreignCertificateNumber,
+      foreignCertificateValidity,
+      inspectionDate,
+      dateIssuedText,
+      approvedDosageFormsNote,
+      appliedForms,
+      approvedProducts,
+      worksheetRemarks,
+      complianceNotes,
+      recommendationChoice,
+      annexC,
+      annexRows,
+    }),
+    [
+      gmpEvidence,
+      issuingAuthority,
+      issuingCountry,
+      foreignCertificateNumber,
+      foreignCertificateValidity,
+      inspectionDate,
+      dateIssuedText,
+      approvedDosageFormsNote,
+      appliedForms,
+      approvedProducts,
+      worksheetRemarks,
+      complianceNotes,
+      recommendationChoice,
+      annexC,
+      annexRows,
+    ],
+  );
+  const worksheetPayload = useMemo(
+    () => JSON.stringify(toApiWorksheet(worksheetValues)),
+    [worksheetValues],
+  );
+
+  // Load it when the popup opens. What the server has wins over the older
+  // copy in this browser. If the server has none yet, the browser copy (if
+  // any) is simply saved by the auto-save below.
+  useEffect(() => {
+    if (!isWorkflowStepOpen) return undefined;
+    let cancelled = false;
+    setWorksheetLoaded(false);
+    getWorksheet(row.referenceNo)
+      .then((res) => {
+        if (cancelled) return;
+        if (canSetIssuance) {
+          if (res.worksheet) {
+            const v = fromApiWorksheet(res.worksheet);
+            setGmpEvidence(v.gmpEvidence);
+            setIssuingAuthority(v.issuingAuthority);
+            setIssuingCountry(v.issuingCountry);
+            setForeignCertificateNumber(v.foreignCertificateNumber);
+            setForeignCertificateValidity(v.foreignCertificateValidity);
+            setInspectionDate(v.inspectionDate);
+            setDateIssuedText(v.dateIssuedText);
+            setApprovedDosageFormsNote(v.approvedDosageFormsNote);
+            setAppliedForms(v.appliedForms);
+            setApprovedProducts(v.approvedProducts);
+            setWorksheetRemarks(v.worksheetRemarks);
+            setComplianceNotes(v.complianceNotes);
+            setRecommendationChoice(v.recommendationChoice);
+            setAnnexC(v.annexC);
+            setAnnexRows(v.annexRows);
+            lastSavedRef.current = JSON.stringify(toApiWorksheet(v));
+            setWorksheetMeta(metaFromApi(res.worksheet));
+            setSaveState("saved");
+            setSavedAt(res.worksheet.saved_at);
+          } else {
+            lastSavedRef.current = JSON.stringify(toApiWorksheet(emptyWorksheet()));
+          }
+        } else {
+          setReadWorksheet(
+            res.worksheet
+              ? { values: fromApiWorksheet(res.worksheet), meta: metaFromApi(res.worksheet) }
+              : null,
+          );
+        }
+        setWorksheetLoaded(true);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        // Not fatal: the evaluator keeps working from this browser's copy.
+        setSaveError(err.message);
+        if (canSetIssuance) setSaveState("error");
+        setWorksheetLoaded(!canSetIssuance ? true : false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isWorkflowStepOpen, canSetIssuance, row.referenceNo]);
+
+  // Auto-save about a second and a half after the last change
+  const dirtyRef = useRef(false);
+  useEffect(() => {
+    if (!canSetIssuance || !worksheetLoaded) return undefined;
+    if (worksheetPayload === lastSavedRef.current) {
+      dirtyRef.current = false;
+      return undefined;
+    }
+    dirtyRef.current = true;
+    setSaveState("pending");
+    const timer = setTimeout(async () => {
+      setSaveState("saving");
+      try {
+        const res = await saveWorksheet(row.referenceNo, JSON.parse(worksheetPayload));
+        lastSavedRef.current = worksheetPayload;
+        dirtyRef.current = false;
+        setWorksheetMeta(metaFromApi(res.worksheet));
+        setSaveError(null);
+        setSaveState("saved");
+        setSavedAt(res.worksheet?.saved_at || new Date().toISOString());
+      } catch (err) {
+        setSaveError(err.message);
+        setSaveState("error");
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [worksheetPayload, canSetIssuance, worksheetLoaded, row.referenceNo]);
+
+  // Closing the popup within that second and a half must not lose the last edits
+  const closingRef = useRef({});
+  closingRef.current = { payload: worksheetPayload, referenceNo: row.referenceNo };
+  useEffect(
+    () => () => {
+      if (dirtyRef.current) {
+        saveWorksheet(closingRef.current.referenceNo, JSON.parse(closingRef.current.payload)).catch(
+          () => {},
+        );
+      }
+    },
+    [],
+  );
 
   /* A restored action the step no longer allows would sit in the dropdown
      unmatched, so drop it once the real list arrives. */
@@ -984,34 +1581,77 @@ export default function FgmpDetailsModal({
     };
   }, [needsAssignee, nextStep]);
 
+  /* Refresh the task list without making the popup wait for it. The refresh
+     also reloads the unclaimed list from the Appointment System's own
+     database, which can take ~20-30 seconds (or fail) when that server is
+     slow or out of reach. Each list updates itself as it arrives. */
+  const refreshInBackground = () => {
+    Promise.resolve(onPosted?.()).catch(() => {});
+  };
+
+  /* Wipe the whole unsent draft for this step: the decision, the Notice of
+     Deficiency being typed, and every worksheet value. */
+  const startOver = () => {
+    setDecision("");
+    setEvalRemarks("");
+    setAssigneeUuid("");
+    setTypeOfIssuance("");
+    setNodDeficiencies("");
+    setNodDocLines([]);
+    setGmpEvidence([]);
+    setIssuingAuthority("");
+    setIssuingCountry("");
+    setForeignCertificateNumber("");
+    setForeignCertificateValidity("");
+    setInspectionDate("");
+    setWorksheetRemarks("");
+    setAnnexC({});
+    setAnnexRows([]);
+    setRecommendationChoice("");
+    setDateIssuedText("");
+    setApprovedDosageFormsNote("");
+    setComplianceNotes("");
+    setAppliedForms([]);
+    setApprovedProducts([]);
+    clearDraft(row);
+    setDraftRestored(false);
+    setShowStartOverConfirm(false);
+  };
+
   const handleSubmitDecision = async () => {
     if (submittingDecision) return;
     setSubmittingDecision(true);
     setPostError(null);
     try {
-      // Built first, so a problem with the NOD stops the decision before
-      // anything is sent.
-      const newNod = isCompliance
-        ? issueNod(nods, {
-            activity: data?.activity,
-            deficiencies: nodDeficiencies,
-            documentLines: nodDocLines,
-            issuedBy: [currentUser?.first_name, currentUser?.surname]
-              .filter(Boolean)
-              .join(" "),
-          })
-        : null;
+      // For Compliance carries the Notice of Deficiency. The server saves it
+      // with the decision in one step, and fills the remarks from what is
+      // lacking when none were typed.
       await submitStepDecision(row.referenceNo, {
         decision,
-        // For Compliance: the remarks default to what is lacking
-        remarks: evalRemarks.trim() || (isCompliance ? newNod.deficiencies : ""),
+        remarks: evalRemarks.trim(),
         assignee_uuid: needsAssignee ? assigneeUuid : null,
         type_of_issuance: canSetIssuance ? typeOfIssuance || null : null,
+        nod: isCompliance
+          ? {
+              deficiencies: nodDeficiencies.trim(),
+              documents: nodDocLines
+                .map((line) => line.requirementCode.trim())
+                .filter(Boolean),
+            }
+          : null,
+        // The final worksheet goes with the decision, so the last keystrokes
+        // are saved and, when it is forwarded, locked. Nothing is sent for an
+        // untouched worksheet.
+        worksheet:
+          canSetIssuance &&
+          (worksheetMeta || hasWorksheetContent(worksheetValues))
+            ? toApiWorksheet(worksheetValues)
+            : null,
       });
-      if (newNod) writeNods(nodWho, row.referenceNo, [...nods, newNod]);
+      dirtyRef.current = false;
       setShowDecisionConfirm(false);
       clearDraft(row);
-      await onPosted?.();
+      refreshInBackground();
       onClose();
     } catch (err) {
       setShowDecisionConfirm(false);
@@ -1032,7 +1672,7 @@ export default function FgmpDetailsModal({
         evaluator_uuid: needsEvaluator ? evaluatorUuid : null,
       });
       setShowDecisionConfirm(false);
-      await onPosted?.();
+      refreshInBackground();
       onClose();
     } catch (err) {
       setShowDecisionConfirm(false);
@@ -1799,22 +2439,32 @@ export default function FgmpDetailsModal({
      and both are kept only in this browser's draft until the FGMP unit
      confirms where each value belongs and the real columns are added. */
   const worksheetVariant = data?.category === "PIC/S" ? "A" : "B";
-  const worksheetDoc = buildWorksheetDoc(data || {}, formData, {
-    gmpEvidence,
-    issuingAuthority,
-    issuingCountry,
-    foreignCertificateNumber,
-    foreignCertificateValidity,
-    inspectionDate,
-    worksheetRemarks,
-    annexC,
-    typeOfIssuance: previewedIssuance,
-    decision,
+
+  /* The paper's data: the values typed, plus the parts that fill themselves
+     (who evaluated and checked, and when, the NODs, the Email date). The
+     evaluator's own screen falls back to the signed-in user until the first
+     save gives the server's answer. */
+  const docFrom = (values, meta, { forEvaluator }) => {
+    const doc = buildWorksheetDoc(data || {}, formData, values);
+    const evaluator = meta?.evaluatedBy;
+    doc.evaluatedBy =
+      evaluator?.name ||
+      (forEvaluator
+        ? [currentUser?.first_name, currentUser?.surname].filter(Boolean).join(" ")
+        : "");
+    doc.evaluatorDesignation =
+      evaluator?.designation || (forEvaluator ? currentUser?.position || "" : "");
+    doc.evaluatedDates = evaluator?.dates || [];
+    doc.checkedBy = meta?.checkedBy?.name || "";
+    doc.checkerDesignation = meta?.checkedBy?.designation || "";
+    doc.checkedDate = meta?.checkedBy?.date || "";
+    doc.emailDate = latestNod(nods)?.issuedDate || "";
+    doc.nods = nods;
+    return doc;
+  };
+  const worksheetDoc = docFrom(worksheetValues, worksheetMeta, {
+    forEvaluator: true,
   });
-  worksheetDoc.evaluatedBy = [currentUser?.first_name, currentUser?.surname]
-    .filter(Boolean)
-    .join(" ");
-  worksheetDoc.emailDate = latestNod(nods)?.issuedDate || "";
 
   const setAnnexCField = (key, value) =>
     setAnnexC((prev) => ({ ...prev, [key]: value }));
@@ -1832,6 +2482,12 @@ export default function FgmpDetailsModal({
             inspectionDate,
             worksheetRemarks,
             gmpEvidence,
+            recommendationChoice,
+            dateIssuedText,
+            approvedDosageFormsNote,
+            complianceNotes,
+            appliedForms,
+            approvedProducts,
           }[id],
     set: (id, value) => {
       if (id.startsWith("annexC.")) return setAnnexCField(id.slice(7), value);
@@ -1843,6 +2499,12 @@ export default function FgmpDetailsModal({
         inspectionDate: setInspectionDate,
         worksheetRemarks: setWorksheetRemarks,
         gmpEvidence: setGmpEvidence,
+        recommendationChoice: setRecommendationChoice,
+        dateIssuedText: setDateIssuedText,
+        approvedDosageFormsNote: setApprovedDosageFormsNote,
+        complianceNotes: setComplianceNotes,
+        appliedForms: setAppliedForms,
+        approvedProducts: setApprovedProducts,
       };
       return setters[id]?.(value);
     },
@@ -1855,21 +2517,97 @@ export default function FgmpDetailsModal({
         : [...prev, option],
     );
 
+  /* The Checker, Supervisor, LRD Chief and Director read the version the
+     evaluator sent on. Nothing here can be edited. */
+  const renderWorksheetReadOnly = () => {
+    if (!worksheetLoaded) {
+      return (
+        <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
+          {saveError
+            ? `Could not load the worksheet: ${saveError}`
+            : "Loading the worksheet…"}
+        </div>
+      );
+    }
+    if (!readWorksheet) {
+      return (
+        <div style={{ fontSize: "0.72rem", color: colors.textTertiary }}>
+          No worksheet was sent on with this application.
+        </div>
+      );
+    }
+    const { values, meta } = readWorksheet;
+    const doc = docFrom(values, meta, { forEvaluator: false });
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
+        <div style={{ fontSize: "0.7rem", color: colors.textTertiary }}>
+          Prepared by{" "}
+          <strong style={{ color: colors.textPrimary }}>
+            {meta.evaluatedBy.name || "the evaluator"}
+          </strong>
+          {meta.evaluatedBy.designation
+            ? `, ${meta.evaluatedBy.designation}`
+            : ""}{" "}
+          · Version {meta.version} · sent{" "}
+          {meta.savedAt
+            ? new Date(meta.savedAt).toLocaleDateString("en-PH", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })
+            : ""}{" "}
+          · read only
+        </div>
+        <div
+          style={{
+            padding: "0.8rem",
+            borderRadius: "10px",
+            background: "rgba(100,116,139,0.2)",
+          }}
+        >
+          <FgmpWorksheetPaper
+            doc={doc}
+            variant={meta.variant}
+            annexRows={values.annexRows}
+          />
+        </div>
+      </div>
+    );
+  };
+
   const renderWorksheet = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+      {/* saved on the server as you type; the Checker reads what you send on */}
       <div
         style={{
           padding: "0.5rem 0.7rem",
           borderRadius: "6px",
           fontSize: "0.66rem",
           lineHeight: 1.5,
-          background: "rgba(245,158,11,0.12)",
-          color: "#b45309",
+          background:
+            saveState === "error"
+              ? "rgba(220,38,38,0.1)"
+              : "rgba(34,197,94,0.1)",
+          color: saveState === "error" ? "#dc2626" : "#15803d",
         }}
       >
-        Not yet saved to the application record — kept only in your browser,
-        and not visible to the Checker. For your own working notes while
-        evaluating.
+        {saveState === "error"
+          ? `Could not save the worksheet (${saveError}). It is kept in this browser and saved again when you change something.`
+          : saveState === "pending" || saveState === "saving"
+            ? "Saving…"
+            : saveState === "saved" && savedAt
+              ? `Saved at ${new Date(savedAt).toLocaleTimeString("en-PH", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}`
+              : "Saved automatically as you type."}
+        {worksheetMeta
+          ? ` · Version ${worksheetMeta.version}${
+              worksheetMeta.status === "SUBMITTED"
+                ? " (already sent on — a change starts a new version)"
+                : " (draft)"
+            } · The Checker sees the version you send on.`
+          : " · The Checker sees the version you send on."}
       </div>
 
       {/* Fields on the left, the worksheet building up on the right. The
@@ -1891,6 +2629,7 @@ export default function FgmpDetailsModal({
           each input names itself in data-field, and the paper lights up the
           matching spot. */}
       <div
+        ref={leftBoxRef}
         onFocus={(e) => setActiveField(e.target.dataset?.field || null)}
         onBlur={() => setActiveField(null)}
         style={{
@@ -1903,6 +2642,7 @@ export default function FgmpDetailsModal({
           overflowY: "auto",
         }}
       >
+      <style>{`[data-lit="1"] { box-shadow: 0 0 0 2px #f59e0b; background: rgba(255,241,118,0.3) !important; border-radius: 6px; }`}</style>
       <Section
         title={`Worksheet ${worksheetVariant} — ${
           worksheetVariant === "A" ? "PIC/S" : "Non-PIC/S"
@@ -1991,15 +2731,61 @@ export default function FgmpDetailsModal({
           </div>
 
           <div>
-            <label style={labelStyle}>Inspection Date</label>
+            <label style={labelStyle}>Inspection Date(s)</label>
             <input
-              type="date"
               data-field="inspectionDate"
               style={inputStyle}
               value={inspectionDate}
               onChange={(e) => setInspectionDate(e.target.value)}
+              placeholder="e.g. 13-15 August 2025, or N/A"
             />
           </div>
+
+          <div>
+            <label style={labelStyle}>Date issued (GMP evidence statement)</label>
+            <textarea
+              data-field="dateIssuedText"
+              value={dateIssuedText}
+              onChange={(e) => setDateIssuedText(e.target.value)}
+              placeholder="Printed after “Date issued:” on the form"
+              rows={3}
+              style={{ ...inputStyle, resize: "vertical" }}
+            />
+          </div>
+
+          {worksheetVariant === "B" && (
+            <div>
+              <label style={labelStyle}>Approved dosage forms note</label>
+              <textarea
+                data-field="approvedDosageFormsNote"
+                value={approvedDosageFormsNote}
+                onChange={(e) => setApprovedDosageFormsNote(e.target.value)}
+                placeholder="Left empty, the form's own sentence is printed"
+                rows={2}
+                style={{ ...inputStyle, resize: "vertical" }}
+              />
+            </div>
+          )}
+
+          <DosageRowsEditor
+            title="Annex B — dosage forms applied"
+            field="appliedForms"
+            rows={appliedForms}
+            setRows={setAppliedForms}
+            colors={colors}
+            labelStyle={labelStyle}
+            inputStyle={inputStyle}
+          />
+
+          <DosageRowsEditor
+            title="Approved Medicinal Products"
+            field="approvedProducts"
+            rows={approvedProducts}
+            setRows={setApprovedProducts}
+            colors={colors}
+            labelStyle={labelStyle}
+            inputStyle={inputStyle}
+          />
 
           <div>
             <label style={labelStyle}>Remarks</label>
@@ -2011,6 +2797,69 @@ export default function FgmpDetailsModal({
               rows={4}
               style={{ ...inputStyle, resize: "vertical" }}
             />
+          </div>
+
+          {worksheetVariant === "B" && (
+            <div>
+              <label style={labelStyle}>
+                If for compliance, deficiency noted
+              </label>
+              <textarea
+                data-field="complianceNotes"
+                value={complianceNotes}
+                onChange={(e) => setComplianceNotes(e.target.value)}
+                placeholder="Extra notes. The Notices of Deficiency are listed on the form automatically."
+                rows={3}
+                style={{ ...inputStyle, resize: "vertical" }}
+              />
+            </div>
+          )}
+
+          <div>
+            <label style={labelStyle}>Recommendation</label>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "0.3rem" }}
+            >
+              {RECOMMENDATION_LABELS.filter(
+                // Worksheet A's form has no FOR INSPECTION box
+                (l) => worksheetVariant === "B" || l !== "FOR INSPECTION",
+              ).map((l) => (
+                <label
+                  key={l}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    fontSize: "0.7rem",
+                    color: colors.textPrimary,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    data-field="recommendationChoice"
+                    checked={worksheetDoc.recommendation === l}
+                    // ticking one moves the tick; ticking it again empties it
+                    onChange={() =>
+                      setRecommendationChoice(
+                        worksheetDoc.recommendation === l ? "" : l,
+                      )
+                    }
+                  />
+                  {l}
+                </label>
+              ))}
+            </div>
+            <div
+              style={{
+                fontSize: "0.6rem",
+                color: colors.textTertiary,
+                marginTop: "0.25rem",
+              }}
+            >
+              Tick one, or leave all empty. Only for the worksheet; it does not
+              change the action you submit.
+            </div>
           </div>
 
           {/* Worksheet B only: the red prompts in Annex C. Left empty, the
@@ -2056,6 +2905,13 @@ export default function FgmpDetailsModal({
                   )}
                 </div>
               ))}
+              <AnnexRowsEditor
+                rows={annexRows}
+                setRows={setAnnexRows}
+                colors={colors}
+                labelStyle={labelStyle}
+                inputStyle={inputStyle}
+              />
             </div>
           )}
         </div>
@@ -2078,6 +2934,7 @@ export default function FgmpDetailsModal({
           doc={worksheetDoc}
           variant={worksheetVariant}
           activeField={activeField}
+          onPaperFocus={onPaperFocus}
           annexRows={annexRows}
           onAnnexRowsChange={setAnnexRows}
           editor={worksheetEditor}
@@ -2124,16 +2981,7 @@ export default function FgmpDetailsModal({
                 submitted.
               </span>
               <button
-                onClick={() => {
-                  setDecision("");
-                  setEvalRemarks("");
-                  setAssigneeUuid("");
-                  setTypeOfIssuance("");
-                  setNodDeficiencies("");
-                  setNodDocLines([]);
-                  clearDraft(row);
-                  setDraftRestored(false);
-                }}
+                onClick={() => setShowStartOverConfirm(true)}
                 style={{
                   border: "none",
                   background: "transparent",
@@ -2342,7 +3190,8 @@ export default function FgmpDetailsModal({
     if (kind === "details") return renderStep1();
     if (kind === "issuance") return renderIssuanceDocument();
     if (kind === "deckerDecision") return renderDeckerDecision();
-    if (kind === "worksheet") return renderWorksheet();
+    if (kind === "worksheet")
+      return canSetIssuance ? renderWorksheet() : renderWorksheetReadOnly();
     if (kind === "decision") return renderStepDecision();
     if (kind === "history") return renderHistory();
 
@@ -2519,6 +3368,16 @@ export default function FgmpDetailsModal({
                     canPost && step === 3 && hasBalance
                       ? ` — payment is short by ${peso(balance)}, continue to Step 4`
                       : ""
+                  }${
+                    step === lastStep &&
+                    (isDeckingOpen || isWorkflowStepOpen) &&
+                    submitBlocker
+                      ? ` — can't submit yet: ${submitBlocker}${
+                          decisionStepNumber
+                            ? ` (go back to Step ${decisionStepNumber})`
+                            : ""
+                        }`
+                      : ""
                   }`}
             </span>
             <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -2571,6 +3430,14 @@ export default function FgmpDetailsModal({
             paidSoFar={totalPaid}
             onConfirm={confirmAddPayment}
             onCancel={() => setShowAddConfirm(false)}
+          />
+        )}
+
+        {showStartOverConfirm && (
+          <StartOverConfirmModal
+            colors={colors}
+            onConfirm={startOver}
+            onCancel={() => setShowStartOverConfirm(false)}
           />
         )}
 

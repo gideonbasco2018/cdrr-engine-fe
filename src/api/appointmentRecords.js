@@ -407,3 +407,137 @@ export const submitStepDecision = async (referenceNo, payload) => {
     throw new Error(errorMessage);
   }
 };
+/* ───────── Notices of Deficiency (For Compliance) ───────── */
+
+/* The API's snake_case NOD, in the shape the screens use (see fgmpNod.js) */
+const mapNod = (nod) => ({
+  nodNumber: nod.nod_number,
+  activity: nod.activity,
+  deficiencies: nod.deficiencies,
+  requestedDocuments: (nod.requested_documents || []).map((d) => ({
+    id: d.id,
+    requirementCode: d.requirement_code,
+    status: d.status,
+    documentId: d.document_id ?? null,
+    filename: d.filename ?? null,
+  })),
+  issuedDate: nod.issued_date,
+  workingDays: nod.working_days,
+  dueDate: nod.due_date,
+  extendedDueDate: nod.extended_due_date || null,
+  extensionReason: nod.extension_reason || null,
+  extendedAt: nod.extended_at || null,
+  documentsReceivedDate: nod.documents_received_date || null,
+  status: nod.status,
+  issuedBy: nod.issued_by || "",
+  emailSentAt: nod.email_sent_at || null,
+});
+
+const nodError = (error, fallback) => {
+  const detail = error.response?.data?.detail;
+  return new Error(
+    (typeof detail === "string" ? detail : null) || error.message || fallback,
+  );
+};
+
+/**
+ * The Notices of Deficiency issued on an application
+ * @param {string} referenceNo
+ */
+export const getNods = async (referenceNo) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/nods`,
+    );
+    return response.data.map(mapNod);
+  } catch (error) {
+    throw nodError(error, "Failed to fetch the Notices of Deficiency");
+  }
+};
+
+/**
+ * Give an NOD more time. Only forward, and a reason is required.
+ * @param {string} referenceNo
+ * @param {number} nodNumber
+ * @param {string} newDueDate YYYY-MM-DD
+ * @param {string} reason
+ */
+export const extendNod = async (referenceNo, nodNumber, newDueDate, reason) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/nods/${nodNumber}/extend`,
+      { new_due_date: newDueDate, reason },
+    );
+    return mapNod(response.data);
+  } catch (error) {
+    throw nodError(error, "Failed to extend the due date");
+  }
+};
+
+/**
+ * Record which requested documents came in. Once all are in, the NOD is complied.
+ * @param {string} referenceNo
+ * @param {number} nodNumber
+ * @param {string[]} receivedIds the `id` of each document received now
+ * @param {string} receivedDate YYYY-MM-DD
+ */
+export const receiveNodDocuments = async (
+  referenceNo,
+  nodNumber,
+  receivedIds,
+  receivedDate,
+) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/nods/${nodNumber}/receive`,
+      { received_ids: receivedIds, received_date: receivedDate },
+    );
+    return mapNod(response.data);
+  } catch (error) {
+    throw nodError(error, "Failed to record the documents");
+  }
+};
+
+/* ───────── The evaluator's GMP Clearance Worksheet ───────── */
+
+const worksheetError = (error, fallback) => {
+  const detail = error.response?.data?.detail;
+  return new Error(
+    (typeof detail === "string" ? detail : null) || error.message || fallback,
+  );
+};
+
+/**
+ * The worksheet, as the server holds it. The evaluator holding the task gets
+ * their latest version (a draft too) and can_edit true; everyone else gets the
+ * latest version that was sent on, or null.
+ * @param {string} referenceNo
+ * @returns {Promise<{ worksheet: object|null, can_edit: boolean }>}
+ */
+export const getWorksheet = async (referenceNo) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/worksheet`,
+    );
+    return response.data;
+  } catch (error) {
+    throw worksheetError(error, "Failed to fetch the worksheet");
+  }
+};
+
+/**
+ * Auto-save the evaluator's worksheet (the whole thing, in the server's shape).
+ * @param {string} referenceNo
+ * @param {object} payload see toApiWorksheet in fgmpWorksheetSync.js
+ */
+export const saveWorksheet = async (referenceNo, payload) => {
+  try {
+    const response = await API.put(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/worksheet`,
+      payload,
+    );
+    return response.data;
+  } catch (error) {
+    throw worksheetError(error, "Failed to save the worksheet");
+  }
+};

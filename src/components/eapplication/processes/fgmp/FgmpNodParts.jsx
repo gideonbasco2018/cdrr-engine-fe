@@ -4,8 +4,8 @@
 //   NodForm   - what the evaluator fills in when they pick For Compliance
 //   NodsCard  - the list of NODs already issued, with Extend / Received
 //
-// MOCK-UP. NODs live in this browser only (see fgmpNod.js); nothing is saved
-// to the server and no email is sent. The email shown is a draft preview.
+// NODs are saved by the server (e_app_notice_of_deficiency). No email is sent
+// yet: the email shown is only a draft preview.
 
 import { useState } from "react";
 import {
@@ -14,12 +14,10 @@ import {
   addWorkingDays,
   buildNodEmail,
   effectiveDueDate,
-  extendNod,
   formatNodDate,
   newDocumentLine,
   nodStatus,
   ordinal,
-  receiveDocuments,
   todayISO,
 } from "./fgmpNod.js";
 
@@ -168,8 +166,8 @@ export function NodForm({
       </div>
 
       <MockNotice>
-        Mock-up — not saved to the application record and no email is sent.
-        The NOD is kept only in this browser.
+        No email is sent yet. The email below is only a draft. The NOD is saved
+        when you submit this decision.
       </MockNotice>
 
       <div>
@@ -264,13 +262,14 @@ export function NodForm({
 
 /* ───────── one NOD in the list ───────── */
 
-function NodRow({ nod, colors, labelStyle, inputStyle, application, canAct, onChange, onRemove }) {
+function NodRow({ nod, colors, labelStyle, inputStyle, application, canAct, onExtend, onReceive }) {
   const [panel, setPanel] = useState(null); // "extend" | "receive" | "email"
   const [extendDate, setExtendDate] = useState("");
   const [extendReason, setExtendReason] = useState("");
   const [receivedIds, setReceivedIds] = useState([]);
   const [receivedDate, setReceivedDate] = useState(todayISO());
   const [problem, setProblem] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const status = nodStatus(nod);
   const look = STATUS_LOOK[status];
@@ -281,13 +280,18 @@ function NodRow({ nod, colors, labelStyle, inputStyle, application, canAct, onCh
     setProblem(null);
     setPanel((p) => (p === name ? null : name));
   };
-  const attempt = (make) => {
+  // Calls the server; its message (a refused date, a missing reason) is shown
+  // as it is, and the panel stays open so nothing typed is lost.
+  const attempt = async (call) => {
+    setSaving(true);
+    setProblem(null);
     try {
-      onChange(make());
+      await call();
       setPanel(null);
-      setProblem(null);
     } catch (e) {
       setProblem(e.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -376,11 +380,6 @@ function NodRow({ nod, colors, labelStyle, inputStyle, application, canAct, onCh
             <button style={link} onClick={() => toggle("receive")}>Documents received</button>
           </>
         )}
-        {canAct && (
-          <button style={{ ...link, color: "#dc2626" }} onClick={onRemove}>
-            Remove (mock-up)
-          </button>
-        )}
       </div>
 
       {panel === "email" && (
@@ -420,9 +419,12 @@ function NodRow({ nod, colors, labelStyle, inputStyle, application, canAct, onCh
           </div>
           <button
             style={{ ...link, alignSelf: "flex-start" }}
-            onClick={() => attempt(() => extendNod(nod, extendDate, extendReason))}
+            disabled={saving}
+            onClick={() =>
+              attempt(() => onExtend(nod.nodNumber, extendDate, extendReason))
+            }
           >
-            Save extension
+            {saving ? "Saving…" : "Save extension"}
           </button>
         </div>
       )}
@@ -462,9 +464,12 @@ function NodRow({ nod, colors, labelStyle, inputStyle, application, canAct, onCh
           </div>
           <button
             style={{ ...link, alignSelf: "flex-start" }}
-            onClick={() => attempt(() => receiveDocuments(nod, receivedIds, receivedDate))}
+            disabled={saving}
+            onClick={() =>
+              attempt(() => onReceive(nod.nodNumber, receivedIds, receivedDate))
+            }
           >
-            Save
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       )}
@@ -483,9 +488,9 @@ export function NodsCard({
   labelStyle,
   inputStyle,
   nods,
-  onChangeNod,
-  onRemoveNod,
-  canAct, // only the evaluator may extend / record documents / remove
+  onExtend,
+  onReceive,
+  canAct, // only the evaluator may extend / record documents
   application,
 }) {
   if (nods.length === 0) return null;
@@ -495,10 +500,6 @@ export function NodsCard({
       colors={colors}
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-        <MockNotice>
-          Mock-up — these NODs are kept only in this browser, so other people
-          cannot see them yet.
-        </MockNotice>
         {[...nods]
           .sort((a, b) => b.nodNumber - a.nodNumber)
           .map((nod) => (
@@ -510,8 +511,8 @@ export function NodsCard({
               inputStyle={inputStyle}
               application={application}
               canAct={canAct}
-              onChange={(next) => onChangeNod(next)}
-              onRemove={() => onRemoveNod(nod.nodNumber)}
+              onExtend={onExtend}
+              onReceive={onReceive}
             />
           ))}
       </div>

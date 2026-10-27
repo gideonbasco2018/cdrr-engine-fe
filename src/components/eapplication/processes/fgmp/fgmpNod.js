@@ -1,15 +1,14 @@
 // src/components/eapplication/processes/fgmp/fgmpNod.js
 //
-// The rules for a Notice of Deficiency (NOD), the paper trail behind the
-// "For Compliance" action. Plain functions with no screen code, so they can
-// be tested on their own.
+// What the screens need to show a Notice of Deficiency (NOD), the paper trail
+// behind the "For Compliance" action: dates, status, the email draft.
 //
-// MOCK-UP: there is no backend table yet (the proposed `e_app_nod` is waiting
-// on the senior). NODs are kept in this browser only (readNods / writeNods),
-// so nobody else can see them. One NOD here has the same fields as one row of
-// the proposed table, so connecting it later means swapping where NODs are
-// read and written, not redesigning the screens:
+// The real work is done by the server (app/services/fgmp_nod.py), which saves
+// NODs in the e_app_notice_of_deficiency table and enforces the rules:
+// 5 working days, at most 5 NODs, extensions only forward. The date and limit
+// rules here only preview what the server will do, so change both together.
 //
+// One NOD, as the screens hold it (see mapNod in api/appointmentRecords.js):
 //   nodNumber, activity, deficiencies, requestedDocuments, issuedDate,
 //   workingDays, dueDate, extendedDueDate, extensionReason, extendedAt,
 //   documentsReceivedDate, status, issuedBy
@@ -19,7 +18,6 @@
 export const MAX_NODS = 5;
 export const NOD_WORKING_DAYS = 5;
 
-export const STATUS_WAITING = "WAITING";
 export const STATUS_COMPLIED = "COMPLIED";
 
 /* ───────── dates ───────── */
@@ -61,7 +59,7 @@ export function addWorkingDays(startISO, days) {
   return toISODate(date);
 }
 
-/* ───────── one NOD ───────── */
+/* ───────── NODs ───────── */
 
 export const ordinal = (n) => {
   const rest = n % 100;
@@ -69,53 +67,19 @@ export const ordinal = (n) => {
   return `${n}${{ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th"}`;
 };
 
+/* The unit allows up to MAX_NODS per application. The server refuses the
+   next one; this lets the screen say so before anyone fills the form. */
 export const canIssueNod = (nods) => nods.length < MAX_NODS;
 
-export const nextNodNumber = (nods) =>
-  nods.reduce((max, n) => Math.max(max, n.nodNumber), 0) + 1;
-
-/* A fresh id for a typed document line */
+/* A fresh id for a typed document line (screen only; the server gives each
+   saved document its own id) */
 const lineId = () =>
   `d${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 export const newDocumentLine = (text = "") => ({
   id: lineId(),
-  // same name the real table's requested_documents uses
   requirementCode: text,
-  status: "REQUESTED",
-  documentId: null, // e_app_documents.id once the file is uploaded
-  filename: null,
 });
-
-/* Build the NOD that issuing "For Compliance" creates. Throws if it cannot. */
-export function issueNod(
-  nods,
-  { activity, deficiencies, documentLines = [], issuedBy, issuedDate = todayISO() },
-) {
-  if (!canIssueNod(nods)) {
-    throw new Error(`Maximum of ${MAX_NODS} NODs reached`);
-  }
-  const text = (deficiencies || "").trim();
-  if (!text) throw new Error("Write what is lacking");
-  return {
-    nodNumber: nextNodNumber(nods),
-    activity: activity || "",
-    deficiencies: text,
-    // blank lines are dropped; each kept line starts as REQUESTED
-    requestedDocuments: documentLines
-      .filter((line) => line.requirementCode.trim())
-      .map((line) => ({ ...line, requirementCode: line.requirementCode.trim() })),
-    issuedDate,
-    workingDays: NOD_WORKING_DAYS,
-    dueDate: addWorkingDays(issuedDate, NOD_WORKING_DAYS),
-    extendedDueDate: null,
-    extensionReason: null,
-    extendedAt: null,
-    documentsReceivedDate: null,
-    status: STATUS_WAITING,
-    issuedBy: issuedBy || "",
-  };
-}
 
 /* The date that counts: the latest extension, else the original due date */
 export const effectiveDueDate = (nod) => nod.extendedDueDate || nod.dueDate;
@@ -127,46 +91,7 @@ export function nodStatus(nod, today = todayISO()) {
   return today > effectiveDueDate(nod) ? "OVERDUE" : "WAITING";
 }
 
-/* The deadline may be extended, and extended again, but only forward */
-export function extendNod(nod, newDueDate, reason, today = todayISO()) {
-  if (nod.status === STATUS_COMPLIED) {
-    throw new Error("This NOD is already complied");
-  }
-  if (!newDueDate) throw new Error("Pick the new due date");
-  if (newDueDate <= effectiveDueDate(nod)) {
-    throw new Error("The new due date must be later than the current one");
-  }
-  if (!(reason || "").trim()) throw new Error("Write the reason for the extension");
-  return {
-    ...nod,
-    extendedDueDate: newDueDate,
-    extensionReason: reason.trim(),
-    extendedAt: today,
-  };
-}
-
-/* Record which requested documents came in. Once every one is in, the NOD is
-   complied and the date is kept. With nothing requested, `receivedIds` is
-   ignored and the date alone completes it. */
-export function receiveDocuments(nod, receivedIds, receivedDate = todayISO()) {
-  if (nod.status === STATUS_COMPLIED) {
-    throw new Error("This NOD is already complied");
-  }
-  if (!receivedDate) throw new Error("Pick the date the documents were received");
-  const ticked = new Set(receivedIds);
-  const requestedDocuments = nod.requestedDocuments.map((doc) =>
-    ticked.has(doc.id) ? { ...doc, status: "RECEIVED" } : doc,
-  );
-  const allIn = requestedDocuments.every((doc) => doc.status === "RECEIVED");
-  return {
-    ...nod,
-    requestedDocuments,
-    status: allIn ? STATUS_COMPLIED : STATUS_WAITING,
-    documentsReceivedDate: allIn ? receivedDate : null,
-  };
-}
-
-/* The NOD still waiting that was issued last, if any */
+/* The NOD issued last, if any */
 export const latestNod = (nods) =>
   nods.length ? nods.reduce((a, b) => (b.nodNumber > a.nodNumber ? b : a)) : null;
 
@@ -198,28 +123,4 @@ export function buildNodEmail({ manufacturer, country, dtn, deficiencies, dueDat
     subject: `Notice of Deficiency - tracking no. ${dtn || ""}`.trim(),
     body: lines.join("\n"),
   };
-}
-
-/* ───────── this browser's copy (mock-up only) ───────── */
-
-const STORE_PREFIX = "fgmp-nod-mock";
-
-const storeKey = (who, referenceNo) => `${STORE_PREFIX}:${who}:${referenceNo}`;
-
-export function readNods(who, referenceNo) {
-  try {
-    const list = JSON.parse(localStorage.getItem(storeKey(who, referenceNo)) || "[]");
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return []; // blocked storage, or something else wrote over the key
-  }
-}
-
-export function writeNods(who, referenceNo, nods) {
-  try {
-    if (nods.length === 0) localStorage.removeItem(storeKey(who, referenceNo));
-    else localStorage.setItem(storeKey(who, referenceNo), JSON.stringify(nods));
-  } catch {
-    // storage full or blocked: the NOD simply is not kept
-  }
 }
