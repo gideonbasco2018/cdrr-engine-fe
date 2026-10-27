@@ -1,6 +1,6 @@
 // src/components/applicationCorrection/docHelpers.js
 
-export const MAX_FILE_SIZE = 5 * 1024 * 1024;
+export const MAX_FILE_SIZE = 400 * 1024 * 1024;
 export const ACCEPTED_TYPES = {
   "application/pdf": "pdf",
   "image/jpeg": "image",

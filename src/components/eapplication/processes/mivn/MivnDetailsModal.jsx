@@ -6,16 +6,20 @@ import {
   getDeckingEvaluators,
   submitDeckingDecision,
 } from "../../../../api/appointmentRecords.js";
+
 import {
   PdfViewer,
+  StepProgress,
   ConfirmPostModal,
   ConfirmAddPaymentModal,
 } from "../../paymentVerification/PaymentShared.jsx";
+
 import {
   OrderOfPaymentPaper,
   AdditionalOopPaper,
   AcknowledgementReceiptPaper,
 } from "./MivnPapers.jsx";
+import MivnNotificationForm from "./MivnNotificationForm.jsx";
 
 const PAYMENT_TYPES = [
   "FDA Cashier",
@@ -367,12 +371,14 @@ export default function MivnDetailsModal({
     ? [
         { id: 1, label: "Application Details", icon: "📋" },
         { id: 2, label: "Payment History", icon: "💳" },
-        { id: 3, label: "Decker Decision", icon: "🗂️" },
+        { id: 3, label: "Notification Form", icon: "📝" },
+        { id: 4, label: "Decker Decision", icon: "🗂️" },
       ]
     : !canPost
       ? [
           { id: 1, label: "Application Details", icon: "📋" },
           { id: 2, label: "Payment History", icon: "💳" },
+          { id: 3, label: "Notification Form", icon: "📝" },
         ]
       : [
           { id: 1, label: "Application Details", icon: "📋" },
@@ -536,65 +542,115 @@ export default function MivnDetailsModal({
   /* ───────────── Step 1: Application Details ───────────── */
   const renderStep1 = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+      {/* Two balanced columns: left = application + establishment,
+          right = product. alignItems "start" keeps each card at its own
+          height, so no empty stretched space inside a card. */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
           gap: "0.9rem",
+          alignItems: "start",
         }}
       >
-        <Section title="Application Information" colors={colors}>
-          <Field
-            label="Reference Number"
-            value={data.reference_number}
-            colors={colors}
-          />
-          <Field label="Activity" value={data.activity} colors={colors} />
-          <Field
-            label="Application Type"
-            value={data.application_type}
-            colors={colors}
-          />
-          <Field
-            label="Scheduled Date"
-            value={formData["Scheduled Date"]}
-            colors={colors}
-          />
-          <Field
-            label="Time Slot"
-            value={formData["Time Slot"]}
-            colors={colors}
-          />
-          <Field label="Remarks" value={formData["Remarks"]} colors={colors} />
-        </Section>
-        <Section title="Product" colors={colors}>
-          {PRODUCT_FIELDS.map((key) => (
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}
+        >
+          <Section title="Application Information" colors={colors}>
             <Field
-              key={key}
-              label={key}
-              value={formData[key]}
+              label="Reference Number"
+              value={data.reference_number}
               colors={colors}
             />
-          ))}
-        </Section>
+            <Field label="Activity" value={data.activity} colors={colors} />
+            <Field
+              label="Application Type"
+              value={data.application_type}
+              colors={colors}
+            />
 
-        <Section title="Establishment" colors={colors}>
-          <Field
-            label="Company"
-            value={data.applicant_company}
-            colors={colors}
-          />
-          <Field label="LTO Number" value={data.lto_no} colors={colors} />
-          <Field
-            label="LTO Validity"
-            value={formData["Validity"]}
-            colors={colors}
-          />
-          <Field label="TIN" value={data.tin} colors={colors} />
-          <Field label="Email" value={data.email_address} colors={colors} />
-          <Field label="Contact No." value={data.contact_no} colors={colors} />
-          <Field label="Address" value={data.address} colors={colors} />
-        </Section>
+            <Field
+              label="Scheduled Date"
+              value={formData["Scheduled Date"]}
+              colors={colors}
+            />
+            <Field
+              label="Time Slot"
+              value={formData["Time Slot"]}
+              colors={colors}
+            />
+            <Field
+              label="Date Submitted"
+              value={formData["Timestamp"]}
+              colors={colors}
+            />
+            <Field
+              label="Remarks"
+              value={formData["Remarks"]}
+              colors={colors}
+            />
+          </Section>
+
+          <Section title="Establishment" colors={colors}>
+            <Field
+              label="Company"
+              value={data.applicant_company}
+              colors={colors}
+            />
+            <Field label="LTO Number" value={data.lto_no} colors={colors} />
+            <Field
+              label="LTO Validity"
+              value={formData["Validity"]}
+              colors={colors}
+            />
+            <Field label="TIN" value={data.tin} colors={colors} />
+            <Field label="Email" value={data.email_address} colors={colors} />
+            <Field
+              label="Contact No."
+              value={data.contact_no}
+              colors={colors}
+            />
+            <Field label="Address" value={data.address} colors={colors} />
+          </Section>
+        </div>
+
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}
+        >
+          <Section title="Product" colors={colors}>
+            {PRODUCT_FIELDS.map((key) => (
+              <Field
+                key={key}
+                label={key}
+                value={formData[key]}
+                colors={colors}
+              />
+            ))}
+          </Section>
+
+          <Section title="Application Fees" colors={colors}>
+            <Field
+              label="Application Fee"
+              value={peso(formData["Application Fee"])}
+              colors={colors}
+            />
+            <Field
+              label="Legal Research Fee"
+              value={peso(formData["Application LRF"])}
+              colors={colors}
+            />
+            <Field
+              label="Surcharge"
+              value={peso(formData["Application Surcharge"])}
+              colors={colors}
+            />
+            <Field
+              label="Total Amount"
+              value={peso(formData["Application Total Amount"])}
+              colors={colors}
+            />
+          </Section>
+        </div>
       </div>
 
       <Section title={`Parties (${parties.length})`} colors={colors}>
@@ -928,38 +984,257 @@ export default function MivnDetailsModal({
     </div>
   );
 
-  /* Step 2 when there is nothing left to pay: history only */
+  /* Step 2 when there is nothing left to pay: history only.
+     Each Order of Payment is one row: PDF preview on the left,
+     its details on the right. */
   const renderHistory = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
-      <Section title="Orders of Payment" colors={colors}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th style={thStyle}>Type</th>
-                <th style={thStyle}>OP Number</th>
-                <th style={{ ...thStyle, textAlign: "right" }}>Total Amount</th>
-                <th style={thStyle}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ops.map((op) => (
-                <tr key={op.op_uuid}>
-                  <td style={tdStyle}>{op.op_type}</td>
-                  <td style={tdStyle}>{op.op_number || referenceNumber}</td>
-                  <td
-                    style={{ ...tdStyle, textAlign: "right", fontWeight: 600 }}
+      {ops.map((op, index) => {
+        const isAdditional = op.op_type === "ADDITIONAL";
+        const opRefNo = op.op_number || referenceNumber;
+        // Payments posted on the OPs issued before this one
+        const paidBefore = ops
+          .slice(0, index)
+          .flatMap((o) => o.verifications || [])
+          .reduce((sum, v) => sum + Number(v.amount_paid), 0);
+        const statusColor =
+          op.status === "PAID"
+            ? "#059669"
+            : op.status === "UNPAID"
+              ? "#ef4444"
+              : colors.textPrimary;
+
+        const details = [
+          ["Type", op.op_type],
+          ["OP Number", opRefNo],
+          ["Total Amount", peso(op.total_amount)],
+        ];
+
+        // Payments posted against this Order of Payment
+        const opPayments = op.verifications || [];
+        const opPaid = opPayments.reduce(
+          (sum, v) => sum + Number(v.amount_paid),
+          0,
+        );
+
+        return (
+          <div
+            key={op.op_uuid}
+            style={{ display: "flex", gap: "0.9rem", flexWrap: "wrap" }}
+          >
+            <div style={{ flex: "1.6 1 420px", minWidth: 0, height: "620px" }}>
+              <PdfViewer
+                colors={colors}
+                defaultZoom={0.75}
+                fileName={`${
+                  isAdditional
+                    ? "Additional Order of Payment"
+                    : "Order of Payment"
+                } - ${opRefNo}.pdf`}
+              >
+                {isAdditional ? (
+                  <AdditionalOopPaper
+                    info={info}
+                    refNo={opRefNo}
+                    originalDue={originalDue}
+                    alreadyPaid={paidBefore}
+                    additionalDue={Number(op.total_amount)}
+                    remarks={op.deficiency_reason || ""}
+                  />
+                ) : (
+                  <OrderOfPaymentPaper info={info} refNo={opRefNo} op={op} />
+                )}
+              </PdfViewer>
+            </div>
+            <div
+              style={{
+                flex: "1 1 260px",
+                alignSelf: "flex-start",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.9rem",
+              }}
+            >
+              <Section
+                title={
+                  isAdditional
+                    ? "Additional Order of Payment"
+                    : "Order of Payment"
+                }
+                colors={colors}
+              >
+                {details.map(([label, value]) => (
+                  <div
+                    key={label}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: "0.75rem",
+                      padding: "0.3rem 0",
+                      fontSize: "0.7rem",
+                    }}
                   >
-                    {peso(op.total_amount)}
-                  </td>
-                  <td style={tdStyle}>{op.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Section>
-      {renderPaymentsTable(false)}
+                    <span style={{ color: colors.textTertiary }}>{label}</span>
+                    <span
+                      style={{
+                        color: colors.textPrimary,
+                        fontWeight: 600,
+                        textAlign: "right",
+                        wordBreak: "break-word",
+                      }}
+                    >
+                      {value}
+                    </span>
+                  </div>
+                ))}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: "0.75rem",
+                    padding: "0.3rem 0",
+                    fontSize: "0.7rem",
+                  }}
+                >
+                  <span style={{ color: colors.textTertiary }}>Status</span>
+                  <span style={{ fontWeight: 700, color: statusColor }}>
+                    {op.status}
+                  </span>
+                </div>
+              </Section>
+
+              <Section
+                title={`Payments (${opPayments.length})`}
+                colors={colors}
+              >
+                {opPayments.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "0.5rem 0",
+                      fontSize: "0.7rem",
+                      color: colors.textTertiary,
+                    }}
+                  >
+                    No payments yet.
+                  </div>
+                ) : (
+                  <>
+                    {opPayments.map((v, i) => (
+                      <div
+                        key={v.verification_uuid}
+                        style={{
+                          padding: "0.45rem 0",
+                          borderTop:
+                            i === 0
+                              ? "none"
+                              : `1px solid ${colors.tableBorder}`,
+                          fontSize: "0.7rem",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.2rem",
+                        }}
+                      >
+                        {[
+                          ["Type of Payment", v.type_of_payment],
+                          ["OR Number", v.official_receipt_number],
+                          ["Date of Payment", v.date_of_payment],
+                        ].map(([label, value]) => (
+                          <div
+                            key={label}
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              gap: "0.75rem",
+                            }}
+                          >
+                            <span style={{ color: colors.textTertiary }}>
+                              {label}
+                            </span>
+                            <span
+                              style={{
+                                color: colors.textPrimary,
+                                fontWeight: 500,
+                                textAlign: "right",
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {value || "—"}
+                            </span>
+                          </div>
+                        ))}
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: "0.75rem",
+                          }}
+                        >
+                          <span style={{ color: colors.textTertiary }}>
+                            Amount Paid
+                          </span>
+                          <span
+                            style={{
+                              color: colors.textPrimary,
+                              fontWeight: 700,
+                            }}
+                          >
+                            {peso(v.amount_paid)}{" "}
+                            <span
+                              style={{
+                                fontSize: "0.6rem",
+                                fontWeight: 500,
+                                color: colors.textTertiary,
+                              }}
+                            >
+                              🔒 Posted
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {opPayments.length > 1 && (
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          padding: "0.45rem 0 0.2rem",
+                          marginTop: "0.2rem",
+                          borderTop: `1px solid ${colors.tableBorder}`,
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        <span>Total Paid</span>
+                        <span>{peso(opPaid)}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+              </Section>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  /* ───────────── Notification Form for Minor Variation ───────────── */
+  const renderNotificationForm = () => (
+    <div style={{ height: "720px" }}>
+      <PdfViewer
+        colors={colors}
+        multiPage
+        defaultZoom={0.9}
+        fileName={`Notification Form for Minor Variation - ${referenceNumber}.pdf`}
+      >
+        <MivnNotificationForm
+          refNo={referenceNumber}
+          formData={formData}
+          payments={priorPayments}
+        />
+      </PdfViewer>
     </div>
   );
 
@@ -1198,7 +1473,8 @@ export default function MivnDetailsModal({
       );
     }
     if (step === 1) return renderStep1();
-    if (isDeckingOpen && step === 3) return renderDeckerDecision();
+    if (isDeckingOpen && step === 4) return renderDeckerDecision();
+    if (!canPost && step === 3) return renderNotificationForm();
     if (!canPost) return renderHistory();
     if (step === 2) return renderStep2();
     if (step === 3) return renderStep3();
@@ -1273,67 +1549,8 @@ export default function MivnDetailsModal({
             ×
           </button>
         </div>
-
         {/* Stepper */}
-        {data && (
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              padding: "0.65rem 1.1rem",
-              background: colors.cardBg,
-              borderBottom: `1px solid ${colors.cardBorder}`,
-              flexShrink: 0,
-            }}
-          >
-            {steps.map((s) => {
-              const active = step === s.id;
-              const done = step > s.id;
-              return (
-                <div
-                  key={s.id}
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.4rem 0.7rem",
-                    borderRadius: "8px",
-                    border: `1px solid ${active ? "#4CAF50" : colors.cardBorder}`,
-                    background: active ? "rgba(76,175,80,0.1)" : "transparent",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "20px",
-                      height: "20px",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.62rem",
-                      fontWeight: 700,
-                      background: active || done ? "#4CAF50" : colors.badgeBg,
-                      color: active || done ? "#fff" : colors.textTertiary,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {done ? "✓" : s.id}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.7rem",
-                      fontWeight: active ? 700 : 500,
-                      color: active ? colors.textPrimary : colors.textTertiary,
-                    }}
-                  >
-                    {s.icon} {s.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {data && <StepProgress steps={steps} step={step} colors={colors} />}
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.1rem" }}>

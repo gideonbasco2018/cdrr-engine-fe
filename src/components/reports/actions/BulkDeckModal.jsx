@@ -3,10 +3,26 @@
 import { useState, useEffect, useRef } from "react";
 import { getUsersByGroup, getUser } from "../../../api/auth";
 import {
+  suggestSneAssignments,
+  getSneWorkload,
+} from "../../../api/sneAssignments";
+import {
   createApplicationLog,
   getLastApplicationLogIndex,
 } from "../../../api/application-logs";
 import { createBulkDoctrackLogsByRsn } from "../../../api/doctrack";
+
+// Select value that means "use the auto-matched S&E"
+const AUTO_VALUE = "__auto__";
+
+const displayGeneric = (value) =>
+  value && value !== "N/A" && String(value).trim() !== "" ? value : "—";
+
+// ID helpers (String compare so number/string ids both work)
+const isEmptyId = (id) => id === "" || id === null || id === undefined;
+const findUserById = (users, id) =>
+  isEmptyId(id) ? undefined : users.find((u) => String(u.id) === String(id));
+const resolveUsername = (users, id) => findUserById(users, id)?.username ?? "";
 
 // ── Transmittal PDF Generator ─────────────────────────────────────────────────
 const loadScript = (src) =>
@@ -273,6 +289,7 @@ async function generateTransmittalPDF(records) {
 }
 
 // ── Transmittal Prompt Modal ──────────────────────────────────────────────────
+// `records` here = only the successfully decked records.
 function TransmittalPromptModal({
   result,
   records,
@@ -387,7 +404,7 @@ function TransmittalPromptModal({
                   color: "#4CAF50",
                 }}
               >
-                {records.length - result.errors.length}
+                {records.length}
               </div>
               <div
                 style={{
@@ -500,9 +517,8 @@ function TransmittalPromptModal({
               }}
             >
               Would you like to generate and download a transmittal slip for the{" "}
-              <strong>{records.length - result.errors.length}</strong>{" "}
-              successfully decked record
-              {records.length - result.errors.length !== 1 ? "s" : ""}?
+              <strong>{records.length}</strong> successfully decked record
+              {records.length !== 1 ? "s" : ""}?
             </p>
           </div>
 
@@ -596,13 +612,14 @@ function TransmittalPromptModal({
 
 // ── Main BulkDeckModal ────────────────────────────────────────────────────────
 function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
+  // NOTE: evaluator / sne store the USER ID (not the username).
   const [formData, setFormData] = useState({
     decker: "",
-    evaluator: "",
-    sne: "",
+    evaluator: "", // evaluator user id
+    sne: "", // default S&E user id (fallback for records without a per-record S&E)
     deckerDecision: "",
     deckerRemarks: "",
-    doctackRemarks: "", // ← Auto-filled based on decision; editable by user
+    doctackRemarks: "", // Auto-filled based on decision; editable by user
   });
 
   const [loading, setLoading] = useState(false);
@@ -614,18 +631,16 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [confirmSubmit, setConfirmSubmit] = useState(false);
 
-  // ── NEW: transmittal prompt state ──
+  // Per-record S&E assignment: { [record.id]: S&E user id }
+  const [sneAssignments, setSneAssignments] = useState({});
+
+  // Transmittal prompt state
   const [deckResult, setDeckResult] = useState(null); // { errors: [] }
   const [showTransmittalPrompt, setShowTransmittalPrompt] = useState(false);
-  // Save records that succeeded for transmittal
   const [succeededRecords, setSucceededRecords] = useState([]);
-
-  //start changes
-  // const [alertModal, setAlertModal] = useState(null);
 
   const [alertModal, setAlertModal] = useState(null);
   const [doctrackEnabled, setDoctrackEnabled] = useState(true);
-  // end
 
   const GROUP_IDS = { EVALUATOR: 3, SE: 13 };
 
@@ -635,21 +650,50 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     "For S&E and Quality Evaluation": { fetchEvaluator: true, fetchSne: true },
   };
 
-  // ── Auto-fill doctackRemarks per decision ──────────────────────────────────
-  // Edit the values below to change the default remarks per decision.
+  // Default doctrack remarks per decision.
   const DOCTRACK_REMARKS_DEFAULTS = {
     "For S&E": "Forwarded to S&E",
     "For Quality Evaluation": "Forwarded to evaluator",
     "For S&E and Quality Evaluation": "Forwarded to S&E and Evaluator",
   };
-  // ──────────────────────────────────────────────────────────────────────────
 
-  const resolveEvaluatorId = (username) =>
-    nextUsers.find((u) => u.username === username)?.id ?? null;
+  // Per-record S&E id: explicit/auto assignment first, then the default S&E.
+  const getSneForRecord = (record) => {
+    const assigned = sneAssignments[record.id];
+    return !isEmptyId(assigned) ? assigned : formData.sne;
+  };
 
-  const resolveSneId = (username) =>
-    sneUsers.find((u) => u.username === username)?.id ?? null;
+  // { [record.id]: S&E user id } suggested by the backend
+  // (keyword match + lowest current workload).
+  const [autoMap, setAutoMap] = useState({});
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestError, setSuggestError] = useState("");
 
+  // { [userId]: { total, by_step: { "S&E": n, ... } } } current in-progress tasks
+  const [sneWorkload, setSneWorkload] = useState({});
+  // Asks the backend for a suggested S&E per record and returns { [id]: userId }.
+  // Only users that exist in the loaded S&E group are kept.
+  const fetchSuggestions = async () => {
+    const data = await suggestSneAssignments(
+      records.map((r) => ({ id: r.id, generic_name: r.prodGenName ?? null })),
+    );
+    const map = {};
+    (data.assignments || []).forEach((a) => {
+      if (
+        a.user_id !== null &&
+        a.user_id !== undefined &&
+        findUserById(sneUsers, a.user_id)
+      ) {
+        map[a.id] = a.user_id;
+      }
+    });
+    return map;
+  };
+
+  // Auto-matched S&E user id for a record (null if no rule matches).
+  const getAutoMatchForRecord = (record) => autoMap[record.id] ?? null;
+
+  const buildAutoAssignments = () => ({ ...autoMap });
   useEffect(() => {
     const user = getUser();
     if (user) {
@@ -661,7 +705,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   useEffect(() => {
     const decision = formData.deckerDecision;
 
-    // Reset user selections + auto-fill doctackRemarks
+    // Reset user selections + auto-fill doctrack remarks
     setFormData((prev) => ({
       ...prev,
       evaluator: "",
@@ -670,6 +714,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     }));
     setNextUsers([]);
     setSneUsers([]);
+    setSneAssignments({});
 
     if (!decision || !DECISION_CONFIG[decision]) return;
     const cfg = DECISION_CONFIG[decision];
@@ -702,14 +747,107 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     }
   }, [formData.deckerDecision]);
 
+  useEffect(() => {
+    if (sneUsers.length === 0) {
+      setSneWorkload({});
+      return;
+    }
+    let cancelled = false;
+    getSneWorkload()
+      .then((rows) => {
+        if (!cancelled)
+          setSneWorkload(Object.fromEntries(rows.map((r) => [r.user_id, r])));
+      })
+      .catch((e) => console.error(e));
+    return () => {
+      cancelled = true;
+    };
+  }, [sneUsers]);
+
+  // Fetch suggestions once the S&E users are loaded.
+  // Existing (manual) assignments are kept.
+  useEffect(() => {
+    if (sneUsers.length === 0) {
+      setAutoMap({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setSuggesting(true);
+      setSuggestError("");
+      try {
+        const map = await fetchSuggestions();
+        if (cancelled) return;
+        setAutoMap(map);
+        setSneAssignments((prev) => ({ ...map, ...prev }));
+      } catch (e) {
+        if (cancelled) return;
+        console.error(e);
+        setAutoMap({});
+        setSuggestError(e.message || "Failed to get S&E suggestions.");
+      } finally {
+        if (!cancelled) setSuggesting(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sneUsers, records]);
+
   const handleChange = (field, value) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+  // rawValue comes from a native <select> (always a string).
+  // AUTO_VALUE restores the auto-matched S&E; otherwise map back to the real user id.
+  const handleSneAssign = (record, rawValue) =>
+    setSneAssignments((prev) => {
+      const next = { ...prev };
+      if (rawValue === AUTO_VALUE) {
+        const autoId = getAutoMatchForRecord(record);
+        if (autoId !== null) next[record.id] = autoId;
+        else delete next[record.id];
+        return next;
+      }
+      const user = findUserById(sneUsers, rawValue);
+      if (user) next[record.id] = user.id;
+      else delete next[record.id];
+      return next;
+    });
+
+  // Default S&E empty (Auto)  -> reset every row to its auto match
+  // Default S&E selected      -> apply that user to every row
+  const handleApplySneToAll = () => {
+    if (isEmptyId(formData.sne)) {
+      setSneAssignments(buildAutoAssignments());
+      return;
+    }
+    const all = {};
+    records.forEach((r) => {
+      all[r.id] = formData.sne;
+    });
+    setSneAssignments(all);
+  };
+
+  // Ask the backend again and replace ALL current S&E picks with the new suggestion.
+  const handleResuggest = async () => {
+    setSuggesting(true);
+    setSuggestError("");
+    try {
+      const map = await fetchSuggestions();
+      setAutoMap(map);
+      setSneAssignments(map);
+    } catch (e) {
+      console.error(e);
+      setSuggestError(e.message || "Failed to get S&E suggestions.");
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   // ── Core deck logic ──
   const handleSubmit = async () => {
     const cfg = DECISION_CONFIG[formData.deckerDecision];
     const needsEvaluator = cfg?.fetchEvaluator;
-    const needsSne = cfg?.fetchSne;
 
     setLoading(true);
     setProgress({ current: 0, total: records.length });
@@ -722,45 +860,6 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
     const succeeded = [];
 
     try {
-      // ── STEP 1: Insert doctrack logs first (external DB) ──────────────────
-
-      // Build entries for all records in one bulk call
-
-      // change start
-
-      // const doctrackEntries = records.map((record) => ({
-      //   rsn: record.dtn, // 14-digit doctrack number
-      //   remarks: formData.doctackRemarks || "", // auto-filled or user-edited
-      //   userID: currentUser?.id ?? null,
-      // }));
-
-      // let doctrackResult = null;
-      // try {
-      //   doctrackResult = await createBulkDoctrackLogsByRsn(
-      //     doctrackEntries,
-      //     currentUser?.alias || "", // ← DAGDAG
-      //   );
-      // } catch (doctrackError) {
-      //   console.error("❌ Doctrack bulk insert failed:", doctrackError);
-      //   setAlertModal({
-      //     title: "Doctrack logs",
-      //     message: `Failed to insert Doctrack logs. Reason: ${doctrackError.message}`,
-      //     detail: "No application logs were created.",
-      //   });
-      //   return;
-      // }
-
-      // if (doctrackResult === null) {
-      //   setAlertModal({
-      //     title: "Doctrack logs",
-      //     message: "No response from server.",
-      //     detail: "No application logs were created.",
-      //   });
-      //   return;
-      // }
-
-      // changes end
-      // change start
       // ── STEP 1: Insert doctrack logs first (external DB) ──────────────────
       if (doctrackEnabled) {
         const doctrackEntries = records.map((record) => ({
@@ -794,7 +893,6 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
           return;
         }
       }
-      // change end
       // ── STEP 1 complete ───────────────────────────────────────────────────
 
       // ── STEP 2: Insert application logs (main DB) ─────────────────────────
@@ -806,6 +904,20 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
           const indexData = await getLastApplicationLogIndex(record.id);
           const lastIndex = indexData.last_index;
           const nextIndex = lastIndex + 1;
+
+          // Resolve assigned users by ID. Fail this record if an ID is missing,
+          // so we never save a log with user_id = null.
+          const evaluatorUser = needsEvaluator
+            ? findUserById(nextUsers, formData.evaluator)
+            : null;
+          const sneUserObj = cfg?.fetchSne
+            ? findUserById(sneUsers, getSneForRecord(record))
+            : null;
+
+          if (needsEvaluator && !evaluatorUser)
+            throw new Error("Evaluator not found in the loaded users.");
+          if (cfg?.fetchSne && !sneUserObj)
+            throw new Error("S&E not found in the loaded users.");
 
           // Decking log — COMPLETED
           await createApplicationLog({
@@ -831,7 +943,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
             await createApplicationLog({
               main_db_id: record.id,
               application_step: "Quality Evaluation",
-              user_name: formData.evaluator,
+              user_name: evaluatorUser.username,
               application_status: "IN PROGRESS",
               application_decision: "",
               application_remarks: "",
@@ -841,13 +953,13 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               del_previous: nextIndex,
               del_last_index: 1,
               del_thread: "Open",
-              user_id: resolveEvaluatorId(formData.evaluator),
+              user_id: evaluatorUser.id,
             });
             // S&E log
             await createApplicationLog({
               main_db_id: record.id,
               application_step: "S&E",
-              user_name: formData.sne,
+              user_name: sneUserObj.username,
               application_status: "IN PROGRESS",
               application_decision: "",
               application_remarks: "",
@@ -857,20 +969,18 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               del_previous: nextIndex,
               del_last_index: 1,
               del_thread: "Open",
-              user_id: resolveSneId(formData.sne),
+              user_id: sneUserObj.id,
             });
           } else {
             const stepLabel =
               formData.deckerDecision === "For S&E"
                 ? "S&E"
                 : "Quality Evaluation";
-            const assignedUser = needsEvaluator
-              ? formData.evaluator
-              : formData.sne;
+            const assignedUser = needsEvaluator ? evaluatorUser : sneUserObj;
             await createApplicationLog({
               main_db_id: record.id,
               application_step: stepLabel,
-              user_name: assignedUser,
+              user_name: assignedUser.username,
               application_status: "IN PROGRESS",
               application_decision: "",
               application_remarks: "",
@@ -880,9 +990,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               del_previous: nextIndex,
               del_last_index: 1,
               del_thread: "Open",
-              user_id: needsEvaluator
-                ? resolveEvaluatorId(assignedUser)
-                : resolveSneId(assignedUser),
+              user_id: assignedUser.id,
             });
           }
 
@@ -894,7 +1002,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
       }
       // ── STEP 2 complete ───────────────────────────────────────────────────
 
-      // ── Show transmittal prompt instead of alert ──
+      // Show transmittal prompt
       setSucceededRecords(succeeded);
       setDeckResult({ errors });
       setShowTransmittalPrompt(true);
@@ -922,16 +1030,23 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
       });
       return;
     }
-    if (cfg?.fetchEvaluator && !formData.evaluator) {
+    if (cfg?.fetchEvaluator && isEmptyId(formData.evaluator)) {
       setAlertModal({
         title: "Validation",
         message: "Please assign an Evaluator.",
       });
       return;
     }
-    if (cfg?.fetchSne && !formData.sne) {
-      setAlertModal({ title: "Validation", message: "Please assign an S&E." });
-      return;
+    if (cfg?.fetchSne) {
+      const missing = records.filter((r) => isEmptyId(getSneForRecord(r)));
+      if (missing.length > 0) {
+        setAlertModal({
+          title: "Validation",
+          message: `Please assign an S&E for ${missing.length} application${missing.length > 1 ? "s" : ""} without an S&E.`,
+          detail: `Missing: ${missing.map((r) => r.dtn).join(", ")}. Pick an S&E per row or set a Default S&E.`,
+        });
+        return;
+      }
     }
 
     setConfirmSubmit(true);
@@ -958,13 +1073,52 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
   const showSne = cfg?.fetchSne;
   const showNextUser = !!formData.deckerDecision;
 
+  const unassignedSneCount = showSne
+    ? records.filter((r) => isEmptyId(getSneForRecord(r))).length
+    : 0;
+
+  // How many records of THIS batch each S&E user will receive
+  const batchCountByUser = showSne
+    ? records.reduce((acc, r) => {
+        const id = getSneForRecord(r);
+        if (!isEmptyId(id)) acc[id] = (acc[id] || 0) + 1;
+        return acc;
+      }, {})
+    : {};
+
+  const sneInProgress = (id) => sneWorkload[id]?.by_step?.["S&E"] ?? 0;
+
+  // S&E breakdown for the confirmation summary: "username (count), ..."
+  const sneSummaryText = showSne
+    ? Object.entries(
+        records.reduce((acc, r) => {
+          const id = getSneForRecord(r);
+          if (!isEmptyId(id)) acc[id] = (acc[id] || 0) + 1;
+          return acc;
+        }, {}),
+      )
+        .map(
+          ([id, c]) => `${resolveUsername(sneUsers, id) || `ID ${id}`} (${c})`,
+        )
+        .join(", ")
+    : "";
+
+  const evaluatorSummaryText = showEvaluator
+    ? resolveUsername(nextUsers, formData.evaluator)
+    : "";
+
+  const missingEvaluator = showEvaluator && isEmptyId(formData.evaluator);
+
   const isSubmitDisabled =
     loading ||
     loadingUsers ||
     loadingSneUsers ||
     !showNextUser ||
     (showEvaluator && nextUsers.length === 0) ||
-    (showSne && sneUsers.length === 0);
+    (showSne && sneUsers.length === 0) ||
+    missingEvaluator ||
+    suggesting ||
+    unassignedSneCount > 0;
 
   return (
     <>
@@ -1008,7 +1162,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
           style={{
             position: "relative",
             width: "100%",
-            maxWidth: "480px",
+            maxWidth: "580px",
             maxHeight: "calc(100vh - 2rem)",
             background: colors.cardBg,
             borderRadius: "16px",
@@ -1144,7 +1298,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 flex: 1,
               }}
             >
-              {/* Selected DTNs */}
+              {/* Selected Applications (DTN + Generic Name) */}
               <div style={{ marginBottom: "1.5rem" }}>
                 <label
                   style={{
@@ -1159,34 +1313,64 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 </label>
                 <div
                   style={{
-                    maxHeight: "100px",
+                    maxHeight: "180px",
                     overflowY: "auto",
                     background: colors.badgeBg,
                     border: `1px solid ${colors.cardBorder}`,
                     borderRadius: "8px",
-                    padding: "1rem",
+                    padding: "0.6rem",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.4rem",
                   }}
                 >
-                  <div
-                    style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}
-                  >
-                    {records.map((record) => (
-                      <span
+                  {records.map((record) => {
+                    return (
+                      <div
                         key={record.id}
                         style={{
-                          padding: "0.4rem 0.8rem",
-                          background: "#4CAF5020",
-                          color: "#4CAF50",
-                          borderRadius: "6px",
-                          fontSize: "0.8rem",
-                          fontWeight: "600",
-                          border: "1px solid #4CAF5040",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                          padding: "0.4rem 0.5rem",
+                          background: colors.cardBg,
+                          border: `1px solid ${colors.cardBorder}`,
+                          borderRadius: "8px",
                         }}
                       >
-                        {record.dtn}
-                      </span>
-                    ))}
-                  </div>
+                        <span
+                          style={{
+                            padding: "0.25rem 0.55rem",
+                            background: "#4CAF5020",
+                            color: "#4CAF50",
+                            borderRadius: "6px",
+                            fontSize: "0.75rem",
+                            fontWeight: "600",
+                            border: "1px solid #4CAF5040",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {record.dtn}
+                        </span>
+
+                        <span
+                          title={displayGeneric(record.prodGenName)}
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: "0.75rem",
+                            color: colors.textSecondary,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          💊 {displayGeneric(record.prodGenName)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -1324,38 +1508,9 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 />
               </div>
 
-              {/* ── Doctrack Remarks ───────────────────────────────────────────
-                   Auto-filled from DOCTRACK_REMARKS_DEFAULTS when decision
-                   changes. User can still manually override the value.
-              ──────────────────────────────────────────────────────────────── */}
+              {/* Doctrack Remarks — auto-filled per decision, user can override */}
               {formData.deckerDecision && (
                 <div style={{ marginBottom: "0.65rem" }}>
-                  {/* start changes */}
-                  {/* <label
-                    style={{
-                      display: "block",
-                      fontSize: "0.875rem",
-                      fontWeight: "600",
-                      color: colors.textPrimary,
-                      marginBottom: "0.5rem",
-                    }}
-                  >
-                    Doctrack Remarks
-                    <span
-                      style={{
-                        marginLeft: "0.5rem",
-                        fontSize: "0.7rem",
-                        fontWeight: "500",
-                        color: "#2196F3",
-                        background: "#2196F315",
-                        border: "1px solid #2196F330",
-                        padding: "0.1rem 0.45rem",
-                        borderRadius: "4px",
-                      }}
-                    >
-                      auto-filled
-                    </span>
-                  </label> */}
                   <label
                     style={{
                       display: "block",
@@ -1378,11 +1533,12 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                         border: "1px solid #2196F330",
                         padding: "0.1rem 0.45rem",
                         borderRadius: "4px",
+                        marginLeft: "0.4rem",
                       }}
                     >
                       auto-filled
                     </span>
-                    {/* ── Doctrack Toggle ── */}
+                    {/* Doctrack Toggle */}
                     <span
                       onClick={() => setDoctrackEnabled((prev) => !prev)}
                       style={{
@@ -1431,7 +1587,6 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                     </span>
                   </label>
 
-                  {/* end changes */}
                   <input
                     type="text"
                     value={formData.doctackRemarks}
@@ -1469,7 +1624,6 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                   </p>
                 </div>
               )}
-              {/* ── End Doctrack Remarks ─────────────────────────────────── */}
 
               {/* Dual assign banner */}
               {isDualAssign && (
@@ -1541,12 +1695,21 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                   {loadingUsers ? (
                     <LoadingField colors={colors} label="evaluators" />
                   ) : (
-                    <UserSelect
-                      value={formData.evaluator}
-                      onChange={(v) => handleChange("evaluator", v)}
-                      users={nextUsers}
-                      colors={colors}
-                    />
+                    <div
+                      style={{
+                        borderRadius: "8px",
+                        outline: missingEvaluator
+                          ? "1px solid #ef4444"
+                          : "none",
+                      }}
+                    >
+                      <UserSelect
+                        value={formData.evaluator}
+                        onChange={(v) => handleChange("evaluator", v)}
+                        users={nextUsers}
+                        colors={colors}
+                      />
+                    </div>
                   )}
                   {!loadingUsers && nextUsers.length === 0 && (
                     <EmptyWarning label="Evaluator" />
@@ -1554,7 +1717,7 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                 </div>
               )}
 
-              {/* S&E field */}
+              {/* Default S&E field (fallback for records without auto/manual S&E) */}
               {showNextUser && showSne && (
                 <div
                   style={{
@@ -1571,7 +1734,10 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                       marginBottom: "0.5rem",
                     }}
                   >
-                    Assign S&E <span style={{ color: "#ef4444" }}>*</span>
+                    Default S&E{" "}
+                    {unassignedSneCount > 0 && (
+                      <span style={{ color: "#ef4444" }}>*</span>
+                    )}
                     <span
                       style={{
                         marginLeft: "0.5rem",
@@ -1595,13 +1761,367 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                       onChange={(v) => handleChange("sne", v)}
                       users={sneUsers}
                       colors={colors}
+                      autoLabel="Auto (match by generic name)"
                     />
                   )}
                   {!loadingSneUsers && sneUsers.length === 0 && (
                     <EmptyWarning label="S&E" />
                   )}
+                  {!loadingSneUsers && sneUsers.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: "0.5rem",
+                        marginTop: "0.4rem",
+                      }}
+                    >
+                      <p
+                        style={{
+                          fontSize: "0.72rem",
+                          color: colors.textTertiary,
+                          margin: 0,
+                        }}
+                      >
+                        💡{" "}
+                        {isEmptyId(formData.sne)
+                          ? "Auto: each application uses the S&E matched by its generic name. Pick one manually if there is no match."
+                          : "Used for applications without an auto-matched S&E."}
+                        {unassignedSneCount > 0
+                          ? ` ${unassignedSneCount} application${unassignedSneCount > 1 ? "s" : ""} still need an S&E.`
+                          : ""}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleApplySneToAll}
+                        style={{
+                          padding: "0.2rem 0.55rem",
+                          fontSize: "0.68rem",
+                          fontWeight: 600,
+                          background: "transparent",
+                          border: `1px solid ${colors.cardBorder}`,
+                          borderRadius: "6px",
+                          color: colors.textPrimary,
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {isEmptyId(formData.sne)
+                          ? "Reset to auto"
+                          : "Apply to all"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
+
+              {/* S&E per application (auto-matched, can be overridden or reset to auto) */}
+              {showNextUser &&
+                showSne &&
+                !loadingSneUsers &&
+                sneUsers.length > 0 && (
+                  <div
+                    style={{
+                      marginBottom: "1.5rem",
+                      animation: "fadeSlideIn 0.2s ease",
+                    }}
+                  >
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        fontSize: "0.78rem",
+                        fontWeight: "600",
+                        color: colors.textPrimary,
+                        marginBottom: "0.5rem",
+                      }}
+                    >
+                      <span>S&E per Application</span>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        {suggesting ? (
+                          <span
+                            style={{ fontSize: "0.7rem", color: "#2196F3" }}
+                          >
+                            ⏳ Getting suggestions...
+                          </span>
+                        ) : unassignedSneCount > 0 ? (
+                          <span
+                            style={{ fontSize: "0.7rem", color: "#ef4444" }}
+                          >
+                            ⚠️ {unassignedSneCount} need an S&E
+                          </span>
+                        ) : (
+                          <span
+                            style={{ fontSize: "0.7rem", color: "#4CAF50" }}
+                          >
+                            ✓ All assigned
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleResuggest}
+                          disabled={suggesting || loading}
+                          title="Ask the system again (replaces all current S&E picks)"
+                          style={{
+                            padding: "0.15rem 0.5rem",
+                            fontSize: "0.68rem",
+                            fontWeight: 600,
+                            background: "transparent",
+                            border: `1px solid ${colors.cardBorder}`,
+                            borderRadius: "6px",
+                            color: colors.textPrimary,
+                            cursor:
+                              suggesting || loading ? "not-allowed" : "pointer",
+                            opacity: suggesting || loading ? 0.5 : 1,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          🔄 Re-suggest
+                        </button>
+                      </div>
+                    </label>
+                    {suggestError && (
+                      <p
+                        style={{
+                          margin: "0 0 0.5rem",
+                          fontSize: "0.72rem",
+                          color: "#ef4444",
+                        }}
+                      >
+                        ⚠️ Could not load suggestions ({suggestError}). Pick an
+                        S&E per row or set a Default S&E.
+                      </p>
+                    )}
+
+                    {Object.keys(batchCountByUser).length > 0 && (
+                      <div
+                        style={{
+                          marginBottom: "0.5rem",
+                          padding: "0.5rem 0.6rem",
+                          background: "#2196F310",
+                          border: "1px solid #2196F330",
+                          borderRadius: "8px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.3rem",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "0.68rem",
+                            fontWeight: 700,
+                            color: "#2196F3",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          Current workload of assigned S&E
+                        </div>
+                        {Object.entries(batchCountByUser).map(([id, n]) => {
+                          const steps = Object.entries(
+                            sneWorkload[id]?.by_step || {},
+                          );
+                          const current = sneInProgress(id);
+                          return (
+                            <div
+                              key={id}
+                              style={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                gap: "0.5rem",
+                                fontSize: "0.72rem",
+                                color: colors.textSecondary,
+                              }}
+                            >
+                              <strong style={{ color: colors.textPrimary }}>
+                                {resolveUsername(sneUsers, id)}
+                              </strong>
+                              <span style={{ textAlign: "right" }}>
+                                S&E in progress: <strong>{current}</strong>{" "}
+                                <span style={{ color: "#4CAF50" }}>
+                                  +{n} now → {current + n}
+                                </span>
+                                <span
+                                  style={{
+                                    display: "block",
+                                    fontSize: "0.65rem",
+                                    color: colors.textTertiary,
+                                  }}
+                                >
+                                  All in progress:{" "}
+                                  {steps.length
+                                    ? steps
+                                        .map(([s, c]) => `${s} ${c}`)
+                                        .join(" · ")
+                                    : "none"}
+                                </span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        maxHeight: "220px",
+                        overflowY: "auto",
+                        background: colors.badgeBg,
+                        border: `1px solid ${colors.cardBorder}`,
+                        borderRadius: "8px",
+                        padding: "0.6rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "0.4rem",
+                      }}
+                    >
+                      {records.map((record) => {
+                        const autoId = getAutoMatchForRecord(record);
+                        const autoUser =
+                          autoId !== null
+                            ? findUserById(sneUsers, autoId)
+                            : null;
+                        const assigned = sneAssignments[record.id];
+                        const hasAssigned = !isEmptyId(assigned);
+                        const isAuto =
+                          autoId !== null &&
+                          hasAssigned &&
+                          String(assigned) === String(autoId);
+                        const defaultUsername = resolveUsername(
+                          sneUsers,
+                          formData.sne,
+                        );
+                        const selectValue = isAuto
+                          ? AUTO_VALUE
+                          : hasAssigned
+                            ? String(assigned)
+                            : autoUser
+                              ? AUTO_VALUE
+                              : "";
+
+                        const isMissing = isEmptyId(getSneForRecord(record));
+
+                        return (
+                          <div
+                            key={record.id}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              padding: "0.4rem 0.5rem",
+                              background: isMissing
+                                ? "rgba(239,68,68,0.08)"
+                                : colors.cardBg,
+                              border: `1px solid ${
+                                isMissing ? "#ef4444" : colors.cardBorder
+                              }`,
+                              borderLeft: isMissing
+                                ? "4px solid #ef4444"
+                                : `1px solid ${colors.cardBorder}`,
+                              borderRadius: "8px",
+                              transition: "all 0.2s",
+                            }}
+                          >
+                            <span
+                              style={{
+                                padding: "0.2rem 0.5rem",
+                                background: "#4CAF5020",
+                                color: "#4CAF50",
+                                borderRadius: "6px",
+                                fontSize: "0.72rem",
+                                fontWeight: "600",
+                                border: "1px solid #4CAF5040",
+                                whiteSpace: "nowrap",
+                                flexShrink: 0,
+                              }}
+                            >
+                              {record.dtn}
+                            </span>
+                            <span
+                              title={displayGeneric(record.prodGenName)}
+                              style={{
+                                flex: 1,
+                                minWidth: 0,
+                                fontSize: "0.72rem",
+                                color: colors.textSecondary,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              💊 {displayGeneric(record.prodGenName)}
+                            </span>
+                            {isAuto && (
+                              <span
+                                title="Auto-selected based on generic name"
+                                style={{
+                                  fontSize: "0.62rem",
+                                  fontWeight: 600,
+                                  color: "#2196F3",
+                                  background: "#2196F315",
+                                  border: "1px solid #2196F330",
+                                  padding: "0.05rem 0.35rem",
+                                  borderRadius: "4px",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                auto
+                              </span>
+                            )}
+                            <select
+                              value={selectValue}
+                              onChange={(e) =>
+                                handleSneAssign(record, e.target.value)
+                              }
+                              style={{
+                                width: "150px",
+                                flexShrink: 0,
+                                padding: "0.3rem 0.4rem",
+                                background: colors.inputBg,
+                                border: `1px solid ${
+                                  isMissing ? "#ef4444" : colors.inputBorder
+                                }`,
+                                borderRadius: "6px",
+                                color: colors.textPrimary,
+                                fontSize: "0.75rem",
+                                outline: "none",
+                                cursor: "pointer",
+                              }}
+                            >
+                              {autoUser ? (
+                                <option value={AUTO_VALUE}>
+                                  Auto ({autoUser.username}) ·{" "}
+                                  {sneInProgress(autoUser.id)} S&E
+                                </option>
+                              ) : (
+                                <option value="">
+                                  {defaultUsername
+                                    ? `Default (${defaultUsername})`
+                                    : "Select S&E"}
+                                </option>
+                              )}
+                              {sneUsers.map((u) => (
+                                <option key={u.id} value={String(u.id)}>
+                                  {u.username} — {u.first_name} {u.surname} ·{" "}
+                                  {sneInProgress(u.id)} S&E
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
               {/* Info box */}
               <div
@@ -1678,6 +2198,13 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
               <button
                 type="submit"
                 disabled={isSubmitDisabled}
+                title={
+                  missingEvaluator
+                    ? "Assign an Evaluator first"
+                    : unassignedSneCount > 0
+                      ? `${unassignedSneCount} application${unassignedSneCount > 1 ? "s" : ""} still need an S&E`
+                      : undefined
+                }
                 style={{
                   padding: "0.75rem 1.5rem",
                   background: isSubmitDisabled ? "#4CAF5080" : "#4CAF50",
@@ -1814,15 +2341,15 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                   value: formData.deckerDecision,
                   color: colors.textPrimary,
                 },
-                formData.evaluator
+                evaluatorSummaryText
                   ? {
                       label: "Evaluator",
-                      value: formData.evaluator,
+                      value: evaluatorSummaryText,
                       color: "#4CAF50",
                     }
                   : null,
-                formData.sne
-                  ? { label: "S&E", value: formData.sne, color: "#2196F3" }
+                sneSummaryText
+                  ? { label: "S&E", value: sneSummaryText, color: "#2196F3" }
                   : null,
                 formData.deckerRemarks
                   ? {
@@ -1831,7 +2358,6 @@ function BulkDeckModal({ records, onClose, onSuccess, colors, darkMode }) {
                       color: colors.textSecondary,
                     }
                   : null,
-                // Doctrack Remarks row in confirmation summary
                 formData.doctackRemarks
                   ? {
                       label: "Doctrack Remarks",
@@ -2005,7 +2531,8 @@ function LoadingField({ colors, label = "users" }) {
   );
 }
 
-function UserSelect({ value, onChange, users, colors }) {
+// `value` is the selected user's ID; `onChange` receives the user's ID.
+function UserSelect({ value, onChange, users, colors, autoLabel }) {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -2018,7 +2545,10 @@ function UserSelect({ value, onChange, users, colors }) {
     );
   });
 
-  const selected = users.find((u) => u.username === value);
+  const hasValue = !isEmptyId(value);
+  const selected = hasValue
+    ? users.find((u) => String(u.id) === String(value))
+    : undefined;
 
   useEffect(() => {
     const handler = (e) => {
@@ -2044,7 +2574,8 @@ function UserSelect({ value, onChange, users, colors }) {
           background: colors.inputBg,
           border: `1px solid ${colors.inputBorder}`,
           borderRadius: "8px",
-          color: value ? colors.textPrimary : colors.textTertiary,
+          color:
+            selected || autoLabel ? colors.textPrimary : colors.textTertiary,
           fontSize: "0.9rem",
           cursor: users.length === 0 ? "not-allowed" : "pointer",
           opacity: users.length === 0 ? 0.6 : 1,
@@ -2060,7 +2591,9 @@ function UserSelect({ value, onChange, users, colors }) {
             ? `${selected.username} — ${selected.first_name} ${selected.surname}`
             : users.length === 0
               ? "No users available"
-              : "Select a user"}
+              : autoLabel
+                ? `🤖 ${autoLabel}`
+                : "Select a user"}
         </span>
         <span style={{ fontSize: "0.7rem", color: colors.textTertiary }}>
           {open ? "▲" : "▼"}
@@ -2107,6 +2640,38 @@ function UserSelect({ value, onChange, users, colors }) {
 
           {/* User list */}
           <div style={{ maxHeight: "200px", overflowY: "auto" }}>
+            {autoLabel && search === "" && (
+              <div
+                onClick={() => {
+                  onChange("");
+                  setOpen(false);
+                  setSearch("");
+                }}
+                style={{
+                  padding: "0.55rem 1rem",
+                  cursor: "pointer",
+                  fontSize: "0.85rem",
+                  fontWeight: 700,
+                  color: "#2196F3",
+                  background: !hasValue
+                    ? "rgba(33,150,243,0.1)"
+                    : "transparent",
+                  borderLeft: !hasValue
+                    ? "3px solid #2196F3"
+                    : "3px solid transparent",
+                }}
+                onMouseEnter={(e) => {
+                  if (hasValue)
+                    e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                }}
+                onMouseLeave={(e) => {
+                  if (hasValue)
+                    e.currentTarget.style.background = "transparent";
+                }}
+              >
+                🤖 {autoLabel}
+              </div>
+            )}
             {filtered.length === 0 ? (
               <div
                 style={{
@@ -2118,57 +2683,58 @@ function UserSelect({ value, onChange, users, colors }) {
                 No users found
               </div>
             ) : (
-              filtered.map((u) => (
-                <div
-                  key={u.id}
-                  onClick={() => {
-                    onChange(u.username);
-                    setOpen(false);
-                    setSearch("");
-                  }}
-                  style={{
-                    padding: "0.55rem 1rem",
-                    cursor: "pointer",
-                    background:
-                      value === u.username
+              filtered.map((u) => {
+                const isSelected = hasValue && String(u.id) === String(value);
+                return (
+                  <div
+                    key={u.id}
+                    onClick={() => {
+                      onChange(u.id);
+                      setOpen(false);
+                      setSearch("");
+                    }}
+                    style={{
+                      padding: "0.55rem 1rem",
+                      cursor: "pointer",
+                      background: isSelected
                         ? "rgba(76,175,80,0.1)"
                         : "transparent",
-                    borderLeft:
-                      value === u.username
+                      borderLeft: isSelected
                         ? "3px solid #4CAF50"
                         : "3px solid transparent",
-                    transition: "background 0.12s",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (value !== u.username)
-                      e.currentTarget.style.background =
-                        "rgba(255,255,255,0.06)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (value !== u.username)
-                      e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: "0.85rem",
-                      fontWeight: 700,
-                      color: colors.textPrimary,
+                      transition: "background 0.12s",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected)
+                        e.currentTarget.style.background =
+                          "rgba(255,255,255,0.06)";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected)
+                        e.currentTarget.style.background = "transparent";
                     }}
                   >
-                    {u.username}
+                    <div
+                      style={{
+                        fontSize: "0.85rem",
+                        fontWeight: 700,
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      {u.username}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.75rem",
+                        color: colors.textTertiary,
+                        marginTop: "1px",
+                      }}
+                    >
+                      {u.first_name} {u.surname}
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      fontSize: "0.75rem",
-                      color: colors.textTertiary,
-                      marginTop: "1px",
-                    }}
-                  >
-                    {u.first_name} {u.surname}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

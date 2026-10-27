@@ -117,6 +117,7 @@ export const TAB_ORDER = [
 function DataTable({
   data,
   selectedRows,
+  selectedRecords = [],
   onSelectRow,
   onSelectAll,
   currentPage,
@@ -958,7 +959,7 @@ function DataTable({
       unit: "mm",
       format: "a4",
     });
-    const selectedData = data.filter((r) => selectedRows.includes(r.id));
+    const selectedData = selectedRecords;
     const now = new Date();
     const dateStr = now.toLocaleDateString("en-PH", {
       year: "numeric",
@@ -1640,11 +1641,7 @@ function DataTable({
 
             {showAppLogs && selectedRows.length > 0 && (
               <button
-                onClick={() =>
-                  setBulkCompleteModalRecords(
-                    data.filter((row) => selectedRows.includes(row.id)),
-                  )
-                }
+                onClick={() => setBulkCompleteModalRecords(selectedRecords)}
                 style={{
                   padding: "0.35rem 0.7rem",
                   background: "linear-gradient(135deg,#dc2626,#b91c1c)",
@@ -1690,11 +1687,7 @@ function DataTable({
 
             {showAppLogs && selectedRows.length > 0 && (
               <button
-                onClick={() =>
-                  setBulkCancelModalRecords(
-                    data.filter((row) => selectedRows.includes(row.id)),
-                  )
-                }
+                onClick={() => setBulkCancelModalRecords(selectedRecords)}
                 style={{
                   padding: "0.35rem 0.7rem",
                   background: "linear-gradient(135deg,#f59e0b,#d97706)",
@@ -1761,11 +1754,7 @@ function DataTable({
 
                 {isNotYetDeckedTab && (
                   <button
-                    onClick={() =>
-                      setBulkDeckModalRecords(
-                        data.filter((row) => selectedRows.includes(row.id)),
-                      )
-                    }
+                    onClick={() => setBulkDeckModalRecords(selectedRecords)}
                     style={{
                       padding: "0.35rem 0.7rem",
                       background: "#4CAF50",
@@ -1986,7 +1975,8 @@ function DataTable({
                   <input
                     type="checkbox"
                     checked={
-                      selectedRows.length === data.length && data.length > 0
+                      data.length > 0 &&
+                      data.every((r) => selectedRows.includes(r.id))
                     }
                     onChange={onSelectAll}
                     style={{

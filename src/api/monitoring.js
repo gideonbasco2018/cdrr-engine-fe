@@ -255,3 +255,29 @@ export const exportRecordsReport = async (params) => {
   });
   return response.data;
 };
+
+
+
+/**
+ * In-progress task count per active user, with unit and application type
+ * breakdown.
+ *
+ * @returns {Promise<{ total_users: number, data: Array<{
+ *   user_id: number, full_name: string, unit_id: number|null,
+ *   unit_name: string|null, group_id: number|null, group_name: string|null,
+ *   in_progress: number,
+ *   by_type: Array<{ app_type: string, classification: string,
+ *     processing_type: string, entry_type: string, count: number }>
+ * }> }>}
+ */
+export const getInProgressSummary = async () => {
+  try {
+    const response = await API.get("/monitoring/in-progress-summary");
+    return response.data;
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail || "Failed to fetch in-progress summary",
+    );
+  }
+};
+ 

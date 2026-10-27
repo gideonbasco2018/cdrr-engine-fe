@@ -1580,6 +1580,14 @@ function EApplicationPage({ darkMode }) {
     setNoteText("");
     setIsComposingNote(false);
   };
+  /* Double-click a row in Task / Processed Task to open View Details.
+     Unclaimed rows are not opened this way: the user must claim them first. */
+  const handleRowDoubleClick = (row) => {
+    if (activeSubTab === "unclaimed") return;
+    setOpenMenuId(null);
+    setDetailsTarget(row);
+  };
+
   const handleMenuToggle = (e, rowId) => {
     e.stopPropagation();
     if (openMenuId === rowId) {
@@ -2216,19 +2224,21 @@ function EApplicationPage({ darkMode }) {
                   paginatedData.map((row, index) => (
                     <tr
                       key={row.id}
+                      onDoubleClick={() => handleRowDoubleClick(row)}
+                      title={
+                        activeSubTab === "unclaimed"
+                          ? undefined
+                          : "Double-click to view details"
+                      }
                       style={{
                         background:
                           index % 2 === 0
                             ? colors.tableRowEven
                             : colors.tableRowOdd,
                         transition: "background 0.2s",
-                        // FGMP only, for now: the whole row opens the action
-                        // menu, same as clicking the ⋮ button.
                         cursor:
-                          row.processCode === "FGMP" &&
-                          activeSubTab !== "unclaimed"
-                            ? "pointer"
-                            : undefined,
+                          activeSubTab === "unclaimed" ? "default" : "pointer",
+                        userSelect: "none",
                       }}
                       onMouseEnter={(e) =>
                         (e.currentTarget.style.background =
@@ -2240,14 +2250,6 @@ function EApplicationPage({ darkMode }) {
                             ? colors.tableRowEven
                             : colors.tableRowOdd)
                       }
-                      onClick={(e) => {
-                        if (
-                          row.processCode === "FGMP" &&
-                          activeSubTab !== "unclaimed"
-                        ) {
-                          handleMenuToggle(e, row.id);
-                        }
-                      }}
                     >
                       {activeSubTab === "unclaimed" && (
                         <td style={{ ...tdStyle, textAlign: "center" }}>

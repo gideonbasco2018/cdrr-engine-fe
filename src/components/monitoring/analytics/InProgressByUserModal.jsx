@@ -1,9 +1,12 @@
 // src/components/monitoring/analytics/InProgressByUserModal.jsx
-// Opens from the "In Progress" KPI tile: shows how many in-progress
-// applications each user currently has.
+// Opens from the "In Progress" KPI tile.
+// Two tabs:
+//   - Per User: ranking of users, with an expandable application-type breakdown
+//   - Per Team: users grouped by unit, with team total, avg per member and
+//     the application-type mix of the team
 import { useState, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { getUsersTaskSummary } from "../../../api/monitoring";
+import { getInProgressSummary } from "../../../api/monitoring";
 import { FB } from "./analyticsConstants";
 import { neuCardBg } from "./analyticsHelpers";
 import UserApplicationsModal from "./UserApplicationsModal";
@@ -11,18 +14,549 @@ import UserApplicationsModal from "./UserApplicationsModal";
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const AMBER = "#f59e0b";
+const RED = "#e02020";
+const GREEN = "#36a420";
+const ABOVE_AVG_RATIO = 1.25; // member is flagged when 25% above the team avg
+const NO_UNIT = "No unit";
+const NO_GROUP = "No group";
+
+const TYPE_PALETTE = [
+  "#4f8ef7",
+  "#f59e0b",
+  "#36a420",
+  "#9333ea",
+  "#0891b2",
+  "#e87c13",
+  "#e02020",
+  "#ec4899",
+];
 
 // The users-tasks endpoint's exact field names aren't known here, so read the
 // common spellings defensively.
 const nameOf = (r) =>
-  r.name ??
   r.full_name ??
+  r.name ??
   r.user_name ??
   r.username ??
   r.user ??
   (r.user_id != null ? `User #${r.user_id}` : "Unknown");
 const inProgressOf = (r) =>
   Number(r.tasks?.in_progress ?? r.in_progress ?? r.inProgress ?? 0) || 0;
+// Unit = team (same grouping as the Workload view).
+// Group = functional role (Evaluator, Checker/Evaluator, Preassessor, ...).
+const unitNameOf = (r) =>
+  r.unit_name ?? r.unit ?? r.team_name ?? r.team ?? null;
+const unitIdOf = (r) => r.unit_id ?? r.team_id ?? null;
+const groupNameOf = (r) => r.group_name ?? null;
+const groupIdOf = (r) => r.group_id ?? null;
+
+// Breakdown dimensions the user can switch between.
+const DIMENSIONS = [
+  { key: "app_type", label: "Application Type" },
+  { key: "classification", label: "Classification" },
+  { key: "processing_type", label: "Processing Type" },
+  { key: "entry_type", label: "Entry Type" },
+];
+
+// Raw breakdown entries for one user. Each entry carries all four dimensions
+// plus a count, so the modal can regroup them without another request.
+// Also accepts the older { label, count } shape.
+const itemsOf = (r) => {
+  const raw = r.by_type ?? r.tasks?.by_type ?? null;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((x) => ({
+      app_type: x.app_type ?? null,
+      classification: x.classification ?? null,
+      processing_type: x.processing_type ?? null,
+      entry_type: x.entry_type ?? null,
+      label: x.label ?? null,
+      count: Number(x.count ?? 0) || 0,
+    }))
+    .filter((x) => x.count > 0);
+};
+
+// Group a user's raw entries by one dimension -> [{ label, count }] sorted desc
+const groupByDimension = (items, dim) => {
+  const map = new Map();
+  items.forEach((x) => {
+    const label = x[dim] ?? x.label ?? "Unknown";
+    map.set(label, (map.get(label) ?? 0) + x.count);
+  });
+  return [...map.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+};
+
+const mergeTypes = (lists) => {
+  const map = new Map();
+  lists.forEach((l) =>
+    l.forEach((t) => map.set(t.label, (map.get(t.label) ?? 0) + t.count)),
+  );
+  return [...map.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+};
+
+const fmtAvg = (n) => n.toLocaleString(undefined, { maximumFractionDigits: 1 });
+
+// ── Application-type breakdown: stacked bar + chips ──────────
+function TypeBreakdown({ types, total, colorOf, ui, line }) {
+  if (types.length === 0) {
+    return (
+      <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+        No breakdown available.
+      </div>
+    );
+  }
+  const typeTotal = types.reduce((s, t) => s + t.count, 0) || total || 1;
+  return (
+    <div>
+      <div
+        style={{
+          display: "flex",
+          height: 8,
+          borderRadius: 99,
+          overflow: "hidden",
+          border: `1px solid ${line}`,
+          marginBottom: 8,
+        }}
+      >
+        {types.map((t) => (
+          <div
+            key={t.label}
+            title={`${t.label}: ${t.count.toLocaleString()}`}
+            style={{
+              width: `${(t.count / typeTotal) * 100}%`,
+              background: colorOf(t.label),
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {types.map((t, i) => (
+          <span
+            key={t.label}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              fontSize: "0.7rem",
+              padding: "2px 8px",
+              borderRadius: 99,
+              border: `1px solid ${i === 0 ? colorOf(t.label) : line}`,
+              background: i === 0 ? `${colorOf(t.label)}18` : "transparent",
+              color: ui.textPrimary,
+              fontWeight: i === 0 ? 700 : 500,
+            }}
+          >
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: colorOf(t.label),
+              }}
+            />
+            {t.label}
+            <b>{t.count.toLocaleString()}</b>
+            <span style={{ color: ui.textMuted }}>
+              {Math.round((t.count / typeTotal) * 100)}%
+            </span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── One user row (used in both tabs) ─────────────────────────
+function UserRow({
+  r,
+  index,
+  max,
+  teamAvg,
+  subLabel,
+  dimLabel,
+  expanded,
+  onToggle,
+  onView,
+  colorOf,
+  ui,
+  darkMode,
+  line,
+  isLast,
+}) {
+  const above = teamAvg != null && r.inProgress > teamAvg * ABOVE_AVG_RATIO;
+  const topType = r.types[0];
+  return (
+    <div style={{ borderBottom: isLast ? "none" : `1px solid ${line}` }}>
+      <div
+        onClick={onToggle}
+        title="Click to see the application types"
+        style={{
+          cursor: "pointer",
+          display: "grid",
+          gridTemplateColumns: "28px minmax(0,1fr) 110px 56px 22px",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 18px",
+        }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = darkMode
+            ? "rgba(255,255,255,0.04)"
+            : "rgba(0,0,0,0.03)")
+        }
+        onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      >
+        <span
+          style={{
+            fontSize: "0.72rem",
+            color: ui.textMuted,
+            textAlign: "center",
+          }}
+        >
+          {index + 1}
+        </span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              title={r.name}
+              style={{
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                color: ui.textPrimary,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {r.name}
+            </span>
+            {above && (
+              <span
+                title={`Above team average (${fmtAvg(teamAvg)})`}
+                style={{
+                  fontSize: "0.6rem",
+                  fontWeight: 700,
+                  padding: "1px 6px",
+                  borderRadius: 99,
+                  color: RED,
+                  background: `${RED}22`,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                ▲ above avg
+              </span>
+            )}
+          </div>
+          <div
+            style={{
+              fontSize: "0.68rem",
+              color: ui.textMuted,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {subLabel ? `${subLabel} · ` : ""}
+            {topType
+              ? `Top ${dimLabel.toLowerCase()}: ${topType.label} (${topType.count.toLocaleString()})`
+              : "No type data"}
+          </div>
+        </div>
+        <div
+          style={{
+            height: 6,
+            borderRadius: 99,
+            overflow: "hidden",
+            background: darkMode
+              ? "rgba(255,255,255,0.08)"
+              : "rgba(0,0,0,0.08)",
+          }}
+        >
+          <div
+            style={{
+              width: `${(r.inProgress / max) * 100}%`,
+              height: "100%",
+              background: above ? RED : AMBER,
+            }}
+          />
+        </div>
+        <span
+          style={{
+            fontSize: "0.85rem",
+            fontWeight: 800,
+            color: above ? RED : AMBER,
+            textAlign: "right",
+          }}
+        >
+          {r.inProgress.toLocaleString()}
+        </span>
+        <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
+          {expanded ? "▾" : "▸"}
+        </span>
+      </div>
+
+      {expanded && (
+        <div style={{ padding: "2px 18px 12px 56px" }}>
+          <TypeBreakdown
+            types={r.types}
+            total={r.inProgress}
+            colorOf={colorOf}
+            ui={ui}
+            line={line}
+          />
+          {r.id != null && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onView(r);
+              }}
+              style={{
+                marginTop: 10,
+                padding: "4px 12px",
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                borderRadius: 8,
+                border: `1px solid ${FB}`,
+                background: "transparent",
+                color: FB,
+                cursor: "pointer",
+                fontFamily: font,
+              }}
+            >
+              View applications →
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Chart: horizontal stacked bars (one bar per user / unit / group) ──
+// Each bar is split by the selected breakdown (application type, etc.). A dashed vertical line marks the
+// average. Hover a segment to see the exact type and count.
+const OTHER_LABEL = "Other";
+const OTHER_COLOR = "#9aa0a6";
+const CHART_MAX_ITEMS = 10;
+const CHART_MAX_TYPES = 6;
+
+function StackedChart({
+  items,
+  avg,
+  avgLabel,
+  dimLabel,
+  topLabels,
+  colorOf,
+  ui,
+  line,
+}) {
+  const [hover, setHover] = useState(null); // { name, label, count, x, y }
+  if (items.length === 0) return null;
+
+  const shown = items.slice(0, CHART_MAX_ITEMS);
+  const max = Math.max(...shown.map((i) => i.total), avg || 0, 1);
+  const pct = (n) => `${(n / max) * 100}%`;
+  const keep = new Set(topLabels);
+  const colorFor = (label) =>
+    label === OTHER_LABEL ? OTHER_COLOR : colorOf(label);
+
+  // Fold everything outside the top types into "Other"
+  const segmentsOf = (item) => {
+    const segs = [];
+    let other = 0;
+    item.types.forEach((t) => {
+      if (keep.has(t.label)) segs.push(t);
+      else other += t.count;
+    });
+    if (other > 0) segs.push({ label: OTHER_LABEL, count: other });
+    return segs;
+  };
+  const legend = [
+    ...topLabels,
+    ...(shown.some((i) => i.types.some((t) => !keep.has(t.label)))
+      ? [OTHER_LABEL]
+      : []),
+  ];
+
+  return (
+    <div
+      style={{ padding: "12px 18px 10px", borderBottom: `1px solid ${line}` }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          marginBottom: 8,
+          fontSize: "0.72rem",
+          color: ui.textMuted,
+        }}
+      >
+        <span style={{ fontWeight: 700, color: ui.textPrimary }}>
+          Top {shown.length} by in-progress, split by {dimLabel.toLowerCase()}
+        </span>
+        <span>
+          <span
+            style={{
+              display: "inline-block",
+              width: 14,
+              borderTop: `2px dashed ${ui.textMuted}`,
+              verticalAlign: "middle",
+              marginRight: 5,
+            }}
+          />
+          {avgLabel} {fmtAvg(avg)}
+        </span>
+      </div>
+
+      <div style={{ position: "relative" }}>
+        {shown.map((item) => (
+          <div
+            key={item.key}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              height: 22,
+            }}
+          >
+            <div
+              title={item.name}
+              style={{
+                width: 120,
+                flexShrink: 0,
+                fontSize: "0.72rem",
+                color: ui.textPrimary,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                textAlign: "right",
+              }}
+            >
+              {item.name}
+            </div>
+            <div style={{ flex: 1, position: "relative", height: 14 }}>
+              <div
+                style={{
+                  display: "flex",
+                  width: pct(item.total),
+                  height: "100%",
+                  gap: 2, // surface gap between segments
+                }}
+              >
+                {segmentsOf(item).map((s, idx, arr) => (
+                  <div
+                    key={s.label}
+                    onMouseEnter={(e) => {
+                      const box = e.currentTarget.getBoundingClientRect();
+                      setHover({
+                        name: item.name,
+                        label: s.label,
+                        count: s.count,
+                        total: item.total,
+                        x: box.left + box.width / 2,
+                        y: box.top,
+                      });
+                    }}
+                    onMouseLeave={() => setHover(null)}
+                    style={{
+                      width: `${(s.count / item.total) * 100}%`,
+                      background: colorFor(s.label),
+                      borderRadius: idx === arr.length - 1 ? "0 4px 4px 0" : 0,
+                      minWidth: 2,
+                    }}
+                  />
+                ))}
+              </div>
+              {avg > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: -4,
+                    bottom: -4,
+                    left: pct(avg),
+                    borderLeft: `2px dashed ${ui.textMuted}`,
+                    opacity: 0.7,
+                    pointerEvents: "none",
+                  }}
+                />
+              )}
+            </div>
+            <div
+              style={{
+                width: 44,
+                flexShrink: 0,
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                color: ui.textPrimary,
+                textAlign: "right",
+              }}
+            >
+              {item.total.toLocaleString()}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Legend: every series is named, so color is never the only cue */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "4px 12px",
+          marginTop: 8,
+        }}
+      >
+        {legend.map((label) => (
+          <span
+            key={label}
+            style={{ fontSize: "0.68rem", color: ui.textMuted }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: colorFor(label),
+                marginRight: 5,
+              }}
+            />
+            {label}
+          </span>
+        ))}
+      </div>
+
+      {hover && (
+        <div
+          style={{
+            position: "fixed",
+            left: hover.x,
+            top: hover.y - 8,
+            transform: "translate(-50%, -100%)",
+            background: "rgba(20,20,20,0.92)",
+            color: "#fff",
+            padding: "5px 9px",
+            borderRadius: 6,
+            fontSize: "0.7rem",
+            lineHeight: 1.4,
+            pointerEvents: "none",
+            zIndex: 100000,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <b>{hover.name}</b>
+          <br />
+          {hover.label}: {hover.count.toLocaleString()} (
+          {Math.round((hover.count / hover.total) * 100)}%)
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function InProgressByUserModal({
   ui,
@@ -30,10 +564,14 @@ export default function InProgressByUserModal({
   onClose,
   expectedTotal, // the In Progress number shown on the KPI tile
 }) {
-  const [rows, setRows] = useState([]);
+  const [rawRows, setRawRows] = useState([]); // all users, including those with 0
+  const [dim, setDim] = useState("app_type"); // breakdown dimension
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState("user"); // "user" | "unit" | "group"
+  const [expanded, setExpanded] = useState(() => new Set()); // user keys
+  const [openTeams, setOpenTeams] = useState({}); // team key -> bool
   const [selected, setSelected] = useState(null); // { id, name }
   const selectedRef = useRef(null);
   selectedRef.current = selected;
@@ -44,20 +582,22 @@ export default function InProgressByUserModal({
     setLoading(true);
     setError(null);
     try {
-      const res = await getUsersTaskSummary();
-      const list = (res?.data ?? [])
-        .map((r) => ({
-          key: r.user_id ?? nameOf(r),
-          id: r.user_id,
-          name: nameOf(r),
-          inProgress: inProgressOf(r),
-        }))
-        .filter((r) => r.inProgress > 0)
-        .sort((a, b) => b.inProgress - a.inProgress);
-      setRows(list);
+      const res = await getInProgressSummary();
+      const list = (res?.data ?? []).map((r) => ({
+        key: r.user_id ?? nameOf(r),
+        id: r.user_id,
+        name: nameOf(r),
+        unit: unitNameOf(r),
+        unitId: unitIdOf(r),
+        group: groupNameOf(r),
+        groupId: groupIdOf(r),
+        inProgress: inProgressOf(r),
+        items: itemsOf(r),
+      }));
+      setRawRows(list);
     } catch (err) {
       setError(err.message || "Failed to load users.");
-      setRows([]);
+      setRawRows([]);
     } finally {
       setLoading(false);
     }
@@ -74,18 +614,185 @@ export default function InProgressByUserModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return q ? rows.filter((r) => r.name.toLowerCase().includes(q)) : rows;
-  }, [rows, search]);
+  const dimLabel = DIMENSIONS.find((d) => d.key === dim)?.label ?? "Type";
+  const rows = useMemo(
+    () => rawRows.map((r) => ({ ...r, types: groupByDimension(r.items, dim) })),
+    [rawRows, dim],
+  );
+
+  // Stable color per breakdown value across all tabs
+  const colorOf = useMemo(() => {
+    const labels = mergeTypes(rows.map((r) => r.types)).map((t) => t.label);
+    const map = new Map(
+      labels.map((l, i) => [l, TYPE_PALETTE[i % TYPE_PALETTE.length]]),
+    );
+    return (label) => map.get(label) ?? FB;
+  }, [rows]);
+
+  const hasUnits = rows.some((r) => r.unit || r.unitId != null);
+  const hasGroups = rows.some((r) => r.group || r.groupId != null);
+  const hasTypes = rows.some((r) => r.types.length > 0);
+  // Old backend versions only send a combined "label" and no separate fields
+  const hasDimensions = rawRows.some((r) =>
+    r.items.some((x) => x.app_type != null),
+  );
+
+  const q = search.trim().toLowerCase();
+  const active = useMemo(
+    () =>
+      rows
+        .filter((r) => r.inProgress > 0)
+        .sort((a, b) => b.inProgress - a.inProgress),
+    [rows],
+  );
+  const filtered = useMemo(
+    () => (q ? active.filter((r) => r.name.toLowerCase().includes(q)) : active),
+    [active, q],
+  );
+
+  // ── Teams ──
+  const teams = useMemo(() => {
+    const map = new Map();
+    rows.forEach((r) => {
+      const byGroup = tab === "group";
+      const gid = byGroup ? r.groupId : r.unitId;
+      const gname = byGroup ? r.group : r.unit;
+      const key = `${byGroup ? "group" : "unit"}:${gid ?? gname ?? "none"}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          name: gname ?? (byGroup ? NO_GROUP : NO_UNIT),
+          members: [],
+        });
+      }
+      map.get(key).members.push(r);
+    });
+    return [...map.values()]
+      .map((t) => {
+        const total = t.members.reduce((s, m) => s + m.inProgress, 0);
+        const activeMembers = t.members.filter((m) => m.inProgress > 0).length;
+        return {
+          ...t,
+          total,
+          size: t.members.length,
+          activeMembers,
+          avg: t.members.length ? total / t.members.length : 0,
+          types: mergeTypes(t.members.map((m) => m.types)),
+          members: [...t.members].sort((a, b) => b.inProgress - a.inProgress),
+        };
+      })
+      .filter((t) => t.total > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [rows, tab]);
+
+  const filteredTeams = useMemo(() => {
+    if (!q) return teams;
+    return teams
+      .map((t) => ({
+        ...t,
+        shown: t.members.filter(
+          (m) =>
+            m.name.toLowerCase().includes(q) ||
+            t.name.toLowerCase().includes(q),
+        ),
+      }))
+      .filter((t) => t.shown.length > 0);
+  }, [teams, q]);
+
+  // ── Chart data: same entities as the list below, with their type split ──
+  const chartItems = useMemo(
+    () =>
+      tab === "user"
+        ? active.map((r) => ({
+            key: r.key,
+            name: r.name,
+            total: r.inProgress,
+            types: r.types,
+          }))
+        : teams.map((t) => ({
+            key: t.key,
+            name: t.name,
+            total: t.total,
+            types: t.types,
+          })),
+    [tab, active, teams],
+  );
+  const topLabels = useMemo(
+    () =>
+      mergeTypes(rows.map((r) => r.types))
+        .slice(0, CHART_MAX_TYPES)
+        .map((t) => t.label),
+    [rows],
+  );
 
   const sum = rows.reduce((s, r) => s + r.inProgress, 0);
-  const max = Math.max(...rows.map((r) => r.inProgress), 1);
+  const avgPerUser = active.length ? sum / active.length : 0;
+  const maxUser = Math.max(...active.map((r) => r.inProgress), 1);
+  const maxTeam = Math.max(...teams.map((t) => t.total), 1);
   const mismatch =
     typeof expectedTotal === "number" &&
     !loading &&
     !error &&
     sum !== expectedTotal;
+
+  const toggleUser = (key) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+
+  const tabBtn = (key, label) => (
+    <button
+      key={key}
+      onClick={() => setTab(key)}
+      style={{
+        padding: "5px 14px",
+        fontSize: "0.76rem",
+        fontWeight: tab === key ? 700 : 500,
+        borderRadius: 99,
+        border: `1px solid ${tab === key ? AMBER : line}`,
+        background: tab === key ? `${AMBER}22` : "transparent",
+        color: tab === key ? AMBER : ui.textMuted,
+        cursor: "pointer",
+        fontFamily: font,
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const stat = (label, value) => (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <span
+        style={{
+          fontSize: "0.6rem",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          color: ui.textMuted,
+        }}
+      >
+        {label}
+      </span>
+      <span style={{ fontSize: "0.95rem", fontWeight: 800, color: AMBER }}>
+        {value}
+      </span>
+    </div>
+  );
+
+  const emptyBox = (text) => (
+    <div
+      style={{
+        textAlign: "center",
+        padding: 40,
+        color: ui.textMuted,
+        fontSize: "0.85rem",
+      }}
+    >
+      {text}
+    </div>
+  );
 
   return createPortal(
     <div
@@ -104,8 +811,8 @@ export default function InProgressByUserModal({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: "min(560px, 100%)",
-          maxHeight: "86vh",
+          width: "min(720px, 100%)",
+          maxHeight: "88vh",
           display: "flex",
           flexDirection: "column",
           background: neuCardBg(darkMode),
@@ -134,12 +841,12 @@ export default function InProgressByUserModal({
                 color: ui.textPrimary,
               }}
             >
-              ⏳ In Progress per User
+              ⏳ In Progress Monitoring
             </div>
             <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
               {loading
                 ? "Loading…"
-                : `${rows.length} user${rows.length !== 1 ? "s" : ""} · ${sum.toLocaleString()} in progress`}
+                : `${active.length} user${active.length !== 1 ? "s" : ""} · ${sum.toLocaleString()} in progress`}
             </div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -147,7 +854,9 @@ export default function InProgressByUserModal({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search user…"
+              placeholder={
+                tab === "user" ? "Search user…" : `Search ${tab} or user…`
+              }
               autoComplete="off"
               style={{
                 background: neuCardBg(darkMode),
@@ -157,7 +866,7 @@ export default function InProgressByUserModal({
                 fontSize: "0.78rem",
                 color: ui.textPrimary,
                 outline: "none",
-                width: 150,
+                width: 170,
                 fontFamily: font,
                 colorScheme: darkMode ? "dark" : "light",
               }}
@@ -181,8 +890,117 @@ export default function InProgressByUserModal({
           </div>
         </div>
 
+        {/* Tabs + quick stats */}
+        {!loading && !error && rows.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+              padding: "10px 18px",
+              borderBottom: `1px solid ${line}`,
+            }}
+          >
+            <div style={{ display: "flex", gap: 6 }}>
+              {tabBtn("user", "Per User")}
+              {tabBtn("unit", "Per Unit")}
+              {tabBtn("group", "Per Group")}
+            </div>
+            <div style={{ display: "flex", gap: 20 }}>
+              {stat("Avg per user", fmtAvg(avgPerUser))}
+              {tab !== "user" &&
+                stat(
+                  tab === "unit" ? "Avg per unit" : "Avg per group",
+                  fmtAvg(teams.length ? sum / teams.length : 0),
+                )}
+            </div>
+          </div>
+        )}
+
+        {!loading && !error && hasTypes && !hasDimensions && (
+          <div
+            style={{
+              padding: "8px 18px",
+              fontSize: "0.72rem",
+              color: RED,
+              borderBottom: `1px solid ${line}`,
+            }}
+          >
+            The API is still returning the old combined labels, so the
+            application type cannot be shown. Update the get_in_progress_summary
+            function in the backend and restart it.
+          </div>
+        )}
+
+        {/* Breakdown selector */}
+        {!loading && !error && hasTypes && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              flexWrap: "wrap",
+              padding: "8px 18px",
+              borderBottom: `1px solid ${line}`,
+              fontSize: "0.72rem",
+              color: ui.textMuted,
+            }}
+          >
+            <span style={{ marginRight: 4 }}>Break down by</span>
+            {DIMENSIONS.map((d) => (
+              <button
+                key={d.key}
+                onClick={() => setDim(d.key)}
+                style={{
+                  padding: "3px 10px",
+                  fontSize: "0.72rem",
+                  fontWeight: dim === d.key ? 700 : 500,
+                  borderRadius: 99,
+                  border: `1px solid ${dim === d.key ? FB : line}`,
+                  background: dim === d.key ? `${FB}22` : "transparent",
+                  color: dim === d.key ? FB : ui.textMuted,
+                  cursor: "pointer",
+                  fontFamily: font,
+                }}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", minHeight: 160 }}>
+          {!loading &&
+            !error &&
+            hasTypes &&
+            chartItems.length > 0 &&
+            (tab === "user" || (tab === "unit" ? hasUnits : hasGroups)) && (
+              <StackedChart
+                dimLabel={dimLabel}
+                items={chartItems}
+                avg={
+                  tab === "user"
+                    ? avgPerUser
+                    : teams.length
+                      ? sum / teams.length
+                      : 0
+                }
+                avgLabel={
+                  tab === "user"
+                    ? "avg per user"
+                    : tab === "unit"
+                      ? "avg per unit"
+                      : "avg per group"
+                }
+                topLabels={topLabels}
+                colorOf={colorOf}
+                ui={ui}
+                line={line}
+              />
+            )}
           {loading ? (
             <div
               style={{
@@ -211,7 +1029,7 @@ export default function InProgressByUserModal({
               style={{
                 textAlign: "center",
                 padding: 40,
-                color: "#e02020",
+                color: RED,
                 fontSize: "0.85rem",
               }}
             >
@@ -230,98 +1048,194 @@ export default function InProgressByUserModal({
                 Retry
               </button>
             </div>
-          ) : filtered.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: 40,
-                color: ui.textMuted,
-                fontSize: "0.85rem",
-              }}
-            >
-              {rows.length === 0
-                ? "No in-progress applications."
-                : "No users match your search."}
-            </div>
-          ) : (
-            filtered.map((r, i) => (
-              <div
-                key={r.key}
-                onClick={() =>
-                  r.id != null && setSelected({ id: r.id, name: r.name })
-                }
-                title={r.id != null ? "Click to view applications" : undefined}
-                style={{
-                  cursor: r.id != null ? "pointer" : "default",
-                  display: "grid",
-                  gridTemplateColumns: "28px minmax(0,1fr) 120px 56px",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 18px",
-                  borderBottom:
-                    i < filtered.length - 1 ? `1px solid ${line}` : "none",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = darkMode
-                    ? "rgba(255,255,255,0.04)"
-                    : "rgba(0,0,0,0.03)")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "transparent")
-                }
-              >
-                <span
-                  style={{
-                    fontSize: "0.72rem",
-                    color: ui.textMuted,
-                    textAlign: "center",
-                  }}
-                >
-                  {i + 1}
-                </span>
-                <span
-                  title={r.name}
-                  style={{
-                    fontSize: "0.82rem",
-                    fontWeight: 600,
-                    color: ui.textPrimary,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {r.name}
-                </span>
+          ) : active.length === 0 ? (
+            emptyBox("No in-progress applications.")
+          ) : tab === "user" ? (
+            <>
+              {!hasTypes && (
                 <div
                   style={{
-                    height: 6,
-                    borderRadius: 99,
-                    overflow: "hidden",
-                    background: darkMode
-                      ? "rgba(255,255,255,0.08)"
-                      : "rgba(0,0,0,0.08)",
+                    margin: "10px 18px 0",
+                    fontSize: "0.72rem",
+                    color: ui.textMuted,
                   }}
                 >
-                  <div
-                    style={{
-                      width: `${(r.inProgress / max) * 100}%`,
-                      height: "100%",
-                      background: AMBER,
-                    }}
-                  />
+                  The API does not return a breakdown yet, so the type details
+                  are empty.
                 </div>
-                <span
-                  style={{
-                    fontSize: "0.85rem",
-                    fontWeight: 800,
-                    color: AMBER,
-                    textAlign: "right",
-                  }}
-                >
-                  {r.inProgress.toLocaleString()}
-                </span>
-              </div>
-            ))
+              )}
+              {filtered.length === 0
+                ? emptyBox("No users match your search.")
+                : filtered.map((r, i) => (
+                    <UserRow
+                      dimLabel={dimLabel}
+                      key={r.key}
+                      r={r}
+                      index={i}
+                      max={maxUser}
+                      teamAvg={null}
+                      subLabel={[r.unit, r.group].filter(Boolean).join(" · ")}
+                      expanded={expanded.has(r.key)}
+                      onToggle={() => toggleUser(r.key)}
+                      onView={(u) => setSelected({ id: u.id, name: u.name })}
+                      colorOf={colorOf}
+                      ui={ui}
+                      darkMode={darkMode}
+                      line={line}
+                      isLast={i === filtered.length - 1}
+                    />
+                  ))}
+            </>
+          ) : !(tab === "unit" ? hasUnits : hasGroups) ? (
+            emptyBox(
+              tab === "unit"
+                ? "No unit info was returned, so users cannot be grouped per unit."
+                : "No group info was returned, so users cannot be grouped per group.",
+            )
+          ) : filteredTeams.length === 0 ? (
+            emptyBox("No teams or users match your search.")
+          ) : (
+            filteredTeams.map((t) => {
+              const open = openTeams[t.key] ?? false;
+              const members = (t.shown ?? t.members).filter(
+                (m) => m.inProgress > 0,
+              );
+              return (
+                <div key={t.key} style={{ borderBottom: `1px solid ${line}` }}>
+                  <div
+                    onClick={() =>
+                      setOpenTeams((p) => ({ ...p, [t.key]: !open }))
+                    }
+                    style={{ cursor: "pointer", padding: "12px 18px" }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = darkMode
+                        ? "rgba(255,255,255,0.04)"
+                        : "rgba(0,0,0,0.03)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "baseline",
+                        gap: 12,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.88rem",
+                          fontWeight: 700,
+                          color: ui.textPrimary,
+                        }}
+                      >
+                        {open ? "▾" : "▸"} {t.name}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "1rem",
+                          fontWeight: 800,
+                          color: AMBER,
+                        }}
+                      >
+                        {t.total.toLocaleString()}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 14,
+                        flexWrap: "wrap",
+                        margin: "4px 0 8px",
+                        fontSize: "0.72rem",
+                        color: ui.textMuted,
+                      }}
+                    >
+                      <span>
+                        {t.size} member{t.size !== 1 ? "s" : ""}
+                        {t.activeMembers !== t.size
+                          ? ` (${t.activeMembers} with tasks)`
+                          : ""}
+                      </span>
+                      <span>
+                        avg per member{" "}
+                        <b style={{ color: ui.textPrimary }}>{fmtAvg(t.avg)}</b>
+                      </span>
+                      {t.types[0] && (
+                        <span>
+                          top {dimLabel.toLowerCase()}{" "}
+                          <b style={{ color: colorOf(t.types[0].label) }}>
+                            {t.types[0].label}
+                          </b>
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        height: 6,
+                        borderRadius: 99,
+                        overflow: "hidden",
+                        background: darkMode
+                          ? "rgba(255,255,255,0.08)"
+                          : "rgba(0,0,0,0.08)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${(t.total / maxTeam) * 100}%`,
+                          height: "100%",
+                          background: AMBER,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {open && (
+                    <div
+                      style={{
+                        borderTop: `1px dashed ${line}`,
+                        background: darkMode
+                          ? "rgba(255,255,255,0.02)"
+                          : "rgba(0,0,0,0.015)",
+                      }}
+                    >
+                      <div style={{ padding: "10px 18px 4px" }}>
+                        <TypeBreakdown
+                          types={t.types}
+                          total={t.total}
+                          colorOf={colorOf}
+                          ui={ui}
+                          line={line}
+                        />
+                      </div>
+                      {members.map((m, i) => (
+                        <UserRow
+                          dimLabel={dimLabel}
+                          key={m.key}
+                          r={m}
+                          index={i}
+                          max={Math.max(...members.map((x) => x.inProgress), 1)}
+                          teamAvg={t.avg}
+                          subLabel={tab === "unit" ? m.group : m.unit}
+                          expanded={expanded.has(m.key)}
+                          onToggle={() => toggleUser(m.key)}
+                          onView={(u) =>
+                            setSelected({ id: u.id, name: u.name })
+                          }
+                          colorOf={colorOf}
+                          ui={ui}
+                          darkMode={darkMode}
+                          line={line}
+                          isLast={i === members.length - 1}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
 
@@ -340,9 +1254,11 @@ export default function InProgressByUserModal({
           >
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <span>
-                {filtered.length !== rows.length
-                  ? `${filtered.length} of ${rows.length} users`
-                  : `${rows.length} users`}
+                {tab === "user"
+                  ? filtered.length !== active.length
+                    ? `${filtered.length} of ${active.length} users`
+                    : `${active.length} users`
+                  : `${filteredTeams.length} of ${teams.length} ${tab === "unit" ? "units" : "groups"}`}
               </span>
               <span>
                 Total <b style={{ color: AMBER }}>{sum.toLocaleString()}</b>

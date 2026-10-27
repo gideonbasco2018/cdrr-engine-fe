@@ -208,11 +208,9 @@ export const BULK_DECK_CONFIG = {
     buttonLabel: "Endorse Selected Applications",
     modalTitle: "Endorse Selected Applications to OD-Releasing",
     defaultDoctrack: DECISION_DOCTRACK_MAP["Endorsed to OD-Releasing"],
-    availableDecisions: ["Endorsed to OD-Releasing"],
+    availableDecisions: ["Endorsed to OD-Releasing", "Returned to LRD"],
     decisionDoctrackMap: DECISION_DOCTRACK_MAP,
   },
-
-
 };
 
 export const RECORD_TAB_COLUMNS = [

@@ -216,7 +216,7 @@ function DataTable({
         return true;
       });
 
-    // OD-Receiving's "Returned to LRD" goes back to LRD Chief Admin; the
+    // "Returned to LRD" (OD-Receiving, CDRR-OD Signature Facilitator) goes back to LRD Chief Admin; the
     // evaluator returns keep going back to Quality Evaluation.
     const isReturnToLRD = decision === "Returned to LRD";
 
@@ -227,11 +227,9 @@ function DataTable({
 
     const returnTargetStep = isReturnToLRD
       ? "LRD Chief Admin"
-      : [
-            "PRSDD Checking",
-            "PRSDD Supervisor",
-            "PRSDD QA Admin",
-          ].includes(bulkDeckConfig.currentStep)
+      : ["PRSDD Checking", "PRSDD Supervisor", "PRSDD QA Admin"].includes(
+            bulkDeckConfig.currentStep,
+          )
         ? "PRSDD Quality Evaluation"
         : "Quality Evaluation";
 

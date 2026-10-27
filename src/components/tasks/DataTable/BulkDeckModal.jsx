@@ -89,6 +89,10 @@ const ACTION_CONFIG = {
     options: ["Signed"],
     warning: "Action is required when endorsing to OD-Releasing.",
   },
+  "CDRR-OD Signature Facilitator_Returned to LRD": {
+    options: ["Returned to LRD for Clarification"],
+    warning: "Recommendation is required when returning to LRD.",
+  },
 };
 
 const RETURN_DECISIONS = new Set([
