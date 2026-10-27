@@ -1,6 +1,7 @@
 // FILE: src/components/reports/actions/ViewDetailsModal.jsx
 
-import { useState, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
+import { getApplicationDocumentsByDtn } from "../../../api/application-documents";
 
 /* Provides a consistent label-column width to every LVRow within a given
    AccordionSection, so values line up vertically within that section. */
@@ -266,7 +267,8 @@ function LVRow({ label, value, colors, wide = false, fullWidth = false }) {
           color: isNA ? colors.textTertiary : colors.textPrimary,
           fontStyle: isNA ? "italic" : "normal",
           fontWeight: 500,
-          wordBreak: "break-word",
+          overflowWrap: "anywhere",
+          minWidth: 0,
           whiteSpace: wide ? "pre-wrap" : "normal",
         }}
       >
@@ -293,9 +295,254 @@ function LVGrid({ children }) {
 }
 
 /* ================================================================== */
+/*  Files Panel — uploaded files + preview for this DTN                 */
+/* ================================================================== */
+const fileName = (d) => d.original_filename ?? d.file_name ?? "Untitled";
+
+const fileIcon = (d) => {
+  const n = fileName(d).toLowerCase();
+  if (n.endsWith(".pdf")) return "📕";
+  if (/\.(jpe?g|png)$/.test(n)) return "🖼️";
+  return "📄";
+};
+
+const formatBytes = (b) => {
+  if (!b && b !== 0) return "";
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+function FilesViewer({ docs, colors, onClose }) {
+  const [active, setActive] = useState(docs[0] ?? null);
+  const [collapsed, setCollapsed] = useState({});
+
+  // I-group ang files per folder (doc_category)
+  const groups = docs.reduce((acc, d) => {
+    const key = d.doc_category || "No Folder";
+    (acc[key] = acc[key] || []).push(d);
+    return acc;
+  }, {});
+  const previewUrl = active?.drive_file_id
+    ? `https://drive.google.com/file/d/${active.drive_file_id}/preview`
+    : null;
+
+  return (
+    <div
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          padding: "0.55rem 0.9rem",
+          borderBottom: `1px solid ${colors.cardBorder}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ fontSize: "0.78rem", fontWeight: 700, color: ACCENT }}>
+          Uploaded Files ({docs.length})
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {active?.drive_file_url && (
+            <a
+              href={active.drive_file_url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 600,
+                color: ACCENT,
+                textDecoration: "none",
+              }}
+            >
+              Open in Drive ↗
+            </a>
+          )}
+          <button
+            onClick={onClose}
+            style={{
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textSecondary,
+              borderRadius: 6,
+              padding: "0.15rem 0.5rem",
+              fontSize: "0.65rem",
+              cursor: "pointer",
+            }}
+          >
+            Hide ✕
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        {/* File list */}
+        {/* File list — grouped per folder */}
+        <div
+          style={{
+            width: "clamp(140px, 22%, 200px)",
+            flexShrink: 0,
+            overflowY: "auto",
+            padding: "0.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            borderRight: `1px solid ${colors.cardBorder}`,
+          }}
+        >
+          {Object.entries(groups).map(([folder, items]) => {
+            const isCollapsed = !!collapsed[folder];
+            return (
+              <div key={folder}>
+                <button
+                  onClick={() =>
+                    setCollapsed((c) => ({ ...c, [folder]: !c[folder] }))
+                  }
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "0.3rem 0.35rem",
+                    background: "transparent",
+                    border: "none",
+                    color: colors.textPrimary,
+                    fontSize: "0.68rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ fontSize: "0.55rem" }}>
+                    {isCollapsed ? "▶" : "▼"}
+                  </span>
+                  <span>📁</span>
+                  <span
+                    style={{
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={folder}
+                  >
+                    {folder}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      color: colors.textTertiary,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {items.length}
+                  </span>
+                </button>
+
+                {!isCollapsed && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 3,
+                      marginLeft: 8,
+                      paddingLeft: 6,
+                      borderLeft: `1px solid ${colors.cardBorder}`,
+                    }}
+                  >
+                    {items.map((doc) => {
+                      const isActive = active?.id === doc.id;
+                      return (
+                        <button
+                          key={doc.id}
+                          onClick={() => setActive(doc)}
+                          title={fileName(doc)}
+                          style={{
+                            textAlign: "left",
+                            padding: "0.35rem 0.45rem",
+                            borderRadius: 6,
+                            border: `1px solid ${isActive ? ACCENT : colors.cardBorder}`,
+                            background: isActive ? ACCENT_BG : "transparent",
+                            color: isActive ? ACCENT : colors.textPrimary,
+                            fontSize: "0.64rem",
+                            cursor: "pointer",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 1,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {fileIcon(doc)} {fileName(doc)}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "0.56rem",
+                              color: colors.textTertiary,
+                            }}
+                          >
+                            {formatBytes(doc.file_size_bytes)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Big viewer */}
+        <div style={{ flex: 1, minWidth: 0, background: colors.pageBg }}>
+          {previewUrl ? (
+            <iframe
+              key={active.id}
+              src={previewUrl}
+              title={fileName(active)}
+              style={{ width: "100%", height: "100%", border: "none" }}
+            />
+          ) : (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.72rem",
+                color: colors.textTertiary,
+              }}
+            >
+              No preview available.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
 /*  All Details — single-view accordion layout                          */
 /* ================================================================== */
-function AllDetails({ record, colors }) {
+function AllDetails({
+  record,
+  colors,
+  fileCount = 0,
+  showFiles = false,
+  onToggleFiles,
+}) {
   const { status, days } = calculateStatusTimeline(record);
   const ok = status === "WITHIN";
 
@@ -355,7 +602,10 @@ function AllDetails({ record, colors }) {
   const tone = statusTone(record.appStatus);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+    <div
+      className="vdm-wrap"
+      style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+    >
       {/* Status / Submitted bar — mirrors the reference top row */}
       <div
         style={{
@@ -363,10 +613,11 @@ function AllDetails({ record, colors }) {
           background: colors.inputBg,
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: "8px",
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
           alignItems: "center",
-          gap: "2rem",
-          flexWrap: "wrap",
+          columnGap: "1rem",
+          rowGap: "0.75rem",
         }}
       >
         <div>
@@ -536,10 +787,44 @@ function AllDetails({ record, colors }) {
             </span>
           </div>
         )}
+
+        {fileCount > 0 && (
+          <div>
+            <div
+              style={{
+                fontSize: "0.62rem",
+                color: colors.textTertiary,
+                marginBottom: "0.3rem",
+              }}
+            >
+              Files
+            </div>
+            <button
+              onClick={onToggleFiles}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.35rem",
+                padding: "0.2rem 0.65rem",
+                background: showFiles ? ACCENT : ACCENT_BG,
+                color: showFiles ? "#fff" : ACCENT,
+                border: `1px solid ${ACCENT}`,
+                borderRadius: "999px",
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              📎 {fileCount} file{fileCount > 1 ? "s" : ""}
+              <span>{showFiles ? "◀" : "▶"}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Two-column layout: left = Establishment/Product/Fees/Companies (60%), right = Application/Released/CPR/Amendments (40%) — collapses to one column on small screens */}
       <style>{`
+        .vdm-wrap { container-type: inline-size; container-name: vdm; }
         .vdm-two-col {
           display: flex;
           gap: 0.75rem;
@@ -554,18 +839,16 @@ function AllDetails({ record, colors }) {
         }
         .vdm-col-left { flex: 1 1 60%; }
         .vdm-col-right { flex: 0 0 40%; }
-        @media (max-width: 760px) {
-          .vdm-two-col {
-            flex-direction: column;
-          }
+
+        /* Kapag makitid ang PANEL (hindi ang screen) → isang column */
+        @container vdm (max-width: 820px) {
+          .vdm-two-col { flex-direction: column; }
           .vdm-col-left,
-          .vdm-col-right {
-            flex: 1 1 100%;
-            width: 100%;
-          }
-          .vdm-lv-grid {
-            grid-template-columns: 1fr !important;
-          }
+          .vdm-col-right { flex: 1 1 100%; width: 100%; }
+        }
+        /* Kapag sobrang makitid → isang column din ang label/value grid */
+        @container vdm (max-width: 560px) {
+          .vdm-lv-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
       <div className="vdm-two-col">
@@ -961,6 +1244,35 @@ function ViewDetailsModal({
   darkMode,
   loading = false,
 }) {
+  const [docs, setDocs] = useState([]);
+  const [showFiles, setShowFiles] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(
+    typeof window !== "undefined" && window.innerWidth < 1200,
+  );
+
+  useEffect(() => {
+    const onResize = () => setIsNarrow(window.innerWidth < 1200);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => {
+    if (!record?.dtn) return;
+    let cancelled = false;
+    setShowFiles(false);
+    setDocs([]);
+    getApplicationDocumentsByDtn(String(record.dtn))
+      .then((res) => {
+        if (!cancelled) setDocs(Array.isArray(res?.data) ? res.data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setDocs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [record?.dtn]);
+
   if (!record) return null;
 
   return (
@@ -985,8 +1297,11 @@ function ViewDetailsModal({
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: "min(1100px, 95vw)",
+          width:
+            showFiles && !isNarrow ? "min(1600px, 96vw)" : "min(1100px, 95vw)",
+          height: showFiles ? "94vh" : undefined,
           maxHeight: "94vh",
+          transition: "width 0.25s ease",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: "14px",
@@ -1071,37 +1386,77 @@ function ViewDetailsModal({
             ✕
           </button>
         </div>
-
         {/* ── Body ── */}
         <div
           style={{
             flex: 1,
             minHeight: 0,
-            overflowY: "auto",
-            padding: "1rem 1.25rem",
+            display: "flex",
+            overflow: "hidden",
+            position: "relative",
           }}
         >
-          {loading ? (
+          <div
+            style={{
+              flex: showFiles && !isNarrow ? "0 0 46%" : "1 1 auto",
+              minWidth: 0,
+              overflowY: "auto",
+              padding: "1rem 1.25rem",
+            }}
+          >
+            {loading ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  height: "300px",
+                  gap: "0.75rem",
+                  color: colors.textTertiary,
+                }}
+              >
+                <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>
+                  Loading details...
+                </span>
+                <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
+                  DTN: {record?.dtn}
+                </span>
+              </div>
+            ) : (
+              <AllDetails
+                record={record}
+                colors={colors}
+                fileCount={docs.length}
+                showFiles={showFiles}
+                onToggleFiles={() => setShowFiles((v) => !v)}
+              />
+            )}
+          </div>
+
+          {showFiles && docs.length > 0 && (
             <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "300px",
-                gap: "0.75rem",
-                color: colors.textTertiary,
-              }}
+              style={
+                isNarrow
+                  ? {
+                      position: "absolute",
+                      inset: 0,
+                      zIndex: 5,
+                      background: colors.cardBg,
+                    }
+                  : {
+                      flex: 1,
+                      minWidth: 0,
+                      borderLeft: `1px solid ${colors.cardBorder}`,
+                    }
+              }
             >
-              <span style={{ fontSize: "0.78rem", fontWeight: 600 }}>
-                Loading details...
-              </span>
-              <span style={{ fontSize: "0.65rem", opacity: 0.6 }}>
-                DTN: {record?.dtn}
-              </span>
+              <FilesViewer
+                docs={docs}
+                colors={colors}
+                onClose={() => setShowFiles(false)}
+              />
             </div>
-          ) : (
-            <AllDetails record={record} colors={colors} />
           )}
         </div>
 
