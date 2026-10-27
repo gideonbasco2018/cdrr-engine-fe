@@ -1,5 +1,12 @@
 // src/components/reports/DataTable.jsx
-import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useCallback,
+  useRef,
+  Fragment,
+} from "react";
 import { tableColumns } from "./tableColumns";
 import TablePagination from "./TablePagination";
 import DeckModal from "./actions/DeckModal";
@@ -10,11 +17,31 @@ import DoctrackModal from "./actions/DoctrackModal";
 import ApplicationLogsModal from "../tasks/ApplicationLogsModal";
 import ChangeLogModal from "../tasks/ChangeLogModal";
 import UpdateCPRModal from "./actions/UpdateCPRModal";
+import FilesPreviewModal from "./actions/FilesPreviewModal";
 import { BulkCompleteModal } from "../tasks/DataTable/BulkCompleteModal";
 import { BulkCancelModal } from "../tasks/DataTable/BulkCancelModal";
 import { closeTasksBulk, getCurrentUser } from "../../api/closed-tasks";
 import { getDuplicateRecords } from "../../api/duplicate-records";
 import { getHoverSummary } from "../../api/application-logs";
+import { getApplicationDocumentsByDtn } from "../../api/application-documents";
+
+const FilesIcon = ({ size = 16 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 3 14 8 19 8" />
+    <line x1="9" y1="13" x2="15" y2="13" />
+    <line x1="9" y1="17" x2="13" y2="17" />
+  </svg>
+);
 
 const COLUMN_DB_KEY_MAP = {
   processingType: "DB_PROCESSING_TYPE",
@@ -151,6 +178,7 @@ function DataTable({
   const [appLogsRecord, setAppLogsRecord] = useState(null);
   const [changeLogRecord, setChangeLogRecord] = useState(null);
   const [cprUpdateRecord, setCprUpdateRecord] = useState(null);
+  const [filesRecord, setFilesRecord] = useState(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 20 });
 
   const [bulkCompleteModalRecords, setBulkCompleteModalRecords] =
@@ -419,6 +447,39 @@ function DataTable({
     }
     return data;
   }, [showDupesOnly, dupeData, data]);
+
+  // ── Files check: ilang files ang naka-upload bawat DTN ──
+  const [fileCounts, setFileCounts] = useState({});
+  const requestedDtns = useRef(new Set());
+
+  useEffect(() => {
+    const pending = [
+      ...new Set(
+        displayData
+          .map((r) => String(r.dtn ?? "").trim())
+          .filter((d) => d && d !== "N/A"),
+      ),
+    ].filter((d) => !requestedDtns.current.has(d));
+
+    if (pending.length === 0) return;
+    pending.forEach((d) => requestedDtns.current.add(d));
+
+    let i = 0;
+    const worker = async () => {
+      while (i < pending.length) {
+        const dtn = pending[i++];
+        try {
+          const res = await getApplicationDocumentsByDtn(dtn);
+          const n = res?.total ?? res?.data?.length ?? 0;
+          setFileCounts((p) => ({ ...p, [dtn]: n }));
+        } catch {
+          setFileCounts((p) => ({ ...p, [dtn]: 0 }));
+        }
+      }
+    };
+    // 5 requests nang sabay
+    for (let k = 0; k < 5; k++) worker();
+  }, [displayData]);
 
   const isNotYetDeckedTab = activeTab === "not-decked";
   const showAppLogs = activeTab === "decked" || activeTab === "all";
@@ -2003,36 +2064,51 @@ function DataTable({
                   #
                 </th>
                 {tableColumns.map((col) => (
-                  <th
-                    key={col.key}
-                    onClick={() => handleSort(col.key)}
-                    style={{
-                      ...thStyle,
-                      minWidth: col.width,
-                      background: col.headerBg || colors.tableBg,
-                      cursor:
-                        col.key !== "statusTimeline" ? "pointer" : "default",
-                      ...getFrozenThStyle(col),
-                    }}
-                    onMouseEnter={(e) => {
-                      if (col.key !== "statusTimeline")
-                        e.currentTarget.style.background = darkMode
-                          ? "#1e1e1e"
-                          : "#ebebeb";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background =
-                        col.headerBg || colors.tableBg;
-                    }}
-                  >
-                    <span
-                      style={{ display: "inline-flex", alignItems: "center" }}
+                  <Fragment key={col.key}>
+                    <th
+                      onClick={() => handleSort(col.key)}
+                      style={{
+                        ...thStyle,
+                        minWidth: col.width,
+                        background: col.headerBg || colors.tableBg,
+                        cursor:
+                          col.key !== "statusTimeline" ? "pointer" : "default",
+                        ...getFrozenThStyle(col),
+                      }}
+                      onMouseEnter={(e) => {
+                        if (col.key !== "statusTimeline")
+                          e.currentTarget.style.background = darkMode
+                            ? "#1e1e1e"
+                            : "#ebebeb";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background =
+                          col.headerBg || colors.tableBg;
+                      }}
                     >
-                      {col.label}
-                      <SortIcon colKey={col.key} />
-                    </span>
-                  </th>
+                      <span
+                        style={{ display: "inline-flex", alignItems: "center" }}
+                      >
+                        {col.label}
+                        <SortIcon colKey={col.key} />
+                      </span>
+                    </th>
+                    {col.key === "oldRsn" && (
+                      <th
+                        style={{
+                          ...thStyle,
+                          cursor: "default",
+                          textAlign: "center",
+                          width: "70px",
+                          minWidth: "70px",
+                        }}
+                      >
+                        Files
+                      </th>
+                    )}
+                  </Fragment>
                 ))}
+
                 <th
                   style={{
                     ...thStyle,
@@ -2055,7 +2131,7 @@ function DataTable({
                 0 ? (
                 <tr>
                   <td
-                    colSpan={tableColumns.length + 3}
+                    colSpan={tableColumns.length + 4}
                     style={{
                       padding: "2rem",
                       textAlign: "center",
@@ -2151,17 +2227,88 @@ function DataTable({
                         {indexOfFirstRow + index}
                       </td>
                       {tableColumns.map((col) => (
-                        <td
-                          key={col.key}
-                          style={{
-                            ...tdStyle,
-                            minWidth: col.width,
-                            ...getFrozenTdStyle(col, rowBg),
-                          }}
-                        >
-                          {renderCell(col, row)}
-                        </td>
+                        <Fragment key={col.key}>
+                          <td
+                            style={{
+                              ...tdStyle,
+                              minWidth: col.width,
+                              ...getFrozenTdStyle(col, rowBg),
+                            }}
+                          >
+                            {renderCell(col, row)}
+                          </td>
+                          {col.key === "oldRsn" && (
+                            <td
+                              data-no-hover
+                              style={{
+                                ...tdStyle,
+                                textAlign: "center",
+                                minWidth: "70px",
+                              }}
+                            >
+                              {fileCounts[String(row.dtn ?? "").trim()] > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFilesRecord(row);
+                                  }}
+                                  title={`View ${fileCounts[String(row.dtn ?? "").trim()]} uploaded file(s)`}
+                                  style={{
+                                    position: "relative",
+                                    width: 30,
+                                    height: 30,
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    background: "transparent",
+                                    border: `1px solid ${colors.cardBorder}`,
+                                    borderRadius: 8,
+                                    color: colors.textTertiary,
+                                    cursor: "pointer",
+                                    transition: "all 0.15s",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background =
+                                      colors.tableRowHover;
+                                    e.currentTarget.style.color =
+                                      colors.textPrimary;
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background =
+                                      "transparent";
+                                    e.currentTarget.style.color =
+                                      colors.textTertiary;
+                                  }}
+                                >
+                                  <FilesIcon size={16} />
+                                  <span
+                                    style={{
+                                      position: "absolute",
+                                      top: -6,
+                                      right: -6,
+                                      minWidth: 16,
+                                      height: 16,
+                                      padding: "0 4px",
+                                      borderRadius: 999,
+                                      background: "#6b7280",
+                                      color: "#fff",
+                                      fontSize: "0.55rem",
+                                      fontWeight: 800,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      border: `1.5px solid ${colors.cardBg}`,
+                                    }}
+                                  >
+                                    {fileCounts[String(row.dtn ?? "").trim()]}
+                                  </span>
+                                </button>
+                              )}
+                            </td>
+                          )}
+                        </Fragment>
                       ))}
+
                       <td
                         data-no-hover
                         style={{
@@ -2605,6 +2752,14 @@ function DataTable({
             if (onClearSelections) onClearSelections();
             if (onRefresh) await onRefresh();
           }}
+          colors={colors}
+        />
+      )}
+
+      {filesRecord && (
+        <FilesPreviewModal
+          record={filesRecord}
+          onClose={() => setFilesRecord(null)}
           colors={colors}
         />
       )}
