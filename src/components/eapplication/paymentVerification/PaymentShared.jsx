@@ -29,6 +29,7 @@ export function PdfViewer({
   fileName,
   pdfUrl,
   defaultZoom = 0.7,
+  multiPage = false, // children are already full A4 pages
   children,
 }) {
   const [zoom, setZoom] = useState(defaultZoom);
@@ -116,6 +117,27 @@ export function PdfViewer({
           src={pdfUrl}
           style={{ flex: 1, border: "none", width: "100%" }}
         />
+      ) : multiPage ? (
+        <div
+          style={{
+            flex: 1,
+            overflow: "auto",
+            background: "#6b7280",
+            padding: "1rem",
+          }}
+        >
+          <div
+            style={{
+              zoom,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "24px",
+            }}
+          >
+            {children}
+          </div>
+        </div>
       ) : (
         <div
           style={{
@@ -145,6 +167,111 @@ export function PdfViewer({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Modern step progress bar (circles + connecting lines) ── */
+export function StepProgress({ steps, step, colors }) {
+  const GREEN = "#4CAF50";
+  const CIRCLE = 28;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        padding: "0.9rem 1.75rem 0.8rem",
+        background: colors.cardBg,
+        borderBottom: `1px solid ${colors.cardBorder}`,
+        flexShrink: 0,
+      }}
+    >
+      {steps.map((s, i) => {
+        const active = step === s.id;
+        const done = step > s.id;
+        const isLast = i === steps.length - 1;
+
+        return (
+          <div
+            key={s.id}
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              flex: isLast ? "0 0 auto" : 1,
+              minWidth: 0,
+            }}
+          >
+            {/* Circle + label */}
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "0.4rem",
+                minWidth: "96px",
+                maxWidth: "150px",
+              }}
+            >
+              <span
+                style={{
+                  width: `${CIRCLE}px`,
+                  height: `${CIRCLE}px`,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  boxSizing: "border-box",
+                  background: active || done ? GREEN : "transparent",
+                  color: active || done ? "#fff" : colors.textTertiary,
+                  border:
+                    active || done
+                      ? `2px solid ${GREEN}`
+                      : `2px solid ${colors.cardBorder}`,
+                  boxShadow: active ? "0 0 0 4px rgba(76,175,80,0.2)" : "none",
+                  transition: "all 0.25s ease",
+                }}
+              >
+                {done ? "✓" : s.id}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  lineHeight: 1.3,
+                  textAlign: "center",
+                  fontWeight: active ? 700 : 500,
+                  color: active
+                    ? colors.textPrimary
+                    : done
+                      ? colors.textPrimary
+                      : colors.textTertiary,
+                  opacity: done ? 0.75 : 1,
+                  transition: "color 0.25s ease",
+                }}
+              >
+                <span style={{ marginRight: "0.25rem" }}>{s.icon}</span>
+                {s.label}
+              </span>
+            </div>
+
+            {/* Connector line to the next step */}
+            {!isLast && (
+              <div
+                style={{
+                  flex: 1,
+                  height: "2px",
+                  marginTop: `${CIRCLE / 2 - 1}px`,
+                  borderRadius: "2px",
+                  background: done ? GREEN : colors.cardBorder,
+                  transition: "background 0.25s ease",
+                }}
+              />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
