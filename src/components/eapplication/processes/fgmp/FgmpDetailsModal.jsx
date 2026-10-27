@@ -9,6 +9,8 @@ import {
   getIssuanceTypes,
   getNextCertificateNumber,
   getApplicationDocuments,
+  listDriveFiles,
+  getDriveFile,
   getNods,
   getWorksheet,
   saveWorksheet,
@@ -23,6 +25,7 @@ import {
   PdfViewer,
   ConfirmPostModal,
   ConfirmAddPaymentModal,
+  StepProgress,
 } from "../../paymentVerification/PaymentShared.jsx";
 
 import {
@@ -263,6 +266,142 @@ function SubmittedDocuments({ documents, error, driveLink, colors }) {
           📁 Open Google Drive folder
         </a>
       )}
+    </div>
+  );
+}
+
+/* The application's Google Drive folder: step into folders, open or download a
+   file. A failure (for example Drive not set up on the server) stays inside
+   this block. */
+function DriveFolder({ referenceNo, colors }) {
+  const [trail, setTrail] = useState([]); // folders stepped into, root excluded
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const folderId = trail.length ? trail[trail.length - 1].id : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+    setItems(null);
+    setError(null);
+    listDriveFiles(referenceNo, folderId)
+      .then((res) => {
+        if (!cancelled) setItems(res.items || []);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [referenceNo, folderId]);
+
+  const openFile = async (file, download) => {
+    setBusyId(file.id);
+    try {
+      const blob = await getDriveFile(referenceNo, file.id, download);
+      const url = URL.createObjectURL(blob);
+      if (download) {
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = file.name;
+        a.click();
+      } else {
+        window.open(url, "_blank", "noopener");
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const note = { fontSize: "0.7rem", color: colors.textTertiary, padding: "0.3rem 0" };
+  const linkBtn = {
+    border: "none",
+    background: "transparent",
+    padding: 0,
+    cursor: "pointer",
+    color: "#2196F3",
+    fontWeight: 600,
+    fontSize: "0.7rem",
+  };
+
+  return (
+    <div style={{ marginTop: "0.8rem" }}>
+      <div
+        style={{
+          fontSize: "0.64rem",
+          fontWeight: 700,
+          letterSpacing: "0.03em",
+          textTransform: "uppercase",
+          color: colors.textTertiary,
+          padding: "0.2rem 0",
+        }}
+      >
+        Files in the Google Drive folder
+      </div>
+      {trail.length > 0 && (
+        <div style={{ ...note, display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+          <button type="button" style={linkBtn} onClick={() => setTrail([])}>
+            Main folder
+          </button>
+          {trail.map((t, i) => (
+            <span key={t.id}>
+              ›{" "}
+              <button
+                type="button"
+                style={linkBtn}
+                onClick={() => setTrail(trail.slice(0, i + 1))}
+              >
+                {t.name}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      {error && <div style={{ ...note, color: "#dc2626" }}>{error}</div>}
+      {!error && items === null && <div style={note}>Loading files…</div>}
+      {!error && items && items.length === 0 && <div style={note}>This folder is empty.</div>}
+      {items &&
+        items.map((f) => (
+          <div
+            key={f.id}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              padding: "0.35rem 0",
+              borderTop: `1px solid ${colors.cardBorder}`,
+              fontSize: "0.7rem",
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: colors.textPrimary }} title={f.name}>
+              {f.is_folder ? "📁 " : "📄 "}
+              {f.name}
+            </span>
+            {!f.is_folder && (
+              <span style={{ width: "60px", textAlign: "right", color: colors.textTertiary }}>
+                {formatFileSize(f.size)}
+              </span>
+            )}
+            {f.is_folder ? (
+              <button type="button" style={linkBtn} onClick={() => setTrail([...trail, { id: f.id, name: f.name }])}>
+                Open folder
+              </button>
+            ) : (
+              <span style={{ display: "flex", gap: "0.6rem" }}>
+                <button type="button" style={linkBtn} disabled={busyId === f.id} onClick={() => openFile(f, false)}>
+                  {busyId === f.id ? "Opening…" : "Open"}
+                </button>
+                <button type="button" style={linkBtn} disabled={busyId === f.id} onClick={() => openFile(f, true)}>
+                  Download
+                </button>
+              </span>
+            )}
+          </div>
+        ))}
     </div>
   );
 }
@@ -1918,6 +2057,9 @@ export default function FgmpDetailsModal({
           driveLink={data.drive_link}
           colors={colors}
         />
+        {data.drive_link && (
+          <DriveFolder referenceNo={row.referenceNo} colors={colors} />
+        )}
       </Section>
     </div>
   );
@@ -2636,9 +2778,9 @@ export default function FgmpDetailsModal({
           position: "sticky",
           top: 0,
           // the popup is 90vh tall and its header, stepper and footer take
-          // about 170px, so this must stay under 90vh - 170px or the bottom
+          // about 220px, so this must stay under 90vh - 220px or the bottom
           // of the column is cut off
-          maxHeight: "calc(90vh - 215px)",
+          maxHeight: "calc(90vh - 265px)",
           overflowY: "auto",
         }}
       >
@@ -3273,65 +3415,7 @@ export default function FgmpDetailsModal({
         </div>
 
         {/* Stepper */}
-        {data && (
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              padding: "0.65rem 1.1rem",
-              background: colors.cardBg,
-              borderBottom: `1px solid ${colors.cardBorder}`,
-              flexShrink: 0,
-            }}
-          >
-            {steps.map((s) => {
-              const active = step === s.id;
-              const done = step > s.id;
-              return (
-                <div
-                  key={s.id}
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.4rem 0.7rem",
-                    borderRadius: "8px",
-                    border: `1px solid ${active ? "#4CAF50" : colors.cardBorder}`,
-                    background: active ? "rgba(76,175,80,0.1)" : "transparent",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "20px",
-                      height: "20px",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.62rem",
-                      fontWeight: 700,
-                      background: active || done ? "#4CAF50" : colors.badgeBg,
-                      color: active || done ? "#fff" : colors.textTertiary,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {done ? "✓" : s.id}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.7rem",
-                      fontWeight: active ? 700 : 500,
-                      color: active ? colors.textPrimary : colors.textTertiary,
-                    }}
-                  >
-                    {s.icon} {s.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {data && <StepProgress steps={steps} step={step} colors={colors} />}
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.1rem" }}>

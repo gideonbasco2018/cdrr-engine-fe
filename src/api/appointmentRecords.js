@@ -386,6 +386,49 @@ export const getApplicationDocuments = async (applicationUuid) => {
 };
 
 /**
+ * The files in an application's Google Drive folder (or one folder inside it).
+ * @param {string} referenceNo
+ * @param {string} [folderId] a folder under the application's root; omit for the root
+ * @returns {Promise<{ root_id: string|null, items: { id: string, name: string,
+ *   mime_type: string, is_folder: boolean, size: number|null, modified_at: string|null }[] }>}
+ */
+export const listDriveFiles = async (referenceNo, folderId) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/drive-files`,
+      { params: folderId ? { folder_id: folderId } : {} },
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to read the Google Drive folder";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * One file from the application's Drive folder, as a Blob. The route needs the
+ * login token, so a plain link cannot open it.
+ * @param {string} referenceNo
+ * @param {string} fileId
+ * @param {boolean} [download]
+ */
+export const getDriveFile = async (referenceNo, fileId, download = false) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/drive-files/${encodeURIComponent(fileId)}/content`,
+      { params: { download }, responseType: "blob" },
+    );
+    return response.data;
+  } catch (error) {
+    // a blob response hides the JSON detail, so fall back to a plain message
+    throw new Error(error.message || "Failed to read the file from Google Drive");
+  }
+};
+
+/**
  * Submit the decision for whichever workflow step the user is holding
  * @param {string} referenceNo
  * @param {{ decision: string, remarks?: string, assignee_uuid?: string|null }} payload
