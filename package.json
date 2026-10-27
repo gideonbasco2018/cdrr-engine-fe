@@ -12,6 +12,7 @@
     "axios": "^1.6.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
     "jszip": "^3.10.1",
     "lucide-react": "^1.23.0",
     "node-unrar-js": "^2.0.2",

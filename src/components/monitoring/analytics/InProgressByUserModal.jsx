@@ -347,6 +347,8 @@ function StackedChart({
   items,
   avg,
   avgLabel,
+  metric,
+  onMetric,
   dimLabel,
   topLabels,
   colorOf,
@@ -396,9 +398,32 @@ function StackedChart({
         }}
       >
         <span style={{ fontWeight: 700, color: ui.textPrimary }}>
-          Top {shown.length} by in-progress, split by {dimLabel.toLowerCase()}
+          Top {shown.length} by{" "}
+          {metric === "avg" ? "avg per member" : "in-progress"}, split by{" "}
+          {dimLabel.toLowerCase()}
         </span>
         <span>
+          {onMetric &&
+            ["avg", "total"].map((m) => (
+              <button
+                key={m}
+                onClick={() => onMetric(m)}
+                style={{
+                  marginRight: 6,
+                  padding: "1px 8px",
+                  fontSize: "0.68rem",
+                  fontWeight: metric === m ? 700 : 500,
+                  borderRadius: 99,
+                  border: `1px solid ${metric === m ? FB : line}`,
+                  background: metric === m ? `${FB}22` : "transparent",
+                  color: metric === m ? FB : ui.textMuted,
+                  cursor: "pointer",
+                  fontFamily: font,
+                }}
+              >
+                {m === "avg" ? "Per member" : "Total"}
+              </button>
+            ))}
           <span
             style={{
               display: "inline-block",
@@ -495,7 +520,7 @@ function StackedChart({
                 textAlign: "right",
               }}
             >
-              {item.total.toLocaleString()}
+              {fmtAvg(item.total)}
             </div>
           </div>
         ))}
@@ -550,7 +575,7 @@ function StackedChart({
         >
           <b>{hover.name}</b>
           <br />
-          {hover.label}: {hover.count.toLocaleString()} (
+          {hover.label}: {fmtAvg(hover.count)} (
           {Math.round((hover.count / hover.total) * 100)}%)
         </div>
       )}
@@ -566,6 +591,7 @@ export default function InProgressByUserModal({
 }) {
   const [rawRows, setRawRows] = useState([]); // all users, including those with 0
   const [dim, setDim] = useState("app_type"); // breakdown dimension
+  const [metric, setMetric] = useState("avg"); // chart on unit/group: "avg" | "total"
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -700,23 +726,29 @@ export default function InProgressByUserModal({
   }, [teams, q]);
 
   // ── Chart data: same entities as the list below, with their type split ──
-  const chartItems = useMemo(
-    () =>
-      tab === "user"
-        ? active.map((r) => ({
-            key: r.key,
-            name: r.name,
-            total: r.inProgress,
-            types: r.types,
-          }))
-        : teams.map((t) => ({
-            key: t.key,
-            name: t.name,
-            total: t.total,
-            types: t.types,
-          })),
-    [tab, active, teams],
-  );
+  const chartItems = useMemo(() => {
+    if (tab === "user") {
+      return active.map((r) => ({
+        key: r.key,
+        name: r.name,
+        total: r.inProgress,
+        types: r.types,
+      }));
+    }
+    // Per member = fair comparison between teams of different size
+    const per = metric === "avg";
+    return teams
+      .map((t) => {
+        const d = per && t.size ? t.size : 1;
+        return {
+          key: t.key,
+          name: t.name,
+          total: t.total / d,
+          types: t.types.map((x) => ({ label: x.label, count: x.count / d })),
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+  }, [tab, active, teams, metric]);
   const topLabels = useMemo(
     () =>
       mergeTypes(rows.map((r) => r.types))
@@ -726,6 +758,8 @@ export default function InProgressByUserModal({
   );
 
   const sum = rows.reduce((s, r) => s + r.inProgress, 0);
+  const teamMembers = teams.reduce((s, t) => s + t.size, 0);
+  const avgPerMember = teamMembers ? sum / teamMembers : 0;
   const avgPerUser = active.length ? sum / active.length : 0;
   const maxUser = Math.max(...active.map((r) => r.inProgress), 1);
   const maxTeam = Math.max(...teams.map((t) => t.total), 1);
@@ -910,11 +944,7 @@ export default function InProgressByUserModal({
             </div>
             <div style={{ display: "flex", gap: 20 }}>
               {stat("Avg per user", fmtAvg(avgPerUser))}
-              {tab !== "user" &&
-                stat(
-                  tab === "unit" ? "Avg per unit" : "Avg per group",
-                  fmtAvg(teams.length ? sum / teams.length : 0),
-                )}
+              {tab !== "user" && stat("Avg per member", fmtAvg(avgPerMember))}
             </div>
           </div>
         )}
@@ -984,17 +1014,23 @@ export default function InProgressByUserModal({
                 avg={
                   tab === "user"
                     ? avgPerUser
-                    : teams.length
-                      ? sum / teams.length
-                      : 0
+                    : metric === "avg"
+                      ? avgPerMember
+                      : teams.length
+                        ? sum / teams.length
+                        : 0
                 }
                 avgLabel={
                   tab === "user"
                     ? "avg per user"
-                    : tab === "unit"
-                      ? "avg per unit"
-                      : "avg per group"
+                    : metric === "avg"
+                      ? "avg per member"
+                      : tab === "unit"
+                        ? "avg per unit"
+                        : "avg per group"
                 }
+                metric={tab === "user" ? "total" : metric}
+                onMetric={tab === "user" ? null : setMetric}
                 topLabels={topLabels}
                 colorOf={colorOf}
                 ui={ui}
