@@ -315,6 +315,10 @@ export default function MivnDetailsModal({
 
   const formData = data?.form_data || {};
   const parties = data?.parties || [];
+  // MiV-N1 → N4, current vs proposed (source of truth: Minor Notification Details)
+  const minorChanges = Object.entries(
+    formData["Minor Notification Details"] || {},
+  ).sort(([a], [b]) => a.localeCompare(b));
   const ops = useMemo(
     () => [...(data?.orders_of_payment || [])].sort(byOrder),
     [data],
@@ -597,6 +601,11 @@ export default function MivnDetailsModal({
               value={data.applicant_company}
               colors={colors}
             />
+            <Field
+              label="Applicant Name"
+              value={formData["Applicant Name"]}
+              colors={colors}
+            />
             <Field label="LTO Number" value={data.lto_no} colors={colors} />
             <Field
               label="LTO Validity"
@@ -652,6 +661,40 @@ export default function MivnDetailsModal({
           </Section>
         </div>
       </div>
+
+      {minorChanges.length > 0 && (
+        <Section
+          title={`Minor Variation Changes (${minorChanges.length})`}
+          colors={colors}
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Change</th>
+                  <th style={thStyle}>Current</th>
+                  <th style={thStyle}>Proposed Changes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {minorChanges.map(([label, v]) => (
+                  <tr key={label}>
+                    <td style={{ ...tdStyle, whiteSpace: "normal" }}>
+                      {label}
+                    </td>
+                    <td style={{ ...tdStyle, whiteSpace: "normal" }}>
+                      {v?.current || "—"}
+                    </td>
+                    <td style={{ ...tdStyle, whiteSpace: "normal" }}>
+                      {v?.proposed_changes || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Section>
+      )}
 
       <Section title={`Parties (${parties.length})`} colors={colors}>
         <div style={{ overflowX: "auto" }}>
