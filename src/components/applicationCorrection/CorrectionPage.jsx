@@ -77,7 +77,7 @@ export function CorrectionPage({
         continue;
       }
       if (file.size > MAX_FILE_SIZE) {
-        setDocError(`"${file.name}" exceeds the 5MB limit.`);
+        setDocError(`"${file.name}" exceeds the 400MB limit.`);
         continue;
       }
       incoming.push(makeStagedDoc(file));
@@ -684,7 +684,7 @@ export function CorrectionPage({
                   Drop file here or click to upload
                 </p>
                 <small style={{ fontSize: 11, color: t.textTertiary }}>
-                  PDF, JPG, PNG max 5 MB per file
+                  PDF, JPG, PNG max 400 MB per file
                 </small>
                 <input
                   ref={docFileInputRef}

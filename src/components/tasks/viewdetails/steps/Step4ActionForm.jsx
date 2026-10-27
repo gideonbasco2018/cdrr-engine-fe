@@ -46,6 +46,7 @@ const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
   decision === "Signed and Returned to S&E Evaluator" ||
   decision === "Returned to Quality Evaluation" ||
   decision === "Return to S&E Evaluator" ||
+  decision === "Returned to LRD" ||
   decision === PARALLEL_SUPERVISOR_DECISION;
 
 /* Group ID for Decision Authority options (QA) */
@@ -125,6 +126,10 @@ const ACTION_CONFIG = {
   "CDRR-OD Signature Facilitator_Endorsed to OD-Releasing": {
     options: ["Signed"],
     warning: "Action is required when endorsing to OD-Releasing.",
+  },
+  "CDRR-OD Signature Facilitator_Returned to LRD": {
+    options: ["Returned to LRD for Clarification"],
+    warning: "Recommendation is required when returning to LRD.",
   },
   "Releasing Officer_Released": {
     options: ["Release to record"],
@@ -549,21 +554,22 @@ export function Step4ActionForm({
       try {
         const data = await getApplicationLogs(record.mainDbId);
         const logs = Array.isArray(data) ? data : [];
-
         const targetStep =
-          formData.decision === "Returned to S&E Evaluator" ||
-          formData.decision === "Checked and Returned to S&E Evaluator" ||
-          formData.decision === "Signed and Returned to S&E Evaluator" ||
-          formData.decision === "Return to S&E Evaluator" ||
-          formData.decision === PARALLEL_SUPERVISOR_DECISION
-            ? "S&E"
-            : formData.decision === "Returned to Quality Evaluation" ||
-                (currentStep === "PRSDD Supervisor" &&
-                  formData.decision === "Returned to Evaluator") ||
-                (currentStep === "PRSDD QA Admin" &&
-                  formData.decision === "Returned to Evaluator") // ← dagdag
-              ? "PRSDD Quality Evaluation"
-              : "Quality Evaluation";
+          formData.decision === "Returned to LRD"
+            ? "LRD Chief Admin"
+            : formData.decision === "Returned to S&E Evaluator" ||
+                formData.decision === "Checked and Returned to S&E Evaluator" ||
+                formData.decision === "Signed and Returned to S&E Evaluator" ||
+                formData.decision === "Return to S&E Evaluator" ||
+                formData.decision === PARALLEL_SUPERVISOR_DECISION
+              ? "S&E"
+              : formData.decision === "Returned to Quality Evaluation" ||
+                  (currentStep === "PRSDD Supervisor" &&
+                    formData.decision === "Returned to Evaluator") ||
+                  (currentStep === "PRSDD QA Admin" &&
+                    formData.decision === "Returned to Evaluator") // ← dagdag
+                ? "PRSDD Quality Evaluation"
+                : "Quality Evaluation";
 
         const prevEval = findPreviousEvaluator(logs, currentStep, targetStep);
         console.log("🔍 prevEval object:", prevEval); // ← tingnan sa browser console
@@ -752,7 +758,7 @@ export function Step4ActionForm({
           ? `Your log will be completed. Parallel "S&E" and "S&E Statistician" logs will be created for the evaluator and the assigned Statistician.`
           : `Your log will be completed. Parallel "S&E Supervisor" and "S&E Statistician" logs will be created for the assigned users.`
         : isReturnToEvaluator && autoAssignee
-          ? `Your log will be completed and automatically returned to the previous evaluator: ${autoAssignee}.`
+          ? `Your log will be completed and automatically returned to the previous ${formData.decision === "Returned to LRD" ? "LRD Chief Admin" : "evaluator"}: ${autoAssignee}.`
           : nextStepActive
             ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
             : nextStep
@@ -1938,12 +1944,14 @@ export function Step4ActionForm({
               }}
             >
               ↩️ Automatically returning to previous{" "}
-              {formData.decision === "Returned to S&E Evaluator" ||
-              currentStep === "S&E Supervisor" ||
-              currentStep === "S&E Checker" ||
-              currentStep === "S&E Statistician"
-                ? "S&E"
-                : "evaluator"}
+              {formData.decision === "Returned to LRD"
+                ? "LRD Chief Admin"
+                : formData.decision === "Returned to S&E Evaluator" ||
+                    currentStep === "S&E Supervisor" ||
+                    currentStep === "S&E Checker" ||
+                    currentStep === "S&E Statistician"
+                  ? "S&E"
+                  : "evaluator"}
               : <strong>{autoAssignee}</strong>
             </div>
           )}
