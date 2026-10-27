@@ -50,26 +50,42 @@ const unitIdOf = (r) => r.unit_id ?? r.team_id ?? null;
 const groupNameOf = (r) => r.group_name ?? null;
 const groupIdOf = (r) => r.group_id ?? null;
 
-// Accepts either { "RX / Initial": 12 } or [{ type: "RX / Initial", count: 12 }]
-const typesOf = (r) => {
-  const raw =
-    r.tasks?.by_type ??
-    r.by_app_type ??
-    r.app_types ??
-    r.by_type ??
-    r.tasks?.by_app_type ??
-    null;
-  if (!raw) return [];
-  const list = Array.isArray(raw)
-    ? raw.map((x) => ({
-        label: x.label ?? x.type ?? x.name ?? "Unknown",
-        count: Number(x.count ?? x.in_progress ?? 0) || 0,
-      }))
-    : Object.entries(raw).map(([label, count]) => ({
-        label,
-        count: Number(count) || 0,
-      }));
-  return list.filter((x) => x.count > 0).sort((a, b) => b.count - a.count);
+// Breakdown dimensions the user can switch between.
+const DIMENSIONS = [
+  { key: "app_type", label: "Application Type" },
+  { key: "classification", label: "Classification" },
+  { key: "processing_type", label: "Processing Type" },
+  { key: "entry_type", label: "Entry Type" },
+];
+
+// Raw breakdown entries for one user. Each entry carries all four dimensions
+// plus a count, so the modal can regroup them without another request.
+// Also accepts the older { label, count } shape.
+const itemsOf = (r) => {
+  const raw = r.by_type ?? r.tasks?.by_type ?? null;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((x) => ({
+      app_type: x.app_type ?? null,
+      classification: x.classification ?? null,
+      processing_type: x.processing_type ?? null,
+      entry_type: x.entry_type ?? null,
+      label: x.label ?? null,
+      count: Number(x.count ?? 0) || 0,
+    }))
+    .filter((x) => x.count > 0);
+};
+
+// Group a user's raw entries by one dimension -> [{ label, count }] sorted desc
+const groupByDimension = (items, dim) => {
+  const map = new Map();
+  items.forEach((x) => {
+    const label = x[dim] ?? x.label ?? "Unknown";
+    map.set(label, (map.get(label) ?? 0) + x.count);
+  });
+  return [...map.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
 };
 
 const mergeTypes = (lists) => {
@@ -89,7 +105,7 @@ function TypeBreakdown({ types, total, colorOf, ui, line }) {
   if (types.length === 0) {
     return (
       <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-        No application type breakdown available.
+        No breakdown available.
       </div>
     );
   }
@@ -161,6 +177,7 @@ function UserRow({
   max,
   teamAvg,
   subLabel,
+  dimLabel,
   expanded,
   onToggle,
   onView,
@@ -244,7 +261,7 @@ function UserRow({
           >
             {subLabel ? `${subLabel} · ` : ""}
             {topType
-              ? `Most: ${topType.label} (${topType.count.toLocaleString()})`
+              ? `Top ${dimLabel.toLowerCase()}: ${topType.label} (${topType.count.toLocaleString()})`
               : "No type data"}
           </div>
         </div>
@@ -319,14 +336,23 @@ function UserRow({
 }
 
 // ── Chart: horizontal stacked bars (one bar per user / unit / group) ──
-// Each bar is split by application type. A dashed vertical line marks the
+// Each bar is split by the selected breakdown (application type, etc.). A dashed vertical line marks the
 // average. Hover a segment to see the exact type and count.
 const OTHER_LABEL = "Other";
 const OTHER_COLOR = "#9aa0a6";
 const CHART_MAX_ITEMS = 10;
 const CHART_MAX_TYPES = 6;
 
-function StackedChart({ items, avg, avgLabel, topLabels, colorOf, ui, line }) {
+function StackedChart({
+  items,
+  avg,
+  avgLabel,
+  dimLabel,
+  topLabels,
+  colorOf,
+  ui,
+  line,
+}) {
   const [hover, setHover] = useState(null); // { name, label, count, x, y }
   if (items.length === 0) return null;
 
@@ -370,7 +396,7 @@ function StackedChart({ items, avg, avgLabel, topLabels, colorOf, ui, line }) {
         }}
       >
         <span style={{ fontWeight: 700, color: ui.textPrimary }}>
-          Top {shown.length} by in-progress, split by application type
+          Top {shown.length} by in-progress, split by {dimLabel.toLowerCase()}
         </span>
         <span>
           <span
@@ -538,7 +564,8 @@ export default function InProgressByUserModal({
   onClose,
   expectedTotal, // the In Progress number shown on the KPI tile
 }) {
-  const [rows, setRows] = useState([]); // all users, including those with 0
+  const [rawRows, setRawRows] = useState([]); // all users, including those with 0
+  const [dim, setDim] = useState("app_type"); // breakdown dimension
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
@@ -565,12 +592,12 @@ export default function InProgressByUserModal({
         group: groupNameOf(r),
         groupId: groupIdOf(r),
         inProgress: inProgressOf(r),
-        types: typesOf(r),
+        items: itemsOf(r),
       }));
-      setRows(list);
+      setRawRows(list);
     } catch (err) {
       setError(err.message || "Failed to load users.");
-      setRows([]);
+      setRawRows([]);
     } finally {
       setLoading(false);
     }
@@ -587,7 +614,13 @@ export default function InProgressByUserModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  // Stable color per application type across both tabs
+  const dimLabel = DIMENSIONS.find((d) => d.key === dim)?.label ?? "Type";
+  const rows = useMemo(
+    () => rawRows.map((r) => ({ ...r, types: groupByDimension(r.items, dim) })),
+    [rawRows, dim],
+  );
+
+  // Stable color per breakdown value across all tabs
   const colorOf = useMemo(() => {
     const labels = mergeTypes(rows.map((r) => r.types)).map((t) => t.label);
     const map = new Map(
@@ -599,6 +632,10 @@ export default function InProgressByUserModal({
   const hasUnits = rows.some((r) => r.unit || r.unitId != null);
   const hasGroups = rows.some((r) => r.group || r.groupId != null);
   const hasTypes = rows.some((r) => r.types.length > 0);
+  // Old backend versions only send a combined "label" and no separate fields
+  const hasDimensions = rawRows.some((r) =>
+    r.items.some((x) => x.app_type != null),
+  );
 
   const q = search.trim().toLowerCase();
   const active = useMemo(
@@ -882,6 +919,58 @@ export default function InProgressByUserModal({
           </div>
         )}
 
+        {!loading && !error && hasTypes && !hasDimensions && (
+          <div
+            style={{
+              padding: "8px 18px",
+              fontSize: "0.72rem",
+              color: RED,
+              borderBottom: `1px solid ${line}`,
+            }}
+          >
+            The API is still returning the old combined labels, so the
+            application type cannot be shown. Update the get_in_progress_summary
+            function in the backend and restart it.
+          </div>
+        )}
+
+        {/* Breakdown selector */}
+        {!loading && !error && hasTypes && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              flexWrap: "wrap",
+              padding: "8px 18px",
+              borderBottom: `1px solid ${line}`,
+              fontSize: "0.72rem",
+              color: ui.textMuted,
+            }}
+          >
+            <span style={{ marginRight: 4 }}>Break down by</span>
+            {DIMENSIONS.map((d) => (
+              <button
+                key={d.key}
+                onClick={() => setDim(d.key)}
+                style={{
+                  padding: "3px 10px",
+                  fontSize: "0.72rem",
+                  fontWeight: dim === d.key ? 700 : 500,
+                  borderRadius: 99,
+                  border: `1px solid ${dim === d.key ? FB : line}`,
+                  background: dim === d.key ? `${FB}22` : "transparent",
+                  color: dim === d.key ? FB : ui.textMuted,
+                  cursor: "pointer",
+                  fontFamily: font,
+                }}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", minHeight: 160 }}>
           {!loading &&
@@ -890,6 +979,7 @@ export default function InProgressByUserModal({
             chartItems.length > 0 &&
             (tab === "user" || (tab === "unit" ? hasUnits : hasGroups)) && (
               <StackedChart
+                dimLabel={dimLabel}
                 items={chartItems}
                 avg={
                   tab === "user"
@@ -970,14 +1060,15 @@ export default function InProgressByUserModal({
                     color: ui.textMuted,
                   }}
                 >
-                  The API does not return an application type breakdown yet, so
-                  the type details are empty.
+                  The API does not return a breakdown yet, so the type details
+                  are empty.
                 </div>
               )}
               {filtered.length === 0
                 ? emptyBox("No users match your search.")
                 : filtered.map((r, i) => (
                     <UserRow
+                      dimLabel={dimLabel}
                       key={r.key}
                       r={r}
                       index={i}
@@ -1074,7 +1165,7 @@ export default function InProgressByUserModal({
                       </span>
                       {t.types[0] && (
                         <span>
-                          top type{" "}
+                          top {dimLabel.toLowerCase()}{" "}
                           <b style={{ color: colorOf(t.types[0].label) }}>
                             {t.types[0].label}
                           </b>
@@ -1121,6 +1212,7 @@ export default function InProgressByUserModal({
                       </div>
                       {members.map((m, i) => (
                         <UserRow
+                          dimLabel={dimLabel}
                           key={m.key}
                           r={m}
                           index={i}
