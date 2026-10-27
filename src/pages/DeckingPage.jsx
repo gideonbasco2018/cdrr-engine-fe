@@ -525,7 +525,11 @@ function DeckingPage({ darkMode }) {
   const [filteredData, setFilteredData] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState({});
-  const [selectedRows, setSelectedRows] = useState([]);
+  // Selected records are stored as { [id]: fullRecord } so the selection
+  // survives search / filter / page changes.
+  const [selectedRecordsMap, setSelectedRecordsMap] = useState({});
+  const selectedRecords = Object.values(selectedRecordsMap);
+  const selectedRows = selectedRecords.map((r) => r.id); // keeps original id type
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(100);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -1021,24 +1025,32 @@ function DeckingPage({ darkMode }) {
   };
 
   const handleSelectAll = () => {
-    const currentPageIds = filteredData.map((row) => row.id);
-    const allCurrentPageSelected = currentPageIds.every((id) =>
-      selectedRows.includes(id),
-    );
-    if (allCurrentPageSelected) {
-      setSelectedRows(
-        selectedRows.filter((id) => !currentPageIds.includes(id)),
-      );
-    } else {
-      setSelectedRows([...new Set([...selectedRows, ...currentPageIds])]);
-    }
+    const allCurrentPageSelected =
+      filteredData.length > 0 &&
+      filteredData.every((row) => selectedRecordsMap[row.id]);
+
+    setSelectedRecordsMap((prev) => {
+      const next = { ...prev };
+      filteredData.forEach((row) => {
+        if (allCurrentPageSelected) delete next[row.id];
+        else next[row.id] = row;
+      });
+      return next;
+    });
   };
 
   const handleSelectRow = (id) =>
-    selectedRows.includes(id)
-      ? setSelectedRows(selectedRows.filter((r) => r !== id))
-      : setSelectedRows([...selectedRows, id]);
-  const clearSelections = () => setSelectedRows([]);
+    setSelectedRecordsMap((prev) => {
+      if (prev[id]) {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      }
+      const record = filteredData.find((r) => r.id === id);
+      return record ? { ...prev, [id]: record } : prev;
+    });
+
+  const clearSelections = () => setSelectedRecordsMap({});
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) setCurrentPage(newPage);
   };
@@ -1049,7 +1061,7 @@ function DeckingPage({ darkMode }) {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setCurrentPage(1);
-    setSelectedRows([]);
+    setSelectedRecordsMap({});
     setSubTab(null);
     setPrescriptionTab(null);
     setAppStatusTab(null);
@@ -1734,6 +1746,7 @@ function DeckingPage({ darkMode }) {
             <DataTable
               data={filteredData}
               selectedRows={selectedRows}
+              selectedRecords={selectedRecords}
               onSelectRow={handleSelectRow}
               onSelectAll={handleSelectAll}
               onClearSelections={clearSelections}

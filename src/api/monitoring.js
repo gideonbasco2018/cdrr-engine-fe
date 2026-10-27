@@ -266,7 +266,8 @@ export const exportRecordsReport = async (params) => {
  *   user_id: number, full_name: string, unit_id: number|null,
  *   unit_name: string|null, group_id: number|null, group_name: string|null,
  *   in_progress: number,
- *   by_type: Array<{ label: string, count: number }>
+ *   by_type: Array<{ app_type: string, classification: string,
+ *     processing_type: string, entry_type: string, count: number }>
  * }> }>}
  */
 export const getInProgressSummary = async () => {
