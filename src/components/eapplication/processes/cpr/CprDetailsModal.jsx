@@ -6,11 +6,14 @@ import {
   getDeckingEvaluators,
   submitDeckingDecision,
 } from "../../../../api/appointmentRecords.js";
+
 import {
   PdfViewer,
+  StepProgress,
   ConfirmPostModal,
   ConfirmAddPaymentModal,
 } from "../../paymentVerification/PaymentShared.jsx";
+
 import {
   OrderOfPaymentPaper,
   AdditionalOopPaper,
@@ -536,55 +539,71 @@ export default function CprDetailsModal({
   /* ───────────── Step 1: Application Details ───────────── */
   const renderStep1 = () => (
     <div style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}>
+      {/* Two balanced columns: left = application + establishment,
+          right = product. alignItems "start" keeps each card at its own
+          height, so no empty stretched space inside a card. */}
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
           gap: "0.9rem",
+          alignItems: "start",
         }}
       >
-        <Section title="Application Information" colors={colors}>
-          <Field
-            label="Reference Number"
-            value={data.reference_number}
-            colors={colors}
-          />
-          <Field label="Activity" value={data.activity} colors={colors} />
-          <Field
-            label="Application Type"
-            value={data.application_type}
-            colors={colors}
-          />
-          <Field
-            label="Scheduled Date"
-            value={formData["Scheduled Date"]}
-            colors={colors}
-          />
-          <Field
-            label="Time Slot"
-            value={formData["Time Slot"]}
-            colors={colors}
-          />
-          <Field label="Remarks" value={formData["Remarks"]} colors={colors} />
-        </Section>
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "0.9rem" }}
+        >
+          <Section title="Application Information" colors={colors}>
+            <Field
+              label="Reference Number"
+              value={data.reference_number}
+              colors={colors}
+            />
+            <Field label="Activity" value={data.activity} colors={colors} />
+            <Field
+              label="Application Type"
+              value={data.application_type}
+              colors={colors}
+            />
+            <Field
+              label="Scheduled Date"
+              value={formData["Scheduled Date"]}
+              colors={colors}
+            />
+            <Field
+              label="Time Slot"
+              value={formData["Time Slot"]}
+              colors={colors}
+            />
+            <Field
+              label="Remarks"
+              value={formData["Remarks"]}
+              colors={colors}
+            />
+          </Section>
 
-        <Section title="Establishment" colors={colors}>
-          <Field
-            label="Company"
-            value={data.applicant_company}
-            colors={colors}
-          />
-          <Field label="LTO Number" value={data.lto_no} colors={colors} />
-          <Field
-            label="LTO Validity"
-            value={formData["Validity"]}
-            colors={colors}
-          />
-          <Field label="TIN" value={data.tin} colors={colors} />
-          <Field label="Email" value={data.email_address} colors={colors} />
-          <Field label="Contact No." value={data.contact_no} colors={colors} />
-          <Field label="Address" value={data.address} colors={colors} />
-        </Section>
+          <Section title="Establishment" colors={colors}>
+            <Field
+              label="Company"
+              value={data.applicant_company}
+              colors={colors}
+            />
+            <Field label="LTO Number" value={data.lto_no} colors={colors} />
+            <Field
+              label="LTO Validity"
+              value={formData["Validity"]}
+              colors={colors}
+            />
+            <Field label="TIN" value={data.tin} colors={colors} />
+            <Field label="Email" value={data.email_address} colors={colors} />
+            <Field
+              label="Contact No."
+              value={data.contact_no}
+              colors={colors}
+            />
+            <Field label="Address" value={data.address} colors={colors} />
+          </Section>
+        </div>
 
         <Section title="Product" colors={colors}>
           {PRODUCT_FIELDS.map((key) => (
@@ -1274,67 +1293,8 @@ export default function CprDetailsModal({
             ×
           </button>
         </div>
-
         {/* Stepper */}
-        {data && (
-          <div
-            style={{
-              display: "flex",
-              gap: "0.5rem",
-              padding: "0.65rem 1.1rem",
-              background: colors.cardBg,
-              borderBottom: `1px solid ${colors.cardBorder}`,
-              flexShrink: 0,
-            }}
-          >
-            {steps.map((s) => {
-              const active = step === s.id;
-              const done = step > s.id;
-              return (
-                <div
-                  key={s.id}
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    padding: "0.4rem 0.7rem",
-                    borderRadius: "8px",
-                    border: `1px solid ${active ? "#4CAF50" : colors.cardBorder}`,
-                    background: active ? "rgba(76,175,80,0.1)" : "transparent",
-                  }}
-                >
-                  <span
-                    style={{
-                      width: "20px",
-                      height: "20px",
-                      borderRadius: "50%",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "0.62rem",
-                      fontWeight: 700,
-                      background: active || done ? "#4CAF50" : colors.badgeBg,
-                      color: active || done ? "#fff" : colors.textTertiary,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {done ? "✓" : s.id}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "0.7rem",
-                      fontWeight: active ? 700 : 500,
-                      color: active ? colors.textPrimary : colors.textTertiary,
-                    }}
-                  >
-                    {s.icon} {s.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {data && <StepProgress steps={steps} step={step} colors={colors} />}
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.1rem" }}>

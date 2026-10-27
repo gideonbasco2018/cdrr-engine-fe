@@ -6,9 +6,6 @@ import { startImpersonation, stopImpersonation } from "../api/auth";
 
 import RecordsView from "../components/monitoring/records/RecordsView";
 import AnalyticsView from "../components/monitoring/analytics/AnalyticsView";
-import DeadlinesView from "../components/monitoring/deadlines/DeadlinesView";
-import ComplianceView from "../components/monitoring/compliance/ComplianceView";
-import WorkloadView from "../components/monitoring/workload/WorkloadView";
 import ActivityFeedView from "../components/monitoring/activityFeed/ActivityFeedView";
 import UsersView from "../components/monitoring/users/UsersView";
 import FRPTatView from "../components/monitoring/frpTat/FRPTatView";
