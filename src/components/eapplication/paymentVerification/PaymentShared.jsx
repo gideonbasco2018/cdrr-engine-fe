@@ -1,7 +1,7 @@
 // src/components/eapplication/paymentVerification/PaymentShared.jsx
 // Shared building blocks for the payment verification flow
 // (PDF viewer, Order of Payment header/sections, confirm dialogs).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const BANCNET_FEE_NOTE = "Php15.00";
 
@@ -31,8 +31,20 @@ export function PdfViewer({
   defaultZoom = 0.7,
   multiPage = false, // children are already full A4 pages
   children,
+  // Optional: merged into the page itself, for documents printed on a
+  // letterhead (see FgmpIssuancePapers.jsx). Omitted = the plain white page.
+  pageStyle,
 }) {
   const [zoom, setZoom] = useState(defaultZoom);
+  /* Full screen fills the window so a whole A4 page can be read at once */
+  const [fullScreen, setFullScreen] = useState(false);
+
+  useEffect(() => {
+    if (!fullScreen) return;
+    const onKey = (e) => e.key === "Escape" && setFullScreen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [fullScreen]);
   const zoomBtn = {
     width: "24px",
     height: "24px",
@@ -51,10 +63,17 @@ export function PdfViewer({
         display: "flex",
         flexDirection: "column",
         border: `1px solid ${colors.cardBorder}`,
-        borderRadius: "10px",
+        borderRadius: fullScreen ? 0 : "10px",
         overflow: "hidden",
         height: "100%",
         minHeight: "360px",
+        ...(fullScreen && {
+          position: "fixed",
+          inset: 0,
+          height: "100vh",
+          zIndex: 10050, // above the details popup
+          background: colors.cardBg,
+        }),
       }}
     >
       <div
@@ -106,6 +125,25 @@ export function PdfViewer({
               }
             >
               +
+            </button>
+            <button
+              style={{
+                ...zoomBtn,
+                width: "auto",
+                padding: "0 0.5rem",
+                // the +/− glyphs need 0.8rem; this is text, so match the
+                // toolbar's own size
+                fontSize: "0.62rem",
+                fontWeight: 600,
+                letterSpacing: "0.01em",
+                whiteSpace: "nowrap",
+              }}
+              title={
+                fullScreen ? "Leave full screen (Esc)" : "Read full screen"
+              }
+              onClick={() => setFullScreen((f) => !f)}
+            >
+              {fullScreen ? "⤡ Exit" : "⤢ Full screen"}
             </button>
           </div>
         )}
@@ -161,6 +199,7 @@ export function PdfViewer({
               fontSize: "14px",
               lineHeight: 1.7,
               fontFamily: "Georgia, 'Times New Roman', serif",
+              ...pageStyle,
             }}
           >
             {children}

@@ -127,6 +127,17 @@ export const mapMyTask = (task, status = "claimed") => ({
   lastModified: formatStamp(task.updated_at || task.start_date),
   priority: task.priority || null,
   remarks: task.application_remarks || "",
+  decision: task.application_decision || null,
+  accomplishedAt: task.accomplished_date || null,
+  stepIndex: task.del_index ?? null,
+  // how an open task arrived: who handed it over, and with what decision
+  fromDecision: task.from_decision || null,
+  fromStep: task.from_step || null,
+  // FGMP-only; null for other processes
+  dtn: task.dtn || null,
+  category: task.category || null,
+  foreignManufacturer: task.foreign_manufacturer || null,
+  typeOfIssuance: task.type_of_issuance || null,
   status,
   claimedBy: null, // set by the page (it knows the current user)
 });
@@ -271,5 +282,305 @@ export const submitDeckingDecision = async (referenceNo, payload) => {
       error.message ||
       "Failed to submit the decision";
     throw new Error(errorMessage);
+  }
+};
+
+/**
+ * What the holder of this task may do at the step it is on. The list comes
+ * from the server so the dropdown can never offer an invalid action.
+ * @param {string} referenceNo
+ * @returns {Promise<{ action: string, next_step: string|null }[]>}
+ */
+export const getStepActions = async (referenceNo) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/step-actions`,
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch the available actions";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Get the people who can take the application at the next step
+ * @param {string} nextStep e.g. "Checker", "Supervisor"
+ * @returns {Promise<{ user_uuid: string, name: string }[]>}
+ */
+export const getStepAssignees = async (nextStep) => {
+  try {
+    const response = await API.get("/appointment-records/workflow/assignees", {
+      params: { next_step: nextStep },
+    });
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      `Failed to fetch the ${nextStep} list`;
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * What may be issued for an FGMP application. Comes from the server so the
+ * list cannot drift from the manual FGMP screen's.
+ * @returns {Promise<string[]>}
+ */
+export const getIssuanceTypes = async () => {
+  try {
+    const response = await API.get("/appointment-records/workflow/issuance-types");
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch the issuance types";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * The number the next certificate would get, for the preview. Nothing is
+ * reserved — the number is only taken when the decision is submitted.
+ * @param {string} typeOfIssuance
+ * @returns {Promise<string|null>}
+ */
+export const getNextCertificateNumber = async (typeOfIssuance) => {
+  try {
+    const response = await API.get(
+      "/appointment-records/workflow/next-certificate-number",
+      { params: { type_of_issuance: typeOfIssuance } },
+    );
+    return response.data?.certificate_number ?? null;
+  } catch {
+    return null; // only a preview, so a failure just leaves it blank
+  }
+};
+
+/**
+ * The files the applicant submitted with an application (one row per file,
+ * newest first). The same list endpoint serves every e-application process.
+ * @param {string} applicationUuid
+ * @returns {Promise<{ id: number, requirement_group: string, requirement_code: string,
+ *   original_filename: string, file_size_bytes: number|null, drive_file_url: string,
+ *   created_at: string|null }[]>}
+ */
+export const getApplicationDocuments = async (applicationUuid) => {
+  try {
+    const response = await API.get(
+      `/cpr-app-documents/${encodeURIComponent(applicationUuid)}`,
+    );
+    return response.data?.data || [];
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch the submitted documents";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * The files in an application's Google Drive folder (or one folder inside it).
+ * @param {string} referenceNo
+ * @param {string} [folderId] a folder under the application's root; omit for the root
+ * @returns {Promise<{ root_id: string|null, items: { id: string, name: string,
+ *   mime_type: string, is_folder: boolean, size: number|null, modified_at: string|null }[] }>}
+ */
+export const listDriveFiles = async (referenceNo, folderId) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/drive-files`,
+      { params: folderId ? { folder_id: folderId } : {} },
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to read the Google Drive folder";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * One file from the application's Drive folder, as a Blob. The route needs the
+ * login token, so a plain link cannot open it.
+ * @param {string} referenceNo
+ * @param {string} fileId
+ * @param {boolean} [download]
+ */
+export const getDriveFile = async (referenceNo, fileId, download = false) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/drive-files/${encodeURIComponent(fileId)}/content`,
+      { params: { download }, responseType: "blob" },
+    );
+    return response.data;
+  } catch (error) {
+    // a blob response hides the JSON detail, so fall back to a plain message
+    throw new Error(error.message || "Failed to read the file from Google Drive");
+  }
+};
+
+/**
+ * Submit the decision for whichever workflow step the user is holding
+ * @param {string} referenceNo
+ * @param {{ decision: string, remarks?: string, assignee_uuid?: string|null }} payload
+ */
+export const submitStepDecision = async (referenceNo, payload) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/step-decision`,
+      payload,
+    );
+    return response.data;
+  } catch (error) {
+    const detail = error.response?.data?.detail;
+    const errorMessage =
+      (typeof detail === "string" ? detail : null) ||
+      (detail ? "The decision details are invalid" : null) ||
+      error.message ||
+      "Failed to submit the decision";
+    throw new Error(errorMessage);
+  }
+};
+/* ───────── Notices of Deficiency (For Compliance) ───────── */
+
+/* The API's snake_case NOD, in the shape the screens use (see fgmpNod.js) */
+const mapNod = (nod) => ({
+  nodNumber: nod.nod_number,
+  activity: nod.activity,
+  deficiencies: nod.deficiencies,
+  requestedDocuments: (nod.requested_documents || []).map((d) => ({
+    id: d.id,
+    requirementCode: d.requirement_code,
+    status: d.status,
+    documentId: d.document_id ?? null,
+    filename: d.filename ?? null,
+  })),
+  issuedDate: nod.issued_date,
+  workingDays: nod.working_days,
+  dueDate: nod.due_date,
+  extendedDueDate: nod.extended_due_date || null,
+  extensionReason: nod.extension_reason || null,
+  extendedAt: nod.extended_at || null,
+  documentsReceivedDate: nod.documents_received_date || null,
+  status: nod.status,
+  issuedBy: nod.issued_by || "",
+  emailSentAt: nod.email_sent_at || null,
+});
+
+const nodError = (error, fallback) => {
+  const detail = error.response?.data?.detail;
+  return new Error(
+    (typeof detail === "string" ? detail : null) || error.message || fallback,
+  );
+};
+
+/**
+ * The Notices of Deficiency issued on an application
+ * @param {string} referenceNo
+ */
+export const getNods = async (referenceNo) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/nods`,
+    );
+    return response.data.map(mapNod);
+  } catch (error) {
+    throw nodError(error, "Failed to fetch the Notices of Deficiency");
+  }
+};
+
+/**
+ * Give an NOD more time. Only forward, and a reason is required.
+ * @param {string} referenceNo
+ * @param {number} nodNumber
+ * @param {string} newDueDate YYYY-MM-DD
+ * @param {string} reason
+ */
+export const extendNod = async (referenceNo, nodNumber, newDueDate, reason) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/nods/${nodNumber}/extend`,
+      { new_due_date: newDueDate, reason },
+    );
+    return mapNod(response.data);
+  } catch (error) {
+    throw nodError(error, "Failed to extend the due date");
+  }
+};
+
+/**
+ * Record which requested documents came in. Once all are in, the NOD is complied.
+ * @param {string} referenceNo
+ * @param {number} nodNumber
+ * @param {string[]} receivedIds the `id` of each document received now
+ * @param {string} receivedDate YYYY-MM-DD
+ */
+export const receiveNodDocuments = async (
+  referenceNo,
+  nodNumber,
+  receivedIds,
+  receivedDate,
+) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/nods/${nodNumber}/receive`,
+      { received_ids: receivedIds, received_date: receivedDate },
+    );
+    return mapNod(response.data);
+  } catch (error) {
+    throw nodError(error, "Failed to record the documents");
+  }
+};
+
+/* ───────── The evaluator's GMP Clearance Worksheet ───────── */
+
+const worksheetError = (error, fallback) => {
+  const detail = error.response?.data?.detail;
+  return new Error(
+    (typeof detail === "string" ? detail : null) || error.message || fallback,
+  );
+};
+
+/**
+ * The worksheet, as the server holds it. The evaluator holding the task gets
+ * their latest version (a draft too) and can_edit true; everyone else gets the
+ * latest version that was sent on, or null.
+ * @param {string} referenceNo
+ * @returns {Promise<{ worksheet: object|null, can_edit: boolean }>}
+ */
+export const getWorksheet = async (referenceNo) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/worksheet`,
+    );
+    return response.data;
+  } catch (error) {
+    throw worksheetError(error, "Failed to fetch the worksheet");
+  }
+};
+
+/**
+ * Auto-save the evaluator's worksheet (the whole thing, in the server's shape).
+ * @param {string} referenceNo
+ * @param {object} payload see toApiWorksheet in fgmpWorksheetSync.js
+ */
+export const saveWorksheet = async (referenceNo, payload) => {
+  try {
+    const response = await API.put(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/worksheet`,
+      payload,
+    );
+    return response.data;
+  } catch (error) {
+    throw worksheetError(error, "Failed to save the worksheet");
   }
 };

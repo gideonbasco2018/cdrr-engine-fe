@@ -1,10 +1,11 @@
 // src/components/gmp/dashboard/GMPKpiCard.jsx
-// KPI tile for FGMP Monitoring & Analytics — flat card (no left accent bar,
-// no neumorphic shadow) matching GMPSectionCard's chrome, so a tile and a
-// chart card read as the same surface. Color lives in the number and the
-// optional sparkline/delta, not in the card itself.
+// KPI tile for FGMP Monitoring & Analytics — soft-shadow card (no left accent
+// bar) matching GMPSectionCard's chrome, so a tile and a chart card read as
+// the same surface. On hover it lifts and glows in its own color. Color lives
+// in the number and the optional sparkline/delta, not in the card frame.
 import { useState, useEffect, useRef } from "react";
 import { FadeSlideIn } from "../../monitoring/analytics/KpiCard";
+import { gmpCardShadow, isDarkUI } from "./GMPSectionCard";
 
 // Local count-up — the shared monitoring/analytics useCountUp always ends on
 // Math.round(...), so any decimal value (a plain float like 1.6, or a
@@ -60,29 +61,59 @@ function useFormattedCountUp(target, duration = 900) {
 // series the caller already fetched), never a decorative or fabricated
 // trend line. Omit `points` when no real series exists for a tile (e.g. a
 // single-snapshot metric like Avg TAT) rather than invent one.
-function Sparkline({ points, color }) {
+function Sparkline({ points, labels, color, unit = "", ui }) {
+  const [hov, setHov] = useState(null);
   if (!points || points.length < 2) return null;
   const w = 100, h = 26, pad = 2;
   const min = Math.min(...points), max = Math.max(...points);
   const span = max - min || 1;
   const step = (w - pad * 2) / (points.length - 1);
-  const path = points
-    .map((v, i) => `${i === 0 ? "M" : "L"}${(pad + i * step).toFixed(1)},${(h - pad - ((v - min) / span) * (h - pad * 2)).toFixed(1)}`)
-    .join(" ");
+  const xOf = (i) => pad + i * step;
+  const yOf = (v) => h - pad - ((v - min) / span) * (h - pad * 2);
+  // Smooth curve (same easing as the Trend Overview chart): each step bends
+  // through the midpoint, so a daily series reads as a wave, not a zig-zag.
+  const path = points.reduce((d, v, i) => {
+    const x = xOf(i), y = yOf(v);
+    if (i === 0) return `M${x.toFixed(2)},${y.toFixed(2)}`;
+    const px = xOf(i - 1), py = yOf(points[i - 1]), cx = (px + x) / 2;
+    return `${d} C${cx.toFixed(2)},${py.toFixed(2)} ${cx.toFixed(2)},${y.toFixed(2)} ${x.toFixed(2)},${y.toFixed(2)}`;
+  }, "");
+
+  const onMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * w;
+    setHov(Math.max(0, Math.min(points.length - 1, Math.round((x - pad) / step))));
+  };
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: 22, display: "block", marginTop: 6 }}>
-      <path d={path} fill="none" stroke={color} strokeWidth="2" />
-    </svg>
+    <div style={{ position: "relative", marginTop: 6 }} onMouseMove={onMove} onMouseLeave={() => setHov(null)}>
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: 22, display: "block" }}>
+        <path d={path} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      </svg>
+      {hov != null && (
+        <>
+          {/* HTML dot, not an SVG circle — the SVG is stretched, which would squash a circle. */}
+          <span style={{
+            position: "absolute", width: 7, height: 7, borderRadius: "50%", background: color, border: `1.5px solid ${ui.cardBg}`,
+            left: `${xOf(hov)}%`, top: `${(yOf(points[hov]) / h) * 22}px`, transform: "translate(-50%, -50%)", pointerEvents: "none",
+          }} />
+          <span style={{
+            position: "absolute", right: 0, bottom: 24, fontSize: "0.62rem", fontWeight: 600, whiteSpace: "nowrap",
+            color: ui.textSub, background: ui.cardBg, padding: "1px 4px", borderRadius: 4, pointerEvents: "none",
+          }}>
+            {labels?.[hov] ? `${labels[hov]}: ` : ""}<b style={{ color }}>{points[hov].toLocaleString()}{unit}</b>
+          </span>
+        </>
+      )}
+    </div>
   );
 }
 
-export function GMPKpiCard({ icon, label, value, color, sub, sparkline, delta, ui, animDelay = 0 }) {
+export function GMPKpiCard({ icon, label, value, color, sub, sparkline, sparkLabels, sparkUnit, delta, ui, animDelay = 0 }) {
   const animated = useFormattedCountUp(value);
   const [hov, setHov] = useState(false);
   // A sparkline array is still a truthy reference even with 0-1 points (not
-  // enough to draw a line) — check length explicitly so a tile with a short
-  // series correctly falls back to its `sub` caption instead of rendering
-  // nothing where that caption would have been.
+  // enough to draw a line) — check length explicitly.
   const showSparkline = Array.isArray(sparkline) && sparkline.length >= 2;
 
   return (
@@ -92,17 +123,21 @@ export function GMPKpiCard({ icon, label, value, color, sub, sparkline, delta, u
         onMouseLeave={() => setHov(false)}
         style={{
           background: ui.cardBg,
-          border: `1px solid ${ui.cardBorder}`,
-          borderRadius: 11,
-          padding: "12px 14px",
+          border: isDarkUI(ui) ? `1px solid ${ui.cardBorder}` : "1px solid transparent",
+          borderRadius: 16,
+          boxShadow: hov
+            ? `0 0 0 1px ${color}66, 0 0 22px ${color}73, 0 10px 34px ${color}59, ${gmpCardShadow(isDarkUI(ui))}`
+            : gmpCardShadow(isDarkUI(ui)),
+          padding: "14px 16px",
           display: "flex",
           flexDirection: "column",
           gap: 5,
           height: "100%",
           boxSizing: "border-box",
-          overflow: "hidden",
-          transform: hov ? "translateY(-2px)" : "none",
-          transition: "transform 0.15s ease",
+          position: "relative",
+          zIndex: hov ? 10 : 1,
+          transform: hov ? "translateY(-3px)" : "none",
+          transition: "transform 0.2s ease, box-shadow 0.25s ease",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
@@ -136,19 +171,22 @@ export function GMPKpiCard({ icon, label, value, color, sub, sparkline, delta, u
             {delta.dir === "up" ? "▲" : delta.dir === "down" ? "▼" : "—"} {delta.text}
           </div>
         )}
-        {showSparkline ? (
-          <Sparkline points={sparkline} color={color} />
-        ) : sub ? (
+        {showSparkline && <Sparkline points={sparkline} labels={sparkLabels} unit={sparkUnit} color={color} ui={ui} />}
+        {/* The explanatory sentence lives in a hover pop-up, so the tile itself
+            stays number + trend only. */}
+        {sub && hov && (
           <div
+            role="tooltip"
             style={{
-              fontSize: "0.64rem", color: ui.textMuted, lineHeight: 1.3, overflow: "hidden",
-              textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 1, WebkitBoxOrient: "vertical",
-              marginTop: delta ? 0 : 2,
+              position: "absolute", left: 0, bottom: "calc(100% + 8px)", zIndex: 20, width: "max-content", maxWidth: 240,
+              padding: "7px 10px", borderRadius: 10, fontSize: "0.72rem", lineHeight: 1.4, fontWeight: 500,
+              color: ui.textPrimary, background: ui.cardBg, border: `1px solid ${ui.cardBorder}`,
+              boxShadow: "0 6px 18px rgba(0,0,0,0.16)", pointerEvents: "none",
             }}
           >
             {sub}
           </div>
-        ) : null}
+        )}
       </div>
     </FadeSlideIn>
   );

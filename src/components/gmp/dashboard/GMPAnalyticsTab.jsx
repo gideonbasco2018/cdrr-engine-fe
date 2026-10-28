@@ -6,21 +6,44 @@
 import { FadeSlideIn } from "../../monitoring/analytics/KpiCard";
 import { GMPSectionCard } from "./GMPSectionCard";
 import {
-  SectionHeading, SkeletonBox, TrendChartPanel, StepTimingChart,
-  BreakdownBarChart, MismatchList,
+  SectionHeading, SkeletonBox, StepTimingChart,
+  BreakdownBarChart,
 } from "./gmpAnalyticsShared";
+import GMPMonthlySummary from "./GMPMonthlySummary";
+import GMPDataCompleteness from "./GMPDataCompleteness";
+import GMPTrendOverview from "./GMPTrendOverview";
+import GMPCountryBreakdown from "./GMPCountryBreakdown";
 
 export default function GMPAnalyticsTab({
   ui, darkMode, loading,
-  trend, category, dtnSummary, picsCountry, nod, stepTiming,
+  category, dtnSummary, picsCountry, nod, stepTiming,
+  monthly, year, month, years,
 }) {
   return (
     <div>
+      {/* ── Manufacturer countries ── */}
+      <FadeSlideIn delay={60} style={{ marginBottom: 28 }}>
+        <GMPSectionCard
+          title="By manufacturer country"
+          subtitle="Every country, parsed from the manufacturer address — green dot = current PIC/S member"
+          ui={ui}
+        >
+          <GMPCountryBreakdown items={picsCountry?.by_country ?? []} ui={ui} loading={loading} />
+        </GMPSectionCard>
+      </FadeSlideIn>
+
       {/* ── Trend ── */}
-      <SectionHeading index={1} title="Applications over time" subtitle="Received, released & disapproved counts" ui={ui} />
+      <SectionHeading index={1} title="Applications over time" subtitle="Received, released, in progress & disapproved — hover for values, click a name to hide a line" ui={ui} />
       <FadeSlideIn delay={80} style={{ marginBottom: 16 }}>
-        <GMPSectionCard title="Volume trend" ui={ui}>
-          <TrendChartPanel data={trend} darkMode={darkMode} ui={ui} loading={loading} />
+        <GMPTrendOverview ui={ui} darkMode={darkMode} years={years} pageYear={year} pageMonth={month} />
+      </FadeSlideIn>
+      <FadeSlideIn delay={100} style={{ marginBottom: 16 }}>
+        <GMPSectionCard
+          title="Month by month"
+          subtitle={year === "All" ? "Every month on record — change the Year filter to focus on one year" : `Each month of ${year}`}
+          ui={ui}
+        >
+          <GMPMonthlySummary data={monthly} ui={ui} loading={loading} />
         </GMPSectionCard>
       </FadeSlideIn>
 
@@ -31,38 +54,28 @@ export default function GMPAnalyticsTab({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16, marginBottom: 16 }}>
         <FadeSlideIn delay={100}>
           <GMPSectionCard title="By establishment category" ui={ui}>
-            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.by_est_category ?? []} ui={ui} darkMode={darkMode} emptyLabel="No category data" />}
-          </GMPSectionCard>
-        </FadeSlideIn>
-        <FadeSlideIn delay={120}>
-          <GMPSectionCard title="PIC/S vs Non-PIC/S" ui={ui}>
-            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.by_pics_nonpics ?? []} ui={ui} darkMode={darkMode} emptyLabel="No PIC/S data" />}
-          </GMPSectionCard>
-        </FadeSlideIn>
-        <FadeSlideIn delay={140}>
-          <GMPSectionCard title="By manufacturer country" subtitle="Parsed from address vs picscheme.org/en/members" ui={ui}>
-            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={picsCountry?.by_country ?? []} ui={ui} darkMode={darkMode} emptyLabel="No manufacturer address data" />}
+            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.by_est_category ?? []} ui={ui} darkMode={darkMode} emptyLabel="No category data" singleColor="#2f6fed" />}
           </GMPSectionCard>
         </FadeSlideIn>
         <FadeSlideIn delay={160}>
           <GMPSectionCard title="Top establishments" subtitle="By record count" ui={ui}>
-            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.top_companies ?? []} ui={ui} darkMode={darkMode} emptyLabel="No establishment data" />}
+            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.top_companies ?? []} ui={ui} darkMode={darkMode} emptyLabel="No establishment data" singleColor="#0f8a72" />}
           </GMPSectionCard>
         </FadeSlideIn>
         <FadeSlideIn delay={180}>
           <GMPSectionCard title="By type of issuance" ui={ui}>
-            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.by_issuance_type ?? []} ui={ui} darkMode={darkMode} emptyLabel="No issuance-type data" />}
+            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.by_issuance_type ?? []} ui={ui} darkMode={darkMode} emptyLabel="No issuance-type data" singleColor="#06b6d4" />}
           </GMPSectionCard>
         </FadeSlideIn>
         <FadeSlideIn delay={200}>
           <GMPSectionCard title="By transaction type" ui={ui}>
-            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.by_transaction_type ?? []} ui={ui} darkMode={darkMode} emptyLabel="No transaction-type data" />}
+            {loading ? <SkeletonBox height={160} ui={ui} /> : <BreakdownBarChart items={category?.by_transaction_type ?? []} ui={ui} darkMode={darkMode} emptyLabel="No transaction-type data" singleColor="#2f6fed" />}
           </GMPSectionCard>
         </FadeSlideIn>
         <FadeSlideIn delay={220}>
           <GMPSectionCard title="Issuances per DTN" subtitle="How many issuance records share the same DTN" ui={ui}>
             {loading ? <SkeletonBox height={160} ui={ui} /> : (
-              <BreakdownBarChart items={(dtnSummary?.issuance_count_distribution ?? []).map((d) => ({ name: d.label, count: d.count }))} ui={ui} darkMode={darkMode} emptyLabel="No DTN data" />
+              <BreakdownBarChart items={(dtnSummary?.issuance_count_distribution ?? []).map((d) => ({ name: d.label, count: d.count }))} ui={ui} darkMode={darkMode} emptyLabel="No DTN data" singleColor="#7c5cff" limit={8} />
             )}
           </GMPSectionCard>
         </FadeSlideIn>
@@ -75,7 +88,7 @@ export default function GMPAnalyticsTab({
       <FadeSlideIn delay={240} style={{ marginBottom: 16 }}>
         <GMPSectionCard title="Distribution" ui={ui}>
           {loading ? <SkeletonBox height={160} ui={ui} /> : (
-            <BreakdownBarChart items={(nod?.distribution ?? []).map((d) => ({ name: d.label, count: d.count }))} singleColor="#b9740f" ui={ui} darkMode={darkMode} emptyLabel="No NOD data" />
+            <BreakdownBarChart items={(nod?.distribution ?? []).map((d) => ({ name: d.label, count: d.count }))} singleColor="#b9740f" ui={ui} darkMode={darkMode} emptyLabel="No NOD data" limit={8} />
           )}
         </GMPSectionCard>
       </FadeSlideIn>
@@ -84,21 +97,17 @@ export default function GMPAnalyticsTab({
       <div style={{ marginTop: 28 }}>
         <SectionHeading index={4} title="Data quality & process auditing" subtitle="Records worth a second look, and where time is spent" ui={ui} />
       </div>
-      <FadeSlideIn delay={260} style={{ marginBottom: 16 }}>
+      <FadeSlideIn delay={240} style={{ marginBottom: 16 }}>
         <GMPSectionCard
-          title="Possible PIC/S classification mismatches"
-          subtitle={picsCountry
-            ? `${picsCountry.mismatch_count.toLocaleString()} record${picsCountry.mismatch_count === 1 ? "" : "s"} where the selected PIC/S / Non-PIC/S value doesn't match the manufacturer's detected country — worth a second look, not confirmed errors`
-            : "Records where the selected PIC/S / Non-PIC/S value doesn't match the manufacturer's detected country"}
+          title="Data completeness"
+          subtitle="How complete the Date Received, Released Date and Type of Issuance fields are — click a red number to see the records"
           ui={ui}
         >
-          {loading ? <SkeletonBox height={160} ui={ui} /> : (
-            <MismatchList items={picsCountry?.mismatches ?? []} totalCount={picsCountry?.mismatch_count ?? 0} ui={ui} darkMode={darkMode} emptyLabel="No mismatches detected" />
-          )}
+          <GMPDataCompleteness ui={ui} />
         </GMPSectionCard>
       </FadeSlideIn>
       <FadeSlideIn delay={280}>
-        <GMPSectionCard title="Workflow step timing" subtitle="Average calendar days spent per step, Decking → OD Releasing" ui={ui}>
+        <GMPSectionCard title="Workflow step timing" subtitle="Average working days spent per step, Decking → OD Releasing — weekends not counted" ui={ui}>
           <StepTimingChart data={stepTiming} darkMode={darkMode} ui={ui} loading={loading} />
         </GMPSectionCard>
       </FadeSlideIn>

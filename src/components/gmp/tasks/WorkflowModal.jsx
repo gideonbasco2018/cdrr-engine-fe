@@ -273,7 +273,8 @@ const GMP_DOCTRACK_REMARKS = {
   "Return to Evaluator":            "Returned to FGMP Evaluator",
   "Forwarded to OD Receiving":      "Signed by LRD Chief and forwarded to CDRR Director for signing",
   "Return to QA Admin":             "Returned to FGMP QA Admin",
-  "Endorsed to OD - Releasing":     "Received by CDRR - OD; Forwarded to CDRR OIC - Director for Signature",
+  "Endorsed to CDRR Director for signature": "Received by CDRR - OD; Forwarded to CDRR OIC - Director for Signature",
+  "Endorsed to OD Releasing":       "Signed by CDRR Director, forwarded to OD-Releasing",
   "Return to LRD Chief Admin":      "Returned to LRD Chief Admin",
   "Forwarded to CDRR FGMP":          "Reviewed by FROO; Returned to FGMP Evaluator",
 };
@@ -462,9 +463,10 @@ const GMP_LRD_DECISION_OPTIONS = ["Signed"];
 
 // ── OD Receiving: Action → optional Decision ("For Signature") ──────────────
 // Mirrors the LRD Chief Admin pattern above: picking the forwarding Action
-// ("Endorsed to OD - Releasing") reveals a required Decision confirmation and
-// a required assignee picker scoped to the OD Releasing group.
-const GMP_OD_RECEIVING_SIGN_TRIGGER_ACTION = "Endorsed to OD - Releasing";
+// ("Endorsed to CDRR Director for signature") reveals a required Decision
+// confirmation and a required assignee picker scoped to the Signature
+// Facilitator group. Action text matches CPR's identical step exactly.
+const GMP_OD_RECEIVING_SIGN_TRIGGER_ACTION = "Endorsed to CDRR Director for signature";
 const GMP_OD_RECEIVING_DECISION_OPTIONS = ["For Signature"];
 
 // ── OD Releasing: single Action → single Decision ("Signed") ────────────────
@@ -492,7 +494,12 @@ const GMP_ACTION_ASSIGNEE_GROUPS = {
   [GMP_CHECKER_RETURN_FOR_REVIEW_ACTION]: { groupId: 31, shortLabel: "Evaluator", groupLabel: "Evaluator Group" },
   "Endorsed to LRD Chief Admin": { groupId: 17, shortLabel: "LRD Chief Admin",  groupLabel: "LRD Chief Admin Group" },
   "Forwarded to OD Receiving":   { groupId: 18, shortLabel: "OD Receiving",     groupLabel: "OD Receiving Group" },
-  "Endorsed to OD - Releasing":  { groupId: 19, shortLabel: "OD Releasing",     groupLabel: "OD Releasing Group" },
+  // Routes to the Signature Facilitator step (not straight to OD Releasing
+  // anymore) — several people can be picked at once; whoever completes it
+  // first wins (see GMP_MULTI_ASSIGNEE_STEPS, app/crud/gmp_record.py).
+  "Endorsed to CDRR Director for signature": { groupId: 40, shortLabel: "CDRR-OD Signature Facilitator", groupLabel: "CDRR-OD Signature Facilitator Group", multi: true },
+  // CDRR-OD Signature Facilitator's own single forwarding action, on to OD Releasing.
+  "Endorsed to OD Releasing":    { groupId: 19, shortLabel: "OD Releasing",     groupLabel: "OD Releasing Group" },
   // FROO hands the NFI back to the Evaluator — same target group as the
   // Checker's return-to-Evaluator actions, different action string.
   "Forwarded to CDRR FGMP":       { groupId: 31, shortLabel: "Evaluator",        groupLabel: "Evaluator Group" },
@@ -2207,10 +2214,12 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
   approvalDecision, onApprovalDecisionChange, recommendationOptions, remarksPresetOptions, remarksPresetValue, onRemarksPresetChange,
   needsTypeOfIssuance, typeOfIssuanceOptions, typeOfIssuanceValue, onTypeOfIssuanceChange, typeOfIssuanceLocked,
   needsAssigneeGroup, assigneeGroupConfig, assigneeGroupOptions, loadingAssigneeGroup, assigneeUserId, onAssigneeGroupChange,
+  isMultiAssignee, assigneeUserIds, onToggleAssigneeUserId,
   sendBackAction,
   isLrdChiefAdmin, needsLrdDecision, lrdDecisionValue, onLrdDecisionChange,
   isOdReceiving, needsOdReceivingDecision, odReceivingDecisionValue, onOdReceivingDecisionChange,
   isOdReleasing, needsOdReleasingDecision, odReleasingDecisionValue, onOdReleasingDecisionChange,
+  isSignatureFacilitator,
   odReleasingSignedDateValue, onOdReleasingSignedDateChange, submitLabel,
   needsNodDate, nodDateLabel, nodDateValue, onNodDateChange,
   needsDatePrinted, datePrintedValue, onDatePrintedChange,
@@ -2586,9 +2595,9 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
 
       {!isEvalOrChecker && !blockedReason && !stepActionsError && (
         <div className="wfFieldBox" style={box}>
-          <label style={boxLbl}>{(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "Action" : "Decision"} <span style={{ color: "#ef4444" }}>*</span></label>
+          <label style={boxLbl}>{(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isSignatureFacilitator || isFroo) ? "Action" : "Decision"} <span style={{ color: "#ef4444" }}>*</span></label>
           <GmpSelect value={decision} onChange={onDecisionChange}
-            placeholder={`Select ${(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isFroo) ? "action" : "decision"}…`}
+            placeholder={`Select ${(isLrdChiefAdmin || isOdReceiving || isOdReleasing || isSignatureFacilitator || isFroo) ? "action" : "decision"}…`}
             options={decisions} colors={colors} ariaLabel="Decision" allowClear={false} />
         </div>
       )}
@@ -2673,10 +2682,37 @@ function Step5Fields({ decision, onDecisionChange, remarks, setRemarks,
               Defaults to whoever last handled this step — change it if needed.
             </p>
           )}
+          {isMultiAssignee && (
+            <p style={{ fontSize: "0.68rem", color: colors.textTertiary, margin: "0 0 4px" }}>
+              Select one or more users. Whoever completes the task first will automatically close the other users' logs.
+            </p>
+          )}
           {loadingAssigneeGroup ? (
             <div style={{ ...boxInp, display: "flex", alignItems: "center", gap: 8, color: colors.textTertiary }}>
               <span style={{ width: 12, height: 12, border: "2px solid rgba(16,185,129,0.2)", borderTopColor: ACCENT, borderRadius: "50%", animation: "spin 0.6s linear infinite" }} />
               Loading {assigneeGroupConfig?.groupLabel} users…
+            </div>
+          ) : isMultiAssignee ? (
+            <div style={{
+              border: `1px solid ${colors.cardBorder}`, borderRadius: 8,
+              background: colors.inputBg ?? "transparent", maxHeight: 200, overflowY: "auto",
+            }}>
+              {assigneeGroupOptions.map((u) => {
+                const name = [u.first_name, u.surname ?? u.last_name].filter(Boolean).join(" ");
+                const label = [u.username, name || null, u.alias ? `(${u.alias})` : null].filter(Boolean).join(" · ");
+                const checked = assigneeUserIds.includes(u.id);
+                return (
+                  <label key={u.id} onClick={() => onToggleAssigneeUserId(u.id)} style={{
+                    display: "flex", alignItems: "center", gap: 8, padding: "0.5rem 0.75rem",
+                    cursor: "pointer", fontSize: "0.78rem", color: colors.textPrimary,
+                    background: checked ? "rgba(16,185,129,0.08)" : "transparent",
+                    borderLeft: checked ? `3px solid ${ACCENT}` : "3px solid transparent",
+                  }}>
+                    <input type="checkbox" checked={checked} readOnly style={{ cursor: "pointer", flexShrink: 0 }} />
+                    {label}
+                  </label>
+                );
+              })}
             </div>
           ) : (
             <GmpSelect value={String(assigneeUserId ?? "")} onChange={onAssigneeGroupChange} placeholder="Select assignee…"
@@ -3037,6 +3073,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   const isLrdChiefAdmin = currentStep === "LRD Chief Admin";
   const isOdReceiving  = currentStep === "OD Receiving";
   const isOdReleasing  = currentStep === "OD Releasing";
+  const isSignatureFacilitator = currentStep === "CDRR-OD Signature Facilitator";
   const isFroo         = currentStep === "FROO";
   const stepDef     = GMP_STEPS.find(s => s.id === currentStep) ?? GMP_STEPS[0];
   const currentIdx  = GMP_STEPS.findIndex(s => s.id === currentStep);
@@ -3332,10 +3369,17 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     ? GMP_ACTION_ASSIGNEE_GROUPS[action]
     : GMP_ACTION_ASSIGNEE_GROUPS[decision];
   const needsAssigneeGroup  = !!assigneeGroupConfig;
+  // Multi-assignee: a checklist (several people at once) instead of a single
+  // dropdown — currently only OD Receiving → CDRR-OD Signature Facilitator.
+  const isMultiAssignee = !!assigneeGroupConfig?.multi;
   const [assigneeGroupOptions, setAssigneeGroupOptions] = useState([]);
   const [loadingAssigneeGroup, setLoadingAssigneeGroup] = useState(false);
   const [assigneeUserId,   setAssigneeUserId]   = useState(() => d.assigneeUserId ?? null);
   const [assigneeUserName, setAssigneeUserName] = useState(() => d.assigneeUserName ?? "");
+  const [assigneeUserIds,  setAssigneeUserIds]  = useState(() => d.assigneeUserIds ?? []);
+  const toggleAssigneeUserId = (id) => {
+    setAssigneeUserIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
 
   const handleDecisionChange = (val) => {
   setDecision(val);
@@ -3346,6 +3390,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
   // handleActionChange) so a stale user can't be submitted after a re-pick.
   setAssigneeUserId(null);
   setAssigneeUserName("");
+  setAssigneeUserIds([]);
   // Decision only applies to the signing/forwarding action — clear stale picks
   if (val !== GMP_LRD_SIGN_TRIGGER_ACTION) setLrdDecision("");
   if (val !== GMP_OD_RECEIVING_SIGN_TRIGGER_ACTION) setOdReceivingDecision("");
@@ -3596,7 +3641,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     !!finalTypeOfIssuance || !!remarks.trim() ||
     !!nodDateValue || !!datePrintedValue ||
     !!lrdDecision || !!odReceivingDecision || !!odReleasingDecision || !!odReleasingSignedDate ||
-    decisionAuthorityId != null || assigneeUserId != null ||
+    decisionAuthorityId != null || assigneeUserId != null || assigneeUserIds.length > 0 ||
     (!!newIssuanceType && record != null && newIssuanceType !== (record.GMP_TYPE_OF_ISSUANCE ?? ""));
 
   useEffect(() => {
@@ -3617,7 +3662,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       complianceWorkingDays, complianceDeadline,
       lrdDecision, odReceivingDecision, odReleasingDecision, odReleasingSignedDate,
       decisionAuthorityId, decisionAuthorityName,
-      assigneeUserId, assigneeUserName,
+      assigneeUserId, assigneeUserName, assigneeUserIds,
       doctrackEnabled, doctrackRemarks, newIssuanceType,
     };
     draftSnapshotRef.current = snapshot;
@@ -3630,7 +3675,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     action, approvalDecision, remarksPreset, finalTypeOfIssuance,
     nodDateField, nodDateValue, datePrintedValue, complianceWorkingDays, complianceDeadline,
     lrdDecision, odReceivingDecision, odReleasingDecision, odReleasingSignedDate,
-    decisionAuthorityId, decisionAuthorityName, assigneeUserId, assigneeUserName,
+    decisionAuthorityId, decisionAuthorityName, assigneeUserId, assigneeUserName, assigneeUserIds,
     doctrackEnabled, doctrackRemarks, newIssuanceType, clearDraft, loadingRec,
   ]);
 
@@ -3658,7 +3703,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     setComplianceWorkingDays(GMP_COMPLIANCE_DEFAULT_DAYS); setComplianceDeadline("");
     setLrdDecision(""); setOdReceivingDecision(""); setOdReleasingDecision(""); setOdReleasingSignedDate("");
     setDecisionAuthorityId(null); setDecisionAuthorityName("");
-    setAssigneeUserId(null); setAssigneeUserName("");
+    setAssigneeUserId(null); setAssigneeUserName(""); setAssigneeUserIds([]);
     setDoctrackEnabled(true); setDoctrackRemarks("");
     setNewIssuanceType(record?.GMP_TYPE_OF_ISSUANCE ?? "");
     timelineManualRef.current = false;
@@ -3677,7 +3722,7 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
     advanceDoneRef.current = false;
   }, [
     doctrackEnabled, doctrackRemarks, action, decision, approvalDecision,
-    remarksPreset, assigneeUserId, decisionAuthorityId, lrdDecision,
+    remarksPreset, assigneeUserId, assigneeUserIds, decisionAuthorityId, lrdDecision,
     odReceivingDecision, odReleasingDecision, odReleasingSignedDate,
   ]);
 
@@ -3777,7 +3822,11 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
       if (needsAuthority && !decisionAuthorityId) {
         setSubmitError("Please select a Decision Authority."); setSubmitLoading(false); return;
       }
-      if (needsAssigneeGroup && !assigneeUserId) {
+      if (needsAssigneeGroup && isMultiAssignee && assigneeUserIds.length === 0) {
+        setSubmitError(`Please select at least one assignee from the ${assigneeGroupConfig?.groupLabel}.`);
+        setSubmitLoading(false); return;
+      }
+      if (needsAssigneeGroup && !isMultiAssignee && !assigneeUserId) {
         setSubmitError(`Please select an assignee from the ${assigneeGroupConfig?.groupLabel}.`);
         setSubmitLoading(false); return;
       }
@@ -3832,11 +3881,14 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
         // no group mapping (Return to X, Disapprove, OD Releasing's final
         // action) carry no next assignee. The "For Compliance" self-loop
         // stays with the submitter, so it carries the submitter's own id.
-        next_assignee_id: needsAssigneeGroup
+        next_assignee_id: needsAssigneeGroup && !isMultiAssignee
           ? assigneeUserId
           : isSelfLoop
             ? (currentUserObj.id ?? null)
             : null,
+        // Multi-assignee step (CDRR-OD Signature Facilitator): one open log
+        // per picked user — see next_assignee_ids on GMPAdvanceStepRequest.
+        ...(needsAssigneeGroup && isMultiAssignee ? { next_assignee_ids: assigneeUserIds } : {}),
         action_type: isEvalOrChecker && approvalDecision
           ? approvalDecision
           : (needsLrdDecision && lrdDecision ? lrdDecision
@@ -4195,11 +4247,13 @@ export default function WorkflowModal({ record: recordProp, log: task, onClose, 
                 needsAssigneeGroup={needsAssigneeGroup} assigneeGroupConfig={assigneeGroupConfig}
                 assigneeGroupOptions={assigneeGroupOptions} loadingAssigneeGroup={loadingAssigneeGroup}
                 assigneeUserId={assigneeUserId} onAssigneeGroupChange={handleAssigneeGroupChange}
+                isMultiAssignee={isMultiAssignee} assigneeUserIds={assigneeUserIds} onToggleAssigneeUserId={toggleAssigneeUserId}
                 sendBackAction={sendBackAction}
                 isLrdChiefAdmin={isLrdChiefAdmin} needsLrdDecision={needsLrdDecision}
                 lrdDecisionValue={lrdDecision} onLrdDecisionChange={setLrdDecision}
                 isOdReceiving={isOdReceiving} needsOdReceivingDecision={needsOdReceivingDecision}
                 odReceivingDecisionValue={odReceivingDecision} onOdReceivingDecisionChange={setOdReceivingDecision}
+                isSignatureFacilitator={isSignatureFacilitator}
                 isOdReleasing={isOdReleasing} needsOdReleasingDecision={needsOdReleasingDecision}
                 odReleasingDecisionValue={odReleasingDecision} onOdReleasingDecisionChange={handleOdReleasingDecisionChange}
                 odReleasingSignedDateValue={odReleasingSignedDate} onOdReleasingSignedDateChange={handleOdReleasingSignedDateChange}
