@@ -134,3 +134,19 @@ export const getCompanyMonitoringRecords = async (params = {}) => {
     });
     return res.data;
 };
+
+export const getCompanyReleasedDocs = async (params = {}) => {
+    const res = await API.get("/analytics/company-monitoring/released-docs", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};
+
+export const getCompanyReleasedDocRecords = async (params = {}) => {
+    const res = await API.get("/analytics/company-monitoring/released-docs/records", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};
