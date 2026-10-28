@@ -18,6 +18,7 @@ import {
 import { FB } from "../analytics/analyticsConstants";
 import { SectionCard } from "../analytics/SectionCard";
 import CompanyExportPdfModal from "./CompanyExportPdfModal";
+import ReleasedDocsModal from "./ReleasedDocsModal";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -308,6 +309,8 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
 
   // ── PDF export ──
   const [showExportPdf, setShowExportPdf] = useState(false);
+  // ── Released-by-document-type modal ──
+  const [docModal, setDocModal] = useState(null); // { label, year, month, view }
 
   const hasCompany = groups.length > 0;
   const pendingList = Object.values(pending);
@@ -509,6 +512,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
     setData(null);
     setRecSearch("");
     setShowExportPdf(false);
+    setDocModal(null);
     decisions.current = {};
   };
 
@@ -590,6 +594,25 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
   const weighted = periodRows.filter((p) => p.avg != null && p.n > 0);
   const totalN = byRecv ? (s?.released_of_received ?? 0) : (s?.processed ?? 0);
   const totalAvg = byRecv ? s?.avg_tat_received : s?.avg_tat;
+
+  // Open the "released by document type" modal for a row (or the total)
+  const openDocs = (label, y, m, n) => {
+    if (!n) return;
+    setDocModal({ label, year: y, month: m, view: periodView });
+  };
+  const rowDocs = (p) =>
+    year === "All"
+      ? openDocs(p.label, String(p.key), "All", p.n)
+      : openDocs(`${p.label} ${year}`, year, String(p.key), p.n);
+  const linkSt = (n) =>
+    n > 0
+      ? {
+          color: GREEN,
+          fontWeight: 700,
+          textDecoration: "underline",
+          cursor: "pointer",
+        }
+      : {};
   // ── Hover explanations for the per-period table ──
   const sumRecv = periodRows.reduce((a, p) => a + p.received, 0);
   const joinNums = (arr) => arr.map((x) => fmt(x)).join(" + ");
@@ -1399,8 +1422,12 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                             {fmt(p.received)}
                           </td>
                           <td
-                            style={td("right", { cursor: "help" })}
-                            title={rowTip.n(p)}
+                            style={td("right", {
+                              cursor: "help",
+                              ...linkSt(p.n),
+                            })}
+                            title={`${p.n > 0 ? "Click to see the document types\n\n" : ""}${rowTip.n(p)}`}
+                            onClick={() => rowDocs(p)}
                           >
                             {fmt(p.n)}
                           </td>
@@ -1449,8 +1476,12 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                           style={td("right", {
                             fontWeight: 800,
                             cursor: "help",
+                            ...linkSt(totalN),
                           })}
-                          title={totalTip.n}
+                          title={`${totalN > 0 ? "Click to see the document types\n\n" : ""}${totalTip.n}`}
+                          onClick={() =>
+                            openDocs(scopeLabel, year, month, totalN)
+                          }
                         >
                           {fmt(totalN)}
                         </td>
@@ -1935,6 +1966,20 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
             </div>
           </SectionCard>
         </>
+      )}
+      {docModal && (
+        <ReleasedDocsModal
+          ui={ui}
+          darkMode={darkMode}
+          label={docModal.label}
+          params={{
+            company: companyNames,
+            year: docModal.year,
+            month: docModal.month,
+            view: docModal.view,
+          }}
+          onClose={() => setDocModal(null)}
+        />
       )}
 
       {showExportPdf && exportData && (
