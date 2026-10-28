@@ -294,6 +294,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showFormula, setShowFormula] = useState(true);
+  const [periodView, setPeriodView] = useState("released"); // released | received
 
   // ── Applications list ──
   const [evalFilter, setEvalFilter] = useState(null); // user_id | "none" | null
@@ -555,13 +556,20 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
   });
 
   const s = data?.summary;
-  const periodMax = useMemo(
+  const byRecv = periodView === "received";
+  // Normalized rows for the per-period chart/table
+  const periodRows = useMemo(
     () =>
-      Math.max(
-        ...(data?.periods ?? []).flatMap((p) => [p.received, p.processed]),
-        1,
-      ),
-    [data],
+      (data?.periods ?? []).map((p) => ({
+        ...p,
+        n: byRecv ? (p.released_of_received ?? 0) : p.processed,
+        avg: byRecv ? p.avg_tat_received : p.avg_tat,
+      })),
+    [data, byRecv],
+  );
+  const periodMax = useMemo(
+    () => Math.max(...periodRows.flatMap((p) => [p.received, p.n]), 1),
+    [periodRows],
   );
   const totalPages = Math.max(Math.ceil((records.total ?? 0) / PAGE_SIZE), 1);
   const periodWord = year === "All" ? "year" : "month";
@@ -576,6 +584,53 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
   const example = records.data.find(
     (r) => r.tat_days != null && r.state === "Released",
   );
+
+  // Worked example for the Avg TAT column: first period that has an average
+  const avgExample = periodRows.find((p) => p.avg != null && p.n > 0);
+  const weighted = periodRows.filter((p) => p.avg != null && p.n > 0);
+  const totalN = byRecv ? (s?.released_of_received ?? 0) : (s?.processed ?? 0);
+  const totalAvg = byRecv ? s?.avg_tat_received : s?.avg_tat;
+  // ── Hover explanations for the per-period table ──
+  const sumRecv = periodRows.reduce((a, p) => a + p.received, 0);
+  const joinNums = (arr) => arr.map((x) => fmt(x)).join(" + ");
+
+  const rowTip = {
+    received: (p) => `Applications received in ${p.label}: ${fmt(p.received)}`,
+    n: (p) =>
+      byRecv
+        ? `Of the ${fmt(p.received)} received in ${p.label}, ${fmt(p.n)} are already released (even if released in a later ${periodWord}).`
+        : `${fmt(p.n)} applications were released (COMPLETED + valid Date Released) in ${p.label}, no matter when received.`,
+    open: (p) =>
+      `Still open = Received − Released\n${fmt(p.received)} − ${fmt(p.n)} = ${fmt(p.received - p.n)}`,
+    pct: (p) =>
+      p.received > 0
+        ? `% released = Released ÷ Received × 100\n${fmt(p.n)} ÷ ${fmt(p.received)} × 100 = ${pct(p.n, p.received)}%`
+        : `No applications received in ${p.label}.`,
+    avg: (p) =>
+      p.avg == null
+        ? byRecv
+          ? `None of the applications received in ${p.label} is released yet, so there is no TAT to average.`
+          : `No application was released in ${p.label}, so there is no TAT to average.`
+        : `Avg TAT = sum of TAT ÷ number of released apps\n≈ ${fmtAvg(p.avg * p.n)} working days ÷ ${fmt(p.n)} = ${fmtAvg(p.avg)}\n(${fmt(p.n)} ${byRecv ? "released app(s) received" : "app(s) released"} in ${p.label})`,
+  };
+
+  const totalTip = {
+    received: `Sum of all ${periodWord}s:\n${joinNums(periodRows.map((p) => p.received))} = ${fmt(sumRecv)}`,
+    n: `Sum of all ${periodWord}s:\n${joinNums(periodRows.map((p) => p.n))} = ${fmt(totalN)}`,
+    open: `Still open = Received − Released\n${fmt(s?.received)} − ${fmt(totalN)} = ${fmt((s?.received ?? 0) - totalN)}`,
+    pct:
+      (s?.received ?? 0) > 0
+        ? `% released = Released ÷ Received × 100\n${fmt(totalN)} ÷ ${fmt(s.received)} × 100 = ${pct(totalN, s.received)}%\n(computed from the totals, not the average of the monthly %)`
+        : "No applications received.",
+    avg:
+      weighted.length > 0
+        ? `Avg TAT = sum of TAT of all released apps ÷ number of released apps\n≈ (${weighted
+            .map((p) => `${fmtAvg(p.avg)} × ${fmt(p.n)}`)
+            .join(
+              " + ",
+            )}) ÷ ${fmt(weighted.reduce((a, p) => a + p.n, 0))} = ${fmtAvg(totalAvg)}\n(not the average of the ${periodWord}ly averages)`
+        : `No released applications, so there is no TAT to average.`,
+  };
 
   // Data passed to the PDF: merged title + every name that was included
   const exportData = useMemo(
@@ -1153,11 +1208,37 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
 
           {/* ── Per month / per year ── */}
           <SectionCard
-            title={`Received vs Processed per ${periodWord}`}
-            subtitle={scopeLabel}
+            title={
+              byRecv
+                ? `Received and how many got released, per ${periodWord}`
+                : `Received vs Processed per ${periodWord}`
+            }
+            subtitle={
+              byRecv
+                ? `${scopeLabel} · of the applications received in each ${periodWord}, how many are released (any date)`
+                : `${scopeLabel} · applications released in each ${periodWord}, no matter when received`
+            }
             icon="📊"
             ui={ui}
             darkMode={darkMode}
+            action={
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => setPeriodView("received")}
+                  style={seg(periodView === "received")}
+                  title="Group by the date received: of those received, how many were released"
+                >
+                  By Received
+                </button>
+                <button
+                  onClick={() => setPeriodView("released")}
+                  style={seg(periodView === "released")}
+                  title="Group by the date released: how many were released in the period"
+                >
+                  By Released
+                </button>
+              </div>
+            }
           >
             {!data || data.periods.length === 0 ? (
               <div
@@ -1204,7 +1285,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                         marginRight: 5,
                       }}
                     />
-                    Processed
+                    {byRecv ? "Released (of those received)" : "Processed"}
                   </span>
                 </div>
                 <div
@@ -1217,7 +1298,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                     padding: "0 2px",
                   }}
                 >
-                  {data.periods.map((p) => (
+                  {periodRows.map((p) => (
                     <div
                       key={p.key}
                       style={{
@@ -1232,7 +1313,11 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                     >
                       {[
                         { v: p.received, c: FB, n: "Received" },
-                        { v: p.processed, c: GREEN, n: "Processed" },
+                        {
+                          v: p.n,
+                          c: GREEN,
+                          n: byRecv ? "Released (of received)" : "Processed",
+                        },
                       ].map((b) => (
                         <div
                           key={b.n}
@@ -1268,7 +1353,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                 <div
                   style={{ display: "flex", gap: 6, padding: "4px 2px 10px" }}
                 >
-                  {data.periods.map((p) => (
+                  {periodRows.map((p) => (
                     <div
                       key={p.key}
                       style={{
@@ -1290,33 +1375,246 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                           {year === "All" ? "Year" : "Month"}
                         </th>
                         <th style={th("right")}>Received</th>
-                        <th style={th("right")}>Processed</th>
-                        <th style={th("right")}>Avg TAT (working days)</th>
+                        <th style={th("right")}>
+                          {byRecv ? "Released (of received)" : "Processed"}
+                        </th>
+                        {byRecv && <th style={th("right")}>Still open</th>}
+                        {byRecv && <th style={th("right")}>% released</th>}
+                        <th
+                          style={th("right")}
+                          title="Average working days (Mon-Fri) from Date Received to Date Released"
+                        >
+                          Avg TAT (working days) ⓘ
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.periods.map((p) => (
+                      {periodRows.map((p) => (
                         <tr key={p.key}>
                           <td style={td()}>{p.label}</td>
-                          <td style={td("right")}>{fmt(p.received)}</td>
-                          <td style={td("right")}>{fmt(p.processed)}</td>
-                          <td style={td("right")}>{fmtAvg(p.avg_tat)}</td>
+                          <td
+                            style={td("right", { cursor: "help" })}
+                            title={rowTip.received(p)}
+                          >
+                            {fmt(p.received)}
+                          </td>
+                          <td
+                            style={td("right", { cursor: "help" })}
+                            title={rowTip.n(p)}
+                          >
+                            {fmt(p.n)}
+                          </td>
+                          {byRecv && (
+                            <td
+                              style={td("right", {
+                                cursor: "help",
+                                color:
+                                  p.received - p.n > 0 ? AMBER : ui.textMuted,
+                              })}
+                              title={rowTip.open(p)}
+                            >
+                              {fmt(p.received - p.n)}
+                            </td>
+                          )}
+                          {byRecv && (
+                            <td
+                              style={td("right", { cursor: "help" })}
+                              title={rowTip.pct(p)}
+                            >
+                              {p.received > 0
+                                ? `${pct(p.n, p.received)}%`
+                                : "-"}
+                            </td>
+                          )}
+                          <td
+                            style={td("right", { cursor: "help" })}
+                            title={rowTip.avg(p)}
+                          >
+                            {fmtAvg(p.avg)}
+                          </td>
                         </tr>
                       ))}
                       <tr>
                         <td style={td("left", { fontWeight: 800 })}>Total</td>
-                        <td style={td("right", { fontWeight: 800 })}>
+                        <td
+                          style={td("right", {
+                            fontWeight: 800,
+                            cursor: "help",
+                          })}
+                          title={totalTip.received}
+                        >
                           {fmt(s?.received)}
                         </td>
-                        <td style={td("right", { fontWeight: 800 })}>
-                          {fmt(s?.processed)}
+                        <td
+                          style={td("right", {
+                            fontWeight: 800,
+                            cursor: "help",
+                          })}
+                          title={totalTip.n}
+                        >
+                          {fmt(totalN)}
                         </td>
-                        <td style={td("right", { fontWeight: 800 })}>
-                          {fmtAvg(s?.avg_tat)}
+                        {byRecv && (
+                          <td
+                            style={td("right", {
+                              fontWeight: 800,
+                              cursor: "help",
+                            })}
+                            title={totalTip.open}
+                          >
+                            {fmt((s?.received ?? 0) - totalN)}
+                          </td>
+                        )}
+                        {byRecv && (
+                          <td
+                            style={td("right", {
+                              fontWeight: 800,
+                              cursor: "help",
+                            })}
+                            title={totalTip.pct}
+                          >
+                            {(s?.received ?? 0) > 0
+                              ? `${pct(totalN, s.received)}%`
+                              : "-"}
+                          </td>
+                        )}
+                        <td
+                          style={td("right", {
+                            fontWeight: 800,
+                            cursor: "help",
+                          })}
+                          title={totalTip.avg}
+                        >
+                          {fmtAvg(totalAvg)}
                         </td>
                       </tr>
                     </tbody>
                   </table>
+                </div>
+
+                {/* How the numbers are computed */}
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    background: darkMode ? "#1a2744" : "#eef4ff",
+                    border: `1px solid ${FB}55`,
+                    fontSize: "0.76rem",
+                    color: ui.textPrimary,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  <div style={{ fontWeight: 700, color: FB, marginBottom: 4 }}>
+                    🧮{" "}
+                    {byRecv
+                      ? "How to read “By Received”"
+                      : "How is the Avg TAT computed?"}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "monospace",
+                      fontWeight: 700,
+                      marginBottom: 4,
+                    }}
+                  >
+                    Avg TAT = sum of TAT ÷ number of released applications
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 18, color: ui.textSub }}>
+                    {byRecv ? (
+                      <>
+                        <li>
+                          Each {periodWord} counts the applications{" "}
+                          <b>received</b> in it. <b>Released (of received)</b>{" "}
+                          is how many of those are already released, even if the
+                          release was in a later {periodWord}.
+                        </li>
+                        <li>
+                          <b>Still open</b> = Received − Released. % released =
+                          Released ÷ Received.
+                        </li>
+                        <li>
+                          Avg TAT only counts the released ones, so a{" "}
+                          {periodWord} with none released shows "-".
+                        </li>
+                      </>
+                    ) : (
+                      <>
+                        <li>
+                          The average of a {periodWord} only counts applications{" "}
+                          <b>released in that {periodWord}</b> (Processed), no
+                          matter when they were received. Processed = 0 shows
+                          "-".
+                        </li>
+                        <li>
+                          Because of this, Processed can be higher than Received
+                          in the same {periodWord}. Use “By Received” to see
+                          what happened to the applications received in a{" "}
+                          {periodWord}.
+                        </li>
+                      </>
+                    )}
+                    <li>
+                      Each application's TAT is the working days (Mon-Fri) from
+                      Date Received to Date Released. Not released yet, or
+                      released before received, are not included.
+                    </li>
+                    <li>
+                      <b>Total</b> = sum of the TAT of all {fmt(totalN)}{" "}
+                      released applications in this view ÷ {fmt(totalN)}. It is
+                      not the average of the averages above.
+                    </li>
+                  </ul>
+                  {avgExample && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: "7px 10px",
+                        borderRadius: 8,
+                        background: darkMode
+                          ? "rgba(255,255,255,0.05)"
+                          : "#fff",
+                        border: `1px dashed ${FB}66`,
+                        fontFamily: "monospace",
+                        fontSize: "0.74rem",
+                      }}
+                    >
+                      Example, {avgExample.label}:{" "}
+                      {byRecv
+                        ? `${fmt(avgExample.received)} received, ${fmt(avgExample.n)} released, ${fmt(avgExample.received - avgExample.n)} still open. `
+                        : `${fmt(avgExample.n)} released. `}
+                      Total TAT ≈ {fmtAvg(avgExample.avg * avgExample.n)}{" "}
+                      working days ÷ {fmt(avgExample.n)} ={" "}
+                      <b>{fmtAvg(avgExample.avg)} avg TAT</b>
+                    </div>
+                  )}
+                  {weighted.length > 1 && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        padding: "7px 10px",
+                        borderRadius: 8,
+                        background: darkMode
+                          ? "rgba(255,255,255,0.05)"
+                          : "#fff",
+                        border: `1px dashed ${FB}66`,
+                        fontFamily: "monospace",
+                        fontSize: "0.74rem",
+                      }}
+                    >
+                      Total: (
+                      {weighted
+                        .map((p) => `${fmtAvg(p.avg)} × ${fmt(p.n)}`)
+                        .join(" + ")}
+                      ) ÷ {fmt(weighted.reduce((a, p) => a + p.n, 0))} ={" "}
+                      <b>
+                        {fmtAvg(
+                          weighted.reduce((a, p) => a + p.avg * p.n, 0) /
+                            weighted.reduce((a, p) => a + p.n, 0),
+                        )}
+                      </b>
+                    </div>
+                  )}
                 </div>
               </>
             )}
