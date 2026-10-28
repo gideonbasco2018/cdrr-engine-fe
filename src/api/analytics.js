@@ -150,3 +150,11 @@ export const getCompanyReleasedDocRecords = async (params = {}) => {
     });
     return res.data;
 };
+
+export const getCompanyKpiRecords = async (params = {}) => {
+    const res = await API.get("/analytics/company-monitoring/kpi-records", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};

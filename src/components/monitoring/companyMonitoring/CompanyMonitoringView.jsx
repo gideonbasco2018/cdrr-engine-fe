@@ -19,6 +19,7 @@ import { FB } from "../analytics/analyticsConstants";
 import { SectionCard } from "../analytics/SectionCard";
 import CompanyExportPdfModal from "./CompanyExportPdfModal";
 import ReleasedDocsModal from "./ReleasedDocsModal";
+import KpiRecordsModal from "./KpiRecordsModal";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -94,6 +95,111 @@ function useDebounced(value, ms) {
     return () => clearTimeout(t);
   }, [value, ms]);
   return v;
+}
+
+// ── Multi-select year dropdown ──
+function YearMulti({ ui, years, value, onChange, style }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const line = ui.cardBorder;
+
+  useEffect(() => {
+    if (!open) return;
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r)
+      setPos({
+        top: r.bottom + 4,
+        left: r.left,
+        width: Math.max(r.width, 170),
+      });
+    const onKey = (e) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const toggle = (y) => {
+    const next = value.includes(y)
+      ? value.filter((v) => v !== y)
+      : [...value, y];
+    onChange(next.sort((a, b) => Number(b) - Number(a)));
+  };
+
+  const row = {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 10px",
+    cursor: "pointer",
+    fontSize: "0.8rem",
+    color: ui.textPrimary,
+    borderRadius: 6,
+  };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          ...style,
+          cursor: "pointer",
+          textAlign: "left",
+          minWidth: 120,
+        }}
+      >
+        {value.length === 0 ? "All years" : value.join(", ")} ▾
+      </button>
+      {open &&
+        pos &&
+        createPortal(
+          <>
+            <div
+              onClick={() => setOpen(false)}
+              style={{ position: "fixed", inset: 0, zIndex: 1999 }}
+            />
+            <div
+              style={{
+                position: "fixed",
+                top: pos.top,
+                left: pos.left,
+                width: pos.width,
+                zIndex: 2000,
+                background: ui.cardBg,
+                border: `1px solid ${line}`,
+                borderRadius: 10,
+                boxShadow: "0 12px 32px rgba(0,0,0,0.25)",
+                padding: 4,
+                maxHeight: 280,
+                overflowY: "auto",
+                fontFamily: font,
+              }}
+            >
+              <label style={row}>
+                <input
+                  type="checkbox"
+                  checked={value.length === 0}
+                  onChange={() => onChange([])}
+                />
+                All years
+              </label>
+              {years.map((y) => (
+                <label key={y} style={row}>
+                  <input
+                    type="checkbox"
+                    checked={value.includes(y)}
+                    onChange={() => toggle(y)}
+                  />
+                  {y}
+                </label>
+              ))}
+            </div>
+          </>,
+          document.body,
+        )}
+    </>
+  );
 }
 
 // ── "Are these the same company?" dialog ──
@@ -276,11 +382,13 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
   const [pending, setPending] = useState({}); // ticked in dropdown: { KEY: { name, apps } }
   const [confirm, setConfirm] = useState(null); // { buckets, all, choice }
   const decisions = useRef({}); // remembered answers: { signature: "merge" | "separate" }
-  const [year, setYear] = useState(thisYear);
+  const [selYears, setSelYears] = useState([thisYear]); // [] = All years
   const [month, setMonth] = useState("All");
   const [basis, setBasis] = useState("received"); // received | released
   const [years, setYears] = useState([thisYear]);
-
+  // "All" | "2026" | "2026,2025" (sent to the API as-is)
+  const year = selYears.length === 0 ? "All" : selYears.join(",");
+  const singleYear = selYears.length === 1;
   // ── Autocomplete ──
   const [suggestions, setSuggestions] = useState([]);
   const [sugOpen, setSugOpen] = useState(false);
@@ -294,7 +402,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [showFormula, setShowFormula] = useState(true);
+  const [showFormula, setShowFormula] = useState(false); // collapsed guide
   const [periodView, setPeriodView] = useState("released"); // released | received
 
   // ── Applications list ──
@@ -311,7 +419,8 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
   const [showExportPdf, setShowExportPdf] = useState(false);
   // ── Released-by-document-type modal ──
   const [docModal, setDocModal] = useState(null); // { label, year, month, view }
-
+  // ── KPI card modal ──
+  const [kpiModal, setKpiModal] = useState(null); // { kind, label }
   const hasCompany = groups.length > 0;
   const pendingList = Object.values(pending);
 
@@ -513,6 +622,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
     setRecSearch("");
     setShowExportPdf(false);
     setDocModal(null);
+    setKpiModal(null);
     decisions.current = {};
   };
 
@@ -576,13 +686,14 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
     [periodRows],
   );
   const totalPages = Math.max(Math.ceil((records.total ?? 0) / PAGE_SIZE), 1);
-  const periodWord = year === "All" ? "year" : "month";
-  const scopeLabel =
-    year === "All"
+  const periodWord = singleYear ? "month" : "year";
+  const scopeLabel = !singleYear
+    ? selYears.length === 0
       ? "All years"
-      : month === "All"
-        ? year
-        : `${MONTHS[Number(month) - 1]} ${year}`;
+      : selYears.join(", ")
+    : month === "All"
+      ? year
+      : `${MONTHS[Number(month) - 1]} ${year}`;
 
   // Worked example for the formula box
   const example = records.data.find(
@@ -601,7 +712,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
     setDocModal({ label, year: y, month: m, view: periodView });
   };
   const rowDocs = (p) =>
-    year === "All"
+    !singleYear
       ? openDocs(p.label, String(p.key), "All", p.n)
       : openDocs(`${p.label} ${year}`, year, String(p.key), p.n);
   const linkSt = (n) =>
@@ -613,6 +724,31 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
           cursor: "pointer",
         }
       : {};
+
+  // Received column: open the applications received in that period
+  const recvLinkSt = (n) =>
+    n > 0
+      ? {
+          color: FB,
+          fontWeight: 700,
+          textDecoration: "underline",
+          cursor: "pointer",
+        }
+      : {};
+  const openReceived = (label, y, m, n) => {
+    if (!n) return;
+    setKpiModal({
+      kind: "received",
+      label: "Received",
+      year: y,
+      month: m,
+      scope: `${title} · ${label}`,
+    });
+  };
+  const rowReceived = (p) =>
+    !singleYear
+      ? openReceived(p.label, String(p.key), "All", p.received)
+      : openReceived(`${p.label} ${year}`, year, String(p.key), p.received);
   // ── Hover explanations for the per-period table ──
   const sumRecv = periodRows.reduce((a, p) => a + p.received, 0);
   const joinNums = (arr) => arr.map((x) => fmt(x)).join(" + ");
@@ -682,42 +818,59 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
     debouncedRecSearch ? `Search: "${debouncedRecSearch}"` : null,
   ].filter(Boolean);
 
-  const kpi = (label, value, sub, color) => (
-    <div
-      style={{
-        background: ui.cardBg,
-        border: `1px solid ${line}`,
-        borderTop: `3px solid ${color}`,
-        borderRadius: 10,
-        padding: "11px 14px",
-        minWidth: 0,
-      }}
-    >
+  const kpi = (label, value, sub, color, kind, n) => {
+    const clickable = !!kind && Number(n) > 0;
+    return (
       <div
+        onClick={clickable ? () => setKpiModal({ kind, label }) : undefined}
+        title={clickable ? "Click to see the applications" : undefined}
         style={{
-          fontSize: "0.64rem",
-          fontWeight: 700,
-          textTransform: "uppercase",
-          letterSpacing: "0.07em",
-          color: ui.textMuted,
+          background: ui.cardBg,
+          border: `1px solid ${line}`,
+          borderTop: `3px solid ${color}`,
+          borderRadius: 10,
+          padding: "11px 14px",
+          minWidth: 0,
+          cursor: clickable ? "pointer" : "default",
         }}
       >
-        {label}
+        <div
+          style={{
+            fontSize: "0.64rem",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.07em",
+            color: ui.textMuted,
+          }}
+        >
+          {label}
+        </div>
+        <div
+          style={{
+            fontSize: "1.55rem",
+            fontWeight: 800,
+            color,
+            lineHeight: 1.25,
+          }}
+        >
+          {value}
+        </div>
+        <div style={{ fontSize: "0.7rem", color: ui.textMuted }}>{sub}</div>
+        {clickable && (
+          <div
+            style={{
+              fontSize: "0.66rem",
+              color,
+              fontWeight: 700,
+              marginTop: 4,
+            }}
+          >
+            View applications ▸
+          </div>
+        )}
       </div>
-      <div
-        style={{
-          fontSize: "1.55rem",
-          fontWeight: 800,
-          color,
-          lineHeight: 1.25,
-        }}
-      >
-        {value}
-      </div>
-      <div style={{ fontSize: "0.7rem", color: ui.textMuted }}>{sub}</div>
-    </div>
-  );
-
+    );
+  };
   const badge = (text, color) => (
     <span
       style={{
@@ -783,27 +936,24 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
             />
           </div>
 
-          <select
-            value={year}
-            onChange={(e) => {
-              setYear(e.target.value);
-              if (e.target.value === "All") setMonth("All");
+          <YearMulti
+            ui={ui}
+            years={years}
+            value={selYears}
+            onChange={(v) => {
+              setSelYears(v);
+              if (v.length !== 1) setMonth("All");
             }}
             style={inputSt}
-          >
-            <option value="All">All years</option>
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+          />
           <select
             value={month}
             onChange={(e) => setMonth(e.target.value)}
-            disabled={year === "All"}
-            title={year === "All" ? "Pick a year to filter by month" : ""}
-            style={{ ...inputSt, opacity: year === "All" ? 0.5 : 1 }}
+            disabled={!singleYear}
+            title={
+              !singleYear ? "Pick exactly one year to filter by month" : ""
+            }
+            style={{ ...inputSt, opacity: !singleYear ? 0.5 : 1 }}
           >
             <option value="All">All months</option>
             {MONTHS.map((m, i) => (
@@ -1122,18 +1272,24 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
               fmt(s?.received),
               "Applications received in the period",
               FB,
+              "received",
+              s?.received,
             )}
             {kpi(
               "Processed",
               fmt(s?.processed),
               "Completed and released in the period",
               GREEN,
+              "processed",
+              s?.processed,
             )}
             {kpi(
               "Still open",
               fmt(s?.still_open),
               "Received in the period, not yet released",
               AMBER,
+              "open",
+              s?.still_open,
             )}
             {kpi(
               "Avg TAT",
@@ -1142,90 +1298,24 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                 ? `Working days, ${fmt(s.tat_count)} released apps`
                 : "No released applications",
               TEAL,
+              "tat",
+              s?.tat_count,
             )}
             {kpi(
               "Within charter",
               fmt(s?.within),
               `${pct(s?.within ?? 0, (s?.within ?? 0) + (s?.beyond ?? 0))}% of released apps with a charter`,
               GREEN,
+              "within",
+              s?.within,
             )}
             {kpi(
               "Beyond charter",
               fmt(s?.beyond),
               `${pct(s?.beyond ?? 0, (s?.within ?? 0) + (s?.beyond ?? 0))}% of released apps with a charter`,
               RED,
-            )}
-          </div>
-
-          {/* ── TAT formula ── */}
-          <div
-            style={{
-              background: darkMode ? "#1a2744" : "#eef4ff",
-              border: `1px solid ${FB}55`,
-              borderRadius: 12,
-              padding: "10px 14px",
-            }}
-          >
-            <div
-              onClick={() => setShowFormula((v) => !v)}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                cursor: "pointer",
-                fontSize: "0.8rem",
-                fontWeight: 700,
-                color: FB,
-              }}
-            >
-              <span>🧮 How is Turn Around Time (TAT) computed?</span>
-              <span>{showFormula ? "▾" : "▸"}</span>
-            </div>
-            {showFormula && data?.formula && (
-              <div
-                style={{
-                  marginTop: 8,
-                  fontSize: "0.78rem",
-                  color: ui.textPrimary,
-                  lineHeight: 1.6,
-                }}
-              >
-                <div
-                  style={{
-                    fontWeight: 700,
-                    fontFamily: "monospace",
-                    marginBottom: 4,
-                  }}
-                >
-                  {data.formula.tat}
-                </div>
-                <ul style={{ margin: 0, paddingLeft: 18, color: ui.textSub }}>
-                  <li>{data.formula.counting}</li>
-                  <li>{data.formula.ongoing}</li>
-                  <li>{data.formula.charter}</li>
-                  <li>{data.formula.processed}</li>
-                  <li>{data.formula.evaluator}</li>
-                </ul>
-                {example && (
-                  <div
-                    style={{
-                      marginTop: 8,
-                      padding: "7px 10px",
-                      borderRadius: 8,
-                      background: darkMode ? "rgba(255,255,255,0.05)" : "#fff",
-                      border: `1px dashed ${FB}66`,
-                      fontFamily: "monospace",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    Example, DTN {example.dtn}: {example.date_received} to{" "}
-                    {example.date_released} ={" "}
-                    <b>{example.tat_days} working days</b>
-                    {example.charter_days
-                      ? ` (charter ${example.charter_days} days = ${example.timeline})`
-                      : ""}
-                  </div>
-                )}
-              </div>
+              "beyond",
+              s?.beyond,
             )}
           </div>
 
@@ -1246,6 +1336,13 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
             darkMode={darkMode}
             action={
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => setShowFormula((v) => !v)}
+                  style={seg(showFormula)}
+                  title="How the numbers are computed"
+                >
+                  ⓘ Guide
+                </button>
                 <button
                   onClick={() => setPeriodView("received")}
                   style={seg(periodView === "received")}
@@ -1394,9 +1491,7 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr>
-                        <th style={th()}>
-                          {year === "All" ? "Year" : "Month"}
-                        </th>
+                        <th style={th()}>{singleYear ? "Month" : "Year"}</th>
                         <th style={th("right")}>Received</th>
                         <th style={th("right")}>
                           {byRecv ? "Released (of received)" : "Processed"}
@@ -1416,8 +1511,12 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                         <tr key={p.key}>
                           <td style={td()}>{p.label}</td>
                           <td
-                            style={td("right", { cursor: "help" })}
-                            title={rowTip.received(p)}
+                            style={td("right", {
+                              cursor: "help",
+                              ...recvLinkSt(p.received),
+                            })}
+                            title={`${p.received > 0 ? "Click to see the applications\n\n" : ""}${rowTip.received(p)}`}
+                            onClick={() => rowReceived(p)}
                           >
                             {fmt(p.received)}
                           </td>
@@ -1467,8 +1566,12 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                           style={td("right", {
                             fontWeight: 800,
                             cursor: "help",
+                            ...recvLinkSt(s?.received),
                           })}
-                          title={totalTip.received}
+                          title={`${s?.received > 0 ? "Click to see the applications\n\n" : ""}${totalTip.received}`}
+                          onClick={() =>
+                            openReceived(scopeLabel, year, month, s?.received)
+                          }
                         >
                           {fmt(s?.received)}
                         </td>
@@ -1523,130 +1626,110 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
                   </table>
                 </div>
 
-                {/* How the numbers are computed */}
-                <div
-                  style={{
-                    marginTop: 12,
-                    padding: "10px 14px",
-                    borderRadius: 10,
-                    background: darkMode ? "#1a2744" : "#eef4ff",
-                    border: `1px solid ${FB}55`,
-                    fontSize: "0.76rem",
-                    color: ui.textPrimary,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  <div style={{ fontWeight: 700, color: FB, marginBottom: 4 }}>
-                    🧮{" "}
-                    {byRecv
-                      ? "How to read “By Received”"
-                      : "How is the Avg TAT computed?"}
-                  </div>
+                {/* Guide (collapsed by default, toggled by ⓘ Guide) */}
+                {showFormula && (
                   <div
                     style={{
-                      fontFamily: "monospace",
-                      fontWeight: 700,
-                      marginBottom: 4,
+                      marginTop: 10,
+                      padding: "8px 12px",
+                      borderRadius: 10,
+                      background: darkMode ? "#1a2744" : "#eef4ff",
+                      border: `1px solid ${FB}55`,
+                      fontSize: "0.72rem",
+                      color: ui.textPrimary,
+                      lineHeight: 1.5,
                     }}
                   >
-                    Avg TAT = sum of TAT ÷ number of released applications
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: 18, color: ui.textSub }}>
-                    {byRecv ? (
-                      <>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <span style={{ fontWeight: 700, color: FB }}>
+                        🧮 How it's computed
+                      </span>
+                      <span
+                        onClick={() => setShowFormula(false)}
+                        title="Hide"
+                        style={{ cursor: "pointer", color: ui.textMuted }}
+                      >
+                        ✕
+                      </span>
+                    </div>
+                    <div style={{ fontFamily: "monospace", fontWeight: 700 }}>
+                      TAT = working days (Mon-Fri) from Date Received to Date
+                      Released · Avg TAT = sum of TAT ÷ released apps
+                    </div>
+                    <ul
+                      style={{
+                        margin: "2px 0 0",
+                        paddingLeft: 16,
+                        color: ui.textSub,
+                      }}
+                    >
+                      <li>
+                        Day of receipt is not counted (Mon → Fri = 4, same day =
+                        0). Holidays are not deducted. Within = TAT ≤ charter,
+                        Beyond = TAT &gt; charter.
+                      </li>
+                      {byRecv ? (
                         <li>
-                          Each {periodWord} counts the applications{" "}
-                          <b>received</b> in it. <b>Released (of received)</b>{" "}
-                          is how many of those are already released, even if the
-                          release was in a later {periodWord}.
+                          <b>By Received</b>: counts apps <b>received</b> in
+                          each {periodWord}; Released (of received) is how many
+                          are already released, even in a later {periodWord}.
+                          Still open = Received − Released.
                         </li>
+                      ) : (
                         <li>
-                          <b>Still open</b> = Received − Released. % released =
-                          Released ÷ Received.
+                          <b>By Released</b>: counts apps <b>released</b> in
+                          each {periodWord}, no matter when received, so
+                          Processed can be higher than Received.
                         </li>
-                        <li>
-                          Avg TAT only counts the released ones, so a{" "}
-                          {periodWord} with none released shows "-".
-                        </li>
-                      </>
-                    ) : (
-                      <>
-                        <li>
-                          The average of a {periodWord} only counts applications{" "}
-                          <b>released in that {periodWord}</b> (Processed), no
-                          matter when they were received. Processed = 0 shows
-                          "-".
-                        </li>
-                        <li>
-                          Because of this, Processed can be higher than Received
-                          in the same {periodWord}. Use “By Received” to see
-                          what happened to the applications received in a{" "}
-                          {periodWord}.
-                        </li>
-                      </>
+                      )}
+                      <li>
+                        <b>Total</b> = sum of TAT of all {fmt(totalN)} released
+                        apps ÷ {fmt(totalN)} (not the average of the averages).
+                        Hover any number to see its computation.
+                      </li>
+                    </ul>
+                    {avgExample && (
+                      <div
+                        style={{
+                          marginTop: 6,
+                          padding: "4px 8px",
+                          borderRadius: 6,
+                          background: darkMode
+                            ? "rgba(255,255,255,0.05)"
+                            : "#fff",
+                          border: `1px dashed ${FB}66`,
+                          fontFamily: "monospace",
+                          fontSize: "0.7rem",
+                        }}
+                      >
+                        Example, {avgExample.label}: ≈{" "}
+                        {fmtAvg(avgExample.avg * avgExample.n)} working days ÷{" "}
+                        {fmt(avgExample.n)} released ={" "}
+                        <b>{fmtAvg(avgExample.avg)}</b>
+                      </div>
                     )}
-                    <li>
-                      Each application's TAT is the working days (Mon-Fri) from
-                      Date Received to Date Released. Not released yet, or
-                      released before received, are not included.
-                    </li>
-                    <li>
-                      <b>Total</b> = sum of the TAT of all {fmt(totalN)}{" "}
-                      released applications in this view ÷ {fmt(totalN)}. It is
-                      not the average of the averages above.
-                    </li>
-                  </ul>
-                  {avgExample && (
-                    <div
-                      style={{
-                        marginTop: 8,
-                        padding: "7px 10px",
-                        borderRadius: 8,
-                        background: darkMode
-                          ? "rgba(255,255,255,0.05)"
-                          : "#fff",
-                        border: `1px dashed ${FB}66`,
-                        fontFamily: "monospace",
-                        fontSize: "0.74rem",
-                      }}
-                    >
-                      Example, {avgExample.label}:{" "}
-                      {byRecv
-                        ? `${fmt(avgExample.received)} received, ${fmt(avgExample.n)} released, ${fmt(avgExample.received - avgExample.n)} still open. `
-                        : `${fmt(avgExample.n)} released. `}
-                      Total TAT ≈ {fmtAvg(avgExample.avg * avgExample.n)}{" "}
-                      working days ÷ {fmt(avgExample.n)} ={" "}
-                      <b>{fmtAvg(avgExample.avg)} avg TAT</b>
-                    </div>
-                  )}
-                  {weighted.length > 1 && (
-                    <div
-                      style={{
-                        marginTop: 6,
-                        padding: "7px 10px",
-                        borderRadius: 8,
-                        background: darkMode
-                          ? "rgba(255,255,255,0.05)"
-                          : "#fff",
-                        border: `1px dashed ${FB}66`,
-                        fontFamily: "monospace",
-                        fontSize: "0.74rem",
-                      }}
-                    >
-                      Total: (
-                      {weighted
-                        .map((p) => `${fmtAvg(p.avg)} × ${fmt(p.n)}`)
-                        .join(" + ")}
-                      ) ÷ {fmt(weighted.reduce((a, p) => a + p.n, 0))} ={" "}
-                      <b>
-                        {fmtAvg(
-                          weighted.reduce((a, p) => a + p.avg * p.n, 0) /
-                            weighted.reduce((a, p) => a + p.n, 0),
-                        )}
-                      </b>
-                    </div>
-                  )}
-                </div>
+                    {example && (
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontFamily: "monospace",
+                          fontSize: "0.7rem",
+                          color: ui.textMuted,
+                        }}
+                      >
+                        DTN {example.dtn}: {example.date_received} to{" "}
+                        {example.date_released} ={" "}
+                        <b>{example.tat_days} working days</b>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </SectionCard>
@@ -1967,6 +2050,22 @@ export default function CompanyMonitoringView({ ui, darkMode }) {
           </SectionCard>
         </>
       )}
+      {kpiModal && (
+        <KpiRecordsModal
+          ui={ui}
+          darkMode={darkMode}
+          label={kpiModal.label}
+          kind={kpiModal.kind}
+          scope={kpiModal.scope ?? `${title} · ${scopeLabel}`}
+          params={{
+            company: companyNames,
+            year: kpiModal.year ?? year,
+            month: kpiModal.month ?? month,
+          }}
+          onClose={() => setKpiModal(null)}
+        />
+      )}
+
       {docModal && (
         <ReleasedDocsModal
           ui={ui}
