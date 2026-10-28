@@ -223,6 +223,19 @@ export default function MivnNotificationForm({
     ...new Set(payments.map((p) => p.dateOfPayment).filter(Boolean)),
   ].join(", ");
 
+  // MiV-N1 → N4 from Minor Notification Details; at least 3 rows like the paper form
+  const changes = Object.entries(formData["Minor Notification Details"] || {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([label, v]) => ({
+      label,
+      current: v?.current || "",
+      proposed: v?.proposed_changes || "",
+    }));
+  const changeRows =
+    changes.length >= 3
+      ? changes
+      : [...changes, ...Array(3 - changes.length).fill(null)];
+
   const dosage = [
     f("Dosage Strength"),
     f("Dosage Form and Route of Administration"),
@@ -514,13 +527,11 @@ export default function MivnNotificationForm({
             </tr>
           </thead>
           <tbody>
-            {[0, 1, 2].map((i) => (
+            {changeRows.map((c, i) => (
               <tr key={i}>
-                <td style={{ ...tableCell, height: "40px" }} />
-                <td style={tableCell} />
-                <td style={tableCell}>
-                  {i === 0 ? f("Minor Notification Options") : ""}
-                </td>
+                <td style={{ ...tableCell, height: "40px" }}>{c?.current}</td>
+                <td style={tableCell}>{c?.proposed}</td>
+                <td style={tableCell}>{c?.label}</td>
               </tr>
             ))}
           </tbody>

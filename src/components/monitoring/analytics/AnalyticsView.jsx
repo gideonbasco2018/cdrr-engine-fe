@@ -36,6 +36,7 @@ import { SectionCard } from "./SectionCard";
 import { MiniBar, TrendChart, DonutChart } from "./ChartComponents";
 import { CountryList } from "./CountryComponents";
 import InProgressByUserModal from "./InProgressByUserModal";
+import ExportPdfModal from "./ExportPdfModal";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -1790,6 +1791,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [yearBasis, setYearBasis] = useState("released");
   const [recordsTarget, setRecordsTarget] = useState(null); // { year, kind }
   const [showInProgress, setShowInProgress] = useState(false);
+  const [showExportPdf, setShowExportPdf] = useState(false);
   const [loadingYear, setLoadingYear] = useState(true);
 
   // ── Data completeness ────────────────────────────────────────
@@ -2332,6 +2334,24 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         borderRadius: 20,
       }}
     >
+      {/* ── Toolbar ── */}
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <button
+          onClick={() => setShowExportPdf(true)}
+          title="Generate a PDF report of this page"
+          style={{
+            ...inputSt,
+            padding: "6px 14px",
+            fontSize: "0.78rem",
+            fontWeight: 700,
+            cursor: "pointer",
+            color: FB,
+          }}
+        >
+          📄 Export PDF
+        </button>
+      </div>
+
       {/* ── KPI (side) + Trend + Donut ── */}
       <div style={{ position: "relative", zIndex: 30 }}>
         <FadeSlideIn delay={420}>
@@ -3926,6 +3946,29 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
           )}
         </SectionCard>
       </FadeSlideIn>
+
+      {showExportPdf && (
+        <ExportPdfModal
+          ui={ui}
+          darkMode={darkMode}
+          data={{
+            summary,
+            trendData,
+            trendYear,
+            yearSummaryData,
+            docTypeData,
+            classificationData,
+            classDocTypes,
+            topDrugsData,
+            topCountriesData,
+            topCountryLabel: ENTITY_TYPES.find((et) => et.key === topCountryTab)
+              ?.label,
+            qualityData,
+            lastUpdated,
+          }}
+          onClose={() => setShowExportPdf(false)}
+        />
+      )}
 
       {showInProgress && (
         <InProgressByUserModal

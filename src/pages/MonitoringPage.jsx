@@ -19,6 +19,7 @@ import ClidpEservicesView from "../components/monitoring/clidpEservices/ClidpEse
 import EvaluatorAppTypesView from "../components/monitoring/evaluatorAppTypes/EvaluatorAppTypesView";
 import TopCompaniesView from "../components/monitoring/topCompanies/TopCompaniesView";
 import FastestProcessingView from "../components/monitoring/fastestProcessing/FastestProcessingView";
+import CompanyMonitoringView from "../components/monitoring/companyMonitoring/CompanyMonitoringView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1037,6 +1038,8 @@ function renderContent(
       return <TopCompaniesView ui={ui} darkMode={darkMode} />;
     case "fastestprocessing":
       return <FastestProcessingView ui={ui} darkMode={darkMode} />;
+    case "companymonitoring":
+      return <CompanyMonitoringView ui={ui} darkMode={darkMode} />;
     case "gmpanalytics":
       return <GMPMonitoringAnalyticsView ui={ui} darkMode={darkMode} />;
     case "prioritymeds":
@@ -1291,6 +1294,11 @@ function MonitoringPage({ darkMode }) {
       key: "fastestprocessing",
       label: "Fastest Processing",
       subtitle: "CPR / Cert time & evaluators",
+    },
+    {
+      key: "companymonitoring",
+      label: "Company Monitoring",
+      subtitle: "Received, processed & TAT per company",
     },
     // Turnaround & Trends (6-9)
     { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
@@ -1626,7 +1634,7 @@ function MonitoringPage({ darkMode }) {
                     Turnaround & Trends
                   </p>
                   {navItems
-                    .slice(5, 8)
+                    .slice(5, 9)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
@@ -1661,7 +1669,7 @@ function MonitoringPage({ darkMode }) {
                     Priority Programs
                   </p>
                   {navItems
-                    .slice(8, 10)
+                    .slice(9, 11)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}
@@ -1696,7 +1704,7 @@ function MonitoringPage({ darkMode }) {
                     Admin
                   </p>
                   {navItems
-                    .slice(10)
+                    .slice(11)
                     .map(({ key, comingSoon, icon, ...rest }) => (
                       <NavItem
                         key={key}

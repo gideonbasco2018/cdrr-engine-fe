@@ -40,8 +40,15 @@ export function getProcessModule(processCode) {
    Application type wins over the process code: a Minor Variation
    application always opens the MVN modal, even when its activity is CPR.
    Everything else follows the process code (FGMP, CPR, ...). */
+/* Application types that always open the MVN (Minor Variation - Notification) modal */
+const MVN_APPLICATION_TYPES = [
+  /minor variation/i,
+  /post approval changes variation:\s*minor notification/i,
+];
+
 export function resolveProcessCode(row) {
-  if (/minor variation/i.test(row?.applicationType || "")) return "MVN";
+  const type = row?.applicationType || "";
+  if (MVN_APPLICATION_TYPES.some((re) => re.test(type))) return "MVN";
   return row?.processCode;
 }
 
