@@ -99,3 +99,38 @@ export const getAnalyticsFastestRecords = async (params = {}) => {
     const res = await API.get("/analytics/fastest/records", { params });
     return res.data;
 };
+
+
+export const searchCompanyNames = async (q, limit = 15) => {
+    const res = await API.get("/analytics/company-monitoring/search", {
+        params: { q, limit },
+    });
+    return res.data;
+};
+ 
+// FastAPI expects repeated keys (company=a&company=b), not company[]=a
+const repeatKeys = (params) => {
+    const sp = new URLSearchParams();
+    Object.entries(params || {}).forEach(([k, v]) => {
+        if (v == null) return;
+        if (Array.isArray(v)) v.forEach((i) => sp.append(k, i));
+        else sp.append(k, v);
+    });
+    return sp.toString();
+};
+
+export const getCompanyMonitoring = async (params = {}) => {
+    const res = await API.get("/analytics/company-monitoring", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};
+
+export const getCompanyMonitoringRecords = async (params = {}) => {
+    const res = await API.get("/analytics/company-monitoring/records", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};
