@@ -7,20 +7,17 @@ import { FadeSlideIn } from "../../monitoring/analytics/KpiCard";
 import { GMPSectionCard } from "./GMPSectionCard";
 import { GMPKpiCard } from "./GMPKpiCard";
 import ApplicationMonitoringTable from "./ApplicationMonitoringTable";
-import {
-  SectionHeading, SkeletonBox, WorkloadBarChart, ByStepBarChart, BreakdownBarChart,
-} from "./gmpAnalyticsShared";
+import { SectionHeading, SkeletonBox } from "./gmpAnalyticsShared";
+import { GMPPipeline, GMPReleaseGauge, GMPAgingBar, GMPWorkloadList } from "./GMPMonitoringWidgets";
 
 export default function GMPMonitoringTab({
   ui, darkMode, loading,
   kpiView, kpis, dtnKpis,
-  workload, byStep, aging, nodKpis,
+  workload, byStep, aging, nodKpis, summary, stepTiming,
 }) {
   return (
     <div>
-      {/* ── Right now ── */}
-      <SectionHeading index={1} icon="📡" title="Right now" subtitle="Current snapshot of the whole FGMP queue" ui={ui} />
-
+      {/* ── Right now: the KPI tiles ── */}
       {(kpiView === "both" || kpiView === "reference") && (
         <>
           <div style={{ fontSize: "0.74rem", fontWeight: 600, color: ui.textMuted, marginBottom: 8 }}>
@@ -30,7 +27,7 @@ export default function GMPMonitoringTab({
             {loading || !kpis.length
               ? Array.from({ length: 5 }).map((_, i) => <SkeletonBox key={i} height={78} borderRadius={12} ui={ui} />)
               : kpis.map((k, i) => (
-                  <GMPKpiCard key={k.label} icon={k.icon} label={k.label} value={k.value} sub={k.sub} sparkline={k.sparkline} delta={k.delta} color={k.color} ui={ui} animDelay={i * 60} />
+                  <GMPKpiCard key={k.label} icon={k.icon} label={k.label} value={k.value} sub={k.sub} sparkline={k.sparkline} sparkLabels={k.sparkLabels} sparkUnit={k.sparkUnit} delta={k.delta} color={k.color} ui={ui} animDelay={i * 60} />
                 ))}
           </div>
         </>
@@ -56,8 +53,8 @@ export default function GMPMonitoringTab({
         <SectionHeading index={2} icon="🧭" title="Applications by step" subtitle="How many open applications are sitting at each workflow step, right now" ui={ui} />
       </div>
       <FadeSlideIn delay={90} style={{ marginBottom: 16 }}>
-        <GMPSectionCard title="By current step" subtitle="Decking → OD Releasing — a pile-up at any one step shows here" ui={ui}>
-          {loading ? <SkeletonBox height={220} ui={ui} /> : <ByStepBarChart items={byStep} ui={ui} darkMode={darkMode} emptyLabel="No open applications" />}
+        <GMPSectionCard title="Where every open application sits" subtitle="Decking → OD Releasing — hover a step to see its average hand-over time" ui={ui}>
+          <GMPPipeline items={byStep} timing={stepTiming} ui={ui} loading={loading} />
         </GMPSectionCard>
       </FadeSlideIn>
 
@@ -76,16 +73,19 @@ export default function GMPMonitoringTab({
         <SectionHeading index={4} icon="👷" title="Workload & backlog" subtitle="Who's carrying open work, and how long it's aged" ui={ui} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginBottom: 16 }}>
+        <FadeSlideIn delay={120}>
+          <GMPSectionCard title="Release rate" subtitle="Share of all records that reached final release" ui={ui}>
+            <GMPReleaseGauge summary={summary} ui={ui} loading={loading} />
+          </GMPSectionCard>
+        </FadeSlideIn>
         <FadeSlideIn delay={140}>
-          <GMPSectionCard title="Evaluator workload" subtitle="Open tasks & avg TAT per evaluator" ui={ui}>
-            {loading ? <SkeletonBox height={160} ui={ui} /> : <WorkloadBarChart items={workload} ui={ui} darkMode={darkMode} emptyLabel="No open tasks assigned" />}
+          <GMPSectionCard title="Evaluator workload" subtitle="Open tasks per evaluator — hover a bar for avg TAT" ui={ui}>
+            <GMPWorkloadList items={workload} ui={ui} loading={loading} />
           </GMPSectionCard>
         </FadeSlideIn>
         <FadeSlideIn delay={180}>
           <GMPSectionCard title="Backlog aging" subtitle="On Process records by days since received" ui={ui}>
-            {loading ? <SkeletonBox height={160} ui={ui} /> : (
-              <BreakdownBarChart items={aging.map((a) => ({ name: a.label, count: a.count }))} singleColor="#c8384f" ui={ui} darkMode={darkMode} emptyLabel="No records on process" />
-            )}
+            <GMPAgingBar items={aging} ui={ui} loading={loading} />
           </GMPSectionCard>
         </FadeSlideIn>
       </div>

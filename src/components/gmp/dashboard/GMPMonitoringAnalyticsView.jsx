@@ -17,12 +17,15 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   getGMPAnalyticsAvailableYears, getGMPAnalyticsSummary, getGMPAnalyticsDTNSummary,
-  getGMPAnalyticsTrend, getGMPAnalyticsByCategory, getGMPAnalyticsStepTiming,
+  getGMPAnalyticsSparklines, getGMPAnalyticsByCategory, getGMPAnalyticsStepTiming,
   getGMPAnalyticsWorkload, getGMPAnalyticsByStep, getGMPAnalyticsAging, getGMPAnalyticsNOD, getGMPAnalyticsPicsCountry,
+  getGMPAnalyticsMonthly,
 } from "../../../api/gmpAnalytics";
 import { MONTH_OPTIONS, KpiViewToggle, selectStyle } from "./gmpAnalyticsShared";
+import { GMPFxStyles } from "./GMPMonitoringWidgets";
 import GMPMonitoringTab from "./GMPMonitoringTab";
 import GMPAnalyticsTab from "./GMPAnalyticsTab";
+import GMPExportModal from "./GMPExportModal";
 
 const ACCENT = "#0f8a72";
 const BLUE = "#2f6fed";
@@ -61,20 +64,6 @@ function TabSwitch({ active, onChange, ui }) {
   );
 }
 
-// Real period-over-period delta from the last two points of a series
-// already on hand (the trend fetch) — never a fabricated/decorative number.
-// Returns null when there isn't enough data yet to compare.
-function lastDelta(series) {
-  if (!series || series.length < 2) return null;
-  const prev = series[series.length - 2];
-  const cur = series[series.length - 1];
-  if (prev === 0 && cur === 0) return { dir: "flat", text: "steady vs last period" };
-  if (prev === 0) return { dir: "up", text: "vs last period" };
-  const pct = ((cur - prev) / prev) * 100;
-  const dir = Math.abs(pct) < 0.5 ? "flat" : pct > 0 ? "up" : "down";
-  return { dir, text: dir === "flat" ? "steady vs last period" : `${Math.abs(pct).toFixed(1)}% vs last period` };
-}
-
 export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
   const [activeTab, setActiveTab] = useState("monitoring");
 
@@ -82,10 +71,11 @@ export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
   const [month, setMonth] = useState("All");
   const [years, setYears] = useState(["All"]);
   const [kpiView, setKpiView] = useState("reference");
+  const [exportOpen, setExportOpen] = useState(false);
 
   const [summary, setSummary] = useState(null);
   const [dtnSummary, setDtnSummary] = useState(null);
-  const [trend, setTrend] = useState([]);
+  const [spark, setSpark] = useState({ granularity: "month", points: [] });
   const [category, setCategory] = useState(null);
   const [stepTiming, setStepTiming] = useState([]);
   const [workload, setWorkload] = useState([]);
@@ -93,6 +83,7 @@ export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
   const [aging, setAging] = useState([]);
   const [nod, setNod] = useState(null);
   const [picsCountry, setPicsCountry] = useState(null);
+  const [monthly, setMonthly] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -110,19 +101,20 @@ export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
     Promise.all([
       getGMPAnalyticsSummary(params),
       getGMPAnalyticsDTNSummary(params),
-      getGMPAnalyticsTrend(params),
+      getGMPAnalyticsSparklines(params),
       getGMPAnalyticsByCategory({ year, month }),
       getGMPAnalyticsStepTiming(),
       getGMPAnalyticsWorkload(params),
       getGMPAnalyticsByStep(params),
       getGMPAnalyticsAging(params),
       getGMPAnalyticsNOD(params),
-      getGMPAnalyticsPicsCountry(params),
+      getGMPAnalyticsPicsCountry({ ...params, limit: 500 }), // every country, not just the top 10
+      getGMPAnalyticsMonthly({ year }),
     ])
-      .then(([summaryRes, dtnSummaryRes, trendRes, categoryRes, stepRes, workloadRes, byStepRes, agingRes, nodRes, picsCountryRes]) => {
+      .then(([summaryRes, dtnSummaryRes, trendRes, categoryRes, stepRes, workloadRes, byStepRes, agingRes, nodRes, picsCountryRes, monthlyRes]) => {
         setSummary(summaryRes);
         setDtnSummary(dtnSummaryRes);
-        setTrend(trendRes.data || []);
+        setSpark({ granularity: trendRes.granularity, points: trendRes.points || [] });
         setCategory(categoryRes);
         setStepTiming(stepRes.data || []);
         setWorkload(workloadRes.data || []);
@@ -130,27 +122,38 @@ export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
         setAging(agingRes.data || []);
         setNod(nodRes);
         setPicsCountry(picsCountryRes);
+        setMonthly(monthlyRes.data || []);
       })
       .catch(() => setError("Failed to load FGMP analytics. Please try again."))
       .finally(() => setLoading(false));
   }, [year, month]);
 
-  // Sparklines/deltas ride on the trend series already being fetched for the
-  // Analytics tab's chart — genuine per-period history, not invented.
-  const receivedSeries = useMemo(() => trend.map((t) => t.received), [trend]);
-  const releasedSeries = useMemo(() => trend.map((t) => t.released), [trend]);
-  const disapprovedSeries = useMemo(() => trend.map((t) => t.disapproved), [trend]);
+  // Tile mini-trends: one point per day (for the picked year/month, or all
+  // time). Each point is the records received that day, split by where they
+  // stand now — real history, nothing invented. Days with no value (e.g. no
+  // TAT yet) are left out of that tile's line.
+  const series = useMemo(() => {
+    const pick = (key) => {
+      const pts = spark.points.filter((p) => p[key] != null);
+      return { values: pts.map((p) => p[key]), labels: pts.map((p) => p.label) };
+    };
+    return {
+      received: pick("received"), released: pick("released"), on_process: pick("on_process"),
+      disapproved: pick("disapproved"), avg_tat_days: pick("avg_tat_days"),
+    };
+  }, [spark]);
 
   const kpis = useMemo(() => {
     if (!summary) return [];
+    const s = (key, unit = "") => ({ sparkline: series[key].values, sparkLabels: series[key].labels, sparkUnit: unit });
     return [
-      { label: "Total Records", value: summary.total, color: ui.textPrimary, icon: "📄", sparkline: receivedSeries, delta: lastDelta(receivedSeries) },
-      { label: "Released", value: summary.released, color: ACCENT, icon: "✅", sub: `${summary.release_rate}% release rate`, sparkline: releasedSeries },
-      { label: "On Process", value: summary.on_process, color: AMBER, icon: "⏳" },
-      { label: "Disapproved", value: summary.disapproved, color: RED, icon: "⛔", sparkline: disapprovedSeries },
-      { label: "Avg TAT", value: summary.avg_tat_days != null ? `${summary.avg_tat_days}d` : "—", color: VIOLET, icon: "⏱️", sub: "working days, received → released" },
+      { label: "Total Records", value: summary.total, color: BLUE, icon: "📄", ...s("received") },
+      { label: "Released", value: summary.released, color: ACCENT, icon: "✅", sub: `${summary.release_rate}% release rate`, ...s("released") },
+      { label: "On Process", value: summary.on_process, color: AMBER, icon: "⏳", ...s("on_process") },
+      { label: "Disapproved", value: summary.disapproved, color: RED, icon: "⛔", ...s("disapproved") },
+      { label: "Avg TAT", value: summary.avg_tat_days != null ? `${summary.avg_tat_days}d` : "—", color: VIOLET, icon: "⏱️", sub: "working days, received → released", ...s("avg_tat_days", "d") },
     ];
-  }, [summary, ui.textPrimary, receivedSeries, releasedSeries, disapprovedSeries]);
+  }, [summary, ui.textPrimary, series]);
 
   const dtnKpis = useMemo(() => {
     if (!dtnSummary) return [];
@@ -179,7 +182,8 @@ export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
   };
 
   return (
-    <div style={{ fontFamily: FONT }}>
+    <div style={{ fontFamily: FONT, paddingBottom: 48 }}>
+      <GMPFxStyles />
       {/* ── Header + tab switcher — matches Processing Trend's layout:
           title/subtitle left, compact tab pills right, same row. ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
@@ -191,33 +195,40 @@ export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
             Certification workflow volume, live status, workload and compliance in one place
           </p>
         </div>
-        <TabSwitch active={activeTab} onChange={setActiveTab} ui={ui} />
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            type="button" onClick={() => setExportOpen(true)} disabled={loading}
+            title="Choose what to include, then download a PDF"
+            style={{ padding: "6px 14px", borderRadius: 7, border: `1px solid ${ui.cardBorder}`, background: "transparent", color: ui.textSub, fontSize: "0.82rem", fontWeight: 600, fontFamily: FONT, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1 }}
+          >
+            Export PDF
+          </button>
+          <TabSwitch active={activeTab} onChange={setActiveTab} ui={ui} />
+        </div>
       </div>
 
       {/* ── Shared filter bar — bordered/tinted panel, labelled fields. ── */}
       <div style={{
-        background: darkMode ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-        border: `1px solid ${ui.cardBorder}`, borderRadius: 10, padding: "12px 14px",
-        marginBottom: 18, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end",
-        justifyContent: "space-between",
+        marginBottom: 20, paddingBottom: 12, borderBottom: `1px solid ${ui.cardBorder}`,
+        display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between",
       }}>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={labelStyle}>Year</label>
+        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={labelStyle}>Year</span>
             <select value={year} onChange={(e) => { setYear(e.target.value); setMonth("All"); }} style={selectStyle(ui)}>
               {years.map((y) => <option key={y} value={y}>{y === "All" ? "All years" : y}</option>)}
             </select>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={labelStyle}>Month</label>
-            <select value={month} onChange={(e) => setMonth(e.target.value)} disabled={year === "All"} style={selectStyle(ui)}>
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={labelStyle}>Month</span>
+            <select value={month} onChange={(e) => setMonth(e.target.value)} disabled={year === "All"} style={{ ...selectStyle(ui), opacity: year === "All" ? 0.4 : 1, cursor: year === "All" ? "not-allowed" : "pointer" }}>
               {MONTH_OPTIONS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
-          </div>
+          </label>
         </div>
         {activeTab === "monitoring" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={labelStyle}>Count by</label>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={labelStyle}>Count by</span>
             <KpiViewToggle value={kpiView} onChange={setKpiView} ui={ui} />
           </div>
         )}
@@ -229,13 +240,22 @@ export default function GMPMonitoringAnalyticsView({ ui, darkMode }) {
         <GMPMonitoringTab
           ui={ui} darkMode={darkMode} loading={loading}
           kpiView={kpiView} kpis={kpis} dtnKpis={dtnKpis}
-          workload={workload} byStep={byStep} aging={aging} nodKpis={nodKpis}
+          workload={workload} byStep={byStep} aging={aging} nodKpis={nodKpis} summary={summary} stepTiming={stepTiming}
         />
       ) : (
         <GMPAnalyticsTab
           ui={ui} darkMode={darkMode} loading={loading}
-          trend={trend} category={category} dtnSummary={dtnSummary}
+          category={category} dtnSummary={dtnSummary}
           picsCountry={picsCountry} nod={nod} stepTiming={stepTiming}
+          monthly={monthly} year={year} month={month} years={years}
+        />
+      )}
+
+      {exportOpen && (
+        <GMPExportModal
+          ui={ui} activeTab={activeTab} filters={{ year, month }}
+          data={{ summary, dtnSummary, byStep, stepTiming, workload, aging, nod, category, picsCountry, monthly }}
+          onClose={() => setExportOpen(false)}
         />
       )}
     </div>

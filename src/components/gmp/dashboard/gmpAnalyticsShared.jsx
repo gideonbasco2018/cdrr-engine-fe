@@ -7,7 +7,7 @@
 // (attention/in-flight), RED (risk), VIOLET (time-based) — matching
 // GMPMonitoringAnalyticsView's KPI palette so a color means the same thing
 // everywhere on this page.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Chart, registerables } from "chart.js";
 import { GMP_STEPS } from "../shared/constants";
 
@@ -40,24 +40,39 @@ const BAR_COLORS = [
   "#7c5cff", "#06b6d4", "#ec4899", "#84cc16",
 ];
 
+// One way to write a duration everywhere (pipeline pop-up, step timing chart).
+export const fmtTime = (m) => {
+  if (m == null) return "—";
+  if (m < 1) return "Instant";
+  if (m < 60) return `${Math.round(m)} min`;
+  if (m < 1440) {
+    const h = Math.floor(m / 60), r = Math.round(m % 60);
+    return r ? `${h} hr ${r} min` : `${h} hr`;
+  }
+  const n = (m / 1440).toFixed(1).replace(/\.0$/, "");
+  return `${n} working day${n === "1" ? "" : "s"}`;
+};
+
 export function selectStyle(ui) {
   return {
-    background: ui.inputBg, color: ui.textPrimary, border: `1px solid ${ui.cardBorder}`,
-    borderRadius: 8, padding: "6px 10px", fontSize: "0.78rem", outline: "none",
+    appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+    background: `transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238a8d91' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 2px center`,
+    color: ui.textPrimary, border: "none", borderBottom: `1px solid ${ui.cardBorder}`,
+    borderRadius: 0, padding: "4px 20px 4px 2px", fontSize: "0.8rem", fontWeight: 600, outline: "none", cursor: "pointer",
   };
 }
 
 export function KpiViewToggle({ value, onChange, ui }) {
   return (
-    <div style={{ display: "inline-flex", border: `1px solid ${ui.cardBorder}`, borderRadius: 8, overflow: "hidden" }}>
+    <div style={{ display: "inline-flex", gap: 2 }}>
       {KPI_VIEW_OPTIONS.map((opt) => {
         const active = value === opt.value;
         return (
           <button key={opt.value} type="button" onClick={() => onChange(opt.value)}
             style={{
-              border: "none", cursor: "pointer", padding: "6px 12px", fontSize: "0.78rem",
-              fontWeight: active ? 700 : 500, color: active ? "#fff" : ui.textPrimary,
-              background: active ? ACCENT : ui.inputBg, transition: "background 0.15s, color 0.15s",
+              border: "none", cursor: "pointer", padding: "5px 10px", fontSize: "0.78rem", borderRadius: 6,
+              fontWeight: active ? 700 : 500, color: active ? ACCENT : ui.textMuted,
+              background: active ? `${ACCENT}14` : "transparent", transition: "background 0.15s, color 0.15s",
             }}>
             {opt.label}
           </button>
@@ -160,61 +175,84 @@ export function TrendChartPanel({ data, darkMode, ui, loading }) {
   );
 }
 
-// ── Generic horizontal breakdown bar chart ───────────────────────────────────
-// `singleColor` keeps a section monochrome (a semantic color, e.g. red for
-// aging); `colorForItem(item, i)` gives each bar a specific, meaningful color
-// (e.g. each workflow step's own brand color); omitting both cycles
-// BAR_COLORS across the bars.
-export function BreakdownBarChart({ items, ui, darkMode, emptyLabel, singleColor, colorForItem, afterLabel }) {
-  const ref = useRef(null);
-  const chartRef = useRef(null);
+// ── Breakdown list ───────────────────────────────────────────────────────────
+// A ranked list: name, count and share of the total on one line, a thin bar
+// underneath. Hover a row and the others dim. Long lists fold to the top few
+// with a "Show all" button. `variant="split"` (a few parts of one whole, e.g.
+// PIC/S vs Non-PIC/S) draws one segmented bar plus a legend instead.
+// `singleColor` keeps a card monochrome; `colorForItem(item, i)` colors each
+// row on its own (e.g. a workflow step's brand color); with neither, the
+// colors cycle BAR_COLORS. `afterLabel(item)` adds a line to the row's tooltip.
+export function BreakdownBarChart({ items, ui, emptyLabel, singleColor, colorForItem, afterLabel, variant, limit = 6 }) {
+  const [hov, setHov] = useState(null);
+  const [expanded, setExpanded] = useState(false);
+  if (!items.length) return <EmptyChart label={emptyLabel} ui={ui} />;
 
-  useEffect(() => {
-    chartRef.current?.destroy();
-    if (!ref.current || !items.length) return;
+  const total = items.reduce((a, d) => a + d.count, 0);
+  const max = Math.max(...items.map((d) => d.count), 1);
+  const colorFor = (item, i) => singleColor || (colorForItem && colorForItem(item, i)) || BAR_COLORS[i % BAR_COLORS.length];
+  const share = (n) => (total > 0 ? (n / total) * 100 : 0);
+  const shareText = (n) => { const p = share(n); return p > 0 && p < 1 ? "<1%" : `${Math.round(p)}%`; };
+  const tip = (d) => `${d.name}: ${d.count.toLocaleString()} (${share(d.count).toFixed(1)}%)${afterLabel ? `
+${afterLabel(d)}` : ""}`;
+  const dim = (i) => (hov != null && hov !== i ? 0.4 : 1);
 
-    const gridCol = darkMode ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)";
-    const tickCol = darkMode ? "#b0b3b8" : "#65676b";
-    const colorFor = (i) => singleColor || (colorForItem && colorForItem(items[i], i)) || BAR_COLORS[i % BAR_COLORS.length];
+  if (variant === "split") {
+    return (
+      <div>
+        <div style={{ display: "flex", gap: 3, height: 12, marginBottom: 14 }}>
+          {items.map((d, i) => d.count > 0 && (
+            <div
+              key={d.name} title={tip(d)} className="gmp-grow"
+              onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}
+              style={{ flex: d.count, background: colorFor(d, i), borderRadius: 6, opacity: dim(i), transition: "opacity 0.15s", cursor: "default" }}
+            />
+          ))}
+        </div>
+        {items.map((d, i) => (
+          <div
+            key={d.name} title={tip(d)} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}
+            style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 8px", borderRadius: 8, background: hov === i ? ui.hoverBg : "transparent", opacity: dim(i), transition: "opacity 0.15s, background 0.15s" }}
+          >
+            <span style={{ width: 9, height: 9, borderRadius: 3, background: colorFor(d, i), flexShrink: 0 }} />
+            <span style={{ flex: 1, minWidth: 0, fontSize: "0.8rem", color: ui.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
+            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: ui.textPrimary, fontVariantNumeric: "tabular-nums" }}>{d.count.toLocaleString()}</span>
+            <span style={{ width: 38, textAlign: "right", fontSize: "0.72rem", color: ui.textMuted, fontVariantNumeric: "tabular-nums" }}>{shareText(d.count)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
-    chartRef.current = new Chart(ref.current, {
-      type: "bar",
-      data: {
-        labels: items.map((d) => d.name),
-        datasets: [{
-          label: "Count",
-          data: items.map((d) => d.count),
-          backgroundColor: items.map((_, i) => colorFor(i) + "cc"),
-          borderColor: items.map((_, i) => colorFor(i)),
-          borderWidth: 1.5,
-          borderRadius: 5,
-        }],
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false, indexAxis: "y",
-        plugins: {
-          legend: { display: false },
-          tooltip: { mode: "index", intersect: false, callbacks: afterLabel ? { afterLabel: (ctx) => afterLabel(items[ctx.dataIndex]) } : undefined },
-        },
-        scales: {
-          x: { ticks: { color: tickCol, font: { size: 11 } }, grid: { color: gridCol }, border: { display: false }, beginAtZero: true },
-          y: {
-            ticks: {
-              color: tickCol, font: { size: 11 },
-              callback: (val, i) => { const lbl = items[i]?.name || ""; return lbl.length > 30 ? lbl.slice(0, 28) + "…" : lbl; },
-            },
-            grid: { display: false }, border: { display: false },
-          },
-        },
-      },
-    });
-    return () => chartRef.current?.destroy();
-  }, [items, darkMode]);
-
-  const height = Math.max(140, items.length * 34);
+  const shown = expanded ? items : items.slice(0, limit);
   return (
-    <div style={{ position: "relative", height }}>
-      {!items.length ? <EmptyChart label={emptyLabel} ui={ui} /> : <canvas ref={ref} />}
+    <div>
+      {shown.map((d, i) => (
+        <div
+          key={d.name} title={tip(d)} onMouseEnter={() => setHov(i)} onMouseLeave={() => setHov(null)}
+          style={{ padding: "7px 8px", borderRadius: 8, background: hov === i ? ui.hoverBg : "transparent", opacity: dim(i), transition: "opacity 0.15s, background 0.15s", cursor: "default" }}
+        >
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 5 }}>
+            <span style={{ flex: 1, minWidth: 0, fontSize: "0.8rem", color: ui.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.name}</span>
+            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: ui.textPrimary, fontVariantNumeric: "tabular-nums" }}>{d.count.toLocaleString()}</span>
+            <span style={{ width: 34, textAlign: "right", fontSize: "0.7rem", color: ui.textMuted, fontVariantNumeric: "tabular-nums" }}>{shareText(d.count)}</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 99, background: ui.progressBg, overflow: "hidden" }}>
+            <div
+              className="gmp-grow"
+              style={{ width: `${(d.count / max) * 100}%`, height: "100%", borderRadius: 99, background: colorFor(d, i), animationDelay: `${Math.min(i, 10) * 40}ms` }}
+            />
+          </div>
+        </div>
+      ))}
+      {items.length > limit && (
+        <button
+          type="button" onClick={() => setExpanded((v) => !v)}
+          style={{ marginTop: 6, padding: "5px 8px", border: "none", background: "none", cursor: "pointer", fontSize: "0.72rem", fontWeight: 600, color: ACCENT }}
+        >
+          {expanded ? "Show less" : `Show all ${items.length}`}
+        </button>
+      )}
     </div>
   );
 }
@@ -273,7 +311,7 @@ export function StepTimingChart({ data, darkMode, ui, loading }) {
       data: {
         labels: data.map((d) => d.step),
         datasets: [{
-          label: "Avg calendar days",
+          label: "Avg working days",
           data: data.map((d) => d.avg_days ?? 0),
           backgroundColor: data.map((d) => stepColor(d.step) + "cc"),
           borderColor: data.map((d) => stepColor(d.step)),
@@ -285,10 +323,13 @@ export function StepTimingChart({ data, darkMode, ui, loading }) {
         responsive: true, maintainAspectRatio: false, indexAxis: "y",
         plugins: {
           legend: { display: false },
-          tooltip: { mode: "index", intersect: false, callbacks: { afterLabel: (ctx) => { const d = data[ctx.dataIndex]; return `Based on ${d.total} completed application${d.total === 1 ? "" : "s"}`; } } },
+          tooltip: { mode: "index", intersect: false, callbacks: {
+            label: (ctx) => `Average: ${fmtTime(data[ctx.dataIndex].avg_minutes)}`,
+            afterLabel: (ctx) => { const d = data[ctx.dataIndex]; return `Based on ${d.total} finished step${d.total === 1 ? "" : "s"}`; },
+          } },
         },
         scales: {
-          x: { ticks: { color: tickCol, font: { size: 11 } }, grid: { color: gridCol }, border: { display: false }, beginAtZero: true, title: { display: true, text: "Calendar days", color: tickCol } },
+          x: { ticks: { color: tickCol, font: { size: 11 } }, grid: { color: gridCol }, border: { display: false }, beginAtZero: true, title: { display: true, text: "Working days (weekends not counted)", color: tickCol } },
           y: { ticks: { color: tickCol, font: { size: 11 } }, grid: { display: false }, border: { display: false } },
         },
       },
