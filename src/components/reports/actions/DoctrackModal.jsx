@@ -173,7 +173,7 @@ function Code128SVG({ value, height = 50, barWidth = 1.5 }) {
 // ─────────────────────────────────────────────
 // Hidden FDA Tracking Slip — matches real PDF exactly
 // ─────────────────────────────────────────────
-function TrackingSlipTemplate({
+export function TrackingSlipTemplate({
   documentData,
   documentLogs,
   parsedSubject,

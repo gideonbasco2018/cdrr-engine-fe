@@ -6,7 +6,9 @@ import {
   computeFieldChanges,
 } from "../../../api/field-audit-logs";
 import { getUser } from "../../../api/auth";
+import { getApplicationDocumentsByDtn } from "../../../api/application-documents";
 import { CountryDropdown } from "../FilterBar";
+import DoctrackPanel from "./DoctrackPanel";
 
 /* ================================================================== */
 /*  Shared design tokens — identical to ViewDetailsModal                */
@@ -304,7 +306,7 @@ function AccordionSection({
         border: `1px solid ${colors.cardBorder}`,
         borderRadius: "8px",
         marginBottom: "0.65rem",
-        // ⚠️ no overflow: "hidden" here anymore — that was clipping
+        // no overflow: "hidden" here — that was clipping
         // the CountryDropdown's floating list inside Importer/Distributor.
       }}
     >
@@ -701,10 +703,364 @@ function StepIndicator({ currentStep, steps, colors }) {
 }
 
 /* ================================================================== */
+/*  Files Panel — uploaded files + preview for this DTN                 */
+/*  (same component as ViewDetailsModal)                                */
+/* ================================================================== */
+const fileName = (d) => d.original_filename ?? d.file_name ?? "Untitled";
+
+const fileIcon = (d) => {
+  const n = fileName(d).toLowerCase();
+  if (n.endsWith(".pdf")) return "📕";
+  if (/\.(jpe?g|png)$/.test(n)) return "🖼️";
+  return "📄";
+};
+
+const formatBytes = (b) => {
+  if (!b && b !== 0) return "";
+  if (b < 1024) return `${b} B`;
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+  return `${(b / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+function FilesViewer({ docs, colors, onClose }) {
+  const [active, setActive] = useState(docs[0] ?? null);
+  const [collapsed, setCollapsed] = useState({});
+
+  // Group files per folder (doc_category)
+  const groups = docs.reduce((acc, d) => {
+    const key = d.doc_category || "No Folder";
+    (acc[key] = acc[key] || []).push(d);
+    return acc;
+  }, {});
+  const previewUrl = active?.drive_file_id
+    ? `https://drive.google.com/file/d/${active.drive_file_id}/preview`
+    : null;
+
+  return (
+    <div
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          padding: "0.55rem 0.9rem",
+          borderBottom: `1px solid ${colors.cardBorder}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexShrink: 0,
+        }}
+      >
+        <span style={{ fontSize: "0.78rem", fontWeight: 700, color: ACCENT }}>
+          Uploaded Files ({docs.length})
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {active?.drive_file_url && (
+            <a
+              href={active.drive_file_url}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                fontSize: "0.65rem",
+                fontWeight: 600,
+                color: ACCENT,
+                textDecoration: "none",
+              }}
+            >
+              Open in Drive ↗
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              border: `1px solid ${colors.cardBorder}`,
+              background: "transparent",
+              color: colors.textSecondary,
+              borderRadius: 6,
+              padding: "0.15rem 0.5rem",
+              fontSize: "0.65rem",
+              cursor: "pointer",
+            }}
+          >
+            Hide ✕
+          </button>
+        </div>
+      </div>
+
+      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+        {/* File list — grouped per folder */}
+        <div
+          style={{
+            width: "clamp(140px, 22%, 200px)",
+            flexShrink: 0,
+            overflowY: "auto",
+            padding: "0.5rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+            borderRight: `1px solid ${colors.cardBorder}`,
+          }}
+        >
+          {Object.entries(groups).map(([folder, items]) => {
+            const isCollapsed = !!collapsed[folder];
+            return (
+              <div key={folder}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollapsed((c) => ({ ...c, [folder]: !c[folder] }))
+                  }
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "0.3rem 0.35rem",
+                    background: "transparent",
+                    border: "none",
+                    color: colors.textPrimary,
+                    fontSize: "0.68rem",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span style={{ fontSize: "0.55rem" }}>
+                    {isCollapsed ? "▶" : "▼"}
+                  </span>
+                  <span>📁</span>
+                  <span
+                    style={{
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={folder}
+                  >
+                    {folder}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      color: colors.textTertiary,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {items.length}
+                  </span>
+                </button>
+
+                {!isCollapsed && (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 3,
+                      marginLeft: 8,
+                      paddingLeft: 6,
+                      borderLeft: `1px solid ${colors.cardBorder}`,
+                    }}
+                  >
+                    {items.map((doc) => {
+                      const isActive = active?.id === doc.id;
+                      return (
+                        <button
+                          type="button"
+                          key={doc.id}
+                          onClick={() => setActive(doc)}
+                          title={fileName(doc)}
+                          style={{
+                            textAlign: "left",
+                            padding: "0.35rem 0.45rem",
+                            borderRadius: 6,
+                            border: `1px solid ${isActive ? ACCENT : colors.cardBorder}`,
+                            background: isActive ? ACCENT_BG : "transparent",
+                            color: isActive ? ACCENT : colors.textPrimary,
+                            fontSize: "0.64rem",
+                            cursor: "pointer",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: 1,
+                          }}
+                        >
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              wordBreak: "break-word",
+                            }}
+                          >
+                            {fileIcon(doc)} {fileName(doc)}
+                          </span>
+                          <span
+                            style={{
+                              fontSize: "0.56rem",
+                              color: colors.textTertiary,
+                            }}
+                          >
+                            {formatBytes(doc.file_size_bytes)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Big viewer */}
+        <div style={{ flex: 1, minWidth: 0, background: colors.pageBg }}>
+          {previewUrl ? (
+            <iframe
+              key={active.id}
+              src={previewUrl}
+              title={fileName(active)}
+              style={{ width: "100%", height: "100%", border: "none" }}
+            />
+          ) : (
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "0.72rem",
+                color: colors.textTertiary,
+              }}
+            >
+              No preview available.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ================================================================== */
+/*  Clickable DTN — toggles the uploaded files panel.                   */
+/*  Falls back to plain text when the record has no files.              */
+/* ================================================================== */
+function DtnLink({ dtn, onOpenDoctrack, colors }) {
+  const label = dtn || "N/A";
+
+  if (!dtn) {
+    return (
+      <div
+        style={{
+          fontSize: "0.78rem",
+          fontWeight: "700",
+          color: colors.textPrimary,
+        }}
+      >
+        {label}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onOpenDoctrack}
+      title="View document tracking details"
+      style={{
+        padding: 0,
+        background: "transparent",
+        border: "none",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: "0.78rem",
+        fontWeight: "700",
+        color: ACCENT,
+        textDecoration: "underline",
+        textUnderlineOffset: "2px",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function FilesButton({ count, active, onClick, colors }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "0.3rem",
+        padding: "0.2rem 0.6rem",
+        background: active ? ACCENT_BG : "transparent",
+        color: active ? ACCENT : colors.textPrimary,
+        border: `1px solid ${active ? ACCENT : colors.cardBorder}`,
+        borderRadius: "6px",
+        fontSize: "0.65rem",
+        fontWeight: 600,
+        cursor: "pointer",
+        fontFamily: "inherit",
+      }}
+    >
+      <IconSvg>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+      </IconSvg>
+      {count}
+    </button>
+  );
+}
+
+/* Small icon button that opens the Doctrack side panel for a given number */
+function TrackButton({ onClick, title }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      style={{
+        width: 22,
+        height: 22,
+        padding: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: ACCENT_BG,
+        color: ACCENT,
+        border: `1px solid ${ACCENT}`,
+        borderRadius: "6px",
+        cursor: "pointer",
+        flexShrink: 0,
+      }}
+    >
+      <IconSvg>
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        <path d="M15 3h6v6" />
+        <path d="M10 14L21 3" />
+      </IconSvg>
+    </button>
+  );
+}
+
+/* ================================================================== */
 /*  Step 1 — All Details, editable (mirrors ViewDetailsModal's           */
 /*  AllDetails layout exactly: status bar + 60/40 two-column accordion)  */
 /* ================================================================== */
-function AllDetailsEdit({ formData, handleChange, colors }) {
+function AllDetailsEdit({
+  formData,
+  handleChange,
+  colors,
+  fileCount = 0,
+  showFiles = false,
+  onToggleFiles,
+  onOpenDoctrack,
+}) {
   const { status, days } = calculateStatusTimeline(formData);
   const ok = status === "WITHIN";
 
@@ -762,7 +1118,10 @@ function AllDetailsEdit({ formData, handleChange, colors }) {
   ];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+    <div
+      className="erm-wrap"
+      style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}
+    >
       {/* Status bar — mirrors the reference top row, editable in place */}
       <div
         style={{
@@ -786,15 +1145,11 @@ function AllDetailsEdit({ formData, handleChange, colors }) {
           >
             Document Tracking No.
           </div>
-          <div
-            style={{
-              fontSize: "0.78rem",
-              fontWeight: "700",
-              color: colors.textPrimary,
-            }}
-          >
-            {formData.DB_DTN || "N/A"}
-          </div>
+          <DtnLink
+            dtn={formData.DB_DTN}
+            onOpenDoctrack={() => onOpenDoctrack(formData.DB_DTN)}
+            colors={colors}
+          />
         </div>
 
         <div>
@@ -823,12 +1178,20 @@ function AllDetailsEdit({ formData, handleChange, colors }) {
           >
             Old RSN
           </div>
-          <BarInput
-            value={formData.DB_OLD_RSN}
-            onChange={(v) => handleChange("DB_OLD_RSN", v)}
-            colors={colors}
-            width="100px"
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            <BarInput
+              value={formData.DB_OLD_RSN}
+              onChange={(v) => handleChange("DB_OLD_RSN", v)}
+              colors={colors}
+              width="130px"
+            />
+            {formData.DB_OLD_RSN && (
+              <TrackButton
+                title="View document tracking details for the Old RSN"
+                onClick={() => onOpenDoctrack(formData.DB_OLD_RSN)}
+              />
+            )}
+          </div>
         </div>
 
         <div>
@@ -897,17 +1260,43 @@ function AllDetailsEdit({ formData, handleChange, colors }) {
             </span>
           </div>
         )}
+
+        {fileCount > 0 && (
+          <div>
+            <div
+              style={{
+                fontSize: "0.62rem",
+                color: colors.textTertiary,
+                marginBottom: "0.3rem",
+              }}
+            >
+              Files
+            </div>
+            <FilesButton
+              count={fileCount}
+              active={showFiles}
+              onClick={onToggleFiles}
+              colors={colors}
+            />
+          </div>
+        )}
       </div>
 
       {/* Two-column layout: left = Establishment/Product/Fees/Companies (60%), right = Application/Processing/Released/CPR/Amendments (40%) */}
       <style>{`
+        .erm-wrap { container-type: inline-size; container-name: erm; }
         .erm-two-col { display: flex; gap: 0.75rem; align-items: flex-start; flex-wrap: nowrap; }
         .erm-col-left, .erm-col-right { min-width: 0; display: flex; flex-direction: column; }
         .erm-col-left { flex: 1 1 60%; }
         .erm-col-right { flex: 0 0 40%; }
-        @media (max-width: 760px) {
+
+        /* Narrow form (for example when a side panel is open): stack the columns */
+        @container erm (max-width: 820px) {
           .erm-two-col { flex-direction: column; }
           .erm-col-left, .erm-col-right { flex: 1 1 100%; width: 100%; }
+        }
+        /* Very narrow form: single-column label/value grid */
+        @container erm (max-width: 560px) {
           .erm-lv-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
@@ -1627,7 +2016,6 @@ function ReviewAndSave({ formData, originalData, colors }) {
     return (
       <div
         style={{
-          // padding: "0.75rem 0.9rem",
           background: colors.inputBg,
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: "8px",
@@ -1998,6 +2386,13 @@ function EditRecordModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  // Uploaded files panel (same behavior as ViewDetailsModal)
+  const [docs, setDocs] = useState([]);
+  const [showFiles, setShowFiles] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(
+    typeof window !== "undefined" && window.innerWidth < 1200,
+  );
+
   const STEPS = ["Details", "Review & Save"];
   const totalSteps = STEPS.length;
   const goNext = () => setCurrentStep((s) => Math.min(s + 1, totalSteps));
@@ -2007,6 +2402,36 @@ function EditRecordModal({
     const user = getUser();
     if (user) setCurrentUser(user);
   }, []);
+
+  useEffect(() => {
+    const onResize = () => setIsNarrow(window.innerWidth < 1200);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // Fetch uploaded files for this DTN
+  const recordDtn = record?.dtn ?? record?.DB_DTN;
+
+  // Only one side panel (files or doctrack) is open at a time.
+  // doctrackDtn holds the number being tracked (DTN or Old RSN).
+  const [doctrackDtn, setDoctrackDtn] = useState(null);
+  const showDoctrack = Boolean(doctrackDtn);
+  useEffect(() => {
+    if (!recordDtn) return;
+    let cancelled = false;
+    setShowFiles(false);
+    setDocs([]);
+    getApplicationDocumentsByDtn(String(recordDtn))
+      .then((res) => {
+        if (!cancelled) setDocs(Array.isArray(res?.data) ? res.data : []);
+      })
+      .catch(() => {
+        if (!cancelled) setDocs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [recordDtn]);
 
   useEffect(() => {
     if (record) {
@@ -2285,6 +2710,9 @@ function EditRecordModal({
 
   if (!record) return null;
 
+  const filesOpen = showFiles && docs.length > 0;
+  const sideOpen = filesOpen || showDoctrack;
+
   return (
     <>
       <div
@@ -2306,8 +2734,11 @@ function EditRecordModal({
           top: "50%",
           left: "50%",
           transform: "translate(-50%, -50%)",
-          width: "min(1100px, 95vw)",
+          width:
+            sideOpen && !isNarrow ? "min(1600px, 96vw)" : "min(1100px, 95vw)",
+          height: sideOpen ? "94vh" : undefined,
           maxHeight: "94vh",
+          transition: "width 0.25s ease",
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: "14px",
@@ -2430,45 +2861,105 @@ function EditRecordModal({
           </button>
         </div>
 
-        {/* ── Body ── */}
+        {/* ── Body (form on the left, optional files viewer on the right) ── */}
         <div
           style={{
             flex: 1,
             minHeight: 0,
-            overflowY: "auto",
-            padding: "1rem 1.25rem",
+            display: "flex",
+            overflow: "hidden",
+            position: "relative",
           }}
         >
-          {error && (
-            <div
-              style={{
-                background: "rgba(239,68,68,0.1)",
-                border: "1px solid rgba(239,68,68,0.3)",
-                borderRadius: "8px",
-                padding: "0.75rem 0.9rem",
-                marginBottom: "0.85rem",
-                color: "#EF4444",
-                fontSize: "0.75rem",
-              }}
-            >
-              ⚠️ {error}
-            </div>
-          )}
+          <div
+            style={{
+              flex: sideOpen && !isNarrow ? "0 0 60%" : "1 1 auto",
+              minWidth: 0,
+              maxWidth: sideOpen && !isNarrow ? "60%" : undefined,
+              boxSizing: "border-box",
+              overflowY: "auto",
+              padding: "1rem 1.25rem",
+            }}
+          >
+            {error && (
+              <div
+                style={{
+                  background: "rgba(239,68,68,0.1)",
+                  border: "1px solid rgba(239,68,68,0.3)",
+                  borderRadius: "8px",
+                  padding: "0.75rem 0.9rem",
+                  marginBottom: "0.85rem",
+                  color: "#EF4444",
+                  fontSize: "0.75rem",
+                }}
+              >
+                ⚠️ {error}
+              </div>
+            )}
 
-          {currentStep === 1 && (
-            <AllDetailsEdit
-              formData={formData}
-              handleChange={handleChange}
-              colors={colors}
-            />
-          )}
-          {currentStep === 2 && (
-            <ReviewAndSave
-              formData={formData}
-              originalData={originalData}
-              colors={colors}
-              darkMode={darkMode}
-            />
+            {currentStep === 1 && (
+              <AllDetailsEdit
+                formData={formData}
+                handleChange={handleChange}
+                colors={colors}
+                fileCount={docs.length}
+                showFiles={showFiles}
+                onToggleFiles={() => {
+                  setShowFiles((v) => !v);
+                  setDoctrackDtn(null);
+                }}
+                onOpenDoctrack={(value) => {
+                  // Same number clicked again closes the panel,
+                  // a different number switches the panel to it
+                  setDoctrackDtn((cur) => (cur === value ? null : value));
+                  setShowFiles(false);
+                }}
+              />
+            )}
+            {currentStep === 2 && (
+              <ReviewAndSave
+                formData={formData}
+                originalData={originalData}
+                colors={colors}
+                darkMode={darkMode}
+              />
+            )}
+          </div>
+
+          {sideOpen && (
+            <div
+              style={
+                isNarrow
+                  ? {
+                      position: "absolute",
+                      inset: 0,
+                      zIndex: 5,
+                      background: colors.cardBg,
+                    }
+                  : {
+                      flex: "0 0 40%",
+                      minWidth: 0,
+                      maxWidth: "40%",
+                      boxSizing: "border-box",
+                      overflow: "hidden",
+                      borderLeft: `1px solid ${colors.cardBorder}`,
+                    }
+              }
+            >
+              {showDoctrack ? (
+                <DoctrackPanel
+                  dtn={doctrackDtn}
+                  colors={colors}
+                  onClose={() => setDoctrackDtn(null)}
+                />
+              ) : (
+                <FilesViewer
+                  docs={docs}
+                  colors={colors}
+                  onClose={() => setShowFiles(false)}
+                />
+              )}
+            </div>
           )}
         </div>
 
