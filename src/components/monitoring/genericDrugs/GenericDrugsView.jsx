@@ -10,6 +10,7 @@ import {
   getGenericMonitoringRecords,
 } from "../../../api/analytics";
 import { FB } from "../analytics/analyticsConstants";
+import ExportGenericPdfModal from "./ExportGenericPdfModal";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -18,6 +19,7 @@ const RED = "#e02020";
 const AMBER = "#f59e0b";
 const GRAY = "#9ca3af";
 const PAGE_SIZE = 25;
+const EXPORT_PAGE_SIZE = 200;
 const STORE_KEY = "analytics.genericFilter.v1";
 
 const fmt = (n) => Number(n ?? 0).toLocaleString();
@@ -74,6 +76,7 @@ export default function GenericDrugsView({ ui, darkMode }) {
   const [records, setRecords] = useState({ total: 0, data: [] });
   const [recLoading, setRecLoading] = useState(false);
   const recRun = useRef(0);
+  const [showExport, setShowExport] = useState(false);
 
   // Remember the picked generics
   useEffect(() => {
@@ -168,6 +171,38 @@ export default function GenericDrugsView({ ui, darkMode }) {
           .filter((n) => !have.has(ckey(n))),
       ];
     });
+
+  // Load every application of the picked generics (all pages) for the PDF.
+  // onProgress(done, total) is called after each page is loaded.
+  const fetchAllRecords = async (grp, onProgress) => {
+    const first = await getGenericMonitoringRecords({
+      generic: debouncedSelected,
+      group: grp,
+      page: 1,
+      page_size: EXPORT_PAGE_SIZE,
+    });
+    let all = first?.data ?? [];
+    const total = first?.total ?? 0;
+    onProgress?.(all.length, total);
+    const pages = Math.ceil(total / EXPORT_PAGE_SIZE);
+    for (let p = 2; p <= pages; p++) {
+      const res = await getGenericMonitoringRecords({
+        generic: debouncedSelected,
+        group: grp,
+        page: p,
+        page_size: EXPORT_PAGE_SIZE,
+      });
+      all = all.concat(res?.data ?? []);
+      onProgress?.(all.length, total);
+    }
+    return all;
+  };
+
+  const exportDisabled =
+    loading ||
+    !summary ||
+    selected.length === 0 ||
+    selected !== debouncedSelected;
 
   // ── Styles ──
   const inputSt = {
@@ -275,17 +310,39 @@ export default function GenericDrugsView({ ui, darkMode }) {
       {/* Header */}
       <div
         style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
           padding: "14px 18px",
           borderBottom: `1px solid ${line}`,
         }}
       >
-        <div style={{ fontSize: "0.95rem", fontWeight: 700 }}>
-          💊 Applications by Generic Name
+        <div>
+          <div style={{ fontSize: "0.95rem", fontWeight: 700 }}>
+            💊 Applications by Generic Name
+          </div>
+          <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+            Pick one or more generic names to count their pending and registered
+            applications (all years)
+          </div>
         </div>
-        <div style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-          Pick one or more generic names to count their pending and registered
-          applications (all years)
-        </div>
+        <button
+          onClick={() => setShowExport(true)}
+          disabled={exportDisabled}
+          title="Export the picked generic names to PDF"
+          style={{
+            ...seg(false),
+            borderRadius: 8,
+            color: FB,
+            fontWeight: 700,
+            opacity: exportDisabled ? 0.4 : 1,
+            cursor: exportDisabled ? "not-allowed" : "pointer",
+          }}
+        >
+          📄 Export PDF
+        </button>
       </div>
 
       <div
@@ -732,6 +789,20 @@ export default function GenericDrugsView({ ui, darkMode }) {
           </>
         )}
       </div>
+
+      {showExport && summary && (
+        <ExportGenericPdfModal
+          ui={ui}
+          darkMode={darkMode}
+          initialGroup={group}
+          data={{
+            summary,
+            generics: debouncedSelected,
+            fetchAllRecords,
+          }}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
 }
