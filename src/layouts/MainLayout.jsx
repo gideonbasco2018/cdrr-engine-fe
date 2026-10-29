@@ -14,6 +14,7 @@ import OTCPage from "../pages/OTCPage";
 import CDRRInspectorReportsPage from "../pages/CDRRInspectorReportsPage";
 import TaskPage from "../pages/TaskPage";
 import MonitoringPage from "../pages/MonitoringPage";
+import EvaluatorsMonitoringPage from "../pages/EvaluatorsMonitoringPage";
 import DoctrackMagicPage from "../pages/DoctrackMagicPage";
 import RecordSectionPage from "../pages/RecordSectionPage";
 import LeadAssignmentsPage from "../pages/LeadAssignmentsPage";
@@ -47,6 +48,8 @@ function MainLayout({ darkMode, setDarkMode }) {
   const getActiveMenuFromUrl = () => {
     const path = location.pathname;
 
+    // Must come before "monitoring" — the id contains it
+    if (path.includes("evaluators-monitoring")) return "evaluators-monitoring";
     if (path.includes("announcements")) return "announcements";
     if (path.includes("support")) return "support";
     if (path.includes("access")) return "access";
@@ -138,6 +141,10 @@ function MainLayout({ darkMode, setDarkMode }) {
         return <RecordSectionPage darkMode={darkMode} userRole={userRole} />;
       case "monitoring":
         return <MonitoringPage darkMode={darkMode} userRole={userRole} />;
+      case "evaluators-monitoring":
+        return (
+          <EvaluatorsMonitoringPage darkMode={darkMode} userRole={userRole} />
+        );
       case "announcements":
         return (
           <div style={{ padding: "2rem", color: colors.textPrimary }}>

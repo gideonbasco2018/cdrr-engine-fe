@@ -188,7 +188,7 @@ export default function ApplicationMonitoringTable({ ui, darkMode }) {
       )}
 
       {view === "plot" ? (
-        <ApplicationScatterPlot ui={ui} darkMode={darkMode} search={debouncedSearch} status="All" />
+        <ApplicationScatterPlot ui={ui} darkMode={darkMode} search={debouncedSearch} step={step} evaluator={evaluator} />
       ) : (
       <>
       <div style={{ overflowX: "auto" }}>

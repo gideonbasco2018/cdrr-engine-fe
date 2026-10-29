@@ -98,6 +98,7 @@ function GroupManagementPage({ darkMode, userRole }) {
     const categoryMap = {
       dashboard: "Main",
       monitoring: "Main",
+      "evaluators-monitoring": "Main",
       reports: "Reports",
       "clinical-trials": "Reports",
       "otc-database": "Reports",

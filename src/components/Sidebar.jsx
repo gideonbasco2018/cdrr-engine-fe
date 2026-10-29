@@ -215,6 +215,7 @@ function Sidebar({
     const routeMap = {
       dashboard: `${basePath}/dashboard`,
       monitoring: `${basePath}/monitoring`,
+      "evaluators-monitoring": `${basePath}/evaluators-monitoring`,
       reports: `${basePath}/reports`,
       "clinical-trials": `${basePath}/clinical-trials`,
       donation: `${basePath}/donation`,

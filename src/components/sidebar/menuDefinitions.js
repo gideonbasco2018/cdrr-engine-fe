@@ -13,6 +13,12 @@ export const menuDefinitions = {
       label: "Monitoring",
       roles: ["User", "Admin", "SuperAdmin"],
     },
+    {
+      id: "evaluators-monitoring",
+      icon: "🧭",
+      label: "Evaluators Monitoring",
+      roles: ["User", "Admin", "SuperAdmin"],
+    },
   ],
 
   cdrReportsItems: [
