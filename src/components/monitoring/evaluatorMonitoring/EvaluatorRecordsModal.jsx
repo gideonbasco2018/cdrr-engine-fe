@@ -1,6 +1,6 @@
 // src/components/monitoring/evaluatorMonitoring/EvaluatorRecordsModal.jsx
 // Opens when a Company or Drug row, or a Received / Released number, is
-// clicked on the Evaluators Monitoring page. Lists every application counted
+// clicked on the User Insights page. Lists every application counted
 // there (this evaluator only). For a Company or Drug row it also lists all the
 // spellings of the name that were merged into it.
 //
@@ -460,7 +460,7 @@ function EvaluatorRecordsModal({
             >
               {search.trim()
                 ? `${fmt(rows.length)} of ${fmt(data.rows.length)}`
-                : `${fmt(data.rows.length)} shown`}
+                : ""}
             </span>
           </div>
         )}
@@ -673,40 +673,48 @@ function EvaluatorRecordsModal({
           )}
         </div>
 
-        {/* pager */}
-        {data && rows.length > PAGE_SIZE && (
+        {/* footer: the pager */}
+        {data && (
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "space-between",
+              justifyContent: "flex-end",
+              gap: 8,
               padding: "0.65rem 1.35rem",
               borderTop: `1px solid ${t.line}`,
+              background: t.sunken,
               fontSize: "0.72rem",
               color: t.ink3,
             }}
           >
-            <span>
-              Page {safePage} of {totalPages} · {fmt(rows.length)} applications
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setPage(safePage - 1)}
+              style={pageBtn(safePage <= 1)}
+            >
+              Previous
+            </button>
+            <span
+              style={{
+                minWidth: 74,
+                textAlign: "center",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              Page{" "}
+              <strong style={{ color: t.ink2, fontWeight: 600 }}>{safePage}</strong>{" "}
+              of {totalPages}
             </span>
-            <span style={{ display: "flex", gap: 8 }}>
-              <button
-                type="button"
-                disabled={safePage <= 1}
-                onClick={() => setPage(safePage - 1)}
-                style={pageBtn(safePage <= 1)}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                disabled={safePage >= totalPages}
-                onClick={() => setPage(safePage + 1)}
-                style={pageBtn(safePage >= totalPages)}
-              >
-                Next
-              </button>
-            </span>
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage(safePage + 1)}
+              style={pageBtn(safePage >= totalPages)}
+            >
+              Next
+            </button>
           </div>
         )}
       </div>

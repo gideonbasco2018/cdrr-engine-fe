@@ -3,7 +3,7 @@ export const allMenuItems = [
   // Main
   { id: "dashboard", label: "Dashboard", icon: "📊", category: "Main" },
   { id: "monitoring", label: "Monitoring", icon: "📡", category: "Main" },
-  { id: "evaluators-monitoring", label: "Evaluators Monitoring", icon: "🧭", category: "Main" },
+  { id: "evaluators-monitoring", label: "User Insights", icon: "📈", category: "Main" },
 
   // CDRR Reports
   { id: "reports", label: "CDRR Reports", icon: "🗃️", category: "CDRR Reports" },

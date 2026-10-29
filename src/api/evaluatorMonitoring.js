@@ -29,3 +29,11 @@ export const getEvaluatorPeriodRecords = async (params = {}) => {
   });
   return res.data;
 };
+
+// One month of one person: numbers, TAT, top companies / drugs / document types
+export const getEvaluatorMonthSummary = async (params = {}) => {
+  const res = await API.get("/analytics/evaluator-monitoring/month-summary", {
+    params,
+  });
+  return res.data;
+};
