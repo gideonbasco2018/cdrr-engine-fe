@@ -70,10 +70,10 @@ const normalizeDocType = (dt) => {
   const k = raw.toLowerCase();
   return k === "cert" || k === "certificate" ? "CERT" : raw;
 };
-// LOD ay "LETTER" sa header
+// Header label for a doc type (LOD may be shown as "LETTER" in some views)
 const docTypeLabel = (dt) => dt;
 
-// Rate = Total Released / Received Application (lahat ng released)
+// Rate = Total Released / Received Application (all released records)
 const releasedRate = (row) => {
   const received = Number(row.received) || 0;
   const released = Number(row.total) || 0;
@@ -465,11 +465,13 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const baseTitle =
     target.kind === "received"
       ? `${yearLabel} — Received Applications`
-      : target.year === "nodate"
-        ? `${yearLabel} — Completed, no valid date`
-        : basis === "received"
-          ? `${yearLabel} — Released (of Received in ${yearLabel})`
-          : `${yearLabel} — Released in ${yearLabel}`;
+      : target.kind === "in_progress"
+        ? `${yearLabel} — In Progress (received in ${yearLabel})`
+        : target.year === "nodate"
+          ? `${yearLabel} — Completed, no valid date`
+          : basis === "received"
+            ? `${yearLabel} — Released (of Received in ${yearLabel})`
+            : `${yearLabel} — Released in ${yearLabel}`;
   const title = target.docType
     ? `${baseTitle} · ${facetLabel(target.docType, "No Doc Type")}`
     : baseTitle;
@@ -2027,6 +2029,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const yearTotals = (() => {
     const t = {
       received: 0,
+      inProgress: 0,
       total: 0,
       docs: Object.fromEntries(mergedDocTypes.map((dt) => [dt, 0])),
       noDoc: 0,
@@ -2040,6 +2043,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         docSum += counts[dt];
       });
       t.received += Number(row.received) || 0;
+      t.inProgress += Number(row.in_progress) || 0;
       t.total += released;
       t.noDoc += Math.max(released - docSum, 0);
     });
@@ -2253,6 +2257,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     const header = [
       "Year",
       "Received Application",
+      "In Progress",
       "Total Released",
       "Rate (%) = Released ÷ Received × 100",
       ...mergedDocTypes.map(docTypeLabel),
@@ -2266,6 +2271,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
       return [
         Number(row.year) || row.year,
         row.received ?? 0,
+        row.in_progress ?? 0,
         row.total,
         Number(releasedRate(row).toFixed(1)),
         ...docCounts,
@@ -2276,6 +2282,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     rows.push([
       "Total",
       yearTotals.received,
+      yearTotals.inProgress,
       yearTotals.total,
       Number(
         releasedRate({
@@ -2631,6 +2638,13 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                     <th rowSpan={2} style={ysTh()}>
                       Received Application
                     </th>
+                    <th
+                      rowSpan={2}
+                      style={ysTh()}
+                      title="Received in this year with status IN PROGRESS"
+                    >
+                      In Progress
+                    </th>
                     <th rowSpan={2} style={ysTh()}>
                       {yearBasis === "released"
                         ? "Total Released"
@@ -2690,6 +2704,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                         <td style={ysTd(ui.textPrimary, true)}>{row.year}</td>
                         {[
                           { kind: "received", value: row.received },
+                          { kind: "in_progress", value: row.in_progress ?? 0 },
                           { kind: "released", value: row.total },
                         ].map(({ kind, value }) => (
                           <td key={kind} style={ysTd()}>
@@ -2762,8 +2777,12 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                     <td style={{ ...ysTd(ui.textPrimary, true), ...totalCell }}>
                       Total
                     </td>
+
                     <td style={{ ...ysTd(), ...totalCell }}>
                       {yearTotals.received.toLocaleString()}
+                    </td>
+                    <td style={{ ...ysTd(), ...totalCell }}>
+                      {yearTotals.inProgress.toLocaleString()}
                     </td>
                     <td style={{ ...ysTd(), ...totalCell }}>
                       {yearTotals.total.toLocaleString()}
