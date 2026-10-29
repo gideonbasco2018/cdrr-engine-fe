@@ -13,6 +13,9 @@ import {
 import { getColorScheme } from "../components/reports/utils.js";
 import EvaluatorRecordsModal from "../components/monitoring/evaluatorMonitoring/EvaluatorRecordsModal";
 import SortLabel from "../components/monitoring/evaluatorMonitoring/SortLabel";
+import ExportPdfModal from "../components/monitoring/evaluatorMonitoring/ExportPdfModal";
+import YearMonthsModal from "../components/monitoring/evaluatorMonitoring/YearMonthsModal";
+import { PeriodsTable } from "../components/monitoring/evaluatorMonitoring/PeriodsTable";
 import {
   isFallback,
   sourceText,
@@ -65,229 +68,6 @@ function useDebounced(value, delay = 350) {
     return () => clearTimeout(t);
   }, [value, delay]);
   return debounced;
-}
-
-// Each bar is 100% of its own number and shows what it is made of:
-//   Received: released in 2025 / 2026 ... (green shades) + not released yet
-//   Released: received in 2023 / 2024 ... (blue shades)  + no received date
-// The hatched part is the "rest" (no release date / no received date).
-const SHADES = [1, 0.78, 0.58, 0.42, 0.3];
-
-function buildSegments({ rows, verb, color, rest, total }) {
-  const segs = rows.map((r, i) => ({
-    key: r.year,
-    count: r.count,
-    color,
-    alpha: SHADES[Math.min(i, SHADES.length - 1)],
-    text: `${fmt(r.count)} ${verb} ${r.year}`,
-  }));
-  if (rest.count > 0)
-    segs.push({
-      key: "rest",
-      count: rest.count,
-      hatched: true,
-      text: `${fmt(rest.count)} ${rest.text}`,
-    });
-  return segs.map((s) => ({
-    ...s,
-    pct: total ? Math.round((s.count / total) * 100) : 0,
-  }));
-}
-
-const hatch = (t) =>
-  `repeating-linear-gradient(135deg, ${t.lineStrong} 0 3px, transparent 3px 6px)`;
-
-// A number that counts up to its value (and from the old value when it
-// changes). Shows the value at once when the user prefers reduced motion.
-function CountUp({ value, duration = 700 }) {
-  const [shown, setShown] = useState(0);
-  const from = useRef(0);
-  useEffect(() => {
-    const reduce =
-      typeof window !== "undefined" &&
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce || value === from.current) {
-      from.current = value;
-      setShown(value);
-      return undefined;
-    }
-    const startAt = performance.now();
-    const startValue = from.current;
-    let raf;
-    const step = (now) => {
-      const p = Math.min(1, (now - startAt) / duration);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setShown(Math.round(startValue + (value - startValue) * eased));
-      if (p < 1) raf = requestAnimationFrame(step);
-      else from.current = value;
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [value, duration]);
-  return <>{fmt(shown)}</>;
-}
-
-// the number and its stacked bar. Clicking the number opens the whole list;
-// clicking one part of the bar opens only that part (onOpen gets the segment).
-// The bar is wiped in from the left; `delay` staggers the rows.
-function SplitBar({ value, segments, t, onOpen, delay = 0, tone = "blue" }) {
-  // the number takes the colour of its column: light blue = Received, green = Released
-  const c =
-    tone === "green"
-      ? { ink: t.accentText, soft: t.accentSoft, line: t.accentLine }
-      : { ink: t.blueText, soft: t.blueSoft, line: t.blueLine };
-  const number = {
-    display: "inline-block",
-    minWidth: 54,
-    padding: "3px 11px",
-    textAlign: "center",
-    borderRadius: 10,
-    fontFamily: "inherit",
-    fontSize: "1.2rem",
-    lineHeight: 1.25,
-    fontWeight: 700,
-    letterSpacing: "-0.02em",
-    fontVariantNumeric: "tabular-nums",
-  };
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-      <span style={{ width: 72, flexShrink: 0 }}>
-        {value > 0 && onOpen ? (
-          <button
-            type="button"
-            onClick={() => onOpen(null)}
-            title="Show these applications"
-            onMouseEnter={(e) => {
-              e.currentTarget.style.boxShadow = `0 0 0 3px ${c.soft}`;
-              e.currentTarget.style.borderColor = c.ink;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.boxShadow = "none";
-              e.currentTarget.style.borderColor = c.line;
-            }}
-            style={{
-              ...number,
-              background: c.soft,
-              color: c.ink,
-              border: `1px solid ${c.line}`,
-              cursor: "pointer",
-              transition: "box-shadow .15s, border-color .15s, transform .12s",
-            }}
-          >
-            <CountUp value={value} />
-          </button>
-        ) : (
-          <span
-            style={{
-              ...number,
-              fontWeight: 500,
-              color: t.ink3,
-              border: "1px solid transparent",
-            }}
-          >
-            <CountUp value={value} />
-          </span>
-        )}
-      </span>
-      <span
-        style={{
-          flex: 1,
-          height: 10,
-          borderRadius: 999,
-          background: t.pill,
-          overflow: "hidden",
-          display: "block",
-        }}
-      >
-        <span
-          className="em-wipe"
-          style={{
-            display: "flex",
-            gap: 2,
-            width: "100%",
-            height: "100%",
-            animationDelay: `${delay}ms`,
-          }}
-        >
-          {segments.map((s) => (
-            <span
-              key={s.key}
-              title={`${s.text} (${s.pct}%) — click to show these applications`}
-              onClick={onOpen ? () => onOpen(s) : undefined}
-              onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(0.9)")}
-              onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
-              style={{
-                flex: `${s.count} 1 0`,
-                height: "100%",
-                background: s.hatched ? hatch(t) : s.color,
-                opacity: s.hatched ? 1 : s.alpha,
-                cursor: onOpen ? "pointer" : "default",
-                transition: "filter .15s",
-              }}
-            />
-          ))}
-        </span>
-      </span>
-    </div>
-  );
-}
-
-// the legend under the bar; each dot has the colour of its segment, and each
-// item opens the list of that part
-function SplitCaption({ segments, t, onOpen }) {
-  if (segments.length === 0) return null;
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        gap: "2px 6px",
-        marginTop: 5,
-        paddingLeft: 79, // lines up under the bar
-        fontSize: "0.68rem",
-        color: t.ink2,
-      }}
-    >
-      {segments.map((s) => (
-        <button
-          key={s.key}
-          type="button"
-          onClick={onOpen ? () => onOpen(s) : undefined}
-          title="Show these applications"
-          onMouseEnter={(e) => (e.currentTarget.style.background = t.blueSoft)}
-          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "2px 7px",
-            background: "transparent",
-            border: "none",
-            borderRadius: 6,
-            fontFamily: "inherit",
-            fontSize: "inherit",
-            color: "inherit",
-            cursor: onOpen ? "pointer" : "default",
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 3,
-              flexShrink: 0,
-              background: s.hatched ? hatch(t) : s.color,
-              opacity: s.hatched ? 1 : s.alpha,
-              border: s.hatched ? `1px solid ${t.lineStrong}` : "none",
-              boxSizing: "border-box",
-            }}
-          />
-          {s.text}
-          <span style={{ color: t.ink3 }}>{s.pct}%</span>
-        </button>
-      ))}
-    </div>
-  );
 }
 
 // "application log" or "Date Decked" next to a date; amber when it is a fallback
@@ -349,6 +129,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
   const [error, setError] = useState("");
   const [showSkipped, setShowSkipped] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfOpen, setPdfOpen] = useState(false); // the Export PDF dialog
   // filter the Companies and Drugs tables to one source of the TAT dates:
   // { start: "log" | "decked", end: "log" | "released" } or null
   const [sourceFilter, setSourceFilter] = useState(null);
@@ -358,6 +139,8 @@ function EvaluatorsMonitoringPage({ darkMode }) {
   const [recordsTarget, setRecordsTarget] = useState(null); // { kind, key, name }
   // a Received / Released number of the period card: { side, bucket, label, seg }
   const [periodTarget, setPeriodTarget] = useState(null);
+  // a year row that was clicked: opens that year's monthly breakdown
+  const [monthsYear, setMonthsYear] = useState(null);
   // search text and sort of the Companies / Drugs tables
   const EMPTY_VIEW = { q: "", key: null, dir: "asc" }; // no sort = by rank
   const [views, setViews] = useState({
@@ -462,6 +245,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
     setPeriodTarget(null);
     setViews({ company: EMPTY_VIEW, drug: EMPTY_VIEW });
     setSourceFilter(null);
+    setMonthsYear(null);
   };
   const pickEvaluator = (e) => {
     setEvaluator(e);
@@ -473,6 +257,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
     setPeriodTarget(null);
     setViews({ company: EMPTY_VIEW, drug: EMPTY_VIEW });
     setSourceFilter(null);
+    setMonthsYear(null);
   };
   const toggleSource = (x) =>
     setSourceFilter((cur) =>
@@ -481,20 +266,29 @@ function EvaluatorsMonitoringPage({ darkMode }) {
         : { start: x.start, end: x.end },
     );
 
+  // the same, from the month-by-month dialog: the year comes from the dialog
+  // extra = { company_key | drug_key | doc_type, name } from the month summary
+  const openMonthPeriod = (side, p, seg, extra = null) => {
+    setRecordsTarget(null);
+    setPeriodTarget({ side, bucket: p.key, label: p.label, seg, year: monthsYear, extra });
+  };
+
   // seg = null for the whole number, or one part of its split
   const openPeriod = (side, p, seg) => {
     setRecordsTarget(null);
     setPeriodTarget({ side, bucket: p.key, label: p.label, seg });
   };
-  // Build the PDF after the button has repainted, so "Preparing…" shows first
-  const downloadPdf = () => {
+  // Build the PDF after the dialog has repainted, so "Preparing…" shows first
+  const generatePdf = (sections) => {
     if (!data || pdfBusy) return;
     setPdfBusy(true);
     setTimeout(() => {
       try {
-        exportMonitoringPdf({ data, periodLabel });
+        exportMonitoringPdf({ data, periodLabel, sections });
+        setPdfOpen(false);
       } catch (err) {
         console.error("PDF export failed:", err);
+        setPdfOpen(false);
         setError("Could not build the PDF.");
       } finally {
         setPdfBusy(false);
@@ -812,8 +606,8 @@ function EvaluatorsMonitoringPage({ darkMode }) {
           letterSpacing: "-0.02em",
         }}
       >
-        <Icon name="compass" size={22} style={{ color: t.ink2 }} />
-        Evaluators Monitoring
+        <Icon name="trend" size={22} style={{ color: t.ink2 }} />
+        User Insights
       </h1>
       <p
         style={{
@@ -1224,265 +1018,58 @@ function EvaluatorsMonitoringPage({ darkMode }) {
             </div>
             <button
               type="button"
-              onClick={downloadPdf}
-              disabled={pdfBusy}
-              title="Download everything on this page as a PDF"
-              style={{
-                ...ui.buttonGreen,
-                opacity: pdfBusy ? 0.6 : 1,
-                cursor: pdfBusy ? "default" : "pointer",
-              }}
+              onClick={() => setPdfOpen(true)}
+              title="Choose what to include, then download a PDF"
+              style={ui.buttonGreen}
             >
               <Icon name="download" size={14} />
-              {pdfBusy ? "Preparing…" : "Download PDF"}
+              Download PDF
             </button>
           </div>
 
           {/* received / released */}
-          {(() => {
-            const periods = data.periods;
-            const receivedSegs = (p) =>
-              buildSegments({
-                rows: p.received_split?.released || [],
-                verb: "released in",
-                color: t.blue, // the Received column is light blue all the way
-                rest: {
-                  count: p.received_split?.not_released || 0,
-                  text: "not released yet",
-                },
-                total: p.received,
-              });
-            const releasedSegs = (p) =>
-              buildSegments({
-                rows: p.released_split?.received || [],
-                verb: "received in",
-                color: t.accent, // the Released column is green all the way
-                rest: {
-                  count: p.released_split?.no_received_date || 0,
-                  text: "with no received date",
-                },
-                total: p.released,
-              });
-            const totalReceived = periods.reduce((n, p) => n + p.received, 0);
-            const totalReleased = periods.reduce((n, p) => n + p.released, 0);
-            const totalSplitReleased = periods.reduce(
-              (n, p) =>
-                n +
-                (p.received_split?.released || []).reduce(
-                  (m, r) => m + r.count,
-                  0,
-                ),
-              0,
-            );
-            const totalNotReleased = periods.reduce(
-              (n, p) => n + (p.received_split?.not_released || 0),
-              0,
-            );
-            const grid = {
-              display: "grid",
-              gridTemplateColumns: "88px minmax(0, 1fr) minmax(0, 1fr)",
-              columnGap: 44,
-              alignItems: "center",
-              padding: "0 1.1rem",
-            };
-            const headLabel = {
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              fontSize: "0.6rem",
-              fontWeight: 600,
-              letterSpacing: "0.09em",
-              textTransform: "uppercase",
-              color: t.ink3,
-            };
-            const dot = (color) => (
+          <div style={ui.card}>
+            <div style={ui.cardHead}>
+              <h3 style={ui.cardTitle}>
+                <IconChip name="calendar" t={t} tone="green" />
+                Received and Released{" "}
+                {data.period_mode === "year" ? "by Year" : `by Month, ${year}`}
+              </h3>
+              <span style={ui.pillGreen}>open and closed apps</span>
               <span
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: color,
+                  marginLeft: "auto",
+                  fontSize: "0.68rem",
+                  color: t.ink3,
                 }}
+              >
+                {data.period_mode === "year" && "Click a year to see its monthly breakdown. "}
+                Each bar splits its number: Received by the year it was
+                released, Released by the year it was received.
+              </span>
+            </div>
+            {data.periods.length === 0 ? (
+              empty("No closed applications on record.")
+            ) : (
+              <PeriodsTable
+                periods={data.periods}
+                mode={data.period_mode}
+                selectedKey={
+                  data.period_mode === "month" && month !== "All"
+                    ? Number(month)
+                    : null
+                }
+                onOpen={openPeriod}
+                onRowClick={
+                  data.period_mode === "year"
+                    ? (p) => setMonthsYear(p.key)
+                    : undefined
+                }
+                ui={ui}
+                t={t}
               />
-            );
-            return (
-              <div style={ui.card}>
-                <div style={ui.cardHead}>
-                  <h3 style={ui.cardTitle}>
-                    <IconChip name="calendar" t={t} tone="green" />
-                    Received and Released{" "}
-                    {data.period_mode === "year"
-                      ? "by Year"
-                      : `by Month, ${year}`}
-                  </h3>
-                  <span style={ui.pillGreen}>open and closed apps</span>
-                  <span
-                    style={{
-                      marginLeft: "auto",
-                      fontSize: "0.68rem",
-                      color: t.ink3,
-                    }}
-                  >
-                    Each bar splits its number: Received by the year it was
-                    released, Released by the year it was received.
-                  </span>
-                </div>
-                {periods.length === 0 ? (
-                  empty("No closed applications on record.")
-                ) : (
-                  <div style={{ maxHeight: 700, overflow: "auto" }}>
-                    <div
-                      style={{
-                        ...grid,
-                        height: 38,
-                        borderBottom: `1px solid ${t.line}`,
-                      }}
-                    >
-                      <span style={headLabel}>
-                        {data.period_mode === "year" ? "Year" : "Month"}
-                      </span>
-                      <span style={headLabel}>
-                        {dot(t.blue)}
-                        Received
-                      </span>
-                      <span style={headLabel}>
-                        {dot(t.accent)}
-                        Released
-                      </span>
-                    </div>
-                    {periods.map((p, idx) => {
-                      const selected =
-                        data.period_mode === "month" &&
-                        month !== "All" &&
-                        Number(month) === p.key;
-                      return (
-                        <div
-                          key={p.key}
-                          style={{
-                            ...grid,
-                            alignItems: "start",
-                            padding: "15px 1.1rem",
-                            borderBottom: `1px solid ${t.line}`,
-                            background: selected ? t.blueSoft : "transparent",
-                            transition: "background .12s",
-                          }}
-                          onMouseEnter={(e) =>
-                            !selected &&
-                            (e.currentTarget.style.background = t.rowHover)
-                          }
-                          onMouseLeave={(e) =>
-                            !selected && ui.hoverOff(e)
-                          }
-                        >
-                          <span
-                            style={{
-                              paddingTop: 5, // lines up with the big numbers
-                              fontSize: "0.9rem",
-                              fontWeight: 600,
-                              letterSpacing: "-0.01em",
-                            }}
-                          >
-                            {p.label}
-                          </span>
-                          <div>
-                            <SplitBar
-                              value={p.received}
-                              segments={receivedSegs(p)}
-                              t={t}
-                              delay={250 + idx * 90}
-                              tone="blue"
-                              onOpen={(seg) => openPeriod("received", p, seg)}
-                            />
-                            <SplitCaption
-                              segments={receivedSegs(p)}
-                              t={t}
-                              onOpen={(seg) => openPeriod("received", p, seg)}
-                            />
-                          </div>
-                          <div>
-                            <SplitBar
-                              value={p.released}
-                              segments={releasedSegs(p)}
-                              t={t}
-                              delay={330 + idx * 90}
-                              tone="green"
-                              onOpen={(seg) => openPeriod("released", p, seg)}
-                            />
-                            <SplitCaption
-                              segments={releasedSegs(p)}
-                              t={t}
-                              onOpen={(seg) => openPeriod("released", p, seg)}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div
-                      style={{
-                        ...grid,
-                        height: 46,
-                        background: t.sunken,
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                    >
-                      <span
-                        style={{
-                          ...headLabel,
-                          color: t.ink2,
-                        }}
-                      >
-                        Total
-                      </span>
-                      <div>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            minWidth: 54,
-                            padding: "3px 11px",
-                            border: "1px solid transparent",
-                            textAlign: "center",
-                            fontSize: "1.2rem",
-                            fontWeight: 800,
-                            letterSpacing: "-0.02em",
-                            color: t.blueText,
-                          }}
-                        >
-                          <CountUp value={totalReceived} />
-                        </span>
-                        <span
-                          style={{
-                            marginLeft: 12,
-                            fontSize: "0.68rem",
-                            color: t.ink2,
-                          }}
-                        >
-                          {fmt(totalSplitReleased)} released ·{" "}
-                          {fmt(totalNotReleased)} not released yet
-                        </span>
-                      </div>
-                      <div>
-                        <span
-                          style={{
-                            display: "inline-block",
-                            minWidth: 54,
-                            padding: "3px 11px",
-                            border: "1px solid transparent",
-                            textAlign: "center",
-                            fontSize: "1.2rem",
-                            fontWeight: 800,
-                            letterSpacing: "-0.02em",
-                            color: t.accentText,
-                          }}
-                        >
-                          <CountUp value={totalReleased} />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
+            )}
+          </div>
 
           {(() => {
             const srcs = data.summary.sources || [];
@@ -1853,6 +1440,29 @@ function EvaluatorsMonitoringPage({ darkMode }) {
         </div>
       )}
 
+      {pdfOpen && data && (
+        <ExportPdfModal
+          subtitle={`${data.evaluator.full_name} · ${periodLabel}`}
+          busy={pdfBusy}
+          darkMode={darkMode}
+          onGenerate={generatePdf}
+          onCancel={() => setPdfOpen(false)}
+        />
+      )}
+
+      {monthsYear && evaluator && (
+        <YearMonthsModal
+          year={monthsYear}
+          userId={evaluator.user_id}
+          role={role}
+          personName={data?.evaluator?.full_name}
+          darkMode={darkMode}
+          blocked={!!periodTarget}
+          onOpenList={openMonthPeriod}
+          onClose={() => setMonthsYear(null)}
+        />
+      )}
+
       {recordsTarget && evaluator && (
         <EvaluatorRecordsModal
           kind={recordsTarget.kind}
@@ -1885,31 +1495,45 @@ function EvaluatorsMonitoringPage({ darkMode }) {
         evaluator &&
         (() => {
           const { side, bucket, seg } = periodTarget;
-          const sideWord = side === "received" ? "Received" : "Released";
+          const sideWord =
+            side === "received" ? "Received" : side === "released" ? "Released" : "Month";
+          // a list opened from the month-by-month dialog carries its own year
+          const listYear = periodTarget.year ?? year;
           const label =
-            data?.period_mode === "month"
-              ? `${periodTarget.label} ${year}`
+            periodTarget.year || data?.period_mode === "month"
+              ? `${periodTarget.label} ${listYear}`
               : periodTarget.label;
+          const listTitle =
+            side === "either"
+              ? `Received or released in ${label}${periodTarget.extra ? ` · ${periodTarget.extra.name}` : ""}`
+              : `${sideWord} in ${label}`;
           return (
             <EvaluatorRecordsModal
               kind="period"
               eyebrow={sideWord}
               iconName="calendar"
-              title={`${sideWord} in ${label}`}
+              title={listTitle}
               context={null}
-              loadKey={`period|${side}|${bucket}|${seg?.key ?? "all"}|${evaluator.user_id}|${year}|${role}`}
+              loadKey={`period|${side}|${bucket}|${seg?.key ?? "all"}|${periodTarget.extra?.name ?? ""}|${evaluator.user_id}|${listYear}|${role}`}
               loader={() =>
                 getEvaluatorPeriodRecords({
                   user_id: evaluator.user_id,
                   side,
                   bucket,
-                  year,
-                  other_year: seg && seg.key !== "rest" ? seg.key : undefined,
+                  year: listYear,
+                  other_year: seg && seg.key !== "rest" ? seg.year : undefined,
+                  other_month: seg && seg.key !== "rest" ? seg.month : undefined,
                   rest: seg?.key === "rest" ? true : undefined,
+                  company_key: periodTarget.extra?.company_key,
+                  drug_key: periodTarget.extra?.drug_key,
+                  doc_type: periodTarget.extra?.doc_type,
                   page: 1,
                   page_size: 2000,
                   role,
-                })
+                }).then((res) =>
+                  // the list is narrowed to one company / drug / type: say so
+                  periodTarget.extra ? { ...res, name: listTitle } : res,
+                )
               }
               evaluator={data?.evaluator}
               colors={colors}

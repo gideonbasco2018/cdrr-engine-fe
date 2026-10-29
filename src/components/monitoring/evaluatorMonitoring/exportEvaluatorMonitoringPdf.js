@@ -1,5 +1,5 @@
 // src/components/monitoring/evaluatorMonitoring/exportEvaluatorMonitoringPdf.js
-// Builds an A4 landscape PDF of everything on the Evaluators Monitoring page
+// Builds an A4 landscape PDF of everything on the User Insights page
 // (Received/Released, Companies, Drugs, Skipped, how it is computed), in the
 // browser. Drawn from the loaded data (no screenshots) and always light, so it
 // prints well. Same approach as the other monitoring reports.
@@ -92,7 +92,7 @@ function drawHeader(doc, state, { data, periodLabel, userName }) {
   doc.setFillColor(...C.green);
   doc.rect(0, 24, W, 0.9, "F");
 
-  text(doc, `${data.role_label || "Evaluator"} Monitoring Report`, M, 8, {
+  text(doc, `User Insights Report  |  ${data.role_label || "Evaluator"}`, M, 8, {
     size: 8,
     bold: true,
     color: [161, 161, 170],
@@ -476,32 +476,40 @@ function drawSources(doc, state, { data }) {
 
 // ═════════════════════════ ENTRY ═════════════════════════
 
-export function exportMonitoringPdf({ data, periodLabel }) {
+// sections = the keys chosen in the Export PDF dialog (periods, sources,
+// companies, drugs, skipped, formula); everything when it is not given
+export function exportMonitoringPdf({ data, periodLabel, sections }) {
+  const has = (key) => !sections || sections.includes(key);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const state = { y: 0 };
   const u = getUser();
   const userName = [u?.first_name, u?.surname].filter(Boolean).join(" ");
 
   drawHeader(doc, state, { data, periodLabel, userName });
-  drawPeriods(doc, state, { data });
-  drawSources(doc, state, { data });
+  if (has("periods")) drawPeriods(doc, state, { data });
+  if (has("sources")) drawSources(doc, state, { data });
   const [fs, fe] = String(data.filters?.source || "").split(":");
   const filterText = fs && fe ? sourceText({ start: fs, end: fe }, " to ") : "";
-  drawRanked(doc, state, {
-    title: "Companies",
-    label: "Company",
-    rows: data.companies,
-    color: C.blue,
-    filterText,
-  });
-  drawRanked(doc, state, {
-    title: "Drugs (Generic Name)",
-    label: "Generic Name",
-    rows: data.drugs,
-    color: C.blue,
-    filterText,
-  });
-  if (data.summary.without_company > 0 || data.summary.without_generic > 0) {
+  if (has("companies"))
+    drawRanked(doc, state, {
+      title: "Companies",
+      label: "Company",
+      rows: data.companies,
+      color: C.blue,
+      filterText,
+    });
+  if (has("drugs"))
+    drawRanked(doc, state, {
+      title: "Drugs (Generic Name)",
+      label: "Generic Name",
+      rows: data.drugs,
+      color: C.blue,
+      filterText,
+    });
+  if (
+    (has("companies") || has("drugs")) &&
+    (data.summary.without_company > 0 || data.summary.without_generic > 0)
+  ) {
     ensure(doc, state, 8);
     text(
       doc,
@@ -512,8 +520,8 @@ export function exportMonitoringPdf({ data, periodLabel }) {
     );
     state.y += 9;
   }
-  drawSkipped(doc, state, { data });
-  drawFormula(doc, state, { data });
+  if (has("skipped")) drawSkipped(doc, state, { data });
+  if (has("formula")) drawFormula(doc, state, { data });
 
   // footer on every page
   const pages = doc.getNumberOfPages();
@@ -522,7 +530,7 @@ export function exportMonitoringPdf({ data, periodLabel }) {
     doc.setDrawColor(...C.line);
     doc.setLineWidth(0.2);
     doc.line(M, H - 10, W - M, H - 10);
-    text(doc, `Evaluators Monitoring  |  ${data.evaluator.full_name}  |  ${periodLabel}`, M, H - 6, {
+    text(doc, `User Insights  |  ${data.evaluator.full_name}  |  ${periodLabel}`, M, H - 6, {
       size: 7,
       color: C.muted,
     });
@@ -535,6 +543,6 @@ export function exportMonitoringPdf({ data, periodLabel }) {
 
   const stamp = new Date().toISOString().slice(0, 10);
   doc.save(
-    `Evaluators Monitoring - ${safeName(data.evaluator.full_name)} - ${stamp}.pdf`,
+    `User Insights - ${safeName(data.evaluator.full_name)} - ${stamp}.pdf`,
   );
 }

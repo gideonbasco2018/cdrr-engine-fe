@@ -15,8 +15,8 @@ export const menuDefinitions = {
     },
     {
       id: "evaluators-monitoring",
-      icon: "🧭",
-      label: "Evaluators Monitoring",
+      icon: "📈",
+      label: "User Insights",
       roles: ["User", "Admin", "SuperAdmin"],
     },
   ],

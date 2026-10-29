@@ -1,5 +1,5 @@
 // src/components/monitoring/evaluatorMonitoring/exportEvaluatorMonitoring.js
-// Excel exports for the Evaluators Monitoring page and its records modal.
+// Excel exports for the User Insights page and its records modal.
 import * as XLSX from "xlsx";
 import { startLabel, endLabel } from "./tatSources";
 
@@ -163,5 +163,5 @@ export function exportMonitoringXlsx({ data, periodLabel }) {
       : []),
   ]);
 
-  XLSX.writeFile(wb, `Evaluators Monitoring - ${safeName(ev.full_name)} - ${stamp()}.xlsx`);
+  XLSX.writeFile(wb, `User Insights - ${safeName(ev.full_name)} - ${stamp()}.xlsx`);
 }

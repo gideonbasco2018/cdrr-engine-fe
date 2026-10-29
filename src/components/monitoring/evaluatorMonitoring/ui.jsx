@@ -1,5 +1,5 @@
 // src/components/monitoring/evaluatorMonitoring/ui.jsx
-// Shared look of the Evaluators Monitoring page and its modal: a quiet,
+// Shared look of the User Insights page and its modal: a quiet,
 // neutral base (white, black and greys) with hairline borders, soft shadows
 // and thin line icons, plus a few quiet accents:
 //   green  = performance (active switch, top ranks, TAT values)
@@ -338,6 +338,18 @@ const PATHS = {
     <>
       <path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" />
       <path d="M4.5 19.5h15" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 3H7.5A1.5 1.5 0 006 4.5v15A1.5 1.5 0 007.5 21h9a1.5 1.5 0 001.5-1.5V7z" />
+      <path d="M14 3v4a1 1 0 001 1h3M9.5 12.5h5M9.5 16h5" />
+    </>
+  ),
+  trend: (
+    <>
+      <path d="M3.5 17l5.5-5.5 3.5 3.5L20.5 7" />
+      <path d="M15 7h5.5v5.5" />
     </>
   ),
   chevron: <path d="M6 9.5l6 6 6-6" />,
