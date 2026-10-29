@@ -158,3 +158,27 @@ export const getCompanyKpiRecords = async (params = {}) => {
     });
     return res.data;
 };
+
+
+export const searchGenericNames = async (q, limit = 30) => {
+    const res = await API.get("/analytics/generic-monitoring/search", {
+        params: { q, limit },
+    });
+    return res.data;
+};
+
+export const getGenericMonitoring = async (params = {}) => {
+    const res = await API.get("/analytics/generic-monitoring", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};
+
+export const getGenericMonitoringRecords = async (params = {}) => {
+    const res = await API.get("/analytics/generic-monitoring/records", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};

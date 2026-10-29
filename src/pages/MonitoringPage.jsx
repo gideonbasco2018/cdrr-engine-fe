@@ -20,6 +20,7 @@ import EvaluatorAppTypesView from "../components/monitoring/evaluatorAppTypes/Ev
 import TopCompaniesView from "../components/monitoring/topCompanies/TopCompaniesView";
 import FastestProcessingView from "../components/monitoring/fastestProcessing/FastestProcessingView";
 import CompanyMonitoringView from "../components/monitoring/companyMonitoring/CompanyMonitoringView";
+import GenericDrugsView from "../components/monitoring/genericDrugs/GenericDrugsView";
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1048,7 +1049,8 @@ function renderContent(
       return <ClidpEservicesView ui={ui} darkMode={darkMode} />;
     case "evalapptypes":
       return <EvaluatorAppTypesView ui={ui} darkMode={darkMode} />;
-
+    case "genericdrugs":
+      return <GenericDrugsView ui={ui} darkMode={darkMode} />;
     default:
       return null;
   }
@@ -1322,6 +1324,11 @@ function MonitoringPage({ darkMode }) {
       key: "clidpeservices",
       label: "Priority Meds (CLIDP)",
       subtitle: "From eServices DB",
+    },
+    {
+      key: "genericdrugs",
+      label: "Generic Drugs",
+      subtitle: "Pending & registered per generic",
     },
     // Admin (12-13)
     { key: "activity", label: "Activity Feed", subtitle: "Live event stream" },
