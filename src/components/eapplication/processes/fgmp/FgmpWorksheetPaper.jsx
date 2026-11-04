@@ -122,7 +122,7 @@ const EditCtx = createContext(null);
 
 const faint = { color: "#94a3b8", fontStyle: "italic", fontWeight: 400 };
 
-function Hl({ k, block, empty, children }) {
+function Hl({ k, ws, block, empty, children }) {
   const active = useContext(ActiveRegion) === k;
   const open = useContext(EditCtx)?.open;
   const editable = !!open && !!FIELD_DEFS[k];
@@ -130,6 +130,7 @@ function Hl({ k, block, empty, children }) {
   return (
     <Tag
       data-hl={k}
+      data-ws={ws}
       onClick={
         editable
           ? (e) => {
@@ -273,7 +274,7 @@ function Ed({ k, id, value, hole, ph = "click to fill", multiline, write, fallba
 
   if (!editor) {
     return (
-      <Hl k={k} empty={!text}>
+      <Hl k={k} ws={left.field} empty={!text}>
         {text ? text : fallback ? fallback : hole ? <Red>{hole}</Red> : null}
       </Hl>
     );
@@ -282,6 +283,7 @@ function Ed({ k, id, value, hole, ph = "click to fill", multiline, write, fallba
     <span
       ref={ref}
       data-hl={k}
+      data-ws={left.field}
       data-ph={hole || fallback || ph}
       className={
         hole

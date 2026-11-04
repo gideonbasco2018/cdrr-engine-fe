@@ -2,6 +2,7 @@
 // Excel exports for the User Insights page and its records modal.
 import * as XLSX from "xlsx";
 import { startLabel, endLabel } from "./tatSources";
+import { roleName } from "./roles";
 
 const safeName = (s) =>
   String(s ?? "export")
@@ -31,11 +32,21 @@ const spellingsText = (list) =>
 
 // ── The applications behind one Company / Drug row (modal) ──
 export function exportRecordsXlsx({ data, rows, evaluator, context }) {
+  const srcs = data.sources || ["cpr"];
+  const both = srcs.length > 1;
+  const manyRoles = (data.roles || []).length > 1;
+  const genericLabel = both
+    ? "Generic Name / Product Line"
+    : srcs[0] === "fgmp"
+      ? "Product Line"
+      : "Generic Name";
   const head = [
     "#",
+    ...(both ? ["Data"] : []),
+    ...(manyRoles ? ["Role"] : []),
     "DTN",
     "Company",
-    "Generic Name",
+    genericLabel,
     "Brand Name",
     "Document Type",
     "Date Received",
@@ -49,6 +60,8 @@ export function exportRecordsXlsx({ data, rows, evaluator, context }) {
   ];
   const body = rows.map((r, i) => [
     i + 1,
+    ...(both ? [String(r.source || "").toUpperCase()] : []),
+    ...(manyRoles ? [roleName(r.role)] : []),
     r.dtn,
     r.company,
     r.generic_name,

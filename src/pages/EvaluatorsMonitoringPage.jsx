@@ -7,6 +7,7 @@ import { getAnalyticsAvailableYears } from "../api/analytics";
 import {
   searchEvaluators,
   getEvaluatorMonitoring,
+  getEvaluatorYears,
   getEvaluatorRecords,
   getEvaluatorPeriodRecords,
 } from "../api/evaluatorMonitoring";
@@ -33,6 +34,18 @@ import {
   AMBER,
 } from "../components/monitoring/evaluatorMonitoring/ui";
 import { exportMonitoringPdf } from "../components/monitoring/evaluatorMonitoring/exportEvaluatorMonitoringPdf";
+import { SourceBadge } from "../components/monitoring/evaluatorMonitoring/SourceBadge";
+import PickList from "../components/monitoring/evaluatorMonitoring/PickList";
+import CheckList from "../components/monitoring/evaluatorMonitoring/CheckList";
+import {
+  DEFAULT_ROLES,
+  ROLE_KEYS,
+  ROLE_OPTIONS,
+  roleName,
+  rolesLabel,
+  rolesWord,
+  withArticle,
+} from "../components/monitoring/evaluatorMonitoring/roles";
 
 const MONTHS = [
   "January",
@@ -102,17 +115,56 @@ function EvaluatorsMonitoringPage({ darkMode }) {
   const ui = makeUi(darkMode);
   const { t } = ui;
 
-  // Evaluator or Checker view; the same page and tables work for both
-  const [role, setRole] = useState("evaluator");
-  const roleLabel = role === "checker" ? "Checker" : "Evaluator";
-  const roleWord = roleLabel.toLowerCase();
+  // Workflow roles to show (at least one stays ticked); with several ticked,
+  // each role's work shows together
+  const [roles, setRoles] = useState(DEFAULT_ROLES);
+  const role = roles.join(","); // what the API takes
+  const bothRoles = roles.length > 1; // more than one role: show a Role column
+  const roleLabel = rolesLabel(roles);
+  // "evaluator", "evaluator or checker" or "chosen role" in sentences
+  const roleWord = rolesWord(roles);
+  const personWord = bothRoles ? "user" : roleWord;
+  // Evaluator and Checker may fall back on the decked date / Date Released;
+  // every other role uses its own log dates only
+  const hasFallbackRole = roles.some((r) => r === "evaluator" || r === "checker");
+
+  // which data to read: CPR, FGMP or both (at least one stays ticked)
+  const [sources, setSources] = useState(["cpr", "fgmp"]);
+  const sourcesParam = sources.join(",");
+  const hasFgmp = sources.includes("fgmp");
+  const hasCpr = sources.includes("cpr");
+  const bothSources = hasCpr && hasFgmp;
+  // FGMP has no generic name: it ranks the product line instead
+  const drugTitle = bothSources
+    ? "Drugs / Product line"
+    : hasFgmp
+      ? "Product line"
+      : "Drugs (Generic Name)";
+  const drugLabel = bothSources
+    ? "Generic Name / Product Line"
+    : hasFgmp
+      ? "Product Line"
+      : "Generic Name";
+  const toggleDataSource = (key) =>
+    setSources((cur) => {
+      if (cur.includes(key)) return cur.length > 1 ? cur.filter((k) => k !== key) : cur;
+      return ["cpr", "fgmp"].filter((k) => k === key || cur.includes(k));
+    });
 
   // person search
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounced(query);
-  const [results, setResults] = useState({ q: null, role: null, items: [] });
+  const [results, setResults] = useState({
+    q: null,
+    role: null,
+    sources: null,
+    items: [],
+  });
   // the list is for the current text only; otherwise we are still waiting
-  const upToDate = results.q === query.trim() && results.role === role;
+  const upToDate =
+    results.q === query.trim() &&
+    results.role === role &&
+    results.sources === sourcesParam;
   const items = upToDate ? results.items : [];
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef(null);
@@ -120,6 +172,9 @@ function EvaluatorsMonitoringPage({ darkMode }) {
 
   // filters
   const [years, setYears] = useState([]);
+  // the years of the chosen person (null until loaded); the list above is the
+  // fallback before anyone is chosen
+  const [personYears, setPersonYears] = useState(null);
   const [year, setYear] = useState("All");
   const [month, setMonth] = useState("All");
 
@@ -193,19 +248,52 @@ function EvaluatorsMonitoringPage({ darkMode }) {
     const q = debouncedQuery.trim();
     if (q !== query.trim()) return; // still typing
     let cancelled = false;
-    searchEvaluators(q, 500, role)
+    searchEvaluators(q, 500, role, sourcesParam)
       .then(
-        (res) => !cancelled && setResults({ q, role, items: res?.data || [] }),
+        (res) =>
+          !cancelled &&
+          setResults({ q, role, sources: sourcesParam, items: res?.data || [] }),
       )
       .catch((err) => {
         if (cancelled) return;
-        setResults({ q, role, items: [] });
-        setError(errorMessage(err, `Could not search ${roleWord}s.`));
+        setResults({ q, role, sources: sourcesParam, items: [] });
+        setError(errorMessage(err, `Could not search ${personWord}s.`));
       });
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, showResults, role]);
+  }, [debouncedQuery, showResults, role, sourcesParam]);
+
+  // Only the years in which this person received or released something
+  useEffect(() => {
+    if (!evaluator) {
+      setPersonYears(null);
+      return;
+    }
+    let cancelled = false;
+    getEvaluatorYears({
+      user_id: evaluator.user_id,
+      role,
+      sources: sourcesParam,
+    })
+      .then((res) => {
+        if (cancelled) return;
+        setPersonYears(res?.years || []);
+      })
+      .catch(() => !cancelled && setPersonYears(null));
+    return () => {
+      cancelled = true;
+    };
+  }, [evaluator, role, sourcesParam]);
+
+  // a year with nothing for this person (e.g. after a change of category)
+  // goes back to All years
+  useEffect(() => {
+    if (year !== "All" && personYears && !personYears.includes(String(year))) {
+      setYear("All");
+      setMonth("All");
+    }
+  }, [personYears]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!evaluator) return;
@@ -217,29 +305,38 @@ function EvaluatorsMonitoringPage({ darkMode }) {
       year,
       month: year === "All" ? "All" : month,
       role,
+      sources: sourcesParam,
       source: sourceKey,
     })
       .then((res) => !cancelled && setData(res))
       .catch((err) => {
         if (cancelled) return;
         setData(null);
-        setError(errorMessage(err, `Could not load this ${roleWord}.`));
+        setError(errorMessage(err, `Could not load this ${personWord}.`));
       })
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [evaluator, year, month, role, sourceKey]);
+  }, [evaluator, year, month, role, sourceKey, sourcesParam]);
 
-  const changeRole = (next) => {
-    if (next === role) return;
-    setRole(next);
-    setEvaluator(null);
-    setData(null);
+  const toggleRole = (key) => {
+    if (roles.includes(key) && roles.length === 1) return; // one stays ticked
+    setRoles((cur) =>
+      cur.includes(key)
+        ? cur.filter((k) => k !== key)
+        : ROLE_KEYS.filter((k) => k === key || cur.includes(k)),
+    );
+    resetForRoles();
+  };
+  // "All Roles" row: tick every role, or go back to the starting roles
+  const toggleAllRoles = () => {
+    setRoles((cur) => (cur.length === ROLE_KEYS.length ? DEFAULT_ROLES : ROLE_KEYS));
+    resetForRoles();
+  };
+  const resetForRoles = () => {
     setError("");
-    setQuery("");
-    setResults({ q: null, role: null, items: [] });
-    setShowResults(false);
+    setResults({ q: null, role: null, sources: null, items: [] });
     setShowSkipped(false);
     setRecordsTarget(null);
     setPeriodTarget(null);
@@ -250,7 +347,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
   const pickEvaluator = (e) => {
     setEvaluator(e);
     setQuery("");
-    setResults({ q: null, role: null, items: [] });
+    setResults({ q: null, role: null, sources: null, items: [] });
     setShowResults(false);
     setShowSkipped(false);
     setRecordsTarget(null);
@@ -540,7 +637,25 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                       )}
                     </td>
                     <td style={{ ...ui.td, wordBreak: "break-word" }}>
-                      <span>{r.name}</span>
+                      <span
+                        title={r.name}
+                        style={{
+                          display: "inline-block",
+                          maxWidth: "100%",
+                          verticalAlign: "top",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {r.name}
+                      </span>
+                      {bothSources &&
+                        Object.keys(r.by_source || {}).map((k) => (
+                          <span key={k} style={{ marginLeft: 8 }}>
+                            <SourceBadge source={k} t={t} />
+                          </span>
+                        ))}
                       {r.spellings.length > 1 && (
                         <span
                           title={r.spellings.map((s) => s.name).join("\n")}
@@ -616,8 +731,8 @@ function EvaluatorsMonitoringPage({ darkMode }) {
           color: t.ink3,
         }}
       >
-        How an evaluator or a checker handled closed applications, per company
-        and per drug.
+        How a person handled closed applications in the workflow roles you
+        tick, per company and per drug. Tick CPR, FGMP or both.
       </p>
 
       {/* search + filters */}
@@ -633,67 +748,6 @@ function EvaluatorsMonitoringPage({ darkMode }) {
           marginBottom: "1.25rem",
         }}
       >
-        <div
-          role="tablist"
-          aria-label="View"
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            padding: 3,
-            background: t.sunken,
-            border: `1px solid ${t.line}`,
-            borderRadius: 11,
-          }}
-        >
-          {/* the green thumb slides under the chosen button */}
-          <span
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              top: 3,
-              left: 3,
-              width: 96,
-              height: 28,
-              borderRadius: 8,
-              background: t.accent,
-              boxShadow: "0 2px 8px rgba(16,185,129,0.35)",
-              transform: `translateX(${role === "checker" ? 96 : 0}px)`,
-              transition: "transform .3s cubic-bezier(.4,0,.2,1)",
-            }}
-          />
-          {[
-            ["evaluator", "Evaluator"],
-            ["checker", "Checker"],
-          ].map(([id, label]) => {
-            const active = role === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => changeRole(id)}
-                style={{
-                  position: "relative",
-                  zIndex: 1,
-                  width: 96,
-                  height: 28,
-                  background: "transparent",
-                  color: active ? "#ffffff" : t.ink2,
-                  border: "none",
-                  borderRadius: 8,
-                  fontSize: "0.74rem",
-                  fontWeight: active ? 600 : 500,
-                  cursor: "pointer",
-                  transition: "color .25s, transform .12s",
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
         <div
           ref={searchRef}
           style={{ position: "relative", flex: "1 1 280px", minWidth: 220 }}
@@ -725,7 +779,9 @@ function EvaluatorsMonitoringPage({ darkMode }) {
             placeholder={
               evaluator
                 ? `Selected: ${evaluator.full_name} — type to search another`
-                : `Type ${role === "checker" ? "a" : "an"} ${roleWord} name or code`
+                : bothRoles
+                  ? "Type a name or code"
+                  : `Type ${withArticle(roleWord)} name or code`
             }
             aria-label={`Search ${roleWord}`}
             aria-expanded={showResults}
@@ -738,9 +794,9 @@ function EvaluatorsMonitoringPage({ darkMode }) {
           <button
             type="button"
             aria-label={
-              showResults ? `Hide ${roleWord} list` : `Show all ${roleWord}s`
+              showResults ? `Hide ${personWord} list` : `Show all ${roleWord}s`
             }
-            title={showResults ? "Hide list" : `Show all ${roleWord}s A-Z`}
+            title={showResults ? "Hide list" : `Show all ${personWord}s A-Z`}
             onClick={() => setShowResults((s) => !s)}
             style={{
               position: "absolute",
@@ -787,7 +843,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
               }}
             >
               {!upToDate && empty("Searching…")}
-              {upToDate && items.length === 0 && empty(`No ${roleWord} found`)}
+              {upToDate && items.length === 0 && empty(`No ${personWord} found`)}
               {items.length > 0 && (
                 <div
                   style={{
@@ -804,7 +860,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                     zIndex: 1,
                   }}
                 >
-                  {fmt(items.length)} {roleWord}
+                  {fmt(items.length)} {personWord}
                   {items.length === 1 ? "" : "s"} · A–Z
                 </div>
               )}
@@ -835,6 +891,13 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                 >
                   <Monogram name={r.full_name} size={26} t={t} />
                   <span style={{ flex: 1, minWidth: 0 }}>{r.full_name}</span>
+                  {(r.sources || []).length > 0 && (
+                    <span style={{ display: "inline-flex", gap: 4 }}>
+                      {r.sources.map((k) => (
+                        <SourceBadge key={k} source={k} t={t} />
+                      ))}
+                    </span>
+                  )}
                   <span style={{ color: t.ink3, fontSize: "0.7rem" }}>
                     {[r.code, r.position].filter(Boolean).join(" · ")}
                   </span>
@@ -844,42 +907,64 @@ function EvaluatorsMonitoringPage({ darkMode }) {
           )}
         </div>
 
-        <select
+        <PickList
           value={year}
-          onChange={(e) => changeYear(e.target.value)}
-          aria-label="Year"
-          onFocus={ui.focusOn}
-          onBlur={ui.focusOff}
-          style={{ ...ui.field, padding: "0 0.7rem", cursor: "pointer" }}
-        >
-          <option value="All">All years</option>
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={changeYear}
+          ariaLabel="Year"
+          heading="Year"
+          minWidth={118}
+          ui={ui}
+          options={[
+            { value: "All", label: "All years" },
+            ...(personYears ?? years)
+              .filter((y) => String(y) !== "All")
+              .map((y) => ({ value: String(y), label: String(y) })),
+          ]}
+        />
+        <PickList
           value={month}
-          onChange={(e) => setMonth(e.target.value)}
+          onChange={setMonth}
+          ariaLabel="Month"
+          heading="Month"
           disabled={year === "All"}
-          aria-label="Month"
-          onFocus={ui.focusOn}
-          onBlur={ui.focusOff}
-          style={{
-            ...ui.field,
-            padding: "0 0.7rem",
-            cursor: year === "All" ? "default" : "pointer",
-            opacity: year === "All" ? 0.5 : 1,
+          minWidth={128}
+          ui={ui}
+          options={[
+            { value: "All", label: "All months" },
+            ...MONTHS.map((m, i) => ({ value: String(i + 1), label: m })),
+          ]}
+        />
+        <CheckList
+          ariaLabel="Category"
+          label={bothSources ? "All Category" : hasFgmp ? "FGMP" : "CPR"}
+          heading="Which applications to include"
+          footnote="Tick both to combine them. One stays ticked."
+          values={sources}
+          onToggle={toggleDataSource}
+          minWidth={140}
+          ui={ui}
+          options={[
+            { value: "cpr", label: "CPR", hint: "Applications in the CPR workflow" },
+            { value: "fgmp", label: "FGMP", hint: "Applications in the FGMP workflow" },
+          ]}
+        />
+        <CheckList
+          ariaLabel="Role"
+          label={roleLabel}
+          heading="Which work to show"
+          footnote="Tick several to show their work together. One stays ticked."
+          values={roles}
+          onToggle={toggleRole}
+          allOption={{
+            label: "All Roles",
+            hint: "Every workflow role",
+            on: roles.length === ROLE_KEYS.length,
+            onClick: toggleAllRoles,
           }}
-        >
-          <option value="All">All months</option>
-          {MONTHS.map((m, i) => (
-            <option key={m} value={i + 1}>
-              {m}
-            </option>
-          ))}
-        </select>
+          minWidth={130}
+          ui={ui}
+          options={ROLE_OPTIONS}
+        />
       </div>
 
       {error && (
@@ -927,7 +1012,9 @@ function EvaluatorsMonitoringPage({ darkMode }) {
               letterSpacing: "-0.01em",
             }}
           >
-            Search for {role === "checker" ? "a" : "an"} {roleWord} to begin
+            {bothRoles
+              ? "Search for a user to begin"
+              : `Search for ${withArticle(roleWord)} to begin`}
           </div>
           <div style={{ fontSize: "0.74rem", color: t.ink3, marginTop: 5 }}>
             Type part of a name or code, or press the arrow to list everyone
@@ -1054,6 +1141,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
               <PeriodsTable
                 periods={data.periods}
                 mode={data.period_mode}
+                compact // thin rows, like the monthly breakdown
                 selectedKey={
                   data.period_mode === "month" && month !== "All"
                     ? Number(month)
@@ -1217,23 +1305,31 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                     lineHeight: 1.6,
                   }}
                 >
-                  The start is the first dated step in the application log, or
-                  the Date Decked when the log has none. The end is the
-                  finish of the {roleWord}'s own step in the log, or the Date
-                  Released when the log has none.
+                  The start is the first dated step in the application log
+                  {hasFallbackRole
+                    ? `, or the Date Decked when the log has none${
+                        hasFgmp ? " (for FGMP, the finish of the Decking step)" : ""
+                      }`
+                    : ""}
+                  . The end is the
+                  finish of the person's own {roleWord} step in the log
+                  {hasFallbackRole
+                    ? ", or the Date Released when the log has none"
+                    : ""}
+                  .
+                  {hasFallbackRole && roles.some((r) => r !== "evaluator" && r !== "checker")
+                    ? " Only Evaluator and Checker use these fallbacks."
+                    : ""}
+                  {!hasFallbackRole
+                    ? " There is no fallback for this role: an application with no log date is skipped."
+                    : ""}
                 </div>
               </div>
             );
           })()}
 
           {rankedTable("Companies", "building", "Company", "company", data.companies)}
-          {rankedTable(
-            "Drugs (Generic Name)",
-            "pill",
-            "Generic Name",
-            "drug",
-            data.drugs,
-          )}
+          {rankedTable(drugTitle, "pill", drugLabel, "drug", data.drugs)}
 
           {(data.summary.without_company > 0 ||
             data.summary.without_generic > 0) && (
@@ -1335,9 +1431,11 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                     <table style={{ width: "100%", borderCollapse: "collapse" }}>
                       <thead>
                         <tr>
+                          {bothSources && <th style={ui.th}>Data</th>}
+                          {bothRoles && <th style={ui.th}>Role</th>}
                           <th style={ui.th}>DTN</th>
                           <th style={ui.th}>Company</th>
-                          <th style={ui.th}>Generic Name</th>
+                          <th style={ui.th}>{drugLabel}</th>
                           <th style={ui.th}>TAT Start</th>
                           <th style={ui.th}>TAT End</th>
                           <th style={ui.th}>Date Released</th>
@@ -1347,16 +1445,38 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                       <tbody>
                         {data.skipped.rows.map((r) => (
                           <tr
-                            key={r.db_id}
+                            key={`${r.source}-${r.role}-${r.db_id}`}
                             style={{ transition: "background .12s" }}
                             {...rowHover}
                           >
+                            {bothSources && (
+                              <td style={ui.td}>
+                                <SourceBadge source={r.source} t={t} />
+                              </td>
+                            )}
+                            {bothRoles && (
+                              <td style={ui.td}>
+                                {roleName(r.role)}
+                              </td>
+                            )}
                             <td style={{ ...ui.td, whiteSpace: "nowrap" }}>
                               {r.dtn || "—"}
                             </td>
                             <td style={ui.td}>{r.company || "—"}</td>
-                            <td style={{ ...ui.td, color: t.ink2 }}>
-                              {r.generic_name || "—"}
+                            <td
+                              title={r.generic_name || undefined}
+                              style={{ ...ui.td, color: t.ink2, maxWidth: 280 }}
+                            >
+                              <span
+                                style={{
+                                  display: "-webkit-box",
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: "vertical",
+                                  overflow: "hidden",
+                                }}
+                              >
+                                {r.generic_name || "—"}
+                              </span>
                             </td>
                             <td style={{ ...ui.td, whiteSpace: "nowrap", color: t.ink2 }}>
                               {r.tat_start || "—"}
@@ -1455,6 +1575,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
           year={monthsYear}
           userId={evaluator.user_id}
           role={role}
+          sources={sourcesParam}
           personName={data?.evaluator?.full_name}
           darkMode={darkMode}
           blocked={!!periodTarget}
@@ -1470,7 +1591,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
           iconName={recordsTarget.kind === "drug" ? "pill" : "building"}
           title={recordsTarget.name}
           context={`Released in ${periodLabel}${sourceFilter ? ` · TAT from ${sourceText(sourceFilter)}` : ""}`}
-          loadKey={`${recordsTarget.kind}|${recordsTarget.key}|${evaluator.user_id}|${year}|${month}|${role}|${sourceKey ?? "all"}`}
+          loadKey={`${recordsTarget.kind}|${recordsTarget.key}|${evaluator.user_id}|${year}|${month}|${role}|${sourceKey ?? "all"}|${sourcesParam}`}
           loader={() =>
             getEvaluatorRecords({
               user_id: evaluator.user_id,
@@ -1481,6 +1602,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
               page: 1,
               page_size: 2000,
               role,
+              sources: sourcesParam,
               source: sourceKey,
             })
           }
@@ -1504,9 +1626,10 @@ function EvaluatorsMonitoringPage({ darkMode }) {
               ? `${periodTarget.label} ${listYear}`
               : periodTarget.label;
           const listTitle =
-            side === "either"
-              ? `Received or released in ${label}${periodTarget.extra ? ` · ${periodTarget.extra.name}` : ""}`
-              : `${sideWord} in ${label}`;
+            (side === "either"
+              ? `Received or released in ${label}`
+              : `${sideWord} in ${label}`) +
+            (periodTarget.extra ? ` · ${periodTarget.extra.name}` : "");
           return (
             <EvaluatorRecordsModal
               kind="period"
@@ -1514,7 +1637,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
               iconName="calendar"
               title={listTitle}
               context={null}
-              loadKey={`period|${side}|${bucket}|${seg?.key ?? "all"}|${periodTarget.extra?.name ?? ""}|${evaluator.user_id}|${listYear}|${role}`}
+              loadKey={`period|${side}|${bucket}|${seg?.key ?? "all"}|${periodTarget.extra?.name ?? ""}|${evaluator.user_id}|${listYear}|${role}|${sourcesParam}`}
               loader={() =>
                 getEvaluatorPeriodRecords({
                   user_id: evaluator.user_id,
@@ -1530,6 +1653,7 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                   page: 1,
                   page_size: 2000,
                   role,
+                  sources: sourcesParam,
                 }).then((res) =>
                   // the list is narrowed to one company / drug / type: say so
                   periodTarget.extra ? { ...res, name: listTitle } : res,

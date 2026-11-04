@@ -14,6 +14,17 @@ const fmt = (n) => Number(n ?? 0).toLocaleString();
 // The hatched part is the "rest" (no release date / no received date).
 const SHADES = [1, 0.78, 0.58, 0.42, 0.3];
 
+// The real share with one decimal (99.6), without ".0" on whole numbers (50).
+// It never rounds a part to 0 or to 100 unless it truly is 0 or all of it.
+export function pctText(share) {
+  if (share <= 0) return "0";
+  if (share >= 100) return "100";
+  let r = Math.round(share * 10) / 10;
+  if (r <= 0) r = 0.1;
+  if (r >= 100) r = 99.9;
+  return String(r); // 99.6 -> "99.6", 50 -> "50"
+}
+
 // rows = [{ key, year, month?, label?, count }] from the API
 export function buildSegments({ rows, verb, color, rest, total }) {
   const segs = rows.map((r, i) => ({
@@ -34,9 +45,14 @@ export function buildSegments({ rows, verb, color, rest, total }) {
     });
   return segs.map((s) => ({
     ...s,
-    pct: total ? Math.round((s.count / total) * 100) : 0,
+    pct: pctText(total ? (s.count / total) * 100 : 0),
   }));
 }
+
+// The paler shades of a bar: on a light page a lower opacity is paler; on a
+// dark page it would fade into the background, so it is kept higher there.
+const shadeOpacity = (s, t) =>
+  s.hatched ? 1 : t.dark ? 0.55 + 0.45 * s.alpha : s.alpha;
 
 const hatch = (t) =>
   `repeating-linear-gradient(135deg, ${t.lineStrong} 0 3px, transparent 3px 6px)`;
@@ -187,9 +203,10 @@ export function SplitBar({
               onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
               style={{
                 flex: `${s.count} 1 0`,
+                minWidth: 6, // tiny parts stay visible and clickable
                 height: "100%",
                 background: s.hatched ? hatch(t) : s.color,
-                opacity: s.hatched ? 1 : s.alpha,
+                opacity: shadeOpacity(s, t),
                 cursor: onOpen ? "pointer" : "default",
                 transition: "filter .15s",
               }}
@@ -269,7 +286,7 @@ export function SplitCaption({ segments, t, onOpen, compact = false, maxItems = 
               borderRadius: 3,
               flexShrink: 0,
               background: s.hatched ? hatch(t) : s.color,
-              opacity: s.hatched ? 1 : s.alpha,
+              opacity: shadeOpacity(s, t),
               border: s.hatched ? `1px solid ${t.lineStrong}` : "none",
               boxSizing: "border-box",
             }}
