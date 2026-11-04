@@ -202,3 +202,8 @@ export const getAnalyticsTrendRecords = async (params = {}) => {
     const res = await API.get("/analytics/trend/records", { params });
     return res.data;
 };
+
+export const getAnalyticsTrendTimeline = async (params = {}) => {
+    const res = await API.get("/analytics/trend/timeline", { params });
+    return res.data;
+};

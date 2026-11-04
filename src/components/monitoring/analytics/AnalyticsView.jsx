@@ -23,6 +23,7 @@ import {
   getAnalyticsClassificationTrend,
   getAnalyticsReceivedReleasedTrend,
   getAnalyticsTrendRecords,
+  getAnalyticsTrendTimeline,
 } from "../../../api/analytics";
 
 import DoctrackModal from "../../reports/actions/DoctrackModal";
@@ -278,11 +279,27 @@ function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
   );
 }
 
-// ── Per-year / per-month bar graph shown beside the records table ──
+// ── Side panel of the records modal: doc-type breakdown + timeline ──
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
 function ClassTrendPanel({
   data,
   noDate,
   loading,
+  modes = ["year", "month"],
   mode,
   onModeChange,
   basis,
@@ -290,8 +307,13 @@ function ClassTrendPanel({
   year,
   onYearChange,
   years,
+  month,
+  onMonthChange,
   activeKey,
   onBarClick,
+  docBreakdown = [],
+  docFilter = "All",
+  onDocClick,
   ui,
   darkMode,
   color,
@@ -301,7 +323,15 @@ function ClassTrendPanel({
   const total = data.reduce((s, d) => s + d.count, 0);
   const max = Math.max(...data.map((d) => d.count), 1);
   const peak = data.reduce((p, d) => (d.count > (p?.count ?? 0) ? d : p), null);
+  const docTotal = docBreakdown.reduce((s, d) => s + d.count, 0);
   const BAR_AREA = 190;
+  const MODE_LABEL = { year: "Per Year", month: "Per Month", day: "Per Day" };
+  const heading =
+    mode === "year"
+      ? "Per Year"
+      : mode === "month"
+        ? `Per Month · ${year}`
+        : `Per Day · ${MONTH_SHORT[(month ?? 1) - 1]} ${year}`;
   const compact = (n) =>
     n >= 10000
       ? `${Math.round(n / 1000)}k`
@@ -330,6 +360,24 @@ function ClassTrendPanel({
     gap: 2,
     boxShadow: neuShadow(darkMode, false),
   };
+  const selSt = {
+    background: neuCardBg(darkMode),
+    border: `1px solid ${line}`,
+    borderRadius: 8,
+    padding: "4px 8px",
+    fontSize: "0.72rem",
+    color: ui.textPrimary,
+    outline: "none",
+    fontFamily: font,
+    colorScheme: darkMode ? "dark" : "light",
+  };
+  const sectionTitle = {
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: ui.textMuted,
+  };
 
   return (
     <div
@@ -339,23 +387,131 @@ function ClassTrendPanel({
         borderLeft: `1px solid ${line}`,
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: 14,
         padding: 16,
         overflowY: "auto",
         fontFamily: font,
       }}
     >
+      {/* ── By document type ── */}
+      {docBreakdown.length > 0 && (
+        <div>
+          <div style={sectionTitle}>🗂 {tabLabel} · By Document Type</div>
+          <div
+            style={{
+              fontSize: "0.68rem",
+              color: ui.textMuted,
+              margin: "2px 0 8px",
+            }}
+          >
+            Click a row to filter the table
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+              maxHeight: 230,
+              overflowY: "auto",
+            }}
+          >
+            {docBreakdown.map((d) => {
+              const c = d.key === NONE_KEY ? "#9ca3af" : docTypeColor(d.key);
+              const pctv = docTotal > 0 ? (d.count / docTotal) * 100 : 0;
+              const active = docFilter === d.key;
+              return (
+                <div
+                  key={d.key}
+                  onClick={() => onDocClick?.(d.key)}
+                  title="Click to filter the table"
+                  style={{
+                    padding: "6px 8px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    border: `1px solid ${active ? c : "transparent"}`,
+                    background: active
+                      ? `${c}18`
+                      : darkMode
+                        ? "rgba(255,255,255,0.03)"
+                        : "rgba(0,0,0,0.025)",
+                    opacity: docFilter !== "All" && !active ? 0.5 : 1,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <span
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: 3,
+                        background: c,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        fontSize: "0.74rem",
+                        fontWeight: active ? 800 : 600,
+                        color: ui.textPrimary,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {facetLabel(d.key, "No Doc Type")}
+                    </span>
+                    <span
+                      style={{ fontSize: "0.74rem", fontWeight: 800, color: c }}
+                    >
+                      {d.count.toLocaleString()}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.66rem",
+                        color: ui.textMuted,
+                        minWidth: 38,
+                        textAlign: "right",
+                      }}
+                    >
+                      {pctv.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      height: 3,
+                      borderRadius: 99,
+                      marginTop: 5,
+                      background: darkMode
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(0,0,0,0.07)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.max(pctv, 0.8)}%`,
+                        height: "100%",
+                        background: c,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div style={{ borderTop: `1px solid ${line}` }} />
+
+      {/* ── Timeline ── */}
       <div>
-        <div
-          style={{
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            color: ui.textMuted,
-          }}
-        >
-          📊 {tabLabel} · {mode === "year" ? "Per Year" : `Per Month · ${year}`}
+        <div style={sectionTitle}>
+          📊 {tabLabel} · {heading}
         </div>
         <div style={{ fontSize: "0.68rem", color: ui.textMuted, marginTop: 2 }}>
           Click a bar to filter the table
@@ -364,18 +520,15 @@ function ClassTrendPanel({
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <div style={group}>
-          <button
-            style={seg(mode === "year")}
-            onClick={() => onModeChange("year")}
-          >
-            Per Year
-          </button>
-          <button
-            style={seg(mode === "month")}
-            onClick={() => onModeChange("month")}
-          >
-            Per Month
-          </button>
+          {modes.map((m) => (
+            <button
+              key={m}
+              style={seg(mode === m)}
+              onClick={() => onModeChange(m)}
+            >
+              {MODE_LABEL[m]}
+            </button>
+          ))}
         </div>
         <div style={group}>
           <button
@@ -391,21 +544,11 @@ function ClassTrendPanel({
             By Released
           </button>
         </div>
-        {mode === "month" && (
+        {mode !== "year" && (
           <select
             value={year ?? ""}
             onChange={(e) => onYearChange(Number(e.target.value))}
-            style={{
-              background: neuCardBg(darkMode),
-              border: `1px solid ${line}`,
-              borderRadius: 8,
-              padding: "4px 8px",
-              fontSize: "0.72rem",
-              color: ui.textPrimary,
-              outline: "none",
-              fontFamily: font,
-              colorScheme: darkMode ? "dark" : "light",
-            }}
+            style={selSt}
           >
             {[...new Set([...years, year].filter(Boolean))]
               .sort((a, b) => b - a)
@@ -414,6 +557,19 @@ function ClassTrendPanel({
                   {y}
                 </option>
               ))}
+          </select>
+        )}
+        {mode === "day" && (
+          <select
+            value={month ?? 1}
+            onChange={(e) => onMonthChange(Number(e.target.value))}
+            style={selSt}
+          >
+            {MONTH_SHORT.map((m, i) => (
+              <option key={m} value={i + 1}>
+                {m}
+              </option>
+            ))}
           </select>
         )}
       </div>
@@ -482,7 +638,7 @@ function ClassTrendPanel({
             style={{
               display: "flex",
               alignItems: "flex-end",
-              gap: mode === "month" ? 4 : 8,
+              gap: mode === "year" ? 8 : mode === "month" ? 4 : 2,
               height: BAR_AREA + 40,
               borderBottom: `1px solid ${line}`,
             }}
@@ -492,6 +648,8 @@ function ClassTrendPanel({
                 d.count > 0 ? Math.max((d.count / max) * BAR_AREA, 4) : 0;
               const isActive = activeKey === d.key;
               const dim = activeKey != null && !isActive;
+              const showLabel =
+                mode !== "day" || d.key === 1 || d.key % 5 === 0;
               return (
                 <div
                   key={d.key}
@@ -518,7 +676,7 @@ function ClassTrendPanel({
                       marginBottom: 3,
                     }}
                   >
-                    {d.count > 0 ? compact(d.count) : ""}
+                    {mode !== "day" && d.count > 0 ? compact(d.count) : ""}
                   </span>
                   <div
                     style={{
@@ -538,9 +696,10 @@ function ClassTrendPanel({
                       fontWeight: isActive ? 800 : 600,
                       color: isActive ? color : ui.textMuted,
                       padding: "5px 0 4px",
+                      minHeight: 22,
                     }}
                   >
-                    {d.label}
+                    {showLabel ? d.label : ""}
                   </span>
                 </div>
               );
@@ -549,7 +708,7 @@ function ClassTrendPanel({
         )}
       </div>
 
-      {mode === "year" && noDate > 0 && (
+      {noDate > 0 && (
         <div style={{ fontSize: "0.7rem", color: ui.textMuted }}>
           ⚠ {noDate.toLocaleString()} record(s) have no valid{" "}
           {basis === "received" ? "Date Received" : "Date Released"} and are not
@@ -911,10 +1070,41 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [relTo, setRelTo] = useState("");
   const [exporting, setExporting] = useState(false);
   // ── Trend side panel (classification records only) ──
-  const hasTrend = !!target.classification;
-  const [trendMode, setTrendMode] = useState("year"); // year | month
-  const [trendBasis, setTrendBasis] = useState("received"); // received | released
-  const [trendYear, setTrendYear] = useState(null);
+  const hasTrend = !!(target.classification || target.trendRecords);
+  // Starting view depends on what was clicked (month -> days, year -> months)
+  const initTrend = (() => {
+    const t = target.trendRecords;
+    if (!t) return { mode: "year", year: null, month: null, basis: "received" };
+    const basis =
+      t.kind === "released" || t.kind === "received_released"
+        ? "released"
+        : "received";
+    const yr = t.year !== "All" ? Number(t.year) : null;
+    if (t.bucket != null && yr)
+      return { mode: "day", year: yr, month: Number(t.bucket), basis };
+    if (t.bucket != null)
+      return { mode: "month", year: Number(t.bucket), month: null, basis };
+    if (yr) return { mode: "month", year: yr, month: null, basis };
+    return { mode: "year", year: null, month: null, basis };
+  })();
+  const trendMeta = (() => {
+    if (target.trendRecords) {
+      const k = target.trendRecords.kind;
+      if (k === "released" || k === "received_released")
+        return { label: "Released", color: "#36a420" };
+      if (k === "received_in_progress")
+        return { label: "In Progress", color: "#f59e0b" };
+      if (k === "received_other") return { label: "Others", color: "#9ca3af" };
+      return { label: "Received", color: FB };
+    }
+    return target.classification?.tab === "in_progress"
+      ? { label: "In Progress", color: "#f59e0b" }
+      : { label: "Completed", color: "#36a420" };
+  })();
+  const [trendMode, setTrendMode] = useState(initTrend.mode); // year | month | day
+  const [trendBasis, setTrendBasis] = useState(initTrend.basis); // received | released
+  const [trendYear, setTrendYear] = useState(initTrend.year);
+  const [trendMonth, setTrendMonth] = useState(initTrend.month);
   const [trendYears, setTrendYears] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [trendNoDate, setTrendNoDate] = useState(0);
@@ -994,23 +1184,36 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     return () => clearTimeout(t);
   }, [search]);
 
-  // Trend chart: follows search / status / doc-type, but NOT the date ranges
+  // Trend panel follows search / status / doc-type, but NOT the date ranges
   // (a bar click sets the date range, which would otherwise collapse the chart)
+  const requestTrend = (extra) => {
+    const filters = {
+      basis: trendBasis,
+      search: query || undefined,
+      status: statusFilter === "All" ? undefined : statusFilter,
+      doc_type: docFilter === "All" ? undefined : docFilter,
+      ...extra,
+    };
+    return target.trendRecords
+      ? getAnalyticsTrendTimeline({ ...target.trendRecords, ...filters })
+      : getAnalyticsClassificationTrend({
+          ...target.classification,
+          ...filters,
+        });
+  };
+
   useEffect(() => {
     if (!hasTrend) return;
-    if (trendMode === "month" && !trendYear) return;
+    if (trendMode !== "year" && !trendYear) return;
+    if (trendMode === "day" && !trendMonth) return;
     let cancelled = false;
     (async () => {
       setTrendLoading(true);
       try {
-        const res = await getAnalyticsClassificationTrend({
-          ...target.classification,
+        const res = await requestTrend({
           group_by: trendMode,
-          bucket_year: trendMode === "month" ? trendYear : undefined,
-          basis: trendBasis,
-          search: query || undefined,
-          status: statusFilter === "All" ? undefined : statusFilter,
-          doc_type: docFilter === "All" ? undefined : docFilter,
+          bucket_year: trendMode !== "year" ? trendYear : undefined,
+          bucket_month: trendMode === "day" ? trendMonth : undefined,
         });
         if (cancelled) return;
         setTrendData(res.data ?? []);
@@ -1018,7 +1221,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
         if (trendMode === "year")
           setTrendYears((res.data ?? []).map((d) => d.key));
       } catch (err) {
-        console.error("Classification trend fetch error:", err);
+        console.error("Trend fetch error:", err);
         if (!cancelled) setTrendData([]);
       } finally {
         if (!cancelled) setTrendLoading(false);
@@ -1032,28 +1235,47 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     target,
     trendMode,
     trendYear,
+    trendMonth,
     trendBasis,
     query,
     statusFilter,
     docFilter,
   ]);
 
+  // Fill the year dropdown when the panel opens in month / day view
+  useEffect(() => {
+    if (!hasTrend || trendMode === "year") return;
+    requestTrend({ group_by: "year" })
+      .then((r) => setTrendYears((r.data ?? []).map((d) => d.key)))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasTrend]);
+
   const switchTrendMode = (m) => {
     setTrendMode(m);
-    if (m === "month" && !trendYear)
-      setTrendYear(
-        trendYears[trendYears.length - 1] ?? new Date().getFullYear(),
-      );
+    const yr =
+      trendYear ??
+      trendYears[trendYears.length - 1] ??
+      new Date().getFullYear();
+    if (m !== "year" && !trendYear) setTrendYear(yr);
+    if (m === "day" && !trendMonth) {
+      const now = new Date();
+      setTrendMonth(yr === now.getFullYear() ? now.getMonth() + 1 : 1);
+    }
   };
 
   const pad2 = (n) => String(n).padStart(2, "0");
   const periodRange = (key) => {
     if (trendMode === "year") return [`${key}-01-01`, `${key}-12-31`];
-    const last = new Date(trendYear, key, 0).getDate();
-    return [
-      `${trendYear}-${pad2(key)}-01`,
-      `${trendYear}-${pad2(key)}-${pad2(last)}`,
-    ];
+    if (trendMode === "month") {
+      const last = new Date(trendYear, key, 0).getDate();
+      return [
+        `${trendYear}-${pad2(key)}-01`,
+        `${trendYear}-${pad2(key)}-${pad2(last)}`,
+      ];
+    }
+    const day = `${trendYear}-${pad2(trendMonth)}-${pad2(key)}`;
+    return [day, day];
   };
   const activeTrendKey = (() => {
     const [from, to] =
@@ -1910,6 +2132,11 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                 data={trendData}
                 noDate={trendNoDate}
                 loading={trendLoading}
+                modes={
+                  target.trendRecords
+                    ? ["year", "month", "day"]
+                    : ["year", "month"]
+                }
                 mode={trendMode}
                 onModeChange={switchTrendMode}
                 basis={trendBasis}
@@ -1917,20 +2144,20 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                 year={trendYear}
                 onYearChange={setTrendYear}
                 years={trendYears}
+                month={trendMonth}
+                onMonthChange={setTrendMonth}
                 activeKey={activeTrendKey}
                 onBarClick={handleTrendBar}
+                docBreakdown={docCounts}
+                docFilter={docFilter}
+                onDocClick={(k) => {
+                  setDocFilter(docFilter === k ? "All" : k);
+                  setPage(1);
+                }}
                 ui={ui}
                 darkMode={darkMode}
-                color={
-                  target.classification?.tab === "in_progress"
-                    ? "#f59e0b"
-                    : "#36a420"
-                }
-                tabLabel={
-                  target.classification?.tab === "in_progress"
-                    ? "In Progress"
-                    : "Completed"
-                }
+                color={trendMeta.color}
+                tabLabel={trendMeta.label}
               />
             )}
           </div>
