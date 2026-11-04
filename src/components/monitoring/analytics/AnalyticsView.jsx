@@ -784,15 +784,151 @@ function ClassTrendPanel({
   );
 }
 
+// ── Multi-select year dropdown (checkboxes, rendered in <body>) ──
+function YearMultiSelect({ options, value, onChange, ui, darkMode }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e) => {
+      if (
+        btnRef.current?.contains(e.target) ||
+        popRef.current?.contains(e.target)
+      )
+        return;
+      setOpen(false);
+    };
+    const onScroll = (e) => {
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", outside);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  const toggleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setOpen((o) => !o);
+  };
+
+  const sorted = [...value].sort((a, b) => Number(b) - Number(a));
+  const label =
+    sorted.length === 0
+      ? "All years"
+      : sorted.length <= 3
+        ? sorted.join(", ")
+        : `${sorted.length} years`;
+  const toggle = (y) =>
+    onChange(value.includes(y) ? value.filter((v) => v !== y) : [...value, y]);
+
+  const row = (key, checked, text, onClick) => (
+    <label
+      key={key}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "6px 10px",
+        borderRadius: 8,
+        cursor: "pointer",
+        fontSize: "0.78rem",
+        fontWeight: checked ? 700 : 500,
+        color: ui.textPrimary,
+        background: checked
+          ? darkMode
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(0,0,0,0.045)"
+          : "transparent",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onClick}
+        style={{ accentColor: FB, cursor: "pointer" }}
+      />
+      {text}
+    </label>
+  );
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggleOpen}
+        title="Select one or more years"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: neuCardBg(darkMode),
+          border: "none",
+          borderRadius: 10,
+          padding: "6px 12px",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          color: ui.textPrimary,
+          cursor: "pointer",
+          boxShadow: neuInputShadow(darkMode),
+          fontFamily: font,
+        }}
+      >
+        {label}
+        <span style={{ fontSize: "0.6rem", opacity: 0.7 }}>▾</span>
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              right: pos.right,
+              zIndex: 1500,
+              minWidth: 170,
+              maxHeight: 300,
+              overflowY: "auto",
+              background: neuCardBg(darkMode),
+              border: `1px solid ${line}`,
+              borderRadius: 12,
+              boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+              padding: 6,
+              fontFamily: font,
+            }}
+          >
+            {row("all", value.length === 0, "All years", () => onChange([]))}
+            <div style={{ height: 1, background: line, margin: "4px 6px" }} />
+            {options.map((y) => row(y, value.includes(y), y, () => toggle(y)))}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 // ── Received vs Released line chart (pure SVG, clickable points) ──
 function RRTrendChart({ data, ui, darkMode, onPointClick }) {
   const [hover, setHover] = useState(null);
-  const W = 700,
-    H = 300,
+  const W = 860,
+    H = 260,
     L = 54,
     R = 18,
-    T = 18,
-    B = 32;
+    T = 16,
+    B = 30;
   const iw = W - L - R,
     ih = H - T - B;
   const SERIES = [
@@ -1144,7 +1280,8 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       t.kind === "released" || t.kind === "received_released"
         ? "released"
         : "received";
-    const yr = t.year !== "All" ? Number(t.year) : null;
+    const ys = t.years ?? [];
+    const yr = ys.length === 1 ? Number(ys[0]) : null;
     if (t.bucket != null && yr)
       return { mode: "day", year: yr, month: Number(t.bucket), basis };
     if (t.bucket != null)
@@ -2903,7 +3040,7 @@ function PieChart({
             </div>
           </div>
         ))}
-        {clickable && (
+        {clickable && hint && (
           <span
             style={{
               fontSize: "0.65rem",
@@ -2978,7 +3115,9 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [topCountryTab, setTopCountryTab] = useState("mfr");
   const [lastUpdated, setLastUpdated] = useState(null);
   // ── Trend card has its own year filter (default 2026) ────────
-  const [trendYear, setTrendYear] = useState("2026");
+  const [rrYears, setRrYears] = useState(["2026"]); // [] = all years
+  // single value for the old trend query (used by the PDF export)
+  const trendYear = rrYears.length === 1 ? rrYears[0] : "All";
   const trendRunId = useRef(0);
 
   // ── Received vs Released (trend + breakdown) ─────────────────
@@ -3144,7 +3283,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     setLoadingRR(true);
     try {
       const res = await getAnalyticsReceivedReleasedTrend({
-        year: trendYear,
+        years: rrYears,
         month: chartMonth,
         prescription: rxFilter,
       });
@@ -3156,7 +3295,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     } finally {
       if (id === rrRunId.current) setLoadingRR(false);
     }
-  }, [trendYear, chartMonth, rxFilter]);
+  }, [rrYears, chartMonth, rxFilter]);
 
   useEffect(() => {
     fetchMain();
@@ -3204,7 +3343,12 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     { name: "LOD Released", value: summary.lod },
     { name: "In Progress", value: summary.in_progress ?? summary.on_process },
   ];
-  const rrScope = trendYear === "All" ? "All years" : trendYear;
+  const rrScope =
+    rrYears.length === 0
+      ? "All years"
+      : rrYears.length <= 3
+        ? [...rrYears].sort((a, b) => Number(a) - Number(b)).join(", ")
+        : `${rrYears.length} years`;
   const rrSlices = rrBreakdown
     ? [
         {
@@ -3640,6 +3784,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
       },
     });
   };
+
   // Line chart point / legend click
   const openTrendRecords = (series, d = null) => {
     const label =
@@ -3651,14 +3796,14 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     // In Progress is counted by Date Received, so it uses the received_in_progress kind
     const kind = series === "in_progress" ? "received_in_progress" : series;
     const when = d
-      ? trendYear === "All"
-        ? d.label
-        : `${d.label} ${trendYear}`
+      ? rrYears.length === 1
+        ? `${d.label} ${rrYears[0]}`
+        : d.label
       : rrScope;
     setRecordsTarget({
       title: `${label} — ${when}`,
       trendRecords: {
-        year: trendYear,
+        years: rrYears,
         month: chartMonth,
         prescription: rxFilter,
         kind,
@@ -3672,7 +3817,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     setRecordsTarget({
       title: `Received (${rrScope}) — ${slice.name}`,
       trendRecords: {
-        year: trendYear,
+        years: rrYears,
         month: chartMonth,
         prescription: rxFilter,
         kind: slice.key,
@@ -3837,29 +3982,18 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
             ) : (
               <SectionCard
                 title="Received, Released & In Progress"
-                subtitle={`Grouped by ${trendYear === "All" ? "year" : "month"} · click a point to view records`}
+                subtitle={`Grouped by ${rrYears.length === 1 ? "month" : "year"} · click a point to view records`}
                 icon="📈"
                 ui={ui}
                 darkMode={darkMode}
                 action={
-                  <select
-                    value={trendYear}
-                    onChange={(e) => setTrendYear(e.target.value)}
-                    title="Filter by year"
-                    style={{
-                      ...inputSt,
-                      padding: "5px 10px",
-                      fontSize: "0.75rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="All">All years</option>
-                    {trendYearOptions.map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
+                  <YearMultiSelect
+                    options={trendYearOptions}
+                    value={rrYears}
+                    onChange={setRrYears}
+                    ui={ui}
+                    darkMode={darkMode}
+                  />
                 }
               >
                 <div
@@ -3903,13 +4037,14 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                     darkMode={darkMode}
                     ui={ui}
                     onSliceClick={openBreakdownRecords}
-                    size={190}
+                    size={160}
                     centerLabel="RECEIVED"
                     legendMin={170}
+                    hint=""
                   />
                   <div
                     style={{
-                      marginTop: 10,
+                      marginTop: 6,
                       fontSize: "0.72rem",
                       color: ui.textMuted,
                       textAlign: "center",

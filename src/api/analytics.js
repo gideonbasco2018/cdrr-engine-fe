@@ -194,16 +194,25 @@ export const getGenericMonitoringRecords = async (params = {}) => {
 };
 
 export const getAnalyticsReceivedReleasedTrend = async (params = {}) => {
-    const res = await API.get("/analytics/trend/received-released", { params });
+    const res = await API.get("/analytics/trend/received-released", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
     return res.data;
 };
 
 export const getAnalyticsTrendRecords = async (params = {}) => {
-    const res = await API.get("/analytics/trend/records", { params });
+    const res = await API.get("/analytics/trend/records", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
     return res.data;
 };
 
 export const getAnalyticsTrendTimeline = async (params = {}) => {
-    const res = await API.get("/analytics/trend/timeline", { params });
+    const res = await API.get("/analytics/trend/timeline", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
     return res.data;
 };
