@@ -27,6 +27,11 @@ export const getAnalyticsByClassification = async (params = {}) => {
     return res.data;
 };
 
+export const getAnalyticsClassificationRecords = async (params = {}) => {
+    const res = await API.get("/analytics/by-classification/records", { params });
+    return res.data;
+};
+
 export const getAnalyticsYearSummary = async (params = {}) => {
     const res = await API.get("/analytics/year-summary", { params });
     return res.data;
