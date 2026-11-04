@@ -21,6 +21,8 @@ import {
   getDocTypeReleased,
   getAnalyticsClassificationRecords,
   getAnalyticsClassificationTrend,
+  getAnalyticsReceivedReleasedTrend,
+  getAnalyticsTrendRecords,
 } from "../../../api/analytics";
 
 import DoctrackModal from "../../reports/actions/DoctrackModal";
@@ -558,6 +560,329 @@ function ClassTrendPanel({
   );
 }
 
+// ── Received vs Released line chart (pure SVG, clickable points) ──
+function RRTrendChart({ data, ui, darkMode, onPointClick }) {
+  const [hover, setHover] = useState(null);
+  const W = 700,
+    H = 300,
+    L = 54,
+    R = 18,
+    T = 18,
+    B = 32;
+  const iw = W - L - R,
+    ih = H - T - B;
+  const SERIES = [
+    { key: "received", label: "Received", color: FB },
+    { key: "released", label: "Released", color: "#36a420" },
+    { key: "in_progress", label: "In Progress", color: "#f59e0b" },
+  ];
+  const line = darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const n = data.length;
+
+  const totals = {
+    received: data.reduce((s, d) => s + (d.received ?? 0), 0),
+    released: data.reduce((s, d) => s + (d.released ?? 0), 0),
+    in_progress: data.reduce((s, d) => s + (d.in_progress ?? 0), 0),
+  };
+
+  if (
+    n === 0 ||
+    (totals.received === 0 && totals.released === 0 && totals.in_progress === 0)
+  )
+    return (
+      <div
+        style={{
+          textAlign: "center",
+          color: ui.textMuted,
+          fontSize: "0.82rem",
+          padding: "60px 0",
+        }}
+      >
+        No data
+      </div>
+    );
+
+  const niceMax = (v) => {
+    if (v <= 0) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    const m = v / p;
+    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+  };
+  const rawMax = Math.max(
+    ...data.flatMap((d) => [d.received, d.released, d.in_progress ?? 0]),
+  );
+  const yMax = niceMax(rawMax);
+  const x = (i) => (n === 1 ? L + iw / 2 : L + (i * iw) / (n - 1));
+  const y = (v) => T + ih - (v / yMax) * ih;
+  const clampY = (v) => Math.min(Math.max(v, T), T + ih);
+  const slotW = n > 1 ? iw / (n - 1) : iw;
+
+  const smooth = (pts) => {
+    if (pts.length === 0) return "";
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i],
+        p1 = pts[i],
+        p2 = pts[i + 1],
+        p3 = pts[i + 2] || p2;
+      const t = 0.18;
+      d += ` C${p1[0] + (p2[0] - p0[0]) * t},${clampY(p1[1] + (p2[1] - p0[1]) * t)} ${p2[0] - (p3[0] - p1[0]) * t},${clampY(p2[1] - (p3[1] - p1[1]) * t)} ${p2[0]},${p2[1]}`;
+    }
+    return d;
+  };
+
+  const hd = hover !== null ? data[hover] : null;
+  const boxW = 150,
+    boxH = 78;
+  const boxX =
+    hover !== null
+      ? x(hover) + 14 + boxW > W - R
+        ? x(hover) - 14 - boxW
+        : x(hover) + 14
+      : 0;
+
+  return (
+    <div>
+      {/* Legend (click = all records of that series) */}
+      <div
+        style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}
+      >
+        {SERIES.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => onPointClick(s.key, null)}
+            title="Click to view all records"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 12px",
+              borderRadius: 99,
+              border: `1px solid ${s.color}55`,
+              background: `${s.color}14`,
+              color: s.color,
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: s.color,
+              }}
+            />
+            {s.label}
+            <span style={{ fontWeight: 800 }}>
+              {totals[s.key].toLocaleString()}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: "100%", height: "auto", display: "block" }}
+      >
+        <defs>
+          {SERIES.map((s) => (
+            <linearGradient
+              key={s.key}
+              id={`rr-grad-${s.key}`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop offset="0%" stopColor={s.color} stopOpacity="0.22" />
+              <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+            </linearGradient>
+          ))}
+        </defs>
+
+        {/* Grid + Y labels */}
+        {[0, 1, 2, 3, 4].map((i) => {
+          const v = (yMax * i) / 4;
+          return (
+            <g key={i}>
+              <line
+                x1={L}
+                x2={W - R}
+                y1={y(v)}
+                y2={y(v)}
+                stroke={line}
+                strokeDasharray={i === 0 ? "0" : "4 4"}
+              />
+              <text
+                x={L - 8}
+                y={y(v) + 4}
+                textAnchor="end"
+                fontSize={11}
+                fill={ui.textMuted}
+                fontFamily={font}
+              >
+                {Math.round(v).toLocaleString()}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* X labels */}
+        {data.map((d, i) => (
+          <text
+            key={d.key}
+            x={x(i)}
+            y={H - 10}
+            textAnchor="middle"
+            fontSize={11}
+            fontWeight={hover === i ? 800 : 600}
+            fill={hover === i ? ui.textPrimary : ui.textMuted}
+            fontFamily={font}
+          >
+            {d.label}
+          </text>
+        ))}
+
+        {/* Hover slots + guide */}
+        {data.map((d, i) => (
+          <rect
+            key={`slot-${d.key}`}
+            x={x(i) - slotW / 2}
+            y={T}
+            width={slotW}
+            height={ih}
+            fill="transparent"
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+          />
+        ))}
+        {hover !== null && (
+          <line
+            x1={x(hover)}
+            x2={x(hover)}
+            y1={T}
+            y2={T + ih}
+            stroke={ui.textMuted}
+            strokeDasharray="3 3"
+            opacity={0.5}
+            pointerEvents="none"
+          />
+        )}
+
+        {/* Areas + lines */}
+        {SERIES.map((s) => {
+          const pts = data.map((d, i) => [x(i), y(d[s.key] ?? 0)]);
+          const dPath = smooth(pts);
+          return (
+            <g key={s.key} pointerEvents="none">
+              {n > 1 && (
+                <path
+                  d={`${dPath} L${x(n - 1)},${T + ih} L${x(0)},${T + ih} Z`}
+                  fill={`url(#rr-grad-${s.key})`}
+                />
+              )}
+              <path
+                d={dPath}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={2.6}
+                strokeLinecap="round"
+              />
+            </g>
+          );
+        })}
+
+        {/* Clickable points */}
+        {SERIES.map((s) =>
+          data.map((d, i) => (
+            <g
+              key={`${s.key}-${d.key}`}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              onClick={() => (d[s.key] ?? 0) > 0 && onPointClick(s.key, d)}
+              style={{ cursor: (d[s.key] ?? 0) > 0 ? "pointer" : "default" }}
+            >
+              <circle
+                cx={x(i)}
+                cy={y(d[s.key] ?? 0)}
+                r={12}
+                fill="transparent"
+              />
+              <circle
+                cx={x(i)}
+                cy={y(d[s.key] ?? 0)}
+                r={hover === i ? 5.5 : 3.2}
+                fill={darkMode ? "#1d1d1d" : "#fff"}
+                stroke={s.color}
+                strokeWidth={2.2}
+                style={{ transition: "r 0.12s" }}
+              />
+            </g>
+          )),
+        )}
+
+        {/* Tooltip */}
+        {hd && (
+          <g pointerEvents="none">
+            <rect
+              x={boxX}
+              y={T + 4}
+              width={boxW}
+              height={boxH}
+              rx={10}
+              fill={neuCardBg(darkMode)}
+              stroke={darkMode ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}
+            />
+            <text
+              x={boxX + 12}
+              y={T + 22}
+              fontSize={12}
+              fontWeight={800}
+              fill={ui.textPrimary}
+              fontFamily={font}
+            >
+              {hd.label}
+            </text>
+            {SERIES.map((s, k) => (
+              <g key={s.key}>
+                <circle
+                  cx={boxX + 16}
+                  cy={T + 37 + k * 15}
+                  r={4}
+                  fill={s.color}
+                />
+                <text
+                  x={boxX + 26}
+                  y={T + 41 + k * 15}
+                  fontSize={11}
+                  fill={ui.textMuted}
+                  fontFamily={font}
+                >
+                  {s.label}
+                </text>
+                <text
+                  x={boxX + boxW - 12}
+                  y={T + 41 + k * 15}
+                  textAnchor="end"
+                  fontSize={11}
+                  fontWeight={800}
+                  fill={s.color}
+                  fontFamily={font}
+                >
+                  {(hd[s.key] ?? 0).toLocaleString()}
+                </text>
+              </g>
+            ))}
+          </g>
+        )}
+      </svg>
+    </div>
+  );
+}
+
 export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -778,19 +1103,21 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
               issue: target.quality,
               ...common,
             })
-          : target.classification
-            ? getAnalyticsClassificationRecords({
-                ...target.classification,
-                ...common,
-              })
-            : target.summary
-              ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
-              : getAnalyticsYearRecords({
-                  year: target.year,
-                  kind: target.kind,
-                  basis,
+          : target.trendRecords
+            ? getAnalyticsTrendRecords({ ...target.trendRecords, ...common })
+            : target.classification
+              ? getAnalyticsClassificationRecords({
+                  ...target.classification,
                   ...common,
-                });
+                })
+              : target.summary
+                ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
+                : getAnalyticsYearRecords({
+                    year: target.year,
+                    kind: target.kind,
+                    basis,
+                    ...common,
+                  });
   };
 
   useEffect(() => {
@@ -1990,10 +2317,17 @@ function KpiTile({
 }
 
 // ── Donut chart (pure SVG, clickable) ────────────────────────
-function PieChart({ slices, darkMode, ui, onSliceClick }) {
+function PieChart({
+  slices,
+  darkMode,
+  ui,
+  onSliceClick,
+  size = 300,
+  centerLabel = "TOTAL",
+  legendMin = 240,
+}) {
   const [hovered, setHovered] = useState(null);
-  const size = 300,
-    cx = 150,
+  const cx = 150,
     cy = 150,
     rOut = 126,
     rIn = 80;
@@ -2057,7 +2391,7 @@ function PieChart({ slices, darkMode, ui, onSliceClick }) {
         <svg
           width={size}
           height={size}
-          viewBox={`0 0 ${size} ${size}`}
+          viewBox="0 0 300 300"
           style={{ overflow: "visible", maxWidth: "100%" }}
         >
           {arcs.map((arc, i) => {
@@ -2132,7 +2466,7 @@ function PieChart({ slices, darkMode, ui, onSliceClick }) {
                 fill={ui.textMuted}
                 fontFamily={font}
               >
-                TOTAL
+                {centerLabel}
               </text>
               <text
                 x={cx}
@@ -2157,7 +2491,7 @@ function PieChart({ slices, darkMode, ui, onSliceClick }) {
           flexDirection: "column",
           gap: 4,
           flex: 1,
-          minWidth: 240,
+          minWidth: legendMin,
           maxWidth: 420,
         }}
       >
@@ -2327,6 +2661,12 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [trendYear, setTrendYear] = useState("2026");
   const trendRunId = useRef(0);
 
+  // ── Received vs Released (trend + breakdown) ─────────────────
+  const [rrData, setRrData] = useState([]);
+  const [rrBreakdown, setRrBreakdown] = useState(null);
+  const [loadingRR, setLoadingRR] = useState(true);
+  const rrRunId = useRef(0);
+
   // ── Pie toggle: "classification" | "doctype" ─────────────────
   const [pieView, setPieView] = useState("classification");
 
@@ -2479,6 +2819,25 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     }
   }, [trendYear, chartMonth, rxFilter]);
 
+  const fetchRR = useCallback(async () => {
+    const id = ++rrRunId.current;
+    setLoadingRR(true);
+    try {
+      const res = await getAnalyticsReceivedReleasedTrend({
+        year: trendYear,
+        month: chartMonth,
+        prescription: rxFilter,
+      });
+      if (id !== rrRunId.current) return;
+      setRrData(res.data ?? []);
+      setRrBreakdown(res.breakdown ?? null);
+    } catch (err) {
+      console.error("Received/Released trend fetch error:", err);
+    } finally {
+      if (id === rrRunId.current) setLoadingRR(false);
+    }
+  }, [trendYear, chartMonth, rxFilter]);
+
   useEffect(() => {
     fetchMain();
   }, [chartYear, chartMonth, rxFilter]);
@@ -2490,6 +2849,10 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   useEffect(() => {
     fetchTrend();
   }, [fetchTrend]);
+
+  useEffect(() => {
+    fetchRR();
+  }, [fetchRR]);
 
   const fetchQuality = useCallback(async () => {
     setLoadingQuality(true);
@@ -2521,6 +2884,35 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     { name: "LOD Released", value: summary.lod },
     { name: "In Progress", value: summary.in_progress ?? summary.on_process },
   ];
+  const rrScope = trendYear === "All" ? "All years" : trendYear;
+  const rrSlices = rrBreakdown
+    ? [
+        {
+          key: "received_released",
+          name: "Released",
+          short: "Released",
+          value: rrBreakdown.released,
+          color: "#36a420",
+        },
+        {
+          key: "received_in_progress",
+          name: "In Progress",
+          short: "In Progress",
+          value: rrBreakdown.in_progress,
+          color: "#f59e0b",
+        },
+        {
+          key: "received_other",
+          name: "Others",
+          short: "Others",
+          value: rrBreakdown.other,
+          color: "#9ca3af",
+        },
+      ].filter((s) => s.value > 0)
+    : [];
+  const rrRate = rrBreakdown?.received
+    ? (rrBreakdown.released / rrBreakdown.received) * 100
+    : 0;
 
   const trendYearOptions = [
     ...new Set([...yearSummaryData.map((r) => String(r.year)), trendYear]),
@@ -2928,6 +3320,44 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
       },
     });
   };
+  // Line chart point / legend click
+  const openTrendRecords = (series, d = null) => {
+    const label =
+      series === "received"
+        ? "Received"
+        : series === "released"
+          ? "Released"
+          : "In Progress";
+    // In Progress is counted by Date Received, so it uses the received_in_progress kind
+    const kind = series === "in_progress" ? "received_in_progress" : series;
+    const when = d
+      ? trendYear === "All"
+        ? d.label
+        : `${d.label} ${trendYear}`
+      : rrScope;
+    setRecordsTarget({
+      title: `${label} — ${when}`,
+      trendRecords: {
+        year: trendYear,
+        month: chartMonth,
+        prescription: rxFilter,
+        kind,
+        bucket: d?.key,
+      },
+    });
+  };
+
+  // Donut slice click
+  const openBreakdownRecords = (slice) =>
+    setRecordsTarget({
+      title: `Received (${rrScope}) — ${slice.name}`,
+      trendRecords: {
+        year: trendYear,
+        month: chartMonth,
+        prescription: rxFilter,
+        kind: slice.key,
+      },
+    });
 
   return (
     <div
@@ -3078,17 +3508,16 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                 </>
               )}
             </div>
-
-            {/* Trend */}
-            {loadingSec.trend && trendData.length === 0 ? (
+            {/* Received vs Released trend */}
+            {loadingRR && rrData.length === 0 ? (
               <SectionCardSkeleton
                 height={CHART_SKELETON_HEIGHT}
                 darkMode={darkMode}
               />
             ) : (
               <SectionCard
-                title="Trend Overview"
-                subtitle={`Grouped by ${trendYear === "All" ? "year" : "month"}`}
+                title="Received, Released & In Progress"
+                subtitle={`Grouped by ${trendYear === "All" ? "year" : "month"} · click a point to view records`}
                 icon="📈"
                 ui={ui}
                 darkMode={darkMode}
@@ -3096,7 +3525,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                   <select
                     value={trendYear}
                     onChange={(e) => setTrendYear(e.target.value)}
-                    title="Filter trend by year"
+                    title="Filter by year"
                     style={{
                       ...inputSt,
                       padding: "5px 10px",
@@ -3115,30 +3544,62 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
               >
                 <div
                   style={{
-                    opacity: loadingSec.trend ? 0.5 : 1,
+                    opacity: loadingRR ? 0.5 : 1,
                     transition: "opacity 0.2s",
                   }}
                 >
-                  <TrendChart data={trendData} ui={ui} darkMode={darkMode} />
+                  <RRTrendChart
+                    data={rrData}
+                    ui={ui}
+                    darkMode={darkMode}
+                    onPointClick={openTrendRecords}
+                  />
                 </div>
               </SectionCard>
             )}
 
-            {/* Donut */}
-            {loadingSec.kpi ? (
+            {/* Received breakdown */}
+            {loadingRR && !rrBreakdown ? (
               <SectionCardSkeleton
                 height={CHART_SKELETON_HEIGHT}
                 darkMode={darkMode}
               />
             ) : (
               <SectionCard
-                title="Approval Breakdown"
-                subtitle="CPR vs LOD vs In Progress"
+                title="Received Breakdown"
+                subtitle={`Received applications by outcome · ${rrScope}`}
                 icon="🍩"
                 ui={ui}
                 darkMode={darkMode}
               >
-                <DonutChart data={pieData} ui={ui} darkMode={darkMode} />
+                <div
+                  style={{
+                    opacity: loadingRR ? 0.5 : 1,
+                    transition: "opacity 0.2s",
+                  }}
+                >
+                  <PieChart
+                    slices={rrSlices}
+                    darkMode={darkMode}
+                    ui={ui}
+                    onSliceClick={openBreakdownRecords}
+                    size={190}
+                    centerLabel="RECEIVED"
+                    legendMin={170}
+                  />
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: "0.72rem",
+                      color: ui.textMuted,
+                      textAlign: "center",
+                    }}
+                  >
+                    Release rate{" "}
+                    <b style={{ color: "#36a420" }}>{rrRate.toFixed(1)}%</b>{" "}
+                    (Released ÷ Received)
+                  </div>
+                </div>
               </SectionCard>
             )}
           </div>

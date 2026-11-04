@@ -192,3 +192,13 @@ export const getGenericMonitoringRecords = async (params = {}) => {
     });
     return res.data;
 };
+
+export const getAnalyticsReceivedReleasedTrend = async (params = {}) => {
+    const res = await API.get("/analytics/trend/received-released", { params });
+    return res.data;
+};
+
+export const getAnalyticsTrendRecords = async (params = {}) => {
+    const res = await API.get("/analytics/trend/records", { params });
+    return res.data;
+};
