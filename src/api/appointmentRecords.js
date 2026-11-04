@@ -88,6 +88,7 @@ export const mapAppointmentRecord = (record) => ({
   applicationStep: record.status || "—",
   dueDate: null,
   lastModified: formatStamp(record.updated_at || record.created_at),
+  lastModifiedAt: record.updated_at || record.created_at || null,
   priority: null,
   status: "unclaimed",
   claimedBy: null,
@@ -125,6 +126,7 @@ export const mapMyTask = (task, status = "claimed") => ({
   applicationStep: task.application_step || null,
   dueDate: task.deadline_date || task.step_duedate || null,
   lastModified: formatStamp(task.updated_at || task.start_date),
+  lastModifiedAt: task.updated_at || task.start_date || null,
   priority: task.priority || null,
   remarks: task.application_remarks || "",
   decision: task.application_decision || null,
@@ -582,5 +584,77 @@ export const saveWorksheet = async (referenceNo, payload) => {
     return response.data;
   } catch (error) {
     throw worksheetError(error, "Failed to save the worksheet");
+  }
+};
+
+
+/* ───────── Email notifications (log of emailed documents) ───────── */
+
+const EMAIL_DOC_TYPES = {
+  ORDER_OF_PAYMENT: "OOP",
+  ADDITIONAL_ORDER_OF_PAYMENT: "AOOP",
+  ACKNOWLEDGEMENT_RECEIPT: "AR",
+  APPLICATION_NOTE: "NOTE",
+};
+
+const emailStamp = (iso) =>
+  iso
+    ? new Date(iso).toLocaleString("en-PH", {
+        dateStyle: "long",
+        timeStyle: "short",
+      })
+    : "—";
+
+// Converts one server log into the shape EmailNotificationsModal already uses
+export const mapEmailNotification = (n) => {
+  const docType = EMAIL_DOC_TYPES[n.document_type] || "NOTE";
+  return {
+    id: n.notification_uuid,
+    docType,
+    subject: n.subject,
+    to: n.recipient_email,
+    attachment: docType === "NOTE" ? null : `${n.subject}.pdf`,
+    body: n.body,
+    status: (n.status || "").toLowerCase(), // sent | failed | sending
+    sentAt: emailStamp(n.last_sent_at || n.created_at),
+    attempts: n.attempts,
+    error: n.last_error,
+    history: (n.history || []).map((h) => ({
+      attempt: h.attempt_number,
+      status: (h.status || "").toLowerCase(),
+      at: emailStamp(h.attempted_at),
+      error: h.error_message,
+    })),
+  };
+};
+
+export const getEmailNotifications = async (referenceNo) => {
+  try {
+    const response = await API.get(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/email-notifications`,
+    );
+    return response.data.map(mapEmailNotification);
+  } catch (error) {
+    throw new Error(
+      error.response?.data?.detail ||
+        error.message ||
+        "Failed to fetch the email notifications",
+    );
+  }
+};
+
+export const resendEmailNotification = async (referenceNo, notificationUuid) => {
+  try {
+    const response = await API.post(
+      `/appointment-records/claimed/${encodeURIComponent(referenceNo)}/email-notifications/${encodeURIComponent(notificationUuid)}/resend`,
+    );
+    return mapEmailNotification(response.data);
+  } catch (error) {
+    const detail = error.response?.data?.detail;
+    throw new Error(
+      (typeof detail === "string" ? detail : null) ||
+        error.message ||
+        "Failed to resend the email",
+    );
   }
 };

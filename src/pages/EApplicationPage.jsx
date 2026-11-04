@@ -17,6 +17,8 @@ import {
   getDeckingUnclaimed,
   claimDeckingTasks,
   mapDeckingTask,
+  getEmailNotifications,
+  resendEmailNotification,
 } from "../api/appointmentRecords.js";
 
 /* ──────────────────────────────────────────────────────────
@@ -156,6 +158,55 @@ const getRowStep = (row) => {
   if (row.department === "payment_posting") return STEP_PAYMENT;
 
   return null;
+};
+
+/* Raw timestamp to a number for sorting; a missing or invalid date sorts last */
+const toTime = (value) => {
+  const t = value ? new Date(value).getTime() : NaN;
+  return Number.isNaN(t) ? 0 : t;
+};
+
+const PRIORITY_RANK = { High: 3, Medium: 2, Low: 1 };
+
+/* What each sortable column compares. An empty value is always listed last. */
+const SORT_ACCESSORS = {
+  referenceNo: (r) => r.referenceNo,
+  activity: (r) => r.activity,
+  applicationType: (r) => r.applicationType,
+  applicantCompany: (r) => r.applicantCompany,
+  category: (r) => r.category,
+  foreignManufacturer: (r) => r.foreignManufacturer,
+  typeOfIssuance: (r) => r.typeOfIssuance,
+  dueDate: (r) => toTime(r.dueDate) || null,
+  lastModified: (r) => toTime(r.lastModifiedAt) || null,
+  priority: (r) => PRIORITY_RANK[r.priority] || null,
+  remarks: (r) => r.remarks,
+};
+
+const makeComparator = ({ key, dir }) => {
+  const get = SORT_ACCESSORS[key] || SORT_ACCESSORS.lastModified;
+  const sign = dir === "asc" ? 1 : -1;
+  return (a, b) => {
+    const av = get(a);
+    const bv = get(b);
+    const aEmpty = av === null || av === undefined || av === "";
+    const bEmpty = bv === null || bv === undefined || bv === "";
+    if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+    if (aEmpty && bEmpty) {
+      return String(a.referenceNo).localeCompare(String(b.referenceNo));
+    }
+    const result =
+      typeof av === "number" && typeof bv === "number"
+        ? av - bv
+        : String(av).localeCompare(String(bv), undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
+    return (
+      result * sign ||
+      String(a.referenceNo).localeCompare(String(b.referenceNo))
+    );
+  };
 };
 
 /* ── Static mock data — intentionally empty, rows come from the API.
@@ -408,6 +459,138 @@ function renderRefNo(
     </span>
   );
 }
+/* Combo box with a checkbox per option, for filtering by several values */
+function ActivityMultiSelect({ options, selected, colors, onChange }) {
+  const [open, setOpen] = useState(false);
+
+  const toggle = (option) =>
+    onChange(
+      selected.includes(option)
+        ? selected.filter((x) => x !== option)
+        : [...selected, option],
+    );
+
+  const label =
+    selected.length === 0
+      ? "All activities"
+      : selected.length === 1
+        ? selected[0]
+        : `${selected.length} activities selected`;
+
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "0.5rem",
+          padding: "0.3rem 0.5rem",
+          fontSize: "0.68rem",
+          borderRadius: "6px",
+          border: `1px solid ${colors.cardBorder}`,
+          background: colors.pageBg,
+          color: colors.textPrimary,
+          cursor: "pointer",
+          width: "260px",
+          textAlign: "left",
+        }}
+      >
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+        <span style={{ fontSize: "0.6rem" }}>▾</span>
+      </button>
+
+      {open && (
+        <>
+          <div
+            onClick={() => setOpen(false)}
+            style={{ position: "fixed", inset: 0, zIndex: 40 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: "calc(100% + 4px)",
+              left: 0,
+              zIndex: 41,
+              minWidth: "340px",
+              maxHeight: "260px",
+              overflowY: "auto",
+              background: colors.cardBg,
+              border: `1px solid ${colors.cardBorder}`,
+              borderRadius: "8px",
+              boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+              padding: "0.35rem",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              disabled={selected.length === 0}
+              style={{
+                width: "100%",
+                padding: "0.4rem 0.5rem",
+                marginBottom: "0.2rem",
+                fontSize: "0.66rem",
+                fontWeight: 600,
+                textAlign: "left",
+                background: "transparent",
+                border: "none",
+                borderBottom: `1px solid ${colors.tableBorder}`,
+                color:
+                  selected.length === 0
+                    ? colors.textTertiary
+                    : colors.textPrimary,
+                cursor: selected.length === 0 ? "default" : "pointer",
+              }}
+            >
+              Clear selection
+            </button>
+            {options.map((option) => (
+              <label
+                key={option}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  padding: "0.4rem 0.5rem",
+                  fontSize: "0.7rem",
+                  color: colors.textPrimary,
+                  cursor: "pointer",
+                  borderRadius: "6px",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = colors.tableRowHover)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(option)}
+                  onChange={() => toggle(option)}
+                  style={{ cursor: "pointer" }}
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /* ── Claim confirmation modal (single or bulk) ── */
 function ClaimConfirmModal({ rows, colors, onConfirm, onCancel }) {
   if (!rows || rows.length === 0) return null;
@@ -965,6 +1148,8 @@ function EApplicationPage({ darkMode }) {
 
   const [docsTargetId, setDocsTargetId] = useState(null);
   const [emailTargetId, setEmailTargetId] = useState(null); // store the id only, so the modal always shows live data
+
+  const [serverEmailLogs, setServerEmailLogs] = useState([]); // real logs of the open Email Notifications modal
   const [activeDepartment, setActiveDepartment] = useState(STEP_PAYMENT); // value is an application_step
   const [tasksLoaded, setTasksLoaded] = useState(false);
   const [activeSubTab, setActiveSubTab] = useState("unclaimed"); // unclaimed | claimed | processed
@@ -973,9 +1158,13 @@ function EApplicationPage({ darkMode }) {
   const [loadError, setLoadError] = useState(null);
   const [claiming, setClaiming] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activityFilter, setActivityFilter] = useState("");
+  const [activityFilter, setActivityFilter] = useState([]); // selected activities
   const [outcomeFilter, setOutcomeFilter] = useState(""); // Processed tab only
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortConfig, setSortConfig] = useState({
+    key: "lastModified",
+    dir: "desc",
+  });
   const [rowsPerPage, setRowsPerPage] = useState(DEFAULT_PAGE_SIZE);
 
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -1126,6 +1315,32 @@ function EApplicationPage({ darkMode }) {
       document.removeEventListener("visibilitychange", tick);
     };
   }, [access.loaded, claiming, refreshAll]);
+
+  /* Real email logs for the open Email Notifications modal. Re-read every
+     few seconds, because a send runs in the background after posting. */
+  useEffect(() => {
+    if (!emailTargetId) {
+      setServerEmailLogs([]);
+      return;
+    }
+    const app = applications.find((a) => a.id === emailTargetId);
+    if (!app) return;
+    let cancelled = false;
+    const load = () =>
+      getEmailNotifications(app.referenceNo)
+        .then((logs) => {
+          if (!cancelled) setServerEmailLogs(logs);
+        })
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailTargetId]);
+
   /* Departments (top tabs) the user can currently see:
      - group-gated ones (Payment Posting) need membership in that group
      - the others only when the user has at least one task in that step */
@@ -1164,7 +1379,7 @@ function EApplicationPage({ darkMode }) {
     if (!deptVisible || !allowed.includes(activeSubTab)) {
       setActiveDepartment(dept);
       setActiveSubTab(allowed[0]);
-      setActivityFilter("");
+      setActivityFilter([]);
       setSearchTerm("");
       setCurrentPage(1);
       setSelectedIds([]);
@@ -1236,9 +1451,13 @@ function EApplicationPage({ darkMode }) {
       ].sort(),
     [baseData],
   );
-  const selectedActivity = activityOptions.includes(activityFilter)
-    ? activityFilter
-    : "";
+  const selectedActivities = useMemo(
+    () =>
+      (Array.isArray(activityFilter) ? activityFilter : []).filter((a) =>
+        activityOptions.includes(a),
+      ),
+    [activityFilter, activityOptions],
+  );
 
   /* Whether the tab on screen is an FGMP-only step */
   const showFgmpColumns = FGMP_ONLY_STEPS.includes(activeDepartment);
@@ -1269,27 +1488,34 @@ function EApplicationPage({ darkMode }) {
     const outcome = showOutcomeFilters
       ? activeFilters.find((f) => f.id === outcomeFilter)
       : null;
-    return baseData.filter((row) => {
-      if (outcome && !outcome.matches(row)) return false;
-      if (selectedActivity && row.activity !== selectedActivity) return false;
-      if (!term) return true;
-      return [
-        row.referenceNo,
-        row.activity,
-        row.applicationType,
-        row.applicantCompany,
-        row.priority,
-      ]
-        .filter(Boolean)
-        .some((field) => field.toLowerCase().includes(term));
-    });
+    return baseData
+      .filter((row) => {
+        if (outcome && !outcome.matches(row)) return false;
+        if (
+          selectedActivities.length > 0 &&
+          !selectedActivities.includes(row.activity)
+        )
+          return false;
+        if (!term) return true;
+        return [
+          row.referenceNo,
+          row.activity,
+          row.applicationType,
+          row.applicantCompany,
+          row.priority,
+        ]
+          .filter(Boolean)
+          .some((field) => field.toLowerCase().includes(term));
+      })
+      .sort(makeComparator(sortConfig));
   }, [
     baseData,
     searchTerm,
-    selectedActivity,
+    selectedActivities,
     outcomeFilter,
     showOutcomeFilters,
     activeFilters,
+    sortConfig,
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / rowsPerPage));
@@ -1302,7 +1528,7 @@ function EApplicationPage({ darkMode }) {
   const handleDepartmentChange = (deptKey) => {
     setActiveDepartment(deptKey);
     setActiveSubTab(getSubTabIds(deptKey, claimableSteps)[0]);
-    setActivityFilter("");
+    setActivityFilter([]);
     setOutcomeFilter("");
     setSearchTerm("");
     setCurrentPage(1);
@@ -1311,7 +1537,7 @@ function EApplicationPage({ darkMode }) {
 
   const handleSubTabChange = (tabId) => {
     setActiveSubTab(tabId);
-    setActivityFilter("");
+    setActivityFilter([]);
     setOutcomeFilter("");
     setSearchTerm("");
     setCurrentPage(1);
@@ -1320,6 +1546,15 @@ function EApplicationPage({ darkMode }) {
 
   const handleSearchChange = (value) => {
     setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const handleSort = (key) => {
+    setSortConfig((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: key === "lastModified" ? "desc" : "asc" },
+    );
     setCurrentPage(1);
   };
 
@@ -1527,6 +1762,25 @@ function EApplicationPage({ darkMode }) {
     }, 1200);
   };
 
+  const handleResendServerEmail = async (app, logId) => {
+    setServerEmailLogs((prev) =>
+      prev.map((l) =>
+        l.id === logId ? { ...l, status: "sending", error: null } : l,
+      ),
+    );
+    try {
+      const updated = await resendEmailNotification(app.referenceNo, logId);
+      setServerEmailLogs((prev) =>
+        prev.map((l) => (l.id === logId ? updated : l)),
+      );
+    } catch (err) {
+      window.alert(err.message);
+      getEmailNotifications(app.referenceNo)
+        .then(setServerEmailLogs)
+        .catch(() => {});
+    }
+  };
+
   const openNotes = (row) => {
     setNotesTarget(row);
     setIsComposingNote(false);
@@ -1600,9 +1854,7 @@ function EApplicationPage({ darkMode }) {
     const dropdownHeight = 220;
     const spaceBelow = window.innerHeight - e.clientY;
     const top =
-      spaceBelow < dropdownHeight
-        ? e.clientY - dropdownHeight
-        : e.clientY + 4;
+      spaceBelow < dropdownHeight ? e.clientY - dropdownHeight : e.clientY + 4;
     const right = window.innerWidth - e.clientX;
     setMenuPosition({ top, right });
     setOpenMenuId(rowId);
@@ -1684,6 +1936,37 @@ function EApplicationPage({ darkMode }) {
     whiteSpace: "nowrap",
   };
 
+  const sortableTh = (key, label) => {
+    const active = sortConfig.key === key;
+    return (
+      <th style={thStyle}>
+        <button
+          type="button"
+          onClick={() => handleSort(key)}
+          title={`Sort by ${label}`}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "0.3rem",
+            padding: 0,
+            background: "transparent",
+            border: "none",
+            font: "inherit",
+            letterSpacing: "inherit",
+            textTransform: "inherit",
+            color: active ? colors.textPrimary : "inherit",
+            cursor: "pointer",
+          }}
+        >
+          {label}
+          <span style={{ fontSize: "0.6rem", opacity: active ? 1 : 0.4 }}>
+            {active ? (sortConfig.dir === "asc" ? "▲" : "▼") : "↕"}
+          </span>
+        </button>
+      </th>
+    );
+  };
+
   /* The Actions column stays put when the table is scrolled sideways.
      The cell needs its own solid background, or the row shows through. */
   const stickyActionTh = {
@@ -1695,12 +1978,14 @@ function EApplicationPage({ darkMode }) {
     zIndex: 6,
     boxShadow: `-1px 0 0 ${colors.tableBorder}`,
   };
-  const stickyActionTd = (rowBg) => ({
+  const stickyActionTd = (rowBg, menuOpen = false) => ({
     ...tdStyle,
     textAlign: "center",
     position: "sticky",
     right: 0,
-    zIndex: 2,
+    // The cell holding an open menu must sit above the other rows' sticky
+    // cells, or they paint over the dropdown.
+    zIndex: menuOpen ? 50 : 2,
     background: rowBg,
     boxShadow: `-1px 0 0 ${colors.tableBorder}`,
   });
@@ -2018,7 +2303,9 @@ function EApplicationPage({ darkMode }) {
                         setCurrentPage(1);
                       }}
                       title={
-                        active ? "Click again to show all" : `Show only ${f.label}`
+                        active
+                          ? "Click again to show all"
+                          : `Show only ${f.label}`
                       }
                       style={{
                         display: "flex",
@@ -2061,32 +2348,16 @@ function EApplicationPage({ darkMode }) {
                 })}
               {activityOptions.length > 0 &&
                 !STEPS_WITHOUT_ACTIVITY_FILTER.includes(activeDepartment) && (
-                <select
-                  value={selectedActivity}
-                  onChange={(e) => {
-                    setActivityFilter(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                  style={{
-                    padding: "0.3rem 0.5rem",
-                    fontSize: "0.68rem",
-                    borderRadius: "6px",
-                    border: `1px solid ${colors.cardBorder}`,
-                    background: colors.pageBg,
-                    color: colors.textPrimary,
-                    cursor: "pointer",
-                    outline: "none",
-                    maxWidth: "260px",
-                  }}
-                >
-                  <option value="">All activities</option>
-                  {activityOptions.map((activity) => (
-                    <option key={activity} value={activity}>
-                      {activity}
-                    </option>
-                  ))}
-                </select>
-              )}
+                  <ActivityMultiSelect
+                    options={activityOptions}
+                    selected={selectedActivities}
+                    colors={colors}
+                    onChange={(next) => {
+                      setActivityFilter(next);
+                      setCurrentPage(1);
+                    }}
+                  />
+                )}
               {activeSubTab === "unclaimed" && selectedIds.length > 0 && (
                 <button
                   onClick={requestBulkClaim}
@@ -2173,23 +2444,25 @@ function EApplicationPage({ darkMode }) {
                   >
                     #
                   </th>
-                  <th style={thStyle}>Reference Number</th>
-                  <th style={thStyle}>Activity</th>
-                  <th style={thStyle}>Application Type</th>
-                  <th style={thStyle}>Applicant Company</th>
+                  {sortableTh("referenceNo", "Reference Number")}
+                  {sortableTh("activity", "Activity")}
+                  {sortableTh("applicationType", "Application Type")}
+                  {sortableTh("applicantCompany", "Applicant Company")}
                   {showFgmpColumns && (
                     <>
-                      <th style={thStyle}>Category</th>
-                      <th style={thStyle}>Foreign Manufacturer</th>
-                      <th style={thStyle}>Type of Issuance</th>
+                      {sortableTh("category", "Category")}
+                      {sortableTh(
+                        "foreignManufacturer",
+                        "Foreign Manufacturer",
+                      )}
+                      {sortableTh("typeOfIssuance", "Type of Issuance")}
                     </>
                   )}
-                  <th style={thStyle}>Due Date</th>
-                  <th style={thStyle}>Last Modified</th>
-                  <th style={thStyle}>Priority</th>
-                  {activeSubTab !== "unclaimed" && (
-                    <th style={thStyle}>Remarks</th>
-                  )}
+                  {sortableTh("dueDate", "Due Date")}
+                  {sortableTh("lastModified", "Last Modified")}
+                  {sortableTh("priority", "Priority")}
+                  {activeSubTab !== "unclaimed" &&
+                    sortableTh("remarks", "Remarks")}
                   <th style={stickyActionTh}>
                     {activeSubTab === "unclaimed" ? "Claim" : "Actions"}
                   </th>
@@ -2211,7 +2484,7 @@ function EApplicationPage({ darkMode }) {
                         ? "Loading applications..."
                         : loadError
                           ? `Could not load applications: ${loadError}`
-                          : searchTerm || selectedActivity
+                          : searchTerm || selectedActivities.length > 0
                             ? "No matching applications found."
                             : activeSubTab === "unclaimed"
                               ? "No applications waiting to be claimed."
@@ -2313,6 +2586,7 @@ function EApplicationPage({ darkMode }) {
                           index % 2 === 0
                             ? colors.tableRowEven
                             : colors.tableRowOdd,
+                          openMenuId === row.id,
                         )}
                       >
                         {activeSubTab === "unclaimed" ? (
@@ -2594,17 +2868,26 @@ function EApplicationPage({ darkMode }) {
         (() => {
           const app = applications.find((a) => a.id === emailTargetId);
           if (!app) return null;
+          // The original Order of Payment is still a sample entry; everything
+          // else comes from the server.
+          const hasOop = serverEmailLogs.some((l) => l.docType === "OOP");
+          const logs = hasOop
+            ? serverEmailLogs
+            : [seedOopLog(app), ...serverEmailLogs];
           return (
             <EmailNotificationsModal
               row={app}
-              logs={app.emailLogs || [seedOopLog(app)]}
+              logs={logs}
               colors={colors}
-              onResend={(logId) => handleResendEmail(app.id, logId)}
+              onResend={(logId) =>
+                serverEmailLogs.some((l) => l.id === logId)
+                  ? handleResendServerEmail(app, logId)
+                  : handleResendEmail(app.id, logId)
+              }
               onClose={() => setEmailTargetId(null)}
             />
           );
         })()}
-
       {docsTargetId &&
         (() => {
           const app = applications.find((a) => a.id === docsTargetId);
