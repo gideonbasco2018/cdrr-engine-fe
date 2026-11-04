@@ -314,6 +314,9 @@ function ClassTrendPanel({
   docBreakdown = [],
   docFilter = "All",
   onDocClick,
+  classBreakdown = [],
+  classFilter = "All",
+  onClassClick,
   ui,
   darkMode,
   color,
@@ -324,6 +327,13 @@ function ClassTrendPanel({
   const max = Math.max(...data.map((d) => d.count), 1);
   const peak = data.reduce((p, d) => (d.count > (p?.count ?? 0) ? d : p), null);
   const docTotal = docBreakdown.reduce((s, d) => s + d.count, 0);
+  const classSlices = classBreakdown.map((c) => ({
+    key: c.key,
+    name: c.key === NONE_KEY ? "No Classification" : c.key,
+    short: c.key === NONE_KEY ? "None" : classShort(c.key),
+    value: c.count,
+    color: c.key === NONE_KEY ? "#9ca3af" : classTypeColor(classShort(c.key)),
+  }));
   const BAR_AREA = 190;
   const MODE_LABEL = { year: "Per Year", month: "Per Month", day: "Per Day" };
   const heading =
@@ -506,7 +516,9 @@ function ClassTrendPanel({
         </div>
       )}
 
-      <div style={{ borderTop: `1px solid ${line}` }} />
+      {docBreakdown.length > 0 && (
+        <div style={{ borderTop: `1px solid ${line}` }} />
+      )}
 
       {/* ── Timeline ── */}
       <div>
@@ -714,6 +726,59 @@ function ClassTrendPanel({
           {basis === "received" ? "Date Received" : "Date Released"} and are not
           in the chart.
         </div>
+      )}
+
+      {/* ── By classification (donut) ── */}
+      {classSlices.length > 0 && (
+        <>
+          <div style={{ borderTop: `1px solid ${line}` }} />
+          <div>
+            <div style={sectionTitle}>🥧 {tabLabel} · By Classification</div>
+            <div
+              style={{
+                fontSize: "0.68rem",
+                color: ui.textMuted,
+                marginTop: 2,
+              }}
+            >
+              Click a slice or a row to filter the table
+            </div>
+          </div>
+          {classFilter !== "All" && (
+            <div>
+              <button
+                onClick={() => onClassClick?.(classFilter)}
+                title="Clear classification filter"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "3px 10px",
+                  borderRadius: 99,
+                  border: `1px solid ${color}`,
+                  background: `${color}18`,
+                  color,
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: font,
+                }}
+              >
+                {classFilter === NONE_KEY ? "No Classification" : classFilter} ✕
+              </button>
+            </div>
+          )}
+          <PieChart
+            slices={classSlices}
+            darkMode={darkMode}
+            ui={ui}
+            onSliceClick={(s) => onClassClick?.(s.key)}
+            size={190}
+            centerLabel={String(tabLabel).toUpperCase()}
+            legendMin={330}
+            hint="Click a slice or a row to filter the table"
+          />
+        </>
       )}
     </div>
   );
@@ -1101,6 +1166,12 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       ? { label: "In Progress", color: "#f59e0b" }
       : { label: "Completed", color: "#36a420" };
   })();
+
+  // Doc type only means something for released / completed records
+  const showDocBreakdown = trendMeta.label !== "In Progress";
+  // Classification donut only for In Progress opened from the line chart / donut
+  const showClassBreakdown =
+    !!target.trendRecords && trendMeta.label === "In Progress";
   const [trendMode, setTrendMode] = useState(initTrend.mode); // year | month | day
   const [trendBasis, setTrendBasis] = useState(initTrend.basis); // received | released
   const [trendYear, setTrendYear] = useState(initTrend.year);
@@ -1109,6 +1180,9 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [trendData, setTrendData] = useState([]);
   const [trendNoDate, setTrendNoDate] = useState(0);
   const [trendLoading, setTrendLoading] = useState(false);
+
+  const [classFilter, setClassFilter] = useState("All");
+  const [classCounts, setClassCounts] = useState([]);
 
   subOpenRef.current = !!(
     doctrackRow ||
@@ -1192,6 +1266,9 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       search: query || undefined,
       status: statusFilter === "All" ? undefined : statusFilter,
       doc_type: docFilter === "All" ? undefined : docFilter,
+      ...(target.trendRecords && classFilter !== "All"
+        ? { classification: classFilter }
+        : {}),
       ...extra,
     };
     return target.trendRecords
@@ -1240,6 +1317,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     query,
     statusFilter,
     docFilter,
+    classFilter,
   ]);
 
   // Fill the year dropdown when the panel opens in month / day view
@@ -1326,7 +1404,11 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
               ...common,
             })
           : target.trendRecords
-            ? getAnalyticsTrendRecords({ ...target.trendRecords, ...common })
+            ? getAnalyticsTrendRecords({
+                ...target.trendRecords,
+                ...common,
+                classification: classFilter === "All" ? undefined : classFilter,
+              })
             : target.classification
               ? getAnalyticsClassificationRecords({
                   ...target.classification,
@@ -1354,6 +1436,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
         setTotal(res.total ?? 0);
         setStatusCounts(res.status_counts ?? []);
         setDocCounts(res.doc_type_counts ?? []);
+        setClassCounts(res.class_counts ?? []);
       } catch (err) {
         console.error("Year records fetch error:", err);
         if (!cancelled) setError("Failed to load records.");
@@ -1371,6 +1454,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     query,
     statusFilter,
     docFilter,
+    classFilter,
     recFrom,
     recTo,
     relFrom,
@@ -1391,6 +1475,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const filtersActive =
     statusFilter !== "All" ||
     docFilter !== "All" ||
+    classFilter !== "All" ||
     query !== "" ||
     !!(recFrom || recTo || relFrom || relTo);
   const rangeInvalid = (a, b) => a && b && a > b;
@@ -1409,6 +1494,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const clearFilters = () => {
     setStatusFilter("All");
     setDocFilter("All");
+    setClassFilter("All");
     setSearch("");
     setQuery("");
     setRecFrom("");
@@ -2148,10 +2234,16 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                 onMonthChange={setTrendMonth}
                 activeKey={activeTrendKey}
                 onBarClick={handleTrendBar}
-                docBreakdown={docCounts}
+                docBreakdown={showDocBreakdown ? docCounts : []}
                 docFilter={docFilter}
                 onDocClick={(k) => {
                   setDocFilter(docFilter === k ? "All" : k);
+                  setPage(1);
+                }}
+                classBreakdown={showClassBreakdown ? classCounts : []}
+                classFilter={classFilter}
+                onClassClick={(k) => {
+                  setClassFilter(classFilter === k ? "All" : k);
                   setPage(1);
                 }}
                 ui={ui}
@@ -2552,6 +2644,7 @@ function PieChart({
   size = 300,
   centerLabel = "TOTAL",
   legendMin = 240,
+  hint = "Click a slice or a row to view its records",
 }) {
   const [hovered, setHovered] = useState(null);
   const cx = 150,
@@ -2818,7 +2911,7 @@ function PieChart({
               padding: "6px 10px 0",
             }}
           >
-            Click a slice or a row to view its records
+            {hint}
           </span>
         )}
       </div>
