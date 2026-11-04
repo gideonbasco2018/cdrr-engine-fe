@@ -20,6 +20,7 @@ import {
   getAnalyticsTopCountries,
   getDocTypeReleased,
   getAnalyticsClassificationRecords,
+  getAnalyticsClassificationTrend,
 } from "../../../api/analytics";
 
 import DoctrackModal from "../../reports/actions/DoctrackModal";
@@ -275,6 +276,288 @@ function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
   );
 }
 
+// ── Per-year / per-month bar graph shown beside the records table ──
+function ClassTrendPanel({
+  data,
+  noDate,
+  loading,
+  mode,
+  onModeChange,
+  basis,
+  onBasisChange,
+  year,
+  onYearChange,
+  years,
+  activeKey,
+  onBarClick,
+  ui,
+  darkMode,
+  color,
+  tabLabel,
+}) {
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+  const total = data.reduce((s, d) => s + d.count, 0);
+  const max = Math.max(...data.map((d) => d.count), 1);
+  const peak = data.reduce((p, d) => (d.count > (p?.count ?? 0) ? d : p), null);
+  const BAR_AREA = 190;
+  const compact = (n) =>
+    n >= 10000
+      ? `${Math.round(n / 1000)}k`
+      : n >= 1000
+        ? `${(n / 1000).toFixed(1)}k`
+        : String(n);
+
+  const seg = (active) => ({
+    padding: "4px 10px",
+    fontSize: "0.68rem",
+    fontWeight: active ? 700 : 500,
+    borderRadius: 8,
+    border: "none",
+    background: neuCardBg(darkMode),
+    color: active ? FB : ui.textMuted,
+    cursor: "pointer",
+    fontFamily: font,
+    boxShadow: active ? neuShadow(darkMode, false) : "none",
+    transition: "all 0.18s",
+  });
+  const group = {
+    display: "flex",
+    background: neuCardBg(darkMode),
+    borderRadius: 10,
+    padding: 3,
+    gap: 2,
+    boxShadow: neuShadow(darkMode, false),
+  };
+
+  return (
+    <div
+      style={{
+        width: 400,
+        flexShrink: 0,
+        borderLeft: `1px solid ${line}`,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        padding: 16,
+        overflowY: "auto",
+        fontFamily: font,
+      }}
+    >
+      <div>
+        <div
+          style={{
+            fontSize: "0.7rem",
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            color: ui.textMuted,
+          }}
+        >
+          📊 {tabLabel} · {mode === "year" ? "Per Year" : `Per Month · ${year}`}
+        </div>
+        <div style={{ fontSize: "0.68rem", color: ui.textMuted, marginTop: 2 }}>
+          Click a bar to filter the table
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={group}>
+          <button
+            style={seg(mode === "year")}
+            onClick={() => onModeChange("year")}
+          >
+            Per Year
+          </button>
+          <button
+            style={seg(mode === "month")}
+            onClick={() => onModeChange("month")}
+          >
+            Per Month
+          </button>
+        </div>
+        <div style={group}>
+          <button
+            style={seg(basis === "received")}
+            onClick={() => onBasisChange("received")}
+          >
+            By Received
+          </button>
+          <button
+            style={seg(basis === "released")}
+            onClick={() => onBasisChange("released")}
+          >
+            By Released
+          </button>
+        </div>
+        {mode === "month" && (
+          <select
+            value={year ?? ""}
+            onChange={(e) => onYearChange(Number(e.target.value))}
+            style={{
+              background: neuCardBg(darkMode),
+              border: `1px solid ${line}`,
+              borderRadius: 8,
+              padding: "4px 8px",
+              fontSize: "0.72rem",
+              color: ui.textPrimary,
+              outline: "none",
+              fontFamily: font,
+              colorScheme: darkMode ? "dark" : "light",
+            }}
+          >
+            {[...new Set([...years, year].filter(Boolean))]
+              .sort((a, b) => b - a)
+              .map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+          </select>
+        )}
+      </div>
+
+      {/* Summary */}
+      <div style={{ display: "flex", gap: 8 }}>
+        {[
+          { label: "In chart", value: total.toLocaleString() },
+          {
+            label: "Peak",
+            value: peak
+              ? `${peak.label} · ${peak.count.toLocaleString()}`
+              : "—",
+          },
+        ].map((s) => (
+          <div
+            key={s.label}
+            style={{
+              flex: 1,
+              padding: "8px 10px",
+              borderRadius: 10,
+              background: neuCardBg(darkMode),
+              boxShadow: neuShadow(darkMode),
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.58rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                color: ui.textMuted,
+              }}
+            >
+              {s.label}
+            </div>
+            <div style={{ fontSize: "0.9rem", fontWeight: 800, color }}>
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bars */}
+      <div
+        style={{
+          position: "relative",
+          minHeight: BAR_AREA + 40,
+          opacity: loading ? 0.45 : 1,
+          transition: "opacity 0.2s",
+        }}
+      >
+        {data.length === 0 || total === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              color: ui.textMuted,
+              fontSize: "0.8rem",
+              padding: "60px 0",
+            }}
+          >
+            {loading ? "Loading…" : "No dated records to chart"}
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              gap: mode === "month" ? 4 : 8,
+              height: BAR_AREA + 40,
+              borderBottom: `1px solid ${line}`,
+            }}
+          >
+            {data.map((d) => {
+              const h =
+                d.count > 0 ? Math.max((d.count / max) * BAR_AREA, 4) : 0;
+              const isActive = activeKey === d.key;
+              const dim = activeKey != null && !isActive;
+              return (
+                <div
+                  key={d.key}
+                  onClick={() => d.count > 0 && onBarClick(d)}
+                  title={`${d.label}: ${d.count.toLocaleString()}`}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    height: "100%",
+                    cursor: d.count > 0 ? "pointer" : "default",
+                    opacity: dim ? 0.35 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      color: isActive ? color : ui.textMuted,
+                      marginBottom: 3,
+                    }}
+                  >
+                    {d.count > 0 ? compact(d.count) : ""}
+                  </span>
+                  <div
+                    style={{
+                      width: "100%",
+                      maxWidth: 44,
+                      height: h,
+                      borderRadius: "6px 6px 0 0",
+                      background: `linear-gradient(180deg, ${color}, ${color}aa)`,
+                      outline: isActive ? `2px solid ${color}` : "none",
+                      outlineOffset: 1,
+                      transition: "height 0.3s ease",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.62rem",
+                      fontWeight: isActive ? 800 : 600,
+                      color: isActive ? color : ui.textMuted,
+                      padding: "5px 0 4px",
+                    }}
+                  >
+                    {d.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {mode === "year" && noDate > 0 && (
+        <div style={{ fontSize: "0.7rem", color: ui.textMuted }}>
+          ⚠ {noDate.toLocaleString()} record(s) have no valid{" "}
+          {basis === "received" ? "Date Received" : "Date Released"} and are not
+          in the chart.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -302,6 +585,16 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [relFrom, setRelFrom] = useState("");
   const [relTo, setRelTo] = useState("");
   const [exporting, setExporting] = useState(false);
+  // ── Trend side panel (classification records only) ──
+  const hasTrend = !!target.classification;
+  const [trendMode, setTrendMode] = useState("year"); // year | month
+  const [trendBasis, setTrendBasis] = useState("received"); // received | released
+  const [trendYear, setTrendYear] = useState(null);
+  const [trendYears, setTrendYears] = useState([]);
+  const [trendData, setTrendData] = useState([]);
+  const [trendNoDate, setTrendNoDate] = useState(0);
+  const [trendLoading, setTrendLoading] = useState(false);
+
   subOpenRef.current = !!(
     doctrackRow ||
     detail ||
@@ -375,6 +668,93 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     }, 350);
     return () => clearTimeout(t);
   }, [search]);
+
+  // Trend chart: follows search / status / doc-type, but NOT the date ranges
+  // (a bar click sets the date range, which would otherwise collapse the chart)
+  useEffect(() => {
+    if (!hasTrend) return;
+    if (trendMode === "month" && !trendYear) return;
+    let cancelled = false;
+    (async () => {
+      setTrendLoading(true);
+      try {
+        const res = await getAnalyticsClassificationTrend({
+          ...target.classification,
+          group_by: trendMode,
+          bucket_year: trendMode === "month" ? trendYear : undefined,
+          basis: trendBasis,
+          search: query || undefined,
+          status: statusFilter === "All" ? undefined : statusFilter,
+          doc_type: docFilter === "All" ? undefined : docFilter,
+        });
+        if (cancelled) return;
+        setTrendData(res.data ?? []);
+        setTrendNoDate(res.no_date ?? 0);
+        if (trendMode === "year")
+          setTrendYears((res.data ?? []).map((d) => d.key));
+      } catch (err) {
+        console.error("Classification trend fetch error:", err);
+        if (!cancelled) setTrendData([]);
+      } finally {
+        if (!cancelled) setTrendLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasTrend,
+    target,
+    trendMode,
+    trendYear,
+    trendBasis,
+    query,
+    statusFilter,
+    docFilter,
+  ]);
+
+  const switchTrendMode = (m) => {
+    setTrendMode(m);
+    if (m === "month" && !trendYear)
+      setTrendYear(
+        trendYears[trendYears.length - 1] ?? new Date().getFullYear(),
+      );
+  };
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const periodRange = (key) => {
+    if (trendMode === "year") return [`${key}-01-01`, `${key}-12-31`];
+    const last = new Date(trendYear, key, 0).getDate();
+    return [
+      `${trendYear}-${pad2(key)}-01`,
+      `${trendYear}-${pad2(key)}-${pad2(last)}`,
+    ];
+  };
+  const activeTrendKey = (() => {
+    const [from, to] =
+      trendBasis === "received" ? [recFrom, recTo] : [relFrom, relTo];
+    if (!from || !to) return null;
+    const hit = trendData.find((d) => {
+      const [a, b] = periodRange(d.key);
+      return a === from && b === to;
+    });
+    return hit ? hit.key : null;
+  })();
+  const handleTrendBar = (d) => {
+    const [a, b] = periodRange(d.key);
+    const [setF, setT] =
+      trendBasis === "received"
+        ? [setRecFrom, setRecTo]
+        : [setRelFrom, setRelTo];
+    if (activeTrendKey === d.key) {
+      setF("");
+      setT("");
+    } else {
+      setF(a);
+      setT(b);
+    }
+    setPage(1);
+  };
 
   const requestRecords = (pageNum, pageSize) => {
     const common = {
@@ -645,7 +1025,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
             setMenu(null);
           }}
           style={{
-            width: "min(1100px, 100%)",
+            width: hasTrend ? "min(1560px, 100%)" : "min(1100px, 100%)",
             maxHeight: "88vh",
             display: "flex",
             flexDirection: "column",
@@ -732,129 +1112,67 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
             </div>
           </div>
 
-          {/* Filters + status counts */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
-              padding: "10px 18px",
-              borderBottom: `1px solid ${line}`,
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <button
-                onClick={() => {
-                  setStatusFilter("All");
-                  setPage(1);
+          {/* Body: table column (+ trend panel on the right) */}
+          <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 0,
+              }}
+            >
+              {/* Filters + status counts */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "10px 18px",
+                  borderBottom: `1px solid ${line}`,
+                  flexWrap: "wrap",
                 }}
-                style={chip(statusFilter === "All", FB)}
               >
-                All <b>{statusAll.toLocaleString()}</b>
-              </button>
-              {statusOptions.map((s) => {
-                const color = statusColor(s.key);
-                return (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button
-                    key={s.key}
                     onClick={() => {
-                      setStatusFilter(statusFilter === s.key ? "All" : s.key);
+                      setStatusFilter("All");
                       setPage(1);
                     }}
-                    style={chip(statusFilter === s.key, color)}
+                    style={chip(statusFilter === "All", FB)}
                   >
-                    <span
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: "50%",
-                        background: color,
-                      }}
-                    />
-                    {facetLabel(s.key, "No Status")}{" "}
-                    <b>{s.count.toLocaleString()}</b>
+                    All <b>{statusAll.toLocaleString()}</b>
                   </button>
-                );
-              })}
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span
-                style={{
-                  fontSize: "0.65rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: ui.textMuted,
-                }}
-              >
-                Doc Type
-              </span>
-              <select
-                value={docFilter}
-                onChange={(e) => {
-                  setDocFilter(e.target.value);
-                  setPage(1);
-                }}
-                style={selectSt}
-              >
-                <option value="All">All</option>
-                {docOptions.map((d) => (
-                  <option key={d.key} value={d.key}>
-                    {facetLabel(d.key, "No Doc Type")} (
-                    {d.count.toLocaleString()})
-                  </option>
-                ))}
-              </select>
-              {filtersActive && (
-                <button
-                  onClick={clearFilters}
-                  style={{ ...pageBtn(false), fontSize: "0.7rem" }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Date range filters */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 18,
-              padding: "10px 18px",
-              borderBottom: `1px solid ${line}`,
-              flexWrap: "wrap",
-            }}
-          >
-            {[
-              {
-                label: "Date Received",
-                from: recFrom,
-                to: recTo,
-                setFrom: setRecFrom,
-                setTo: setRecTo,
-              },
-              {
-                label: "Date Released",
-                from: relFrom,
-                to: relTo,
-                setFrom: setRelFrom,
-                setTo: setRelTo,
-              },
-            ].map((f) => {
-              const bad = rangeInvalid(f.from, f.to);
-              const st = {
-                ...selectSt,
-                border: `1px solid ${bad ? "#e02020" : line}`,
-              };
-              return (
-                <div
-                  key={f.label}
-                  style={{ display: "flex", alignItems: "center", gap: 6 }}
-                >
+                  {statusOptions.map((s) => {
+                    const color = statusColor(s.key);
+                    return (
+                      <button
+                        key={s.key}
+                        onClick={() => {
+                          setStatusFilter(
+                            statusFilter === s.key ? "All" : s.key,
+                          );
+                          setPage(1);
+                        }}
+                        style={chip(statusFilter === s.key, color)}
+                      >
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: color,
+                          }}
+                        />
+                        {facetLabel(s.key, "No Status")}{" "}
+                        <b>{s.count.toLocaleString()}</b>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span
                     style={{
                       fontSize: "0.65rem",
@@ -864,316 +1182,430 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                       color: ui.textMuted,
                     }}
                   >
-                    {f.label}
+                    Doc Type
                   </span>
-                  <input
-                    type="date"
-                    value={f.from}
-                    max={f.to || undefined}
+                  <select
+                    value={docFilter}
                     onChange={(e) => {
-                      f.setFrom(e.target.value);
+                      setDocFilter(e.target.value);
                       setPage(1);
                     }}
-                    style={st}
-                  />
-                  <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-                    to
-                  </span>
-                  <input
-                    type="date"
-                    value={f.to}
-                    min={f.from || undefined}
-                    onChange={(e) => {
-                      f.setTo(e.target.value);
-                      setPage(1);
-                    }}
-                    style={st}
-                  />
-                  {bad && (
-                    <span style={{ fontSize: "0.68rem", color: "#e02020" }}>
-                      "From" is after "To"
-                    </span>
+                    style={selectSt}
+                  >
+                    <option value="All">All</option>
+                    {docOptions.map((d) => (
+                      <option key={d.key} value={d.key}>
+                        {facetLabel(d.key, "No Doc Type")} (
+                        {d.count.toLocaleString()})
+                      </option>
+                    ))}
+                  </select>
+                  {filtersActive && (
+                    <button
+                      onClick={clearFilters}
+                      style={{ ...pageBtn(false), fontSize: "0.7rem" }}
+                    >
+                      Clear
+                    </button>
                   )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
 
-          {/* Table */}
-          <div
-            style={{
-              position: "relative",
-              flex: 1,
-              minHeight: 240,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            {/* Spinner overlay while refetching (page / filter / search) */}
-            {loading && rows.length > 0 && (
+              {/* Date range filters */}
               <div
                 style={{
-                  position: "absolute",
-                  inset: 0,
-                  zIndex: 5,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  background: darkMode
-                    ? "rgba(0,0,0,0.35)"
-                    : "rgba(255,255,255,0.55)",
-                  pointerEvents: "none",
+                  gap: 18,
+                  padding: "10px 18px",
+                  borderBottom: `1px solid ${line}`,
+                  flexWrap: "wrap",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 16px",
-                    borderRadius: 10,
-                    background: neuCardBg(darkMode),
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-                    fontSize: "0.78rem",
-                    fontWeight: 600,
-                    color: ui.textPrimary,
-                    fontFamily: font,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 16,
-                      height: 16,
-                      border: `2px solid ${FB}`,
-                      borderTopColor: "transparent",
-                      borderRadius: "50%",
-                      animation: "spin 0.7s linear infinite",
-                      display: "inline-block",
-                    }}
-                  />
-                  Loading records…
-                </div>
-              </div>
-            )}
-
-            <div style={{ overflow: "auto", flex: 1 }}>
-              {loading && rows.length === 0 ? (
-                <div style={{ padding: 18 }}>
-                  <LoadingRows rows={10} height={30} darkMode={darkMode} />
-                </div>
-              ) : error ? (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: 40,
-                    color: ui.textMuted,
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  {error}
-                </div>
-              ) : !loading && rows.length === 0 ? (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: 40,
-                    color: ui.textMuted,
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  No records found
-                </div>
-              ) : (
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "0.8rem",
-                  }}
-                >
-                  <thead>
-                    <tr>
-                      <th style={{ ...th, textAlign: "center" }}>#</th>
-                      <th style={th}>DTN</th>
-                      <th style={th}>Entry Type</th>
-                      <th style={th}>Date Received (Center)</th>
-                      <th style={th}>Date Released</th>
-                      {target.fastest && <th style={th}>Working Days</th>}
-                      {target.summary && <th style={th}>Validity</th>}
-                      <th style={th}>Type of Doc Released</th>
-                      <th style={th}>Status</th>
-                      <th style={th}>Brand Name</th>
-                      <th style={th}>Generic Name</th>
-                      {target.quality && <th style={th}>Missing</th>}
-                      <th
+                {[
+                  {
+                    label: "Date Received",
+                    from: recFrom,
+                    to: recTo,
+                    setFrom: setRecFrom,
+                    setTo: setRecTo,
+                  },
+                  {
+                    label: "Date Released",
+                    from: relFrom,
+                    to: relTo,
+                    setFrom: setRelFrom,
+                    setTo: setRelTo,
+                  },
+                ].map((f) => {
+                  const bad = rangeInvalid(f.from, f.to);
+                  const st = {
+                    ...selectSt,
+                    border: `1px solid ${bad ? "#e02020" : line}`,
+                  };
+                  return (
+                    <div
+                      key={f.label}
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <span
                         style={{
-                          ...th,
-                          position: "sticky",
-                          top: 0,
-                          right: 0,
-                          zIndex: 3,
-                          textAlign: "center",
-                          boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                          fontSize: "0.65rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          color: ui.textMuted,
                         }}
                       >
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={r.db_id}>
-                        <td
-                          style={{
-                            ...td,
-                            textAlign: "center",
-                            color: ui.textMuted,
-                          }}
-                        >
-                          {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
-                        </td>
-                        <td style={td}>
-                          {r.dtn ? (
-                            <span
-                              onClick={() => setDoctrackRow(r)}
-                              title="View document tracking"
-                              style={{
-                                cursor: "pointer",
-                                color: FB,
-                                textDecoration: "underline dotted",
-                                textUnderlineOffset: 3,
-                              }}
-                            >
-                              {r.dtn}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td style={td}>{r.entry_type ?? "—"}</td>
-                        <td style={td}>{r.date_received_cent ?? "—"}</td>
-                        <td style={td}>{r.date_released ?? "—"}</td>
-                        {target.fastest && (
-                          <td
-                            style={{ ...td, fontWeight: 800, color: "#36a420" }}
-                          >
-                            {r.days ?? "—"}
-                          </td>
-                        )}
-                        {target.summary && (
-                          <td style={td}>{r.secpa_exp_date ?? "—"}</td>
-                        )}
-                        <td style={td}>{r.type_doc_released ?? "—"}</td>
-                        <td style={td}>
-                          {r.app_status ? (
-                            <span
-                              style={{
-                                fontSize: "0.68rem",
-                                fontWeight: 700,
-                                padding: "2px 8px",
-                                borderRadius: 99,
-                                color: statusColor(r.app_status),
-                                background: `${statusColor(r.app_status)}22`,
-                              }}
-                            >
-                              {r.app_status}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td style={td}>{r.brand_name ?? "—"}</td>
-                        <td style={td}>{r.generic_name ?? "—"}</td>
-                        {target.quality && (
-                          <td style={td}>
-                            {(r.issues ?? []).length
-                              ? r.issues.map((iss) => (
-                                  <span
-                                    key={iss}
-                                    style={{
-                                      fontSize: "0.65rem",
-                                      fontWeight: 700,
-                                      padding: "2px 8px",
-                                      borderRadius: 99,
-                                      color: "#e02020",
-                                      background: "#e0202022",
-                                      marginRight: 4,
-                                    }}
-                                  >
-                                    {iss}
-                                  </span>
-                                ))
-                              : "—"}
-                          </td>
-                        )}
-                        <td
-                          style={{
-                            ...td,
-                            position: "sticky",
-                            right: 0,
-                            zIndex: 2,
-                            textAlign: "center",
-                            background: neuCardBg(darkMode),
-                            boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
-                          }}
-                        >
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const rect =
-                                e.currentTarget.getBoundingClientRect();
-                              setMenu({
-                                row: r,
-                                top: rect.bottom + 4,
-                                right: window.innerWidth - rect.right,
-                              });
-                            }}
-                            style={{ ...pageBtn(false), padding: "3px 10px" }}
-                          >
-                            Actions ▾
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
+                        {f.label}
+                      </span>
+                      <input
+                        type="date"
+                        value={f.from}
+                        max={f.to || undefined}
+                        onChange={(e) => {
+                          f.setFrom(e.target.value);
+                          setPage(1);
+                        }}
+                        style={st}
+                      />
+                      <span
+                        style={{ fontSize: "0.72rem", color: ui.textMuted }}
+                      >
+                        to
+                      </span>
+                      <input
+                        type="date"
+                        value={f.to}
+                        min={f.from || undefined}
+                        onChange={(e) => {
+                          f.setTo(e.target.value);
+                          setPage(1);
+                        }}
+                        style={st}
+                      />
+                      {bad && (
+                        <span style={{ fontSize: "0.68rem", color: "#e02020" }}>
+                          "From" is after "To"
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
-          {/* Footer / pagination */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 18px",
-              borderTop: `1px solid ${line}`,
-            }}
-          >
-            <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-              {start}–{end} of {total.toLocaleString()}
-            </span>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button
-                style={pageBtn(page === 1 || loading)}
-                disabled={page === 1 || loading}
-                onClick={() => setPage((p) => p - 1)}
+              {/* Table */}
+              <div
+                style={{
+                  position: "relative",
+                  flex: 1,
+                  minHeight: 240,
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                }}
               >
-                ‹ Prev
-              </button>
-              <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-                Page {page} / {totalPages}
-              </span>
-              <button
-                style={pageBtn(page >= totalPages || loading)}
-                disabled={page >= totalPages || loading}
-                onClick={() => setPage((p) => p + 1)}
+                {/* Spinner overlay while refetching (page / filter / search) */}
+                {loading && rows.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      zIndex: 5,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: darkMode
+                        ? "rgba(0,0,0,0.35)"
+                        : "rgba(255,255,255,0.55)",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 16px",
+                        borderRadius: 10,
+                        background: neuCardBg(darkMode),
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        color: ui.textPrimary,
+                        fontFamily: font,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 16,
+                          height: 16,
+                          border: `2px solid ${FB}`,
+                          borderTopColor: "transparent",
+                          borderRadius: "50%",
+                          animation: "spin 0.7s linear infinite",
+                          display: "inline-block",
+                        }}
+                      />
+                      Loading records…
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ overflow: "auto", flex: 1 }}>
+                  {loading && rows.length === 0 ? (
+                    <div style={{ padding: 18 }}>
+                      <LoadingRows rows={10} height={30} darkMode={darkMode} />
+                    </div>
+                  ) : error ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: ui.textMuted,
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      {error}
+                    </div>
+                  ) : !loading && rows.length === 0 ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: ui.textMuted,
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      No records found
+                    </div>
+                  ) : (
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      <thead>
+                        <tr>
+                          <th style={{ ...th, textAlign: "center" }}>#</th>
+                          <th style={th}>DTN</th>
+                          <th style={th}>Entry Type</th>
+                          <th style={th}>Date Received (Center)</th>
+                          <th style={th}>Date Released</th>
+                          {target.fastest && <th style={th}>Working Days</th>}
+                          {target.summary && <th style={th}>Validity</th>}
+                          <th style={th}>Type of Doc Released</th>
+                          <th style={th}>Status</th>
+                          <th style={th}>Brand Name</th>
+                          <th style={th}>Generic Name</th>
+                          {target.quality && <th style={th}>Missing</th>}
+                          <th
+                            style={{
+                              ...th,
+                              position: "sticky",
+                              top: 0,
+                              right: 0,
+                              zIndex: 3,
+                              textAlign: "center",
+                              boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                            }}
+                          >
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r, i) => (
+                          <tr key={r.db_id}>
+                            <td
+                              style={{
+                                ...td,
+                                textAlign: "center",
+                                color: ui.textMuted,
+                              }}
+                            >
+                              {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
+                            </td>
+                            <td style={td}>
+                              {r.dtn ? (
+                                <span
+                                  onClick={() => setDoctrackRow(r)}
+                                  title="View document tracking"
+                                  style={{
+                                    cursor: "pointer",
+                                    color: FB,
+                                    textDecoration: "underline dotted",
+                                    textUnderlineOffset: 3,
+                                  }}
+                                >
+                                  {r.dtn}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td style={td}>{r.entry_type ?? "—"}</td>
+                            <td style={td}>{r.date_received_cent ?? "—"}</td>
+                            <td style={td}>{r.date_released ?? "—"}</td>
+                            {target.fastest && (
+                              <td
+                                style={{
+                                  ...td,
+                                  fontWeight: 800,
+                                  color: "#36a420",
+                                }}
+                              >
+                                {r.days ?? "—"}
+                              </td>
+                            )}
+                            {target.summary && (
+                              <td style={td}>{r.secpa_exp_date ?? "—"}</td>
+                            )}
+                            <td style={td}>{r.type_doc_released ?? "—"}</td>
+                            <td style={td}>
+                              {r.app_status ? (
+                                <span
+                                  style={{
+                                    fontSize: "0.68rem",
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: 99,
+                                    color: statusColor(r.app_status),
+                                    background: `${statusColor(r.app_status)}22`,
+                                  }}
+                                >
+                                  {r.app_status}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td style={td}>{r.brand_name ?? "—"}</td>
+                            <td style={td}>{r.generic_name ?? "—"}</td>
+                            {target.quality && (
+                              <td style={td}>
+                                {(r.issues ?? []).length
+                                  ? r.issues.map((iss) => (
+                                      <span
+                                        key={iss}
+                                        style={{
+                                          fontSize: "0.65rem",
+                                          fontWeight: 700,
+                                          padding: "2px 8px",
+                                          borderRadius: 99,
+                                          color: "#e02020",
+                                          background: "#e0202022",
+                                          marginRight: 4,
+                                        }}
+                                      >
+                                        {iss}
+                                      </span>
+                                    ))
+                                  : "—"}
+                              </td>
+                            )}
+                            <td
+                              style={{
+                                ...td,
+                                position: "sticky",
+                                right: 0,
+                                zIndex: 2,
+                                textAlign: "center",
+                                background: neuCardBg(darkMode),
+                                boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                              }}
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect =
+                                    e.currentTarget.getBoundingClientRect();
+                                  setMenu({
+                                    row: r,
+                                    top: rect.bottom + 4,
+                                    right: window.innerWidth - rect.right,
+                                  });
+                                }}
+                                style={{
+                                  ...pageBtn(false),
+                                  padding: "3px 10px",
+                                }}
+                              >
+                                Actions ▾
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer / pagination */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 18px",
+                  borderTop: `1px solid ${line}`,
+                }}
               >
-                Next ›
-              </button>
+                <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                  {start}–{end} of {total.toLocaleString()}
+                </span>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button
+                    style={pageBtn(page === 1 || loading)}
+                    disabled={page === 1 || loading}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    ‹ Prev
+                  </button>
+                  <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                    Page {page} / {totalPages}
+                  </span>
+                  <button
+                    style={pageBtn(page >= totalPages || loading)}
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next ›
+                  </button>
+                </div>
+              </div>
             </div>
+            {hasTrend && (
+              <ClassTrendPanel
+                data={trendData}
+                noDate={trendNoDate}
+                loading={trendLoading}
+                mode={trendMode}
+                onModeChange={switchTrendMode}
+                basis={trendBasis}
+                onBasisChange={setTrendBasis}
+                year={trendYear}
+                onYearChange={setTrendYear}
+                years={trendYears}
+                activeKey={activeTrendKey}
+                onBarClick={handleTrendBar}
+                ui={ui}
+                darkMode={darkMode}
+                color={
+                  target.classification?.tab === "in_progress"
+                    ? "#f59e0b"
+                    : "#36a420"
+                }
+                tabLabel={
+                  target.classification?.tab === "in_progress"
+                    ? "In Progress"
+                    : "Completed"
+                }
+              />
+            )}
           </div>
         </div>
       </div>
@@ -2139,6 +2571,22 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         classification: scope,
       });
     }
+  };
+
+  // Click on a table cell: Total (all docs) or a doc-type column
+  const openClassCell = (row, dt = null) => {
+    const tabLabel = classStatus === "completed" ? "Completed" : "In Progress";
+    setRecordsTarget({
+      title: `${tabLabel} — ${row.type}${dt ? ` · ${dt}` : ""}`,
+      ...(dt ? { docType: docKey(dt) } : {}),
+      classification: {
+        year: chartYear,
+        month: chartMonth,
+        prescription: rxFilter,
+        tab: classStatus,
+        classification: row.type,
+      },
+    });
   };
 
   const docTypePieSlices = classDocTypes
@@ -3539,16 +3987,40 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                               )}
                             </td>
                             <td style={tdStyle(ui.textPrimary)}>
-                              {row.count.toLocaleString()}
+                              {row.count > 0 ? (
+                                <span
+                                  onClick={() => openClassCell(row)}
+                                  title="Click to view records"
+                                  style={linkSt}
+                                >
+                                  {row.count.toLocaleString()}
+                                </span>
+                              ) : (
+                                row.count.toLocaleString()
+                              )}
                             </td>
                             {showDocCols &&
-                              visibleDocTypes.map((dt) => (
-                                <td key={dt} style={tdStyle(docTypeColor(dt))}>
-                                  {(
-                                    row.by_doc_type?.[dt] ?? 0
-                                  ).toLocaleString()}
-                                </td>
-                              ))}
+                              visibleDocTypes.map((dt) => {
+                                const n = row.by_doc_type?.[dt] ?? 0;
+                                return (
+                                  <td
+                                    key={dt}
+                                    style={tdStyle(docTypeColor(dt))}
+                                  >
+                                    {n > 0 ? (
+                                      <span
+                                        onClick={() => openClassCell(row, dt)}
+                                        title="Click to view records"
+                                        style={linkSt}
+                                      >
+                                        {n.toLocaleString()}
+                                      </span>
+                                    ) : (
+                                      n.toLocaleString()
+                                    )}
+                                  </td>
+                                );
+                              })}
                           </tr>
                         );
                       })}
