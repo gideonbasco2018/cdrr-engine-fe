@@ -12,14 +12,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { getUploadReports } from "../../../api/reports";
+import { getGMPRecord } from "../../../api/gmp";
 import { mapDataItem } from "../../reports/utils.js";
 import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
 import ApplicationLogsModal from "../../tasks/ApplicationLogsModal";
 import DoctrackModal from "../../reports/actions/DoctrackModal";
+import AppLogModal from "../../gmp/tasks/AppLogModal";
+import GMPApplicationInfoModal from "../../gmp/queue/GMPApplicationInfoModal";
 import { exportRecordsXlsx } from "./exportEvaluatorMonitoring";
 import SortLabel from "./SortLabel";
 import { makeUi, Icon, IconChip, Skeleton, AMBER } from "./ui";
 import { startLabel, endLabel } from "./tatSources";
+import { SourceBadge } from "./SourceBadge";
+import { roleName } from "./roles";
 
 const PAGE_SIZE = 50;
 const LOAD_LIMIT = 2000; // the API caps one request at 2,000 rows
@@ -31,10 +36,37 @@ const fmtAvg = (n) =>
     : Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 });
 const show = (v) => (v === null || v === undefined || v === "" ? "—" : v);
 
-const COLUMNS = [
+// source = which data the rows come from; the "Data" column only shows when
+// both CPR and FGMP rows are in the list, and FGMP has a product line, not a
+// generic name
+const makeColumns = (sources = ["cpr"], roles = ["evaluator"]) => {
+  const both = sources.length > 1;
+  const fgmpOnly = sources.length === 1 && sources[0] === "fgmp";
+  return [
+    ...(both ? [{ key: "source", label: "Data", nowrap: true, badge: true }] : []),
+    // which role the work was, when several roles are mixed
+    ...(roles.length > 1
+      ? [{ key: "role", label: "Role", nowrap: true, roleText: true }]
+      : []),
+    ...BASE_COLUMNS.map((c) =>
+      c.key === "generic_name"
+        ? {
+            ...c,
+            label: fgmpOnly
+              ? "Product Line"
+              : both
+                ? "Generic Name / Product Line"
+                : "Generic Name",
+          }
+        : c,
+    ),
+  ];
+};
+
+const BASE_COLUMNS = [
   { key: "dtn", label: "DTN", nowrap: true },
   { key: "company", label: "Company" },
-  { key: "generic_name", label: "Generic Name" },
+  { key: "generic_name", label: "Generic Name", clamp: true },
   { key: "brand_name", label: "Brand Name" },
   { key: "doc_type", label: "Document Type", nowrap: true },
   { key: "date_received", label: "Date Received", nowrap: true },
@@ -80,7 +112,15 @@ function EvaluatorRecordsModal({
   const [detailLoading, setDetailLoading] = useState(false);
   const [logsRow, setLogsRow] = useState(null);
   const [doctrackRow, setDoctrackRow] = useState(null);
-  const subOpen = !!(detail || logsRow || doctrackRow);
+  const [fgmpDetail, setFgmpDetail] = useState(null); // full FGMP record
+  const [fgmpLogsRow, setFgmpLogsRow] = useState(null);
+  const subOpen = !!(
+    detail ||
+    logsRow ||
+    doctrackRow ||
+    fgmpDetail ||
+    fgmpLogsRow
+  );
 
   // closing plays a short fade-out, then tells the page to remove the modal
   const [closing, setClosing] = useState(false);
@@ -119,6 +159,11 @@ function EvaluatorRecordsModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose, subOpen, menu, closing]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const COLUMNS = useMemo(
+    () => makeColumns(data?.sources, data?.roles),
+    [data?.sources, data?.roles],
+  );
+
   const rows = useMemo(() => {
     const all = data?.rows || [];
     const q = search.trim().toLowerCase();
@@ -146,7 +191,7 @@ function EvaluatorRecordsModal({
       });
     }
     return list;
-  }, [data, search, sort]);
+  }, [data, search, sort, COLUMNS]);
 
   useEffect(() => setPage(1), [search, sort]);
 
@@ -192,10 +237,23 @@ function EvaluatorRecordsModal({
     }
   };
 
+  // FGMP: the same record the FGMP queue shows
+  const openFgmpDetails = async (r) => {
+    setDetailLoading(true);
+    try {
+      setFgmpDetail(await getGMPRecord(r.db_id));
+    } catch (err) {
+      console.error("Load FGMP record failed:", err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const runAction = (id, r) => {
     setMenu(null);
-    if (id === "details") openDetails(r);
-    else if (id === "logs") setLogsRow(r);
+    const fgmp = r.source === "fgmp";
+    if (id === "details") fgmp ? openFgmpDetails(r) : openDetails(r);
+    else if (id === "logs") fgmp ? setFgmpLogsRow(r) : setLogsRow(r);
     else setDoctrackRow(r);
   };
 
@@ -565,7 +623,7 @@ function EvaluatorRecordsModal({
                 )}
                 {pageRows.map((r, i) => (
                   <tr
-                    key={r.db_id}
+                    key={`${r.source}-${r.role}-${r.db_id}`}
                     className="em-row"
                     style={{
                       transition: "background .12s",
@@ -597,7 +655,26 @@ function EvaluatorRecordsModal({
                               : 400,
                         }}
                       >
-                        {show(r[c.key])}
+                        {c.badge ? (
+                          <SourceBadge source={r.source} t={t} />
+                        ) : c.roleText ? (
+                          roleName(r.role)
+                        ) : c.clamp ? (
+                          <span
+                            title={r[c.key] || undefined}
+                            style={{
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                              maxWidth: 260,
+                            }}
+                          >
+                            {show(r[c.key])}
+                          </span>
+                        ) : (
+                          show(r[c.key])
+                        )}
                         {c.src && r[c.key] && (
                           <div
                             style={{
@@ -648,7 +725,9 @@ function EvaluatorRecordsModal({
                           e.stopPropagation();
                           const rect = e.currentTarget.getBoundingClientRect();
                           setMenu(
-                            menu?.row.db_id === r.db_id
+                            menu?.row.db_id === r.db_id &&
+                              menu?.row.source === r.source &&
+                              menu?.row.role === r.role
                               ? null
                               : {
                                   row: r,
@@ -793,6 +872,22 @@ function EvaluatorRecordsModal({
           <ApplicationLogsModal
             record={{ dtn: logsRow.dtn, mainDbId: logsRow.db_id }}
             onClose={() => setLogsRow(null)}
+            colors={colors}
+            darkMode={darkMode}
+          />
+        )}
+        {fgmpDetail && (
+          <GMPApplicationInfoModal
+            record={fgmpDetail}
+            onClose={() => setFgmpDetail(null)}
+            colors={colors}
+            darkMode={darkMode}
+          />
+        )}
+        {fgmpLogsRow && (
+          <AppLogModal
+            record={{ id: fgmpLogsRow.db_id, dtn: fgmpLogsRow.dtn }}
+            onClose={() => setFgmpLogsRow(null)}
             colors={colors}
             darkMode={darkMode}
           />

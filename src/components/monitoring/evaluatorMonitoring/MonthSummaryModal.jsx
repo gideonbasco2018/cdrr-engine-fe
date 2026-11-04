@@ -1,7 +1,7 @@
 // src/components/monitoring/evaluatorMonitoring/MonthSummaryModal.jsx
 // Opens when a month row of the monthly breakdown is clicked: a summary of that
-// month for one person (received, released, still open, top companies, top
-// drugs and document types). Every number and bar opens the list of the
+// month for one person (received, released, still open) and, separately for
+// what was received and what was released, its top companies and top drugs. Every number and bar opens the list of the
 // applications behind it.
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -16,6 +16,7 @@ export default function MonthSummaryModal({
   period, // { key: month number, label: "Sep" }
   userId,
   role,
+  sources, // "cpr", "fgmp" or "cpr,fgmp"
   personName,
   darkMode,
   blocked, // a list of applications is open on top: leave Esc to it
@@ -33,7 +34,13 @@ export default function MonthSummaryModal({
     let cancelled = false;
     setData(null);
     setError("");
-    getEvaluatorMonthSummary({ user_id: userId, year, month: period.key, role })
+    getEvaluatorMonthSummary({
+      user_id: userId,
+      year,
+      month: period.key,
+      role,
+      sources,
+    })
       .then((res) => !cancelled && setData(res))
       .catch((err) => {
         if (!cancelled)
@@ -42,7 +49,7 @@ export default function MonthSummaryModal({
     return () => {
       cancelled = true;
     };
-  }, [year, period.key, userId, role]);
+  }, [year, period.key, userId, role, sources]);
 
   const close = () => {
     if (closing) return;
@@ -54,6 +61,15 @@ export default function MonthSummaryModal({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // FGMP has no drug: its rows are product lines
+  const kinds = String(sources || "cpr").split(",");
+  const drugTitle =
+    kinds.length > 1
+      ? "Top drugs / product lines"
+      : kinds[0] === "fgmp"
+        ? "Top product lines"
+        : "Top drugs";
 
   const open = (side, seg = null, extra = null) =>
     onOpenList(side, period, seg, extra);
@@ -116,8 +132,10 @@ export default function MonthSummaryModal({
   };
 
   // a ranked list whose rows are bars: the bar is the share of the biggest row
-  const ranking = (title, icon, items, total, onPick, footnote) => {
+  const ranking = (title, icon, items, total, onPick, footnote, tone = "blue") => {
     const max = Math.max(1, ...items.map((i) => i.count));
+    const ink = tone === "green" ? t.accentText : t.blueText;
+    const bar = tone === "green" ? t.accent : t.blue;
     return (
       <div style={{ ...ui.card, boxShadow: "none" }}>
         <div style={{ ...ui.cardHead, padding: "0.65rem 1rem" }}>
@@ -156,7 +174,7 @@ export default function MonthSummaryModal({
                   <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {i.name}
                   </span>
-                  <span style={{ fontWeight: 700, color: t.blueText, fontVariantNumeric: "tabular-nums" }}>
+                  <span style={{ fontWeight: 700, color: ink, fontVariantNumeric: "tabular-nums" }}>
                     {fmt(i.count)}
                   </span>
                 </div>
@@ -167,7 +185,7 @@ export default function MonthSummaryModal({
                       width: `${Math.max(3, (i.count / max) * 100)}%`,
                       height: "100%",
                       borderRadius: 999,
-                      background: t.blue,
+                      background: bar,
                     }}
                   />
                 </div>
@@ -289,13 +307,37 @@ export default function MonthSummaryModal({
                 )}
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(270px, 1fr))", gap: "1rem" }}>
-                {ranking("Top companies", "building", data.companies, data.company_total, (i) =>
-                  open("either", null, { company_key: i.key, name: i.name }), true)}
-                {ranking("Top drugs", "pill", data.drugs, data.drug_total, (i) =>
-                  open("either", null, { drug_key: i.key, name: i.name }), true)}
-                {ranking("Document types", "trend", data.doc_types.slice(0, 6), data.doc_types.length, (i) =>
-                  open("either", null, { doc_type: i.name, name: i.name }), true)}
+              {/* the top companies and drugs, of what was received and of what was released */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+                {[
+                  ["received", "Received", "blue", data.received_top],
+                  ["released", "Released", "green", data.released_top],
+                ].map(([side, label, tone, top]) => (
+                  <div key={side} style={{ display: "flex", flexDirection: "column", gap: "0.75rem", minWidth: 0 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: "0.62rem",
+                        fontWeight: 600,
+                        letterSpacing: "0.09em",
+                        textTransform: "uppercase",
+                        color: tone === "green" ? t.accentText : t.blueText,
+                      }}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: "50%", background: tone === "green" ? t.accent : t.blue }} />
+                      Top of what was {label.toLowerCase()}
+                    </div>
+                    {/* top drugs sit to the right of top companies */}
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "1rem", alignItems: "start" }}>
+                      {ranking("Top companies", "building", top.companies, top.company_total, (i) =>
+                        open(side, null, { company_key: i.key, name: i.name }), true, tone)}
+                      {ranking(drugTitle, "pill", top.drugs, top.drug_total, (i) =>
+                        open(side, null, { drug_key: i.key, name: i.name }), true, tone)}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

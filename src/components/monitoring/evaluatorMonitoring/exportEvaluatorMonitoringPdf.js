@@ -45,7 +45,17 @@ const fmt = (n, d = 0) =>
     maximumFractionDigits: d,
     minimumFractionDigits: 0,
   });
-const pctOf = (n, total) => (total > 0 ? Math.round((n / total) * 100) : 0);
+// The real share with one decimal (99.6), without ".0" on whole numbers (50).
+// It never rounds a part to 0 or 100 unless it truly is 0 or all of it.
+const pctOf = (n, total) => {
+  const share = total > 0 ? (n / total) * 100 : 0;
+  if (share <= 0) return "0";
+  if (share >= 100) return "100";
+  let r = Math.round(share * 10) / 10;
+  if (r <= 0) r = 0.1;
+  if (r >= 100) r = 99.9;
+  return String(r);
+};
 const dash = (v) => (v === null || v === undefined || v === "" ? "-" : t(v));
 const safeName = (s) =>
   String(s ?? "export")
@@ -53,6 +63,24 @@ const safeName = (s) =>
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 60);
+
+// which data the report used, and the words that depend on it
+const srcKeys = (data) => data.sources || ["cpr"];
+const srcText = (data) =>
+  srcKeys(data)
+    .map((k) => k.toUpperCase())
+    .join(" + ");
+const drugWords = (data) => {
+  const k = srcKeys(data);
+  if (k.length > 1) return { title: "Drugs / Product line", label: "Generic Name / Product Line" };
+  if (k[0] === "fgmp") return { title: "Product line", label: "Product Line" };
+  return { title: "Drugs (Generic Name)", label: "Generic Name" };
+};
+// FGMP product lines can be very long: cut them for the table
+const clip = (v, n = 110) => {
+  const x = String(v ?? "").replace(/\s+/g, " ").trim();
+  return x.length > n ? `${x.slice(0, n - 1)}...` : x;
+};
 
 const text = (
   doc,
@@ -92,7 +120,7 @@ function drawHeader(doc, state, { data, periodLabel, userName }) {
   doc.setFillColor(...C.green);
   doc.rect(0, 24, W, 0.9, "F");
 
-  text(doc, `User Insights Report  |  ${data.role_label || "Evaluator"}`, M, 8, {
+  text(doc, `User Insights Report  |  ${data.role_label || "Evaluator"}  |  Data: ${srcText(data)}`, M, 8, {
     size: 8,
     bold: true,
     color: [161, 161, 170],
@@ -181,9 +209,17 @@ function drawSplitBar(doc, cell, parts, color) {
   const total = parts.reduce((n, p) => n + p.count, 0);
   if (total <= 0) return;
   const gap = 0.3;
+  // tiny parts get a visible minimum width; the bigger ones give up the room
+  const room = w - gap * (parts.length - 1);
+  const minW = 0.9;
+  const raw = parts.map((p) => room * (p.count / total));
+  const small = raw.filter((v) => v < minW).length;
+  const bigSum = raw.filter((v) => v >= minW).reduce((n, v) => n + v, 0);
+  const scale = bigSum > 0 ? (room - small * minW) / bigSum : 1;
+  const widths = raw.map((v) => (v < minW ? minW : v * scale));
   let cx = x;
   parts.forEach((p, i) => {
-    const pw = (w - gap * (parts.length - 1)) * (p.count / total);
+    const pw = widths[i];
     doc.setFillColor(...(p.hatched ? C.rest : shade(color, p.alpha)));
     if (parts.length === 1) doc.roundedRect(cx, y, pw, h, 1.2, 1.2, "F");
     else doc.rect(cx, y, pw, h, "F");
@@ -290,6 +326,12 @@ function drawPeriods(doc, state, { data }) {
   });
 }
 
+// "  [CPR+FGMP]" after a name when a row has both sources
+const srcTag = (r) => {
+  const k = Object.keys(r.by_source || {});
+  return k.length > 1 ? `  [${k.map((x) => x.toUpperCase()).join("+")}]` : "";
+};
+
 function drawRanked(doc, state, { title, label, rows, color, filterText }) {
   sectionTitle(
     doc,
@@ -321,7 +363,7 @@ function drawRanked(doc, state, { title, label, rows, color, filterText }) {
     ],
     body: rows.map((r) => [
       r.rank,
-      t(r.name),
+      t(clip(r.name)) + srcTag(r),
       fmt(r.total_apps),
       fmt(r.avg_tat, 1),
       fmt(r.fastest_tat),
@@ -386,11 +428,11 @@ function drawSkipped(doc, state, { data }) {
   });
   if (sk.rows.length > 0) {
     runTable(doc, state, {
-      head: [["DTN", "COMPANY", "GENERIC NAME", "TAT START", "TAT END", "DATE RELEASED", "REASON"]],
+      head: [["DTN", "COMPANY", drugWords(data).label.toUpperCase(), "TAT START", "TAT END", "DATE RELEASED", "REASON"]],
       body: sk.rows.map((r) => [
-        dash(r.dtn),
+        dash(r.dtn) + (srcKeys(data).length > 1 ? `  [${String(r.source).toUpperCase()}]` : ""),
         dash(r.company),
-        dash(r.generic_name),
+        dash(clip(r.generic_name, 70)),
         r.tat_start ? `${t(r.tat_start)} (${startLabel(r.tat_start_src)})` : "-",
         r.tat_end ? `${t(r.tat_end)} (${endLabel(r.tat_end_src)})` : "-",
         dash(r.date_released),
@@ -500,8 +542,8 @@ export function exportMonitoringPdf({ data, periodLabel, sections }) {
     });
   if (has("drugs"))
     drawRanked(doc, state, {
-      title: "Drugs (Generic Name)",
-      label: "Generic Name",
+      title: drugWords(data).title,
+      label: drugWords(data).label,
       rows: data.drugs,
       color: C.blue,
       filterText,
@@ -513,7 +555,7 @@ export function exportMonitoringPdf({ data, periodLabel, sections }) {
     ensure(doc, state, 8);
     text(
       doc,
-      `Not in the Company table: ${fmt(data.summary.without_company)} app(s) with no company name. Not in the Drug table: ${fmt(data.summary.without_generic)} app(s) with no generic name.`,
+      `Not in the Company table: ${fmt(data.summary.without_company)} app(s) with no company name. Not in the Drug table: ${fmt(data.summary.without_generic)} app(s) with no ${srcKeys(data).includes("fgmp") && srcKeys(data).length === 1 ? "product line" : "generic name"}.`,
       M,
       state.y + 2,
       { size: 7.5, color: C.muted },

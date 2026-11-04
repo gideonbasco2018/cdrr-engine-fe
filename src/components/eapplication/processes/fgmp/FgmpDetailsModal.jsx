@@ -1,5 +1,5 @@
 // src/components/eapplication/processes/fgmp/FgmpDetailsModal.jsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getUser } from "../../../../api/auth";
 import {
   getClaimedApplication,
@@ -8,9 +8,6 @@ import {
   submitDeckingDecision,
   getIssuanceTypes,
   getNextCertificateNumber,
-  getApplicationDocuments,
-  listDriveFiles,
-  getDriveFile,
   getNods,
   getWorksheet,
   saveWorksheet,
@@ -33,6 +30,34 @@ import {
   AdditionalOopPaper,
   AcknowledgementReceiptPaper,
 } from "./FgmpPapers.jsx";
+import {
+  CommentsBar,
+  CommentsPanel,
+  OpenCommentsWarning,
+  PinMarkers,
+  PinModeBanner,
+  PinStyles,
+  PinsToggle,
+  usePinMode,
+} from "./FgmpComments.jsx";
+import {
+  COMMENT_TARGETS,
+  addComment,
+  addReply,
+  hasPins,
+  openCount,
+  openPinCounts,
+  reopenComment,
+  removeComment,
+  solveComment,
+} from "./fgmpComments.js";
+import {
+  flashElement,
+  isRowGone,
+  revealElement,
+  snapshotOf,
+  waitForPinElement,
+} from "./fgmpPins.js";
 
 import {
   CgmpClearancePaper,
@@ -66,6 +91,9 @@ import {
   latestNod,
   MAX_NODS,
 } from "./fgmpNod.js";
+
+// readable names for the Annex C spots, for pin labels
+const ANNEX_LABELS = Object.fromEntries(ANNEX_C_FIELDS.map((f) => [f.key, f.label]));
 
 /* The action that sends the application back to the applicant, and so issues
    a Notice of Deficiency (NOD). Must match ACTION_ROUTES in the backend. */
@@ -150,9 +178,18 @@ const byOrder = (a, b) => {
   return String(a.issued_at || "").localeCompare(String(b.issued_at || ""));
 };
 
+const slug = (text) =>
+  String(text)
+    .replace(/\s*\(\d+\)\s*$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
 function Section({ title, colors, children }) {
   return (
     <div
+      data-pin={`section:${slug(title)}`}
+      data-pin-label={String(title).replace(/\s*\(\d+\)\s*$/, "")}
       style={{
         background: colors.cardBg,
         border: `1px solid ${colors.cardBorder}`,
@@ -177,238 +214,11 @@ function Section({ title, colors, children }) {
   );
 }
 
-const formatFileSize = (bytes) => {
-  if (bytes == null) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
-
-/* The files the applicant submitted, General first then Technical. Opening a
-   file goes to its Google Drive link. */
-function SubmittedDocuments({ documents, error, driveLink, colors }) {
-  const note = { fontSize: "0.7rem", color: colors.textTertiary, padding: "0.3rem 0" };
-  if (error) return <div style={{ ...note, color: "#dc2626" }}>{error}</div>;
-  if (documents === null) return <div style={note}>Loading documents…</div>;
-
-  const groups = [
-    ["General Requirements", documents.filter((d) => d.requirement_group === "general")],
-    ["Technical Requirements", documents.filter((d) => d.requirement_group === "technical")],
-  ].filter(([, list]) => list.length > 0);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.7rem" }}>
-      {groups.length === 0 && <div style={note}>No documents were submitted.</div>}
-      {groups.map(([title, list]) => (
-        <div key={title}>
-          <div
-            style={{
-              fontSize: "0.64rem",
-              fontWeight: 700,
-              letterSpacing: "0.03em",
-              textTransform: "uppercase",
-              color: colors.textTertiary,
-              padding: "0.2rem 0",
-            }}
-          >
-            {title}
-          </div>
-          {list.map((doc) => (
-            <div
-              key={doc.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                padding: "0.35rem 0",
-                borderTop: `1px solid ${colors.cardBorder}`,
-                fontSize: "0.7rem",
-              }}
-            >
-              <span style={{ width: "190px", flexShrink: 0, fontWeight: 600, color: colors.textPrimary }}>
-                {doc.requirement_code}
-              </span>
-              <span
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  color: colors.textSecondary || colors.textPrimary,
-                }}
-                title={doc.original_filename}
-              >
-                {doc.original_filename}
-              </span>
-              <span style={{ width: "60px", textAlign: "right", color: colors.textTertiary }}>
-                {formatFileSize(doc.file_size_bytes)}
-              </span>
-              <a
-                href={doc.drive_file_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "#2196F3", fontWeight: 600, textDecoration: "none" }}
-              >
-                Open
-              </a>
-            </div>
-          ))}
-        </div>
-      ))}
-      {driveLink && (
-        <a
-          href={driveLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: "0.72rem", color: "#2196F3" }}
-        >
-          📁 Open Google Drive folder
-        </a>
-      )}
-    </div>
-  );
-}
-
-/* The application's Google Drive folder: step into folders, open or download a
-   file. A failure (for example Drive not set up on the server) stays inside
-   this block. */
-function DriveFolder({ referenceNo, colors }) {
-  const [trail, setTrail] = useState([]); // folders stepped into, root excluded
-  const [items, setItems] = useState(null);
-  const [error, setError] = useState(null);
-  const [busyId, setBusyId] = useState(null);
-  const folderId = trail.length ? trail[trail.length - 1].id : undefined;
-
-  useEffect(() => {
-    let cancelled = false;
-    setItems(null);
-    setError(null);
-    listDriveFiles(referenceNo, folderId)
-      .then((res) => {
-        if (!cancelled) setItems(res.items || []);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [referenceNo, folderId]);
-
-  const openFile = async (file, download) => {
-    setBusyId(file.id);
-    try {
-      const blob = await getDriveFile(referenceNo, file.id, download);
-      const url = URL.createObjectURL(blob);
-      if (download) {
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = file.name;
-        a.click();
-      } else {
-        window.open(url, "_blank", "noopener");
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const note = { fontSize: "0.7rem", color: colors.textTertiary, padding: "0.3rem 0" };
-  const linkBtn = {
-    border: "none",
-    background: "transparent",
-    padding: 0,
-    cursor: "pointer",
-    color: "#2196F3",
-    fontWeight: 600,
-    fontSize: "0.7rem",
-  };
-
-  return (
-    <div style={{ marginTop: "0.8rem" }}>
-      <div
-        style={{
-          fontSize: "0.64rem",
-          fontWeight: 700,
-          letterSpacing: "0.03em",
-          textTransform: "uppercase",
-          color: colors.textTertiary,
-          padding: "0.2rem 0",
-        }}
-      >
-        Files in the Google Drive folder
-      </div>
-      {trail.length > 0 && (
-        <div style={{ ...note, display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
-          <button type="button" style={linkBtn} onClick={() => setTrail([])}>
-            Main folder
-          </button>
-          {trail.map((t, i) => (
-            <span key={t.id}>
-              ›{" "}
-              <button
-                type="button"
-                style={linkBtn}
-                onClick={() => setTrail(trail.slice(0, i + 1))}
-              >
-                {t.name}
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      {error && <div style={{ ...note, color: "#dc2626" }}>{error}</div>}
-      {!error && items === null && <div style={note}>Loading files…</div>}
-      {!error && items && items.length === 0 && <div style={note}>This folder is empty.</div>}
-      {items &&
-        items.map((f) => (
-          <div
-            key={f.id}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              padding: "0.35rem 0",
-              borderTop: `1px solid ${colors.cardBorder}`,
-              fontSize: "0.7rem",
-            }}
-          >
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: colors.textPrimary }} title={f.name}>
-              {f.is_folder ? "📁 " : "📄 "}
-              {f.name}
-            </span>
-            {!f.is_folder && (
-              <span style={{ width: "60px", textAlign: "right", color: colors.textTertiary }}>
-                {formatFileSize(f.size)}
-              </span>
-            )}
-            {f.is_folder ? (
-              <button type="button" style={linkBtn} onClick={() => setTrail([...trail, { id: f.id, name: f.name }])}>
-                Open folder
-              </button>
-            ) : (
-              <span style={{ display: "flex", gap: "0.6rem" }}>
-                <button type="button" style={linkBtn} disabled={busyId === f.id} onClick={() => openFile(f, false)}>
-                  {busyId === f.id ? "Opening…" : "Open"}
-                </button>
-                <button type="button" style={linkBtn} disabled={busyId === f.id} onClick={() => openFile(f, true)}>
-                  Download
-                </button>
-              </span>
-            )}
-          </div>
-        ))}
-    </div>
-  );
-}
-
 function Field({ label, value, colors }) {
   return (
     <div
+      data-pin={`field:${slug(label)}`}
+      data-pin-label={label}
       style={{
         display: "flex",
         gap: "0.75rem",
@@ -938,14 +748,13 @@ export default function FgmpDetailsModal({
   cashierPosition = "Cashier",
   onPosted,
   onClose,
+  // comments to start with; empty for real use (the tests pass sample ones)
+  initialComments = [],
 }) {
   const currentUser = useMemo(() => getUser(), []);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // submitted files: null while loading, then the list
-  const [documents, setDocuments] = useState(null);
-  const [documentsError, setDocumentsError] = useState(null);
 
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -955,6 +764,121 @@ export default function FgmpDetailsModal({
   const [showAddConfirm, setShowAddConfirm] = useState(false);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState(null);
+
+  /* Comments for the other steps, and pins that point at a part of the popup.
+     For now they are kept on this screen only: not saved on the server, and
+     gone when the popup closes. "previewStep" lets a tester act as another
+     step. */
+  const [comments, setComments] = useState(() => initialComments);
+  const [previewStep, setPreviewStep] = useState(
+    COMMENT_TARGETS.some((t) => t.value === row.applicationStep)
+      ? row.applicationStep
+      : "Quality Evaluation",
+  );
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [panelSide, setPanelSide] = useState("right");
+  const [pinMode, setPinMode] = useState(false);
+  const [showPins, setShowPins] = useState(true);
+  const [draftPin, setDraftPin] = useState(null);
+  const [activeCommentId, setActiveCommentId] = useState(null);
+  const [jumpNotes, setJumpNotes] = useState({});
+  const wrapRef = useRef(null);
+  const contentRef = useRef(null);
+  const commentAuthor = useMemo(
+    () => ({
+      id: currentUser?.user_uuid || null,
+      name:
+        [currentUser?.first_name, currentUser?.surname].filter(Boolean).join(" ") ||
+        currentUser?.username ||
+        "You",
+    }),
+    [currentUser],
+  );
+  const nowIso = () => new Date().toISOString();
+  const openPanel = () => setPanelOpen(true);
+  /* Starting a new comment brings the pins back, so the new pin cannot land
+     out of sight. */
+  const startPinning = () => {
+    setShowPins(true);
+    setPinMode(true);
+  };
+  const togglePinMode = () => {
+    if (pinMode) setPinMode(false);
+    else startPinning();
+  };
+  /* A line in the decision-step warning was clicked: open the panel on that
+     comment and, when it is pinned, show its part. */
+  const pickWarningItem = (id) => {
+    setPanelOpen(true);
+    const c = comments.find((x) => x.id === id);
+    if (c) jumpToPin(c);
+  };
+
+  /* A part was clicked in pin mode (target is null when it has no name: the
+     pin then points at the whole step). */
+  const pickPin = (target, at) => {
+    const info = steps.find((s) => s.id === step);
+    const key = target ? target.key : `step:${info?.kind || step}`;
+    setDraftPin({
+      stepKind: info?.kind || null,
+      stepId: info?.kind ? null : step,
+      stepLabel: info?.label || `Step ${step}`,
+      key,
+      label: target ? target.label : "This whole step",
+      snapshot: snapshotOf(target?.element),
+      version: key.startsWith("ws:") ? (worksheetMeta?.version ?? 1) : null,
+      // exactly where in the part the click was, so every step sees the pin there
+      at: at || null,
+    });
+    setPinMode(false);
+    setPanelOpen(true);
+  };
+
+  /* Show the part a comment points at: open its step, bring the part into view
+     and light it up. When it cannot be shown, say why; the comment still has
+     its quote of the part. */
+  const jumpToPin = async (c) => {
+    setActiveCommentId(c.id);
+    const pin = c.pin;
+    if (!pin) return;
+    const setNote = (text) =>
+      setJumpNotes((n) => {
+        const rest = { ...n };
+        if (text) rest[c.id] = text;
+        else delete rest[c.id];
+        return rest;
+      });
+    const target = steps.find((s) => (pin.stepKind ? s.kind === pin.stepKind : s.id === pin.stepId));
+    if (!target) {
+      setNote(`This part is on "${pin.stepLabel}", a step that is not open for you here.`);
+      return;
+    }
+    setNote(null);
+    const changing = target.id !== step;
+    if (changing) setStep(target.id);
+    if (pin.key.startsWith("step:")) return;
+    const el = await waitForPinElement(contentRef.current, pin.key, leftBoxRef.current, changing ? 2000 : 600);
+    if (!el) {
+      setNote("That part is no longer on this step (it was removed or changed). The quote above is what it showed.");
+      return;
+    }
+    revealElement(el);
+    flashElement(el);
+    if (isRowGone(contentRef.current, pin.key)) {
+      setNote("That row was removed. This is the table it was in; the quote above is what the row showed.");
+    }
+    // keep the part clear of the panel: if they overlap, move the panel across
+    setTimeout(() => {
+      const panel = document.querySelector('[data-comments-panel="1"]');
+      if (!panel || panel.style.display === "none") return;
+      const a = panel.getBoundingClientRect();
+      const b = el.getBoundingClientRect();
+      if (b.right > a.left && b.left < a.right) {
+        setPanelSide((side) => (side === "right" ? "left" : "right"));
+      }
+    }, 650);
+  };
+
 
   /* Decker decision (Decking step only) */
   const isDeckingOpen =
@@ -1076,26 +1000,6 @@ export default function FgmpDetailsModal({
       cancelled = true;
     };
   }, [row.referenceNo]);
-
-  /* What the applicant submitted. A failure here only affects this card, so
-     it keeps its own error instead of blocking the whole popup. */
-  useEffect(() => {
-    const uuid = data?.application_uuid;
-    if (!uuid) return undefined;
-    let cancelled = false;
-    setDocuments(null);
-    setDocumentsError(null);
-    getApplicationDocuments(uuid)
-      .then((list) => {
-        if (!cancelled) setDocuments(list);
-      })
-      .catch((err) => {
-        if (!cancelled) setDocumentsError(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [data?.application_uuid]);
 
   const formData = data?.form_data || {};
   // FGMP has no parties list — Foreign Manufacturer is its own card above.
@@ -1291,6 +1195,27 @@ export default function FgmpDetailsModal({
           : []),
       ];
   const lastStep = steps.length;
+
+  /* Pins: which step is open, which pins belong to it, and the step bar's
+     counts. The count rides in the step's label, so the shared step bar
+     (also used by CPR and MiV-N) is not changed. */
+  const currentKind = steps.find((s) => s.id === step)?.kind || null;
+  const isHere = useCallback(
+    (pin) => (pin.stepKind ? pin.stepKind === currentKind : pin.stepId === step),
+    [currentKind, step],
+  );
+  const pinCounts = openPinCounts(comments);
+  const stepsForBar = steps.map((s) => {
+    const n = pinCounts[s.kind || s.id];
+    return n ? { ...s, label: `${s.label} · ${n}` } : s;
+  });
+  usePinMode({
+    active: pinMode,
+    rootRef: contentRef,
+    onPick: pickPin,
+    onCancel: () => setPinMode(false),
+    extraLabels: ANNEX_LABELS,
+  });
 
   /* Picking or clearing an issuance type adds or removes the document step,
      so keep the open step within range. */
@@ -2045,28 +1970,26 @@ export default function FgmpDetailsModal({
 
       {renderNodsCard()}
 
-      <Section
-        title={`Submitted Documents${
-          documents ? ` (${documents.length})` : ""
-        }`}
-        colors={colors}
-      >
-        <SubmittedDocuments
-          documents={documents}
-          error={documentsError}
-          driveLink={data.drive_link}
-          colors={colors}
-        />
-        {data.drive_link && (
-          <DriveFolder referenceNo={row.referenceNo} colors={colors} />
-        )}
-      </Section>
+      {data.drive_link && (
+        <Section title="Submitted Files" colors={colors}>
+          <a
+            href={data.drive_link}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ fontSize: "0.72rem", color: "#2196F3" }}
+          >
+            📁 Open Google Drive folder
+          </a>
+        </Section>
+      )}
     </div>
   );
 
   /* Payments table (prior + new) */
   const renderPaymentsTable = (allowRemove) => (
     <div
+      data-pin="block:payments"
+      data-pin-label="Payments"
       style={{
         background: colors.cardBg,
         border: `1px solid ${colors.cardBorder}`,
@@ -2138,7 +2061,11 @@ export default function FgmpDetailsModal({
           </thead>
           <tbody>
             {priorPayments.map((p, i) => (
-              <tr key={`prior-${p.id}`}>
+              <tr
+                key={`prior-${p.id}`}
+                data-pin={`payment:${p.id}`}
+                data-pin-label={`Payment ${p.orNo || p.referenceNo || ""}`.trim()}
+              >
                 <td style={{ ...tdStyle, textAlign: "center" }}>{i + 1}</td>
                 <td style={tdStyle}>{p.referenceNo}</td>
                 <td style={tdStyle}>{p.paymentType}</td>
@@ -2160,7 +2087,11 @@ export default function FgmpDetailsModal({
               </tr>
             ))}
             {payments.map((p, i) => (
-              <tr key={p.id}>
+              <tr
+                key={p.id}
+                data-pin={`payment:${p.id}`}
+                data-pin-label={`Payment ${p.orNo || p.referenceNo || ""}`.trim()}
+              >
                 <td style={{ ...tdStyle, textAlign: "center" }}>
                   {priorPayments.length + i + 1}
                 </td>
@@ -2352,7 +2283,11 @@ export default function FgmpDetailsModal({
             </thead>
             <tbody>
               {ops.map((op) => (
-                <tr key={op.op_uuid}>
+                <tr
+                  key={op.op_uuid}
+                  data-pin={`op:${op.op_uuid}`}
+                  data-pin-label={`Order of payment ${op.op_number || referenceNumber}`}
+                >
                   <td style={tdStyle}>{op.op_type}</td>
                   <td style={tdStyle}>{op.op_number || referenceNumber}</td>
                   <td
@@ -2498,6 +2433,11 @@ export default function FgmpDetailsModal({
   /* ───────────── Decking: Decker Decision ───────────── */
   const renderDeckerDecision = () => (
     <div style={{ maxWidth: "640px" }}>
+      {openCount(comments) > 0 && (
+        <div style={{ marginBottom: "0.9rem" }}>
+          <OpenCommentsWarning comments={comments} onPick={pickWarningItem} onViewAll={openPanel} />
+        </div>
+      )}
       <Section title="Decker Decision" colors={colors}>
         <div
           style={{
@@ -3095,6 +3035,7 @@ export default function FgmpDetailsModal({
         gap: "0.9rem",
       }}
     >
+      <OpenCommentsWarning comments={comments} onPick={pickWarningItem} onViewAll={openPanel} />
       <Section title={`${row.applicationStep} Decision`} colors={colors}>
         <div
           style={{
@@ -3269,7 +3210,11 @@ export default function FgmpDetailsModal({
 
   /* ───────────── The issuance document ───────────── */
   const renderIssuanceDocument = () => (
-    <div style={{ height: "680px" }}>
+    <div
+      data-pin="block:issuance"
+      data-pin-label="Issuance document"
+      style={{ height: "680px" }}
+    >
       <PdfViewer
         colors={colors}
         defaultZoom={0.8}
@@ -3399,27 +3344,125 @@ export default function FgmpDetailsModal({
               {row.applicantCompany}
             </div>
           </div>
-          <button
-            onClick={onClose}
-            title="Close"
-            style={{
-              border: "none",
-              background: "transparent",
-              color: colors.textTertiary,
-              fontSize: "1.2rem",
-              cursor: "pointer",
-            }}
-          >
-            ×
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {data && (
+              <>
+                {hasPins(comments) && (
+                  <PinsToggle
+                    on={showPins}
+                    onClick={() => setShowPins((on) => !on)}
+                    colors={colors}
+                  />
+                )}
+                <CommentsBar
+                  comments={comments}
+                  pinMode={pinMode}
+                  onComment={togglePinMode}
+                  onOpenPanel={() => setPanelOpen((open) => !open)}
+                  colors={colors}
+                />
+              </>
+            )}
+            <button
+              onClick={onClose}
+              title="Close"
+              style={{
+                border: "none",
+                background: "transparent",
+                color: colors.textTertiary,
+                fontSize: "1.2rem",
+                cursor: "pointer",
+              }}
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Stepper */}
-        {data && <StepProgress steps={steps} step={step} colors={colors} />}
+        {data && <StepProgress steps={stepsForBar} step={step} colors={colors} />}
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.1rem" }}>
-          {renderBody()}
+        <div style={{ flex: 1, minHeight: 0, position: "relative", display: "flex" }}>
+          <PinStyles />
+          <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.1rem" }}>
+            <div ref={wrapRef} style={{ position: "relative" }}>
+              <div ref={contentRef}>{renderBody()}</div>
+              {data && showPins && (
+                <PinMarkers
+                  wrapRef={wrapRef}
+                  contentRef={contentRef}
+                  skipRef={leftBoxRef}
+                  comments={comments}
+                  draft={draftPin}
+                  isHere={isHere}
+                  activeId={activeCommentId}
+                  version={step}
+                  onOpen={(id) => {
+                    setActiveCommentId(id);
+                    setPanelOpen(true);
+                  }}
+                />
+              )}
+            </div>
+          </div>
+          {pinMode && <PinModeBanner onCancel={() => setPinMode(false)} />}
+          {data && panelOpen && (
+            <CommentsPanel
+              comments={comments}
+              actingStep={previewStep}
+              userId={commentAuthor.id}
+              isSample
+              previewStep={previewStep}
+              onPreviewStep={setPreviewStep}
+              draftPin={draftPin}
+              onClearDraft={() => setDraftPin(null)}
+              onStartPin={startPinning}
+              hidden={pinMode}
+              onAdd={({ text, forStep, pin }) => {
+                setComments((prev) =>
+                  addComment(prev, {
+                    text,
+                    forStep,
+                    pin,
+                    author: commentAuthor,
+                    step: previewStep,
+                    now: nowIso(),
+                  }),
+                );
+                setDraftPin(null);
+              }}
+              onSolve={(id) =>
+                setComments((prev) =>
+                  solveComment(prev, id, {
+                    name: commentAuthor.name,
+                    step: previewStep,
+                    now: nowIso(),
+                  }),
+                )
+              }
+              onReopen={(id) => setComments((prev) => reopenComment(prev, id))}
+              onRemove={(id) =>
+                setComments((prev) => removeComment(prev, id, { id: commentAuthor.id }))
+              }
+              onReply={(id, text) =>
+                setComments((prev) =>
+                  addReply(prev, id, {
+                    text,
+                    author: commentAuthor,
+                    step: previewStep,
+                    now: nowIso(),
+                  }),
+                )
+              }
+              onJump={jumpToPin}
+              activeId={activeCommentId}
+              jumpNotes={jumpNotes}
+              side={panelSide}
+              onClose={() => setPanelOpen(false)}
+              colors={colors}
+            />
+          )}
         </div>
 
         {/* Footer */}

@@ -15,6 +15,7 @@ export default function YearMonthsModal({
   year,
   userId,
   role,
+  sources, // "cpr", "fgmp" or "cpr,fgmp"
   personName,
   darkMode,
   blocked, // a list of applications is open on top: leave Esc to it
@@ -37,6 +38,7 @@ export default function YearMonthsModal({
       year: String(year),
       month: "All",
       role,
+      sources,
       split: "month",
     })
       .then((res) => !cancelled && setPeriods(res.periods || []))
@@ -47,7 +49,7 @@ export default function YearMonthsModal({
     return () => {
       cancelled = true;
     };
-  }, [year, userId, role]);
+  }, [year, userId, role, sources]);
 
   // months with nothing received or released are not shown
   const visible = (periods || []).filter((p) => p.received > 0 || p.released > 0);
@@ -215,6 +217,7 @@ export default function YearMonthsModal({
           period={summary}
           userId={userId}
           role={role}
+          sources={sources}
           personName={personName}
           darkMode={darkMode}
           blocked={blocked}

@@ -81,15 +81,20 @@ export const makeUi = (darkMode) => {
         ink: "#f4f4f5",
         ink2: "#a1a1aa",
         ink3: "#71717a",
-        surface: "#111113",
-        sunken: "#0b0b0d",
-        line: "rgba(255,255,255,0.08)",
-        lineStrong: "rgba(255,255,255,0.16)",
-        hover: "rgba(255,255,255,0.045)",
-        pill: "rgba(255,255,255,0.06)",
+        dark: true,
+        // lighter than the page (#0a0a0a) so cards stand out, with clearer lines
+        surface: "#18181b",
+        sunken: "#111113",
+        line: "rgba(255,255,255,0.13)",
+        lineStrong: "rgba(255,255,255,0.26)",
+        hover: "rgba(255,255,255,0.07)",
+        pill: "rgba(255,255,255,0.10)",
+        // reversed shadows: a dark shadow cannot be seen on a dark page, so
+        // the cards and pop-ups get a soft light glow and a light top edge
         shadow:
-          "0 1px 0 rgba(255,255,255,0.03) inset, 0 18px 40px -24px rgba(0,0,0,0.85)",
-        shadowPop: "0 24px 60px -12px rgba(0,0,0,0.7)",
+          "0 1px 0 rgba(255,255,255,0.07) inset, 0 10px 36px -14px rgba(255,255,255,0.13)",
+        shadowPop:
+          "0 0 0 1px rgba(255,255,255,0.07), 0 24px 70px -14px rgba(255,255,255,0.18)",
         invert: "#f4f4f5",
         onInvert: "#0a0a0a",
         ring: "0 0 0 3px rgba(56,189,248,0.22)",
@@ -117,8 +122,11 @@ export const makeUi = (darkMode) => {
         hover: "rgba(15,15,16,0.035)",
         pill: "rgba(15,15,16,0.05)",
         shadow:
-          "0 1px 2px rgba(16,24,40,0.04), 0 14px 32px -18px rgba(16,24,40,0.16)",
+          // a soft glow on all four sides, a small close shadow at the bottom,
+          // and the big soft shadow that falls below the card
+          "0 0 0 1px rgba(16,24,40,0.03), 0 0 16px rgba(16,24,40,0.08), 0 1px 2px rgba(16,24,40,0.07), 0 2px 5px rgba(16,24,40,0.04), 0 14px 32px -18px rgba(16,24,40,0.16)",
         shadowPop: "0 24px 60px -12px rgba(16,24,40,0.28)",
+        dark: false,
         invert: "#0f0f10",
         onInvert: "#ffffff",
         ring: "0 0 0 3px rgba(14,165,233,0.18)",
@@ -353,6 +361,7 @@ const PATHS = {
     </>
   ),
   chevron: <path d="M6 9.5l6 6 6-6" />,
+  check: <path d="M5 12.5l4.5 4.5L19 7.5" />,
   info: (
     <>
       <circle cx="12" cy="12" r="9" />
