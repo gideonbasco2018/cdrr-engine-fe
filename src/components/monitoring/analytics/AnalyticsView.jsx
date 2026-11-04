@@ -3352,6 +3352,13 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const rrSlices = rrBreakdown
     ? [
         {
+          key: "received",
+          name: "Received",
+          short: "Received",
+          value: rrBreakdown.received,
+          color: FB,
+        },
+        {
           key: "received_released",
           name: "Released",
           short: "Released",
@@ -3375,7 +3382,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
       ].filter((s) => s.value > 0)
     : [];
   const rrRate = rrBreakdown?.received
-    ? (rrBreakdown.released / rrBreakdown.received) * 100
+    ? (rrBreakdown.released_of_received / rrBreakdown.received) * 100
     : 0;
 
   const trendYearOptions = [
@@ -4021,7 +4028,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
             ) : (
               <SectionCard
                 title="Received Breakdown"
-                subtitle={`Received applications by outcome · ${rrScope}`}
+                subtitle={`Received, released & in progress · ${rrScope}`}
                 icon="🍩"
                 ui={ui}
                 darkMode={darkMode}
@@ -4038,7 +4045,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                     ui={ui}
                     onSliceClick={openBreakdownRecords}
                     size={160}
-                    centerLabel="RECEIVED"
+                    centerLabel="TOTAL"
                     legendMin={170}
                     hint=""
                   />
