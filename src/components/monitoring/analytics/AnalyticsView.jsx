@@ -59,10 +59,21 @@ const TYPE_COLORS = {
   OTC: "#f59e0b",
   HR: "#0891b2",
   Vaccine: "#36a420",
+  "N/A": "#9ca3af",
 };
 
 const docTypeColor = (dt) => DOC_TYPE_COLOR[dt] ?? FB;
 const classTypeColor = (short) => TYPE_COLORS[short] ?? FB;
+
+// Works with both "Prescription (Rx) Drug" and "Prescription Drug (RX)"
+const classShort = (type) => {
+  const t = String(type ?? "").toLowerCase();
+  if (t.includes("rx") || t.includes("prescription")) return "RX";
+  if (t.includes("otc") || t.includes("over-the-counter")) return "OTC";
+  if (t.includes("(hr)") || t.includes("household")) return "HR";
+  if (t.includes("vaccine")) return "Vaccine";
+  return type;
+};
 
 // Cert / CERT / Certificate -> "CERT"
 const normalizeDocType = (dt) => {
@@ -1766,6 +1777,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [trendData, setTrendData] = useState([]);
   const [classificationData, setClassificationData] = useState([]);
   const [classDocTypes, setClassDocTypes] = useState([]);
+  const [classStatus, setClassStatus] = useState("all"); // all | completed | in_progress
   const [yearSummaryData, setYearSummaryData] = useState([]);
   const [topDrugsData, setTopDrugsData] = useState([]);
   const [topCountriesData, setTopCountriesData] = useState([]);
@@ -1837,15 +1849,6 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     });
     if (stale()) return;
 
-    // 2)
-    await run("classification", async () => {
-      const res = await getAnalyticsByClassification(params);
-      if (stale()) return;
-      setClassificationData(res.data ?? []);
-      setClassDocTypes(res.doc_types ?? []);
-    });
-    if (stale()) return;
-
     await run("countries", async () => {
       const res = await getAnalyticsTopCountries({
         ...params,
@@ -1884,6 +1887,32 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
       setLoadingCountries(false);
     }
   }, [chartYear, chartMonth, rxFilter, topCountryTab]);
+
+  const classRunId = useRef(0);
+  const fetchClassification = useCallback(async () => {
+    const id = ++classRunId.current;
+    setLoadingSec((s) => ({ ...s, classification: true }));
+    try {
+      const res = await getAnalyticsByClassification({
+        year: chartYear,
+        month: chartMonth,
+        prescription: rxFilter,
+        status: classStatus,
+      });
+      if (id !== classRunId.current) return;
+      setClassificationData(res.data ?? []);
+      setClassDocTypes(res.doc_types ?? []);
+    } catch (err) {
+      console.error("Classification fetch error:", err);
+    } finally {
+      if (id === classRunId.current)
+        setLoadingSec((s) => ({ ...s, classification: false }));
+    }
+  }, [chartYear, chartMonth, rxFilter, classStatus]);
+
+  useEffect(() => {
+    fetchClassification();
+  }, [fetchClassification]);
 
   const fetchYearSummary = useCallback(async () => {
     setLoadingYear(true);
@@ -1979,17 +2008,16 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   );
 
   // ── Pie slices ────────────────────────────────────────────────
-  const classPieSlices = classificationData.map((row) => {
-    const short =
-      row.type === "Prescription Drug (RX)"
-        ? "RX"
-        : row.type === "Over-the-Counter (OTC)"
-          ? "OTC"
-          : row.type === "Household Remedy (HR)"
-            ? "HR"
-            : row.type;
-    return { name: row.type, value: row.count, color: classTypeColor(short) };
-  });
+  const classPieSlices = classificationData.map((row) => ({
+    name: row.type,
+    value: row.count,
+    color: classTypeColor(classShort(row.type)),
+  }));
+
+  // Hide doc-type columns that are all zero (e.g. the In Progress tab)
+  const visibleDocTypes = classDocTypes.filter((dt) =>
+    classificationData.some((row) => (row.by_doc_type?.[dt] ?? 0) > 0),
+  );
 
   const docTypePieSlices = classDocTypes
     .map((dt) => ({
@@ -3237,13 +3265,44 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         <div
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}
         >
-          {/* ── By Classification ── */}
           <SectionCard
-            title="By Classification"
-            subtitle="Applications per prescription type"
+            title="Applications by Type"
+            subtitle={
+              classStatus === "completed"
+                ? "Completed applications per type"
+                : classStatus === "in_progress"
+                  ? "In progress applications per type"
+                  : "All applications per type"
+            }
             icon="💊"
             ui={ui}
             darkMode={darkMode}
+            action={
+              <div
+                style={{
+                  display: "flex",
+                  background: neuCardBg(darkMode),
+                  borderRadius: 10,
+                  padding: 3,
+                  gap: 2,
+                  boxShadow: neuShadow(darkMode, false),
+                }}
+              >
+                {[
+                  { key: "all", label: "All" },
+                  { key: "completed", label: "Completed" },
+                  { key: "in_progress", label: "In Progress" },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setClassStatus(key)}
+                    style={neuBtnStyle(classStatus === key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            }
           >
             {loadingSec.classification && classificationData.length === 0 ? (
               <LoadingRows rows={6} height={28} darkMode={darkMode} />
@@ -3273,7 +3332,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                       <tr>
                         <th style={thStyle(true)}>Type</th>
                         <th style={thStyle()}>Total</th>
-                        {classDocTypes.map((dt) => (
+                        {visibleDocTypes.map((dt) => (
                           <th
                             key={dt}
                             style={{ ...thStyle(), color: docTypeColor(dt) }}
@@ -3285,14 +3344,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                     </thead>
                     <tbody>
                       {classificationData.map((row, i) => {
-                        const short =
-                          row.type === "Prescription Drug (RX)"
-                            ? "RX"
-                            : row.type === "Over-the-Counter (OTC)"
-                              ? "OTC"
-                              : row.type === "Household Remedy (HR)"
-                                ? "HR"
-                                : row.type;
+                        const short = classShort(row.type);
                         const typeColor = classTypeColor(short);
                         return (
                           <tr
@@ -3326,18 +3378,20 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                               >
                                 {short}
                               </span>
-                              <span
-                                style={{
-                                  fontSize: "0.72rem",
-                                  color: ui.textMuted,
-                                  fontWeight: 400,
-                                }}
-                              >
-                                {row.type}
-                              </span>
+                              {short !== row.type && (
+                                <span
+                                  style={{
+                                    fontSize: "0.72rem",
+                                    color: ui.textMuted,
+                                    fontWeight: 400,
+                                  }}
+                                >
+                                  {row.type}
+                                </span>
+                              )}
                             </td>
                             <td style={tdStyle(ui.textPrimary)}>{row.count}</td>
-                            {classDocTypes.map((dt) => (
+                            {visibleDocTypes.map((dt) => (
                               <td key={dt} style={tdStyle(docTypeColor(dt))}>
                                 {row.by_doc_type?.[dt] ?? 0}
                               </td>

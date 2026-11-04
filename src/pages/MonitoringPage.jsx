@@ -135,7 +135,15 @@ function rxShortLabel(p) {
       : "Vaccine";
 }
 
-function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
+function ChartDetailModal({
+  title,
+  subtitle,
+  rows,
+  evaluators = [],
+  darkMode,
+  onClose,
+  ui,
+}) {
   const [search, setSearch] = useState("");
   const font =
     "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
@@ -385,7 +393,7 @@ function ChartDetailModal({ title, subtitle, rows, darkMode, onClose, ui }) {
                           borderRadius: "50%",
                           background:
                             avatarPalette[
-                              uniqueEvaluators.indexOf(row.evaluator) %
+                              Math.max(evaluators.indexOf(row.evaluator), 0) %
                                 avatarPalette.length
                             ].color,
                           flexShrink: 0,
@@ -1267,72 +1275,120 @@ function MonitoringPage({ darkMode }) {
     ),
   };
 
+  // Sidebar groups, in display order. The first group has no label because
+  // the "Monitoring" title above it already acts as its heading.
+  const NAV_GROUPS = [
+    { key: "core", label: null },
+    { key: "tracking", label: "Tracking" },
+    { key: "companies", label: "Applicants & Companies" },
+    { key: "turnaround", label: "Turnaround & Trends" },
+    { key: "priority", label: "Priority Programs" },
+    { key: "admin", label: "Admin" },
+  ];
+
   const navItems = [
-    // Core (0-3)
-    { key: "analytics", label: "Analytics", subtitle: "Charts & breakdowns" },
-    { key: "records", label: "Records", subtitle: "Browse all applications" },
+    // Core
+    {
+      key: "analytics",
+      group: "core",
+      label: "Analytics",
+      subtitle: "Charts & breakdowns",
+    },
+    {
+      key: "records",
+      group: "core",
+      label: "Records",
+      subtitle: "Browse all applications",
+    },
     {
       key: "gmpanalytics",
+      group: "core",
       label: "FGMP Monitoring & Analytics",
       subtitle: "Live status & workflow trends",
     },
-    // Tracking (4-5)
+    // Tracking
     {
       key: "evalapptypes",
+      group: "tracking",
       label: "Workload",
       subtitle: "Count & avg stay per unit",
     },
     {
       key: "teamoverview",
+      group: "tracking",
       label: "Team Overview",
       subtitle: "Diagram & target table",
     },
     {
+      key: "genericdrugs",
+      group: "tracking",
+      label: "Generic Drugs",
+      subtitle: "Pending & registered per generic",
+    },
+    // Applicants & Companies
+    {
       key: "topcompanies",
+      group: "companies",
       label: "Top Applicants",
       subtitle: "Companies & evaluators per month",
     },
     {
+      key: "companymonitoring",
+      group: "companies",
+      label: "Company Monitoring",
+      subtitle: "Received, processed & TAT per company",
+    },
+    // Turnaround & Trends
+    {
       key: "fastestprocessing",
+      group: "turnaround",
       label: "Fastest Processing",
       subtitle: "CPR / Cert time & evaluators",
     },
     {
-      key: "companymonitoring",
-      label: "Company Monitoring",
-      subtitle: "Received, processed & TAT per company",
+      key: "frptat",
+      group: "turnaround",
+      label: "FRP TAT",
+      subtitle: "Turnaround tracking",
     },
-    // Turnaround & Trends (6-9)
-    { key: "frptat", label: "FRP TAT", subtitle: "Turnaround tracking" },
     {
       key: "frpmonitoring",
+      group: "turnaround",
       label: "FRP and CRP Monitoring",
       subtitle: "Overview & Breakdowns",
     },
     {
       key: "processingtrend",
+      group: "turnaround",
       label: "Processing Trend",
       subtitle: "App trend & breakdown",
     },
-    // Priority Programs (10-11)
+    // Priority Programs
     {
       key: "prioritymeds",
+      group: "priority",
       label: "Priority Meds",
       subtitle: "Cancer, vaccines & rare disease",
     },
     {
       key: "clidpeservices",
+      group: "priority",
       label: "Priority Meds (CLIDP)",
       subtitle: "From eServices DB",
     },
+    // Admin
     {
-      key: "genericdrugs",
-      label: "Generic Drugs",
-      subtitle: "Pending & registered per generic",
+      key: "activity",
+      group: "admin",
+      label: "Activity Feed",
+      subtitle: "Live event stream",
     },
-    // Admin (12-13)
-    { key: "activity", label: "Activity Feed", subtitle: "Live event stream" },
-    { key: "users", label: "Users", subtitle: "Manage evaluators" },
+    {
+      key: "users",
+      group: "admin",
+      label: "Users",
+      subtitle: "Manage evaluators",
+    },
   ];
 
   const [activeNav, setActiveNav] = useState(
@@ -1535,15 +1591,14 @@ function MonitoringPage({ darkMode }) {
                 alignSelf: "stretch",
                 maxHeight: "100vh",
                 overflowY: "auto",
+                background: ui.sidebarBg,
+                borderRight: `1px solid ${ui.cardBorder}`,
+                boxSizing: "border-box",
               }}
             >
               <div
                 style={{
                   width: "100%",
-                  height: "100%",
-                  minHeight: "100%",
-                  background: ui.sidebarBg,
-                  borderRight: `1px solid ${ui.cardBorder}`,
                   display: "flex",
                   flexDirection: "column",
                 }}
@@ -1569,160 +1624,50 @@ function MonitoringPage({ darkMode }) {
                     }}
                   />
 
-                  {/* Core group */}
-                  {navItems
-                    .slice(0, 3)
-                    .map(({ key, comingSoon, icon, ...rest }) => (
-                      <NavItem
-                        key={key}
-                        {...rest}
-                        active={activeNav === key}
-                        onClick={() => setActiveNav(key)}
-                        ui={ui}
-                        comingSoon={comingSoon}
-                        darkMode={darkMode}
-                      />
-                    ))}
-
-                  <div
-                    style={{
-                      height: "0.5px",
-                      background: ui.divider,
-                      margin: "10px 8px",
-                    }}
-                  />
-
-                  {/* Tracking group */}
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      fontWeight: 700,
-                      color: ui.textMuted,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      margin: "0 0 6px 14px",
-                    }}
-                  >
-                    Tracking
-                  </p>
-                  {navItems
-                    .slice(3, 5)
-                    .map(({ key, comingSoon, icon, ...rest }) => (
-                      <NavItem
-                        key={key}
-                        {...rest}
-                        active={activeNav === key}
-                        onClick={() => setActiveNav(key)}
-                        ui={ui}
-                        comingSoon={comingSoon}
-                        darkMode={darkMode}
-                      />
-                    ))}
-
-                  <div
-                    style={{
-                      height: "0.5px",
-                      background: ui.divider,
-                      margin: "10px 8px",
-                    }}
-                  />
-
-                  {/* Turnaround & Trends group */}
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      fontWeight: 700,
-                      color: ui.textMuted,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      margin: "0 0 6px 14px",
-                    }}
-                  >
-                    Turnaround & Trends
-                  </p>
-                  {navItems
-                    .slice(5, 9)
-                    .map(({ key, comingSoon, icon, ...rest }) => (
-                      <NavItem
-                        key={key}
-                        {...rest}
-                        active={activeNav === key}
-                        onClick={() => setActiveNav(key)}
-                        ui={ui}
-                        comingSoon={comingSoon}
-                        darkMode={darkMode}
-                      />
-                    ))}
-
-                  <div
-                    style={{
-                      height: "0.5px",
-                      background: ui.divider,
-                      margin: "10px 8px",
-                    }}
-                  />
-
-                  {/* Priority Programs group */}
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      fontWeight: 700,
-                      color: ui.textMuted,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      margin: "0 0 6px 14px",
-                    }}
-                  >
-                    Priority Programs
-                  </p>
-                  {navItems
-                    .slice(9, 11)
-                    .map(({ key, comingSoon, icon, ...rest }) => (
-                      <NavItem
-                        key={key}
-                        {...rest}
-                        active={activeNav === key}
-                        onClick={() => setActiveNav(key)}
-                        ui={ui}
-                        comingSoon={comingSoon}
-                        darkMode={darkMode}
-                      />
-                    ))}
-
-                  <div
-                    style={{
-                      height: "0.5px",
-                      background: ui.divider,
-                      margin: "10px 8px",
-                    }}
-                  />
-
-                  {/* Admin group */}
-                  <p
-                    style={{
-                      fontSize: "0.6rem",
-                      fontWeight: 700,
-                      color: ui.textMuted,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      margin: "0 0 6px 14px",
-                    }}
-                  >
-                    Admin
-                  </p>
-                  {navItems
-                    .slice(11)
-                    .map(({ key, comingSoon, icon, ...rest }) => (
-                      <NavItem
-                        key={key}
-                        {...rest}
-                        active={activeNav === key}
-                        onClick={() => setActiveNav(key)}
-                        ui={ui}
-                        comingSoon={comingSoon}
-                        darkMode={darkMode}
-                      />
-                    ))}
+                  {NAV_GROUPS.map((g, gi) => {
+                    const items = navItems.filter((n) => n.group === g.key);
+                    if (items.length === 0) return null;
+                    return (
+                      <div key={g.key}>
+                        {gi > 0 && (
+                          <div
+                            style={{
+                              height: "0.5px",
+                              background: ui.divider,
+                              margin: "10px 8px",
+                            }}
+                          />
+                        )}
+                        {g.label && (
+                          <p
+                            style={{
+                              fontSize: "0.6rem",
+                              fontWeight: 700,
+                              color: ui.textMuted,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.1em",
+                              margin: "0 0 6px 14px",
+                            }}
+                          >
+                            {g.label}
+                          </p>
+                        )}
+                        {items.map(
+                          ({ key, comingSoon, icon, group, ...rest }) => (
+                            <NavItem
+                              key={key}
+                              {...rest}
+                              active={activeNav === key}
+                              onClick={() => setActiveNav(key)}
+                              ui={ui}
+                              comingSoon={comingSoon}
+                              darkMode={darkMode}
+                            />
+                          ),
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -2424,6 +2369,7 @@ function MonitoringPage({ darkMode }) {
           title={chartModal.title}
           subtitle={chartModal.subtitle}
           rows={chartModal.rows}
+          evaluators={uniqueEvaluators}
           darkMode={darkMode}
           onClose={() => setChartModal(null)}
           ui={ui}
