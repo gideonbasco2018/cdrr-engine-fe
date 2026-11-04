@@ -19,6 +19,7 @@ import {
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
   getDocTypeReleased,
+  getAnalyticsClassificationRecords,
 } from "../../../api/analytics";
 
 import DoctrackModal from "../../reports/actions/DoctrackModal";
@@ -81,6 +82,16 @@ const normalizeDocType = (dt) => {
   const k = raw.toLowerCase();
   return k === "cert" || k === "certificate" ? "CERT" : raw;
 };
+// Same normalisation the backend uses for doc-type filters
+const docKey = (dt) => {
+  const u = String(dt)
+    .trim()
+    .replace(/\s*\(/g, " (")
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+  return u === "CERT" || u === "CERTIFICATE" ? "CERT" : u;
+};
+
 // Header label for a doc type (LOD may be shown as "LETTER" in some views)
 const docTypeLabel = (dt) => dt;
 
@@ -387,14 +398,19 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
               issue: target.quality,
               ...common,
             })
-          : target.summary
-            ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
-            : getAnalyticsYearRecords({
-                year: target.year,
-                kind: target.kind,
-                basis,
+          : target.classification
+            ? getAnalyticsClassificationRecords({
+                ...target.classification,
                 ...common,
-              });
+              })
+            : target.summary
+              ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
+              : getAnalyticsYearRecords({
+                  year: target.year,
+                  kind: target.kind,
+                  basis,
+                  ...common,
+                });
   };
 
   useEffect(() => {
@@ -1541,13 +1557,15 @@ function KpiTile({
   );
 }
 
-// ── Pure SVG pie chart (no deps) ─────────────────────────────
-function PieChart({ slices, darkMode, ui }) {
+// ── Donut chart (pure SVG, clickable) ────────────────────────
+function PieChart({ slices, darkMode, ui, onSliceClick }) {
   const [hovered, setHovered] = useState(null);
-  const cx = 110,
-    cy = 110,
-    r = 80,
-    gap = 1.5;
+  const size = 300,
+    cx = 150,
+    cy = 150,
+    rOut = 126,
+    rIn = 80;
+  const clickable = typeof onSliceClick === "function";
 
   const total = slices.reduce((s, d) => s + d.value, 0);
   if (total === 0)
@@ -1564,101 +1582,131 @@ function PieChart({ slices, darkMode, ui }) {
       </div>
     );
 
-  // build arcs
+  const gapA = slices.length > 1 ? 0.025 : 0;
+  const pol = (r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
   let cursor = -Math.PI / 2;
   const arcs = slices.map((sl) => {
-    const angle = (sl.value / total) * 2 * Math.PI;
-    const start = cursor + gap / r;
-    const end = cursor + angle - gap / r;
+    const angle = Math.min(
+      (sl.value / total) * 2 * Math.PI,
+      2 * Math.PI - 0.001,
+    );
+    const a0 = cursor + gapA / 2;
+    const a1 = Math.max(cursor + angle - gapA / 2, a0 + 0.004);
     cursor += angle;
-    const x1 = cx + r * Math.cos(start);
-    const y1 = cy + r * Math.sin(start);
-    const x2 = cx + r * Math.cos(end);
-    const y2 = cy + r * Math.sin(end);
-    const large = angle > Math.PI ? 1 : 0;
-    const midAngle = (start + end) / 2;
+    const [x1, y1] = pol(rOut, a0);
+    const [x2, y2] = pol(rOut, a1);
+    const [x3, y3] = pol(rIn, a1);
+    const [x4, y4] = pol(rIn, a0);
+    const large = a1 - a0 > Math.PI ? 1 : 0;
     return {
       ...sl,
-      path: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z`,
-      midAngle,
-      pct: ((sl.value / total) * 100).toFixed(1),
+      path: `M${x1},${y1} A${rOut},${rOut} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${rIn},${rIn} 0 ${large} 0 ${x4},${y4} Z`,
+      mid: (a0 + a1) / 2,
+      pct: (sl.value / total) * 100,
     };
   });
 
-  const hoveredSlice = hovered !== null ? arcs[hovered] : null;
+  const hov = hovered !== null ? arcs[hovered] : null;
+  const rowHover = darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
 
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 16,
+        justifyContent: "center",
+        gap: 32,
         flexWrap: "wrap",
+        padding: "6px 0 2px",
       }}
     >
-      {/* SVG */}
+      {/* Donut */}
       <div style={{ position: "relative", flexShrink: 0 }}>
-        <svg width={220} height={220} style={{ overflow: "visible" }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{ overflow: "visible", maxWidth: "100%" }}
+        >
           {arcs.map((arc, i) => {
             const isHov = hovered === i;
-            const ox = isHov ? Math.cos(arc.midAngle) * 8 : 0;
-            const oy = isHov ? Math.sin(arc.midAngle) * 8 : 0;
+            const ox = isHov ? Math.cos(arc.mid) * 7 : 0;
+            const oy = isHov ? Math.sin(arc.mid) * 7 : 0;
             return (
               <path
-                key={i}
+                key={arc.key ?? i}
                 d={arc.path}
                 fill={arc.color}
-                opacity={hovered === null || isHov ? 1 : 0.45}
+                opacity={hovered === null || isHov ? 1 : 0.35}
                 transform={`translate(${ox},${oy})`}
-                style={{ cursor: "pointer", transition: "all 0.18s ease" }}
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
+                onClick={() => clickable && onSliceClick(arc)}
+                style={{
+                  cursor: clickable ? "pointer" : "default",
+                  transition: "opacity 0.18s ease, transform 0.18s ease",
+                  filter: isHov
+                    ? "drop-shadow(0 4px 10px rgba(0,0,0,0.3))"
+                    : "none",
+                }}
               />
             );
           })}
-          {/* center label */}
-          {hoveredSlice ? (
-            <>
-              <text
-                x={cx}
-                y={cy - 8}
-                textAnchor="middle"
-                fontSize={13}
-                fontWeight={800}
-                fill={hoveredSlice.color}
-                fontFamily={font}
-              >
-                {hoveredSlice.pct}%
-              </text>
-              <text
-                x={cx}
-                y={cy + 10}
-                textAnchor="middle"
-                fontSize={9}
-                fill={ui.textMuted}
-                fontFamily={font}
-              >
-                {hoveredSlice.value.toLocaleString()}
-              </text>
-            </>
-          ) : (
+
+          {hov ? (
             <>
               <text
                 x={cx}
                 y={cy - 6}
+                textAnchor="middle"
+                fontSize={26}
+                fontWeight={800}
+                fill={hov.color}
+                fontFamily={font}
+              >
+                {hov.pct.toFixed(1)}%
+              </text>
+              <text
+                x={cx}
+                y={cy + 14}
                 textAnchor="middle"
                 fontSize={11}
                 fontWeight={700}
                 fill={ui.textPrimary}
                 fontFamily={font}
               >
-                Total
+                {hov.short ?? hov.name}
               </text>
               <text
                 x={cx}
-                y={cy + 11}
+                y={cy + 30}
                 textAnchor="middle"
-                fontSize={13}
+                fontSize={11}
+                fill={ui.textMuted}
+                fontFamily={font}
+              >
+                {hov.value.toLocaleString()}
+              </text>
+            </>
+          ) : (
+            <>
+              <text
+                x={cx}
+                y={cy - 4}
+                textAnchor="middle"
+                fontSize={11}
+                fontWeight={700}
+                letterSpacing="0.12em"
+                fill={ui.textMuted}
+                fontFamily={font}
+              >
+                TOTAL
+              </text>
+              <text
+                x={cx}
+                y={cy + 24}
+                textAnchor="middle"
+                fontSize={28}
                 fontWeight={800}
                 fill={ui.textPrimary}
                 fontFamily={font}
@@ -1675,62 +1723,111 @@ function PieChart({ slices, darkMode, ui }) {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 7,
+          gap: 4,
           flex: 1,
-          minWidth: 120,
+          minWidth: 240,
+          maxWidth: 420,
         }}
       >
         {arcs.map((arc, i) => (
           <div
-            key={i}
+            key={arc.key ?? i}
             onMouseEnter={() => setHovered(i)}
             onMouseLeave={() => setHovered(null)}
+            onClick={() => clickable && onSliceClick(arc)}
+            title={clickable ? "Click to view records" : undefined}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              cursor: "pointer",
-              opacity: hovered === null || hovered === i ? 1 : 0.4,
-              transition: "opacity 0.15s",
-              padding: "4px 8px",
-              borderRadius: 8,
-              background:
-                hovered === i
-                  ? darkMode
-                    ? "rgba(255,255,255,0.05)"
-                    : "rgba(0,0,0,0.04)"
-                  : "transparent",
+              padding: "8px 10px",
+              borderRadius: 10,
+              cursor: clickable ? "pointer" : "default",
+              opacity: hovered === null || hovered === i ? 1 : 0.45,
+              background: hovered === i ? rowHover : "transparent",
+              transition: "all 0.15s",
             }}
           >
-            <span
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 3,
+                  background: arc.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  color: ui.textPrimary,
+                  fontWeight: hovered === i ? 700 : 500,
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {arc.name}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
+                  color: arc.color,
+                }}
+              >
+                {arc.pct.toFixed(1)}%
+              </span>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  color: ui.textMuted,
+                  minWidth: 52,
+                  textAlign: "right",
+                }}
+              >
+                {arc.value.toLocaleString()}
+              </span>
+              {clickable && (
+                <span style={{ fontSize: "0.9rem", color: ui.textMuted }}>
+                  ›
+                </span>
+              )}
+            </div>
+            <div
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: arc.color,
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontSize: "0.72rem",
-                color: ui.textPrimary,
-                fontWeight: hovered === i ? 700 : 500,
-                flex: 1,
+                height: 4,
+                borderRadius: 99,
+                marginTop: 6,
+                overflow: "hidden",
+                background: darkMode
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.07)",
               }}
             >
-              {arc.name}
-            </span>
-            <span
-              style={{ fontSize: "0.72rem", fontWeight: 700, color: arc.color }}
-            >
-              {arc.pct}%
-            </span>
-            <span style={{ fontSize: "0.68rem", color: ui.textMuted }}>
-              {arc.value.toLocaleString()}
-            </span>
+              <div
+                style={{
+                  width: `${Math.max(arc.pct, 0.5)}%`,
+                  height: "100%",
+                  background: arc.color,
+                  borderRadius: 99,
+                  transition: "width 0.3s",
+                }}
+              />
+            </div>
           </div>
         ))}
+        {clickable && (
+          <span
+            style={{
+              fontSize: "0.65rem",
+              color: ui.textMuted,
+              padding: "6px 10px 0",
+            }}
+          >
+            Click a slice or a row to view its records
+          </span>
+        )}
       </div>
     </div>
   );
@@ -1777,7 +1874,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [trendData, setTrendData] = useState([]);
   const [classificationData, setClassificationData] = useState([]);
   const [classDocTypes, setClassDocTypes] = useState([]);
-  const [classStatus, setClassStatus] = useState("all"); // all | completed | in_progress
+  const [classStatus, setClassStatus] = useState("completed"); // completed | in_progress
   const [yearSummaryData, setYearSummaryData] = useState([]);
   const [topDrugsData, setTopDrugsData] = useState([]);
   const [topCountriesData, setTopCountriesData] = useState([]);
@@ -2009,18 +2106,45 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
 
   // ── Pie slices ────────────────────────────────────────────────
   const classPieSlices = classificationData.map((row) => ({
+    key: row.type,
     name: row.type,
+    short: classShort(row.type),
     value: row.count,
     color: classTypeColor(classShort(row.type)),
   }));
 
-  // Hide doc-type columns that are all zero (e.g. the In Progress tab)
+  // Doc-type columns only exist for Completed (In Progress has none)
+  const showDocCols = classStatus === "completed";
   const visibleDocTypes = classDocTypes.filter((dt) =>
     classificationData.some((row) => (row.by_doc_type?.[dt] ?? 0) > 0),
   );
 
+  const openClassRecords = (slice) => {
+    const tabLabel = classStatus === "completed" ? "Completed" : "In Progress";
+    const scope = {
+      year: chartYear,
+      month: chartMonth,
+      prescription: rxFilter,
+      tab: classStatus,
+    };
+    if (pieView === "classification") {
+      setRecordsTarget({
+        title: `${tabLabel} — ${slice.name}`,
+        classification: { ...scope, classification: slice.key },
+      });
+    } else {
+      setRecordsTarget({
+        title: `${tabLabel} — ${slice.name} documents`,
+        docType: docKey(slice.key),
+        classification: scope,
+      });
+    }
+  };
+
   const docTypePieSlices = classDocTypes
     .map((dt) => ({
+      key: dt,
+      short: dt,
       name: dt,
       value: classificationData.reduce(
         (s, row) => s + (row.by_doc_type?.[dt] ?? 0),
@@ -3265,14 +3389,13 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         <div
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}
         >
+          {/* ── Product Classification ── */}
           <SectionCard
-            title="Applications by Type"
+            title="Product Classification"
             subtitle={
               classStatus === "completed"
-                ? "Completed applications per type"
-                : classStatus === "in_progress"
-                  ? "In progress applications per type"
-                  : "All applications per type"
+                ? "Completed applications per product class"
+                : "In progress applications per product class"
             }
             icon="💊"
             ui={ui}
@@ -3289,16 +3412,35 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                 }}
               >
                 {[
-                  { key: "all", label: "All" },
-                  { key: "completed", label: "Completed" },
-                  { key: "in_progress", label: "In Progress" },
-                ].map(({ key, label }) => (
+                  {
+                    key: "completed",
+                    label: "Completed",
+                    count: summary.completed,
+                  },
+                  {
+                    key: "in_progress",
+                    label: "In Progress",
+                    count: summary.in_progress,
+                  },
+                ].map(({ key, label, count }) => (
                   <button
                     key={key}
-                    onClick={() => setClassStatus(key)}
+                    onClick={() => {
+                      setClassStatus(key);
+                      if (key !== "completed") setPieView("classification");
+                    }}
                     style={neuBtnStyle(classStatus === key)}
                   >
                     {label}
+                    <span
+                      style={{
+                        marginLeft: 5,
+                        opacity: 0.65,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {Number(count ?? 0).toLocaleString()}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -3318,7 +3460,12 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                 No classification data
               </div>
             ) : (
-              <>
+              <div
+                style={{
+                  opacity: loadingSec.classification ? 0.5 : 1,
+                  transition: "opacity 0.2s",
+                }}
+              >
                 {/* Table */}
                 <div style={{ overflowX: "auto", marginBottom: 20 }}>
                   <table
@@ -3330,16 +3477,17 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                   >
                     <thead>
                       <tr>
-                        <th style={thStyle(true)}>Type</th>
+                        <th style={thStyle(true)}>Classification</th>
                         <th style={thStyle()}>Total</th>
-                        {visibleDocTypes.map((dt) => (
-                          <th
-                            key={dt}
-                            style={{ ...thStyle(), color: docTypeColor(dt) }}
-                          >
-                            {dt}
-                          </th>
-                        ))}
+                        {showDocCols &&
+                          visibleDocTypes.map((dt) => (
+                            <th
+                              key={dt}
+                              style={{ ...thStyle(), color: docTypeColor(dt) }}
+                            >
+                              {dt}
+                            </th>
+                          ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -3390,12 +3538,17 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                                 </span>
                               )}
                             </td>
-                            <td style={tdStyle(ui.textPrimary)}>{row.count}</td>
-                            {visibleDocTypes.map((dt) => (
-                              <td key={dt} style={tdStyle(docTypeColor(dt))}>
-                                {row.by_doc_type?.[dt] ?? 0}
-                              </td>
-                            ))}
+                            <td style={tdStyle(ui.textPrimary)}>
+                              {row.count.toLocaleString()}
+                            </td>
+                            {showDocCols &&
+                              visibleDocTypes.map((dt) => (
+                                <td key={dt} style={tdStyle(docTypeColor(dt))}>
+                                  {(
+                                    row.by_doc_type?.[dt] ?? 0
+                                  ).toLocaleString()}
+                                </td>
+                              ))}
                           </tr>
                         );
                       })}
@@ -3414,7 +3567,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                   }}
                 />
 
-                {/* Pie toggle */}
+                {/* Distribution header + toggle (By Doc only for Completed) */}
                 <div
                   style={{
                     display: "flex",
@@ -3434,53 +3587,56 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                   >
                     🥧 Distribution
                   </span>
-                  <div
-                    style={{
-                      display: "flex",
-                      background: neuCardBg(darkMode),
-                      borderRadius: 10,
-                      padding: 3,
-                      gap: 2,
-                      boxShadow: neuShadow(darkMode, false),
-                    }}
-                  >
-                    {[
-                      { key: "classification", label: "By Type" },
-                      { key: "doctype", label: "By Doc" },
-                    ].map(({ key, label }) => (
-                      <button
-                        key={key}
-                        onClick={() => setPieView(key)}
-                        style={{
-                          padding: "4px 10px",
-                          fontSize: "0.68rem",
-                          fontWeight: pieView === key ? 700 : 500,
-                          borderRadius: 8,
-                          border: "none",
-                          background: neuCardBg(darkMode),
-                          color: pieView === key ? FB : ui.textMuted,
-                          cursor: "pointer",
-                          fontFamily: font,
-                          boxShadow:
-                            pieView === key
-                              ? neuShadow(darkMode, false)
-                              : "none",
-                          transition: "all 0.18s",
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  {showDocCols && (
+                    <div
+                      style={{
+                        display: "flex",
+                        background: neuCardBg(darkMode),
+                        borderRadius: 10,
+                        padding: 3,
+                        gap: 2,
+                        boxShadow: neuShadow(darkMode, false),
+                      }}
+                    >
+                      {[
+                        { key: "classification", label: "By Class" },
+                        { key: "doctype", label: "By Doc" },
+                      ].map(({ key, label }) => (
+                        <button
+                          key={key}
+                          onClick={() => setPieView(key)}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: "0.68rem",
+                            fontWeight: pieView === key ? 700 : 500,
+                            borderRadius: 8,
+                            border: "none",
+                            background: neuCardBg(darkMode),
+                            color: pieView === key ? FB : ui.textMuted,
+                            cursor: "pointer",
+                            fontFamily: font,
+                            boxShadow:
+                              pieView === key
+                                ? neuShadow(darkMode, false)
+                                : "none",
+                            transition: "all 0.18s",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Pie chart */}
+                {/* Donut */}
                 <PieChart
                   slices={activePieSlices}
                   darkMode={darkMode}
                   ui={ui}
+                  onSliceClick={openClassRecords}
                 />
-              </>
+              </div>
             )}
           </SectionCard>
 
