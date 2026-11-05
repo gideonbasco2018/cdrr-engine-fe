@@ -216,3 +216,23 @@ export const getAnalyticsTrendTimeline = async (params = {}) => {
     });
     return res.data;
 };
+
+export const getAnalyticsDrugDetail = async (params = {}) => {
+    const res = await API.get("/analytics/drug-detail", { params });
+    return res.data;
+};
+
+export const getAnalyticsDrugRecords = async (params = {}) => {
+    const res = await API.get("/analytics/drug-detail/records", { params });
+    return res.data;
+};
+
+export const getAnalyticsDrugTimeline = async (params = {}) => {
+    const res = await API.get("/analytics/drug-detail/timeline", { params });
+    return res.data;
+};
+
+export const getAnalyticsCountryRecords = async (params = {}) => {
+    const res = await API.get("/analytics/top-countries/records", { params });
+    return res.data;
+};
