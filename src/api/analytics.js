@@ -27,6 +27,16 @@ export const getAnalyticsByClassification = async (params = {}) => {
     return res.data;
 };
 
+export const getAnalyticsClassificationRecords = async (params = {}) => {
+    const res = await API.get("/analytics/by-classification/records", { params });
+    return res.data;
+};
+
+export const getAnalyticsClassificationTrend = async (params = {}) => {
+    const res = await API.get("/analytics/by-classification/trend", { params });
+    return res.data;
+};
+
 export const getAnalyticsYearSummary = async (params = {}) => {
     const res = await API.get("/analytics/year-summary", { params });
     return res.data;
@@ -177,6 +187,30 @@ export const getGenericMonitoring = async (params = {}) => {
 
 export const getGenericMonitoringRecords = async (params = {}) => {
     const res = await API.get("/analytics/generic-monitoring/records", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};
+
+export const getAnalyticsReceivedReleasedTrend = async (params = {}) => {
+    const res = await API.get("/analytics/trend/received-released", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};
+
+export const getAnalyticsTrendRecords = async (params = {}) => {
+    const res = await API.get("/analytics/trend/records", {
+        params,
+        paramsSerializer: repeatKeys,
+    });
+    return res.data;
+};
+
+export const getAnalyticsTrendTimeline = async (params = {}) => {
+    const res = await API.get("/analytics/trend/timeline", {
         params,
         paramsSerializer: repeatKeys,
     });

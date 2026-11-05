@@ -19,6 +19,11 @@ import {
   getAnalyticsTopDrugs,
   getAnalyticsTopCountries,
   getDocTypeReleased,
+  getAnalyticsClassificationRecords,
+  getAnalyticsClassificationTrend,
+  getAnalyticsReceivedReleasedTrend,
+  getAnalyticsTrendRecords,
+  getAnalyticsTrendTimeline,
 } from "../../../api/analytics";
 
 import DoctrackModal from "../../reports/actions/DoctrackModal";
@@ -59,10 +64,21 @@ const TYPE_COLORS = {
   OTC: "#f59e0b",
   HR: "#0891b2",
   Vaccine: "#36a420",
+  "N/A": "#9ca3af",
 };
 
 const docTypeColor = (dt) => DOC_TYPE_COLOR[dt] ?? FB;
 const classTypeColor = (short) => TYPE_COLORS[short] ?? FB;
+
+// Works with both "Prescription (Rx) Drug" and "Prescription Drug (RX)"
+const classShort = (type) => {
+  const t = String(type ?? "").toLowerCase();
+  if (t.includes("rx") || t.includes("prescription")) return "RX";
+  if (t.includes("otc") || t.includes("over-the-counter")) return "OTC";
+  if (t.includes("(hr)") || t.includes("household")) return "HR";
+  if (t.includes("vaccine")) return "Vaccine";
+  return type;
+};
 
 // Cert / CERT / Certificate -> "CERT"
 const normalizeDocType = (dt) => {
@@ -70,6 +86,16 @@ const normalizeDocType = (dt) => {
   const k = raw.toLowerCase();
   return k === "cert" || k === "certificate" ? "CERT" : raw;
 };
+// Same normalisation the backend uses for doc-type filters
+const docKey = (dt) => {
+  const u = String(dt)
+    .trim()
+    .replace(/\s*\(/g, " (")
+    .replace(/\s+/g, " ")
+    .toUpperCase();
+  return u === "CERT" || u === "CERTIFICATE" ? "CERT" : u;
+};
+
 // Header label for a doc type (LOD may be shown as "LETTER" in some views)
 const docTypeLabel = (dt) => dt;
 
@@ -253,6 +279,970 @@ function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
   );
 }
 
+// ── Side panel of the records modal: doc-type breakdown + timeline ──
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+function ClassTrendPanel({
+  data,
+  noDate,
+  loading,
+  modes = ["year", "month"],
+  mode,
+  onModeChange,
+  basis,
+  onBasisChange,
+  year,
+  onYearChange,
+  years,
+  month,
+  onMonthChange,
+  activeKey,
+  onBarClick,
+  docBreakdown = [],
+  docFilter = "All",
+  onDocClick,
+  classBreakdown = [],
+  classFilter = "All",
+  onClassClick,
+  ui,
+  darkMode,
+  color,
+  tabLabel,
+}) {
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+  const total = data.reduce((s, d) => s + d.count, 0);
+  const max = Math.max(...data.map((d) => d.count), 1);
+  const peak = data.reduce((p, d) => (d.count > (p?.count ?? 0) ? d : p), null);
+  const docTotal = docBreakdown.reduce((s, d) => s + d.count, 0);
+  const classSlices = classBreakdown.map((c) => ({
+    key: c.key,
+    name: c.key === NONE_KEY ? "No Classification" : c.key,
+    short: c.key === NONE_KEY ? "None" : classShort(c.key),
+    value: c.count,
+    color: c.key === NONE_KEY ? "#9ca3af" : classTypeColor(classShort(c.key)),
+  }));
+  const BAR_AREA = 190;
+  const MODE_LABEL = { year: "Per Year", month: "Per Month", day: "Per Day" };
+  const heading =
+    mode === "year"
+      ? "Per Year"
+      : mode === "month"
+        ? `Per Month · ${year}`
+        : `Per Day · ${MONTH_SHORT[(month ?? 1) - 1]} ${year}`;
+  const compact = (n) =>
+    n >= 10000
+      ? `${Math.round(n / 1000)}k`
+      : n >= 1000
+        ? `${(n / 1000).toFixed(1)}k`
+        : String(n);
+
+  const seg = (active) => ({
+    padding: "4px 10px",
+    fontSize: "0.68rem",
+    fontWeight: active ? 700 : 500,
+    borderRadius: 8,
+    border: "none",
+    background: neuCardBg(darkMode),
+    color: active ? FB : ui.textMuted,
+    cursor: "pointer",
+    fontFamily: font,
+    boxShadow: active ? neuShadow(darkMode, false) : "none",
+    transition: "all 0.18s",
+  });
+  const group = {
+    display: "flex",
+    background: neuCardBg(darkMode),
+    borderRadius: 10,
+    padding: 3,
+    gap: 2,
+    boxShadow: neuShadow(darkMode, false),
+  };
+  const selSt = {
+    background: neuCardBg(darkMode),
+    border: `1px solid ${line}`,
+    borderRadius: 8,
+    padding: "4px 8px",
+    fontSize: "0.72rem",
+    color: ui.textPrimary,
+    outline: "none",
+    fontFamily: font,
+    colorScheme: darkMode ? "dark" : "light",
+  };
+  const sectionTitle = {
+    fontSize: "0.7rem",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    color: ui.textMuted,
+  };
+
+  return (
+    <div
+      style={{
+        width: 400,
+        flexShrink: 0,
+        borderLeft: `1px solid ${line}`,
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        padding: 16,
+        overflowY: "auto",
+        fontFamily: font,
+      }}
+    >
+      {/* ── By document type ── */}
+      {docBreakdown.length > 0 && (
+        <div>
+          <div style={sectionTitle}>🗂 {tabLabel} · By Document Type</div>
+          <div
+            style={{
+              fontSize: "0.68rem",
+              color: ui.textMuted,
+              margin: "2px 0 8px",
+            }}
+          >
+            Click a row to filter the table
+          </div>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+              maxHeight: 230,
+              overflowY: "auto",
+            }}
+          >
+            {docBreakdown.map((d) => {
+              const c = d.key === NONE_KEY ? "#9ca3af" : docTypeColor(d.key);
+              const pctv = docTotal > 0 ? (d.count / docTotal) * 100 : 0;
+              const active = docFilter === d.key;
+              return (
+                <div
+                  key={d.key}
+                  onClick={() => onDocClick?.(d.key)}
+                  title="Click to filter the table"
+                  style={{
+                    padding: "6px 8px",
+                    borderRadius: 8,
+                    cursor: "pointer",
+                    border: `1px solid ${active ? c : "transparent"}`,
+                    background: active
+                      ? `${c}18`
+                      : darkMode
+                        ? "rgba(255,255,255,0.03)"
+                        : "rgba(0,0,0,0.025)",
+                    opacity: docFilter !== "All" && !active ? 0.5 : 1,
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <span
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: 3,
+                        background: c,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        fontSize: "0.74rem",
+                        fontWeight: active ? 800 : 600,
+                        color: ui.textPrimary,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {facetLabel(d.key, "No Doc Type")}
+                    </span>
+                    <span
+                      style={{ fontSize: "0.74rem", fontWeight: 800, color: c }}
+                    >
+                      {d.count.toLocaleString()}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.66rem",
+                        color: ui.textMuted,
+                        minWidth: 38,
+                        textAlign: "right",
+                      }}
+                    >
+                      {pctv.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      height: 3,
+                      borderRadius: 99,
+                      marginTop: 5,
+                      background: darkMode
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(0,0,0,0.07)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.max(pctv, 0.8)}%`,
+                        height: "100%",
+                        background: c,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {docBreakdown.length > 0 && (
+        <div style={{ borderTop: `1px solid ${line}` }} />
+      )}
+
+      {/* ── Timeline ── */}
+      <div>
+        <div style={sectionTitle}>
+          📊 {tabLabel} · {heading}
+        </div>
+        <div style={{ fontSize: "0.68rem", color: ui.textMuted, marginTop: 2 }}>
+          Click a bar to filter the table
+        </div>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={group}>
+          {modes.map((m) => (
+            <button
+              key={m}
+              style={seg(mode === m)}
+              onClick={() => onModeChange(m)}
+            >
+              {MODE_LABEL[m]}
+            </button>
+          ))}
+        </div>
+        <div style={group}>
+          <button
+            style={seg(basis === "received")}
+            onClick={() => onBasisChange("received")}
+          >
+            By Received
+          </button>
+          <button
+            style={seg(basis === "released")}
+            onClick={() => onBasisChange("released")}
+          >
+            By Released
+          </button>
+        </div>
+        {mode !== "year" && (
+          <select
+            value={year ?? ""}
+            onChange={(e) => onYearChange(Number(e.target.value))}
+            style={selSt}
+          >
+            {[...new Set([...years, year].filter(Boolean))]
+              .sort((a, b) => b - a)
+              .map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+          </select>
+        )}
+        {mode === "day" && (
+          <select
+            value={month ?? 1}
+            onChange={(e) => onMonthChange(Number(e.target.value))}
+            style={selSt}
+          >
+            {MONTH_SHORT.map((m, i) => (
+              <option key={m} value={i + 1}>
+                {m}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Summary */}
+      <div style={{ display: "flex", gap: 8 }}>
+        {[
+          { label: "In chart", value: total.toLocaleString() },
+          {
+            label: "Peak",
+            value: peak
+              ? `${peak.label} · ${peak.count.toLocaleString()}`
+              : "—",
+          },
+        ].map((s) => (
+          <div
+            key={s.label}
+            style={{
+              flex: 1,
+              padding: "8px 10px",
+              borderRadius: 10,
+              background: neuCardBg(darkMode),
+              boxShadow: neuShadow(darkMode),
+            }}
+          >
+            <div
+              style={{
+                fontSize: "0.58rem",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                color: ui.textMuted,
+              }}
+            >
+              {s.label}
+            </div>
+            <div style={{ fontSize: "0.9rem", fontWeight: 800, color }}>
+              {s.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Bars */}
+      <div
+        style={{
+          position: "relative",
+          minHeight: BAR_AREA + 40,
+          opacity: loading ? 0.45 : 1,
+          transition: "opacity 0.2s",
+        }}
+      >
+        {data.length === 0 || total === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              color: ui.textMuted,
+              fontSize: "0.8rem",
+              padding: "60px 0",
+            }}
+          >
+            {loading ? "Loading…" : "No dated records to chart"}
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              gap: mode === "year" ? 8 : mode === "month" ? 4 : 2,
+              height: BAR_AREA + 40,
+              borderBottom: `1px solid ${line}`,
+            }}
+          >
+            {data.map((d) => {
+              const h =
+                d.count > 0 ? Math.max((d.count / max) * BAR_AREA, 4) : 0;
+              const isActive = activeKey === d.key;
+              const dim = activeKey != null && !isActive;
+              const showLabel =
+                mode !== "day" || d.key === 1 || d.key % 5 === 0;
+              return (
+                <div
+                  key={d.key}
+                  onClick={() => d.count > 0 && onBarClick(d)}
+                  title={`${d.label}: ${d.count.toLocaleString()}`}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "flex-end",
+                    height: "100%",
+                    cursor: d.count > 0 ? "pointer" : "default",
+                    opacity: dim ? 0.35 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "0.58rem",
+                      fontWeight: 700,
+                      color: isActive ? color : ui.textMuted,
+                      marginBottom: 3,
+                    }}
+                  >
+                    {mode !== "day" && d.count > 0 ? compact(d.count) : ""}
+                  </span>
+                  <div
+                    style={{
+                      width: "100%",
+                      maxWidth: 44,
+                      height: h,
+                      borderRadius: "6px 6px 0 0",
+                      background: `linear-gradient(180deg, ${color}, ${color}aa)`,
+                      outline: isActive ? `2px solid ${color}` : "none",
+                      outlineOffset: 1,
+                      transition: "height 0.3s ease",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "0.62rem",
+                      fontWeight: isActive ? 800 : 600,
+                      color: isActive ? color : ui.textMuted,
+                      padding: "5px 0 4px",
+                      minHeight: 22,
+                    }}
+                  >
+                    {showLabel ? d.label : ""}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {noDate > 0 && (
+        <div style={{ fontSize: "0.7rem", color: ui.textMuted }}>
+          ⚠ {noDate.toLocaleString()} record(s) have no valid{" "}
+          {basis === "received" ? "Date Received" : "Date Released"} and are not
+          in the chart.
+        </div>
+      )}
+
+      {/* ── By classification (donut) ── */}
+      {classSlices.length > 0 && (
+        <>
+          <div style={{ borderTop: `1px solid ${line}` }} />
+          <div>
+            <div style={sectionTitle}>🥧 {tabLabel} · By Classification</div>
+            <div
+              style={{
+                fontSize: "0.68rem",
+                color: ui.textMuted,
+                marginTop: 2,
+              }}
+            >
+              Click a slice or a row to filter the table
+            </div>
+          </div>
+          {classFilter !== "All" && (
+            <div>
+              <button
+                onClick={() => onClassClick?.(classFilter)}
+                title="Clear classification filter"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "3px 10px",
+                  borderRadius: 99,
+                  border: `1px solid ${color}`,
+                  background: `${color}18`,
+                  color,
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: font,
+                }}
+              >
+                {classFilter === NONE_KEY ? "No Classification" : classFilter} ✕
+              </button>
+            </div>
+          )}
+          <PieChart
+            slices={classSlices}
+            darkMode={darkMode}
+            ui={ui}
+            onSliceClick={(s) => onClassClick?.(s.key)}
+            size={190}
+            centerLabel={String(tabLabel).toUpperCase()}
+            legendMin={330}
+            hint="Click a slice or a row to filter the table"
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Multi-select year dropdown (checkboxes, rendered in <body>) ──
+function YearMultiSelect({ options, value, onChange, ui, darkMode }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e) => {
+      if (
+        btnRef.current?.contains(e.target) ||
+        popRef.current?.contains(e.target)
+      )
+        return;
+      setOpen(false);
+    };
+    const onScroll = (e) => {
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", outside);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  const toggleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setOpen((o) => !o);
+  };
+
+  const sorted = [...value].sort((a, b) => Number(b) - Number(a));
+  const label =
+    sorted.length === 0
+      ? "All years"
+      : sorted.length <= 3
+        ? sorted.join(", ")
+        : `${sorted.length} years`;
+  const toggle = (y) =>
+    onChange(value.includes(y) ? value.filter((v) => v !== y) : [...value, y]);
+
+  const row = (key, checked, text, onClick) => (
+    <label
+      key={key}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "6px 10px",
+        borderRadius: 8,
+        cursor: "pointer",
+        fontSize: "0.78rem",
+        fontWeight: checked ? 700 : 500,
+        color: ui.textPrimary,
+        background: checked
+          ? darkMode
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(0,0,0,0.045)"
+          : "transparent",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onClick}
+        style={{ accentColor: FB, cursor: "pointer" }}
+      />
+      {text}
+    </label>
+  );
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggleOpen}
+        title="Select one or more years"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: neuCardBg(darkMode),
+          border: "none",
+          borderRadius: 10,
+          padding: "6px 12px",
+          fontSize: "0.75rem",
+          fontWeight: 600,
+          color: ui.textPrimary,
+          cursor: "pointer",
+          boxShadow: neuInputShadow(darkMode),
+          fontFamily: font,
+        }}
+      >
+        {label}
+        <span style={{ fontSize: "0.6rem", opacity: 0.7 }}>▾</span>
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              right: pos.right,
+              zIndex: 1500,
+              minWidth: 170,
+              maxHeight: 300,
+              overflowY: "auto",
+              background: neuCardBg(darkMode),
+              border: `1px solid ${line}`,
+              borderRadius: 12,
+              boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+              padding: 6,
+              fontFamily: font,
+            }}
+          >
+            {row("all", value.length === 0, "All years", () => onChange([]))}
+            <div style={{ height: 1, background: line, margin: "4px 6px" }} />
+            {options.map((y) => row(y, value.includes(y), y, () => toggle(y)))}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+// ── Received vs Released line chart (pure SVG, clickable points) ──
+function RRTrendChart({ data, ui, darkMode, onPointClick }) {
+  const [hover, setHover] = useState(null);
+  const W = 860,
+    H = 260,
+    L = 54,
+    R = 18,
+    T = 16,
+    B = 30;
+  const iw = W - L - R,
+    ih = H - T - B;
+  const SERIES = [
+    { key: "received", label: "Received", color: FB },
+    { key: "released", label: "Released", color: "#36a420" },
+    { key: "in_progress", label: "In Progress", color: "#f59e0b" },
+  ];
+  const line = darkMode ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const n = data.length;
+
+  const totals = {
+    received: data.reduce((s, d) => s + (d.received ?? 0), 0),
+    released: data.reduce((s, d) => s + (d.released ?? 0), 0),
+    in_progress: data.reduce((s, d) => s + (d.in_progress ?? 0), 0),
+  };
+
+  if (
+    n === 0 ||
+    (totals.received === 0 && totals.released === 0 && totals.in_progress === 0)
+  )
+    return (
+      <div
+        style={{
+          textAlign: "center",
+          color: ui.textMuted,
+          fontSize: "0.82rem",
+          padding: "60px 0",
+        }}
+      >
+        No data
+      </div>
+    );
+
+  const niceMax = (v) => {
+    if (v <= 0) return 1;
+    const p = Math.pow(10, Math.floor(Math.log10(v)));
+    const m = v / p;
+    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p;
+  };
+  const rawMax = Math.max(
+    ...data.flatMap((d) => [d.received, d.released, d.in_progress ?? 0]),
+  );
+  const yMax = niceMax(rawMax);
+  const x = (i) => (n === 1 ? L + iw / 2 : L + (i * iw) / (n - 1));
+  const y = (v) => T + ih - (v / yMax) * ih;
+  const clampY = (v) => Math.min(Math.max(v, T), T + ih);
+  const slotW = n > 1 ? iw / (n - 1) : iw;
+
+  const smooth = (pts) => {
+    if (pts.length === 0) return "";
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i],
+        p1 = pts[i],
+        p2 = pts[i + 1],
+        p3 = pts[i + 2] || p2;
+      const t = 0.18;
+      d += ` C${p1[0] + (p2[0] - p0[0]) * t},${clampY(p1[1] + (p2[1] - p0[1]) * t)} ${p2[0] - (p3[0] - p1[0]) * t},${clampY(p2[1] - (p3[1] - p1[1]) * t)} ${p2[0]},${p2[1]}`;
+    }
+    return d;
+  };
+
+  const hd = hover !== null ? data[hover] : null;
+  const boxW = 150,
+    boxH = 78;
+  const boxX =
+    hover !== null
+      ? x(hover) + 14 + boxW > W - R
+        ? x(hover) - 14 - boxW
+        : x(hover) + 14
+      : 0;
+
+  return (
+    <div>
+      {/* Legend (click = all records of that series) */}
+      <div
+        style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}
+      >
+        {SERIES.map((s) => (
+          <button
+            key={s.key}
+            onClick={() => onPointClick(s.key, null)}
+            title="Click to view all records"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 12px",
+              borderRadius: 99,
+              border: `1px solid ${s.color}55`,
+              background: `${s.color}14`,
+              color: s.color,
+              fontSize: "0.72rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: font,
+            }}
+          >
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: s.color,
+              }}
+            />
+            {s.label}
+            <span style={{ fontWeight: 800 }}>
+              {totals[s.key].toLocaleString()}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: "100%", height: "auto", display: "block" }}
+      >
+        <defs>
+          {SERIES.map((s) => (
+            <linearGradient
+              key={s.key}
+              id={`rr-grad-${s.key}`}
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
+              <stop offset="0%" stopColor={s.color} stopOpacity="0.22" />
+              <stop offset="100%" stopColor={s.color} stopOpacity="0" />
+            </linearGradient>
+          ))}
+        </defs>
+
+        {/* Grid + Y labels */}
+        {[0, 1, 2, 3, 4].map((i) => {
+          const v = (yMax * i) / 4;
+          return (
+            <g key={i}>
+              <line
+                x1={L}
+                x2={W - R}
+                y1={y(v)}
+                y2={y(v)}
+                stroke={line}
+                strokeDasharray={i === 0 ? "0" : "4 4"}
+              />
+              <text
+                x={L - 8}
+                y={y(v) + 4}
+                textAnchor="end"
+                fontSize={11}
+                fill={ui.textMuted}
+                fontFamily={font}
+              >
+                {Math.round(v).toLocaleString()}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* X labels */}
+        {data.map((d, i) => (
+          <text
+            key={d.key}
+            x={x(i)}
+            y={H - 10}
+            textAnchor="middle"
+            fontSize={11}
+            fontWeight={hover === i ? 800 : 600}
+            fill={hover === i ? ui.textPrimary : ui.textMuted}
+            fontFamily={font}
+          >
+            {d.label}
+          </text>
+        ))}
+
+        {/* Hover slots + guide */}
+        {data.map((d, i) => (
+          <rect
+            key={`slot-${d.key}`}
+            x={x(i) - slotW / 2}
+            y={T}
+            width={slotW}
+            height={ih}
+            fill="transparent"
+            onMouseEnter={() => setHover(i)}
+            onMouseLeave={() => setHover(null)}
+          />
+        ))}
+        {hover !== null && (
+          <line
+            x1={x(hover)}
+            x2={x(hover)}
+            y1={T}
+            y2={T + ih}
+            stroke={ui.textMuted}
+            strokeDasharray="3 3"
+            opacity={0.5}
+            pointerEvents="none"
+          />
+        )}
+
+        {/* Areas + lines */}
+        {SERIES.map((s) => {
+          const pts = data.map((d, i) => [x(i), y(d[s.key] ?? 0)]);
+          const dPath = smooth(pts);
+          return (
+            <g key={s.key} pointerEvents="none">
+              {n > 1 && (
+                <path
+                  d={`${dPath} L${x(n - 1)},${T + ih} L${x(0)},${T + ih} Z`}
+                  fill={`url(#rr-grad-${s.key})`}
+                />
+              )}
+              <path
+                d={dPath}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={2.6}
+                strokeLinecap="round"
+              />
+            </g>
+          );
+        })}
+
+        {/* Clickable points */}
+        {SERIES.map((s) =>
+          data.map((d, i) => (
+            <g
+              key={`${s.key}-${d.key}`}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              onClick={() => (d[s.key] ?? 0) > 0 && onPointClick(s.key, d)}
+              style={{ cursor: (d[s.key] ?? 0) > 0 ? "pointer" : "default" }}
+            >
+              <circle
+                cx={x(i)}
+                cy={y(d[s.key] ?? 0)}
+                r={12}
+                fill="transparent"
+              />
+              <circle
+                cx={x(i)}
+                cy={y(d[s.key] ?? 0)}
+                r={hover === i ? 5.5 : 3.2}
+                fill={darkMode ? "#1d1d1d" : "#fff"}
+                stroke={s.color}
+                strokeWidth={2.2}
+                style={{ transition: "r 0.12s" }}
+              />
+            </g>
+          )),
+        )}
+
+        {/* Tooltip */}
+        {hd && (
+          <g pointerEvents="none">
+            <rect
+              x={boxX}
+              y={T + 4}
+              width={boxW}
+              height={boxH}
+              rx={10}
+              fill={neuCardBg(darkMode)}
+              stroke={darkMode ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}
+            />
+            <text
+              x={boxX + 12}
+              y={T + 22}
+              fontSize={12}
+              fontWeight={800}
+              fill={ui.textPrimary}
+              fontFamily={font}
+            >
+              {hd.label}
+            </text>
+            {SERIES.map((s, k) => (
+              <g key={s.key}>
+                <circle
+                  cx={boxX + 16}
+                  cy={T + 37 + k * 15}
+                  r={4}
+                  fill={s.color}
+                />
+                <text
+                  x={boxX + 26}
+                  y={T + 41 + k * 15}
+                  fontSize={11}
+                  fill={ui.textMuted}
+                  fontFamily={font}
+                >
+                  {s.label}
+                </text>
+                <text
+                  x={boxX + boxW - 12}
+                  y={T + 41 + k * 15}
+                  textAnchor="end"
+                  fontSize={11}
+                  fontWeight={800}
+                  fill={s.color}
+                  fontFamily={font}
+                >
+                  {(hd[s.key] ?? 0).toLocaleString()}
+                </text>
+              </g>
+            ))}
+          </g>
+        )}
+      </svg>
+    </div>
+  );
+}
+
 export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -280,6 +1270,57 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [relFrom, setRelFrom] = useState("");
   const [relTo, setRelTo] = useState("");
   const [exporting, setExporting] = useState(false);
+  // ── Trend side panel (classification records only) ──
+  const hasTrend = !!(target.classification || target.trendRecords);
+  // Starting view depends on what was clicked (month -> days, year -> months)
+  const initTrend = (() => {
+    const t = target.trendRecords;
+    if (!t) return { mode: "year", year: null, month: null, basis: "received" };
+    const basis =
+      t.kind === "released" || t.kind === "received_released"
+        ? "released"
+        : "received";
+    const ys = t.years ?? [];
+    const yr = ys.length === 1 ? Number(ys[0]) : null;
+    if (t.bucket != null && yr)
+      return { mode: "day", year: yr, month: Number(t.bucket), basis };
+    if (t.bucket != null)
+      return { mode: "month", year: Number(t.bucket), month: null, basis };
+    if (yr) return { mode: "month", year: yr, month: null, basis };
+    return { mode: "year", year: null, month: null, basis };
+  })();
+  const trendMeta = (() => {
+    if (target.trendRecords) {
+      const k = target.trendRecords.kind;
+      if (k === "released" || k === "received_released")
+        return { label: "Released", color: "#36a420" };
+      if (k === "received_in_progress")
+        return { label: "In Progress", color: "#f59e0b" };
+      if (k === "received_other") return { label: "Others", color: "#9ca3af" };
+      return { label: "Received", color: FB };
+    }
+    return target.classification?.tab === "in_progress"
+      ? { label: "In Progress", color: "#f59e0b" }
+      : { label: "Completed", color: "#36a420" };
+  })();
+
+  // Doc type only means something for released / completed records
+  const showDocBreakdown = trendMeta.label !== "In Progress";
+  // Classification donut only for In Progress opened from the line chart / donut
+  const showClassBreakdown =
+    !!target.trendRecords && trendMeta.label === "In Progress";
+  const [trendMode, setTrendMode] = useState(initTrend.mode); // year | month | day
+  const [trendBasis, setTrendBasis] = useState(initTrend.basis); // received | released
+  const [trendYear, setTrendYear] = useState(initTrend.year);
+  const [trendMonth, setTrendMonth] = useState(initTrend.month);
+  const [trendYears, setTrendYears] = useState([]);
+  const [trendData, setTrendData] = useState([]);
+  const [trendNoDate, setTrendNoDate] = useState(0);
+  const [trendLoading, setTrendLoading] = useState(false);
+
+  const [classFilter, setClassFilter] = useState("All");
+  const [classCounts, setClassCounts] = useState([]);
+
   subOpenRef.current = !!(
     doctrackRow ||
     detail ||
@@ -354,6 +1395,129 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     return () => clearTimeout(t);
   }, [search]);
 
+  // Trend panel follows search / status / doc-type, but NOT the date ranges
+  // (a bar click sets the date range, which would otherwise collapse the chart)
+  const requestTrend = (extra) => {
+    const filters = {
+      basis: trendBasis,
+      search: query || undefined,
+      status: statusFilter === "All" ? undefined : statusFilter,
+      doc_type: docFilter === "All" ? undefined : docFilter,
+      ...(target.trendRecords && classFilter !== "All"
+        ? { classification: classFilter }
+        : {}),
+      ...extra,
+    };
+    return target.trendRecords
+      ? getAnalyticsTrendTimeline({ ...target.trendRecords, ...filters })
+      : getAnalyticsClassificationTrend({
+          ...target.classification,
+          ...filters,
+        });
+  };
+
+  useEffect(() => {
+    if (!hasTrend) return;
+    if (trendMode !== "year" && !trendYear) return;
+    if (trendMode === "day" && !trendMonth) return;
+    let cancelled = false;
+    (async () => {
+      setTrendLoading(true);
+      try {
+        const res = await requestTrend({
+          group_by: trendMode,
+          bucket_year: trendMode !== "year" ? trendYear : undefined,
+          bucket_month: trendMode === "day" ? trendMonth : undefined,
+        });
+        if (cancelled) return;
+        setTrendData(res.data ?? []);
+        setTrendNoDate(res.no_date ?? 0);
+        if (trendMode === "year")
+          setTrendYears((res.data ?? []).map((d) => d.key));
+      } catch (err) {
+        console.error("Trend fetch error:", err);
+        if (!cancelled) setTrendData([]);
+      } finally {
+        if (!cancelled) setTrendLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    hasTrend,
+    target,
+    trendMode,
+    trendYear,
+    trendMonth,
+    trendBasis,
+    query,
+    statusFilter,
+    docFilter,
+    classFilter,
+  ]);
+
+  // Fill the year dropdown when the panel opens in month / day view
+  useEffect(() => {
+    if (!hasTrend || trendMode === "year") return;
+    requestTrend({ group_by: "year" })
+      .then((r) => setTrendYears((r.data ?? []).map((d) => d.key)))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasTrend]);
+
+  const switchTrendMode = (m) => {
+    setTrendMode(m);
+    const yr =
+      trendYear ??
+      trendYears[trendYears.length - 1] ??
+      new Date().getFullYear();
+    if (m !== "year" && !trendYear) setTrendYear(yr);
+    if (m === "day" && !trendMonth) {
+      const now = new Date();
+      setTrendMonth(yr === now.getFullYear() ? now.getMonth() + 1 : 1);
+    }
+  };
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const periodRange = (key) => {
+    if (trendMode === "year") return [`${key}-01-01`, `${key}-12-31`];
+    if (trendMode === "month") {
+      const last = new Date(trendYear, key, 0).getDate();
+      return [
+        `${trendYear}-${pad2(key)}-01`,
+        `${trendYear}-${pad2(key)}-${pad2(last)}`,
+      ];
+    }
+    const day = `${trendYear}-${pad2(trendMonth)}-${pad2(key)}`;
+    return [day, day];
+  };
+  const activeTrendKey = (() => {
+    const [from, to] =
+      trendBasis === "received" ? [recFrom, recTo] : [relFrom, relTo];
+    if (!from || !to) return null;
+    const hit = trendData.find((d) => {
+      const [a, b] = periodRange(d.key);
+      return a === from && b === to;
+    });
+    return hit ? hit.key : null;
+  })();
+  const handleTrendBar = (d) => {
+    const [a, b] = periodRange(d.key);
+    const [setF, setT] =
+      trendBasis === "received"
+        ? [setRecFrom, setRecTo]
+        : [setRelFrom, setRelTo];
+    if (activeTrendKey === d.key) {
+      setF("");
+      setT("");
+    } else {
+      setF(a);
+      setT(b);
+    }
+    setPage(1);
+  };
+
   const requestRecords = (pageNum, pageSize) => {
     const common = {
       page: pageNum,
@@ -376,14 +1540,25 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
               issue: target.quality,
               ...common,
             })
-          : target.summary
-            ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
-            : getAnalyticsYearRecords({
-                year: target.year,
-                kind: target.kind,
-                basis,
+          : target.trendRecords
+            ? getAnalyticsTrendRecords({
+                ...target.trendRecords,
                 ...common,
-              });
+                classification: classFilter === "All" ? undefined : classFilter,
+              })
+            : target.classification
+              ? getAnalyticsClassificationRecords({
+                  ...target.classification,
+                  ...common,
+                })
+              : target.summary
+                ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
+                : getAnalyticsYearRecords({
+                    year: target.year,
+                    kind: target.kind,
+                    basis,
+                    ...common,
+                  });
   };
 
   useEffect(() => {
@@ -398,6 +1573,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
         setTotal(res.total ?? 0);
         setStatusCounts(res.status_counts ?? []);
         setDocCounts(res.doc_type_counts ?? []);
+        setClassCounts(res.class_counts ?? []);
       } catch (err) {
         console.error("Year records fetch error:", err);
         if (!cancelled) setError("Failed to load records.");
@@ -415,6 +1591,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     query,
     statusFilter,
     docFilter,
+    classFilter,
     recFrom,
     recTo,
     relFrom,
@@ -435,6 +1612,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const filtersActive =
     statusFilter !== "All" ||
     docFilter !== "All" ||
+    classFilter !== "All" ||
     query !== "" ||
     !!(recFrom || recTo || relFrom || relTo);
   const rangeInvalid = (a, b) => a && b && a > b;
@@ -453,6 +1631,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const clearFilters = () => {
     setStatusFilter("All");
     setDocFilter("All");
+    setClassFilter("All");
     setSearch("");
     setQuery("");
     setRecFrom("");
@@ -618,7 +1797,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
             setMenu(null);
           }}
           style={{
-            width: "min(1100px, 100%)",
+            width: hasTrend ? "min(1560px, 100%)" : "min(1100px, 100%)",
             maxHeight: "88vh",
             display: "flex",
             flexDirection: "column",
@@ -705,129 +1884,67 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
             </div>
           </div>
 
-          {/* Filters + status counts */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
-              padding: "10px 18px",
-              borderBottom: `1px solid ${line}`,
-              flexWrap: "wrap",
-            }}
-          >
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              <button
-                onClick={() => {
-                  setStatusFilter("All");
-                  setPage(1);
+          {/* Body: table column (+ trend panel on the right) */}
+          <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+            <div
+              style={{
+                flex: 1,
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+                minHeight: 0,
+              }}
+            >
+              {/* Filters + status counts */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 10,
+                  padding: "10px 18px",
+                  borderBottom: `1px solid ${line}`,
+                  flexWrap: "wrap",
                 }}
-                style={chip(statusFilter === "All", FB)}
               >
-                All <b>{statusAll.toLocaleString()}</b>
-              </button>
-              {statusOptions.map((s) => {
-                const color = statusColor(s.key);
-                return (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   <button
-                    key={s.key}
                     onClick={() => {
-                      setStatusFilter(statusFilter === s.key ? "All" : s.key);
+                      setStatusFilter("All");
                       setPage(1);
                     }}
-                    style={chip(statusFilter === s.key, color)}
+                    style={chip(statusFilter === "All", FB)}
                   >
-                    <span
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: "50%",
-                        background: color,
-                      }}
-                    />
-                    {facetLabel(s.key, "No Status")}{" "}
-                    <b>{s.count.toLocaleString()}</b>
+                    All <b>{statusAll.toLocaleString()}</b>
                   </button>
-                );
-              })}
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span
-                style={{
-                  fontSize: "0.65rem",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  color: ui.textMuted,
-                }}
-              >
-                Doc Type
-              </span>
-              <select
-                value={docFilter}
-                onChange={(e) => {
-                  setDocFilter(e.target.value);
-                  setPage(1);
-                }}
-                style={selectSt}
-              >
-                <option value="All">All</option>
-                {docOptions.map((d) => (
-                  <option key={d.key} value={d.key}>
-                    {facetLabel(d.key, "No Doc Type")} (
-                    {d.count.toLocaleString()})
-                  </option>
-                ))}
-              </select>
-              {filtersActive && (
-                <button
-                  onClick={clearFilters}
-                  style={{ ...pageBtn(false), fontSize: "0.7rem" }}
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Date range filters */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 18,
-              padding: "10px 18px",
-              borderBottom: `1px solid ${line}`,
-              flexWrap: "wrap",
-            }}
-          >
-            {[
-              {
-                label: "Date Received",
-                from: recFrom,
-                to: recTo,
-                setFrom: setRecFrom,
-                setTo: setRecTo,
-              },
-              {
-                label: "Date Released",
-                from: relFrom,
-                to: relTo,
-                setFrom: setRelFrom,
-                setTo: setRelTo,
-              },
-            ].map((f) => {
-              const bad = rangeInvalid(f.from, f.to);
-              const st = {
-                ...selectSt,
-                border: `1px solid ${bad ? "#e02020" : line}`,
-              };
-              return (
-                <div
-                  key={f.label}
-                  style={{ display: "flex", alignItems: "center", gap: 6 }}
-                >
+                  {statusOptions.map((s) => {
+                    const color = statusColor(s.key);
+                    return (
+                      <button
+                        key={s.key}
+                        onClick={() => {
+                          setStatusFilter(
+                            statusFilter === s.key ? "All" : s.key,
+                          );
+                          setPage(1);
+                        }}
+                        style={chip(statusFilter === s.key, color)}
+                      >
+                        <span
+                          style={{
+                            width: 7,
+                            height: 7,
+                            borderRadius: "50%",
+                            background: color,
+                          }}
+                        />
+                        {facetLabel(s.key, "No Status")}{" "}
+                        <b>{s.count.toLocaleString()}</b>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <span
                     style={{
                       fontSize: "0.65rem",
@@ -837,316 +1954,441 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                       color: ui.textMuted,
                     }}
                   >
-                    {f.label}
+                    Doc Type
                   </span>
-                  <input
-                    type="date"
-                    value={f.from}
-                    max={f.to || undefined}
+                  <select
+                    value={docFilter}
                     onChange={(e) => {
-                      f.setFrom(e.target.value);
+                      setDocFilter(e.target.value);
                       setPage(1);
                     }}
-                    style={st}
-                  />
-                  <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-                    to
-                  </span>
-                  <input
-                    type="date"
-                    value={f.to}
-                    min={f.from || undefined}
-                    onChange={(e) => {
-                      f.setTo(e.target.value);
-                      setPage(1);
-                    }}
-                    style={st}
-                  />
-                  {bad && (
-                    <span style={{ fontSize: "0.68rem", color: "#e02020" }}>
-                      "From" is after "To"
-                    </span>
+                    style={selectSt}
+                  >
+                    <option value="All">All</option>
+                    {docOptions.map((d) => (
+                      <option key={d.key} value={d.key}>
+                        {facetLabel(d.key, "No Doc Type")} (
+                        {d.count.toLocaleString()})
+                      </option>
+                    ))}
+                  </select>
+                  {filtersActive && (
+                    <button
+                      onClick={clearFilters}
+                      style={{ ...pageBtn(false), fontSize: "0.7rem" }}
+                    >
+                      Clear
+                    </button>
                   )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
 
-          {/* Table */}
-          <div
-            style={{
-              position: "relative",
-              flex: 1,
-              minHeight: 240,
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            {/* Spinner overlay while refetching (page / filter / search) */}
-            {loading && rows.length > 0 && (
+              {/* Date range filters */}
               <div
                 style={{
-                  position: "absolute",
-                  inset: 0,
-                  zIndex: 5,
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "center",
-                  background: darkMode
-                    ? "rgba(0,0,0,0.35)"
-                    : "rgba(255,255,255,0.55)",
-                  pointerEvents: "none",
+                  gap: 18,
+                  padding: "10px 18px",
+                  borderBottom: `1px solid ${line}`,
+                  flexWrap: "wrap",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "10px 16px",
-                    borderRadius: 10,
-                    background: neuCardBg(darkMode),
-                    boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
-                    fontSize: "0.78rem",
-                    fontWeight: 600,
-                    color: ui.textPrimary,
-                    fontFamily: font,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 16,
-                      height: 16,
-                      border: `2px solid ${FB}`,
-                      borderTopColor: "transparent",
-                      borderRadius: "50%",
-                      animation: "spin 0.7s linear infinite",
-                      display: "inline-block",
-                    }}
-                  />
-                  Loading records…
-                </div>
-              </div>
-            )}
-
-            <div style={{ overflow: "auto", flex: 1 }}>
-              {loading && rows.length === 0 ? (
-                <div style={{ padding: 18 }}>
-                  <LoadingRows rows={10} height={30} darkMode={darkMode} />
-                </div>
-              ) : error ? (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: 40,
-                    color: ui.textMuted,
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  {error}
-                </div>
-              ) : !loading && rows.length === 0 ? (
-                <div
-                  style={{
-                    textAlign: "center",
-                    padding: 40,
-                    color: ui.textMuted,
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  No records found
-                </div>
-              ) : (
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "0.8rem",
-                  }}
-                >
-                  <thead>
-                    <tr>
-                      <th style={{ ...th, textAlign: "center" }}>#</th>
-                      <th style={th}>DTN</th>
-                      <th style={th}>Entry Type</th>
-                      <th style={th}>Date Received (Center)</th>
-                      <th style={th}>Date Released</th>
-                      {target.fastest && <th style={th}>Working Days</th>}
-                      {target.summary && <th style={th}>Validity</th>}
-                      <th style={th}>Type of Doc Released</th>
-                      <th style={th}>Status</th>
-                      <th style={th}>Brand Name</th>
-                      <th style={th}>Generic Name</th>
-                      {target.quality && <th style={th}>Missing</th>}
-                      <th
+                {[
+                  {
+                    label: "Date Received",
+                    from: recFrom,
+                    to: recTo,
+                    setFrom: setRecFrom,
+                    setTo: setRecTo,
+                  },
+                  {
+                    label: "Date Released",
+                    from: relFrom,
+                    to: relTo,
+                    setFrom: setRelFrom,
+                    setTo: setRelTo,
+                  },
+                ].map((f) => {
+                  const bad = rangeInvalid(f.from, f.to);
+                  const st = {
+                    ...selectSt,
+                    border: `1px solid ${bad ? "#e02020" : line}`,
+                  };
+                  return (
+                    <div
+                      key={f.label}
+                      style={{ display: "flex", alignItems: "center", gap: 6 }}
+                    >
+                      <span
                         style={{
-                          ...th,
-                          position: "sticky",
-                          top: 0,
-                          right: 0,
-                          zIndex: 3,
-                          textAlign: "center",
-                          boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                          fontSize: "0.65rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          color: ui.textMuted,
                         }}
                       >
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r, i) => (
-                      <tr key={r.db_id}>
-                        <td
-                          style={{
-                            ...td,
-                            textAlign: "center",
-                            color: ui.textMuted,
-                          }}
-                        >
-                          {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
-                        </td>
-                        <td style={td}>
-                          {r.dtn ? (
-                            <span
-                              onClick={() => setDoctrackRow(r)}
-                              title="View document tracking"
-                              style={{
-                                cursor: "pointer",
-                                color: FB,
-                                textDecoration: "underline dotted",
-                                textUnderlineOffset: 3,
-                              }}
-                            >
-                              {r.dtn}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td style={td}>{r.entry_type ?? "—"}</td>
-                        <td style={td}>{r.date_received_cent ?? "—"}</td>
-                        <td style={td}>{r.date_released ?? "—"}</td>
-                        {target.fastest && (
-                          <td
-                            style={{ ...td, fontWeight: 800, color: "#36a420" }}
-                          >
-                            {r.days ?? "—"}
-                          </td>
-                        )}
-                        {target.summary && (
-                          <td style={td}>{r.secpa_exp_date ?? "—"}</td>
-                        )}
-                        <td style={td}>{r.type_doc_released ?? "—"}</td>
-                        <td style={td}>
-                          {r.app_status ? (
-                            <span
-                              style={{
-                                fontSize: "0.68rem",
-                                fontWeight: 700,
-                                padding: "2px 8px",
-                                borderRadius: 99,
-                                color: statusColor(r.app_status),
-                                background: `${statusColor(r.app_status)}22`,
-                              }}
-                            >
-                              {r.app_status}
-                            </span>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td style={td}>{r.brand_name ?? "—"}</td>
-                        <td style={td}>{r.generic_name ?? "—"}</td>
-                        {target.quality && (
-                          <td style={td}>
-                            {(r.issues ?? []).length
-                              ? r.issues.map((iss) => (
-                                  <span
-                                    key={iss}
-                                    style={{
-                                      fontSize: "0.65rem",
-                                      fontWeight: 700,
-                                      padding: "2px 8px",
-                                      borderRadius: 99,
-                                      color: "#e02020",
-                                      background: "#e0202022",
-                                      marginRight: 4,
-                                    }}
-                                  >
-                                    {iss}
-                                  </span>
-                                ))
-                              : "—"}
-                          </td>
-                        )}
-                        <td
-                          style={{
-                            ...td,
-                            position: "sticky",
-                            right: 0,
-                            zIndex: 2,
-                            textAlign: "center",
-                            background: neuCardBg(darkMode),
-                            boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
-                          }}
-                        >
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const rect =
-                                e.currentTarget.getBoundingClientRect();
-                              setMenu({
-                                row: r,
-                                top: rect.bottom + 4,
-                                right: window.innerWidth - rect.right,
-                              });
-                            }}
-                            style={{ ...pageBtn(false), padding: "3px 10px" }}
-                          >
-                            Actions ▾
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
+                        {f.label}
+                      </span>
+                      <input
+                        type="date"
+                        value={f.from}
+                        max={f.to || undefined}
+                        onChange={(e) => {
+                          f.setFrom(e.target.value);
+                          setPage(1);
+                        }}
+                        style={st}
+                      />
+                      <span
+                        style={{ fontSize: "0.72rem", color: ui.textMuted }}
+                      >
+                        to
+                      </span>
+                      <input
+                        type="date"
+                        value={f.to}
+                        min={f.from || undefined}
+                        onChange={(e) => {
+                          f.setTo(e.target.value);
+                          setPage(1);
+                        }}
+                        style={st}
+                      />
+                      {bad && (
+                        <span style={{ fontSize: "0.68rem", color: "#e02020" }}>
+                          "From" is after "To"
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
-          {/* Footer / pagination */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 18px",
-              borderTop: `1px solid ${line}`,
-            }}
-          >
-            <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-              {start}–{end} of {total.toLocaleString()}
-            </span>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <button
-                style={pageBtn(page === 1 || loading)}
-                disabled={page === 1 || loading}
-                onClick={() => setPage((p) => p - 1)}
+              {/* Table */}
+              <div
+                style={{
+                  position: "relative",
+                  flex: 1,
+                  minHeight: 240,
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
+                }}
               >
-                ‹ Prev
-              </button>
-              <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
-                Page {page} / {totalPages}
-              </span>
-              <button
-                style={pageBtn(page >= totalPages || loading)}
-                disabled={page >= totalPages || loading}
-                onClick={() => setPage((p) => p + 1)}
+                {/* Spinner overlay while refetching (page / filter / search) */}
+                {loading && rows.length > 0 && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      zIndex: 5,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background: darkMode
+                        ? "rgba(0,0,0,0.35)"
+                        : "rgba(255,255,255,0.55)",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 16px",
+                        borderRadius: 10,
+                        background: neuCardBg(darkMode),
+                        boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        color: ui.textPrimary,
+                        fontFamily: font,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 16,
+                          height: 16,
+                          border: `2px solid ${FB}`,
+                          borderTopColor: "transparent",
+                          borderRadius: "50%",
+                          animation: "spin 0.7s linear infinite",
+                          display: "inline-block",
+                        }}
+                      />
+                      Loading records…
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ overflow: "auto", flex: 1 }}>
+                  {loading && rows.length === 0 ? (
+                    <div style={{ padding: 18 }}>
+                      <LoadingRows rows={10} height={30} darkMode={darkMode} />
+                    </div>
+                  ) : error ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: ui.textMuted,
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      {error}
+                    </div>
+                  ) : !loading && rows.length === 0 ? (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: 40,
+                        color: ui.textMuted,
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      No records found
+                    </div>
+                  ) : (
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "0.8rem",
+                      }}
+                    >
+                      <thead>
+                        <tr>
+                          <th style={{ ...th, textAlign: "center" }}>#</th>
+                          <th style={th}>DTN</th>
+                          <th style={th}>Entry Type</th>
+                          <th style={th}>Date Received (Center)</th>
+                          <th style={th}>Date Released</th>
+                          {target.fastest && <th style={th}>Working Days</th>}
+                          {target.summary && <th style={th}>Validity</th>}
+                          <th style={th}>Type of Doc Released</th>
+                          <th style={th}>Status</th>
+                          <th style={th}>Brand Name</th>
+                          <th style={th}>Generic Name</th>
+                          {target.quality && <th style={th}>Missing</th>}
+                          <th
+                            style={{
+                              ...th,
+                              position: "sticky",
+                              top: 0,
+                              right: 0,
+                              zIndex: 3,
+                              textAlign: "center",
+                              boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                            }}
+                          >
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((r, i) => (
+                          <tr key={r.db_id}>
+                            <td
+                              style={{
+                                ...td,
+                                textAlign: "center",
+                                color: ui.textMuted,
+                              }}
+                            >
+                              {(page - 1) * RECORDS_PAGE_SIZE + i + 1}
+                            </td>
+                            <td style={td}>
+                              {r.dtn ? (
+                                <span
+                                  onClick={() => setDoctrackRow(r)}
+                                  title="View document tracking"
+                                  style={{
+                                    cursor: "pointer",
+                                    color: FB,
+                                    textDecoration: "underline dotted",
+                                    textUnderlineOffset: 3,
+                                  }}
+                                >
+                                  {r.dtn}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td style={td}>{r.entry_type ?? "—"}</td>
+                            <td style={td}>{r.date_received_cent ?? "—"}</td>
+                            <td style={td}>{r.date_released ?? "—"}</td>
+                            {target.fastest && (
+                              <td
+                                style={{
+                                  ...td,
+                                  fontWeight: 800,
+                                  color: "#36a420",
+                                }}
+                              >
+                                {r.days ?? "—"}
+                              </td>
+                            )}
+                            {target.summary && (
+                              <td style={td}>{r.secpa_exp_date ?? "—"}</td>
+                            )}
+                            <td style={td}>{r.type_doc_released ?? "—"}</td>
+                            <td style={td}>
+                              {r.app_status ? (
+                                <span
+                                  style={{
+                                    fontSize: "0.68rem",
+                                    fontWeight: 700,
+                                    padding: "2px 8px",
+                                    borderRadius: 99,
+                                    color: statusColor(r.app_status),
+                                    background: `${statusColor(r.app_status)}22`,
+                                  }}
+                                >
+                                  {r.app_status}
+                                </span>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                            <td style={td}>{r.brand_name ?? "—"}</td>
+                            <td style={td}>{r.generic_name ?? "—"}</td>
+                            {target.quality && (
+                              <td style={td}>
+                                {(r.issues ?? []).length
+                                  ? r.issues.map((iss) => (
+                                      <span
+                                        key={iss}
+                                        style={{
+                                          fontSize: "0.65rem",
+                                          fontWeight: 700,
+                                          padding: "2px 8px",
+                                          borderRadius: 99,
+                                          color: "#e02020",
+                                          background: "#e0202022",
+                                          marginRight: 4,
+                                        }}
+                                      >
+                                        {iss}
+                                      </span>
+                                    ))
+                                  : "—"}
+                              </td>
+                            )}
+                            <td
+                              style={{
+                                ...td,
+                                position: "sticky",
+                                right: 0,
+                                zIndex: 2,
+                                textAlign: "center",
+                                background: neuCardBg(darkMode),
+                                boxShadow: `-6px 0 8px -6px rgba(0,0,0,0.35)`,
+                              }}
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const rect =
+                                    e.currentTarget.getBoundingClientRect();
+                                  setMenu({
+                                    row: r,
+                                    top: rect.bottom + 4,
+                                    right: window.innerWidth - rect.right,
+                                  });
+                                }}
+                                style={{
+                                  ...pageBtn(false),
+                                  padding: "3px 10px",
+                                }}
+                              >
+                                Actions ▾
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer / pagination */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "10px 18px",
+                  borderTop: `1px solid ${line}`,
+                }}
               >
-                Next ›
-              </button>
+                <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                  {start}–{end} of {total.toLocaleString()}
+                </span>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <button
+                    style={pageBtn(page === 1 || loading)}
+                    disabled={page === 1 || loading}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    ‹ Prev
+                  </button>
+                  <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
+                    Page {page} / {totalPages}
+                  </span>
+                  <button
+                    style={pageBtn(page >= totalPages || loading)}
+                    disabled={page >= totalPages || loading}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next ›
+                  </button>
+                </div>
+              </div>
             </div>
+            {hasTrend && (
+              <ClassTrendPanel
+                data={trendData}
+                noDate={trendNoDate}
+                loading={trendLoading}
+                modes={
+                  target.trendRecords
+                    ? ["year", "month", "day"]
+                    : ["year", "month"]
+                }
+                mode={trendMode}
+                onModeChange={switchTrendMode}
+                basis={trendBasis}
+                onBasisChange={setTrendBasis}
+                year={trendYear}
+                onYearChange={setTrendYear}
+                years={trendYears}
+                month={trendMonth}
+                onMonthChange={setTrendMonth}
+                activeKey={activeTrendKey}
+                onBarClick={handleTrendBar}
+                docBreakdown={showDocBreakdown ? docCounts : []}
+                docFilter={docFilter}
+                onDocClick={(k) => {
+                  setDocFilter(docFilter === k ? "All" : k);
+                  setPage(1);
+                }}
+                classBreakdown={showClassBreakdown ? classCounts : []}
+                classFilter={classFilter}
+                onClassClick={(k) => {
+                  setClassFilter(classFilter === k ? "All" : k);
+                  setPage(1);
+                }}
+                ui={ui}
+                darkMode={darkMode}
+                color={trendMeta.color}
+                tabLabel={trendMeta.label}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -1530,13 +2772,23 @@ function KpiTile({
   );
 }
 
-// ── Pure SVG pie chart (no deps) ─────────────────────────────
-function PieChart({ slices, darkMode, ui }) {
+// ── Donut chart (pure SVG, clickable) ────────────────────────
+function PieChart({
+  slices,
+  darkMode,
+  ui,
+  onSliceClick,
+  size = 300,
+  centerLabel = "TOTAL",
+  legendMin = 240,
+  hint = "Click a slice or a row to view its records",
+}) {
   const [hovered, setHovered] = useState(null);
-  const cx = 110,
-    cy = 110,
-    r = 80,
-    gap = 1.5;
+  const cx = 150,
+    cy = 150,
+    rOut = 126,
+    rIn = 80;
+  const clickable = typeof onSliceClick === "function";
 
   const total = slices.reduce((s, d) => s + d.value, 0);
   if (total === 0)
@@ -1553,101 +2805,131 @@ function PieChart({ slices, darkMode, ui }) {
       </div>
     );
 
-  // build arcs
+  const gapA = slices.length > 1 ? 0.025 : 0;
+  const pol = (r, a) => [cx + r * Math.cos(a), cy + r * Math.sin(a)];
   let cursor = -Math.PI / 2;
   const arcs = slices.map((sl) => {
-    const angle = (sl.value / total) * 2 * Math.PI;
-    const start = cursor + gap / r;
-    const end = cursor + angle - gap / r;
+    const angle = Math.min(
+      (sl.value / total) * 2 * Math.PI,
+      2 * Math.PI - 0.001,
+    );
+    const a0 = cursor + gapA / 2;
+    const a1 = Math.max(cursor + angle - gapA / 2, a0 + 0.004);
     cursor += angle;
-    const x1 = cx + r * Math.cos(start);
-    const y1 = cy + r * Math.sin(start);
-    const x2 = cx + r * Math.cos(end);
-    const y2 = cy + r * Math.sin(end);
-    const large = angle > Math.PI ? 1 : 0;
-    const midAngle = (start + end) / 2;
+    const [x1, y1] = pol(rOut, a0);
+    const [x2, y2] = pol(rOut, a1);
+    const [x3, y3] = pol(rIn, a1);
+    const [x4, y4] = pol(rIn, a0);
+    const large = a1 - a0 > Math.PI ? 1 : 0;
     return {
       ...sl,
-      path: `M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z`,
-      midAngle,
-      pct: ((sl.value / total) * 100).toFixed(1),
+      path: `M${x1},${y1} A${rOut},${rOut} 0 ${large} 1 ${x2},${y2} L${x3},${y3} A${rIn},${rIn} 0 ${large} 0 ${x4},${y4} Z`,
+      mid: (a0 + a1) / 2,
+      pct: (sl.value / total) * 100,
     };
   });
 
-  const hoveredSlice = hovered !== null ? arcs[hovered] : null;
+  const hov = hovered !== null ? arcs[hovered] : null;
+  const rowHover = darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
 
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 16,
+        justifyContent: "center",
+        gap: 32,
         flexWrap: "wrap",
+        padding: "6px 0 2px",
       }}
     >
-      {/* SVG */}
+      {/* Donut */}
       <div style={{ position: "relative", flexShrink: 0 }}>
-        <svg width={220} height={220} style={{ overflow: "visible" }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox="0 0 300 300"
+          style={{ overflow: "visible", maxWidth: "100%" }}
+        >
           {arcs.map((arc, i) => {
             const isHov = hovered === i;
-            const ox = isHov ? Math.cos(arc.midAngle) * 8 : 0;
-            const oy = isHov ? Math.sin(arc.midAngle) * 8 : 0;
+            const ox = isHov ? Math.cos(arc.mid) * 7 : 0;
+            const oy = isHov ? Math.sin(arc.mid) * 7 : 0;
             return (
               <path
-                key={i}
+                key={arc.key ?? i}
                 d={arc.path}
                 fill={arc.color}
-                opacity={hovered === null || isHov ? 1 : 0.45}
+                opacity={hovered === null || isHov ? 1 : 0.35}
                 transform={`translate(${ox},${oy})`}
-                style={{ cursor: "pointer", transition: "all 0.18s ease" }}
                 onMouseEnter={() => setHovered(i)}
                 onMouseLeave={() => setHovered(null)}
+                onClick={() => clickable && onSliceClick(arc)}
+                style={{
+                  cursor: clickable ? "pointer" : "default",
+                  transition: "opacity 0.18s ease, transform 0.18s ease",
+                  filter: isHov
+                    ? "drop-shadow(0 4px 10px rgba(0,0,0,0.3))"
+                    : "none",
+                }}
               />
             );
           })}
-          {/* center label */}
-          {hoveredSlice ? (
-            <>
-              <text
-                x={cx}
-                y={cy - 8}
-                textAnchor="middle"
-                fontSize={13}
-                fontWeight={800}
-                fill={hoveredSlice.color}
-                fontFamily={font}
-              >
-                {hoveredSlice.pct}%
-              </text>
-              <text
-                x={cx}
-                y={cy + 10}
-                textAnchor="middle"
-                fontSize={9}
-                fill={ui.textMuted}
-                fontFamily={font}
-              >
-                {hoveredSlice.value.toLocaleString()}
-              </text>
-            </>
-          ) : (
+
+          {hov ? (
             <>
               <text
                 x={cx}
                 y={cy - 6}
+                textAnchor="middle"
+                fontSize={26}
+                fontWeight={800}
+                fill={hov.color}
+                fontFamily={font}
+              >
+                {hov.pct.toFixed(1)}%
+              </text>
+              <text
+                x={cx}
+                y={cy + 14}
                 textAnchor="middle"
                 fontSize={11}
                 fontWeight={700}
                 fill={ui.textPrimary}
                 fontFamily={font}
               >
-                Total
+                {hov.short ?? hov.name}
               </text>
               <text
                 x={cx}
-                y={cy + 11}
+                y={cy + 30}
                 textAnchor="middle"
-                fontSize={13}
+                fontSize={11}
+                fill={ui.textMuted}
+                fontFamily={font}
+              >
+                {hov.value.toLocaleString()}
+              </text>
+            </>
+          ) : (
+            <>
+              <text
+                x={cx}
+                y={cy - 4}
+                textAnchor="middle"
+                fontSize={11}
+                fontWeight={700}
+                letterSpacing="0.12em"
+                fill={ui.textMuted}
+                fontFamily={font}
+              >
+                {centerLabel}
+              </text>
+              <text
+                x={cx}
+                y={cy + 24}
+                textAnchor="middle"
+                fontSize={28}
                 fontWeight={800}
                 fill={ui.textPrimary}
                 fontFamily={font}
@@ -1664,62 +2946,111 @@ function PieChart({ slices, darkMode, ui }) {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 7,
+          gap: 4,
           flex: 1,
-          minWidth: 120,
+          minWidth: legendMin,
+          maxWidth: 420,
         }}
       >
         {arcs.map((arc, i) => (
           <div
-            key={i}
+            key={arc.key ?? i}
             onMouseEnter={() => setHovered(i)}
             onMouseLeave={() => setHovered(null)}
+            onClick={() => clickable && onSliceClick(arc)}
+            title={clickable ? "Click to view records" : undefined}
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              cursor: "pointer",
-              opacity: hovered === null || hovered === i ? 1 : 0.4,
-              transition: "opacity 0.15s",
-              padding: "4px 8px",
-              borderRadius: 8,
-              background:
-                hovered === i
-                  ? darkMode
-                    ? "rgba(255,255,255,0.05)"
-                    : "rgba(0,0,0,0.04)"
-                  : "transparent",
+              padding: "8px 10px",
+              borderRadius: 10,
+              cursor: clickable ? "pointer" : "default",
+              opacity: hovered === null || hovered === i ? 1 : 0.45,
+              background: hovered === i ? rowHover : "transparent",
+              transition: "all 0.15s",
             }}
           >
-            <span
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: 3,
+                  background: arc.color,
+                  flexShrink: 0,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  color: ui.textPrimary,
+                  fontWeight: hovered === i ? 700 : 500,
+                  flex: 1,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {arc.name}
+              </span>
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  fontWeight: 800,
+                  color: arc.color,
+                }}
+              >
+                {arc.pct.toFixed(1)}%
+              </span>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  color: ui.textMuted,
+                  minWidth: 52,
+                  textAlign: "right",
+                }}
+              >
+                {arc.value.toLocaleString()}
+              </span>
+              {clickable && (
+                <span style={{ fontSize: "0.9rem", color: ui.textMuted }}>
+                  ›
+                </span>
+              )}
+            </div>
+            <div
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: arc.color,
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontSize: "0.72rem",
-                color: ui.textPrimary,
-                fontWeight: hovered === i ? 700 : 500,
-                flex: 1,
+                height: 4,
+                borderRadius: 99,
+                marginTop: 6,
+                overflow: "hidden",
+                background: darkMode
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.07)",
               }}
             >
-              {arc.name}
-            </span>
-            <span
-              style={{ fontSize: "0.72rem", fontWeight: 700, color: arc.color }}
-            >
-              {arc.pct}%
-            </span>
-            <span style={{ fontSize: "0.68rem", color: ui.textMuted }}>
-              {arc.value.toLocaleString()}
-            </span>
+              <div
+                style={{
+                  width: `${Math.max(arc.pct, 0.5)}%`,
+                  height: "100%",
+                  background: arc.color,
+                  borderRadius: 99,
+                  transition: "width 0.3s",
+                }}
+              />
+            </div>
           </div>
         ))}
+        {clickable && hint && (
+          <span
+            style={{
+              fontSize: "0.65rem",
+              color: ui.textMuted,
+              padding: "6px 10px 0",
+            }}
+          >
+            {hint}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -1766,6 +3097,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [trendData, setTrendData] = useState([]);
   const [classificationData, setClassificationData] = useState([]);
   const [classDocTypes, setClassDocTypes] = useState([]);
+  const [classStatus, setClassStatus] = useState("completed"); // completed | in_progress
   const [yearSummaryData, setYearSummaryData] = useState([]);
   const [topDrugsData, setTopDrugsData] = useState([]);
   const [topCountriesData, setTopCountriesData] = useState([]);
@@ -1783,8 +3115,16 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [topCountryTab, setTopCountryTab] = useState("mfr");
   const [lastUpdated, setLastUpdated] = useState(null);
   // ── Trend card has its own year filter (default 2026) ────────
-  const [trendYear, setTrendYear] = useState("2026");
+  const [rrYears, setRrYears] = useState(["2026"]); // [] = all years
+  // single value for the old trend query (used by the PDF export)
+  const trendYear = rrYears.length === 1 ? rrYears[0] : "All";
   const trendRunId = useRef(0);
+
+  // ── Received vs Released (trend + breakdown) ─────────────────
+  const [rrData, setRrData] = useState([]);
+  const [rrBreakdown, setRrBreakdown] = useState(null);
+  const [loadingRR, setLoadingRR] = useState(true);
+  const rrRunId = useRef(0);
 
   // ── Pie toggle: "classification" | "doctype" ─────────────────
   const [pieView, setPieView] = useState("classification");
@@ -1837,15 +3177,6 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     });
     if (stale()) return;
 
-    // 2)
-    await run("classification", async () => {
-      const res = await getAnalyticsByClassification(params);
-      if (stale()) return;
-      setClassificationData(res.data ?? []);
-      setClassDocTypes(res.doc_types ?? []);
-    });
-    if (stale()) return;
-
     await run("countries", async () => {
       const res = await getAnalyticsTopCountries({
         ...params,
@@ -1885,6 +3216,32 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     }
   }, [chartYear, chartMonth, rxFilter, topCountryTab]);
 
+  const classRunId = useRef(0);
+  const fetchClassification = useCallback(async () => {
+    const id = ++classRunId.current;
+    setLoadingSec((s) => ({ ...s, classification: true }));
+    try {
+      const res = await getAnalyticsByClassification({
+        year: chartYear,
+        month: chartMonth,
+        prescription: rxFilter,
+        status: classStatus,
+      });
+      if (id !== classRunId.current) return;
+      setClassificationData(res.data ?? []);
+      setClassDocTypes(res.doc_types ?? []);
+    } catch (err) {
+      console.error("Classification fetch error:", err);
+    } finally {
+      if (id === classRunId.current)
+        setLoadingSec((s) => ({ ...s, classification: false }));
+    }
+  }, [chartYear, chartMonth, rxFilter, classStatus]);
+
+  useEffect(() => {
+    fetchClassification();
+  }, [fetchClassification]);
+
   const fetchYearSummary = useCallback(async () => {
     setLoadingYear(true);
     try {
@@ -1921,6 +3278,25 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     }
   }, [trendYear, chartMonth, rxFilter]);
 
+  const fetchRR = useCallback(async () => {
+    const id = ++rrRunId.current;
+    setLoadingRR(true);
+    try {
+      const res = await getAnalyticsReceivedReleasedTrend({
+        years: rrYears,
+        month: chartMonth,
+        prescription: rxFilter,
+      });
+      if (id !== rrRunId.current) return;
+      setRrData(res.data ?? []);
+      setRrBreakdown(res.breakdown ?? null);
+    } catch (err) {
+      console.error("Received/Released trend fetch error:", err);
+    } finally {
+      if (id === rrRunId.current) setLoadingRR(false);
+    }
+  }, [rrYears, chartMonth, rxFilter]);
+
   useEffect(() => {
     fetchMain();
   }, [chartYear, chartMonth, rxFilter]);
@@ -1932,6 +3308,10 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   useEffect(() => {
     fetchTrend();
   }, [fetchTrend]);
+
+  useEffect(() => {
+    fetchRR();
+  }, [fetchRR]);
 
   const fetchQuality = useCallback(async () => {
     setLoadingQuality(true);
@@ -1963,6 +3343,47 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     { name: "LOD Released", value: summary.lod },
     { name: "In Progress", value: summary.in_progress ?? summary.on_process },
   ];
+  const rrScope =
+    rrYears.length === 0
+      ? "All years"
+      : rrYears.length <= 3
+        ? [...rrYears].sort((a, b) => Number(a) - Number(b)).join(", ")
+        : `${rrYears.length} years`;
+  const rrSlices = rrBreakdown
+    ? [
+        {
+          key: "received",
+          name: "Received",
+          short: "Received",
+          value: rrBreakdown.received,
+          color: FB,
+        },
+        {
+          key: "received_released",
+          name: "Released",
+          short: "Released",
+          value: rrBreakdown.released,
+          color: "#36a420",
+        },
+        {
+          key: "received_in_progress",
+          name: "In Progress",
+          short: "In Progress",
+          value: rrBreakdown.in_progress,
+          color: "#f59e0b",
+        },
+        {
+          key: "received_other",
+          name: "Others",
+          short: "Others",
+          value: rrBreakdown.other,
+          color: "#9ca3af",
+        },
+      ].filter((s) => s.value > 0)
+    : [];
+  const rrRate = rrBreakdown?.received
+    ? (rrBreakdown.released_of_received / rrBreakdown.received) * 100
+    : 0;
 
   const trendYearOptions = [
     ...new Set([...yearSummaryData.map((r) => String(r.year)), trendYear]),
@@ -1979,20 +3400,62 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   );
 
   // ── Pie slices ────────────────────────────────────────────────
-  const classPieSlices = classificationData.map((row) => {
-    const short =
-      row.type === "Prescription Drug (RX)"
-        ? "RX"
-        : row.type === "Over-the-Counter (OTC)"
-          ? "OTC"
-          : row.type === "Household Remedy (HR)"
-            ? "HR"
-            : row.type;
-    return { name: row.type, value: row.count, color: classTypeColor(short) };
-  });
+  const classPieSlices = classificationData.map((row) => ({
+    key: row.type,
+    name: row.type,
+    short: classShort(row.type),
+    value: row.count,
+    color: classTypeColor(classShort(row.type)),
+  }));
+
+  // Doc-type columns only exist for Completed (In Progress has none)
+  const showDocCols = classStatus === "completed";
+  const visibleDocTypes = classDocTypes.filter((dt) =>
+    classificationData.some((row) => (row.by_doc_type?.[dt] ?? 0) > 0),
+  );
+
+  const openClassRecords = (slice) => {
+    const tabLabel = classStatus === "completed" ? "Completed" : "In Progress";
+    const scope = {
+      year: chartYear,
+      month: chartMonth,
+      prescription: rxFilter,
+      tab: classStatus,
+    };
+    if (pieView === "classification") {
+      setRecordsTarget({
+        title: `${tabLabel} — ${slice.name}`,
+        classification: { ...scope, classification: slice.key },
+      });
+    } else {
+      setRecordsTarget({
+        title: `${tabLabel} — ${slice.name} documents`,
+        docType: docKey(slice.key),
+        classification: scope,
+      });
+    }
+  };
+
+  // Click on a table cell: Total (all docs) or a doc-type column
+  const openClassCell = (row, dt = null) => {
+    const tabLabel = classStatus === "completed" ? "Completed" : "In Progress";
+    setRecordsTarget({
+      title: `${tabLabel} — ${row.type}${dt ? ` · ${dt}` : ""}`,
+      ...(dt ? { docType: docKey(dt) } : {}),
+      classification: {
+        year: chartYear,
+        month: chartMonth,
+        prescription: rxFilter,
+        tab: classStatus,
+        classification: row.type,
+      },
+    });
+  };
 
   const docTypePieSlices = classDocTypes
     .map((dt) => ({
+      key: dt,
+      short: dt,
       name: dt,
       value: classificationData.reduce(
         (s, row) => s + (row.by_doc_type?.[dt] ?? 0),
@@ -2329,6 +3792,45 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     });
   };
 
+  // Line chart point / legend click
+  const openTrendRecords = (series, d = null) => {
+    const label =
+      series === "received"
+        ? "Received"
+        : series === "released"
+          ? "Released"
+          : "In Progress";
+    // In Progress is counted by Date Received, so it uses the received_in_progress kind
+    const kind = series === "in_progress" ? "received_in_progress" : series;
+    const when = d
+      ? rrYears.length === 1
+        ? `${d.label} ${rrYears[0]}`
+        : d.label
+      : rrScope;
+    setRecordsTarget({
+      title: `${label} — ${when}`,
+      trendRecords: {
+        years: rrYears,
+        month: chartMonth,
+        prescription: rxFilter,
+        kind,
+        bucket: d?.key,
+      },
+    });
+  };
+
+  // Donut slice click
+  const openBreakdownRecords = (slice) =>
+    setRecordsTarget({
+      title: `Received (${rrScope}) — ${slice.name}`,
+      trendRecords: {
+        years: rrYears,
+        month: chartMonth,
+        prescription: rxFilter,
+        kind: slice.key,
+      },
+    });
+
   return (
     <div
       style={{
@@ -2478,67 +3980,88 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                 </>
               )}
             </div>
-
-            {/* Trend */}
-            {loadingSec.trend && trendData.length === 0 ? (
+            {/* Received vs Released trend */}
+            {loadingRR && rrData.length === 0 ? (
               <SectionCardSkeleton
                 height={CHART_SKELETON_HEIGHT}
                 darkMode={darkMode}
               />
             ) : (
               <SectionCard
-                title="Trend Overview"
-                subtitle={`Grouped by ${trendYear === "All" ? "year" : "month"}`}
+                title="Received, Released & In Progress"
+                subtitle={`Grouped by ${rrYears.length === 1 ? "month" : "year"} · click a point to view records`}
                 icon="📈"
                 ui={ui}
                 darkMode={darkMode}
                 action={
-                  <select
-                    value={trendYear}
-                    onChange={(e) => setTrendYear(e.target.value)}
-                    title="Filter trend by year"
-                    style={{
-                      ...inputSt,
-                      padding: "5px 10px",
-                      fontSize: "0.75rem",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="All">All years</option>
-                    {trendYearOptions.map((y) => (
-                      <option key={y} value={y}>
-                        {y}
-                      </option>
-                    ))}
-                  </select>
+                  <YearMultiSelect
+                    options={trendYearOptions}
+                    value={rrYears}
+                    onChange={setRrYears}
+                    ui={ui}
+                    darkMode={darkMode}
+                  />
                 }
               >
                 <div
                   style={{
-                    opacity: loadingSec.trend ? 0.5 : 1,
+                    opacity: loadingRR ? 0.5 : 1,
                     transition: "opacity 0.2s",
                   }}
                 >
-                  <TrendChart data={trendData} ui={ui} darkMode={darkMode} />
+                  <RRTrendChart
+                    data={rrData}
+                    ui={ui}
+                    darkMode={darkMode}
+                    onPointClick={openTrendRecords}
+                  />
                 </div>
               </SectionCard>
             )}
 
-            {/* Donut */}
-            {loadingSec.kpi ? (
+            {/* Received breakdown */}
+            {loadingRR && !rrBreakdown ? (
               <SectionCardSkeleton
                 height={CHART_SKELETON_HEIGHT}
                 darkMode={darkMode}
               />
             ) : (
               <SectionCard
-                title="Approval Breakdown"
-                subtitle="CPR vs LOD vs In Progress"
+                title="Received Breakdown"
+                subtitle={`Received, released & in progress · ${rrScope}`}
                 icon="🍩"
                 ui={ui}
                 darkMode={darkMode}
               >
-                <DonutChart data={pieData} ui={ui} darkMode={darkMode} />
+                <div
+                  style={{
+                    opacity: loadingRR ? 0.5 : 1,
+                    transition: "opacity 0.2s",
+                  }}
+                >
+                  <PieChart
+                    slices={rrSlices}
+                    darkMode={darkMode}
+                    ui={ui}
+                    onSliceClick={openBreakdownRecords}
+                    size={160}
+                    centerLabel="TOTAL"
+                    legendMin={170}
+                    hint=""
+                  />
+                  <div
+                    style={{
+                      marginTop: 6,
+                      fontSize: "0.72rem",
+                      color: ui.textMuted,
+                      textAlign: "center",
+                    }}
+                  >
+                    Release rate{" "}
+                    <b style={{ color: "#36a420" }}>{rrRate.toFixed(1)}%</b>{" "}
+                    (Released ÷ Received)
+                  </div>
+                </div>
               </SectionCard>
             )}
           </div>
@@ -3237,13 +4760,62 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         <div
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}
         >
-          {/* ── By Classification ── */}
+          {/* ── Product Classification ── */}
           <SectionCard
-            title="By Classification"
-            subtitle="Applications per prescription type"
+            title="Product Classification"
+            subtitle={
+              classStatus === "completed"
+                ? "Completed applications per product class"
+                : "In progress applications per product class"
+            }
             icon="💊"
             ui={ui}
             darkMode={darkMode}
+            action={
+              <div
+                style={{
+                  display: "flex",
+                  background: neuCardBg(darkMode),
+                  borderRadius: 10,
+                  padding: 3,
+                  gap: 2,
+                  boxShadow: neuShadow(darkMode, false),
+                }}
+              >
+                {[
+                  {
+                    key: "completed",
+                    label: "Completed",
+                    count: summary.completed,
+                  },
+                  {
+                    key: "in_progress",
+                    label: "In Progress",
+                    count: summary.in_progress,
+                  },
+                ].map(({ key, label, count }) => (
+                  <button
+                    key={key}
+                    onClick={() => {
+                      setClassStatus(key);
+                      if (key !== "completed") setPieView("classification");
+                    }}
+                    style={neuBtnStyle(classStatus === key)}
+                  >
+                    {label}
+                    <span
+                      style={{
+                        marginLeft: 5,
+                        opacity: 0.65,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {Number(count ?? 0).toLocaleString()}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            }
           >
             {loadingSec.classification && classificationData.length === 0 ? (
               <LoadingRows rows={6} height={28} darkMode={darkMode} />
@@ -3259,7 +4831,12 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                 No classification data
               </div>
             ) : (
-              <>
+              <div
+                style={{
+                  opacity: loadingSec.classification ? 0.5 : 1,
+                  transition: "opacity 0.2s",
+                }}
+              >
                 {/* Table */}
                 <div style={{ overflowX: "auto", marginBottom: 20 }}>
                   <table
@@ -3271,28 +4848,22 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                   >
                     <thead>
                       <tr>
-                        <th style={thStyle(true)}>Type</th>
+                        <th style={thStyle(true)}>Classification</th>
                         <th style={thStyle()}>Total</th>
-                        {classDocTypes.map((dt) => (
-                          <th
-                            key={dt}
-                            style={{ ...thStyle(), color: docTypeColor(dt) }}
-                          >
-                            {dt}
-                          </th>
-                        ))}
+                        {showDocCols &&
+                          visibleDocTypes.map((dt) => (
+                            <th
+                              key={dt}
+                              style={{ ...thStyle(), color: docTypeColor(dt) }}
+                            >
+                              {dt}
+                            </th>
+                          ))}
                       </tr>
                     </thead>
                     <tbody>
                       {classificationData.map((row, i) => {
-                        const short =
-                          row.type === "Prescription Drug (RX)"
-                            ? "RX"
-                            : row.type === "Over-the-Counter (OTC)"
-                              ? "OTC"
-                              : row.type === "Household Remedy (HR)"
-                                ? "HR"
-                                : row.type;
+                        const short = classShort(row.type);
                         const typeColor = classTypeColor(short);
                         return (
                           <tr
@@ -3326,22 +4897,53 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                               >
                                 {short}
                               </span>
-                              <span
-                                style={{
-                                  fontSize: "0.72rem",
-                                  color: ui.textMuted,
-                                  fontWeight: 400,
-                                }}
-                              >
-                                {row.type}
-                              </span>
+                              {short !== row.type && (
+                                <span
+                                  style={{
+                                    fontSize: "0.72rem",
+                                    color: ui.textMuted,
+                                    fontWeight: 400,
+                                  }}
+                                >
+                                  {row.type}
+                                </span>
+                              )}
                             </td>
-                            <td style={tdStyle(ui.textPrimary)}>{row.count}</td>
-                            {classDocTypes.map((dt) => (
-                              <td key={dt} style={tdStyle(docTypeColor(dt))}>
-                                {row.by_doc_type?.[dt] ?? 0}
-                              </td>
-                            ))}
+                            <td style={tdStyle(ui.textPrimary)}>
+                              {row.count > 0 ? (
+                                <span
+                                  onClick={() => openClassCell(row)}
+                                  title="Click to view records"
+                                  style={linkSt}
+                                >
+                                  {row.count.toLocaleString()}
+                                </span>
+                              ) : (
+                                row.count.toLocaleString()
+                              )}
+                            </td>
+                            {showDocCols &&
+                              visibleDocTypes.map((dt) => {
+                                const n = row.by_doc_type?.[dt] ?? 0;
+                                return (
+                                  <td
+                                    key={dt}
+                                    style={tdStyle(docTypeColor(dt))}
+                                  >
+                                    {n > 0 ? (
+                                      <span
+                                        onClick={() => openClassCell(row, dt)}
+                                        title="Click to view records"
+                                        style={linkSt}
+                                      >
+                                        {n.toLocaleString()}
+                                      </span>
+                                    ) : (
+                                      n.toLocaleString()
+                                    )}
+                                  </td>
+                                );
+                              })}
                           </tr>
                         );
                       })}
@@ -3360,7 +4962,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                   }}
                 />
 
-                {/* Pie toggle */}
+                {/* Distribution header + toggle (By Doc only for Completed) */}
                 <div
                   style={{
                     display: "flex",
@@ -3380,53 +4982,56 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                   >
                     🥧 Distribution
                   </span>
-                  <div
-                    style={{
-                      display: "flex",
-                      background: neuCardBg(darkMode),
-                      borderRadius: 10,
-                      padding: 3,
-                      gap: 2,
-                      boxShadow: neuShadow(darkMode, false),
-                    }}
-                  >
-                    {[
-                      { key: "classification", label: "By Type" },
-                      { key: "doctype", label: "By Doc" },
-                    ].map(({ key, label }) => (
-                      <button
-                        key={key}
-                        onClick={() => setPieView(key)}
-                        style={{
-                          padding: "4px 10px",
-                          fontSize: "0.68rem",
-                          fontWeight: pieView === key ? 700 : 500,
-                          borderRadius: 8,
-                          border: "none",
-                          background: neuCardBg(darkMode),
-                          color: pieView === key ? FB : ui.textMuted,
-                          cursor: "pointer",
-                          fontFamily: font,
-                          boxShadow:
-                            pieView === key
-                              ? neuShadow(darkMode, false)
-                              : "none",
-                          transition: "all 0.18s",
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
+                  {showDocCols && (
+                    <div
+                      style={{
+                        display: "flex",
+                        background: neuCardBg(darkMode),
+                        borderRadius: 10,
+                        padding: 3,
+                        gap: 2,
+                        boxShadow: neuShadow(darkMode, false),
+                      }}
+                    >
+                      {[
+                        { key: "classification", label: "By Class" },
+                        { key: "doctype", label: "By Doc" },
+                      ].map(({ key, label }) => (
+                        <button
+                          key={key}
+                          onClick={() => setPieView(key)}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: "0.68rem",
+                            fontWeight: pieView === key ? 700 : 500,
+                            borderRadius: 8,
+                            border: "none",
+                            background: neuCardBg(darkMode),
+                            color: pieView === key ? FB : ui.textMuted,
+                            cursor: "pointer",
+                            fontFamily: font,
+                            boxShadow:
+                              pieView === key
+                                ? neuShadow(darkMode, false)
+                                : "none",
+                            transition: "all 0.18s",
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {/* Pie chart */}
+                {/* Donut */}
                 <PieChart
                   slices={activePieSlices}
                   darkMode={darkMode}
                   ui={ui}
+                  onSliceClick={openClassRecords}
                 />
-              </>
+              </div>
             )}
           </SectionCard>
 
