@@ -102,6 +102,17 @@ const clampLines = (doc, lines, maxLines, maxW) => {
   return kept;
 };
 
+// Load a script from a CDN once (same way TransmittalGenerator.js loads JsBarcode).
+const loadScriptOnce = (src) =>
+  new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`) && window.JsBarcode) return resolve();
+    const s = document.createElement("script");
+    s.src = src;
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+
 // "Generated:" time for the exports — from the server's clock, so a wrong PC
 // clock can't show on the printout. Falls back to the PC clock if the
 // server can't be reached.
@@ -802,10 +813,32 @@ function ChecklistPage({ darkMode }) {
     // [width mm] — TEST LAYOUT: Date/Time Inserted and Inserted By left out
     // for now. Total 194 mm (A4 portrait minus 8 mm margins).
     //   # | DTN | Subject | Signed by OIC Director | Scanned: Clean | Duplicate
-    const cols = [8, 31, 110, 15, 15, 15];
+    // DTN column is 36 mm so its CODE128 barcode is wide enough to scan
+    // (~0.27 mm per bar, with a blank margin each side).
+    const cols = [8, 36, 105, 15, 15, 15];
     const SUBJECT_COL = 2;
+    const DTN_COL = 1;
     const FIRST_TICK_COL = 3; // columns 3–5 are tick cells
-    const rowH = 10; // minimum body row height (room for tick box + date line)
+    const rowH = 15; // minimum body row height (DTN number + barcode under it)
+
+    // CODE128 barcode for each DTN (same library + format as the Transmittal
+    // PDF in TransmittalGenerator.js). If it can't load, the PDF still prints
+    // without barcodes.
+    const barcodes = new Map();
+    try {
+      await loadScriptOnce("https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js");
+      for (const item of active.items) {
+        const canvas = document.createElement("canvas");
+        // 3 px per bar, no built-in margin (the gap is left around the image).
+        window.JsBarcode(canvas, item.dtn, {
+          format: "CODE128", width: 3, height: 90, margin: 0, displayValue: false,
+          background: "#ffffff", lineColor: "#000000",
+        });
+        barcodes.set(item.id, canvas.toDataURL("image/png"));
+      }
+    } catch {
+      setMessage({ type: "error", text: "Barcodes couldn't be loaded — the PDF was made without them." });
+    }
     const headH = 7; // each of the 2 header rows
     const lineH = 4.3; // mm per wrapped subject line
     const colX = cols.map((_, c) => left + cols.slice(0, c).reduce((a, b) => a + b, 0));
@@ -886,10 +919,15 @@ function ChecklistPage({ darkMode }) {
       doc.setTextColor(21, 128, 61); // green
       // Left-aligned at the computed spot (centring math doesn't account for
       // the squeeze); the box is sized to the squeezed width, so it's centred.
+      // The squeeze is a PDF "Tz" setting that stays on for the rest of the
+      // page — save/restore keeps it to the label only, or every DTN and
+      // subject after it on page 1 prints narrower.
+      doc.saveGraphicsState();
       doc.text(lines, boxRight - boxW + 3, boxY + boxH / 2, {
         baseline: "middle",
         ...(squeeze < 1 ? { horizontalScale: squeeze } : {}),
       });
+      doc.restoreGraphicsState();
       doc.setTextColor(0, 0, 0);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
@@ -917,6 +955,11 @@ function ChecklistPage({ darkMode }) {
           if (item.subject_status === "not_found") doc.setTextColor(220, 38, 38); // red
           doc.text(subjectLines, x + 2, y + 5.5, { lineHeightFactor: lineH / (10 * 0.3528) });
           doc.setTextColor(0, 0, 0);
+        } else if (c === DTN_COL && barcodes.has(item.id)) {
+          // DTN number on top, its barcode under it (3 mm blank each side).
+          doc.rect(x, y, w, h);
+          doc.text(item.dtn, x + w / 2, y + 4.8, { align: "center" });
+          doc.addImage(barcodes.get(item.id), "PNG", x + 3, y + 6.5, w - 6, 6.5);
         } else {
           doc.rect(x, y, w, h);
           doc.text(c === 0 ? String(i + 1) : item.dtn, x + w / 2, midY, { align: "center" });
@@ -1262,6 +1305,10 @@ function ChecklistPage({ darkMode }) {
         @keyframes cklDrop     { from { opacity: 0; transform: translateY(-8px) scaleY(0.96); } to { opacity: 1; transform: none; } }
         @keyframes cklFloat    { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
         @keyframes cklShimmer  { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+        .ckl-list-scroll { scrollbar-width: thin; scrollbar-color: rgba(127,127,127,0.45) transparent; }
+        .ckl-list-scroll::-webkit-scrollbar { width: 6px; }
+        .ckl-list-scroll::-webkit-scrollbar-thumb { background: rgba(127,127,127,0.45); border-radius: 999px; }
+        .ckl-list-scroll::-webkit-scrollbar-track { background: transparent; }
         @keyframes cklRowPop {
           0%   { opacity: 0; transform: scale(0.94) translateY(8px); }
           25%  { opacity: 1; transform: scale(1.025); box-shadow: 0 0 0 2px #16a34a, 0 8px 22px rgba(22,163,74,0.35); background: rgba(22,163,74,0.16); }
@@ -1339,9 +1386,36 @@ function ChecklistPage({ darkMode }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: "1rem", alignItems: "start" }}>
         {/* ── Past checklists ── */}
-        <div className="ckl-in" style={{ ...card, padding: "0.75rem", animationDelay: "80ms" }}>
-          <div style={{ fontSize: "0.8rem", fontWeight: 700, color: colors.textTertiary, marginBottom: "0.5rem" }}>
-            CHECKLISTS
+        {/* Own scroll area: stays in view (sticky) while the page scrolls and
+            scrolls by itself when there are many checklists. */}
+        <div
+          className="ckl-in ckl-list-scroll"
+          style={{
+            ...card,
+            padding: "0 0.75rem 0.75rem",
+            animationDelay: "80ms",
+            position: "sticky",
+            top: "1rem",
+            maxHeight: "calc(100vh - 9rem)",
+            overflowY: "auto",
+          }}
+        >
+          <div
+            style={{
+              position: "sticky",
+              top: 0,
+              zIndex: 1,
+              background: colors.cardBg,
+              padding: "0.75rem 0 0.5rem",
+              fontSize: "0.8rem",
+              fontWeight: 700,
+              color: colors.textTertiary,
+              display: "flex",
+              justifyContent: "space-between",
+            }}
+          >
+            <span>CHECKLISTS</span>
+            <span style={{ fontWeight: 600 }}>{checklists.length}</span>
           </div>
           {dateFilter && (
             <div
