@@ -1,9 +1,11 @@
 // FILE: src/api/checklist.js
 import api from "./axios";
 
+// One page of checklists → { items, total, page, page_size }.
 // dateFilter: { from, to } as "YYYY-MM-DD" (Manila), or null for no filter.
-export const getChecklists = async (dateFilter = null) => {
-  const params = dateFilter ? { date_from: dateFilter.from, date_to: dateFilter.to, limit: 500 } : undefined;
+export const getChecklists = async (dateFilter = null, page = 1, pageSize = 50) => {
+  const params = { page, page_size: pageSize };
+  if (dateFilter) Object.assign(params, { date_from: dateFilter.from, date_to: dateFilter.to });
   const response = await api.get("/checklist", { params });
   return response.data;
 };
