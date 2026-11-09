@@ -1,7 +1,7 @@
 // src/components/monitoring/analytics/AnalyticsView.jsx
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { updateUploadReport, getUploadReports } from "../../../api/reports";
+import { updateUploadReport, getUploadReports } from "../../../api/reports.js";
 import { mapDataItem } from "../../reports/utils.js";
 
 import {
@@ -24,30 +24,38 @@ import {
   getAnalyticsReceivedReleasedTrend,
   getAnalyticsTrendRecords,
   getAnalyticsTrendTimeline,
-} from "../../../api/analytics";
+  getAnalyticsCountryRecords,
+} from "../../../api/analytics.js";
 
-import DoctrackModal from "../../reports/actions/DoctrackModal";
-import ViewDetailsModal from "../../reports/actions/ViewDetailsModal";
-import ApplicationLogsModal from "../../tasks/ApplicationLogsModal";
-import EditRecordModal from "../../reports/actions/EditRecordModal";
+import DoctrackModal from "../../reports/actions/DoctrackModal.jsx";
+import ViewDetailsModal from "../../reports/actions/ViewDetailsModal.jsx";
+import ApplicationLogsModal from "../../tasks/ApplicationLogsModal.jsx";
+import EditRecordModal from "../../reports/actions/EditRecordModal.jsx";
 import * as XLSX from "xlsx";
 // ── Split modules ─────────────────────────────────────────────
-import "./analyticsAnimations";
-import { FB, MONTHS, ENTITY_TYPES, COUNTRY_FLAGS } from "./analyticsConstants";
-import { neuCardBg, neuShadow, neuInputShadow } from "./analyticsHelpers";
-import { SkeletonBox, SectionCardSkeleton } from "./SkeletonComponents";
-import { FadeSlideIn } from "./KpiCard";
-import { SectionCard } from "./SectionCard";
-import { MiniBar, TrendChart, DonutChart } from "./ChartComponents";
-import { CountryList } from "./CountryComponents";
-import InProgressByUserModal from "./InProgressByUserModal";
-import ExportPdfModal from "./ExportPdfModal";
+import "./analyticsAnimations.jsx";
+import {
+  FB,
+  MONTHS,
+  ENTITY_TYPES,
+  COUNTRY_FLAGS,
+} from "./analyticsConstants.jsx";
+import { neuCardBg, neuShadow, neuInputShadow } from "./analyticsHelpers.jsx";
+import { SkeletonBox, SectionCardSkeleton } from "./SkeletonComponents.jsx";
+import { FadeSlideIn } from "./KpiCard.jsx";
+import { SectionCard } from "./SectionCard.jsx";
+import InProgressByUserModal from "./InProgressByUserModal.jsx";
+import ExportPdfModal from "./ExportPdfModal.jsx";
+import DrugDetailModal from "./DrugDetailModal.jsx";
 
 const font =
   "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
 const CHART_SKELETON_HEIGHT = 260;
 const DRUGS_PAGE_SIZE = 10;
+
+const DRUG_GRID = "28px minmax(0, 1.5fr) minmax(130px, 1fr) 56px 66px";
+const COUNTRIES_PAGE_SIZE = 12;
 
 const DOC_TYPE_COLOR = {
   CPR: "#36a420",
@@ -1530,35 +1538,38 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       released_from: relFrom || undefined,
       released_to: relTo || undefined,
     };
-    return target.fastest
-      ? getAnalyticsFastestRecords({ ...target.fastest, ...common })
-      : target.topco
-        ? getAnalyticsCompanyRecords({ ...target.topco, ...common })
-        : target.quality
-          ? getAnalyticsQualityRecords({
-              year: target.year,
-              issue: target.quality,
-              ...common,
-            })
-          : target.trendRecords
-            ? getAnalyticsTrendRecords({
-                ...target.trendRecords,
+    return target.country
+      ? getAnalyticsCountryRecords({ ...target.country, ...common })
+      : target.fastest
+        ? getAnalyticsFastestRecords({ ...target.fastest, ...common })
+        : target.topco
+          ? getAnalyticsCompanyRecords({ ...target.topco, ...common })
+          : target.quality
+            ? getAnalyticsQualityRecords({
+                year: target.year,
+                issue: target.quality,
                 ...common,
-                classification: classFilter === "All" ? undefined : classFilter,
               })
-            : target.classification
-              ? getAnalyticsClassificationRecords({
-                  ...target.classification,
+            : target.trendRecords
+              ? getAnalyticsTrendRecords({
+                  ...target.trendRecords,
                   ...common,
+                  classification:
+                    classFilter === "All" ? undefined : classFilter,
                 })
-              : target.summary
-                ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
-                : getAnalyticsYearRecords({
-                    year: target.year,
-                    kind: target.kind,
-                    basis,
+              : target.classification
+                ? getAnalyticsClassificationRecords({
+                    ...target.classification,
                     ...common,
-                  });
+                  })
+                : target.summary
+                  ? getAnalyticsSummaryRecords({ ...target.summary, ...common })
+                  : getAnalyticsYearRecords({
+                      year: target.year,
+                      kind: target.kind,
+                      basis,
+                      ...common,
+                    });
   };
 
   useEffect(() => {
@@ -3134,6 +3145,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [recordsTarget, setRecordsTarget] = useState(null); // { year, kind }
   const [showInProgress, setShowInProgress] = useState(false);
   const [showExportPdf, setShowExportPdf] = useState(false);
+  const [drugTarget, setDrugTarget] = useState(null); // drug row opened from Top Drug Applications
   const [loadingYear, setLoadingYear] = useState(true);
 
   // ── Data completeness ────────────────────────────────────────
@@ -3144,9 +3156,14 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
 
   // ── Pagination ────────────────────────────────────────────────
   const [drugsPage, setDrugsPage] = useState(1);
+  const [drugSearch, setDrugSearch] = useState("");
+  const [countryPage, setCountryPage] = useState(1);
+  useEffect(() => {
+    setCountryPage(1);
+  }, [topCountryTab]);
   useEffect(() => {
     setDrugsPage(1);
-  }, [chartYear, chartMonth, rxFilter]);
+  }, [drugSearch]);
 
   // ── Fetch main ────────────────────────────────────────────────
 
@@ -3393,8 +3410,23 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const maxDrug = Math.max(...topDrugsData.map((d) => d.total), 1);
   const maxCountry = Math.max(...topCountriesData.map((d) => d.count), 1);
 
-  const drugsTotalPages = Math.ceil(topDrugsData.length / DRUGS_PAGE_SIZE);
-  const pagedDrugs = topDrugsData.slice(
+  // Keep the original rank so a search result still shows its real position
+  const rankedDrugs = useMemo(
+    () => topDrugsData.map((d, i) => ({ ...d, rank: i + 1 })),
+    [topDrugsData],
+  );
+  const drugQuery = drugSearch.trim().toLowerCase();
+  const filteredDrugs = useMemo(
+    () =>
+      drugQuery
+        ? rankedDrugs.filter((d) =>
+            `${d.name} ${d.generic}`.toLowerCase().includes(drugQuery),
+          )
+        : rankedDrugs,
+    [rankedDrugs, drugQuery],
+  );
+  const drugsTotalPages = Math.ceil(filteredDrugs.length / DRUGS_PAGE_SIZE);
+  const pagedDrugs = filteredDrugs.slice(
     (drugsPage - 1) * DRUGS_PAGE_SIZE,
     drugsPage * DRUGS_PAGE_SIZE,
   );
@@ -3830,6 +3862,30 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         kind: slice.key,
       },
     });
+
+  // Country row click
+  const openCountryRecords = (row) => {
+    const entityLabel =
+      ENTITY_TYPES.find((et) => et.key === topCountryTab)?.label ?? "";
+    setRecordsTarget({
+      title: `${row.country} — ${entityLabel}`,
+      country: {
+        entity_type: topCountryTab,
+        country: row.country,
+        year: chartYear,
+        month: chartMonth,
+        prescription: rxFilter,
+      },
+    });
+  };
+
+  const pagedCountries = topCountriesData.slice(
+    (countryPage - 1) * COUNTRIES_PAGE_SIZE,
+    countryPage * COUNTRIES_PAGE_SIZE,
+  );
+  const countriesTotalPages = Math.ceil(
+    topCountriesData.length / COUNTRIES_PAGE_SIZE,
+  );
 
   return (
     <div
@@ -5043,11 +5099,64 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
             ui={ui}
             darkMode={darkMode}
             action={
-              <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
-                {loadingSec.drugs && topDrugsData.length === 0
-                  ? ""
-                  : `Top ${topDrugsData.length}`}
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
+                  {loadingSec.drugs && topDrugsData.length === 0
+                    ? ""
+                    : drugQuery
+                      ? `${filteredDrugs.length.toLocaleString()} of ${topDrugsData.length.toLocaleString()}`
+                      : `Top ${topDrugsData.length.toLocaleString()}`}
+                </span>
+                <div style={{ position: "relative" }}>
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: 9,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      fontSize: "0.72rem",
+                      pointerEvents: "none",
+                    }}
+                  >
+                    🔍
+                  </span>
+                  <input
+                    type="text"
+                    name="drug-search"
+                    autoComplete="off"
+                    value={drugSearch}
+                    onChange={(e) => setDrugSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === "Escape" && setDrugSearch("")}
+                    placeholder="Search drug or generic…"
+                    style={{
+                      ...inputSt,
+                      width: 200,
+                      padding: "6px 26px 6px 28px",
+                      fontSize: "0.75rem",
+                    }}
+                  />
+                  {drugSearch && (
+                    <button
+                      onClick={() => setDrugSearch("")}
+                      title="Clear search"
+                      style={{
+                        position: "absolute",
+                        right: 6,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        border: "none",
+                        background: "transparent",
+                        color: ui.textMuted,
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                        padding: 2,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
             }
           >
             {loadingSec.drugs && topDrugsData.length === 0 ? (
@@ -5066,23 +5175,25 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
             ) : (
               <>
                 <div
-                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
                 >
+                  {/* Header */}
                   <div
                     style={{
                       display: "grid",
-                      gridTemplateColumns: "2fr 1fr 64px 64px 64px",
-                      gap: 8,
-                      padding: "0 4px",
+                      gridTemplateColumns: DRUG_GRID,
+                      gap: 12,
+                      padding: "0 10px 8px",
+                      borderBottom: `1px solid ${darkMode ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
                     }}
                   >
                     {[
-                      "Drug / Generic",
-                      "Classification",
-                      "Total",
-                      "CPR",
-                      "Rate",
-                    ].map((h) => (
+                      { h: "#", a: "center" },
+                      { h: "Drug / Generic", a: "left" },
+                      { h: "Breakdown", a: "left" },
+                      { h: "Total", a: "center" },
+                      { h: "Rate", a: "center" },
+                    ].map(({ h, a }) => (
                       <span
                         key={h}
                         style={{
@@ -5091,75 +5202,117 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                           textTransform: "uppercase",
                           letterSpacing: "0.06em",
                           color: ui.textMuted,
+                          textAlign: a,
                         }}
                       >
                         {h}
                       </span>
                     ))}
                   </div>
+
+                  {pagedDrugs.length === 0 && (
+                    <div
+                      style={{
+                        textAlign: "center",
+                        color: ui.textMuted,
+                        fontSize: "0.82rem",
+                        padding: "28px 0",
+                      }}
+                    >
+                      No drugs match "{drugSearch.trim()}"
+                    </div>
+                  )}
+
                   {pagedDrugs.map((drug, i) => {
-                    const rxShort =
-                      drug.rx === "Prescription Drug (RX)"
-                        ? "RX"
-                        : drug.rx === "Over-the-Counter (OTC)"
-                          ? "OTC"
-                          : "VAX";
-                    const rxColor =
-                      drug.rx === "Prescription Drug (RX)"
-                        ? FB
-                        : drug.rx === "Over-the-Counter (OTC)"
-                          ? "#f59e0b"
-                          : "#36a420";
-                    const isLast = i === pagedDrugs.length - 1;
+                    const rank = drug.rank;
+                    const rankColor =
+                      rank === 1
+                        ? "#f59e0b"
+                        : rank === 2
+                          ? "#9ca3af"
+                          : rank === 3
+                            ? "#b45309"
+                            : ui.textMuted;
+                    const rxShort = drug.rx ? classShort(drug.rx) : "N/A";
+                    const rxColor = drug.rx
+                      ? classTypeColor(rxShort)
+                      : "#9ca3af";
+
+                    const total = Number(drug.total) || 0;
+                    const cpr = Number(drug.cpr) || 0;
+                    const lod = Number(drug.lod) || 0;
+                    const other = Math.max(total - cpr - lod, 0);
+                    const widthPct = Math.max((total / maxDrug) * 100, 4);
+                    const seg = (n) => `${total > 0 ? (n / total) * 100 : 0}%`;
+
+                    const rate = parseFloat(drug.rate) || 0;
+                    const rateColor =
+                      rate >= 60 ? "#36a420" : rate > 0 ? "#f59e0b" : "#9ca3af";
+                    const hoverBg = darkMode
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(0,0,0,0.035)";
+
                     return (
                       <div
                         key={drug.name}
+                        onClick={() => setDrugTarget(drug)}
+                        title="Click to view drug details"
                         style={{
                           display: "grid",
-                          gridTemplateColumns: "2fr 1fr 64px 64px 64px",
-                          gap: 8,
-                          padding: "10px 4px",
+                          gridTemplateColumns: DRUG_GRID,
+                          gap: 12,
+                          padding: "11px 10px",
                           borderRadius: 10,
                           alignItems: "center",
-                          borderBottom: !isLast
-                            ? `1px solid ${darkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}`
-                            : "none",
+                          cursor: "pointer",
+                          transition: "background 0.15s",
                         }}
                         onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = darkMode
-                            ? "rgba(255,255,255,0.03)"
-                            : "rgba(0,0,0,0.02)")
+                          (e.currentTarget.style.background = hoverBg)
                         }
                         onMouseLeave={(e) =>
                           (e.currentTarget.style.background = "transparent")
                         }
                       >
+                        {/* Rank */}
+                        <span
+                          style={{
+                            fontSize: "0.8rem",
+                            fontWeight: 800,
+                            color: rankColor,
+                            textAlign: "center",
+                          }}
+                        >
+                          {rank}
+                        </span>
+
+                        {/* Drug + generic */}
                         <div style={{ minWidth: 0 }}>
                           <div
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: 6,
-                              marginBottom: 3,
+                              gap: 7,
                             }}
                           >
                             <span
+                              title={drug.rx || "No classification"}
                               style={{
-                                fontSize: "0.62rem",
-                                fontWeight: 700,
-                                padding: "1px 6px",
-                                borderRadius: 4,
-                                background: `${rxColor}18`,
+                                fontSize: "0.6rem",
+                                fontWeight: 800,
+                                padding: "2px 7px",
+                                borderRadius: 99,
+                                background: `${rxColor}1f`,
                                 color: rxColor,
                                 flexShrink: 0,
                               }}
                             >
-                              {rxShort}
+                              {String(rxShort).slice(0, 7)}
                             </span>
                             <span
                               style={{
-                                fontSize: "0.8rem",
-                                fontWeight: 600,
+                                fontSize: "0.82rem",
+                                fontWeight: 700,
                                 color: ui.textPrimary,
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
@@ -5168,68 +5321,117 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                             >
                               {drug.name}
                             </span>
+                            <span
+                              style={{
+                                fontSize: "0.8rem",
+                                color: ui.textMuted,
+                              }}
+                            >
+                              ›
+                            </span>
+                          </div>
+                          <div
+                            title={drug.generic}
+                            style={{
+                              fontSize: "0.68rem",
+                              color: ui.textMuted,
+                              marginTop: 3,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {drug.generic || "No generic name"}
+                          </div>
+                        </div>
+
+                        {/* Stacked breakdown bar (width = share of the top drug) */}
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              height: 7,
+                              borderRadius: 99,
+                              background: darkMode
+                                ? "rgba(255,255,255,0.06)"
+                                : "rgba(0,0,0,0.06)",
+                              overflow: "hidden",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: `${widthPct}%`,
+                                height: "100%",
+                                display: "flex",
+                                borderRadius: 99,
+                                overflow: "hidden",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  width: seg(cpr),
+                                  background: "#36a420",
+                                }}
+                              />
+                              <div
+                                style={{
+                                  width: seg(lod),
+                                  background: "#e02020",
+                                }}
+                              />
+                              <div
+                                style={{
+                                  width: seg(other),
+                                  background: FB,
+                                  opacity: 0.85,
+                                }}
+                              />
+                            </div>
                           </div>
                           <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 6,
+                              fontSize: "0.62rem",
+                              color: ui.textMuted,
+                              marginTop: 4,
                             }}
                           >
-                            <MiniBar
-                              value={drug.total}
-                              max={maxDrug}
-                              color={FB}
-                              darkMode={darkMode}
-                            />
-                            <span
-                              style={{
-                                fontSize: "0.65rem",
-                                color: ui.textMuted,
-                                flexShrink: 0,
-                              }}
-                            >
-                              {drug.generic}
-                            </span>
+                            <span style={{ color: "#36a420", fontWeight: 700 }}>
+                              {cpr.toLocaleString()}
+                            </span>{" "}
+                            CPR {" · "}
+                            <span style={{ color: "#e02020", fontWeight: 700 }}>
+                              {lod.toLocaleString()}
+                            </span>{" "}
+                            LOD {" · "}
+                            {other.toLocaleString()} other
                           </div>
                         </div>
-                        <span
-                          style={{ fontSize: "0.72rem", color: ui.textMuted }}
-                        >
-                          {drug.rx || "—"}
-                        </span>
+
+                        {/* Total */}
                         <span
                           style={{
-                            fontSize: "0.82rem",
-                            fontWeight: 700,
+                            fontSize: "0.88rem",
+                            fontWeight: 800,
                             color: FB,
                             textAlign: "center",
                           }}
                         >
-                          {drug.total}
+                          {total.toLocaleString()}
                         </span>
+
+                        {/* Rate pill */}
                         <span
+                          title="CPR released ÷ total applications"
                           style={{
-                            fontSize: "0.82rem",
-                            fontWeight: 600,
-                            color: "#36a420",
-                            textAlign: "center",
+                            justifySelf: "center",
+                            fontSize: "0.72rem",
+                            fontWeight: 800,
+                            padding: "3px 8px",
+                            borderRadius: 99,
+                            color: rateColor,
+                            background: `${rateColor}1f`,
                           }}
                         >
-                          {drug.cpr}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: "0.82rem",
-                            fontWeight: 700,
-                            textAlign: "center",
-                            color:
-                              parseFloat(drug.rate) >= 60
-                                ? "#36a420"
-                                : "#f59e0b",
-                          }}
-                        >
-                          {drug.rate}%
+                          {rate}%
                         </span>
                       </div>
                     );
@@ -5239,7 +5441,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                   page={drugsPage}
                   totalPages={drugsTotalPages}
                   onPageChange={setDrugsPage}
-                  total={topDrugsData.length}
+                  total={filteredDrugs.length}
                   pageSize={DRUGS_PAGE_SIZE}
                 />
               </>
@@ -5257,197 +5459,213 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
           ui={ui}
           darkMode={darkMode}
         >
-          <div
-            style={{
-              display: "flex",
-              gap: 6,
-              marginBottom: 16,
-              flexWrap: "wrap",
-            }}
-          >
-            {ENTITY_TYPES.map((et) => {
-              const isAct = topCountryTab === et.key;
-              return (
-                <button
-                  key={et.key}
-                  onClick={() => setTopCountryTab(et.key)}
-                  style={{
-                    padding: "5px 12px",
-                    fontSize: "0.76rem",
-                    fontWeight: isAct ? 700 : 500,
-                    borderRadius: 10,
-                    border: "none",
-                    background: neuCardBg(darkMode),
-                    color: isAct ? et.color : ui.textMuted,
-                    cursor: "pointer",
-                    fontFamily: font,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                    boxShadow: isAct
-                      ? neuShadow(darkMode, false)
-                      : neuShadow(darkMode, true),
-                    transition: "all 0.2s",
-                  }}
-                >
-                  <span>{et.icon}</span>
-                  <span>{et.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          {(() => {
+            const activeEntity = ENTITY_TYPES.find(
+              (et) => et.key === topCountryTab,
+            );
+            const accent = activeEntity?.color || FB;
+            const loadingList =
+              loadingCountries ||
+              (loadingSec.countries && topCountriesData.length === 0);
+            const totalApps = topCountriesData.reduce((s, d) => s + d.count, 0);
+            const medals = ["🥇", "🥈", "🥉"];
+            const hoverBg = darkMode
+              ? "rgba(255,255,255,0.05)"
+              : "rgba(0,0,0,0.035)";
 
-          {loadingCountries ||
-          (loadingSec.countries && topCountriesData.length === 0) ? (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: 80,
-                color: ui.textMuted,
-                fontSize: "0.82rem",
-                gap: 8,
-              }}
-            >
-              <span
-                style={{
-                  display: "inline-block",
-                  width: 14,
-                  height: 14,
-                  border: "2px solid currentColor",
-                  borderTopColor: "transparent",
-                  borderRadius: "50%",
-                  animation: "spin 0.7s linear infinite",
-                }}
-              />
-              Loading...
-            </div>
-          ) : topCountriesData.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                color: ui.textMuted,
-                fontSize: "0.82rem",
-                padding: "24px 0",
-              }}
-            >
-              No country data available
-            </div>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: 14,
-              }}
-            >
-              <CountryList
-                countries={topCountriesData}
-                activeEntity={ENTITY_TYPES.find(
-                  (et) => et.key === topCountryTab,
-                )}
-                topCountryTab={topCountryTab}
-                rxFilter={rxFilter}
-                maxCountry={maxCountry}
-                ui={ui}
-                darkMode={darkMode}
-                pageSize={10}
-              />
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 12 }}
-              >
+            const chips = [
+              {
+                label: "Countries",
+                value: topCountriesData.length,
+                color: accent,
+              },
+              { label: "Total Apps", value: totalApps, color: FB },
+              {
+                label: "#1",
+                value: topCountriesData[0]?.country || "—",
+                color: "#f59e0b",
+              },
+              {
+                label: "#1 CPR",
+                value: topCountriesData[0]?.cpr ?? 0,
+                color: "#36a420",
+              },
+            ];
+
+            return (
+              <>
+                {/* Tabs + compact stats */}
                 <div
                   style={{
-                    background: neuCardBg(darkMode),
-                    borderRadius: 12,
-                    padding: 14,
-                    boxShadow: neuShadow(darkMode, false),
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    flexWrap: "wrap",
+                    marginBottom: 10,
                   }}
                 >
-                  <p
-                    style={{
-                      margin: "0 0 12px",
-                      fontSize: "0.72rem",
-                      fontWeight: 700,
-                      color: ui.textMuted,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.06em",
-                    }}
-                  >
-                    🏆 Top 3 Podium
-                  </p>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {ENTITY_TYPES.map((et) => {
+                      const isAct = topCountryTab === et.key;
+                      return (
+                        <button
+                          key={et.key}
+                          onClick={() => setTopCountryTab(et.key)}
+                          style={{
+                            padding: "4px 11px",
+                            fontSize: "0.72rem",
+                            fontWeight: isAct ? 700 : 500,
+                            borderRadius: 10,
+                            border: "none",
+                            background: neuCardBg(darkMode),
+                            color: isAct ? et.color : ui.textMuted,
+                            cursor: "pointer",
+                            fontFamily: font,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
+                            boxShadow: isAct
+                              ? neuShadow(darkMode, false)
+                              : neuShadow(darkMode, true),
+                            transition: "all 0.2s",
+                          }}
+                        >
+                          <span>{et.icon}</span>
+                          <span>{et.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!loadingList && topCountriesData.length > 0 && (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {chips.map((c) => (
+                        <span
+                          key={c.label}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "baseline",
+                            gap: 5,
+                            padding: "3px 10px",
+                            borderRadius: 99,
+                            background: `${c.color}14`,
+                            fontSize: "0.68rem",
+                            color: ui.textMuted,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {c.label}
+                          <b style={{ color: c.color, fontSize: "0.74rem" }}>
+                            {typeof c.value === "number"
+                              ? c.value.toLocaleString()
+                              : c.value}
+                          </b>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {loadingList ? (
                   <div
                     style={{
                       display: "flex",
-                      gap: 8,
-                      alignItems: "flex-end",
+                      alignItems: "center",
                       justifyContent: "center",
+                      height: 60,
+                      color: ui.textMuted,
+                      fontSize: "0.82rem",
+                      gap: 8,
                     }}
                   >
-                    {[1, 0, 2].map((rank) => {
-                      const d = topCountriesData[rank];
-                      if (!d) return null;
-                      const flag = COUNTRY_FLAGS[d.country] || "🌐";
-                      const medals = ["🥇", "🥈", "🥉"];
-                      const heights = [80, 60, 48];
-                      const activeEntity = ENTITY_TYPES.find(
-                        (et) => et.key === topCountryTab,
-                      );
-                      const c =
-                        rank === 0
-                          ? activeEntity?.color
-                          : rank === 1
-                            ? "#9ca3af"
-                            : "#b45309";
-                      return (
-                        <div
-                          key={rank}
-                          style={{
-                            flex: 1,
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            gap: 4,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.68rem",
-                              fontWeight: 700,
-                              color: c,
-                            }}
-                          >
-                            {medals[rank]} #{rank + 1}
-                          </span>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 14,
+                        height: 14,
+                        border: "2px solid currentColor",
+                        borderTopColor: "transparent",
+                        borderRadius: "50%",
+                        animation: "spin 0.7s linear infinite",
+                      }}
+                    />
+                    Loading...
+                  </div>
+                ) : topCountriesData.length === 0 ? (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      color: ui.textMuted,
+                      fontSize: "0.82rem",
+                      padding: "20px 0",
+                    }}
+                  >
+                    No country data available
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                        columnGap: 18,
+                        rowGap: 2,
+                      }}
+                    >
+                      {pagedCountries.map((d, i) => {
+                        const rank =
+                          (countryPage - 1) * COUNTRIES_PAGE_SIZE + i + 1;
+                        const flag = COUNTRY_FLAGS[d.country] || "🌐";
+                        const count = Number(d.count) || 0;
+                        const cpr = Number(d.cpr) || 0;
+                        const lod = Number(d.lod) || 0;
+                        const other = Math.max(count - cpr - lod, 0);
+                        const widthPct = Math.max(
+                          (count / maxCountry) * 100,
+                          4,
+                        );
+                        const seg = (n) =>
+                          `${count > 0 ? (n / count) * 100 : 0}%`;
+                        return (
                           <div
+                            key={d.country}
+                            onClick={() => openCountryRecords(d)}
+                            title={`View ${d.country} applications`}
                             style={{
-                              width: "100%",
-                              background: neuCardBg(darkMode),
-                              borderRadius: "10px 10px 0 0",
-                              height: heights[rank],
-                              display: "flex",
-                              flexDirection: "column",
+                              display: "grid",
+                              gridTemplateColumns:
+                                "26px 20px minmax(90px, 1.2fr) minmax(60px, 1fr) 52px 40px",
                               alignItems: "center",
-                              justifyContent: "center",
-                              gap: 2,
-                              boxShadow: neuShadow(darkMode),
+                              gap: 8,
+                              padding: "6px 8px",
+                              borderRadius: 8,
+                              cursor: "pointer",
+                              transition: "background 0.15s",
                             }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = hoverBg)
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "transparent")
+                            }
                           >
                             <span
                               style={{
-                                fontSize: rank === 0 ? "1.3rem" : "1rem",
+                                fontSize: rank <= 3 ? "0.85rem" : "0.7rem",
+                                fontWeight: 800,
+                                color: ui.textMuted,
+                                textAlign: "center",
                               }}
                             >
-                              {flag}
+                              {rank <= 3 ? medals[rank - 1] : rank}
                             </span>
+                            <span style={{ fontSize: "0.95rem" }}>{flag}</span>
                             <span
                               style={{
-                                fontSize: rank === 0 ? "0.65rem" : "0.58rem",
-                                fontWeight: 700,
-                                color: c,
-                                textAlign: "center",
-                                maxWidth: 70,
+                                fontSize: "0.76rem",
+                                fontWeight: 600,
+                                color: ui.textPrimary,
                                 overflow: "hidden",
                                 textOverflow: "ellipsis",
                                 whiteSpace: "nowrap",
@@ -5455,119 +5673,108 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
                             >
                               {d.country}
                             </span>
-                          </div>
-                          <div
-                            style={{
-                              width: "100%",
-                              background: neuCardBg(darkMode),
-                              borderRadius: "0 0 8px 8px",
-                              padding: "4px 0",
-                              textAlign: "center",
-                              boxShadow: neuShadow(darkMode, false),
-                            }}
-                          >
-                            <p
+                            <div
+                              title={`${cpr.toLocaleString()} CPR · ${lod.toLocaleString()} LOD · ${other.toLocaleString()} other`}
                               style={{
-                                margin: 0,
-                                fontSize: rank === 0 ? "0.95rem" : "0.82rem",
-                                fontWeight: 800,
-                                color: c,
+                                height: 6,
+                                borderRadius: 99,
+                                background: darkMode
+                                  ? "rgba(255,255,255,0.06)"
+                                  : "rgba(0,0,0,0.06)",
+                                overflow: "hidden",
                               }}
                             >
-                              {d.count}
-                            </p>
+                              <div
+                                style={{
+                                  width: `${widthPct}%`,
+                                  height: "100%",
+                                  display: "flex",
+                                  borderRadius: 99,
+                                  overflow: "hidden",
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: seg(cpr),
+                                    background: "#36a420",
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    width: seg(lod),
+                                    background: "#e02020",
+                                  }}
+                                />
+                                <div
+                                  style={{
+                                    width: seg(other),
+                                    background: accent,
+                                    opacity: 0.85,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <span
+                              style={{
+                                fontSize: "0.78rem",
+                                fontWeight: 800,
+                                color: accent,
+                                textAlign: "right",
+                              }}
+                            >
+                              {count.toLocaleString()}
+                            </span>
+                            <span
+                              title="CPR released"
+                              style={{
+                                fontSize: "0.7rem",
+                                fontWeight: 700,
+                                color: "#36a420",
+                                textAlign: "right",
+                              }}
+                            >
+                              {cpr.toLocaleString()}
+                            </span>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 8,
-                  }}
-                >
-                  {[
-                    {
-                      label: "Countries",
-                      value: topCountriesData.length,
-                      icon: "🌍",
-                      color:
-                        ENTITY_TYPES.find((et) => et.key === topCountryTab)
-                          ?.color || FB,
-                    },
-                    {
-                      label: "Total Apps",
-                      value: topCountriesData.reduce((s, d) => s + d.count, 0),
-                      icon: "📋",
-                      color: FB,
-                    },
-                    {
-                      label: "#1 Country",
-                      value: topCountriesData[0]?.country || "—",
-                      icon: "🥇",
-                      color: "#f59e0b",
-                      small: true,
-                    },
-                    {
-                      label: "#1 CPR",
-                      value: topCountriesData[0]?.cpr ?? 0,
-                      icon: "✅",
-                      color: "#36a420",
-                    },
-                  ].map((s) => (
+                        );
+                      })}
+                    </div>
+
                     <div
-                      key={s.label}
                       style={{
-                        padding: "10px 12px",
-                        borderRadius: 10,
-                        background: neuCardBg(darkMode),
-                        boxShadow: neuShadow(darkMode),
+                        display: "flex",
+                        gap: 12,
+                        marginTop: 8,
+                        fontSize: "0.62rem",
+                        color: ui.textMuted,
                       }}
                     >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 5,
-                          marginBottom: 3,
-                        }}
-                      >
-                        <span style={{ fontSize: "0.8rem" }}>{s.icon}</span>
-                        <span
-                          style={{
-                            fontSize: "0.6rem",
-                            fontWeight: 700,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: ui.textMuted,
-                          }}
-                        >
-                          {s.label}
-                        </span>
-                      </div>
-                      <p
-                        style={{
-                          margin: 0,
-                          fontSize: s.small ? "0.75rem" : "1.05rem",
-                          fontWeight: 800,
-                          color: s.color,
-                          lineHeight: 1.2,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {s.value}
-                      </p>
+                      <span>
+                        <b style={{ color: "#36a420" }}>■</b> CPR
+                      </span>
+                      <span>
+                        <b style={{ color: "#e02020" }}>■</b> LOD
+                      </span>
+                      <span>
+                        <b style={{ color: accent }}>■</b> Other
+                      </span>
+                      <span style={{ marginLeft: "auto" }}>
+                        Total · CPR on the right. Click a row to view records
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+
+                    <Pagination
+                      page={countryPage}
+                      totalPages={countriesTotalPages}
+                      onPageChange={setCountryPage}
+                      total={topCountriesData.length}
+                      pageSize={COUNTRIES_PAGE_SIZE}
+                    />
+                  </>
+                )}
+              </>
+            );
+          })()}
         </SectionCard>
       </FadeSlideIn>
 
@@ -5600,6 +5807,15 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
           darkMode={darkMode}
           expectedTotal={summary.in_progress}
           onClose={() => setShowInProgress(false)}
+        />
+      )}
+      {drugTarget && (
+        <DrugDetailModal
+          drug={drugTarget}
+          scope={{ year: chartYear, month: chartMonth, prescription: rxFilter }}
+          ui={ui}
+          darkMode={darkMode}
+          onClose={() => setDrugTarget(null)}
         />
       )}
 
