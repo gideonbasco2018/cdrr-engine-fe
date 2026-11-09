@@ -25,6 +25,20 @@ import {
   searchChecklistsByDtns,
 } from "../api/checklist";
 
+// Checklists shown per page in the left list.
+// Checklists per page in the left list: the user picks one; 50 by default.
+// The pick is remembered in this browser.
+const LIST_PAGE_SIZES = [50, 100, 200];
+const LIST_PAGE_SIZE_KEY = "checklist.listPageSize";
+const savedListPageSize = () => {
+  try {
+    const n = Number(localStorage.getItem(LIST_PAGE_SIZE_KEY));
+    return LIST_PAGE_SIZES.includes(n) ? n : LIST_PAGE_SIZES[0];
+  } catch {
+    return LIST_PAGE_SIZES[0];
+  }
+};
+
 // Search box: only numbers (and , ; spaces) → search DTNs; any letter or
 // other character → search the subject text.
 const searchModeOf = (q) => (/^[\d\s,;]+$/.test(q) ? "dtn" : "subject");
@@ -216,19 +230,69 @@ function ChecklistPage({ darkMode }) {
     return delaysRef.current.get(key);
   };
 
+  // Pager for the left list: one page of listPageSize checklists at a time.
+  const [listPageSize, setListPageSize] = useState(savedListPageSize);
+  const listPageSizeRef = useRef(listPageSize);
+  listPageSizeRef.current = listPageSize;
+  const listScrollRef = useRef(null);
+  const [listPage, setListPage] = useState(1);
+  const [listTotal, setListTotal] = useState(0);
+  const listPageRef = useRef(1);
+  listPageRef.current = listPage;
+  const listPageCount = Math.max(1, Math.ceil(listTotal / listPageSize));
+
+  const listReqRef = useRef(0);
+  const [listLoading, setListLoading] = useState(false);
+  // Which way the last page change went — list items slide in from that side.
+  const [listDir, setListDir] = useState(0); // -1 prev, 1 next, 0 none
   const loadChecklists = useCallback(async () => {
+    const req = ++listReqRef.current;
+    setListLoading(true);
     try {
-      const list = await getChecklists(dateFilterRef.current);
+      const page = listPageRef.current;
+      const res = await getChecklists(dateFilterRef.current, page, listPageSizeRef.current);
+      if (req !== listReqRef.current) return; // a newer load was started — ignore this one
+      // Page emptied (e.g. its last checklist was deleted)? Step back one.
+      if (!res.items.length && page > 1) {
+        setListPage(page - 1);
+        return;
+      }
       batchStartRef.current = Date.now();
-      setChecklists(list);
+      setChecklists(res.items);
+      setListTotal(res.total);
     } catch (err) {
       setMessage({ type: "error", text: errorText(err, "Could not load checklists.") });
+    } finally {
+      if (req === listReqRef.current) setListLoading(false);
     }
   }, []);
 
   useEffect(() => {
     loadChecklists();
-  }, [loadChecklists, dateFilter]);
+  }, [loadChecklists, dateFilter, listPage, listPageSize]);
+
+  // A new date filter or page size starts again from page 1.
+  useEffect(() => {
+    setListPage(1);
+  }, [dateFilter, listPageSize]);
+
+  const changeListPageSize = (n) => {
+    setListDir(0);
+    setListPageSize(n);
+    try {
+      localStorage.setItem(LIST_PAGE_SIZE_KEY, String(n));
+    } catch {
+      // storage blocked — the pick just isn't remembered
+    }
+    listScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const goToListPage = (p) => {
+    const next = Math.min(Math.max(1, p), listPageCount);
+    setListDir(next > listPage ? 1 : next < listPage ? -1 : 0);
+    setListPage(next);
+    listScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const focusDtnInput = () => setTimeout(() => dtnInputRef.current?.focus(), 0);
 
@@ -265,7 +329,9 @@ function ChecklistPage({ darkMode }) {
       setActive(created);
       setBin([]);
       setShowBin(false);
-      loadChecklists();
+      // The new checklist is newest, so it's on page 1.
+      if (listPageRef.current === 1) loadChecklists();
+      else setListPage(1);
       focusDtnInput();
     } catch (err) {
       setMessage({ type: "error", text: errorText(err, "Could not create checklist.") });
@@ -1301,7 +1367,29 @@ function ChecklistPage({ darkMode }) {
       <style>{`
         /* ── Page motion (scoped to .ckl) ─────────────────────────────── */
         @keyframes cklFadeUp   { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-        @keyframes cklSlideIn  { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+        /* --ckl-from: list items slide in from the side you paged towards */
+        @keyframes cklSlideIn  { from { opacity: 0; transform: translateX(var(--ckl-from, -12px)); } to { opacity: 1; transform: none; } }
+        @keyframes cklTick     { 0% { transform: translateY(6px); opacity: 0; } 60% { transform: translateY(-2px); opacity: 1; } 100% { transform: none; } }
+        @keyframes cklBump     { 0% { transform: scale(1); } 40% { transform: scale(1.25); color: #2563eb; } 100% { transform: scale(1); } }
+        @keyframes cklLoadBar  { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+        .ckl-tick { display: inline-block; animation: cklTick 0.35s cubic-bezier(.2,.8,.2,1) both; }
+        .ckl-bump { display: inline-block; animation: cklBump 0.45s ease-out; }
+        /* list area: soft fade at the top/bottom edges + dims while a page loads */
+        .ckl-list-scroll {
+          -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 12px), transparent 100%);
+                  mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 12px), transparent 100%);
+          transition: opacity 0.2s ease;
+        }
+        .ckl-list-scroll.is-loading { opacity: 0.45; pointer-events: none; }
+        .ckl-loadbar { position: relative; height: 2px; overflow: hidden; border-radius: 2px; margin-top: -2px; }
+        .ckl-loadbar::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, #2563eb, #7c3aed, transparent); animation: cklLoadBar 0.9s ease-in-out infinite; }
+        /* pager: arrows nudge the way they go; dropdown gets a focus ring */
+        .ckl-pager-btn .ckl-arrow { display: inline-block; transition: transform 0.18s ease; }
+        .ckl-pager-btn:not(:disabled):hover .ckl-arrow-prev { transform: translateX(-3px); }
+        .ckl-pager-btn:not(:disabled):hover .ckl-arrow-next { transform: translateX(3px); }
+        .ckl-size-select { transition: border-color 0.18s ease, box-shadow 0.18s ease; }
+        .ckl-size-select:hover { border-color: #2563eb !important; }
+        .ckl-size-select:focus { border-color: #2563eb !important; animation: cklRing 0.6s ease-out; }
         @keyframes cklDrop     { from { opacity: 0; transform: translateY(-8px) scaleY(0.96); } to { opacity: 1; transform: none; } }
         @keyframes cklFloat    { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
         @keyframes cklShimmer  { from { background-position: 200% 0; } to { background-position: -200% 0; } }
@@ -1388,24 +1476,25 @@ function ChecklistPage({ darkMode }) {
         {/* ── Past checklists ── */}
         {/* Own scroll area: stays in view (sticky) while the page scrolls and
             scrolls by itself when there are many checklists. */}
+        {/* Three parts: heading (fixed) / list (scrolls — the scrollbar runs
+            only alongside it) / pager (fixed). */}
         <div
-          className="ckl-in ckl-list-scroll"
+          className="ckl-in"
           style={{
             ...card,
-            padding: "0 0.75rem 0.75rem",
+            padding: "0 0.75rem",
             animationDelay: "80ms",
             position: "sticky",
             top: "1rem",
             maxHeight: "calc(100vh - 9rem)",
-            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
           }}
         >
           <div
             style={{
-              position: "sticky",
-              top: 0,
-              zIndex: 1,
-              background: colors.cardBg,
+              flexShrink: 0,
               padding: "0.75rem 0 0.5rem",
               fontSize: "0.8rem",
               fontWeight: 700,
@@ -1415,8 +1504,29 @@ function ChecklistPage({ darkMode }) {
             }}
           >
             <span>CHECKLISTS</span>
-            <span style={{ fontWeight: 600 }}>{checklists.length}</span>
+            {/* key: the number bumps whenever the total changes */}
+            <span key={listTotal} className="ckl-bump" style={{ fontWeight: 600 }} title="Checklists in total">
+              {listTotal}
+            </span>
           </div>
+          {/* thin moving bar while a page loads */}
+          <div className="ckl-loadbar" style={{ visibility: listLoading ? "visible" : "hidden" }} />
+          <div
+            ref={listScrollRef}
+            className={`ckl-list-scroll${listLoading ? " is-loading" : ""}`}
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              // Slide-in / hover nudges move items sideways for a moment —
+              // never let that make a horizontal scrollbar.
+              overflowX: "hidden",
+              margin: "0 -0.4rem",
+              padding: "0.35rem 0.4rem",
+              // Next → items come in from the right, Prev → from the left.
+              "--ckl-from": listDir > 0 ? "18px" : "-18px",
+            }}
+          >
           {dateFilter && (
             <div
               style={{
@@ -1492,6 +1602,122 @@ function ChecklistPage({ darkMode }) {
               </div>
             </div>
           ))}
+          </div>
+
+          {/* Pager — fixed under the scrolling list */}
+          {listTotal > 0 && (
+            <div
+              style={{
+                flexShrink: 0,
+                borderTop: `1px solid ${colors.cardBorder}`,
+                padding: "0.5rem 0 0.75rem",
+              }}
+            >
+              {/* "#118–#69 of 118" + per-page dropdown (50 / 100 / 200) */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: "0.45rem",
+                  fontSize: "0.72rem",
+                  color: colors.textTertiary,
+                }}
+              >
+                {/* Checklist numbers on this page (newest → oldest), out of the total. */}
+                <span title="Checklist numbers on this page, out of all checklists">
+                  <span key={`${listPage}-${listPageSize}-${checklists[0]?.id}`} className="ckl-tick">
+                    {checklists.length
+                      ? `#${checklists[0].id}–#${checklists[checklists.length - 1].id} of ${listTotal}`
+                      : `0 of ${listTotal}`}
+                  </span>
+                </span>
+                <label style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  Show
+                  <select
+                    value={listPageSize}
+                    onChange={(e) => changeListPageSize(Number(e.target.value))}
+                    className="ckl-size-select"
+                    title="Checklists per page"
+                    style={{
+                      padding: "0.15rem 0.3rem",
+                      borderRadius: 6,
+                      border: `1px solid ${colors.inputBorder}`,
+                      background: colors.inputBg,
+                      color: colors.textPrimary,
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      outline: "none",
+                    }}
+                  >
+                    {LIST_PAGE_SIZES.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              {/* Prev / Next — always shown; greyed out when there's no page that way */}
+              <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.4rem",
+              }}
+            >
+              {[
+                [
+                  <>
+                    <span className="ckl-arrow ckl-arrow-prev">‹</span> Prev
+                  </>,
+                  listPage - 1,
+                  listPage <= 1,
+                ],
+                null,
+                [
+                  <>
+                    Next <span className="ckl-arrow ckl-arrow-next">›</span>
+                  </>,
+                  listPage + 1,
+                  listPage >= listPageCount,
+                ],
+              ].map((b, k) =>
+                b === null ? (
+                  <span key="info" style={{ fontSize: "0.75rem", fontWeight: 600, color: colors.textSecondary }}>
+                    Page{" "}
+                    <span key={listPage} className="ckl-tick" style={{ color: "#2563eb", fontWeight: 800 }}>
+                      {listPage}
+                    </span>{" "}
+                    of {listPageCount}
+                  </span>
+                ) : (
+                  <button
+                    key={k}
+                    className="ckl-pager-btn"
+                    onClick={() => goToListPage(b[1])}
+                    disabled={b[2]}
+                    style={{
+                      padding: "0.3rem 0.65rem",
+                      borderRadius: 6,
+                      border: `1px solid ${b[2] ? colors.cardBorder : "#2563eb"}`,
+                      background: b[2] ? "transparent" : "#2563eb",
+                      color: b[2] ? colors.textTertiary : "#fff",
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      cursor: b[2] ? "default" : "pointer",
+                      opacity: b[2] ? 0.6 : 1,
+                    }}
+                  >
+                    {b[0]}
+                  </button>
+                ),
+              )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Active checklist ── */}
