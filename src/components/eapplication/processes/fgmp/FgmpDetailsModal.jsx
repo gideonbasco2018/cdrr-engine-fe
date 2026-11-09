@@ -64,6 +64,7 @@ import {
   LetterOfDisapprovalPaper,
   ExtensionLetterPaper,
   InspectionNoticePaper,
+  PermitToRegisterPaper,
   ISSUANCE_PAPERS,
   LETTERHEAD_PAGE_STYLE,
   buildIssuanceDoc,
@@ -3230,6 +3231,8 @@ export default function FgmpDetailsModal({
           <ExtensionLetterPaper doc={issuanceDoc} />
         ) : issuancePaper.paper === "inspectionNotice" ? (
           <InspectionNoticePaper doc={issuanceDoc} />
+        ) : issuancePaper.paper === "permit" ? (
+          <PermitToRegisterPaper doc={issuanceDoc} />
         ) : (
           <CgmpClearancePaper
             doc={issuanceDoc}
