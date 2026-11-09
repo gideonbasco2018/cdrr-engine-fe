@@ -1,6 +1,7 @@
 // src/components/monitoring/evaluatorAppTypes/EvaluatorAppTypesView.jsx
 import { useEffect, useMemo, useState } from "react";
 import { getEvaluatorAppTypes } from "../../../api/evaluatorAppTypes";
+import UnitDailyActivity from "./UnitDailyActivity";
 
 const FB = "#1877F2";
 const DEFAULT_STEP = "QUALITY EVALUATION";
@@ -401,6 +402,7 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
   const [dateTo, setDateTo] = useState("");
   const [search, setSearch] = useState("");
   const [step, setStep] = useState(DEFAULT_STEP);
+  const [view, setView] = useState("matrix"); // matrix | daily
   const [data, setData] = useState({ columns: [], steps: [], units: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -483,98 +485,135 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
         </p>
       </div>
 
-      <Legend ui={ui} stepLabel={stepLabel} />
-
-      <div
-        style={{
-          display: "flex",
-          gap: 10,
-          flexWrap: "wrap",
-          marginBottom: 14,
-          alignItems: "center",
-        }}
-      >
-        <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
-          Step{" "}
-          <select
-            value={activeStep}
-            onChange={(e) => setStep(e.target.value)}
-            style={{ ...inputStyle, fontWeight: 600 }}
-          >
-            <option value={ALL_STEPS}>All steps</option>
-            {data.steps.map((s) => (
-              <option key={s} value={s}>
-                {prettyStep(s)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <input
-          placeholder="Search user…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ ...inputStyle, width: 200 }}
-        />
-        <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
-          Decked from{" "}
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            style={inputStyle}
-          />
-        </label>
-        <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
-          Decked to{" "}
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            style={inputStyle}
-          />
-        </label>
-        {(dateFrom || dateTo) && (
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[
+          { k: "matrix", l: "By application type" },
+          { k: "daily", l: "Daily activity" },
+        ].map((o) => (
           <button
-            onClick={() => {
-              setDateFrom("");
-              setDateTo("");
-            }}
+            key={o.k}
+            onClick={() => setView(o.k)}
             style={{
-              ...inputStyle,
+              padding: "6px 14px",
+              fontSize: "0.76rem",
+              fontWeight: view === o.k ? 700 : 500,
+              borderRadius: 8,
               cursor: "pointer",
-              background: "transparent",
-              color: ui.textMuted,
+              border: `1px solid ${view === o.k ? FB : ui.cardBorder}`,
+              background: view === o.k ? `${FB}18` : "transparent",
+              color: view === o.k ? FB : ui.textMuted,
             }}
           >
-            Reset
+            {o.l}
           </button>
-        )}
+        ))}
       </div>
 
-      {loading && (
-        <p style={{ color: ui.textMuted, fontSize: "0.84rem" }}>Loading…</p>
+      {view === "daily" ? (
+        <UnitDailyActivity
+          ui={ui}
+          darkMode={darkMode}
+          step={activeStep}
+          steps={data.steps}
+          allValue={ALL_STEPS}
+          onStepChange={setStep}
+        />
+      ) : (
+        <>
+          <Legend ui={ui} stepLabel={stepLabel} />
+
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              marginBottom: 14,
+              alignItems: "center",
+            }}
+          >
+            <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
+              Step{" "}
+              <select
+                value={activeStep}
+                onChange={(e) => setStep(e.target.value)}
+                style={{ ...inputStyle, fontWeight: 600 }}
+              >
+                <option value={ALL_STEPS}>All steps</option>
+                {data.steps.map((s) => (
+                  <option key={s} value={s}>
+                    {prettyStep(s)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <input
+              placeholder="Search user…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ ...inputStyle, width: 200 }}
+            />
+            <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
+              Decked from{" "}
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                style={inputStyle}
+              />
+            </label>
+            <label style={{ fontSize: "0.74rem", color: ui.textMuted }}>
+              Decked to{" "}
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                style={inputStyle}
+              />
+            </label>
+            {(dateFrom || dateTo) && (
+              <button
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                style={{
+                  ...inputStyle,
+                  cursor: "pointer",
+                  background: "transparent",
+                  color: ui.textMuted,
+                }}
+              >
+                Reset
+              </button>
+            )}
+          </div>
+
+          {loading && (
+            <p style={{ color: ui.textMuted, fontSize: "0.84rem" }}>Loading…</p>
+          )}
+          {error && (
+            <p style={{ color: "#e02020", fontSize: "0.84rem" }}>{error}</p>
+          )}
+          {!loading && !error && units.length === 0 && (
+            <p style={{ color: ui.textMuted, fontSize: "0.84rem" }}>
+              No records found.
+            </p>
+          )}
+          {!loading &&
+            !error &&
+            units.map((u) => (
+              <UnitSection
+                key={u.unit_id ?? "none"}
+                unit={u}
+                columns={data.columns}
+                groups={groups}
+                step={activeStep}
+                steps={data.steps}
+                ui={ui}
+              />
+            ))}
+        </>
       )}
-      {error && (
-        <p style={{ color: "#e02020", fontSize: "0.84rem" }}>{error}</p>
-      )}
-      {!loading && !error && units.length === 0 && (
-        <p style={{ color: ui.textMuted, fontSize: "0.84rem" }}>
-          No records found.
-        </p>
-      )}
-      {!loading &&
-        !error &&
-        units.map((u) => (
-          <UnitSection
-            key={u.unit_id ?? "none"}
-            unit={u}
-            columns={data.columns}
-            groups={groups}
-            step={activeStep}
-            steps={data.steps}
-            ui={ui}
-          />
-        ))}
     </div>
   );
 }

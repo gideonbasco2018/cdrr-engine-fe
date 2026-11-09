@@ -329,6 +329,7 @@ function ClassTrendPanel({
   darkMode,
   color,
   tabLabel,
+  stacked = false,
 }) {
   const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
   const total = data.reduce((s, d) => s + d.count, 0);
@@ -414,7 +415,7 @@ function ClassTrendPanel({
       {/* ── By document type ── */}
       {docBreakdown.length > 0 && (
         <div>
-          <div style={sectionTitle}>🗂 {tabLabel} · By Document Type</div>
+          <div style={sectionTitle}>🗂 Completed · By Document Type</div>
           <div
             style={{
               fontSize: "0.68rem",
@@ -633,6 +634,27 @@ function ClassTrendPanel({
         ))}
       </div>
 
+      {stacked && (
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            fontSize: "0.66rem",
+            color: ui.textMuted,
+          }}
+        >
+          <span>
+            <b style={{ color: "#36a420" }}>■</b> Completed
+          </span>
+          <span>
+            <b style={{ color: "#f59e0b" }}>■</b> In Progress
+          </span>
+          <span>
+            <b style={{ color: "#9ca3af" }}>■</b> Others
+          </span>
+        </div>
+      )}
+
       {/* Bars */}
       <div
         style={{
@@ -674,7 +696,11 @@ function ClassTrendPanel({
                 <div
                   key={d.key}
                   onClick={() => d.count > 0 && onBarClick(d)}
-                  title={`${d.label}: ${d.count.toLocaleString()}`}
+                  title={
+                    stacked
+                      ? `${d.label}: ${d.count.toLocaleString()} (Completed ${(d.completed ?? 0).toLocaleString()} · In Progress ${(d.in_progress ?? 0).toLocaleString()})`
+                      : `${d.label}: ${d.count.toLocaleString()}`
+                  }
                   style={{
                     flex: 1,
                     minWidth: 0,
@@ -698,18 +724,57 @@ function ClassTrendPanel({
                   >
                     {mode !== "day" && d.count > 0 ? compact(d.count) : ""}
                   </span>
-                  <div
-                    style={{
-                      width: "100%",
-                      maxWidth: 44,
-                      height: h,
-                      borderRadius: "6px 6px 0 0",
-                      background: `linear-gradient(180deg, ${color}, ${color}aa)`,
-                      outline: isActive ? `2px solid ${color}` : "none",
-                      outlineOffset: 1,
-                      transition: "height 0.3s ease",
-                    }}
-                  />
+                  {stacked ? (
+                    <div
+                      style={{
+                        width: "100%",
+                        maxWidth: 44,
+                        height: h,
+                        display: "flex",
+                        flexDirection: "column-reverse",
+                        borderRadius: "6px 6px 0 0",
+                        overflow: "hidden",
+                        outline: isActive ? `2px solid ${color}` : "none",
+                        outlineOffset: 1,
+                        transition: "height 0.3s ease",
+                      }}
+                    >
+                      <div
+                        style={{
+                          flex: d.completed ?? 0,
+                          background: "#36a420",
+                        }}
+                      />
+                      <div
+                        style={{
+                          flex: d.in_progress ?? 0,
+                          background: "#f59e0b",
+                        }}
+                      />
+                      <div
+                        style={{
+                          flex: Math.max(
+                            d.count - (d.completed ?? 0) - (d.in_progress ?? 0),
+                            0,
+                          ),
+                          background: "#9ca3af",
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        width: "100%",
+                        maxWidth: 44,
+                        height: h,
+                        borderRadius: "6px 6px 0 0",
+                        background: `linear-gradient(180deg, ${color}, ${color}aa)`,
+                        outline: isActive ? `2px solid ${color}` : "none",
+                        outlineOffset: 1,
+                        transition: "height 0.3s ease",
+                      }}
+                    />
+                  )}
                   <span
                     style={{
                       fontSize: "0.62rem",
@@ -1328,6 +1393,11 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
 
   const [classFilter, setClassFilter] = useState("All");
   const [classCounts, setClassCounts] = useState([]);
+  const [completedDocCounts, setCompletedDocCounts] = useState([]);
+  const statusKeysRef = useRef({
+    completed: "COMPLETED",
+    in_progress: "IN PROGRESS",
+  });
 
   subOpenRef.current = !!(
     doctrackRow ||
@@ -1432,13 +1502,38 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     (async () => {
       setTrendLoading(true);
       try {
-        const res = await requestTrend({
+        const splitStatus = trendMeta.label === "Received";
+        const base = {
           group_by: trendMode,
           bucket_year: trendMode !== "year" ? trendYear : undefined,
           bucket_month: trendMode === "day" ? trendMonth : undefined,
-        });
+        };
+        const [res, comp, prog] = await Promise.all([
+          requestTrend(base),
+          splitStatus
+            ? requestTrend({ ...base, status: statusKeysRef.current.completed })
+            : null,
+          splitStatus
+            ? requestTrend({
+                ...base,
+                status: statusKeysRef.current.in_progress,
+              })
+            : null,
+        ]);
         if (cancelled) return;
-        setTrendData(res.data ?? []);
+        const cMap = new Map((comp?.data ?? []).map((d) => [d.key, d.count]));
+        const pMap = new Map((prog?.data ?? []).map((d) => [d.key, d.count]));
+        setTrendData(
+          (res.data ?? []).map((d) =>
+            splitStatus
+              ? {
+                  ...d,
+                  completed: cMap.get(d.key) ?? 0,
+                  in_progress: pMap.get(d.key) ?? 0,
+                }
+              : d,
+          ),
+        );
         setTrendNoDate(res.no_date ?? 0);
         if (trendMode === "year")
           setTrendYears((res.data ?? []).map((d) => d.key));
@@ -1526,7 +1621,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     setPage(1);
   };
 
-  const requestRecords = (pageNum, pageSize) => {
+  const requestRecords = (pageNum, pageSize, overrides = {}) => {
     const common = {
       page: pageNum,
       page_size: pageSize,
@@ -1537,6 +1632,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       received_to: recTo || undefined,
       released_from: relFrom || undefined,
       released_to: relTo || undefined,
+      ...overrides,
     };
     return target.country
       ? getAnalyticsCountryRecords({ ...target.country, ...common })
@@ -1611,6 +1707,42 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   ]);
 
   useEffect(() => {
+    if (!hasTrend || !showDocBreakdown) return;
+    const done = statusKeysRef.current.completed;
+    if (statusFilter !== "All" && statusFilter !== done) {
+      setCompletedDocCounts([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await requestRecords(1, 1, {
+          status: done,
+          doc_type: undefined,
+        });
+        if (!cancelled) setCompletedDocCounts(res.doc_type_counts ?? []);
+      } catch (err) {
+        console.error("Completed doc counts error:", err);
+        if (!cancelled) setCompletedDocCounts([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    target,
+    query,
+    statusFilter,
+    classFilter,
+    recFrom,
+    recTo,
+    relFrom,
+    relTo,
+    reloadKey,
+  ]);
+
+  useEffect(() => {
     const onKey = (e) => e.key === "Escape" && !subOpenRef.current && onClose();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -1629,6 +1761,18 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const rangeInvalid = (a, b) => a && b && a > b;
 
   const statusAll = statusCounts.reduce((s, x) => s + x.count, 0);
+  const findStatusKey = (name, fallback) =>
+    statusCounts.find(
+      (x) =>
+        String(x.key)
+          .toUpperCase()
+          .replace(/[\s_-]+/g, " ")
+          .trim() === name,
+    )?.key ?? fallback;
+  statusKeysRef.current = {
+    completed: findStatusKey("COMPLETED", "COMPLETED"),
+    in_progress: findStatusKey("IN PROGRESS", "IN PROGRESS"),
+  };
   // keep the selected option visible even if its count dropped to 0
   const statusOptions =
     statusFilter !== "All" && !statusCounts.some((x) => x.key === statusFilter)
@@ -2382,7 +2526,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                 onMonthChange={setTrendMonth}
                 activeKey={activeTrendKey}
                 onBarClick={handleTrendBar}
-                docBreakdown={showDocBreakdown ? docCounts : []}
+                docBreakdown={showDocBreakdown ? completedDocCounts : []}
                 docFilter={docFilter}
                 onDocClick={(k) => {
                   setDocFilter(docFilter === k ? "All" : k);
@@ -2398,6 +2542,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                 darkMode={darkMode}
                 color={trendMeta.color}
                 tabLabel={trendMeta.label}
+                stacked={trendMeta.label === "Received"}
               />
             )}
           </div>
