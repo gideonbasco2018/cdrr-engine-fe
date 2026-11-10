@@ -47,7 +47,11 @@ const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
   decision === "Returned to Quality Evaluation" ||
   decision === "Return to S&E Evaluator" ||
   decision === "Returned to LRD" ||
-  decision === PARALLEL_SUPERVISOR_DECISION;
+  decision === PARALLEL_SUPERVISOR_DECISION ||
+  // S&E result: goes back to the last Quality Evaluation evaluator
+  // (only when no Quality Evaluation log is still open, see nextStepActive)
+  (currentStep === "S&E" &&
+    (decision === "Approved" || decision === "Rejected"));
 
 /* Group ID for Decision Authority options (QA) */
 const LRD_AUTHORITY_GROUP_ID = 6;
@@ -796,10 +800,10 @@ export function Step4ActionForm({
         ? formData.decision === PARALLEL_SUPERVISOR_DECISION
           ? `Your log will be completed. Parallel "S&E" and "S&E Statistician" logs will be created for the evaluator and the assigned Statistician.`
           : `Your log will be completed. Parallel "S&E Supervisor" and "S&E Statistician" logs will be created for the assigned users.`
-        : isReturnToEvaluator && autoAssignee
-          ? `Your log will be completed and automatically returned to the previous ${formData.decision === "Returned to LRD" ? "LRD Chief Admin" : "evaluator"}: ${autoAssignee}.`
-          : nextStepActive
-            ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
+        : nextStepActive
+          ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
+          : isReturnToEvaluator && autoAssignee
+            ? `Your log will be completed and automatically returned to the previous ${formData.decision === "Returned to LRD" ? "LRD Chief Admin" : "evaluator"}: ${autoAssignee}.`
             : nextStep
               ? isMultiAssignee
                 ? `Your log will be completed and a new "${nextStep}" log will be created for each selected user. The first one to complete it will automatically close the others.`
