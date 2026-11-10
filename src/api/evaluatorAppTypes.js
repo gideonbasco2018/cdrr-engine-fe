@@ -16,3 +16,11 @@ export const getEvaluatorDailyActivity = async (params = {}) => {
   });
   return data;
 };
+
+// Applications behind a Workload number (decked / completed / still open)
+export const getWorkloadRecords = async (params = {}) => {
+  const { data } = await api.get("/monitoring/evaluator-app-types/records", {
+    params,
+  });
+  return data;
+};
