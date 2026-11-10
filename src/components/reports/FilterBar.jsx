@@ -29,11 +29,14 @@ const labelStyle = (colors) => ({
 });
 
 // ── Parse raw textarea text into trimmed, non-empty strings ─────────────────
-const parseSearchLines = (raw = "") =>
-  raw
-    .split(/[\n,]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
+const parseSearchLines = (raw = "") => [
+  ...new Set(
+    raw
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean),
+  ),
+];
 
 // ── Check if all parsed tokens look like DTN numbers (digits only) ──────────
 const allAreDTNs = (tokens) =>

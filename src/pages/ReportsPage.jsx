@@ -23,6 +23,7 @@ function buildFilterParams(filters) {
   if (filters.brandName) p.brand_name = filters.brandName;
   if (filters.genericName) p.generic_name = filters.genericName;
   if (filters.dtn) p.dtn = parseInt(filters.dtn, 10);
+  if (filters.dtns) p.dtns = filters.dtns;
   if (filters.typeDocReleased) p.type_doc_released = filters.typeDocReleased;
   if (filters.dateReleasedFrom) p.date_released_from = filters.dateReleasedFrom;
   if (filters.dateReleasedTo) p.date_released_to = filters.dateReleasedTo;
@@ -48,6 +49,7 @@ function buildFilterParams(filters) {
   if (filters.repackerCountry) p.repacker_country = filters.repackerCountry;
   if (filters.nullDateReleased === "true") p.null_date_released = true;
   if (filters.nullDateReceivedCent === "true") p.null_date_received_cent = true;
+
   return p;
 }
 

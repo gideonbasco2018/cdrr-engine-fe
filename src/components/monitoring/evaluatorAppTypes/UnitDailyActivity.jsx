@@ -4,8 +4,8 @@ import { getEvaluatorDailyActivity } from "../../../api/evaluatorAppTypes";
 
 const USE_MOCK = false;
 
-const C_IN = "#1877F2"; // decked / narereceived
-const C_DONE = "#36a420"; // natapos
+const C_IN = "#1877F2";
+const C_DONE = "#36a420";
 const C_WARN = "#f59e0b";
 
 const MONTHS = [
