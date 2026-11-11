@@ -7,6 +7,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { getUser } from "../../../api/auth";
 import { startLabel, endLabel, sourceText, sourceHint, isFallback } from "./tatSources";
+import { fmtTat } from "./tatFormat";
 
 // ── Layout & palette ─────────────────────────────────────────
 const W = 297; // A4 landscape, mm
@@ -365,9 +366,9 @@ function drawRanked(doc, state, { title, label, rows, color, filterText }) {
       r.rank,
       t(clip(r.name)) + srcTag(r),
       fmt(r.total_apps),
-      fmt(r.avg_tat, 1),
-      fmt(r.fastest_tat),
-      fmt(r.slowest_tat),
+      fmtTat(r.avg_tat),
+      fmtTat(r.fastest_tat),
+      fmtTat(r.slowest_tat),
       r.spellings.length > 1
         ? r.spellings.map((s) => `${t(s.name)} (${s.count})`).join("; ")
         : "",

@@ -180,7 +180,7 @@ export default function MonthSummaryModal({
                 </div>
                 <div style={{ marginTop: 4, height: 5, borderRadius: 999, background: t.pill, overflow: "hidden" }}>
                   <div
-                    className="em-wipe"
+                    className="em-grow"
                     style={{
                       width: `${Math.max(3, (i.count / max) * 100)}%`,
                       height: "100%",

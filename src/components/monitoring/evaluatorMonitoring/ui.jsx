@@ -15,10 +15,11 @@ const MOTION_CSS = `
 @keyframes em-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes em-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes em-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes em-leave { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-8px); } }
 @keyframes em-pop { from { opacity: 0; transform: translateY(-6px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes em-modal-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
 @keyframes em-modal-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(.99); } }
-@keyframes em-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes em-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes em-shimmer { 0% { background-position: -600px 0; } 100% { background-position: 600px 0; } }
 
 /* the sections of a loaded report come in one after another */
@@ -34,20 +35,24 @@ const MOTION_CSS = `
 .em-pop { animation: em-pop .16s ease-out backwards; transform-origin: top center; }
 .em-fade { animation: em-fade .18s ease-out backwards; }
 .em-fade-out { animation: em-fade-out .17s ease-in forwards; }
+/* the old person's report as another person is picked */
+.em-leave { animation: em-leave .17s ease-in forwards; pointer-events: none; }
 .em-modal { animation: em-modal-in .26s cubic-bezier(.2,.7,.2,1) backwards; }
 .em-modal-out { animation: em-modal-out .17s ease-in forwards; }
-.em-wipe { animation: em-wipe .8s cubic-bezier(.2,.7,.2,1) backwards; }
+/* a bar grows from its left edge to its size */
+.em-grow { animation: em-grow .9s cubic-bezier(.2,.7,.2,1) backwards; transform-origin: left center; }
 .em-row { animation: em-fade .35s ease-out backwards; }
 .em-skel {
   background: linear-gradient(90deg, var(--em-a) 25%, var(--em-b) 40%, var(--em-a) 65%);
   background-size: 1200px 100%;
   animation: em-shimmer 1.5s linear infinite;
+  animation-delay: calc(var(--em-i, 0) * 90ms);
 }
 .em-root button:not(:disabled):active { transform: scale(.97); }
 
 @media (prefers-reduced-motion: reduce) {
-  .em-stagger > *, .em-rise-one, .em-pop, .em-fade, .em-modal, .em-wipe, .em-row { animation: none !important; }
-  .em-fade-out, .em-modal-out { animation-duration: 1ms !important; }
+  .em-stagger > *, .em-rise-one, .em-pop, .em-fade, .em-modal, .em-grow, .em-row { animation: none !important; }
+  .em-fade-out, .em-modal-out, .em-leave { animation-duration: 1ms !important; }
   .em-skel { animation: none !important; }
   .em-root *, .em-root *::before, .em-root *::after { transition: none !important; }
 }
@@ -58,7 +63,9 @@ export function MotionStyles() {
 }
 
 // a grey block that shimmers while something loads
-export function Skeleton({ t, h = 14, w = "100%", r = 7, style }) {
+// `i` = its place from the top; each block starts a little after the one above
+// it, so the shimmer runs down the page like a wave (no `i` = no delay)
+export function Skeleton({ t, h = 14, w = "100%", r = 7, i = 0, style }) {
   return (
     <div
       className="em-skel"
@@ -69,6 +76,7 @@ export function Skeleton({ t, h = 14, w = "100%", r = 7, style }) {
         borderRadius: r,
         "--em-a": t.pill,
         "--em-b": t.line,
+        "--em-i": Math.min(i, 12),
         ...style,
       }}
     />

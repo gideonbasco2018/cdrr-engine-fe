@@ -37,6 +37,7 @@ import { exportMonitoringPdf } from "../components/monitoring/evaluatorMonitorin
 import { SourceBadge } from "../components/monitoring/evaluatorMonitoring/SourceBadge";
 import PickList from "../components/monitoring/evaluatorMonitoring/PickList";
 import CheckList from "../components/monitoring/evaluatorMonitoring/CheckList";
+import { fmtTat } from "../components/monitoring/evaluatorMonitoring/tatFormat";
 import {
   DEFAULT_ROLES,
   ROLE_KEYS,
@@ -63,10 +64,6 @@ const MONTHS = [
 ];
 
 const fmt = (n) => Number(n ?? 0).toLocaleString();
-const fmtAvg = (n) =>
-  n == null
-    ? "—"
-    : Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 });
 const errorMessage = (err, fallback) =>
   err?.response?.status === 403
     ? "You are not allowed to view this page."
@@ -319,6 +316,24 @@ function EvaluatorsMonitoringPage({ darkMode }) {
       cancelled = true;
     };
   }, [evaluator, year, month, role, sourceKey, sourcesParam]);
+
+  // Switching to another person: the old person's content fades out, the
+  // loading blocks show, then the new content rises in (see the key below).
+  // Changing only the year / month / role keeps the content in place.
+  const stale = !!(
+    data &&
+    evaluator &&
+    String(data.evaluator?.user_id) !== String(evaluator.user_id)
+  );
+  const [leftOld, setLeftOld] = useState(false); // the fade-out has finished
+  useEffect(() => {
+    if (!stale) {
+      setLeftOld(false);
+      return undefined;
+    }
+    const id = setTimeout(() => setLeftOld(true), 170);
+    return () => clearTimeout(id);
+  }, [stale]);
 
   const toggleRole = (key) => {
     if (roles.includes(key) && roles.length === 1) return; // one stays ticked
@@ -681,13 +696,13 @@ function EvaluatorsMonitoringPage({ darkMode }) {
                         color: t.accentText,
                       }}
                     >
-                      {fmtAvg(r.avg_tat)}
+                      {fmtTat(r.avg_tat)}
                     </td>
                     <td style={{ ...ui.td, ...ui.num, color: t.ink2 }}>
-                      {fmt(r.fastest_tat)}
+                      {fmtTat(r.fastest_tat)}
                     </td>
                     <td style={{ ...ui.td, ...ui.num, color: t.ink2 }}>
-                      {fmt(r.slowest_tat)}
+                      {fmtTat(r.slowest_tat)}
                     </td>
                   </tr>
                 ))}
@@ -1023,35 +1038,37 @@ function EvaluatorsMonitoringPage({ darkMode }) {
         </div>
       )}
 
-      {evaluator && loading && !data && (
+      {evaluator && ((loading && !data) || (stale && leftOld)) && (
         <div
           className="em-stagger"
           aria-busy="true"
           style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <Skeleton t={t} h={44} w={44} r={22} />
+            <Skeleton t={t} h={44} w={44} r={22} i={0} />
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-              <Skeleton t={t} h={16} w="260px" />
-              <Skeleton t={t} h={11} w="180px" />
+              <Skeleton t={t} h={16} w="260px" i={1} />
+              <Skeleton t={t} h={11} w="180px" i={2} />
             </div>
           </div>
           {[150, 260, 260].map((h, i) => (
             <div key={i} style={{ ...ui.card, padding: "1.1rem" }}>
-              <Skeleton t={t} h={18} w="220px" style={{ marginBottom: 16 }} />
+              {/* i = place from the top, so the shimmer runs down as a wave */}
+              <Skeleton t={t} h={18} w="220px" i={[3, 7, 13][i]} style={{ marginBottom: 16 }} />
               {Array.from({ length: Math.round(h / 52) }).map((_, j) => (
-                <Skeleton key={j} t={t} h={12} style={{ marginBottom: 14 }} />
+                <Skeleton key={j} t={t} h={12} i={[3, 7, 13][i] + 1 + j} style={{ marginBottom: 14 }} />
               ))}
             </div>
           ))}
         </div>
       )}
 
-      {evaluator && data && (
+      {evaluator && data && !(stale && leftOld) && (
         <div
-          // a new person or role mounts it again, so the sections come in again
-          key={`${evaluator.user_id}-${role}`}
-          className="em-stagger"
+          // the loaded person or role mounts it again, so the sections come in
+          // again when the new data arrives (not when the person is picked)
+          key={`${data.evaluator?.user_id}-${data.role}`}
+          className={stale ? "em-stagger em-leave" : "em-stagger"}
           style={{
             display: "flex",
             flexDirection: "column",
