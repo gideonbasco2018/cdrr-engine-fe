@@ -1014,21 +1014,23 @@ function RRTrendChart({ data, ui, darkMode, onPointClick }) {
           );
         })}
 
-        {/* X labels */}
-        {data.map((d, i) => (
-          <text
-            key={d.key}
-            x={x(i)}
-            y={H - 10}
-            textAnchor="middle"
-            fontSize={11}
-            fontWeight={hover === i ? 800 : 600}
-            fill={hover === i ? ui.textPrimary : ui.textMuted}
-            fontFamily={font}
-          >
-            {d.label}
-          </text>
-        ))}
+        {/* X labels (skip some when there are many points) */}
+        {data.map((d, i) =>
+          i % Math.ceil(n / 14) !== 0 && hover !== i ? null : (
+            <text
+              key={d.key}
+              x={x(i)}
+              y={H - 10}
+              textAnchor="middle"
+              fontSize={11}
+              fontWeight={hover === i ? 800 : 600}
+              fill={hover === i ? ui.textPrimary : ui.textMuted}
+              fontFamily={font}
+            >
+              {d.label}
+            </text>
+          ),
+        )}
 
         {/* Hover slots + guide */}
         {data.map((d, i) => (
@@ -3113,6 +3115,10 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
   const [lastUpdated, setLastUpdated] = useState(null);
   // ── Trend card has its own year filter (default 2026) ────────
   const [rrYears, setRrYears] = useState(["2026"]); // [] = all years
+  // Grouping used when more than one year is selected: "month" | "year"
+  const [rrGroupBy, setRrGroupBy] = useState("month");
+  // A single year is always shown by month
+  const rrGroup = rrYears.length === 1 ? "month" : rrGroupBy;
   // single value for the old trend query (used by the PDF export)
   const trendYear = rrYears.length === 1 ? rrYears[0] : "All";
   const trendRunId = useRef(0);
@@ -3289,6 +3295,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
         years: rrYears,
         month: chartMonth,
         prescription: rxFilter,
+        group_by: rrGroup,
       });
       if (id !== rrRunId.current) return;
       setRrData(res.data ?? []);
@@ -3298,7 +3305,7 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
     } finally {
       if (id === rrRunId.current) setLoadingRR(false);
     }
-  }, [rrYears, chartMonth, rxFilter]);
+  }, [rrYears, chartMonth, rxFilter, rrGroup]);
 
   useEffect(() => {
     fetchMain();
@@ -3820,19 +3827,23 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
           : "In Progress";
     // In Progress is counted by Date Received, so it uses the received_in_progress kind
     const kind = series === "in_progress" ? "received_in_progress" : series;
+    // Monthly bucket across several years: key looks like "2025-03"
+    const ym = d ? /^(\d{4})-(\d{1,2})$/.exec(String(d.key)) : null;
     const when = d
-      ? rrYears.length === 1
-        ? `${d.label} ${rrYears[0]}`
-        : d.label
+      ? ym
+        ? d.label
+        : rrYears.length === 1
+          ? `${d.label} ${rrYears[0]}`
+          : d.label
       : rrScope;
     setRecordsTarget({
       title: `${label} — ${when}`,
       trendRecords: {
-        years: rrYears,
+        years: ym ? [ym[1]] : rrYears,
         month: chartMonth,
         prescription: rxFilter,
         kind,
-        bucket: d?.key,
+        bucket: ym ? Number(ym[2]) : d?.key,
       },
     });
   };
@@ -4031,18 +4042,47 @@ export default function AnalyticsView({ ui, darkMode, onSliceClick }) {
             ) : (
               <SectionCard
                 title="Received, Released & In Progress"
-                subtitle={`Grouped by ${rrYears.length === 1 ? "month" : "year"} · click a point to view records`}
+                subtitle={`Grouped by ${rrGroup} · click a point to view records`}
                 icon="📈"
                 ui={ui}
                 darkMode={darkMode}
                 action={
-                  <YearMultiSelect
-                    options={trendYearOptions}
-                    value={rrYears}
-                    onChange={setRrYears}
-                    ui={ui}
-                    darkMode={darkMode}
-                  />
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    {rrYears.length !== 1 && (
+                      <div
+                        style={{
+                          display: "flex",
+                          background: neuCardBg(darkMode),
+                          borderRadius: 10,
+                          padding: 3,
+                          gap: 2,
+                          boxShadow: neuShadow(darkMode, false),
+                        }}
+                      >
+                        {[
+                          { key: "month", label: "By Month" },
+                          { key: "year", label: "By Year" },
+                        ].map(({ key, label }) => (
+                          <button
+                            key={key}
+                            onClick={() => setRrGroupBy(key)}
+                            style={neuBtnStyle(rrGroupBy === key)}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <YearMultiSelect
+                      options={trendYearOptions}
+                      value={rrYears}
+                      onChange={setRrYears}
+                      ui={ui}
+                      darkMode={darkMode}
+                    />
+                  </div>
                 }
               >
                 <div
