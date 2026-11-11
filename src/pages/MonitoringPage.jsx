@@ -21,6 +21,8 @@ import TopCompaniesView from "../components/monitoring/topCompanies/TopCompanies
 import FastestProcessingView from "../components/monitoring/fastestProcessing/FastestProcessingView";
 import CompanyMonitoringView from "../components/monitoring/companyMonitoring/CompanyMonitoringView";
 import GenericDrugsView from "../components/monitoring/genericDrugs/GenericDrugsView";
+import HiringImpactView from "../components/monitoring/hiringImpact/HiringImpactView";
+
 // ── Shared modals (kept in parent since they span multiple views) ─────────────
 // ChartDetailModal, ReassignModal, EvaluatorDetailModal remain here.
 
@@ -1059,6 +1061,8 @@ function renderContent(
       return <EvaluatorAppTypesView ui={ui} darkMode={darkMode} />;
     case "genericdrugs":
       return <GenericDrugsView ui={ui} darkMode={darkMode} />;
+    case "hiringimpact":
+      return <HiringImpactView ui={ui} darkMode={darkMode} />;
     default:
       return null;
   }
@@ -1324,6 +1328,12 @@ function MonitoringPage({ darkMode }) {
       group: "tracking",
       label: "Generic Drugs",
       subtitle: "Pending & registered per generic",
+    },
+    {
+      key: "hiringimpact",
+      group: "tracking",
+      label: "Hiring Impact",
+      subtitle: "Released & backlog before/after hire",
     },
     // Applicants & Companies
     {
