@@ -1332,8 +1332,8 @@ function MonitoringPage({ darkMode }) {
     {
       key: "hiringimpact",
       group: "tracking",
-      label: "Hiring Impact",
-      subtitle: "Released & backlog before/after hire",
+      label: "Capacity Impact",
+      subtitle: "Released & backlog before/after change",
     },
     // Applicants & Companies
     {

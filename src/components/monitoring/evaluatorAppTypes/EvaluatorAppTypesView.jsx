@@ -2,6 +2,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { getEvaluatorAppTypes } from "../../../api/evaluatorAppTypes";
 import UnitDailyActivity from "./UnitDailyActivity";
+import Pager from "./Pager";
+import WorkloadRecordsModal from "./WorkloadRecordsModal";
+
+const MEMBER_PAGE_SIZE = 10;
+const LINK = {
+  cursor: "pointer",
+  textDecoration: "underline dotted",
+  textUnderlineOffset: 3,
+};
 
 const FB = "#1877F2";
 const DEFAULT_STEP = "QUALITY EVALUATION";
@@ -32,7 +41,7 @@ const hdr = (ui, extra = {}) => ({
   ...extra,
 });
 
-function StatCell({ stat, ui }) {
+function StatCell({ stat, ui, onOpen }) {
   const empty = !stat || stat.count === 0;
   if (empty) {
     return (
@@ -53,9 +62,11 @@ function StatCell({ stat, ui }) {
     <td
       style={{ padding: "8px 10px", textAlign: "center", whiteSpace: "nowrap" }}
     >
-      <div title="Applications decked to this user in the selected step">
+      <div title="Click to view the applications decked to this user">
         <span
+          onClick={() => onOpen(false)}
           style={{
+            ...LINK,
             fontSize: "0.86rem",
             fontWeight: 700,
             color: ui.textPrimary,
@@ -65,9 +76,11 @@ function StatCell({ stat, ui }) {
         </span>{" "}
         <span style={small}>decked</span>
       </div>
-      <div style={small} title="Thread is still Open">
+      <div style={small} title="Click to view the applications still open">
         <span
+          onClick={stat.open > 0 ? () => onOpen(true) : undefined}
           style={{
+            ...(stat.open > 0 ? LINK : {}),
             color: stat.open > 0 ? "#f59e0b" : ui.textMuted,
             fontWeight: 600,
           }}
@@ -90,7 +103,7 @@ function StatCell({ stat, ui }) {
 }
 
 // Used when "All steps" is selected: one labeled block per step that has data
-function AllStepsCell({ statsByStep, steps, ui }) {
+function AllStepsCell({ statsByStep, steps, ui, onOpen }) {
   const present = steps.filter(
     (s) => statsByStep && statsByStep[s] && statsByStep[s].count > 0,
   );
@@ -127,7 +140,10 @@ function AllStepsCell({ statsByStep, steps, ui }) {
             </div>
             <div style={small}>
               <span
+                onClick={() => onOpen(s, false)}
+                title="Click to view applications"
                 style={{
+                  ...LINK,
                   fontSize: "0.78rem",
                   fontWeight: 700,
                   color: ui.textPrimary,
@@ -137,7 +153,9 @@ function AllStepsCell({ statsByStep, steps, ui }) {
               </span>{" "}
               decked ·{" "}
               <span
+                onClick={st.open > 0 ? () => onOpen(s, true) : undefined}
                 style={{
+                  ...(st.open > 0 ? LINK : {}),
                   color: st.open > 0 ? "#f59e0b" : ui.textMuted,
                   fontWeight: 600,
                 }}
@@ -193,8 +211,16 @@ function Legend({ ui, stepLabel }) {
 const HEAD_ROW_1_HEIGHT = 32;
 const HEAD_ROW_2_HEIGHT = 34;
 
-function UnitSection({ unit, columns, groups, step, steps, ui }) {
+function UnitSection({ unit, columns, groups, step, steps, ui, onRecords }) {
   const [open, setOpen] = useState(true);
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [unit.members.length, step]);
+  const pageMembers = unit.members.slice(
+    (page - 1) * MEMBER_PAGE_SIZE,
+    page * MEMBER_PAGE_SIZE,
+  );
   const isAll = step === ALL_STEPS;
   const stickyLeft = {
     position: "sticky",
@@ -248,7 +274,27 @@ function UnitSection({ unit, columns, groups, step, steps, ui }) {
         </span>
         <span style={{ fontSize: "0.72rem", color: ui.textMuted }}>
           {unit.members.length} member{unit.members.length !== 1 ? "s" : ""} ·{" "}
-          {unitTotal.toLocaleString()} decked{isAll ? " (all steps)" : ""}
+          {unit.unit_id != null && unitTotal > 0 ? (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
+                onRecords({
+                  unit_id: unit.unit_id,
+                  name: unit.unit_name,
+                  step: isAll ? undefined : step,
+                  col: null,
+                  open: false,
+                });
+              }}
+              title="Click to view applications"
+              style={{ ...LINK, fontWeight: 700, color: FB }}
+            >
+              {unitTotal.toLocaleString()}
+            </span>
+          ) : (
+            unitTotal.toLocaleString()
+          )}{" "}
+          decked{isAll ? " (all steps)" : ""}
         </span>
       </div>
 
@@ -316,12 +362,12 @@ function UnitSection({ unit, columns, groups, step, steps, ui }) {
               </tr>
             </thead>
             <tbody>
-              {unit.members.map((m, i) => (
+              {pageMembers.map((m, i) => (
                 <tr
                   key={m.user_id}
                   style={{
                     borderBottom:
-                      i < unit.members.length - 1
+                      i < pageMembers.length - 1
                         ? `1px solid ${ui.divider}`
                         : "none",
                   }}
@@ -345,12 +391,30 @@ function UnitSection({ unit, columns, groups, step, steps, ui }) {
                         statsByStep={m.stats[c.key]}
                         steps={steps}
                         ui={ui}
+                        onOpen={(s, isOpen) =>
+                          onRecords({
+                            user_id: m.user_id,
+                            name: m.name,
+                            step: s,
+                            col: c,
+                            open: isOpen,
+                          })
+                        }
                       />
                     ) : (
                       <StatCell
                         key={c.key}
                         stat={m.stats[c.key] && m.stats[c.key][step]}
                         ui={ui}
+                        onOpen={(isOpen) =>
+                          onRecords({
+                            user_id: m.user_id,
+                            name: m.name,
+                            step,
+                            col: c,
+                            open: isOpen,
+                          })
+                        }
                       />
                     ),
                   )}
@@ -369,7 +433,19 @@ function UnitSection({ unit, columns, groups, step, steps, ui }) {
                             }}
                           >
                             {prettyStep(s)}:{" "}
-                            <span style={{ fontWeight: 700, color: FB }}>
+                            <span
+                              onClick={() =>
+                                onRecords({
+                                  user_id: m.user_id,
+                                  name: m.name,
+                                  step: s,
+                                  col: null,
+                                  open: false,
+                                })
+                              }
+                              title="Click to view applications"
+                              style={{ ...LINK, fontWeight: 700, color: FB }}
+                            >
                               {m.totals[s].toLocaleString()}
                             </span>
                           </div>
@@ -384,13 +460,38 @@ function UnitSection({ unit, columns, groups, step, steps, ui }) {
                         color: FB,
                       }}
                     >
-                      {((m.totals && m.totals[step]) || 0).toLocaleString()}
+                      <span
+                        onClick={() =>
+                          onRecords({
+                            user_id: m.user_id,
+                            name: m.name,
+                            step,
+                            col: null,
+                            open: false,
+                          })
+                        }
+                        title="Click to view applications"
+                        style={LINK}
+                      >
+                        {((m.totals && m.totals[step]) || 0).toLocaleString()}
+                      </span>
                     </td>
                   )}
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {open && (
+        <div style={{ padding: "0 14px 10px" }}>
+          <Pager
+            page={page}
+            total={unit.members.length}
+            pageSize={MEMBER_PAGE_SIZE}
+            onChange={setPage}
+            ui={ui}
+          />
         </div>
       )}
     </div>
@@ -406,6 +507,32 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
   const [data, setData] = useState({ columns: [], steps: [], units: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [target, setTarget] = useState(null);
+
+  // Open the applications behind a number (user or unit, optional step / combo)
+  const openRecords = ({ user_id, unit_id, name, step: s, col, open }) =>
+    setTarget({
+      title: [
+        name,
+        s ? prettyStep(s) : "All steps",
+        col
+          ? `${shortPrescription(col.prescription)} · ${col.processing_type} / ${col.entry_type}`
+          : "All types",
+        open ? "Still open" : "Decked",
+      ].join(" · "),
+      workload: {
+        metric: "received",
+        user_id,
+        unit_id,
+        step: s,
+        prescription: col?.prescription,
+        processing_type: col?.processing_type,
+        entry_type: col?.entry_type,
+        open_only: open || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+      },
+    });
 
   useEffect(() => {
     let cancelled = false;
@@ -610,9 +737,19 @@ export default function EvaluatorAppTypesView({ ui, darkMode }) {
                 step={activeStep}
                 steps={data.steps}
                 ui={ui}
+                onRecords={openRecords}
               />
             ))}
         </>
+      )}
+
+      {target && (
+        <WorkloadRecordsModal
+          target={target}
+          ui={ui}
+          darkMode={darkMode}
+          onClose={() => setTarget(null)}
+        />
       )}
     </div>
   );
