@@ -247,6 +247,7 @@ export const exportFilteredRecords = async ({
   prescription = '',
   prescription_not = '',
   dtn = null,
+  dtns = '',
   manufacturer = '',
   lto_company = '',
   brand_name = '',
@@ -255,7 +256,6 @@ export const exportFilteredRecords = async ({
   app_type = '',
   processing_type = '',
   entry_type = '',
-  // ✅ Supply chain params
   manufacturer_country = '',
   trader = '',
   trader_country = '',
@@ -275,7 +275,7 @@ export const exportFilteredRecords = async ({
   date_excel_upload_to = '',
   null_date_released = false,     
   null_date_received_cent = false,
-  columns = null,   // ✅ BAGO — array ng column ids na pipiliin, null = lahat
+  columns = null,   
 }) => {
   const params = {};
 
@@ -286,6 +286,7 @@ export const exportFilteredRecords = async ({
   if (prescription) params.prescription = prescription;
   if (prescription_not) params.prescription_not = prescription_not;
   if (dtn) params.dtn = dtn;
+  if (dtns) params.dtns = dtns;
   if (entry_type) params.entry_type = entry_type; 
   if (manufacturer) params.manufacturer = manufacturer;
   if (lto_company) params.lto_company = lto_company;
@@ -295,7 +296,6 @@ export const exportFilteredRecords = async ({
   if (app_type) params.app_type = app_type;
   if (processing_type) params.processing_type = processing_type;
   if (entry_type) params.entry_type = entry_type;
-  // ✅ Supply chain
   if (manufacturer_country) params.manufacturer_country = manufacturer_country;
   if (trader) params.trader = trader;
   if (trader_country) params.trader_country = trader_country;
@@ -315,7 +315,7 @@ export const exportFilteredRecords = async ({
   if (date_excel_upload_to) params.date_excel_upload_to = date_excel_upload_to;
   if (null_date_released) params.null_date_released = 'true';      
   if (null_date_received_cent) params.null_date_received_cent = 'true';
-  if (columns && columns.length > 0) params.columns = columns.join(','); // ✅ BAGO
+  if (columns && columns.length > 0) params.columns = columns.join(',');
 
   const response = await API.get('/main-db/export-filtered', {
     params,

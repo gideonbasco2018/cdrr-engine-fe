@@ -47,7 +47,11 @@ const RETURNS_TO_EVALUATOR = (currentStep, decision) =>
   decision === "Returned to Quality Evaluation" ||
   decision === "Return to S&E Evaluator" ||
   decision === "Returned to LRD" ||
-  decision === PARALLEL_SUPERVISOR_DECISION;
+  decision === PARALLEL_SUPERVISOR_DECISION ||
+  // S&E result: goes back to the last Quality Evaluation evaluator
+  // (only when no Quality Evaluation log is still open, see nextStepActive)
+  (currentStep === "S&E" &&
+    (decision === "Approved" || decision === "Rejected"));
 
 /* Group ID for Decision Authority options (QA) */
 const LRD_AUTHORITY_GROUP_ID = 6;
@@ -290,6 +294,13 @@ const TYPE_DOC_OPTIONS = [
   "Product classification",
   "Others",
 ];
+
+/* Builds the LRD Chief Admin doctrack remarks, including the selected document type.
+   `isOic` = true when the selected authority is not Zamudio (OIC variant). */
+const buildLRDDoctrack = (typeDoc, isOic) =>
+  `Signed${typeDoc ? ` (${typeDoc})` : ""} by ${
+    isOic ? "LRD (OIC) Chief" : "LRD Chief"
+  } and forwarded to CDRR Director for signing`;
 
 /* ─── Component ───────────────────────────────────────────────── */
 export function Step4ActionForm({
@@ -695,6 +706,29 @@ export function Step4ActionForm({
     }
   };
 
+  /* Apply a Type Doc Released value and sync the LRD doctrack remarks */
+  const applyTypeDoc = (val) => {
+    handleApprovalField("typeDocReleased", val);
+    if (isLRDChiefAdmin) {
+      const name = formData.decisionAuthorityName?.toLowerCase() ?? "";
+      const isOic = !!name && !name.includes("zamudio");
+      setFormData((p) => ({
+        ...p,
+        doctrackRemarks: buildLRDDoctrack(val, isOic),
+      }));
+    }
+  };
+
+  const handleTypeDocSelect = (val) => {
+    if (val === "Others") {
+      setTypeDocIsOthers(true);
+      applyTypeDoc(""); // clear so the user can type a custom value
+    } else {
+      setTypeDocIsOthers(false);
+      applyTypeDoc(val);
+    }
+  };
+
   const handleChange = (f, v) => {
     setFormData((p) => {
       const updated = { ...p, [f]: v };
@@ -711,6 +745,15 @@ export function Step4ActionForm({
         // ── Dynamic doctrack remarks for OD-Releasing (uses signedDate state) ──
         if (v === "Scanned and Endorsed to Releasing Officer") {
           updated.doctrackRemarks = buildODReleasingDoctrack(signedDate);
+        } else if (
+          currentStep === "LRD Chief Admin" &&
+          v === "Endorsed to OD-Receiving"
+        ) {
+          // Include the selected document type in the default remarks
+          updated.doctrackRemarks = buildLRDDoctrack(
+            approvalFields.typeDocReleased,
+            false,
+          );
         } else {
           // Check step-specific override first, then fall back to global
           updated.doctrackRemarks =
@@ -757,10 +800,10 @@ export function Step4ActionForm({
         ? formData.decision === PARALLEL_SUPERVISOR_DECISION
           ? `Your log will be completed. Parallel "S&E" and "S&E Statistician" logs will be created for the evaluator and the assigned Statistician.`
           : `Your log will be completed. Parallel "S&E Supervisor" and "S&E Statistician" logs will be created for the assigned users.`
-        : isReturnToEvaluator && autoAssignee
-          ? `Your log will be completed and automatically returned to the previous ${formData.decision === "Returned to LRD" ? "LRD Chief Admin" : "evaluator"}: ${autoAssignee}.`
-          : nextStepActive
-            ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
+        : nextStepActive
+          ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
+          : isReturnToEvaluator && autoAssignee
+            ? `Your log will be completed and automatically returned to the previous ${formData.decision === "Returned to LRD" ? "LRD Chief Admin" : "evaluator"}: ${autoAssignee}.`
             : nextStep
               ? isMultiAssignee
                 ? `Your log will be completed and a new "${nextStep}" log will be created for each selected user. The first one to complete it will automatically close the others.`
@@ -834,19 +877,20 @@ export function Step4ActionForm({
       ).toISOString();
 
       // Compute approval field changes
-      const approvalDirtyFields = isQEForApproval
-        ? QE_APPROVAL_FIELD_KEYS.filter((k) => {
-            const oldVal = (record[k] ?? "").toString();
-            const newVal = (approvalFields[k] ?? "").toString();
-            return oldVal !== newVal;
-          }).map((k) => ({
-            field_name: k,
-            field_label: QE_APPROVAL_FIELD_LABELS[k] ?? k,
-            old_value: (record[k] ?? "").toString(),
-            new_value: (approvalFields[k] ?? "").toString(),
-            step_context: currentStep,
-          }))
-        : [];
+      const approvalDirtyFields =
+        isQEForApproval || isLRDChiefAdmin
+          ? QE_APPROVAL_FIELD_KEYS.filter((k) => {
+              const oldVal = (record[k] ?? "").toString();
+              const newVal = (approvalFields[k] ?? "").toString();
+              return oldVal !== newVal;
+            }).map((k) => ({
+              field_name: k,
+              field_label: QE_APPROVAL_FIELD_LABELS[k] ?? k,
+              old_value: (record[k] ?? "").toString(),
+              new_value: (approvalFields[k] ?? "").toString(),
+              step_context: currentStep,
+            }))
+          : [];
 
       const allDirtyFields = [...dirtyFields, ...approvalDirtyFields];
 
@@ -867,8 +911,8 @@ export function Step4ActionForm({
           await updateUploadReport(record.mainDbId, updatePayload);
       }
 
-      // ── Save QA "For Approval" fields ──
-      if (isQEForApproval) {
+      // ── Save QA "For Approval" fields / LRD Type Doc Released ──
+      if (isQEForApproval || isLRDChiefAdmin) {
         const approvalPayload = {};
         QE_APPROVAL_FIELD_KEYS.forEach((k) => {
           const currentVal = approvalFields[k];
@@ -1672,9 +1716,10 @@ export function Step4ActionForm({
                   const lrdDoctrack = isPRSDDChiefAdmin
                     ? "Signed by PRSDD Chief and forwarded to CDRR Director for signing"
                     : isLRDChiefAdmin
-                      ? isMMZamudio
-                        ? "Signed by LRD Chief and forwarded to CDRR Director for signing"
-                        : "Signed by LRD (OIC) Chief and forwarded to CDRR Director for signing"
+                      ? buildLRDDoctrack(
+                          approvalFields.typeDocReleased,
+                          !isMMZamudio,
+                        )
                       : null;
 
                   setFormData((p) => ({
@@ -1738,6 +1783,50 @@ export function Step4ActionForm({
               ⚠️ No authority users found.
             </p>
           )}
+        </div>
+      )}
+      {/* Type Doc Released — LRD Chief Admin only */}
+      {isLRDChiefAdmin && (
+        <div>
+          <label style={labelStyle}>Type Doc Released</label>
+          <select
+            value={typeDocIsOthers ? "Others" : approvalFields.typeDocReleased}
+            onChange={(e) => handleTypeDocSelect(e.target.value)}
+            style={{ ...inp, cursor: "pointer" }}
+            onFocus={(e) => {
+              e.target.style.borderColor = "#2196F3";
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = colors.inputBorder;
+            }}
+          >
+            <option value="">Select type...</option>
+            {TYPE_DOC_OPTIONS.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          {typeDocIsOthers && (
+            <input
+              type="text"
+              value={approvalFields.typeDocReleased}
+              onChange={(e) => applyTypeDoc(e.target.value)}
+              placeholder="Please specify..."
+              style={{ ...inp, marginTop: "0.4rem" }}
+              autoFocus
+            />
+          )}
+          <p
+            style={{
+              fontSize: "0.68rem",
+              color: colors.textTertiary,
+              marginTop: "0.3rem",
+              marginBottom: 0,
+            }}
+          >
+            📄 Changing this will update the Doctrack Remarks automatically.
+          </p>
         </div>
       )}
 
