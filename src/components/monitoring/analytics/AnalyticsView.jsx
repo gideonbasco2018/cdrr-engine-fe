@@ -138,155 +138,6 @@ const statusColor = (status) => {
 };
 const facetLabel = (key, noneLabel) => (key === NONE_KEY ? noneLabel : key);
 
-// ── Password gate shown before editing a record ──────────────
-const EDIT_PASSWORD = "dikoalam12345";
-
-function PasswordPromptModal({ onConfirm, onCancel, ui, darkMode }) {
-  const [value, setValue] = useState("");
-  const [error, setError] = useState("");
-  const inputRef = useRef(null);
-  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const submit = () => {
-    if (value === EDIT_PASSWORD) {
-      onConfirm();
-    } else {
-      setError("Incorrect password. Please try again.");
-      setValue("");
-      inputRef.current?.focus();
-    }
-  };
-
-  // Rendered in <body> so it is independent of the records modal.
-  // No click-outside-to-close on purpose: an accidental click or the
-  // browser's autofill popup must not dismiss it. Use Cancel or Esc.
-  return createPortal(
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.6)",
-        zIndex: 1200,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20,
-      }}
-    >
-      <div
-        style={{
-          width: "min(380px, 100%)",
-          background: neuCardBg(darkMode),
-          borderRadius: 14,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-          padding: 20,
-          fontFamily: font,
-        }}
-      >
-        <div
-          style={{
-            fontSize: "0.95rem",
-            fontWeight: 700,
-            color: ui.textPrimary,
-          }}
-        >
-          🔒 Password required
-        </div>
-        <div
-          style={{
-            fontSize: "0.75rem",
-            color: ui.textMuted,
-            margin: "4px 0 14px",
-          }}
-        >
-          Enter the password to update this application's information.
-        </div>
-        <input
-          ref={inputRef}
-          type="password"
-          name="edit-confirm-code"
-          autoComplete="new-password"
-          data-lpignore="true"
-          data-1p-ignore="true"
-          value={value}
-          placeholder="Password"
-          onChange={(e) => {
-            setValue(e.target.value);
-            setError("");
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submit();
-            if (e.key === "Escape") onCancel();
-          }}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            background: neuCardBg(darkMode),
-            border: `1px solid ${error ? "#e02020" : line}`,
-            borderRadius: 8,
-            padding: "8px 10px",
-            fontSize: "0.85rem",
-            color: ui.textPrimary,
-            outline: "none",
-            fontFamily: font,
-            colorScheme: darkMode ? "dark" : "light",
-          }}
-        />
-        {error && (
-          <div style={{ fontSize: "0.72rem", color: "#e02020", marginTop: 6 }}>
-            {error}
-          </div>
-        )}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-            marginTop: 16,
-          }}
-        >
-          <button
-            onClick={onCancel}
-            style={{
-              padding: "6px 14px",
-              fontSize: "0.78rem",
-              borderRadius: 8,
-              border: `1px solid ${line}`,
-              background: "transparent",
-              color: ui.textPrimary,
-              cursor: "pointer",
-              fontFamily: font,
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={submit}
-            style={{
-              padding: "6px 14px",
-              fontSize: "0.78rem",
-              fontWeight: 700,
-              borderRadius: 8,
-              border: "none",
-              background: FB,
-              color: "#fff",
-              cursor: "pointer",
-              fontFamily: font,
-            }}
-          >
-            Confirm
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
 // ── Side panel of the records modal: doc-type breakdown + timeline ──
 const MONTH_SHORT = [
   "Jan",
@@ -1334,7 +1185,6 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [menu, setMenu] = useState(null); // { row, top, right }
   const subOpenRef = useRef(false);
   const [logsRow, setLogsRow] = useState(null);
-  const [passwordRow, setPasswordRow] = useState(null); // row waiting for password
   const [editRecord, setEditRecord] = useState(null); // record being edited
   const [editLoading, setEditLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0); // bump to refetch rows after save
@@ -1403,7 +1253,6 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     doctrackRow ||
     detail ||
     logsRow ||
-    passwordRow ||
     editRecord ||
     editLoading
   );
@@ -1449,6 +1298,19 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       console.error("Load full record failed:", err);
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  // Open the edit modal directly (no password required)
+  const openEdit = async (r) => {
+    setEditLoading(true);
+    try {
+      setEditRecord(await fetchFullRecord(r));
+    } catch (err) {
+      console.error("Load full record failed:", err);
+      alert(`Could not open the record for editing.\n${err.message}`);
+    } finally {
+      setEditLoading(false);
     }
   };
 
@@ -2631,7 +2493,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
             onClick={() => {
               const row = menu.row;
               setMenu(null);
-              setPasswordRow(row);
+              openEdit(row);
             }}
             style={{
               width: "100%",
@@ -2672,27 +2534,6 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
           onClose={() => setLogsRow(null)}
           colors={colors}
           darkMode={darkMode}
-        />
-      )}
-
-      {passwordRow && (
-        <PasswordPromptModal
-          ui={ui}
-          darkMode={darkMode}
-          onCancel={() => setPasswordRow(null)}
-          onConfirm={async () => {
-            const row = passwordRow;
-            setPasswordRow(null);
-            setEditLoading(true);
-            try {
-              setEditRecord(await fetchFullRecord(row));
-            } catch (err) {
-              console.error("Load full record failed:", err);
-              alert(`Could not open the record for editing.\n${err.message}`);
-            } finally {
-              setEditLoading(false);
-            }
-          }}
         />
       )}
 
