@@ -25,15 +25,12 @@ import { makeUi, Icon, IconChip, Skeleton, AMBER } from "./ui";
 import { startLabel, endLabel } from "./tatSources";
 import { SourceBadge } from "./SourceBadge";
 import { roleName } from "./roles";
+import { fmtTat, tatUnit } from "./tatFormat";
 
 const PAGE_SIZE = 50;
 const LOAD_LIMIT = 2000; // the API caps one request at 2,000 rows
 
 const fmt = (n) => Number(n ?? 0).toLocaleString();
-const fmtAvg = (n) =>
-  n == null
-    ? "—"
-    : Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 });
 const show = (v) => (v === null || v === undefined || v === "" ? "—" : v);
 
 // source = which data the rows come from; the "Data" column only shows when
@@ -371,8 +368,7 @@ function EvaluatorRecordsModal({
                     <>
                       {" · "}Average TAT{" "}
                       <span style={{ color: t.ink2, fontWeight: 500 }}>
-                        {fmtAvg(data.avg_tat)}{" "}
-                        {Number(data.avg_tat) === 1 ? "working day" : "working days"}
+                        {fmtTat(data.avg_tat)} {tatUnit(data.avg_tat)}
                       </span>
                     </>
                   )}
@@ -672,6 +668,8 @@ function EvaluatorRecordsModal({
                           >
                             {show(r[c.key])}
                           </span>
+                        ) : c.key === "tat" ? (
+                          fmtTat(r.tat)
                         ) : (
                           show(r[c.key])
                         )}

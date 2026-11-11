@@ -178,7 +178,7 @@ export function SplitBar({
         }}
       >
         <span
-          className="em-wipe"
+          className="em-grow"
           style={{
             display: "flex",
             gap: 2,
