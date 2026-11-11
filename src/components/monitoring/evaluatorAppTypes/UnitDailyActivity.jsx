@@ -1,6 +1,11 @@
 // src/components/monitoring/evaluatorAppTypes/UnitDailyActivity.jsx
 import { useEffect, useMemo, useState } from "react";
 import { getEvaluatorDailyActivity } from "../../../api/evaluatorAppTypes";
+import Pager from "./Pager";
+import WorkloadRecordsModal from "./WorkloadRecordsModal";
+
+const MEMBER_PAGE = 10;
+const GRID_PAGE = 15;
 
 const USE_MOCK = false;
 
@@ -409,8 +414,15 @@ export default function UnitDailyActivity({
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [target, setTarget] = useState(null);
+  const [memberPage, setMemberPage] = useState(1);
+  const [gridPage, setGridPage] = useState(1);
 
-  // Date range na kukunin sa backend ayon sa napiling period
+  useEffect(() => {
+    setMemberPage(1);
+    setGridPage(1);
+  }, [unitName, mode, month, year, step, rows]);
+
   const range = useMemo(() => {
     if (mode === "day") {
       const [y, m] = month.split("-").map(Number);
@@ -450,20 +462,26 @@ export default function UnitDailyActivity({
 
   const { unitList, years, activeDates } = useMemo(() => {
     const u = new Map();
+    const unitIds = new Map();
     const ys = new Set();
     const act = new Set();
     rows.forEach((r) => {
       ys.add(Number(String(r.date).slice(0, 4)));
       if ((Number(r.received) || 0) + (Number(r.completed) || 0) > 0)
         act.add(r.date);
-      if (!u.has(r.unit_name)) u.set(r.unit_name, new Map());
+      if (!u.has(r.unit_name)) {
+        u.set(r.unit_name, new Map());
+        unitIds.set(r.unit_name, r.unit_id);
+      }
       const m = u.get(r.unit_name);
-      if (!m.has(r.user_id)) m.set(r.user_id, { name: r.name, rows: [] });
+      if (!m.has(r.user_id))
+        m.set(r.user_id, { user_id: r.user_id, name: r.name, rows: [] });
       m.get(r.user_id).rows.push(r);
     });
     return {
       unitList: [...u.entries()].map(([name, members]) => ({
         name,
+        unit_id: unitIds.get(name),
         members: [...members.values()],
       })),
       years: [...ys].sort((a, b) => a - b),
@@ -482,10 +500,21 @@ export default function UnitDailyActivity({
       unitList.map((t) => {
         const members = t.members.map((m) => {
           const buckets = fillBuckets(m.rows, mode, base);
-          return { name: m.name, buckets, totals: totalsOf(buckets) };
+          return {
+            user_id: m.user_id,
+            name: m.name,
+            buckets,
+            totals: totalsOf(buckets),
+          };
         });
         const buckets = sumUnits(members, base);
-        return { name: t.name, members, buckets, totals: totalsOf(buckets) };
+        return {
+          name: t.name,
+          unit_id: t.unit_id,
+          members,
+          buckets,
+          totals: totalsOf(buckets),
+        };
       }),
     [unitList, mode, base],
   );
@@ -499,6 +528,7 @@ export default function UnitDailyActivity({
     ? selected.members.map((m) => ({ ...m, sub: "" }))
     : teams.map((t) => ({
         name: t.name,
+        unit_id: t.unit_id,
         sub: `${t.members.length} members`,
         buckets: t.buckets,
         totals: t.totals,
@@ -534,6 +564,53 @@ export default function UnitDailyActivity({
     setUnitName(n);
     setFocus(null);
   };
+
+  // ── drill-down ──
+  const stepLabel = step === allValue ? "All steps" : prettyStep(step);
+  // u === null -> the "whole unit / all units" column
+  const scopeOf = (u) =>
+    u === null
+      ? selected
+        ? { unit_id: selected.unit_id, label: selected.name }
+        : { label: "All units" }
+      : selected
+        ? { user_id: u.user_id, label: u.name }
+        : { unit_id: u.unit_id, label: u.name };
+  // "No Unit" has no unit id, so it cannot be opened as a unit
+  const canOpen = (u) => u === null || !!selected || u.unit_id != null;
+  const go = (metric, u, b = null) =>
+    canOpen(u)
+      ? () => {
+          const scope = scopeOf(u);
+          setTarget({
+            title: [
+              scope.label,
+              metric === "received" ? "Decked" : "Completed",
+              b ? b.full : periodLabel,
+              stepLabel,
+            ].join(" · "),
+            workload: {
+              metric,
+              user_id: scope.user_id,
+              unit_id: scope.unit_id,
+              step: step === allValue ? undefined : step,
+              period: b ? b.key : undefined,
+              group_by: mode,
+              date_from: b ? undefined : range.date_from,
+              date_to: b ? undefined : range.date_to,
+              require_date: true,
+            },
+          });
+        }
+      : undefined;
+
+  const memberRows = units.slice(
+    (memberPage - 1) * MEMBER_PAGE,
+    memberPage * MEMBER_PAGE,
+  );
+  const gridRows = tableBuckets
+    .map((b, i) => ({ b, i }))
+    .slice((gridPage - 1) * GRID_PAGE, gridPage * GRID_PAGE);
 
   // ── styles ──
   const line = ui.cardBorder;
@@ -590,12 +667,35 @@ export default function UnitDailyActivity({
     textAlign: "left",
   };
 
-  const Pair = ({ r, c, bold }) =>
+  const Num = ({ n, color, bold, onClick }) => {
+    const st = { color, fontWeight: bold ? 800 : 600 };
+    return n > 0 && onClick ? (
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick();
+        }}
+        title="Click to view applications"
+        style={{
+          ...st,
+          cursor: "pointer",
+          textDecoration: "underline dotted",
+          textUnderlineOffset: 3,
+        }}
+      >
+        {fmt(n)}
+      </span>
+    ) : (
+      <span style={st}>{fmt(n)}</span>
+    );
+  };
+
+  const Pair = ({ r, c, bold, onR, onC }) =>
     r || c ? (
-      <span style={{ fontWeight: bold ? 800 : 600 }}>
-        <span style={{ color: C_IN }}>{fmt(r)}</span>
+      <span>
+        <Num n={r} color={C_IN} bold={bold} onClick={onR} />
         <span style={{ color: ui.textMuted }}> / </span>
-        <span style={{ color: C_DONE }}>{fmt(c)}</span>
+        <Num n={c} color={C_DONE} bold={bold} onClick={onC} />
       </span>
     ) : (
       <span style={{ color: ui.textMuted, opacity: 0.5 }}>—</span>
@@ -925,7 +1025,8 @@ export default function UnitDailyActivity({
                   fontSize: "0.72rem",
                 }}
               >
-                · click a row to filter the chart
+                · click a row to filter the chart · click a number to view the
+                applications
               </span>
             </p>
             <div style={{ overflowX: "auto" }}>
@@ -943,7 +1044,7 @@ export default function UnitDailyActivity({
                   </tr>
                 </thead>
                 <tbody>
-                  {units.map((u) => {
+                  {memberRows.map((u) => {
                     const act = u.buckets.filter(
                       (b) => b.received || b.completed,
                     ).length;
@@ -979,11 +1080,21 @@ export default function UnitDailyActivity({
                             </div>
                           )}
                         </td>
-                        <td style={{ ...td, color: C_IN, fontWeight: 700 }}>
-                          {fmt(u.totals.received)}
+                        <td style={td}>
+                          <Num
+                            n={u.totals.received}
+                            color={C_IN}
+                            bold
+                            onClick={go("received", u)}
+                          />
                         </td>
-                        <td style={{ ...td, color: C_DONE, fontWeight: 700 }}>
-                          {fmt(u.totals.completed)}
+                        <td style={td}>
+                          <Num
+                            n={u.totals.completed}
+                            color={C_DONE}
+                            bold
+                            onClick={go("completed", u)}
+                          />
                         </td>
                         <td
                           style={{
@@ -1013,6 +1124,13 @@ export default function UnitDailyActivity({
                 </tbody>
               </table>
             </div>
+            <Pager
+              page={memberPage}
+              total={units.length}
+              pageSize={MEMBER_PAGE}
+              onChange={setMemberPage}
+              ui={ui}
+            />
           </div>
 
           {/* Per day / month / year grid */}
@@ -1035,10 +1153,11 @@ export default function UnitDailyActivity({
               }}
             >
               Each cell: <b style={{ color: C_IN }}>decked</b> /{" "}
-              <b style={{ color: C_DONE }}>completed</b>
+              <b style={{ color: C_DONE }}>completed</b> · click a number to
+              view the applications
               {mode === "day" ? " · weekends with no records are hidden" : ""}
             </p>
-            <div style={{ overflow: "auto", maxHeight: 420 }}>
+            <div style={{ overflow: "auto", maxHeight: 520 }}>
               <table
                 style={{
                   width: "100%",
@@ -1072,7 +1191,7 @@ export default function UnitDailyActivity({
                   </tr>
                 </thead>
                 <tbody>
-                  {tableBuckets.map((b, i) => (
+                  {gridRows.map(({ b, i }) => (
                     <tr key={b.key}>
                       <td
                         style={{
@@ -1103,7 +1222,13 @@ export default function UnitDailyActivity({
                             : "rgba(0,0,0,0.025)",
                         }}
                       >
-                        <Pair r={b.received} c={b.completed} bold />
+                        <Pair
+                          r={b.received}
+                          c={b.completed}
+                          bold
+                          onR={go("received", null, b)}
+                          onC={go("completed", null, b)}
+                        />
                       </td>
                       {units.map((u) => (
                         <td
@@ -1117,6 +1242,8 @@ export default function UnitDailyActivity({
                           <Pair
                             r={u.buckets[i].received}
                             c={u.buckets[i].completed}
+                            onR={go("received", u, b)}
+                            onC={go("completed", u, b)}
                           />
                         </td>
                       ))}
@@ -1141,6 +1268,8 @@ export default function UnitDailyActivity({
                         r={tableTotals.received}
                         c={tableTotals.completed}
                         bold
+                        onR={go("received", null)}
+                        onC={go("completed", null)}
                       />
                     </td>
                     {units.map((u) => (
@@ -1155,6 +1284,8 @@ export default function UnitDailyActivity({
                           r={u.totals.received}
                           c={u.totals.completed}
                           bold
+                          onR={go("received", u)}
+                          onC={go("completed", u)}
                         />
                       </td>
                     ))}
@@ -1162,9 +1293,24 @@ export default function UnitDailyActivity({
                 </tbody>
               </table>
             </div>
+            <Pager
+              page={gridPage}
+              total={tableBuckets.length}
+              pageSize={GRID_PAGE}
+              onChange={setGridPage}
+              ui={ui}
+            />
           </div>
         </div>
       </div>
+      {target && (
+        <WorkloadRecordsModal
+          target={target}
+          ui={ui}
+          darkMode={darkMode}
+          onClose={() => setTarget(null)}
+        />
+      )}
     </div>
   );
 }

@@ -24,3 +24,15 @@ export const getWorkloadRecords = async (params = {}) => {
   });
   return data;
 };
+
+export const getEvaluatorUnits = async () => {
+  const { data } = await api.get("/monitoring/evaluator-app-types/units");
+  return data;
+};
+
+export const getEvaluatorActivityRecords = async (params = {}) => {
+  const { data } = await api.get("/monitoring/evaluator-app-types/daily/records", {
+    params,
+  });
+  return data;
+};
