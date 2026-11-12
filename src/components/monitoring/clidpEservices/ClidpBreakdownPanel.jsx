@@ -31,6 +31,7 @@ function ClidpBreakdownPanel({
   totalLabel = "Total Applications",
   emptyMessage = "No applications found.",
   exportFilename = "clidp-eservices-breakdown",
+  onTotalClick,
 }) {
   // Groups without generic names (e.g. cancer) are shown per category only.
   const labelKey = showGenericName ? "generic_name" : "pharmacologic_category";
@@ -158,6 +159,7 @@ function ClidpBreakdownPanel({
   }
 
   const chartInnerHeight = Math.max(340, items.length * 30);
+  const totalClickable = !!onTotalClick && grandTotal > 0;
 
   return (
     <div
@@ -182,8 +184,31 @@ function ClidpBreakdownPanel({
           style={{ fontSize: "0.8rem", fontWeight: 600, color: ui.textSub }}
         >
           {totalLabel}
+          {totalClickable && (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: "0.68rem",
+                fontWeight: 500,
+                color: ui.textMuted,
+              }}
+            >
+              · click the number to view records
+            </span>
+          )}
         </span>
-        <span style={{ fontSize: "1.4rem", fontWeight: 800, color: FB }}>
+        <span
+          onClick={totalClickable ? onTotalClick : undefined}
+          title={totalClickable ? "Click to view records" : undefined}
+          style={{
+            fontSize: "1.4rem",
+            fontWeight: 800,
+            color: FB,
+            cursor: totalClickable ? "pointer" : "default",
+            textDecoration: totalClickable ? "underline dotted" : "none",
+            textUnderlineOffset: 5,
+          }}
+        >
           {grandTotal.toLocaleString()}
         </span>
       </div>
