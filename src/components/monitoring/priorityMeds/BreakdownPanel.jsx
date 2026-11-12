@@ -27,6 +27,7 @@ function BreakdownPanel({
   valueKey,
   valueLabel,
   exportFilename = "breakdown",
+  onTotalClick,
 }) {
   const chartData = useMemo(() => {
     if (!items?.length) return null;
@@ -172,6 +173,7 @@ function BreakdownPanel({
   }
 
   const chartInnerHeight = Math.max(340, items.length * 30);
+  const totalClickable = !!onTotalClick && grandTotal > 0;
 
   return (
     <div
@@ -196,8 +198,31 @@ function BreakdownPanel({
           style={{ fontSize: "0.8rem", fontWeight: 600, color: ui.textSub }}
         >
           Total In-Progress Applications
+          {totalClickable && (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: "0.68rem",
+                fontWeight: 500,
+                color: ui.textMuted,
+              }}
+            >
+              · click the number to view records
+            </span>
+          )}
         </span>
-        <span style={{ fontSize: "1.4rem", fontWeight: 800, color: FB }}>
+        <span
+          onClick={totalClickable ? onTotalClick : undefined}
+          title={totalClickable ? "Click to view records" : undefined}
+          style={{
+            fontSize: "1.4rem",
+            fontWeight: 800,
+            color: FB,
+            cursor: totalClickable ? "pointer" : "default",
+            textDecoration: totalClickable ? "underline dotted" : "none",
+            textUnderlineOffset: 5,
+          }}
+        >
           {grandTotal.toLocaleString()}
         </span>
       </div>

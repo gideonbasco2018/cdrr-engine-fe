@@ -77,3 +77,62 @@ export const getTbMedsBreakdown = async () => {
     throw new Error(errorMessage);
   }
 };
+
+
+/**
+ * Get the in-progress application records behind a program's grand total
+ * Params: { program, search?, page?, page_size? }
+ * Returns { data: [{ db_id, dtn, generic_name, brand_name }], total }
+ */
+// Serialize arrays as repeated keys (generic_names=a&generic_names=b),
+// which is what FastAPI expects for List[str] query params.
+const serializeParams = (params) => {
+  const sp = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    if (Array.isArray(value)) value.forEach((v) => sp.append(key, v));
+    else sp.append(key, value);
+  });
+  return sp.toString();
+};
+
+/**
+ * Get the in-progress application records behind a program's grand total
+ * Params: { program, search?, generic_names?: string[], page?, page_size? }
+ * Returns { data: [{ db_id, dtn, generic_name, brand_name }], total }
+ */
+export const getPriorityMedsRecords = async (params) => {
+  try {
+    const response = await API.get("/monitoring/priority-meds/records", {
+      params,
+      paramsSerializer: serializeParams,
+    });
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch priority meds records";
+    throw new Error(errorMessage);
+  }
+};
+
+/**
+ * Get the distinct generic names of a program (for the multi-select filter)
+ * Returns { data: [{ name, count }] }
+ */
+export const getPriorityMedsGenericNames = async (params) => {
+  try {
+    const response = await API.get(
+      "/monitoring/priority-meds/records/generic-names",
+      { params },
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch generic names";
+    throw new Error(errorMessage);
+  }
+};
