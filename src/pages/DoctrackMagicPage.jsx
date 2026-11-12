@@ -1,3 +1,4 @@
+// src/pages/DoctrackMagicPage.jsx
 import { useState, useRef, useCallback, useEffect } from "react";
 import { getCurrentUser } from "../api/auth";
 import {
@@ -7,6 +8,8 @@ import {
   getHistoryRecords,
   getUploadHistoryById,
   downloadDoctrackTemplate,
+  getDocumentByRSN,
+  getDocumentLog,
 } from "../api/doctrack";
 import DoctrackModal from "../components/reports/actions/DoctrackModal";
 
@@ -411,7 +414,7 @@ function FailedRecordsPanel({
                       justifyContent: "center",
                     }}
                   >
-                    {(page - 1) * PAGE_SIZE + i + 1}
+                    {row.rowNum ?? i + 1}
                   </span>
                 </div>
                 <div style={{ padding: "0.55rem 0.75rem" }}>
@@ -2096,7 +2099,7 @@ function UploadHistory({
 }
 
 // ── MAIN COMPONENT ────────────────────────────────────────────────────────────
-function DoctrackMagicPage({ darkMode }) {
+function BulkUploadTab({ darkMode }) {
   const isMobile = useIsMobile(768);
   const bg = darkMode ? "#0a0a0a" : "#f8f8f8";
   const cardBg = darkMode ? "#161616" : "#ffffff";
@@ -3313,6 +3316,833 @@ function DoctrackMagicPage({ darkMode }) {
         * { -webkit-tap-highlight-color: transparent; }
         input, button { touch-action: manipulation; }
       `}</style>
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// DTN SEARCH TAB
+// ═════════════════════════════════════════════════════════════════════════════
+function formatDate(value) {
+  if (!value) return "N/A";
+  const s = String(value);
+  if (/^\d{8}$/.test(s)) {
+    return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+  }
+  try {
+    return new Date(value).toLocaleString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return String(value);
+  }
+}
+
+function parseSubject(subject) {
+  if (!subject) return {};
+  const parsed = {};
+  subject.split(/\r?\n/).forEach((line) => {
+    const [key, ...rest] = line.split(":");
+    if (key && rest.length > 0) parsed[key.trim()] = rest.join(":").trim();
+  });
+  return parsed;
+}
+
+// Bulk-upload / single-insert logs append "Remarks by: <alias>" to the remarks.
+// Split it out so the alias can be shown as a badge.
+function splitRemarks(remarks) {
+  const text = remarks ?? "";
+  const m = text.match(/^([\s\S]*?)\s*Remarks by:\s*(.+)$/);
+  if (!m) return { text, alias: "" };
+  return { text: m[1].trim(), alias: m[2].trim() };
+}
+
+// ── small components ──────────────────────────────────────────────────────────
+function DetailRow({ label, value, colors }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: "0.75rem",
+      }}
+    >
+      <span
+        style={{
+          fontSize: "0.85rem",
+          color: colors.textTertiary,
+          fontWeight: 500,
+          width: "42%",
+          flexShrink: 0,
+          wordBreak: "break-word",
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          fontSize: "0.85rem",
+          color: colors.textSecondary,
+          textAlign: "right",
+          flex: 1,
+          wordBreak: "break-word",
+        }}
+      >
+        {value || "N/A"}
+      </span>
+    </div>
+  );
+}
+
+function InfoCard({ title, colors, children }) {
+  return (
+    <div
+      style={{
+        padding: "1rem",
+        background: colors.tableBg,
+        borderRadius: 10,
+        border: "1px solid " + colors.cardBorder,
+      }}
+    >
+      <h4
+        style={{
+          fontSize: "0.88rem",
+          fontWeight: 600,
+          color: colors.textPrimary,
+          margin: "0 0 0.75rem",
+        }}
+      >
+        {title}
+      </h4>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN ──────────────────────────────────────────────────────────────────────
+function DtnSearchTab({ darkMode, colors }) {
+  const isMobile = useIsMobile(768);
+  const { accent, cardBg, cardBorder, textPrimary, textTertiary } = colors;
+  const inputBorder = darkMode ? "#2e2e2e" : "#cdd2e0";
+
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [doc, setDoc] = useState(null);
+  const [logs, setLogs] = useState([]);
+  const [logsNote, setLogsNote] = useState("");
+  const [modalRecord, setModalRecord] = useState(null);
+
+  const isValid = /^\d{14}$/.test(query);
+
+  const handleSearch = async () => {
+    if (!isValid || loading) return;
+    setLoading(true);
+    setError("");
+    setDoc(null);
+    setLogs([]);
+    setLogsNote("");
+    try {
+      const res = await getDocumentByRSN(query);
+      if (!(res.count > 0 && res.data?.length > 0)) {
+        setError("No document found for this Doctrack Number.");
+        return;
+      }
+      const found = res.data[0];
+      setDoc(found);
+
+      // The log endpoint returns 404 when a document has no logs yet,
+      // so treat a failure here as "no logs" instead of a hard error.
+      try {
+        const logRes = await getDocumentLog(found.docrecID);
+        const sorted = (logRes.data || []).sort(
+          (a, b) => new Date(b.logdate) - new Date(a.logdate),
+        );
+        setLogs(sorted);
+      } catch {
+        setLogs([]);
+        setLogsNote("No activity logs found for this document.");
+      }
+    } catch (err) {
+      setError(err.message || "Failed to load document.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleChange = (e) => {
+    // Digits only, max 14 — also cleans pasted values with spaces or dashes.
+    setQuery(e.target.value.replace(/\D/g, "").slice(0, 14));
+  };
+
+  const parsedSubject = parseSubject(doc?.subject);
+  const rsnValue = doc?.rsn ?? doc?.RSN ?? query;
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: isMobile ? "1rem" : "2rem",
+      }}
+    >
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        {/* Search card */}
+        <div
+          style={{
+            background: cardBg,
+            border: "1px solid " + cardBorder,
+            borderRadius: 14,
+            padding: "1.25rem",
+            marginBottom: "1.25rem",
+            boxShadow: darkMode
+              ? "0 2px 12px rgba(0,0,0,0.4)"
+              : "0 4px 20px rgba(67,97,238,0.08)",
+          }}
+        >
+          <h1
+            style={{
+              fontSize: isMobile ? "1rem" : "1.1rem",
+              fontWeight: 600,
+              margin: "0 0 0.25rem",
+              color: textPrimary,
+            }}
+          >
+            DTN Search
+          </h1>
+          <p
+            style={{
+              fontSize: "0.82rem",
+              color: textTertiary,
+              margin: "0 0 1rem",
+            }}
+          >
+            Enter a 14-digit Doctrack Number to view its details and activity
+            timeline.
+          </p>
+          <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={textTertiary}
+                strokeWidth="2"
+                style={{
+                  position: "absolute",
+                  left: 11,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  pointerEvents: "none",
+                }}
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                value={query}
+                onChange={handleChange}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                inputMode="numeric"
+                placeholder="e.g. 20251114141418"
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  background: darkMode ? "#1a1a1a" : "#ffffff",
+                  border: `1px solid ${
+                    query && !isValid ? "#f59e0b" : inputBorder
+                  }`,
+                  borderRadius: 8,
+                  padding: "0.6rem 4rem 0.6rem 2.2rem",
+                  fontSize: "0.9rem",
+                  fontFamily: "monospace",
+                  letterSpacing: "0.05em",
+                  color: textPrimary,
+                  outline: "none",
+                  colorScheme: darkMode ? "dark" : "light",
+                }}
+              />
+              <span
+                style={{
+                  position: "absolute",
+                  right: 11,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: "0.72rem",
+                  color: isValid ? "#22c55e" : textTertiary,
+                  fontWeight: 600,
+                }}
+              >
+                {query.length}/14
+              </span>
+            </div>
+            <button
+              onClick={handleSearch}
+              disabled={!isValid || loading}
+              style={{
+                padding: "0.6rem 1.4rem",
+                borderRadius: 8,
+                border: "none",
+                background:
+                  !isValid || loading
+                    ? darkMode
+                      ? "#2a2a2a"
+                      : "#e5e7eb"
+                    : `linear-gradient(135deg, ${accent}, #2563eb)`,
+                color: !isValid || loading ? textTertiary : "#fff",
+                cursor: !isValid || loading ? "not-allowed" : "pointer",
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                fontFamily: "inherit",
+              }}
+            >
+              {loading ? "Searching…" : "Search"}
+            </button>
+          </div>
+          {query && !isValid && (
+            <p
+              style={{
+                margin: "0.5rem 0 0",
+                fontSize: "0.74rem",
+                color: "#f59e0b",
+              }}
+            >
+              ⚠ Doctrack Number must be exactly 14 digits.
+            </p>
+          )}
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div
+            style={{
+              padding: "0.9rem 1rem",
+              background: "#ef444410",
+              border: "1px solid #ef4444",
+              borderRadius: 10,
+              color: "#ef4444",
+              fontSize: "0.88rem",
+            }}
+          >
+            ⚠️ {error}
+          </div>
+        )}
+
+        {/* Result */}
+        {doc && (
+          <div
+            style={{
+              background: cardBg,
+              border: "1px solid " + cardBorder,
+              borderRadius: 14,
+              padding: "1.25rem",
+              boxShadow: darkMode
+                ? "0 2px 12px rgba(0,0,0,0.4)"
+                : "0 4px 20px rgba(67,97,238,0.08)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.75rem",
+                flexWrap: "wrap",
+                marginBottom: "1rem",
+              }}
+            >
+              <div>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "0.7rem",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    fontWeight: 700,
+                    color: textTertiary,
+                  }}
+                >
+                  Doctrack Number
+                </p>
+                <p
+                  style={{
+                    margin: "0.15rem 0 0",
+                    fontFamily: "monospace",
+                    fontSize: "1.05rem",
+                    fontWeight: 700,
+                    color: darkMode ? "#06b6d4" : "#0369a1",
+                  }}
+                >
+                  {rsnValue}
+                </p>
+              </div>
+              <button
+                onClick={() => setModalRecord({ dtn: String(rsnValue) })}
+                style={{
+                  padding: "0.5rem 1rem",
+                  borderRadius: 8,
+                  border: "1px solid " + cardBorder,
+                  background: "transparent",
+                  color: textPrimary,
+                  fontSize: "0.8rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = accent;
+                  e.currentTarget.style.color = accent;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = cardBorder;
+                  e.currentTarget.style.color = textPrimary;
+                }}
+              >
+                📄 Tracking Slip (PDF)
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: isMobile
+                  ? "1fr"
+                  : "minmax(0,45fr) minmax(0,55fr)",
+                gap: "1.25rem",
+                alignItems: "start",
+              }}
+            >
+              {/* Left: document info */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "1rem",
+                }}
+              >
+                <InfoCard title="Basic Information" colors={colors}>
+                  <DetailRow label="RSN" value={rsnValue} colors={colors} />
+                  <DetailRow
+                    label="Document Rec ID"
+                    value={doc.docrecID}
+                    colors={colors}
+                  />
+                  <DetailRow
+                    label="Classification"
+                    value={doc.docclassName}
+                    colors={colors}
+                  />
+                  <DetailRow
+                    label="Date Received"
+                    value={formatDate(doc.datereceived)}
+                    colors={colors}
+                  />
+                  <DetailRow
+                    label="Office Source"
+                    value={doc.officesource}
+                    colors={colors}
+                  />
+                  <DetailRow
+                    label="Status"
+                    value={doc.transstatus === 1 ? "Active" : "Inactive"}
+                    colors={colors}
+                  />
+                </InfoCard>
+
+                {doc.subject && (
+                  <InfoCard title="Application Details" colors={colors}>
+                    {Object.keys(parsedSubject).length > 0 ? (
+                      Object.entries(parsedSubject).map(([k, v]) => (
+                        <DetailRow
+                          key={k}
+                          label={k}
+                          value={v}
+                          colors={colors}
+                        />
+                      ))
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: "0.85rem",
+                          color: colors.textSecondary,
+                          whiteSpace: "pre-wrap",
+                        }}
+                      >
+                        {doc.subject}
+                      </span>
+                    )}
+                  </InfoCard>
+                )}
+
+                {doc.remarks && (
+                  <InfoCard title="Remarks" colors={colors}>
+                    <span
+                      style={{
+                        fontSize: "0.85rem",
+                        color: colors.textSecondary,
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {doc.remarks}
+                    </span>
+                  </InfoCard>
+                )}
+              </div>
+
+              {/* Right: timeline */}
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "0.75rem",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <h3
+                    style={{
+                      fontSize: "0.95rem",
+                      fontWeight: 700,
+                      color: textPrimary,
+                      margin: 0,
+                    }}
+                  >
+                    📝 Activity Timeline
+                  </h3>
+                  {logs.length > 0 && (
+                    <span
+                      style={{
+                        padding: "0.15rem 0.55rem",
+                        background: colors.badgeBg,
+                        borderRadius: 12,
+                        fontSize: "0.72rem",
+                        color: textTertiary,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {logs.length} logs
+                    </span>
+                  )}
+                </div>
+
+                {logs.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "2rem",
+                      textAlign: "center",
+                      color: textTertiary,
+                      fontSize: "0.85rem",
+                      background: colors.tableBg,
+                      borderRadius: 10,
+                      border: "1px solid " + cardBorder,
+                    }}
+                  >
+                    {logsNote || "No activity logs found"}
+                  </div>
+                ) : (
+                  logs.map((log, i) => {
+                    const { text, alias } = splitRemarks(log.remarks);
+                    return (
+                      <div
+                        key={log.logID}
+                        style={{
+                          padding: "0.9rem 1rem",
+                          background: colors.tableBg,
+                          borderRadius: 10,
+                          border: "1px solid " + cardBorder,
+                          position: "relative",
+                        }}
+                      >
+                        {i < logs.length - 1 && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: "1.45rem",
+                              top: "2.6rem",
+                              bottom: "-0.75rem",
+                              width: 2,
+                              background: cardBorder,
+                            }}
+                          />
+                        )}
+                        <div style={{ display: "flex", gap: "0.75rem" }}>
+                          <div
+                            style={{
+                              width: 30,
+                              height: 30,
+                              borderRadius: "50%",
+                              background: i === 0 ? "#22c55e" : "#4CAF50",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                              fontSize: "0.85rem",
+                              zIndex: 1,
+                              opacity: i === 0 ? 1 : 0.75,
+                            }}
+                          >
+                            📝
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "0.5rem",
+                                flexWrap: "wrap",
+                                marginBottom: "0.3rem",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  fontSize: "0.78rem",
+                                  color: textTertiary,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {formatDate(log.logdate)}
+                              </span>
+                              {i === 0 && (
+                                <span
+                                  style={{
+                                    fontSize: "0.65rem",
+                                    fontWeight: 700,
+                                    padding: "0.1rem 0.45rem",
+                                    borderRadius: 99,
+                                    background: darkMode
+                                      ? "rgba(34,197,94,0.12)"
+                                      : "#dcfce7",
+                                    color: "#22c55e",
+                                  }}
+                                >
+                                  LATEST
+                                </span>
+                              )}
+                            </div>
+                            <p
+                              style={{
+                                fontSize: "0.85rem",
+                                color: colors.textSecondary,
+                                lineHeight: 1.5,
+                                margin: 0,
+                                wordBreak: "break-word",
+                              }}
+                            >
+                              {text || "—"}
+                            </p>
+                            {(alias || log.userID) && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: "0.4rem",
+                                  flexWrap: "wrap",
+                                  marginTop: "0.4rem",
+                                }}
+                              >
+                                {alias && (
+                                  <span
+                                    style={{
+                                      fontSize: "0.7rem",
+                                      fontWeight: 600,
+                                      padding: "0.12rem 0.5rem",
+                                      borderRadius: 5,
+                                      background: darkMode
+                                        ? "rgba(37,99,235,0.15)"
+                                        : "#eef2ff",
+                                      color: accent,
+                                    }}
+                                  >
+                                    by {alias}
+                                  </span>
+                                )}
+                                {log.userID && (
+                                  <span
+                                    style={{
+                                      fontSize: "0.7rem",
+                                      color: textTertiary,
+                                      padding: "0.12rem 0.5rem",
+                                    }}
+                                  >
+                                    User ID: {log.userID}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {modalRecord && (
+        <DoctrackModal
+          record={modalRecord}
+          onClose={() => setModalRecord(null)}
+          colors={colors}
+        />
+      )}
+    </div>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// PAGE SHELL (Bulk Upload | DTN Search tabs)
+// ═════════════════════════════════════════════════════════════════════════════
+const TABS = [
+  {
+    key: "bulk",
+    label: "Bulk Upload",
+    icon: (
+      <>
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+      </>
+    ),
+  },
+  {
+    key: "search",
+    label: "DTN Search",
+    icon: (
+      <>
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </>
+    ),
+  },
+];
+
+function DoctrackMagicPage({ darkMode }) {
+  const [activeTab, setActiveTab] = useState("bulk");
+  // Mount a tab on first visit, then keep it mounted (hidden) so that
+  // switching tabs does not wipe the uploaded file or the search result.
+  const [visited, setVisited] = useState({ bulk: true });
+
+  const bg = darkMode ? "#0a0a0a" : "#f8f8f8";
+  const border = darkMode ? "#2a2a2a" : "#e2e5ee";
+  const textPrimary = darkMode ? "#f5f5f5" : "#1a1f36";
+  const textMuted = darkMode ? "#6b7280" : "#4b5563";
+  const accent = darkMode ? "#2563eb" : "#4361ee";
+
+  const colors = {
+    cardBg: darkMode ? "#161616" : "#ffffff",
+    cardBorder: border,
+    textPrimary,
+    textSecondary: darkMode ? "#d1d5db" : "#374151",
+    textTertiary: textMuted,
+    tableBg: darkMode ? "#1a1a1a" : "#f6f8fd",
+    tableRowHover: darkMode ? "#1e1e1e" : "#f0f4ff",
+    badgeBg: darkMode ? "#2a2a2a" : "#f0f0f0",
+    accent,
+    bg,
+  };
+
+  const selectTab = (key) => {
+    setActiveTab(key);
+    setVisited((v) => ({ ...v, [key]: true }));
+  };
+
+  const paneStyle = (key) => ({
+    display: activeTab === key ? "flex" : "none",
+    flexDirection: "column",
+    flex: 1,
+    minHeight: 0,
+  });
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        background: bg,
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
+      {/* Tab bar */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.25rem",
+          padding: "0 1.25rem",
+          borderBottom: "1px solid " + border,
+          background: colors.cardBg,
+          overflowX: "auto",
+        }}
+      >
+        {TABS.map((t) => {
+          const active = activeTab === t.key;
+          return (
+            <button
+              key={t.key}
+              onClick={() => selectTab(t.key)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                padding: "0.8rem 1rem",
+                background: "transparent",
+                border: "none",
+                borderBottom: `2px solid ${active ? accent : "transparent"}`,
+                color: active ? accent : textMuted,
+                fontSize: "0.85rem",
+                fontWeight: active ? 700 : 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+                marginBottom: -1,
+              }}
+              onMouseEnter={(e) => {
+                if (!active) e.currentTarget.style.color = textPrimary;
+              }}
+              onMouseLeave={(e) => {
+                if (!active) e.currentTarget.style.color = textMuted;
+              }}
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                {t.icon}
+              </svg>
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Panes */}
+      <div style={paneStyle("bulk")}>
+        {visited.bulk && <BulkUploadTab darkMode={darkMode} />}
+      </div>
+      <div style={paneStyle("search")}>
+        {visited.search && <DtnSearchTab darkMode={darkMode} colors={colors} />}
+      </div>
     </div>
   );
 }

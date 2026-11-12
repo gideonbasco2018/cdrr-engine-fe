@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import BreakdownPanel from "./BreakdownPanel";
+import PriorityMedsRecordsModal from "./PriorityMedsRecordsModal";
 import {
   getCancerMedsBreakdown,
   getRareDiseaseBreakdown,
@@ -68,8 +69,17 @@ function PriorityMedsView({ ui, darkMode }) {
   const [cache, setCache] = useState({});
   const [loadingKey, setLoadingKey] = useState(null);
   const [errorKey, setErrorKey] = useState({});
+  const [recordsTarget, setRecordsTarget] = useState(null);
 
   const activeTabConfig = TABS.find((t) => t.key === activeTab);
+
+  // Open the records modal for the active program's grand total
+  const openRecords = () =>
+    setRecordsTarget({
+      title: `${activeTabConfig.label} — In-Progress Applications`,
+      program: activeTab,
+      exportFilename: activeTabConfig.exportFilename,
+    });
 
   const loadTab = useCallback(
     async (key) => {
@@ -168,7 +178,17 @@ function PriorityMedsView({ ui, darkMode }) {
         valueKey={activeTabConfig.valueKey}
         valueLabel={activeTabConfig.valueLabel}
         exportFilename={activeTabConfig.exportFilename}
+        onTotalClick={openRecords}
       />
+
+      {recordsTarget && (
+        <PriorityMedsRecordsModal
+          target={recordsTarget}
+          ui={ui}
+          darkMode={darkMode}
+          onClose={() => setRecordsTarget(null)}
+        />
+      )}
     </div>
   );
 }
