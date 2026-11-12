@@ -4,6 +4,7 @@ import {
   getEservicesDrugGroups,
   getEservicesDrugGroupSummary,
 } from "../../../api/eservices-drug-groups";
+import ClidpRecordsModal from "./ClidpRecordsModal";
 
 const FB = "#1877F2";
 const font =
@@ -46,6 +47,9 @@ function ClidpEservicesView({ ui, darkMode }) {
   const [cache, setCache] = useState({});
   const [loadingKeys, setLoadingKeys] = useState({});
   const [errors, setErrors] = useState({});
+
+  // Records modal (opened by clicking the grand total)
+  const [recordsTarget, setRecordsTarget] = useState(null);
 
   const stepValue = resolveStep(step);
   const cacheKey = activeGroup ? makeKey(activeGroup, status, stepValue) : null;
@@ -175,6 +179,20 @@ function ClidpEservicesView({ ui, darkMode }) {
   const exportSuffix = stepValue
     ? `-${stepValue.toLowerCase().replace(/\s+/g, "-")}`
     : "";
+  const exportName = `clidp-eservices-${activeGroup}-${status.toLowerCase()}${exportSuffix}`;
+
+  // Open the records modal for the current group / status / step
+  const openRecords = () => {
+    const groupLabel =
+      groups.find((g) => g.key === activeGroup)?.label ?? activeGroup;
+    setRecordsTarget({
+      title: `${groupLabel} — ${status} Applications${stepSuffix}`,
+      group: activeGroup,
+      status,
+      step: stepValue,
+      exportFilename: exportName,
+    });
+  };
 
   return (
     <div
@@ -281,8 +299,18 @@ function ClidpEservicesView({ ui, darkMode }) {
         showGenericName={hasGenericName}
         totalLabel={`Total ${status} Applications${stepSuffix}`}
         emptyMessage={`No ${status.toLowerCase()} applications found${stepSuffix}.`}
-        exportFilename={`clidp-eservices-${activeGroup}-${status.toLowerCase()}${exportSuffix}`}
+        exportFilename={exportName}
+        onTotalClick={openRecords}
       />
+
+      {recordsTarget && (
+        <ClidpRecordsModal
+          target={recordsTarget}
+          ui={ui}
+          darkMode={darkMode}
+          onClose={() => setRecordsTarget(null)}
+        />
+      )}
     </div>
   );
 }
