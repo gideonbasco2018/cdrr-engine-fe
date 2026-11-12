@@ -844,6 +844,170 @@ function YearMultiSelect({ options, value, onChange, ui, darkMode }) {
   );
 }
 
+// ── Multi-select checkbox dropdown for facet filters (rendered in <body>) ──
+function FacetMultiSelect({
+  options,
+  value,
+  onChange,
+  allLabel,
+  noneLabel,
+  title,
+  ui,
+  darkMode,
+}) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const line = darkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)";
+
+  useEffect(() => {
+    if (!open) return;
+    const outside = (e) => {
+      if (
+        btnRef.current?.contains(e.target) ||
+        popRef.current?.contains(e.target)
+      )
+        return;
+      setOpen(false);
+    };
+    const onScroll = (e) => {
+      if (popRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener("mousedown", outside);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open]);
+
+  const toggleOpen = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+    setOpen((o) => !o);
+  };
+
+  const label =
+    value.length === 0
+      ? allLabel
+      : value.length === 1
+        ? facetLabel(value[0], noneLabel)
+        : `${value.length} selected`;
+  const toggle = (k) =>
+    onChange(value.includes(k) ? value.filter((v) => v !== k) : [...value, k]);
+
+  const row = (key, checked, text, count, onClick) => (
+    <label
+      key={key}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "6px 10px",
+        borderRadius: 8,
+        cursor: "pointer",
+        fontSize: "0.78rem",
+        fontWeight: checked ? 700 : 500,
+        color: ui.textPrimary,
+        background: checked
+          ? darkMode
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(0,0,0,0.045)"
+          : "transparent",
+      }}
+    >
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onClick}
+        style={{ accentColor: FB, cursor: "pointer" }}
+      />
+      <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+      {count != null && (
+        <span style={{ fontSize: "0.7rem", color: ui.textMuted }}>
+          {count.toLocaleString()}
+        </span>
+      )}
+    </label>
+  );
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        onClick={toggleOpen}
+        title={title}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: neuCardBg(darkMode),
+          border: `1px solid ${value.length ? FB : line}`,
+          borderRadius: 8,
+          padding: "5px 10px",
+          fontSize: "0.75rem",
+          color: ui.textPrimary,
+          cursor: "pointer",
+          fontFamily: font,
+          maxWidth: 220,
+        }}
+      >
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {label}
+        </span>
+        <span style={{ fontSize: "0.6rem", opacity: 0.7 }}>▾</span>
+      </button>
+      {open &&
+        createPortal(
+          <div
+            ref={popRef}
+            style={{
+              position: "fixed",
+              top: pos.top,
+              right: pos.right,
+              zIndex: 1500,
+              minWidth: 220,
+              maxHeight: 300,
+              overflowY: "auto",
+              background: neuCardBg(darkMode),
+              border: `1px solid ${line}`,
+              borderRadius: 12,
+              boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+              padding: 6,
+              fontFamily: font,
+            }}
+          >
+            {row("all", value.length === 0, allLabel, null, () => onChange([]))}
+            <div style={{ height: 1, background: line, margin: "4px 6px" }} />
+            {options.map((o) =>
+              row(
+                o.key,
+                value.includes(o.key),
+                facetLabel(o.key, noneLabel),
+                o.count,
+                () => toggle(o.key),
+              ),
+            )}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
 // ── Received vs Released line chart (pure SVG, clickable points) ──
 function RRTrendChart({ data, ui, darkMode, onPointClick }) {
   const [hover, setHover] = useState(null);
@@ -1195,6 +1359,13 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
   const [relFrom, setRelFrom] = useState("");
   const [relTo, setRelTo] = useState("");
   const [exporting, setExporting] = useState(false);
+  // ── Entry type filter (multi-select) ──
+  const [entryFilter, setEntryFilter] = useState([]);
+  const [entryCounts, setEntryCounts] = useState([]);
+  // Fastest / Top Companies endpoints do not support this filter
+  const supportsEntry = !target.fastest && !target.topco;
+  const entryParam =
+    supportsEntry && entryFilter.length ? entryFilter.join("|") : undefined;
   // ── Trend side panel (classification records only) ──
   const hasTrend = !!(target.classification || target.trendRecords);
   // Starting view depends on what was clicked (month -> days, year -> months)
@@ -1345,6 +1516,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       search: query || undefined,
       status: statusFilter === "All" ? undefined : statusFilter,
       doc_type: docFilter === "All" ? undefined : docFilter,
+      entry_types: entryParam,
       ...(target.trendRecords && classFilter !== "All"
         ? { classification: classFilter }
         : {}),
@@ -1422,6 +1594,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     statusFilter,
     docFilter,
     classFilter,
+    entryFilter,
   ]);
 
   // Fill the year dropdown when the panel opens in month / day view
@@ -1496,6 +1669,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
       received_to: recTo || undefined,
       released_from: relFrom || undefined,
       released_to: relTo || undefined,
+      entry_types: entryParam,
       ...overrides,
     };
     return target.country
@@ -1544,6 +1718,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
         setTotal(res.total ?? 0);
         setStatusCounts(res.status_counts ?? []);
         setDocCounts(res.doc_type_counts ?? []);
+        setEntryCounts(res.entry_type_counts ?? []);
         setClassCounts(res.class_counts ?? []);
       } catch (err) {
         console.error("Year records fetch error:", err);
@@ -1563,6 +1738,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     statusFilter,
     docFilter,
     classFilter,
+    entryFilter,
     recFrom,
     recTo,
     relFrom,
@@ -1599,6 +1775,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     query,
     statusFilter,
     classFilter,
+    entryFilter,
     recFrom,
     recTo,
     relFrom,
@@ -1620,6 +1797,7 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     statusFilter !== "All" ||
     docFilter !== "All" ||
     classFilter !== "All" ||
+    entryFilter.length > 0 ||
     query !== "" ||
     !!(recFrom || recTo || relFrom || relTo);
   const rangeInvalid = (a, b) => a && b && a > b;
@@ -1646,11 +1824,19 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
     docFilter !== "All" && !docCounts.some((x) => x.key === docFilter)
       ? [...docCounts, { key: docFilter, count: 0 }]
       : docCounts;
+  // keep selected entry types visible even if their count dropped to 0
+  const entryOptions = [
+    ...entryCounts,
+    ...entryFilter
+      .filter((k) => !entryCounts.some((x) => x.key === k))
+      .map((k) => ({ key: k, count: 0 })),
+  ];
 
   const clearFilters = () => {
     setStatusFilter("All");
     setDocFilter("All");
     setClassFilter("All");
+    setEntryFilter([]);
     setSearch("");
     setQuery("");
     setRecFrom("");
@@ -1963,7 +2149,42 @@ export function YearRecordsModal({ target, basis, ui, darkMode, onClose }) {
                     );
                   })}
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  {supportsEntry && (
+                    <>
+                      <span
+                        style={{
+                          fontSize: "0.65rem",
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                          color: ui.textMuted,
+                        }}
+                      >
+                        Entry Type
+                      </span>
+                      <FacetMultiSelect
+                        options={entryOptions}
+                        value={entryFilter}
+                        onChange={(v) => {
+                          setEntryFilter(v);
+                          setPage(1);
+                        }}
+                        allLabel="All"
+                        noneLabel="No Entry Type"
+                        title="Select one or more entry types"
+                        ui={ui}
+                        darkMode={darkMode}
+                      />
+                    </>
+                  )}
                   <span
                     style={{
                       fontSize: "0.65rem",
