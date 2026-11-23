@@ -10,6 +10,7 @@ import {
   LRD_AUTHORITY_GROUP_ID,
   OD_RELEASING_AUTHORITY_GROUP_ID,
   DECISION_RESULT_OPTIONS,
+  UNCLAIMED_NEXT_STEPS,
   todayStr,
 } from "./constants";
 
@@ -231,6 +232,11 @@ export function BulkDeckModal({
   const hasDecisions = availableDecisions.length >= 1;
   const returnTargetLabel =
     RETURN_TARGET_LABELS[decision] ?? "previous evaluator";
+  // Next step is left unassigned; any member of its group can claim it
+  const isUnclaimedNext =
+    !config.isEndTask &&
+    !isReturnDecision &&
+    UNCLAIMED_NEXT_STEPS.includes(config.nextStep);
 
   const getDefaultDoctrack = (dec) => {
     if (!dec) return config.defaultDoctrack ?? "";
@@ -280,7 +286,7 @@ export function BulkDeckModal({
     DECISION_RESULT_OPTIONS[config.currentStep] ?? [];
 
   useEffect(() => {
-    if (config.isEndTask || isReturnDecision) {
+    if (config.isEndTask || isReturnDecision || isUnclaimedNext) {
       setUsers([]);
       setLoadingUsers(false);
       return;
@@ -322,7 +328,8 @@ export function BulkDeckModal({
     })();
   }, [needsAuthority]);
 
-  const needsAssignee = !config.isEndTask && !isReturnDecision;
+  const needsAssignee =
+    !config.isEndTask && !isReturnDecision && !isUnclaimedNext;
   const allowMulti = !!config.allowMultipleAssignees;
 
   // ── Which selected records are eligible for VerifiPortal (CPR) posting ──
@@ -666,7 +673,21 @@ export function BulkDeckModal({
               </ul>
             </div>
           )}
-          {!config.isEndTask && !isReturnDecision && (
+          {isUnclaimedNext && result?.success > 0 && (
+            <p
+              style={{
+                margin: 0,
+                fontSize: "0.82rem",
+                color: colors.textSecondary,
+                textAlign: "center",
+              }}
+            >
+              🕓 Placed in the{" "}
+              <strong style={{ color: "#f59e0b" }}>{config.nextStep}</strong>{" "}
+              Unclaimed tab. Any group member can claim.
+            </p>
+          )}
+          {!config.isEndTask && !isReturnDecision && !isUnclaimedNext && (
             <p
               style={{
                 margin: 0,
@@ -1526,6 +1547,47 @@ export function BulkDeckModal({
                 )}
               </div>
             )}
+            {/* ── Notice for unclaimed next step ── */}
+            {isUnclaimedNext && decision && (
+              <div
+                style={{
+                  padding: "0.75rem 1rem",
+                  background: "rgba(245,158,11,0.07)",
+                  border: "1px solid rgba(245,158,11,0.25)",
+                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "0.6rem",
+                }}
+              >
+                <span style={{ fontSize: "1rem", marginTop: "0.05rem" }}>
+                  🕓
+                </span>
+                <div>
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 700,
+                      color: "#b45309",
+                      marginBottom: "0.2rem",
+                    }}
+                  >
+                    UNCLAIMED
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      color: colors.textSecondary,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    No assignee needed. Each record will be placed in the{" "}
+                    <strong>{config.nextStep}</strong> Unclaimed tab, and any
+                    member of that group can claim it.
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ── Auto-detect notice for return decisions ── */}
             {isReturnDecision && decision && (
@@ -1723,8 +1785,11 @@ export function BulkDeckModal({
                   <strong style={{ color: "#b45309" }}>⚠ Note:</strong> This
                   will complete the current <strong>{config.fromLabel}</strong>{" "}
                   log for each selected record and create a new{" "}
-                  <strong>{config.nextStep}</strong> log assigned to the
-                  selected user. This action cannot be undone.
+                  <strong>{config.nextStep}</strong> log{" "}
+                  {isUnclaimedNext
+                    ? "in the Unclaimed tab for the group to claim"
+                    : "assigned to the selected user"}
+                  . This action cannot be undone.
                 </>
               )}
             </div>

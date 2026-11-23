@@ -9,6 +9,9 @@ export const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 // When one assignee completes the step, the sibling logs are auto-closed.
 export const MULTI_ASSIGNEE_STEPS = ["CDRR-OD Signature Facilitator"];
 
+// Next steps whose bulk-created logs are left unassigned for the step's group to claim.
+export const UNCLAIMED_NEXT_STEPS = ["OD-Receiving", "OD-Releasing"];
+
 export const DECISION_RESULT_OPTIONS = {
   "LRD Chief Admin": ["Signed"],
   "OD-Releasing": ["For issuance of CPR", "For issuance of LOD", "For issuance of Certificate",
