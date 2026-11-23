@@ -36,6 +36,7 @@ import {
   URGENCY_CONFIG,
   todayStr,
   countWorkingDays,
+  UNCLAIMED_NEXT_STEPS,
 } from "./constants";
 import { BulkCompleteModal } from "./BulkCompleteModal";
 import HowToUseModal, { useHowToUseGuide } from "./HowToUseModal";
@@ -483,11 +484,15 @@ function DataTable({
             "| user_id:",
             resolvedAssigneeId,
           );
-          const assigneeList = isReturnDecision
-            ? [resolvedAssignee]
-            : Array.isArray(assigneeUsername)
-              ? assigneeUsername
-              : [assigneeUsername];
+          const isUnclaimedNext =
+            !isReturnDecision && UNCLAIMED_NEXT_STEPS.includes(perRowNextStep);
+          const assigneeList = isUnclaimedNext
+            ? [null]
+            : isReturnDecision
+              ? [resolvedAssignee]
+              : Array.isArray(assigneeUsername)
+                ? assigneeUsername
+                : [assigneeUsername];
 
           for (let i = 0; i < assigneeList.length; i++) {
             const uname = assigneeList[i];
@@ -497,8 +502,10 @@ function DataTable({
               user_name: uname,
               user_id: isReturnDecision
                 ? resolvedAssigneeId
-                : resolveUserId(uname),
-              application_status: "IN PROGRESS",
+                : uname
+                  ? resolveUserId(uname)
+                  : null,
+              application_status: isUnclaimedNext ? "UNCLAIMED" : "IN PROGRESS",
               application_decision: "",
               start_date: formattedDateTime,
               accomplished_date: null,

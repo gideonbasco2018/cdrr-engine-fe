@@ -63,7 +63,7 @@ const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 /* Next steps that can be assigned to several users at once (either-one completes) */
 const MULTI_ASSIGNEE_STEPS = ["CDRR-OD Signature Facilitator"];
 /* Next steps whose log is created unassigned; any member of the step's group can claim it */
-const UNCLAIMED_STEPS = ["OD-Receiving"];
+const UNCLAIMED_STEPS = ["OD-Receiving", "OD-Releasing"];
 /* Log statuses that mean a step is still open for work */
 const ACTIVE_LOG_STATUSES = ["IN PROGRESS", "UNCLAIMED"];
 /* Parallel endorsement: S&E Supervisor + S&E Statistician */
