@@ -62,6 +62,10 @@ const OD_RELEASING_AUTHORITY_GROUP_ID = 7;
 
 /* Next steps that can be assigned to several users at once (either-one completes) */
 const MULTI_ASSIGNEE_STEPS = ["CDRR-OD Signature Facilitator"];
+/* Next steps whose log is created unassigned; any member of the step's group can claim it */
+const UNCLAIMED_STEPS = ["OD-Receiving"];
+/* Log statuses that mean a step is still open for work */
+const ACTIVE_LOG_STATUSES = ["IN PROGRESS", "UNCLAIMED"];
 /* Parallel endorsement: S&E Supervisor + S&E Statistician */
 const PARALLEL_SE_STATISTICIAN_DECISION =
   "Endorsed to S&E Supervisor and Statistician (Parallel)";
@@ -395,8 +399,12 @@ export function Step4ActionForm({
     formData.decision === PARALLEL_SUPERVISOR_DECISION;
   // Compliance keeps working while S&E evaluates, so it needs a deadline too
   const isComplianceParallel = currentStep === "Compliance" && isParallelSE;
+  const isUnclaimedNext = UNCLAIMED_STEPS.includes(nextStep);
   const needsAssignee =
-    nextStep !== null && !isForCompliance && !nextStepActive;
+    nextStep !== null &&
+    !isForCompliance &&
+    !nextStepActive &&
+    !isUnclaimedNext;
   const isMultiAssignee = MULTI_ASSIGNEE_STEPS.includes(nextStep);
   const hasAssignee = isMultiAssignee
     ? assignees.length > 0
@@ -480,7 +488,7 @@ export function Step4ActionForm({
           logs.some(
             (l) =>
               activeSteps.includes(l.application_step) &&
-              l.application_status === "IN PROGRESS",
+              ACTIVE_LOG_STATUSES.includes(l.application_status),
           ),
         );
       } catch {
@@ -802,13 +810,15 @@ export function Step4ActionForm({
           : `Your log will be completed. Parallel "S&E Supervisor" and "S&E Statistician" logs will be created for the assigned users.`
         : nextStepActive
           ? `Your log will be completed. An existing "${nextStep}" log is already in progress — no new log will be created.`
-          : isReturnToEvaluator && autoAssignee
-            ? `Your log will be completed and automatically returned to the previous ${formData.decision === "Returned to LRD" ? "LRD Chief Admin" : "evaluator"}: ${autoAssignee}.`
-            : nextStep
-              ? isMultiAssignee
-                ? `Your log will be completed and a new "${nextStep}" log will be created for each selected user. The first one to complete it will automatically close the others.`
-                : `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
-              : "Your log will be completed. This is the final step — no further assignment needed.";
+          : isUnclaimedNext
+            ? `Your log will be completed and an unassigned "${nextStep}" log will be placed in the Unclaimed tab. Any ${nextStep} group member can claim it.`
+            : isReturnToEvaluator && autoAssignee
+              ? `Your log will be completed and automatically returned to the previous ${formData.decision === "Returned to LRD" ? "LRD Chief Admin" : "evaluator"}: ${autoAssignee}.`
+              : nextStep
+                ? isMultiAssignee
+                  ? `Your log will be completed and a new "${nextStep}" log will be created for each selected user. The first one to complete it will automatically close the others.`
+                  : `Your log will be completed and a new "${nextStep}" log will be created for the assigned user.`
+                : "Your log will be completed. This is the final step — no further assignment needed.";
 
   console.log("🔍 entryType received:", entryType);
   console.log("🔍 record.entryType:", record.entryType);
@@ -1046,12 +1056,13 @@ export function Step4ActionForm({
         const nextStepAlreadyActive = logsArr.some(
           (l) =>
             activeSteps.includes(l.application_step) &&
-            l.application_status === "IN PROGRESS",
+            ACTIVE_LOG_STATUSES.includes(l.application_status),
         );
 
         if (!nextStepAlreadyActive) {
-          const targets =
-            isMultiAssignee && !isForCompliance && !isReturnToEvaluator
+          const targets = isUnclaimedNext
+            ? [{ name: null, id: null }]
+            : isMultiAssignee && !isForCompliance && !isReturnToEvaluator
               ? assignees.map((uname) => ({
                   name: uname,
                   id: resolveAssigneeId(uname),
@@ -1063,7 +1074,7 @@ export function Step4ActionForm({
               main_db_id: record.mainDbId,
               application_step: effectiveNextStep,
               user_name: targets[i].name,
-              application_status: "IN PROGRESS",
+              application_status: isUnclaimedNext ? "UNCLAIMED" : "IN PROGRESS",
               application_decision: "",
               application_remarks: "",
               start_date: formattedDateTime,

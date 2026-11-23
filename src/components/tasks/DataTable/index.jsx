@@ -15,11 +15,13 @@ import {
   createApplicationLog,
   getApplicationLogs,
   toggleStarApplicationLog,
+  claimApplicationLog,
 } from "../../../api/application-logs";
 
 import { updateUploadReport } from "../../../api/reports";
 
 import { BulkDeckModal } from "./BulkDeckModal";
+import { ClaimConfirmModal } from "./ClaimConfirmModal";
 import { renderCell } from "./renderCell";
 import {
   generateTransmittal,
@@ -53,6 +55,7 @@ function DataTable({
   onRowsPerPageChange,
   colors,
   activeTab,
+  isUnclaimedView = false,
   onRefresh,
   onClearSelections,
   indexOfFirstRow,
@@ -79,13 +82,17 @@ function DataTable({
 
   const [showTransmittalChoice, setShowTransmittalChoice] = useState(false);
   const [generatingTransmittal, setGeneratingTransmittal] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimIds, setClaimIds] = useState(null);
+  const [claimResult, setClaimResult] = useState(null);
 
   const isComplianceTab =
     activeTab === "Compliance" || activeTab === "PRSDD Compliance";
   const isRecordTab = activeTab === "Record";
 
   const bulkDeckConfig = BULK_DECK_CONFIG[activeTab] ?? null;
-  const showBulkDeckBtn = !!bulkDeckConfig && selectedRows.length > 0;
+  const showBulkDeckBtn =
+    !!bulkDeckConfig && selectedRows.length > 0 && !isUnclaimedView;
 
   const [starredIds, setStarredIds] = useState(
     () => new Set(data.filter((r) => r.is_starred === 1).map((r) => r.id)),
@@ -583,7 +590,46 @@ function DataTable({
 
     return { success, failed };
   };
+  /* ── Claim (Unclaimed view) ── */
+  // Opens the confirmation modal; nothing is claimed until the user confirms.
+  const handleClaim = (ids) => {
+    if (!ids.length || claiming) return;
+    setClaimResult(null);
+    setClaimIds(ids);
+  };
 
+  const runClaim = async () => {
+    if (!claimIds || claiming) return;
+    setClaiming(true);
+
+    const failures = [];
+    let success = 0;
+    for (const id of claimIds) {
+      try {
+        await claimApplicationLog(id);
+        success++;
+      } catch (e) {
+        const row = fullData.find((r) => r.id === id);
+        failures.push(`${row?.dtn ?? id}: ${e.message}`);
+      }
+    }
+
+    setClaiming(false);
+    setClaimResult({ success, failures });
+  };
+
+  // Refresh only after the result is dismissed, so the modal is not
+  // unmounted when the last unclaimed row disappears from the list.
+  const closeClaimModal = async () => {
+    if (claiming) return;
+    const hadResult = !!claimResult;
+    setClaimIds(null);
+    setClaimResult(null);
+    if (hadResult) {
+      if (onClearSelections) onClearSelections();
+      if (onRefresh) await onRefresh();
+    }
+  };
   /* ── Transmittal ── */
   const handleGenerateTransmittal = async (format = "both") => {
     if (!selectedRows.length) return;
@@ -981,6 +1027,24 @@ function DataTable({
               </button>
             )}
 
+            {/* Claim selected (Unclaimed view) */}
+            {isUnclaimedView && selectedRows.length > 0 && (
+              <button
+                onClick={() => handleClaim(selectedRows)}
+                disabled={claiming}
+                style={smallBtn({
+                  background: "linear-gradient(135deg,#f59e0b,#d97706)",
+                  boxShadow: "0 1px 4px rgba(245,158,11,0.3)",
+                  opacity: claiming ? 0.6 : 1,
+                  cursor: claiming ? "not-allowed" : "pointer",
+                })}
+              >
+                <span>🙋</span>
+                {claiming ? "Claiming..." : "Claim Selected"}
+                <span style={smallBadge}>{selectedRows.length}</span>
+              </button>
+            )}
+
             {/* Bulk Endorse / End Task */}
             {showBulkDeckBtn && (
               <button
@@ -1349,7 +1413,7 @@ function DataTable({
                     onMouseEnter={() => setHoveredRowId(row.id)}
                     onMouseLeave={() => setHoveredRowId(null)}
                     onDoubleClick={() => {
-                      if (!isRecordTab) openDetails(row);
+                      if (!isRecordTab && !isUnclaimedView) openDetails(row);
                     }}
                   >
                     <td
@@ -1663,7 +1727,22 @@ function DataTable({
                                 overflow: "hidden",
                               }}
                             >
+                              {isUnclaimedView &&
+                                menuBtn(
+                                  () => {
+                                    setOpenMenuId(null);
+                                    handleClaim([row.id]);
+                                  },
+                                  {
+                                    borderBottom: `1px solid ${colors.tableBorder}`,
+                                  },
+                                  [
+                                    <span key="i">🙋</span>,
+                                    <span key="t">Claim Task</span>,
+                                  ],
+                                )}
                               {!isRecordTab &&
+                                !isUnclaimedView &&
                                 menuBtn(
                                   () => openDetails(row),
                                   {
@@ -1923,6 +2002,19 @@ function DataTable({
             </button>
           </div>
         </div>
+      )}
+
+      {claimIds && (
+        <ClaimConfirmModal
+          dtns={claimIds.map(
+            (id) => fullData.find((r) => r.id === id)?.dtn ?? id,
+          )}
+          colors={colors}
+          claiming={claiming}
+          result={claimResult}
+          onConfirm={runClaim}
+          onClose={closeClaimModal}
+        />
       )}
       {showGuide && (
         <HowToUseModal

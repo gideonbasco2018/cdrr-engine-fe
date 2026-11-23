@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   getWorkflowTasks,
+  getUnclaimedTasks,
   markWorkflowTaskAsRead,
 } from "../api/workflow-tasks";
 import { getColorScheme } from "../components/tasks/ColorScheme";
@@ -155,6 +156,9 @@ function TaskPage({ darkMode }) {
   const [readIds, setReadIds] = useState(new Set());
   const [searchInput, setSearchInput] = useState("");
   const [allStepsData, setAllStepsData] = useState([]);
+  const [unclaimedData, setUnclaimedData] = useState([]);
+  const [claimableSteps, setClaimableSteps] = useState([]);
+  const [subTab, setSubTab] = useState("mine");
   // Applied filters — these drive fetching and filtering
   const [filters, setFilters] = useState({
     dtn: null,
@@ -183,7 +187,7 @@ function TaskPage({ darkMode }) {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters, activeTab]);
+  }, [filters, activeTab, subTab]);
 
   // Keep the draft in sync whenever the applied toolbar filters change
   // (chip removal, "Clear all", Quick Filters, etc.)
@@ -248,9 +252,26 @@ function TaskPage({ darkMode }) {
       const mapped = (res.data || []).map((t, i) => mapWorkflowTask(t, i));
       setAllStepsData(mapped);
 
-      const initialTab =
-        !activeTab && mapped.length ? mapped[0].applicationStep : activeTab;
-      if (!activeTab && mapped.length) setActiveTab(initialTab);
+      // Unassigned tasks this user may claim (based on group membership)
+      let claimable = [];
+      try {
+        const unclaimedRes = await getUnclaimedTasks();
+        claimable = unclaimedRes.claimable_steps || [];
+        setClaimableSteps(claimable);
+        setUnclaimedData(
+          (unclaimedRes.data || []).map((t, i) => mapWorkflowTask(t, i)),
+        );
+      } catch (e) {
+        console.error(e);
+        setClaimableSteps([]);
+        setUnclaimedData([]);
+      }
+
+      const firstStep = mapped.length
+        ? mapped[0].applicationStep
+        : claimable[0];
+      const initialTab = !activeTab && firstStep ? firstStep : activeTab;
+      if (!activeTab && firstStep) setActiveTab(initialTab);
 
       setLoadProgress(50);
 
@@ -398,13 +419,20 @@ function TaskPage({ darkMode }) {
 
   const handleTabChange = (step) => {
     setActiveTab(step);
+    setSubTab("mine");
     setSelectedRows([]);
   };
 
   // Tabs and counts — from allStepsData (unfiltered)
   const steps = useMemo(
-    () => Array.from(new Set(allStepsData.map((d) => d.applicationStep))),
-    [allStepsData],
+    () =>
+      Array.from(
+        new Set([
+          ...allStepsData.map((d) => d.applicationStep),
+          ...claimableSteps,
+        ]),
+      ),
+    [allStepsData, claimableSteps],
   );
   const stepCounts = useMemo(
     () =>
@@ -438,13 +466,35 @@ function TaskPage({ darkMode }) {
     [steps, allStepsData],
   );
 
-  // tabData — all tasks of the user for the active step (already filtered by step in the backend)
-  const tabData = useMemo(
+  const stepUnclaimedCounts = useMemo(
     () =>
-      filters.dtn ? data : data.filter((d) => d.applicationStep === activeTab),
-    [data, activeTab, filters.dtn],
+      steps.reduce((acc, step) => {
+        acc[step] = unclaimedData.filter(
+          (d) => d.applicationStep === step,
+        ).length;
+        return acc;
+      }, {}),
+    [steps, unclaimedData],
   );
 
+  const isClaimStep = claimableSteps.includes(activeTab);
+  const isUnclaimedView = isClaimStep && subTab === "unclaimed";
+
+  // tabData — all tasks of the user for the active step (already filtered by step in the backend)
+  const tabData = useMemo(() => {
+    if (isUnclaimedView) {
+      return unclaimedData.filter(
+        (d) =>
+          d.applicationStep === activeTab &&
+          (!filters.dtn ||
+            String(d.dtn) === String(filters.dtn) ||
+            String(d.oldRsn) === String(filters.dtn)),
+      );
+    }
+    return filters.dtn
+      ? data
+      : data.filter((d) => d.applicationStep === activeTab);
+  }, [data, unclaimedData, activeTab, filters.dtn, isUnclaimedView]);
   // The backend already handles appType, prescription, appStatus,
   // processingType, estCat, and search — only the filters below remain on the frontend.
   const filteredData = useMemo(() => {
@@ -561,7 +611,9 @@ function TaskPage({ darkMode }) {
     filters.lastModifiedTo ||
     filters.estCat;
 
-  const emptyLabel = "No pending tasks — all caught up!";
+  const emptyLabel = isUnclaimedView
+    ? "No unclaimed tasks right now."
+    : "No pending tasks — all caught up!";
   const emptyIcon = "✅";
 
   // Compact shared styles
@@ -646,6 +698,7 @@ function TaskPage({ darkMode }) {
               const count = stepCounts[step] ?? 0;
               const unread = stepUnreadCounts[step] ?? 0;
               const targeted = stepTargetedCounts[step] ?? 0;
+              const unclaimed = stepUnclaimedCounts[step] ?? 0;
               return (
                 <button
                   key={step}
@@ -715,6 +768,28 @@ function TaskPage({ darkMode }) {
                   >
                     {count}
                   </span>
+                  {unclaimed > 0 && (
+                    <span
+                      title={`${unclaimed} unclaimed task${unclaimed > 1 ? "s" : ""}`}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "2px",
+                        minWidth: "1.2rem",
+                        height: "1.2rem",
+                        padding: "0 0.35rem",
+                        borderRadius: "999px",
+                        fontSize: "0.65rem",
+                        fontWeight: 700,
+                        lineHeight: 1,
+                        background: "rgba(245,158,11,0.15)",
+                        border: "1px solid rgba(245,158,11,0.4)",
+                        color: "#f59e0b",
+                      }}
+                    >
+                      🕓 {unclaimed}
+                    </span>
+                  )}
                   {unread > 0 && (
                     <span
                       style={{
@@ -729,6 +804,68 @@ function TaskPage({ darkMode }) {
                       }}
                     />
                   )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {/* ── Sub-tabs (steps that have an Unclaimed queue) ── */}
+        {!loading && isClaimStep && (
+          <div style={{ display: "flex", gap: "0.4rem", flexShrink: 0 }}>
+            {[
+              {
+                key: "mine",
+                label: "My Tasks",
+                count: stepCounts[activeTab] ?? 0,
+                accent: "#2196F3",
+              },
+              {
+                key: "unclaimed",
+                label: "Unclaimed",
+                count: stepUnclaimedCounts[activeTab] ?? 0,
+                accent: "#f59e0b",
+              },
+            ].map(({ key, label, count, accent }) => {
+              const on = subTab === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setSubTab(key);
+                    setSelectedRows([]);
+                  }}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.35rem",
+                    padding: "0.25rem 0.75rem",
+                    borderRadius: 999,
+                    border: `1px solid ${on ? accent : colors.cardBorder}`,
+                    background: on ? `${accent}26` : "transparent",
+                    color: on ? accent : colors.textSecondary,
+                    fontSize: "0.7rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {label}
+                  <span
+                    style={{
+                      minWidth: "1.1rem",
+                      height: "1.1rem",
+                      padding: "0 0.3rem",
+                      borderRadius: 999,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "0.6rem",
+                      fontWeight: 700,
+                      background: on ? accent : colors.badgeBg,
+                      color: on ? "#fff" : colors.textSecondary,
+                    }}
+                  >
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -1327,6 +1464,7 @@ function TaskPage({ darkMode }) {
               colors={colors}
               darkMode={darkMode}
               activeTab={activeTab}
+              isUnclaimedView={isUnclaimedView}
               onRefresh={async () => {
                 await fetchAllSteps();
                 await fetchTasks();

@@ -125,3 +125,25 @@ export const getMyTaskCount = async () => {
     return { count: 0 };
   }
 };
+
+/**
+ * Get unassigned (UNCLAIMED) tasks the current user may claim.
+ * Also returns the steps the user can claim from, based on group membership.
+ *
+ * GET /api/workflow_tasks/unclaimed
+ *
+ * @returns {Promise<{claimable_steps: string[], total: number, data: Array}>}
+ */
+export const getUnclaimedTasks = async () => {
+  try {
+    const response = await API.get("/workflow_tasks/unclaimed");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching unclaimed tasks:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch unclaimed tasks";
+    throw new Error(errorMessage);
+  }
+};

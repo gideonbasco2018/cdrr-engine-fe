@@ -437,3 +437,26 @@ export const getHoverSummary = async (mainDbId) => {
     throw new Error(error.response?.data?.detail || error.message || "Failed to fetch hover summary");
   }
 };
+
+/**
+ * Claim an unassigned (UNCLAIMED) task.
+ * Only members of the step's group are allowed; the backend enforces this.
+ *
+ * PATCH /api/application-logs/{logId}/claim
+ *
+ * @param {number} logId
+ * @returns {Promise} - The claimed log (status IN PROGRESS, assigned to the caller)
+ */
+export const claimApplicationLog = async (logId) => {
+  try {
+    const response = await API.patch(`/application-logs/${logId}/claim`);
+    return response.data;
+  } catch (error) {
+    console.error("Error claiming application log:", error);
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to claim application log";
+    throw new Error(errorMessage);
+  }
+};
