@@ -22,6 +22,11 @@ export const getDashboardSummary = async (params = {}) => {
   return response.data;
 };
 
+export async function getDashboardInProgressByYear(params = {}) {
+  const { data } = await axios.get("/dashboard/stats/in-progress-by-year", { params });
+  return data;
+}
+
 export async function getDashboardChart(params = {}) {
   const { data } = await axios.get(`/dashboard/stats/chart`, { params });
   return data;

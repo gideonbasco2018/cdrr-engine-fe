@@ -26,6 +26,7 @@ import MetricDetailModal from "../../components/dashboard/MetricDetailModal";
 import RecentApplicationsModal from "../../components/dashboard/RecentApplicationsModal";
 import TargetModal from "../../components/dashboard/TargetModal";
 import UploadHistoryCard from "../../components/dashboard/UploadHistoryCard";
+import InProgressCard from "../../components/dashboard/InProgressCard";
 import InsightsSection, {
   ErrorToasts,
 } from "../../components/dashboard/InsightsSection";
@@ -205,6 +206,60 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
     [currentDateParams],
   );
 
+  const pad = (n) => String(n).padStart(2, "0");
+
+  // row label ("10", "Nov", "2026") -> { date_from, date_to }
+  const buildRowDateParams = useCallback(
+    (label) => {
+      if (breakdown === "day") {
+        const m = ALL_MONTHS.indexOf(selMonth) + 1;
+        const d = `${selYear}-${pad(m)}-${pad(label)}`;
+        return { date_from: d, date_to: d };
+      }
+      if (breakdown === "month") {
+        const m =
+          ALL_MONTHS.findIndex(
+            (x) =>
+              x.slice(0, 3).toLowerCase() ===
+              String(label).slice(0, 3).toLowerCase(),
+          ) + 1;
+        const last = new Date(Number(selYear), m, 0).getDate();
+        return {
+          date_from: `${selYear}-${pad(m)}-01`,
+          date_to: `${selYear}-${pad(m)}-${pad(last)}`,
+        };
+      }
+      // year
+      return { date_from: `${label}-01-01`, date_to: `${label}-12-31` };
+    },
+    [breakdown, selYear, selMonth],
+  );
+
+  // label === null -> Total row (full range)
+  const handleTableCellClick = useCallback(
+    (metricKey, label) => {
+      const m = metrics.find((x) => x.metricKey === metricKey);
+      if (!m) return;
+      setDetailModal({
+        metricKey,
+        metricLabel: m.label,
+        dateParams:
+          label == null ? currentDateParams : buildRowDateParams(label),
+      });
+    },
+    [metrics, currentDateParams, buildRowDateParams],
+  );
+
+  // year === null -> all in-progress
+  const handleInProgressClick = useCallback((year) => {
+    setDetailModal({
+      metricKey: "on_process",
+      metricLabel: "In Progress",
+      dateParams: {},
+      extraParams: year == null ? {} : { received_cent_year: year },
+    });
+  }, []);
+
   const handleDetailRowClick = useCallback(async (row) => {
     if (!row?.dtn) return;
     try {
@@ -271,6 +326,10 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
           donutTotals={donutTotals}
           chartSubtitle={chartSubtitle}
           chartLoading={chartLoading}
+          onTableCellClick={handleTableCellClick}
+          sideCard={
+            <InProgressCard ui={ui} onYearClick={handleInProgressClick} />
+          }
         />
 
         {/* Recent Applications | Upload History — side by side */}
@@ -311,6 +370,7 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
           metricKey={detailModal.metricKey}
           metricLabel={detailModal.metricLabel}
           dateParams={detailModal.dateParams}
+          baseParams={detailModal.extraParams}
           onClose={() => setDetailModal(null)}
           onRowClick={handleDetailRowClick}
           onViewLogs={(row) => setLogsModal({ dtn: row.dtn })}

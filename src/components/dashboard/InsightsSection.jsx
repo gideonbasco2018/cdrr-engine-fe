@@ -321,6 +321,8 @@ export default function InsightsSection({
   donutTotals,
   chartSubtitle,
   chartLoading,
+  onTableCellClick,
+  sideCard,
 }) {
   const selectStyle = {
     padding: "4px 24px 4px 10px",
@@ -518,17 +520,29 @@ export default function InsightsSection({
         <BreakdownCard totals={donutTotals ?? chartTotals} ui={ui} />
       </div>
 
-      {/* Row 3 — data table */}
-      <Card ui={ui}>
-        <DataTable
-          chartData={chartData}
-          chartTotals={chartTotals}
-          breakdown={breakdown}
-          chartSubtitle={chartSubtitle}
-          chartLoading={chartLoading}
-          ui={ui}
-        />
-      </Card>
+      {/* Row 3 — data table | side card */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns:
+            isMobile || !sideCard ? "1fr" : "minmax(0, 1fr) minmax(0, 1fr)",
+          gap: 16,
+          alignItems: "stretch",
+        }}
+      >
+        <Card ui={ui}>
+          <DataTable
+            chartData={chartData}
+            chartTotals={chartTotals}
+            breakdown={breakdown}
+            chartSubtitle={chartSubtitle}
+            chartLoading={chartLoading}
+            onTableCellClick={onTableCellClick}
+            ui={ui}
+          />
+        </Card>
+        {sideCard}
+      </div>
     </div>
   );
 }

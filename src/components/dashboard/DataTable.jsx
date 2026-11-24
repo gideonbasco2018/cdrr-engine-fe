@@ -1,12 +1,41 @@
 import { useState } from "react";
 import { FB } from "./constants";
 
+// Clickable number. 0 / empty is plain text so an empty modal never opens.
+function ClickableValue({ value, color, onClick, disabled }) {
+  const n = value ?? 0;
+  if (!n || disabled || !onClick) {
+    return <span style={{ color }}>{n.toLocaleString()}</span>;
+  }
+  return (
+    <button
+      onClick={onClick}
+      title="Click for details"
+      style={{
+        background: "none",
+        border: "none",
+        padding: 0,
+        color,
+        font: "inherit",
+        fontWeight: "inherit",
+        cursor: "pointer",
+        textDecoration: "underline",
+        textUnderlineOffset: 3,
+        textDecorationColor: `${color}66`,
+      }}
+    >
+      {n.toLocaleString()}
+    </button>
+  );
+}
+
 export default function DataTable({
   chartData,
   chartTotals,
   breakdown,
   chartSubtitle,
   chartLoading,
+  onTableCellClick, // (metricKey, label | null) => void
   ui,
 }) {
   const TABLE_PAGE_SIZE = 13;
@@ -96,9 +125,6 @@ export default function DataTable({
                   { label: colLabel, align: "left", color: null },
                   { label: "Total Received", align: "right", color: "#1877F2" },
                   { label: "Completed", align: "right", color: "#36a420" },
-                  { label: "On Process", align: "right", color: "#f59e0b" },
-                  { label: "Target", align: "right", color: "#9333ea" },
-                  { label: "Completed Rate", align: "right", color: "#9333ea" },
                 ].map((col, ci) => (
                   <th
                     key={ci}
@@ -121,7 +147,6 @@ export default function DataTable({
             </thead>
             <tbody>
               {pagedRows.map((row, ri) => {
-                const rateN = row.completedRate;
                 const isEven = ri % 2 === 0,
                   isLast = ri === pagedRows.length - 1;
                 const border = !isLast ? `1px solid ${ui.divider}` : "none";
@@ -164,12 +189,15 @@ export default function DataTable({
                       )}
                     </td>
                     {[
-                      { val: row.received, color: "#1877F2" },
-                      { val: row.completed, color: "#36a420" },
-                      { val: row.onProcess, color: "#f59e0b" },
-                    ].map((c, ci) => (
+                      { key: "received", val: row.received, color: "#1877F2" },
+                      {
+                        key: "completed",
+                        val: row.completed,
+                        color: "#36a420",
+                      },
+                    ].map((c) => (
                       <td
-                        key={ci}
+                        key={c.key}
                         style={{
                           padding: "7px 12px",
                           textAlign: "right",
@@ -178,62 +206,17 @@ export default function DataTable({
                           borderBottom: border,
                         }}
                       >
-                        {c.val.toLocaleString()}
+                        <ClickableValue
+                          value={c.val}
+                          color={c.color}
+                          onClick={
+                            onTableCellClick
+                              ? () => onTableCellClick(c.key, row.label)
+                              : undefined
+                          }
+                        />
                       </td>
                     ))}
-                    <td
-                      style={{
-                        padding: "7px 12px",
-                        textAlign: "right",
-                        color: "#9333ea",
-                        fontWeight: 700,
-                        borderBottom: border,
-                      }}
-                    >
-                      {row.target > 0 ? row.target.toLocaleString() : "—"}
-                    </td>
-                    <td
-                      style={{
-                        padding: "7px 12px",
-                        textAlign: "right",
-                        borderBottom: border,
-                      }}
-                    >
-                      {rateN !== null ? (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                            fontSize: "0.73rem",
-                            fontWeight: 700,
-                            padding: "2px 8px",
-                            borderRadius: 99,
-                            color:
-                              rateN >= 75
-                                ? "#36a420"
-                                : rateN >= 50
-                                  ? "#f59e0b"
-                                  : "#e02020",
-                            background:
-                              rateN >= 75
-                                ? "#e9f7e6"
-                                : rateN >= 50
-                                  ? "#fff8e7"
-                                  : "#fde8e8",
-                          }}
-                        >
-                          {rateN >= 75 ? "▲" : rateN >= 50 ? "~" : "▼"}{" "}
-                          {rateN.toFixed(1)}%
-                        </span>
-                      ) : (
-                        <span
-                          style={{ color: ui.textMuted, fontSize: "0.73rem" }}
-                        >
-                          —
-                        </span>
-                      )}
-                    </td>
                   </tr>
                 );
               })}
@@ -256,13 +239,19 @@ export default function DataTable({
                   Total
                 </td>
                 {[
-                  { val: chartTotals.received, color: "#1877F2" },
-                  { val: chartTotals.completed, color: "#36a420" },
-                  { val: chartTotals.onProcess, color: "#f59e0b" },
-                  { val: chartTotals.target, color: "#9333ea" },
-                ].map((c, ci) => (
+                  {
+                    key: "received",
+                    val: chartTotals.received,
+                    color: "#1877F2",
+                  },
+                  {
+                    key: "completed",
+                    val: chartTotals.completed,
+                    color: "#36a420",
+                  },
+                ].map((c) => (
                   <td
-                    key={ci}
+                    key={c.key}
                     style={{
                       padding: "8px 12px",
                       textAlign: "right",
@@ -271,48 +260,43 @@ export default function DataTable({
                       fontSize: "0.82rem",
                     }}
                   >
-                    {(c.val ?? 0).toLocaleString()}
+                    <ClickableValue
+                      value={c.val}
+                      color={c.color}
+                      onClick={
+                        onTableCellClick
+                          ? () => onTableCellClick(c.key, null)
+                          : undefined
+                      }
+                    />
                   </td>
                 ))}
-                {(() => {
-                  const n = chartTotals.completedRate;
-                  return (
-                    <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                      {n !== null ? (
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                            fontSize: "0.75rem",
-                            fontWeight: 800,
-                            padding: "2px 8px",
-                            borderRadius: 99,
-                            color:
-                              n >= 75
-                                ? "#36a420"
-                                : n >= 50
-                                  ? "#f59e0b"
-                                  : "#e02020",
-                            background:
-                              n >= 75
-                                ? "#e9f7e6"
-                                : n >= 50
-                                  ? "#fff8e7"
-                                  : "#fde8e8",
-                          }}
-                        >
-                          {n >= 75 ? "▲" : n >= 50 ? "~" : "▼"} {n.toFixed(1)}%
-                        </span>
-                      ) : (
-                        <span style={{ color: ui.textMuted }}>—</span>
-                      )}
-                    </td>
-                  );
-                })()}
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+
+      {!chartLoading && (
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            fontSize: "0.72rem",
+            color: ui.textMuted,
+            lineHeight: 1.4,
+          }}
+        >
+          <span>
+            <strong style={{ color: "#1877F2" }}>Total Received</strong>: tasks
+            assigned to you on that date.
+          </span>
+          <span>
+            <strong style={{ color: "#36a420" }}>Completed</strong>: tasks you
+            finished on that date, even if they were received earlier.
+          </span>
         </div>
       )}
 
