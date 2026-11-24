@@ -133,6 +133,7 @@ function DrilldownModal({
           unitId: isUnit ? drill.unitId : undefined,
           memberUserId: isUnit ? undefined : drill.memberId,
           year: drill.year || undefined,
+          appType: drill.appType || undefined,
         });
         if (!cancelled) setSteps(data || []);
       } catch (err) {
@@ -158,6 +159,7 @@ function DrilldownModal({
           pageSize,
           dtn: debouncedSearch,
           step: stepFilter || undefined,
+          appType: drill.appType || undefined,
           dateFrom: drill.year ? `${drill.year}-01-01` : undefined,
           dateTo: drill.year ? `${drill.year}-12-31` : undefined,
           sortBy: "date_received_center",
@@ -185,6 +187,7 @@ function DrilldownModal({
   const subtitle = [
     isUnit ? "Unit" : drill.unitName,
     drill.year ? `Received ${drill.year}` : "All years",
+    drill.appType ? `App type: ${drill.appType}` : null,
     stepFilter ? `Step: ${stepFilter}` : null,
   ]
     .filter(Boolean)
@@ -696,6 +699,7 @@ export default function InProgressByYearView({ darkMode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [unitFilter, setUnitFilter] = useState("");
+  const [appTypeFilter, setAppTypeFilter] = useState("");
   const [exporting, setExporting] = useState(false);
   const [drill, setDrill] = useState(null);
 
@@ -758,7 +762,7 @@ export default function InProgressByYearView({ darkMode }) {
     setLoading(true);
     setError(null);
     try {
-      setMatrix(await getInProgressYearMatrix());
+      setMatrix(await getInProgressYearMatrix(appTypeFilter));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -766,17 +770,27 @@ export default function InProgressByYearView({ darkMode }) {
     }
   };
 
+  // reload whenever the app type filter changes
   useEffect(() => {
     load();
-  }, []);
+  }, [appTypeFilter]);
 
   const years = matrix?.years || [];
   const visibleUnits = useMemo(() => {
-    const all = matrix?.units || [];
-    return unitFilter
-      ? all.filter((u) => String(u.unit_id) === unitFilter)
-      : all;
-  }, [matrix, unitFilter]);
+    let list = matrix?.units || [];
+    if (unitFilter) list = list.filter((u) => String(u.unit_id) === unitFilter);
+    if (!appTypeFilter) return list;
+    // with an app type selected, hide units/members that have nothing
+    return list
+      .filter((u) => u.total > 0)
+      .map((u) => ({
+        ...u,
+        members: u.members.filter(
+          (m) =>
+            m.total > 0 || (isSEUnit(u) && roleOf(m).includes("supervisor")),
+        ),
+      }));
+  }, [matrix, unitFilter, appTypeFilter]);
 
   // Only show the "No date" column if at least one row needs it
   const hasNoDate = visibleUnits.some((u) => u.no_date > 0);
@@ -809,7 +823,11 @@ export default function InProgressByYearView({ darkMode }) {
       });
 
       doc.setFontSize(14);
-      doc.text("In Progress - Received by Center", 40, 40);
+      doc.text(
+        `In Progress - Received by Center${appTypeFilter ? ` (${appTypeFilter})` : ""}`,
+        40,
+        40,
+      );
       doc.setFontSize(9);
       doc.setTextColor(110);
       doc.text(
@@ -918,8 +936,11 @@ export default function InProgressByYearView({ darkMode }) {
       const unitLabel = unitFilter
         ? (visibleUnits[0]?.unit_name || "unit").replace(/[^\w]+/g, "_")
         : "all_units";
+      const typeLabel = appTypeFilter
+        ? `_${appTypeFilter.replace(/[^\w]+/g, "_")}`
+        : "";
       doc.save(
-        `in_progress_by_year_${unitLabel}_${new Date().toISOString().slice(0, 10)}.pdf`,
+        `in_progress_by_year_${unitLabel}${typeLabel}_${new Date().toISOString().slice(0, 10)}.pdf`,
       );
     } catch (err) {
       console.error("PDF export failed:", err);
@@ -1025,6 +1046,22 @@ export default function InProgressByYearView({ darkMode }) {
               </option>
             ))}
           </select>
+          <select
+            value={appTypeFilter}
+            onChange={(e) => setAppTypeFilter(e.target.value)}
+            style={{
+              ...btn,
+              background: colors.cardBg,
+              color: colors.textPrimary,
+            }}
+          >
+            <option value="">All app types</option>
+            {(matrix?.app_types || []).map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
           <button onClick={load} disabled={loading} style={btn}>
             {loading ? "Refreshing…" : "↻ Refresh"}
           </button>
@@ -1111,7 +1148,7 @@ export default function InProgressByYearView({ darkMode }) {
                   td={td}
                   num={num}
                   colors={colors}
-                  onDrill={setDrill}
+                  onDrill={(d) => setDrill({ ...d, appType: appTypeFilter })}
                 />
               ))}
             </tbody>
