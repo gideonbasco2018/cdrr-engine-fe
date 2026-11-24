@@ -66,19 +66,21 @@ function useDebouncedValue(value, delayMs = 350) {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
-// Safety & Efficacy unit: only plain "S&E" members get their own row;
-// the supervisors' names are listed under the unit name instead.
+// Every unit: supervisors are NOT given a member row; their names are
+// listed under the unit name instead. The Safety & Efficacy unit is
+// stricter: only plain "S&E" members get a row (statisticians hidden too).
 const isSEUnit = (unit) => /safety\s*&\s*efficacy/i.test(unit.unit_name || "");
 const roleOf = (m) => (m.lead_role || "").trim().toLowerCase();
+const isSupervisor = (m) => roleOf(m).includes("supervisor");
 
 function splitUnitMembers(unit) {
-  if (!isSEUnit(unit)) return { rows: unit.members, supervisors: [] };
-  const rows = unit.members.filter((m) => roleOf(m) === "s&e");
-  // safety net: if no member has the plain "S&E" role, show everyone
+  const supervisors = unit.members.filter(isSupervisor);
+  const rows = isSEUnit(unit)
+    ? unit.members.filter((m) => roleOf(m) === "s&e")
+    : unit.members.filter((m) => !isSupervisor(m));
+  // safety net: if nobody is left for the rows (e.g. a unit with only a
+  // supervisor), show everyone so the unit never renders empty
   if (rows.length === 0) return { rows: unit.members, supervisors: [] };
-  const supervisors = unit.members.filter((m) =>
-    roleOf(m).includes("supervisor"),
-  );
   return { rows, supervisors };
 }
 // ══════════════════════════════════════════════════════════════════
@@ -785,10 +787,7 @@ export default function InProgressByYearView({ darkMode }) {
       .filter((u) => u.total > 0)
       .map((u) => ({
         ...u,
-        members: u.members.filter(
-          (m) =>
-            m.total > 0 || (isSEUnit(u) && roleOf(m).includes("supervisor")),
-        ),
+        members: u.members.filter((m) => m.total > 0 || isSupervisor(m)),
       }));
   }, [matrix, unitFilter, appTypeFilter]);
 
