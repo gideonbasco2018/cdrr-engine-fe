@@ -483,15 +483,19 @@ function TaskPage({ darkMode }) {
   // tabData — all tasks of the user for the active step (already filtered by step in the backend)
   const tabData = useMemo(() => {
     if (isUnclaimedView) {
+      const dtnList = filters.dtn ? String(filters.dtn).split(",") : null;
       return unclaimedData.filter(
         (d) =>
           d.applicationStep === activeTab &&
-          (!filters.dtn ||
-            String(d.dtn) === String(filters.dtn) ||
-            String(d.oldRsn) === String(filters.dtn)),
+          (!dtnList ||
+            dtnList.includes(String(d.dtn)) ||
+            dtnList.includes(String(d.oldRsn))),
       );
     }
-    return filters.dtn
+    // A single DTN shows its record regardless of step (the tab auto-switches).
+    // Multiple DTNs stay scoped to the active tab so bulk actions never mix steps.
+    const isMultiDtn = !!filters.dtn && String(filters.dtn).includes(",");
+    return filters.dtn && !isMultiDtn
       ? data
       : data.filter((d) => d.applicationStep === activeTab);
   }, [data, unclaimedData, activeTab, filters.dtn, isUnclaimedView]);
@@ -1287,7 +1291,11 @@ function TaskPage({ darkMode }) {
             </span>
             {filters.dtn && (
               <Chip
-                label={`DTN: ${filters.dtn}`}
+                label={
+                  String(filters.dtn).includes(",")
+                    ? `DTNs: ${String(filters.dtn).split(",").length} selected`
+                    : `DTN: ${filters.dtn}`
+                }
                 onRemove={() => {
                   setSearchInput("");
                   setFilters({ ...filters, dtn: null });

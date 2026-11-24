@@ -131,6 +131,64 @@ export const getAllTeamsMemberInProgressTasks = async (
 };
 
 // ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/all-teams/{memberUserId}/tasks/completed
+// Monitoring — tasks the member COMPLETED in the last `days` days (default 7),
+// plus daily_counts for the day chips. Read-only.
+// ─────────────────────────────────────────────
+export const getAllTeamsMemberCompletedTasks = async (
+  memberUserId,
+  {
+    page = 1,
+    pageSize = 20,
+    days = 7,
+    dtn,
+    dateFrom,
+    dateTo,
+    completedFrom,
+    completedTo,
+    step,
+    appType,
+    productClass,
+    processingType,
+    entryType,
+    sortBy,
+    sortDir,
+  } = {}
+) => {
+  try {
+    const response = await API.get(
+      `/target_assignments/lead-assignments/all-teams/${memberUserId}/tasks/completed`,
+      {
+        params: {
+          page,
+          page_size: pageSize,
+          days,
+          dtn: dtn || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          completed_from: completedFrom || undefined,
+          completed_to: completedTo || undefined,
+          step: step || undefined,
+          app_type: appType || undefined,
+          product_class: productClass || undefined,
+          processing_type: processingType || undefined,
+          entry_type: entryType || undefined,
+          sort_by: sortBy || undefined,
+          sort_dir: sortDir || undefined,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch completed tasks";
+    throw new Error(errorMessage);
+  }
+};
+
+// ─────────────────────────────────────────────
 // POST /api/target_assignments/target-assignments
 // Marks a task (application_log) as target, with a target date range
 // ─────────────────────────────────────────────
@@ -397,6 +455,26 @@ export const getUnitInProgressSummaryByMember = async (unitId, groupBy, label) =
       error.response?.data?.detail ||
       error.message ||
       "Failed to fetch member breakdown";
+    throw new Error(errorMessage);
+  }
+};
+
+
+// ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/all-teams/in-progress-by-year
+// Monitoring — in-progress counts per Unit → Member × Year received. Read-only.
+// ─────────────────────────────────────────────
+export const getInProgressYearMatrix = async () => {
+  try {
+    const response = await API.get(
+      "/target_assignments/lead-assignments/all-teams/in-progress-by-year"
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch in-progress matrix";
     throw new Error(errorMessage);
   }
 };

@@ -13,6 +13,7 @@ import FRPTatView from "../components/monitoring/frpTat/FRPTatView";
 import ProcessingTrendView from "../components/monitoring/processingTrend/ProcessingTrendView";
 import FRPMonitoringView from "../components/monitoring/frpMonitoring/FRPMonitoringView";
 import TeamOverviewView from "../components/monitoring/teamOverview/TeamOverviewView";
+import InProgressByYearView from "../components/monitoring/teamOverview/InProgressByYearView";
 import GMPMonitoringAnalyticsView from "../components/gmp/dashboard/GMPMonitoringAnalyticsView";
 import PriorityMedsView from "../components/monitoring/priorityMeds/PriorityMedsView";
 import ClidpEservicesView from "../components/monitoring/clidpEservices/ClidpEservicesView";
@@ -1045,6 +1046,8 @@ function renderContent(
       return <ProcessingTrendView ui={ui} darkMode={darkMode} />;
     case "teamoverview":
       return <TeamOverviewView darkMode={darkMode} />;
+    case "inprogressbyyear":
+      return <InProgressByYearView darkMode={darkMode} />;
     case "topcompanies":
       return <TopCompaniesView ui={ui} darkMode={darkMode} />;
     case "fastestprocessing":
@@ -1322,6 +1325,12 @@ function MonitoringPage({ darkMode }) {
       group: "tracking",
       label: "Team Overview",
       subtitle: "Diagram & target table",
+    },
+    {
+      key: "inprogressbyyear",
+      group: "tracking",
+      label: "In Progress by Year",
+      subtitle: "Unit & member per year received",
     },
     {
       key: "genericdrugs",
