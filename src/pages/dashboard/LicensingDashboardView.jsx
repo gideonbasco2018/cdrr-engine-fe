@@ -254,12 +254,13 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
   );
 
   // year === null -> all in-progress
-  const handleInProgressClick = useCallback((year) => {
+  const handleInProgressClick = useCallback((year, step) => {
     setDetailModal({
       metricKey: "on_process",
-      metricLabel: "In Progress",
+      metricLabel: step ? `In Progress · ${step}` : "In Progress",
       dateParams: {},
       extraParams: year == null ? {} : { received_cent_year: year },
+      initialStep: step || "",
     });
   }, []);
 
@@ -374,6 +375,7 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
           metricLabel={detailModal.metricLabel}
           dateParams={detailModal.dateParams}
           baseParams={detailModal.extraParams}
+          initialStep={detailModal.initialStep}
           onClose={() => setDetailModal(null)}
           onRowClick={handleDetailRowClick}
           onViewLogs={(row) => setLogsModal({ dtn: row.dtn })}

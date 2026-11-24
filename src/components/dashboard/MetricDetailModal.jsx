@@ -30,6 +30,7 @@ export default function MetricDetailModal({
   metricLabel,
   dateParams,
   baseParams = NO_PARAMS,
+  initialStep = "",
   onClose,
   onRowClick,
   onViewLogs,
@@ -54,11 +55,11 @@ export default function MetricDetailModal({
   // ── Filters ───────────────────────────────────────────────────────────────
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
-  const [filterStep, setFilterStep] = useState("");
+  const [filterStep, setFilterStep] = useState(initialStep);
   const [filterDtn, setFilterDtn] = useState("");
   const [appliedFrom, setAppliedFrom] = useState("");
   const [appliedTo, setAppliedTo] = useState("");
-  const [appliedStep, setAppliedStep] = useState("");
+  const [appliedStep, setAppliedStep] = useState(initialStep);
   const [appliedDtn, setAppliedDtn] = useState("");
 
   const hasActiveDateFilter = appliedFrom || appliedTo;
@@ -620,11 +621,35 @@ export default function MetricDetailModal({
                 "OD-Receiving",
                 "OD-Releasing",
                 "Releasing Officer",
-              ].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
+              ]
+                .concat(
+                  [initialStep, appliedStep].filter(
+                    (s, i, arr) =>
+                      s &&
+                      arr.indexOf(s) === i &&
+                      ![
+                        "Quality Evaluation",
+                        "Decking",
+                        "Decking LRD",
+                        "S&E",
+                        "S&E Checker",
+                        "S&E Supervisor",
+                        "Compliance",
+                        "Checking",
+                        "Supervisor",
+                        "QA Admin",
+                        "LRD Chief Admin",
+                        "OD-Receiving",
+                        "OD-Releasing",
+                        "Releasing Officer",
+                      ].includes(s),
+                  ),
+                )
+                .map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
             </select>
           </div>
 

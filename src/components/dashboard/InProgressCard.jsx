@@ -13,7 +13,9 @@ const YEAR_COLORS = [
   "#ef4444",
   "#84cc16",
 ];
+const NO_STEP = "No step";
 
+// onYearClick(year | null, step | undefined)
 export default function InProgressCard({ ui, onYearClick }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,7 @@ export default function InProgressCard({ ui, onYearClick }) {
           <div
             style={{
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-start",
               gap: 24,
               flexWrap: "wrap",
             }}
@@ -178,15 +180,15 @@ export default function InProgressCard({ ui, onYearClick }) {
               </text>
             </svg>
 
-            {/* Legend */}
+            {/* Legend: year rows with a per-step breakdown underneath */}
             <div
               style={{
                 flex: 1,
-                minWidth: 180,
+                minWidth: 220,
                 display: "flex",
                 flexDirection: "column",
-                gap: 2,
-                maxHeight: 190,
+                gap: 10,
+                maxHeight: 360,
                 overflowY: "auto",
               }}
             >
@@ -194,45 +196,87 @@ export default function InProgressCard({ ui, onYearClick }) {
                 const color = YEAR_COLORS[i % YEAR_COLORS.length];
                 const pct = ((y.count / total) * 100).toFixed(1);
                 return (
-                  <div
-                    key={y.year}
-                    onClick={() => onYearClick?.(y.year)}
-                    onMouseEnter={() => setHover(y.year)}
-                    onMouseLeave={() => setHover(null)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      padding: "7px 8px",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      fontSize: "0.82rem",
-                      background: hover === y.year ? ui.hoverBg : "transparent",
-                    }}
-                  >
-                    <span
+                  <div key={y.year}>
+                    <div
+                      onClick={() => onYearClick?.(y.year)}
+                      onMouseEnter={() => setHover(y.year)}
+                      onMouseLeave={() => setHover(null)}
                       style={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: 3,
-                        background: color,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span style={{ color: ui.textSub, flex: 1 }}>{y.year}</span>
-                    <span style={{ color, fontWeight: 700 }}>
-                      {y.count.toLocaleString()}
-                    </span>
-                    <span
-                      style={{
-                        color: ui.textMuted,
-                        fontSize: "0.72rem",
-                        minWidth: 44,
-                        textAlign: "right",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "6px 8px",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: "0.84rem",
+                        fontWeight: 700,
+                        background:
+                          hover === y.year ? ui.hoverBg : "transparent",
                       }}
                     >
-                      {pct}%
-                    </span>
+                      <span
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 3,
+                          background: color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ color: ui.textPrimary, flex: 1 }}>
+                        {y.year}
+                      </span>
+                      <span style={{ color }}>{y.count.toLocaleString()}</span>
+                      <span
+                        style={{
+                          color: ui.textMuted,
+                          fontSize: "0.72rem",
+                          fontWeight: 400,
+                          minWidth: 44,
+                          textAlign: "right",
+                        }}
+                      >
+                        {pct}%
+                      </span>
+                    </div>
+
+                    {(y.steps ?? []).map((s) => {
+                      const clickable = s.step !== NO_STEP;
+                      return (
+                        <div
+                          key={s.step}
+                          onClick={() =>
+                            clickable && onYearClick?.(y.year, s.step)
+                          }
+                          onMouseEnter={(e) => {
+                            setHover(y.year);
+                            if (clickable)
+                              e.currentTarget.style.background = ui.hoverBg;
+                          }}
+                          onMouseLeave={(e) => {
+                            setHover(null);
+                            e.currentTarget.style.background = "transparent";
+                          }}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 10,
+                            padding: "3px 8px 3px 28px",
+                            borderRadius: 6,
+                            cursor: clickable ? "pointer" : "default",
+                            fontSize: "0.78rem",
+                          }}
+                        >
+                          <span style={{ color: ui.textSub }}>{s.step}</span>
+                          <span
+                            style={{ color: ui.textPrimary, fontWeight: 600 }}
+                          >
+                            {s.count.toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
