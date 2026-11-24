@@ -240,6 +240,9 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
     (metricKey, label) => {
       const m = metrics.find((x) => x.metricKey === metricKey);
       if (!m) return;
+      // Rows without a valid date bucket (e.g. "No date") cannot be drilled into
+      if (label != null && breakdown === "year" && !/^\d{4}$/.test(label))
+        return;
       setDetailModal({
         metricKey,
         metricLabel: m.label,
@@ -247,7 +250,7 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
           label == null ? currentDateParams : buildRowDateParams(label),
       });
     },
-    [metrics, currentDateParams, buildRowDateParams],
+    [metrics, breakdown, currentDateParams, buildRowDateParams],
   );
 
   // year === null -> all in-progress
