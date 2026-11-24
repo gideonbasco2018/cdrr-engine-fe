@@ -12,6 +12,7 @@ import {
   getInProgressYearMatrix,
   getAllTeamsMemberInProgressTasks,
   getUnitInProgressTasks,
+  getInProgressStepSummary,
 } from "../../../api/targetAssignments";
 import { getUploadReports } from "../../../api/reports.js";
 import { mapDataItem } from "../../reports/utils.js";
@@ -97,6 +98,7 @@ function DrilldownModal({
 }) {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
+  const [stepFilter, setStepFilter] = useState(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [rows, setRows] = useState([]);
@@ -104,6 +106,11 @@ function DrilldownModal({
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Step summary (side panel) — depends only on the clicked scope/year
+  const [steps, setSteps] = useState([]);
+  const [stepsLoading, setStepsLoading] = useState(true);
+  const [stepsError, setStepsError] = useState(null);
 
   const isUnit = drill.scope === "unit";
 
@@ -115,6 +122,31 @@ function DrilldownModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose, suspendKeys]);
 
+  // ── Step summary ──
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setStepsLoading(true);
+      setStepsError(null);
+      try {
+        const data = await getInProgressStepSummary({
+          unitId: isUnit ? drill.unitId : undefined,
+          memberUserId: isUnit ? undefined : drill.memberId,
+          year: drill.year || undefined,
+        });
+        if (!cancelled) setSteps(data || []);
+      } catch (err) {
+        if (!cancelled) setStepsError(err.message);
+      } finally {
+        if (!cancelled) setStepsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [drill, isUnit]);
+
+  // ── Task list ──
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -125,6 +157,7 @@ function DrilldownModal({
           page,
           pageSize,
           dtn: debouncedSearch,
+          step: stepFilter || undefined,
           dateFrom: drill.year ? `${drill.year}-01-01` : undefined,
           dateTo: drill.year ? `${drill.year}-12-31` : undefined,
           sortBy: "date_received_center",
@@ -146,13 +179,19 @@ function DrilldownModal({
     return () => {
       cancelled = true;
     };
-  }, [drill, isUnit, page, pageSize, debouncedSearch]);
+  }, [drill, isUnit, page, pageSize, debouncedSearch, stepFilter]);
 
   const title = isUnit ? drill.unitName : drill.memberName;
   const subtitle = [
     isUnit ? "Unit" : drill.unitName,
     drill.year ? `Received ${drill.year}` : "All years",
-  ].join(" · ");
+    stepFilter ? `Step: ${stepFilter}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const stepsTotal = steps.reduce((s, x) => s + x.count, 0);
+  const stepsMax = steps[0]?.count || 0;
 
   const cell = { padding: "8px 12px", color: colors.textSecondary };
   const actionBtn = {
@@ -198,7 +237,7 @@ function DrilldownModal({
           background: colors.cardBg,
           border: `1px solid ${colors.cardBorder}`,
           borderRadius: 12,
-          width: 1100,
+          width: 1400,
           maxWidth: "96vw",
           maxHeight: "85vh",
           display: "flex",
@@ -281,148 +320,292 @@ function DrilldownModal({
           </div>
         )}
 
-        {/* Table */}
-        <div style={{ flex: 1, overflow: "auto" }}>
-          {loading && rows.length === 0 ? (
-            <div
-              style={{
-                padding: "1.5rem",
-                textAlign: "center",
-                color: colors.textTertiary,
-                fontSize: "0.82rem",
-              }}
-            >
-              Loading tasks…
-            </div>
-          ) : (
-            <div
-              style={{
-                opacity: loading ? 0.5 : 1,
-                transition: "opacity 0.15s",
-              }}
-            >
-              <table
+        {/* Body: task table (left) + step summary (right) */}
+        <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+          <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
+            {loading && rows.length === 0 ? (
+              <div
                 style={{
-                  width: "100%",
-                  borderCollapse: "collapse",
-                  fontSize: "0.8rem",
+                  padding: "1.5rem",
+                  textAlign: "center",
+                  color: colors.textTertiary,
+                  fontSize: "0.82rem",
                 }}
               >
-                <thead>
-                  <tr
+                Loading tasks…
+              </div>
+            ) : (
+              <div
+                style={{
+                  opacity: loading ? 0.5 : 1,
+                  transition: "opacity 0.15s",
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    fontSize: "0.8rem",
+                  }}
+                >
+                  <thead>
+                    <tr
+                      style={{
+                        background: colors.rowHover,
+                        textAlign: "left",
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 1,
+                      }}
+                    >
+                      {[
+                        ...(isUnit ? ["Member"] : []),
+                        "DTN",
+                        "Date Received Central",
+                        "Product Class",
+                        "App Type",
+                        "Processing Type",
+                        "Step",
+                        "Status",
+                        "Actions",
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          style={{
+                            padding: "8px 12px",
+                            whiteSpace: "nowrap",
+                            color: colors.textPrimary,
+                          }}
+                        >
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((t) => (
+                      <tr
+                        key={t.log_id}
+                        style={{ borderTop: `1px solid ${colors.cardBorder}` }}
+                      >
+                        {isUnit && <td style={cell}>{t.member_name}</td>}
+                        <td style={{ padding: "8px 12px", fontWeight: 600 }}>
+                          <button
+                            type="button"
+                            onClick={() => onDoctrack && onDoctrack(t)}
+                            title="Open Doctrack"
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              padding: 0,
+                              font: "inherit",
+                              fontWeight: 600,
+                              color: colors.selectedBorder,
+                              cursor: "pointer",
+                              textDecoration: "underline",
+                            }}
+                          >
+                            {t.dtn}
+                          </button>
+                          <div
+                            style={{
+                              fontSize: "0.7rem",
+                              fontWeight: 400,
+                              color: colors.textSecondary,
+                            }}
+                          >
+                            {t.brand_name}
+                          </div>
+                        </td>
+                        <td style={cell}>{t.date_received_center || "—"}</td>
+                        <td style={cell}>{t.prod_class_prescrip || "—"}</td>
+                        <td style={cell}>{t.app_type || "—"}</td>
+                        <td style={cell}>{t.processing_type || "—"}</td>
+                        <td style={cell}>{t.step || "—"}</td>
+                        <td style={cell}>{t.status || "—"}</td>
+                        <td
+                          style={{ padding: "8px 12px", whiteSpace: "nowrap" }}
+                        >
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => onDetails && onDetails(t)}
+                              title="View Details"
+                              style={actionBtn}
+                            >
+                              👁 Details
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onLogs && onLogs(t)}
+                              title="View Application Logs"
+                              style={actionBtn}
+                            >
+                              📋 Logs
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {rows.length === 0 && !loading && (
+                      <tr>
+                        <td
+                          colSpan={isUnit ? 9 : 8}
+                          style={{
+                            padding: "1.25rem",
+                            textAlign: "center",
+                            color: colors.textTertiary,
+                          }}
+                        >
+                          No tasks found.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Step summary panel */}
+          <aside
+            style={{
+              width: 250,
+              flexShrink: 0,
+              overflowY: "auto",
+              borderLeft: `1px solid ${colors.cardBorder}`,
+              padding: "0.8rem 0.9rem",
+              background: colors.pageBg,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "baseline",
+                marginBottom: "0.6rem",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "0.68rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.03em",
+                  color: colors.textTertiary,
+                }}
+              >
+                By step
+              </span>
+              <span
+                style={{
+                  fontSize: "0.72rem",
+                  fontWeight: 700,
+                  color: colors.textPrimary,
+                }}
+              >
+                {stepsTotal} total
+              </span>
+            </div>
+
+            {stepsLoading && steps.length === 0 && (
+              <div style={{ fontSize: "0.74rem", color: colors.textTertiary }}>
+                Loading…
+              </div>
+            )}
+            {stepsError && (
+              <div style={{ fontSize: "0.74rem", color: "#dc2626" }}>
+                ⚠️ {stepsError}
+              </div>
+            )}
+            {!stepsLoading && !stepsError && steps.length === 0 && (
+              <div style={{ fontSize: "0.74rem", color: colors.textTertiary }}>
+                No in-progress tasks.
+              </div>
+            )}
+
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.3rem",
+              }}
+            >
+              {steps.map((s) => {
+                const active = stepFilter === s.label;
+                const pct = stepsMax
+                  ? Math.round((s.count / stepsMax) * 100)
+                  : 0;
+                return (
+                  <div
+                    key={s.label}
+                    onClick={() => {
+                      setStepFilter(active ? null : s.label);
+                      setPage(1);
+                    }}
+                    title="Click to filter the table"
                     style={{
-                      background: colors.rowHover,
-                      textAlign: "left",
-                      position: "sticky",
-                      top: 0,
-                      zIndex: 1,
+                      cursor: "pointer",
+                      padding: "4px 6px",
+                      borderRadius: 6,
+                      border: `1px solid ${
+                        active ? colors.selectedBorder : "transparent"
+                      }`,
+                      background: active
+                        ? "rgba(59,130,246,0.12)"
+                        : "transparent",
                     }}
                   >
-                    {[
-                      ...(isUnit ? ["Member"] : []),
-                      "DTN",
-                      "Date Received Central",
-                      "Product Class",
-                      "App Type",
-                      "Processing Type",
-                      "Step",
-                      "Status",
-                      "Actions",
-                    ].map((h) => (
-                      <th
-                        key={h}
-                        style={{
-                          padding: "8px 12px",
-                          whiteSpace: "nowrap",
-                          color: colors.textPrimary,
-                        }}
-                      >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((t) => (
-                    <tr
-                      key={t.log_id}
-                      style={{ borderTop: `1px solid ${colors.cardBorder}` }}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: "0.5rem",
+                        fontSize: "0.74rem",
+                        marginBottom: 3,
+                      }}
                     >
-                      {isUnit && <td style={cell}>{t.member_name}</td>}
-                      <td style={{ padding: "8px 12px", fontWeight: 600 }}>
-                        <button
-                          type="button"
-                          onClick={() => onDoctrack && onDoctrack(t)}
-                          title="Open Doctrack"
-                          style={{
-                            background: "transparent",
-                            border: "none",
-                            padding: 0,
-                            font: "inherit",
-                            fontWeight: 600,
-                            color: colors.selectedBorder,
-                            cursor: "pointer",
-                            textDecoration: "underline",
-                          }}
-                        >
-                          {t.dtn}
-                        </button>
-                        <div
-                          style={{
-                            fontSize: "0.7rem",
-                            fontWeight: 400,
-                            color: colors.textSecondary,
-                          }}
-                        >
-                          {t.brand_name}
-                        </div>
-                      </td>
-                      <td style={cell}>{t.date_received_center || "—"}</td>
-                      <td style={cell}>{t.prod_class_prescrip || "—"}</td>
-                      <td style={cell}>{t.app_type || "—"}</td>
-                      <td style={cell}>{t.processing_type || "—"}</td>
-                      <td style={cell}>{t.step || "—"}</td>
-                      <td style={cell}>{t.status || "—"}</td>
-                      <td style={{ padding: "8px 12px", whiteSpace: "nowrap" }}>
-                        <div style={{ display: "flex", gap: 6 }}>
-                          <button
-                            type="button"
-                            onClick={() => onDetails && onDetails(t)}
-                            title="View Details"
-                            style={actionBtn}
-                          >
-                            👁 Details
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onLogs && onLogs(t)}
-                            title="View Application Logs"
-                            style={actionBtn}
-                          >
-                            📋 Logs
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {rows.length === 0 && !loading && (
-                    <tr>
-                      <td
-                        colSpan={isUnit ? 9 : 8}
+                      <span
                         style={{
-                          padding: "1.25rem",
-                          textAlign: "center",
-                          color: colors.textTertiary,
+                          color: active
+                            ? colors.selectedBorder
+                            : colors.textSecondary,
+                          fontWeight: active ? 700 : 500,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        No tasks found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                        {s.label}
+                      </span>
+                      <span
+                        style={{ fontWeight: 700, color: colors.textPrimary }}
+                      >
+                        {s.count}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        height: 5,
+                        borderRadius: 3,
+                        background: colors.rowHover,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${pct}%`,
+                          height: "100%",
+                          background: colors.selectedBorder,
+                          borderRadius: 3,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          )}
+          </aside>
         </div>
 
         {/* Pagination */}
@@ -503,7 +686,6 @@ function DrilldownModal({
     </div>
   );
 }
-
 // ══════════════════════════════════════════════════════════════════
 // MAIN
 // ══════════════════════════════════════════════════════════════════

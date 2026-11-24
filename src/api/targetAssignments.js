@@ -478,3 +478,34 @@ export const getInProgressYearMatrix = async () => {
     throw new Error(errorMessage);
   }
 };
+
+
+// ─────────────────────────────────────────────
+// GET /api/target_assignments/lead-assignments/all-teams/in-progress-step-summary
+// In-progress count per step for one member OR one unit (optional year).
+// ─────────────────────────────────────────────
+export const getInProgressStepSummary = async ({
+  unitId,
+  memberUserId,
+  year,
+} = {}) => {
+  try {
+    const response = await API.get(
+      "/target_assignments/lead-assignments/all-teams/in-progress-step-summary",
+      {
+        params: {
+          unit_id: unitId || undefined,
+          member_user_id: memberUserId || undefined,
+          year: year || undefined,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    const errorMessage =
+      error.response?.data?.detail ||
+      error.message ||
+      "Failed to fetch step summary";
+    throw new Error(errorMessage);
+  }
+};
