@@ -376,6 +376,7 @@ export default function LicensingDashboardView({ darkMode, ui, isMobile }) {
           dateParams={detailModal.dateParams}
           baseParams={detailModal.extraParams}
           initialStep={detailModal.initialStep}
+          darkMode={darkMode}
           onClose={() => setDetailModal(null)}
           onRowClick={handleDetailRowClick}
           onViewLogs={(row) => setLogsModal({ dtn: row.dtn })}

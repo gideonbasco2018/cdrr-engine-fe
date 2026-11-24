@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { getDashboardDetail } from "../../api/dashboard";
 import { FB } from "./constants";
+import DoctrackModal from "../reports/actions/DoctrackModal.jsx";
 import { statusBadge, fmtDateTime, formatDateRange } from "./utils";
 import {
   generatePDF,
@@ -45,6 +46,11 @@ export default function MetricDetailModal({
   const [total, setTotal] = useState(0);
   const [openMenuRow, setOpenMenuRow] = useState(null);
   const [dtnSort, setDtnSort] = useState(null); // null | "asc" | "desc"
+  const [doctrackDtn, setDoctrackDtn] = useState(null);
+  const doctrackRecord = useMemo(
+    () => (doctrackDtn ? { dtn: doctrackDtn } : null),
+    [doctrackDtn],
+  );
 
   const toggleDtnSort = () => {
     setDtnSort((prev) =>
@@ -116,7 +122,7 @@ export default function MetricDetailModal({
           ...extraParams,
         });
         setData(res.data);
-        console.log("🔍 ROW FIELDS:", res.data[0]);
+
         setTotal(res.total);
         setTotalPages(res.total_pages);
         setPage(res.page);
@@ -162,7 +168,7 @@ export default function MetricDetailModal({
   const [showCorrectionTransmittalChoice, setShowCorrectionTransmittalChoice] =
     useState(false);
   const toCorrectionTransmittalRow = (r) => {
-    // Replace ║ with a clean separator — newline para mag-wrap sa PDF cell
+    // Replace ║ with a newline so the subject wraps inside the PDF cell
     const subjectText = r.subject ? r.subject.replace("║", "\n").trim() : "";
 
     return {
@@ -195,10 +201,11 @@ export default function MetricDetailModal({
   });
 
   const fetchAllTransmittalRows = async () => {
-    const extraParams = {};
+    const extraParams = { ...baseParams };
     if (appliedFrom) extraParams.accomplished_date_from = appliedFrom;
     if (appliedTo) extraParams.accomplished_date_to = appliedTo;
     if (appliedStep) extraParams.app_step = appliedStep;
+    if (appliedDtn) extraParams.dtn = appliedDtn;
 
     const firstRes = await getDashboardDetail({
       metric: metricKey,
@@ -243,7 +250,7 @@ export default function MetricDetailModal({
   };
 
   const fetchAllCorrectionTransmittalRows = async () => {
-    const extraParams = {};
+    const extraParams = { ...baseParams };
     if (appliedFrom) extraParams.accomplished_date_from = appliedFrom;
     if (appliedTo) extraParams.accomplished_date_to = appliedTo;
     if (appliedStep) extraParams.app_step = appliedStep;
@@ -300,7 +307,7 @@ export default function MetricDetailModal({
         rows = data.map(toTransmittalRow);
       } else {
         // Fetch all pages with current filters
-        const extraParams = {};
+        const extraParams = { ...baseParams };
         if (appliedFrom) extraParams.accomplished_date_from = appliedFrom;
         if (appliedTo) extraParams.accomplished_date_to = appliedTo;
         if (appliedStep) extraParams.app_step = appliedStep;
@@ -970,15 +977,32 @@ export default function MetricDetailModal({
                             whiteSpace: "nowrap",
                           }}
                         >
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              color: accentColor,
-                              fontSize: "0.82rem",
-                            }}
-                          >
-                            {row.dtn || "—"}
-                          </span>
+                          {row.dtn ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation(); // don't trigger the row click
+                                setDoctrackDtn(row.dtn);
+                              }}
+                              title="Open Doctrack"
+                              style={{
+                                background: "none",
+                                border: "none",
+                                padding: 0,
+                                fontFamily: "inherit",
+                                fontWeight: 700,
+                                color: accentColor,
+                                fontSize: "0.82rem",
+                                cursor: "pointer",
+                                textDecoration: "underline",
+                                textUnderlineOffset: 3,
+                                textDecorationColor: `${accentColor}66`,
+                              }}
+                            >
+                              {row.dtn}
+                            </button>
+                          ) : (
+                            <span style={{ color: accentColor }}>—</span>
+                          )}
                         </td>
                         <td
                           style={{
@@ -1610,6 +1634,17 @@ export default function MetricDetailModal({
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {doctrackDtn && (
+        // stopPropagation: the root div closes this modal on click
+        <div onClick={(e) => e.stopPropagation()}>
+          <DoctrackModal
+            record={doctrackRecord}
+            onClose={() => setDoctrackDtn(null)}
+            colors={ui}
+          />
         </div>
       )}
     </div>
