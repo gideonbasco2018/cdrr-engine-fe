@@ -11,6 +11,27 @@ function QuickFilters({
   darkMode,
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [multiMode, setMultiMode] = useState(false);
+
+  // Split the raw input into unique tokens (commas, spaces and new lines all work)
+  const dtnTokens = [
+    ...new Set(
+      String(searchInput ?? "")
+        .split(/[\s,]+/)
+        .filter(Boolean),
+    ),
+  ];
+
+  const runDtnSearch = () => {
+    const value = multiMode ? dtnTokens.join(",") : (dtnTokens[0] ?? "");
+    onFiltersChange({ ...filters, dtn: value || null });
+  };
+
+  const toggleMultiMode = () => {
+    setMultiMode((m) => !m);
+    onSearchInputChange("");
+    if (filters.dtn) onFiltersChange({ ...filters, dtn: null });
+  };
 
   const appTypes = useMemo(() => {
     const map = {};
@@ -249,49 +270,122 @@ function QuickFilters({
       >
         {/* DTN Search */}
         <div style={{ marginBottom: "0.5rem" }}>
-          <div style={{ position: "relative" }}>
-            <input
-              type="number"
-              placeholder="Search DTN or Old RSN..."
-              value={searchInput}
-              onChange={(e) => onSearchInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter")
-                  onFiltersChange({
-                    ...filters,
-                    dtn: searchInput ? searchInput.trim() : null,
-                  });
-              }}
+          {/* Single / Multiple toggle */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "0.35rem",
+            }}
+          >
+            <span
               style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "0.45rem 0.75rem", // ✅ tanggal na ang right padding para sa X
-                background: colors.inputBg,
-                border: `1px solid ${searchInput ? "#6366f1" : colors.inputBorder}`,
-                borderRadius: "7px 7px 0 0",
-                color: colors.textPrimary,
-                fontSize: "0.65rem",
-                outline: "none",
-                // ✅ Itago ang default number input arrows
-                MozAppearance: "textfield",
+                fontSize: "0.6rem",
+                fontWeight: 600,
+                color: colors.textTertiary,
               }}
-              onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
-              onBlur={(e) =>
-                (e.target.style.borderColor = searchInput
-                  ? "#6366f1"
-                  : colors.inputBorder)
-              }
-            />
+            >
+              {multiMode ? "Multiple DTNs" : "Single DTN"}
+            </span>
+            <span
+              onClick={toggleMultiMode}
+              title="Toggle single / multiple DTN search"
+              style={{
+                width: 26,
+                height: 14,
+                borderRadius: 14,
+                background: multiMode ? "#6366f1" : colors.inputBorder,
+                position: "relative",
+                cursor: "pointer",
+                transition: "background 0.2s",
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: 2,
+                  left: multiMode ? 14 : 2,
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  transition: "left 0.2s",
+                }}
+              />
+            </span>
+          </div>
+
+          <div style={{ position: "relative" }}>
+            {multiMode ? (
+              <textarea
+                rows={4}
+                placeholder={
+                  "Paste DTNs or Old RSNs,\nseparated by comma, space or new line"
+                }
+                value={searchInput}
+                onChange={(e) => onSearchInputChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    runDtnSearch();
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "0.45rem 0.75rem",
+                  background: colors.inputBg,
+                  border: `1px solid ${searchInput ? "#6366f1" : colors.inputBorder}`,
+                  borderRadius: "7px 7px 0 0",
+                  color: colors.textPrimary,
+                  fontSize: "0.65rem",
+                  outline: "none",
+                  resize: "vertical",
+                  fontFamily: "inherit",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+                onBlur={(e) =>
+                  (e.target.style.borderColor = searchInput
+                    ? "#6366f1"
+                    : colors.inputBorder)
+                }
+              />
+            ) : (
+              <input
+                type="number"
+                placeholder="Search DTN or Old RSN..."
+                value={searchInput}
+                onChange={(e) => onSearchInputChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") runDtnSearch();
+                }}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  padding: "0.45rem 0.75rem",
+                  background: colors.inputBg,
+                  border: `1px solid ${searchInput ? "#6366f1" : colors.inputBorder}`,
+                  borderRadius: "7px 7px 0 0",
+                  color: colors.textPrimary,
+                  fontSize: "0.65rem",
+                  outline: "none",
+                  MozAppearance: "textfield",
+                }}
+                onFocus={(e) => (e.target.style.borderColor = "#6366f1")}
+                onBlur={(e) =>
+                  (e.target.style.borderColor = searchInput
+                    ? "#6366f1"
+                    : colors.inputBorder)
+                }
+              />
+            )}
           </div>
 
           {/* Search button */}
           <button
-            onClick={() =>
-              onFiltersChange({
-                ...filters,
-                dtn: searchInput ? searchInput.trim() : null,
-              })
-            }
+            onClick={runDtnSearch}
             style={{
               width: "100%",
               padding: "0.4rem",
@@ -331,7 +425,9 @@ function QuickFilters({
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            Search DTN
+            {multiMode
+              ? `Search ${dtnTokens.length} DTN${dtnTokens.length !== 1 ? "s" : ""}`
+              : "Search DTN"}
           </button>
         </div>
 

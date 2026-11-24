@@ -92,6 +92,17 @@ function formatAssigned(raw) {
 }
 
 const PAGE_SIZE = 15;
+const EMPTY_FILTERS = {
+  dtn: "",
+  steps: [],
+  status: "",
+  dateFrom: "",
+  dateTo: "",
+  dtnDateFrom: "",
+  dtnDateTo: "",
+  latestOnly: false,
+  firstOnly: false,
+};
 
 // ── 3-dot Action Menu ─────────────────────────────────────────────────────────
 function ActionMenu({ row, ui, darkMode, onAction }) {
@@ -426,6 +437,121 @@ function dtnSideLabel(year, month, day) {
     .join(" · ");
 }
 
+function StepMultiSelect({ value, onChange, options, ui, inputSt, font }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const toggle = (s) =>
+    onChange(value.includes(s) ? value.filter((v) => v !== s) : [...value, s]);
+
+  const label =
+    value.length === 0
+      ? "All Steps"
+      : value.length === 1
+        ? value[0]
+        : `${value.length} steps selected`;
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          ...inputSt,
+          minWidth: 140,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          cursor: "pointer",
+          textAlign: "left",
+          borderColor: value.length ? FB : ui.cardBorder,
+        }}
+      >
+        <span style={{ whiteSpace: "nowrap" }}>{label}</span>
+        <span style={{ fontSize: "0.5rem", opacity: 0.7 }}>▼</span>
+      </button>
+
+      {open && (
+        <div
+          className="monitoring-scroll"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 3px)",
+            left: 0,
+            zIndex: 9999,
+            minWidth: 190,
+            maxHeight: 260,
+            overflowY: "auto",
+            background: ui.cardBg,
+            border: `1px solid ${ui.cardBorder}`,
+            borderRadius: 7,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => onChange([])}
+            style={{
+              width: "100%",
+              padding: "6px 10px",
+              background: "transparent",
+              border: "none",
+              borderBottom: `1px solid ${ui.divider}`,
+              color: FB,
+              fontSize: "0.66rem",
+              fontWeight: 600,
+              fontFamily: font,
+              textAlign: "left",
+              cursor: "pointer",
+            }}
+          >
+            Clear selection
+          </button>
+          {options.map((s) => (
+            <label
+              key={s}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "5px 10px",
+                fontSize: "0.68rem",
+                color: ui.textPrimary,
+                fontFamily: font,
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = ui.hoverBg)
+              }
+              onMouseLeave={(e) =>
+                (e.currentTarget.style.background = "transparent")
+              }
+            >
+              <input
+                type="checkbox"
+                checked={value.includes(s)}
+                onChange={() => toggle(s)}
+                style={{ accentColor: FB, cursor: "pointer" }}
+              />
+              {s}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AllRecords({
   ui,
   darkMode,
@@ -448,9 +574,9 @@ export default function AllRecords({
   const [sortCol, setSortCol] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
 
-  const [dtnSearch, setDtnSearch] = useState("");
   const [dtnInput, setDtnInput] = useState("");
-  const [stepFilter, setStepFilter] = useState("");
+  const [stepFilters, setStepFilters] = useState([]);
+  const [applied, setApplied] = useState(EMPTY_FILTERS);
   const [localStatusFilter, setLocalStatusFilter] = useState("");
   const [latestOnly, setLatestOnly] = useState(false);
   const [firstOnly, setFirstOnly] = useState(false);
@@ -467,11 +593,6 @@ export default function AllRecords({
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
 
-  useEffect(() => {
-    const t = setTimeout(() => setDtnSearch(dtnInput), 400);
-    return () => clearTimeout(t);
-  }, [dtnInput]);
-
   const dtnDateFrom = buildDtnPrefix(
     dtnFromYear,
     dtnFromMonth,
@@ -481,6 +602,23 @@ export default function AllRecords({
   const dtnDateTo = buildDtnPrefix(dtnToYear, dtnToMonth, dtnToDay, "to");
   const rangeActive = !!(dtnDateFrom || dtnDateTo);
 
+  const draftFilters = {
+    dtn: dtnInput.trim(),
+    steps: stepFilters,
+    status: localStatusFilter,
+    dateFrom,
+    dateTo,
+    dtnDateFrom,
+    dtnDateTo,
+    latestOnly,
+    firstOnly,
+  };
+  const isDirty = JSON.stringify(draftFilters) !== JSON.stringify(applied);
+
+  const handleApply = () => {
+    setApplied(draftFilters);
+    setPage(1);
+  };
   const handleAction = async (actionKey, row) => {
     if (actionKey === "view") {
       setSelectedRecord(rowToRecord(row));
@@ -564,15 +702,15 @@ export default function AllRecords({
         sort_dir: sortDir,
       };
       if (filterUserId) params.user_id = filterUserId;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
-      if (dtnSearch) params.dtn = dtnSearch;
-      if (stepFilter) params.app_step = stepFilter;
-      if (localStatusFilter) params.application_status = localStatusFilter;
-      if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
-      if (dtnDateTo) params.dtn_date_to = dtnDateTo;
-      if (latestOnly) params.latest_only = true;
-      if (firstOnly) params.first_only = true;
+      if (applied.dateFrom) params.date_from = applied.dateFrom;
+      if (applied.dateTo) params.date_to = applied.dateTo;
+      if (applied.dtn) params.dtn = applied.dtn;
+      if (applied.steps.length) params.app_step = applied.steps.join(",");
+      if (applied.status) params.application_status = applied.status;
+      if (applied.dtnDateFrom) params.dtn_date_from = applied.dtnDateFrom;
+      if (applied.dtnDateTo) params.dtn_date_to = applied.dtnDateTo;
+      if (applied.latestOnly) params.latest_only = true;
+      if (applied.firstOnly) params.first_only = true;
       const data = await getAllRecords(params);
       setRecords(data.data || []);
       setTotal(data.total || 0);
@@ -582,21 +720,7 @@ export default function AllRecords({
     } finally {
       setLoading(false);
     }
-  }, [
-    page,
-    sortCol,
-    sortDir,
-    filterUserId,
-    dateFrom,
-    dateTo,
-    dtnSearch,
-    stepFilter,
-    localStatusFilter,
-    dtnDateFrom,
-    dtnDateTo,
-    latestOnly,
-    firstOnly,
-  ]);
+  }, [page, sortCol, sortDir, filterUserId, applied]);
 
   useEffect(() => {
     fetchRecords();
@@ -604,20 +728,7 @@ export default function AllRecords({
 
   useEffect(() => {
     setPage(1);
-  }, [
-    dateFrom,
-    dateTo,
-    sortCol,
-    sortDir,
-    filterUserId,
-    statusFilter,
-    dtnSearch,
-    stepFilter,
-    dtnDateFrom,
-    dtnDateTo,
-    latestOnly,
-    firstOnly,
-  ]);
+  }, [sortCol, sortDir, filterUserId, statusFilter, applied]);
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -628,10 +739,15 @@ export default function AllRecords({
   };
 
   useEffect(() => {
-    if (statusFilter === "completed") setLocalStatusFilter("COMPLETED");
-    else if (statusFilter === "in_progress")
-      setLocalStatusFilter("IN PROGRESS");
-    else setLocalStatusFilter("");
+    const s =
+      statusFilter === "completed"
+        ? "COMPLETED"
+        : statusFilter === "in_progress"
+          ? "IN PROGRESS"
+          : "";
+    setLocalStatusFilter(s);
+    // iwas double-fetch sa unang load kung pareho naman ang status
+    setApplied((a) => (a.status === s ? a : { ...a, status: s }));
     setPage(1);
   }, [statusFilter, filterUserId]);
 
@@ -658,15 +774,15 @@ export default function AllRecords({
     try {
       const params = { sort_col: sortCol, sort_dir: sortDir };
       if (filterUserId) params.user_id = filterUserId;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
-      if (dtnSearch) params.dtn = dtnSearch;
-      if (stepFilter) params.app_step = stepFilter;
-      if (localStatusFilter) params.application_status = localStatusFilter;
-      if (dtnDateFrom) params.dtn_date_from = dtnDateFrom;
-      if (dtnDateTo) params.dtn_date_to = dtnDateTo;
-      if (latestOnly) params.latest_only = true;
-      if (firstOnly) params.first_only = true;
+      if (applied.dateFrom) params.date_from = applied.dateFrom;
+      if (applied.dateTo) params.date_to = applied.dateTo;
+      if (applied.dtn) params.dtn = applied.dtn;
+      if (applied.steps.length) params.app_step = applied.steps.join(",");
+      if (applied.status) params.application_status = applied.status;
+      if (applied.dtnDateFrom) params.dtn_date_from = applied.dtnDateFrom;
+      if (applied.dtnDateTo) params.dtn_date_to = applied.dtnDateTo;
+      if (applied.latestOnly) params.latest_only = true;
+      if (applied.firstOnly) params.first_only = true;
 
       const blob = await exportRecordsReport(params);
 
@@ -691,8 +807,7 @@ export default function AllRecords({
     setDateFrom("");
     setDateTo("");
     setDtnInput("");
-    setDtnSearch("");
-    setStepFilter("");
+    setStepFilters([]);
     setLocalStatusFilter("");
     setSortCol("date");
     setSortDir("desc");
@@ -703,6 +818,7 @@ export default function AllRecords({
     setDtnToYear("");
     setDtnToMonth("");
     setDtnToDay("");
+    setApplied(EMPTY_FILTERS);
   };
 
   const handleFromYearChange = (val) => {
@@ -806,6 +922,7 @@ export default function AllRecords({
                 placeholder="Search DTN…"
                 value={dtnInput}
                 onChange={(e) => setDtnInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleApply()}
                 style={{ ...inputSt, width: 120 }}
               />
             </div>
@@ -813,18 +930,14 @@ export default function AllRecords({
             {/* Step */}
             <div>
               <label style={labelSt}>Step</label>
-              <select
-                value={stepFilter}
-                onChange={(e) => setStepFilter(e.target.value)}
-                style={{ ...inputSt, paddingRight: 20, cursor: "pointer" }}
-              >
-                <option value="">All Steps</option>
-                {STEP_OPTIONS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              <StepMultiSelect
+                value={stepFilters}
+                onChange={setStepFilters}
+                options={STEP_OPTIONS}
+                ui={ui}
+                inputSt={inputSt}
+                font={font}
+              />
             </div>
 
             {/* Status */}
@@ -1009,6 +1122,27 @@ export default function AllRecords({
               >
                 First occurrence only
               </span>
+            </button>
+
+            <button
+              onClick={handleApply}
+              title="Apply filters"
+              style={{
+                padding: "5px 14px",
+                fontSize: "0.66rem",
+                fontWeight: 600,
+                borderRadius: 6,
+                border: `1px solid ${FB}`,
+                background: isDirty ? FB : "transparent",
+                color: isDirty ? "#fff" : FB,
+                cursor: "pointer",
+                fontFamily: font,
+                alignSelf: "flex-end",
+                whiteSpace: "nowrap",
+                transition: "all 0.15s",
+              }}
+            >
+              🔍 Search{isDirty ? " •" : ""}
             </button>
 
             <button
