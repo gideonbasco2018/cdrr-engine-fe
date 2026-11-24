@@ -65,7 +65,21 @@ function useDebouncedValue(value, delayMs = 350) {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50, 100];
+// Safety & Efficacy unit: only plain "S&E" members get their own row;
+// the supervisors' names are listed under the unit name instead.
+const isSEUnit = (unit) => /safety\s*&\s*efficacy/i.test(unit.unit_name || "");
+const roleOf = (m) => (m.lead_role || "").trim().toLowerCase();
 
+function splitUnitMembers(unit) {
+  if (!isSEUnit(unit)) return { rows: unit.members, supervisors: [] };
+  const rows = unit.members.filter((m) => roleOf(m) === "s&e");
+  // safety net: if no member has the plain "S&E" role, show everyone
+  if (rows.length === 0) return { rows: unit.members, supervisors: [] };
+  const supervisors = unit.members.filter((m) =>
+    roleOf(m).includes("supervisor"),
+  );
+  return { rows, supervisors };
+}
 // ══════════════════════════════════════════════════════════════════
 // Drill-down popup — read-only list of the in-progress tasks behind a
 // clicked number. Server-side search + pagination.
@@ -637,12 +651,18 @@ export default function InProgressByYearView({ darkMode }) {
 
       const body = [];
       visibleUnits.forEach((u) => {
-        u.members.forEach((m, idx) => {
+        const { rows: unitRows, supervisors } = splitUnitMembers(u);
+        const unitLabel = supervisors.length
+          ? `${u.unit_name}\n\nSupervisor:\n${supervisors
+              .map((s) => s.member_name)
+              .join("\n")}`
+          : u.unit_name;
+        unitRows.forEach((m, idx) => {
           const row = [];
           if (idx === 0) {
             row.push({
-              content: u.unit_name,
-              rowSpan: u.members.length + 1, // + subtotal row
+              content: unitLabel,
+              rowSpan: unitRows.length + 1, // + subtotal row
               styles: { valign: "middle", fontStyle: "bold" },
             });
           }
@@ -1001,7 +1021,8 @@ function CountCell({ value, style, colors, onClick, title }) {
 
 // One unit block: unit cell (rowSpan) + member rows + unit subtotal row
 function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
-  const rowCount = unit.members.length + 1; // + subtotal row
+  const { rows: memberRows, supervisors } = splitUnitMembers(unit);
+  const rowCount = memberRows.length + 1; // + subtotal row
   const subtotal = {
     ...num,
     fontWeight: 700,
@@ -1028,7 +1049,7 @@ function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
 
   return (
     <>
-      {unit.members.map((m, idx) => (
+      {memberRows.map((m, idx) => (
         <tr key={m.member_user_id}>
           {idx === 0 && (
             <td
@@ -1043,6 +1064,31 @@ function UnitRows({ unit, years, hasNoDate, td, num, colors, onDrill }) {
               }}
             >
               {unit.unit_name}
+              {supervisors.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    fontWeight: 400,
+                    fontSize: "0.74rem",
+                    color: colors.textSecondary,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "0.66rem",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                      color: colors.textTertiary,
+                      marginBottom: 2,
+                    }}
+                  >
+                    Supervisor
+                  </div>
+                  {supervisors.map((s) => (
+                    <div key={s.member_user_id}>{s.member_name}</div>
+                  ))}
+                </div>
+              )}
             </td>
           )}
           <td style={td}>{m.member_name}</td>

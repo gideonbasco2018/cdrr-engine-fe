@@ -10,11 +10,26 @@ import {
 } from "../tasks/DataTable/TransmittalGenerator";
 
 const PAGE_SIZE = 10;
+const NO_PARAMS = {}; // stable default, so useCallback deps don't change every render
+
+// Display-only date formatter. Parses YYYY-MM-DD manually to avoid timezone shifts.
+const fmtDateOnly = (value) => {
+  if (!value) return "—";
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
 export default function MetricDetailModal({
   metricKey,
   metricLabel,
   dateParams,
+  baseParams = NO_PARAMS,
   onClose,
   onRowClick,
   onViewLogs,
@@ -96,6 +111,7 @@ export default function MetricDetailModal({
           page: p,
           page_size: PAGE_SIZE,
           ...dateParams,
+          ...baseParams,
           ...extraParams,
         });
         setData(res.data);
@@ -115,6 +131,7 @@ export default function MetricDetailModal({
     [
       metricKey,
       dateParams,
+      baseParams,
       appliedFrom,
       appliedTo,
       appliedStep,
@@ -293,6 +310,7 @@ export default function MetricDetailModal({
           page: 1,
           page_size: 500,
           ...dateParams,
+          ...baseParams,
           ...extraParams,
         });
         rows = firstRes.data.map(toTransmittalRow);
@@ -304,6 +322,7 @@ export default function MetricDetailModal({
             page: p,
             page_size: 500,
             ...dateParams,
+            ...baseParams,
             ...extraParams,
           });
           rows.push(...res.data.map(toTransmittalRow));
@@ -825,6 +844,7 @@ export default function MetricDetailModal({
                         stepHighlight: hasActiveStepFilter,
                       },
                       { label: "Status", align: "center" },
+                      { label: "Received Central", align: "right" },
                       { label: "Start Date", align: "right" },
                       {
                         label: "Accomplished Date",
@@ -1036,6 +1056,18 @@ export default function MetricDetailModal({
                           >
                             {badge.label}
                           </span>
+                        </td>
+                        <td
+                          style={{
+                            padding: "9px 12px",
+                            textAlign: "right",
+                            color: ui.textMuted,
+                            fontSize: "0.76rem",
+                            borderBottom: border,
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {fmtDateOnly(row.date_received_cent)}
                         </td>
                         <td
                           style={{
